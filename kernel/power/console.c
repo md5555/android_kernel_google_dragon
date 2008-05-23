@@ -33,6 +33,7 @@ EXPORT_SYMBOL(pm_set_vt_switch);
 
 int pm_prepare_console(void)
 {
+#ifndef CONFIG_PM_DISABLE_CONSOLE
 	acquire_console_sem();
 
 	if (disable_vt_switch) {
@@ -66,11 +67,13 @@ int pm_prepare_console(void)
 	}
 	orig_kmsg = kmsg_redirect;
 	kmsg_redirect = SUSPEND_CONSOLE;
+#endif
 	return 0;
 }
 
 void pm_restore_console(void)
 {
+#ifndef CONFIG_PM_DISABLE_CONSOLE
 	acquire_console_sem();
 	if (disable_vt_switch) {
 		release_console_sem();
@@ -85,5 +88,6 @@ void pm_restore_console(void)
 	}
 
 	kmsg_redirect = orig_kmsg;
+#endif
 }
 #endif
