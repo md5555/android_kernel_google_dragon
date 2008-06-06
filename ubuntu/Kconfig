@@ -2,4 +2,6 @@ menu "Ubuntu Supplied Third-Party Device Drivers"
 
 source "ubuntu/drbd/Kconfig"
 
+source "ubuntu/iscsitarget/Kconfig"
+
 endmenu

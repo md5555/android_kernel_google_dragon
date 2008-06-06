@@ -3,3 +3,5 @@
 #
 
 obj-$(CONFIG_BLK_DEV_DRBD)	+= drbd/
+
+obj-$(CONFIG_SCSI_ISCSITARGET)	+= iscsitarget/
