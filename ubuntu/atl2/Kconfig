@@ -1,0 +1,10 @@
+config ATL2
+	tristate "Atheros L2 Fast Ethernet support (EXPERIMENTAL)"
+	depends on PCI && EXPERIMENTAL
+	select CRC32
+	select MII
+	help
+	  This driver supports the Atheros L2 fast ethernet adapter.
+
+	  To compile this driver as a module, choose M here.  The module
+	  will be called atl2.
