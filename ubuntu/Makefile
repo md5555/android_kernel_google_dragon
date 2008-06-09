@@ -11,3 +11,5 @@ obj-$(CONFIG_SQUASHFS)		+= squashfs/
 obj-$(CONFIG_AUFS)		+= aufs/
 
 obj-$(CONFIG_ATL2)		+= atl2/
+
+obj-$(CONFIG_NET_ET131X)	+= et131x/

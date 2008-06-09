@@ -10,4 +10,6 @@ source "ubuntu/aufs/Kconfig"
 
 source "ubuntu/atl2/Kconfig"
 
+source "ubuntu/et131x/Kconfig"
+
 endmenu
