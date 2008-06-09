@@ -1,0 +1,3 @@
+config NET_ET131X
+	tristate "Agere Systems 10/100/1000 Base-T Ethernet Driver for the ET1301 and ET131x series MACs"
+	depends on PCI && NET
