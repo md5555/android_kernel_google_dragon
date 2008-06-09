@@ -8,4 +8,6 @@ source "ubuntu/squashfs/Kconfig"
 
 source "ubuntu/aufs/Kconfig"
 
+source "ubuntu/atl2/Kconfig"
+
 endmenu
