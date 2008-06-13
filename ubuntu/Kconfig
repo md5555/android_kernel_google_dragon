@@ -14,6 +14,8 @@ source "ubuntu/et131x/Kconfig"
 
 source "ubuntu/dm-raid4-5/Kconfig"
 
+source "ubuntu/dm-loop/Kconfig"
+
 source "ubuntu/ndiswrapper/Kconfig"
 
 endmenu

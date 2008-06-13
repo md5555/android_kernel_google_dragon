@@ -1,0 +1,9 @@
+config DM_LOOP
+	tristate "Loop target (EXPERIMENTAL)"
+	depends on BLK_DEV_DM && EXPERIMENTAL
+	---help---
+	  This device-mapper target allows you to treat a regular file as
+	  a block device.
+
+	  If unsure, say N.
+
