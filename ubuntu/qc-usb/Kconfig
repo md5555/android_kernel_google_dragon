@@ -1,0 +1,4 @@
+config QC_USB
+	tristate "Quickcam USB Driver"
+	default m
+	depends on USB

@@ -24,6 +24,8 @@ obj-$(CONFIG_TLSF)		+= compcache/
 
 obj-$(CONFIG_HECI)		+= heci/
 
+obj-$(CONFIG_QC_USB)		+= qc-usb/
+
 obj-m				+= misc/
 
 # This is a stupid trick to get kbuild to create ubuntu/built-in.o
