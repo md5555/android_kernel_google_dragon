@@ -24,4 +24,6 @@ source "ubuntu/misc/Kconfig"
 
 source "ubuntu/heci/Kconfig"
 
+source "ubuntu/qc-usb/Kconfig"
+
 endmenu
