@@ -12,4 +12,6 @@ source "ubuntu/atl2/Kconfig"
 
 source "ubuntu/et131x/Kconfig"
 
+source "ubuntu/dm-raid4-5/Kconfig"
+
 endmenu
