@@ -27,3 +27,5 @@ source "ubuntu/heci/Kconfig"
 source "ubuntu/qc-usb/Kconfig"
 
 source "ubuntu/e1000e/Kconfig"
+
+source "ubuntu/rfkill/Kconfig"
