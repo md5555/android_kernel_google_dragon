@@ -28,7 +28,7 @@ obj-$(CONFIG_QC_USB)		+= qc-usb/
 
 obj-$(CONFIG_E1000E_NEW)	+= e1000e/
 
-obj-m				+= misc/
+obj-m				+= misc/ rfkill/
 
 # This is a stupid trick to get kbuild to create ubuntu/built-in.o
 obj- += foo.o
