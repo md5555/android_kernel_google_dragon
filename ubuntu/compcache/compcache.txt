@@ -1,0 +1,29 @@
+
+compcache: Compressed RAM based swap device
+-------------------------------------------
+
+Project home: http://code.google.com/p/compcache
+
+* Introduction
+This is a RAM based block device which acts as swap disk.
+Pages swapped to this device are compressed and stored in
+memory itself.
+
+It uses these components:
+ - TLSF: memory allocator
+ - LZO: de/compressor
+
+* Usage
+ - modprobe compcache compcache_size_kbytes=<size>
+   (If no size is specified, default size of 25% of RAM is taken).
+ - swapon /dev/ramzswap0
+
+* Notes
+ - Allocator and compcache statistics are exported via /proc interface:
+   (if stats are enabled for corresponding modules)
+   - /proc/tlsfinfo (from tlsf.ko)
+   - /proc/compcache (from compcache.ko)
+
+
+Nitin Gupta
+(nitingupta910@gmail.com)
