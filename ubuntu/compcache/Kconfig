@@ -1,0 +1,61 @@
+menu "Compcache options"
+
+config BLK_DEV_COMPCACHE
+	tristate "Compressed RAM based swap device"
+	default m
+	select TLSF
+	select LZO_COMPRESS
+	select LZO_DECOMPRESS
+	help
+	  This creates RAM based block device which acts as swap disk. Pages
+	  swapped to this disk are compressed and stored in memory itself.
+	  Project Home: http://code.google.com/p/compcache/
+
+config BLK_DEV_COMPCACHE_DEBUG
+	default n
+	depends on BLK_DEV_COMPCACHE
+	bool "Enable debugging"
+	help
+	  This causes negligible performance loss and size increase.
+	  If unsure, say Y.
+
+config BLK_DEV_COMPCACHE_STATS
+	default n
+	depends on BLK_DEV_COMPCACHE
+	bool "Enable statistics"
+	help
+	  Creates /proc/compcache to export various statistics.
+	  This adds about 4K to size with negligible performance loss.
+	  If unsure, say Y.
+endmenu
+
+menu "Two Level Segregate Fit Allocator"
+ 
+config TLSF
+	tristate "TLSF Allocator"
+	default m
+	help
+	  Two Level Segregate Fit Allocator. Its fast and gives low
+	  fragmentation. See:
+		http://rtportal.upv.es/rtmalloc/
+		http://code.google.com/p/compcache/wiki/TLSFAllocator
+	  for more information.
+
+config TLSF_DEBUG
+	default n
+	depends on TLSF
+	bool "Enable TLSF allocator debugging"
+	help
+	  Enable TLSF debugging.
+	  This causes negligible performance loss and size increase.
+	  If unusure, say Y. 
+
+config TLSF_STATS
+	default n
+	depends on TLSF
+	bool "Collect TLSF statistics"
+	help
+	  Creates /proc/tlsfinfo to export various tlsf statistics.
+	  This adds about 30K to size with significant performance loss.
+	  If unsure, say N.
+endmenu

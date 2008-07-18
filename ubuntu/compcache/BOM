@@ -1,0 +1,5 @@
+Downloaded from:	http://code.google.com/p/compcache/
+Current Version:	Patch for 2.6.26.rc6
+
+Moved compcache and tlsf modules to ubuntu/. Only touches swap subsystem
+for free page callback.

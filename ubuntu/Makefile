@@ -20,5 +20,7 @@ obj-$(CONFIG_DM_LOOP)		+= dm-loop/
 
 obj-$(CONFIG_NDISWRAPPER)	+= ndiswrapper/
 
+obj-$(CONFIG_TLSF)		+= tlsf.o
+
 # This is a stupid trick to get kbuild to create ubuntu/built-in.o
 obj- += foo.o
