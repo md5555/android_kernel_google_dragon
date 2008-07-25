@@ -1,0 +1,15 @@
+# Jul 29, 2008
+# Copied from the linux-wlan-ng 0.2.9+dfsg source package
+
+Run "make config" then "make" in src/mkmeta
+
+cp -a src/prism2/driver		$KERNEL/ubuntu/misc/wireless/prism2_usb
+cp -a src/p80211		$KERNEL/ubuntu/misc/wireless/
+cp -a src/include/wlan		$KERNEL/ubuntu/misc/wireless/p80211/
+cp -a src/prism2/include/prism2	$KERNEL/ubuntu/misc/wireless/prism2_usb/
+
+Strip down prism2_usb/Makefile and p80211/Makefile
+rm prism2_usb/prism2_{cs,pci,plx}
+
+Use dev_net_set() for 2.6.26 in p80211/p80211netdev.c:wlan_setup()
+
