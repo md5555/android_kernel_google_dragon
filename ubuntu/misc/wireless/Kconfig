@@ -1,0 +1,19 @@
+menu "Wireless Drivers"
+
+config WIRELESS_ACX
+	tristate "TI ACX1xx based wireless cards (CardBus/PCI/USB)"
+	default m
+	depends on NET && IEEE80211
+
+config P80211
+	tristate
+	default n
+	depends on NET
+
+config PRISM2_USB
+	tristate "Prism2 based USB devices"
+	default m
+	depends on NET
+	select P80211
+
+endmenu
