@@ -1,31 +1,20 @@
 menu "Ubuntu Supplied Third-Party Device Drivers"
 
 source "ubuntu/drbd/Kconfig"
-
 source "ubuntu/iscsitarget/Kconfig"
-
 source "ubuntu/squashfs/Kconfig"
-
 source "ubuntu/aufs/Kconfig"
-
 source "ubuntu/atl2/Kconfig"
-
 source "ubuntu/et131x/Kconfig"
-
 source "ubuntu/dm-raid4-5/Kconfig"
-
 source "ubuntu/dm-loop/Kconfig"
-
 source "ubuntu/ndiswrapper/Kconfig"
-
 source "ubuntu/compcache/Kconfig"
-
 source "ubuntu/misc/Kconfig"
-
 source "ubuntu/heci/Kconfig"
-
 source "ubuntu/qc-usb/Kconfig"
-
 source "ubuntu/e1000e/Kconfig"
-
 source "ubuntu/rfkill/Kconfig"
+source "ubuntu/via_chrome9/Kconfig"
+
+endmenu
