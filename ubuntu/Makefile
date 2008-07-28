@@ -7,3 +7,5 @@ obj-$(CONFIG_BLK_DEV_DRBD)	+= drbd/
 obj-$(CONFIG_SCSI_ISCSITARGET)	+= iscsitarget/
 
 obj-$(CONFIG_SQUASHFS)		+= squashfs/
+
+obj-$(CONFIG_AUFS)		+= aufs/
