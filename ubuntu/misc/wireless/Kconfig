@@ -16,4 +16,9 @@ config PRISM2_USB
 	depends on NET
 	select P80211
 
+config WIRELESS_AT76
+	tristate "Wireless devices based on Atmel AT76C503A/505/505A"
+	default m
+	depends on NET && IEEE80211
+
 endmenu
