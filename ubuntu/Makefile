@@ -26,6 +26,8 @@ obj-$(CONFIG_HECI)		+= heci/
 
 obj-$(CONFIG_QC_USB)		+= qc-usb/
 
+obj-$(CONFIG_E1000E_NEW)	+= e1000e/
+
 obj-m				+= misc/
 
 # This is a stupid trick to get kbuild to create ubuntu/built-in.o

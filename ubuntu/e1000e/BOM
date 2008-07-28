@@ -1,0 +1,7 @@
+Downloaded from:	http://sourceforge.net/project/showfiles.php?group_id=42302
+Current Version:	0.4.7.1
+Comments:
+
+Changed Kconfig option to E1000E_NEW. Disabled in-kernel driver. Make sure
+to also include E1000E_ENABLED config option, since it will alter some
+things in e1000 driver (we want that).
