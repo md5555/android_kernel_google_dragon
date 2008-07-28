@@ -22,4 +22,6 @@ source "ubuntu/compcache/Kconfig"
 
 source "ubuntu/misc/Kconfig"
 
+source "ubuntu/heci/Kconfig"
+
 endmenu

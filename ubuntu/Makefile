@@ -22,6 +22,8 @@ obj-$(CONFIG_NDISWRAPPER)	+= ndiswrapper/
 
 obj-$(CONFIG_TLSF)		+= compcache/
 
+obj-$(CONFIG_HECI)		+= heci/
+
 obj-m				+= misc/
 
 # This is a stupid trick to get kbuild to create ubuntu/built-in.o
