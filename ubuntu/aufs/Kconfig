@@ -1,0 +1,51 @@
+config AUFS
+	bool "Another unionfs"
+	help
+	Aufs is a stackable unification filesystem such as Unionfs,
+	which unifies several directories and provides a merged single
+	directory.
+	In the early days, aufs was entirely re-designed and
+	re-implemented Unionfs Version 1.x series. After many original
+	ideas, approaches and improvements, it becomes totally
+	different from Unionfs while keeping the basic features.
+	See Unionfs for the basic features.
+
+choice
+	prompt "Maximum number of branches"
+	default AUFS_BRANCH_MAX_127
+	depends on AUFS
+	help
+	Specifies the maximum number of branches (or member directories) in a single aufs. The larger value consumes more system resources and has an impact to performance.
+config AUFS_BRANCH_MAX_127
+	bool "127"
+	help
+	Specifies the maximum number of branches (or member directories) in a single aufs. The larger value consumes more system resources and has an impact to performance.
+config AUFS_BRANCH_MAX_511
+	bool "511"
+	help
+	Specifies the maximum number of branches (or member directories) in a single aufs. The larger value consumes more system resources and has an impact to performance.
+config AUFS_BRANCH_MAX_1023
+	bool "1023"
+	help
+	Specifies the maximum number of branches (or member directories) in a single aufs. The larger value consumes more system resources and has an impact to performance.
+config AUFS_BRANCH_MAX_32767
+	bool "32767"
+	help
+	Specifies the maximum number of branches (or member directories) in a single aufs. The larger value consumes more system resources and has an impact to performance.
+endchoice
+
+config AUFS_STAT
+	bool "Use <sysfs>/fs/aufs/stat"
+	depends on SYSFS && AUFS
+	default n
+	help
+	Shows some statistic data via <sysfs>/fs/aufs/stat.
+	See detail in aufs.5.
+
+config AUFS_DEBUG
+	bool "Debug aufs"
+	depends on AUFS
+	default n
+	help
+	Enable this to compile aufs internal debug code.
+	It will have a negative impact to the performance.
