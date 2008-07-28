@@ -1,0 +1,9 @@
+config FS_UNIONFS
+	tristate "UnionFS 1.4 Legacy"
+	default m
+	help
+	  This is the v1.4 module, forward ported and beaten into
+	  AppArmor submission. It is a fallback for aufs in case it ends
+	  up being broken. We know this one works for the LiveCD, so
+	  this is to keep the release managers from having to spend
+	  long nights and pushing off deadlines.

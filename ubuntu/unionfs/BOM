@@ -1,0 +1,7 @@
+Downloaded from:	http://www.filesystems.org/project-unionfs.html
+Current Version:	1.4
+
+Don't bother updating this code. No, we do not want 2.3.x. Yes, this is
+heavily patched to account for upstream VFS API changes and AppArmor.
+
+DO NOT TOUCH :)
