@@ -18,6 +18,8 @@ obj-$(CONFIG_E1000E_NEW)	+= e1000e/
 obj-$(CONFIG_DRM_VIA_CHROME9)	+= via_chrome9/
 obj-$(CONFIG_FS_UNIONFS)	+= unionfs/
 
+obj-$(CONFIG_LIRC_DEV)          += lirc/
+
 obj-m				+= misc/ rfkill/
 
 # This is a stupid trick to get kbuild to create ubuntu/built-in.o
