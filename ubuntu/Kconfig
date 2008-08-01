@@ -20,4 +20,6 @@ source "ubuntu/ndiswrapper/Kconfig"
 
 source "ubuntu/compcache/Kconfig"
 
+source "ubuntu/misc/Kconfig"
+
 endmenu

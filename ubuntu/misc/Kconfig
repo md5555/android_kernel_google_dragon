@@ -1,0 +1,27 @@
+config USB_APPLEIR
+	tristate "Apple USB Infrared Receiver"
+	default m
+	depends on USB
+
+config BLK_DEV_DM_BBR
+	tristate "Bad-block-relocation target for device-mapper"
+	default m
+	depends on BLK_DEV_DM
+
+config INPUT_ACERHK
+	tristate "Acer Travelmate laptop special key support"
+	default m
+	depends on X86_32
+
+config LMPCM_USB
+	tristate "USB Logitech MediaPlay Cordless Mouse driver"
+	default m
+	depends on USB
+
+config TP_SMAPI
+	tristate "ThinkPad SMAPI Support"
+	default m
+
+config TP_SMAPI_EC
+	tristate "ThinkPad embedded controller LPC3 functions"
+	default m
