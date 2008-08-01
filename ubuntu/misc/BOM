@@ -1,0 +1,3 @@
+Module:			dm-bbr
+Downloaded from:	http://dev.gentoo.org/~dsd/gentoo-sources/patches-2.6.25-2.htm
+Comments:		Changes in md headers for 2.6.26 required some munging.
