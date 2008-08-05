@@ -1,0 +1,13 @@
+menu "Media related drivers"
+
+config SND_BTSCO
+	tristate "Bluetooth SCO Sound driver"
+	default m
+	depends on SND && BT
+
+config USB_OV511_NEW
+	tristate "OmniVision OV511 Camera-to-USB Bridge Driver"
+	default m
+	depends on USB && VIDEO_V4L2
+
+endmenu
