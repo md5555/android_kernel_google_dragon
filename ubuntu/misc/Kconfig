@@ -25,3 +25,5 @@ config TP_SMAPI
 config TP_SMAPI_EC
 	tristate "ThinkPad embedded controller LPC3 functions"
 	default m
+
+source "ubuntu/misc/media/Kconfig"

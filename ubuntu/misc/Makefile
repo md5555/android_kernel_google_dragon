@@ -9,4 +9,6 @@ obj-$(CONFIG_LMPCM_USB)		+= lmpcm_usb.o
 obj-$(CONFIG_TP_SMAPI)		+= tp_smapi.o
 obj-$(CONFIG_TP_SMAPI_EC)	+= thinkpad_ec.o
 
+obj-m				+= media/
+
 CFLAGS_dm-bbr.o			+= -I$(srctree)/drivers/md
