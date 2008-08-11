@@ -1,0 +1,4 @@
+config TLSUP
+	tristate "Toshiba ACPI laptop driver"
+	depends on ACPI && X86
+	default m
