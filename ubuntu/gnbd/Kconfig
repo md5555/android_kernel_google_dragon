@@ -1,0 +1,4 @@
+config GNBD
+	tristate "GFS Network Block Device"
+	default m
+	depends on SYSFS && NET && INET

@@ -20,6 +20,8 @@ obj-$(CONFIG_FS_UNIONFS)	+= unionfs/
 
 obj-$(CONFIG_LIRC_DEV)          += lirc/
 
+obj-$(CONFIG_GNBD)		+= gnbd/
+
 obj-m				+= misc/ rfkill/
 
 # This is a stupid trick to get kbuild to create ubuntu/built-in.o

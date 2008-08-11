@@ -18,5 +18,6 @@ source "ubuntu/rfkill/Kconfig"
 source "ubuntu/via_chrome9/Kconfig"
 source "ubuntu/unionfs/Kconfig"
 source "ubuntu/lirc/Kconfig"
+source "ubuntu/gnbd/Kconfig"
 
 endmenu
