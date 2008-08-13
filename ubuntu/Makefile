@@ -21,6 +21,7 @@ obj-$(CONFIG_FS_UNIONFS)	+= unionfs/
 obj-$(CONFIG_LIRC_DEV)          += lirc/
 
 obj-$(CONFIG_GNBD)		+= gnbd/
+obj-$(CONFIG_GFS_FS)		+= gfs/
 
 obj-m				+= misc/ rfkill/
 
