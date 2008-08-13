@@ -1,0 +1,19 @@
+config GFS_FS
+	tristate "GFS file system support"
+	depends on EXPERIMENTAL && GFS2_FS && (GFS2_FS_LOCKING_NOLOCK || GFS2_FS_LOCKING_DLM)
+	select FS_POSIX_ACL
+	select CRC32
+	help
+	  A cluster filesystem.
+
+	  Allows a cluster of computers to simultaneously use a block device
+	  that is shared between them (with FC, iSCSI, NBD, etc...).  GFS reads
+	  and writes to the block device like a local filesystem, but also uses
+	  a lock module to allow the computers coordinate their I/O so
+	  filesystem consistency is maintained.  One of the nifty features of
+	  GFS is perfect consistency -- changes made to the filesystem on one
+	  machine show up immediately on all other machines in the cluster.
+
+	  To use the GFS filesystem, you will need to enable one or more of
+	  the below locking modules. Documentation and utilities for GFS can
+	  be found here: http://sources.redhat.com/cluster
