@@ -1008,7 +1008,7 @@ xmote_bh(struct gfs_glock *gl, unsigned int ret)
 
 	state_change(gl, ret & LM_OUT_ST_MASK);
 
-	if (prev_state != LM_ST_UNLOCKED) {
+	if (prev_state != LM_ST_UNLOCKED && !(ret & LM_OUT_CACHEABLE)) {
 		if (glops->go_inval)
 			glops->go_inval(gl, DIO_METADATA | DIO_DATA);
 	} else if (gl->gl_state == LM_ST_DEFERRED) {
@@ -2227,6 +2227,11 @@ gfs_glock_cb(void *fsdata, unsigned int type, void *data)
 		gfs_add_dirty_j(sdp, *(unsigned int *)data);
 		if (sdp->sd_recoverd_process)
 			wake_up_process(sdp->sd_recoverd_process);
+		return;
+
+	case LM_CB_DROPLOCKS:
+		gfs_gl_hash_clear(sdp, FALSE);
+		gfs_quota_scan(sdp);
 		return;
 
 	default:

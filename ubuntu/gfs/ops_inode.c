@@ -1261,7 +1261,6 @@ gfs_follow_link(struct dentry *dentry, struct nameidata *nd)
  * gfs_permission_i -
  * @inode:
  * @mask:
- * @nd: ignored
  *
  * Shamelessly ripped from ext3
  *
@@ -1278,7 +1277,6 @@ gfs_permission_i(struct inode *inode, int mask)
  * gfs_permission -
  * @inode:
  * @mask:
- * @nd: passed from Linux VFS, ignored by us
  *
  * Returns: errno
  */
