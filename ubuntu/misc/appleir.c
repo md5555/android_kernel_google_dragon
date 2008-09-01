@@ -34,6 +34,9 @@ MODULE_LICENSE (DRIVER_LICENSE);
 #ifndef USB_DEVICE_ID_APPLE_IR
 #define USB_DEVICE_ID_APPLE_IR  0x8240
 #endif
+#ifndef USB_DEVICE_ID_APPLE_IR2
+#define USB_DEVICE_ID_APPLE_IR2 0x8242
+#endif
 
 #define URB_SIZE 32
 
@@ -56,6 +59,7 @@ struct appleir
 
 static struct usb_device_id appleir_ids[] = {
   {USB_DEVICE (USB_VENDOR_ID_APPLE, USB_DEVICE_ID_APPLE_IR),.driver_info = 0},
+  {USB_DEVICE (USB_VENDOR_ID_APPLE, USB_DEVICE_ID_APPLE_IR2),.driver_info = 0},
   {}
 };
 
@@ -84,11 +88,20 @@ MODULE_DEVICE_TABLE (usb, appleir_ids);
 /* as a flat battery message */
 /* 25 87 e0 ca 06	flat battery */
 
+/* Alexandre Karpenko reports the following responses for Device ID 0x8242 */
+/* 25 87 ee 47 0b	+  */
+/* 25 87 ee 47 0d	-  */
+/* 25 87 ee 47 08	<< */
+/* 25 87 ee 47 07	>> */
+/* 25 87 ee 47 04	>" */
+/* 25 87 ee 47 02 	menu */
+/* 26 87 ee 47 ** 	for key repeat (** is the code of the key being held) */
+
 
 static int keymap[MAX_KEYS] = {
   KEY_RESERVED, KEY_MENU,
-  KEY_PLAYPAUSE, KEY_NEXTSONG,
-  KEY_PREVIOUSSONG, KEY_VOLUMEUP,
+  KEY_PLAYPAUSE, KEY_FORWARD,
+  KEY_BACK, KEY_VOLUMEUP,
   KEY_VOLUMEDOWN, KEY_RESERVED
 };
 
@@ -146,7 +159,7 @@ static void
 new_data (struct appleir *appleir, uint8_t * data, int len)
 {
   static const uint8_t keydown[] = { 0x25, 0x87, 0xee };
-  static const uint8_t keyrepeat[] = { 0x26, 0x00, 0x00, 0x00, 0x00 };
+  static const uint8_t keyrepeat[] = { 0x26 };
   static const uint8_t flatbattery[] = { 0x25, 0x87, 0xe0 };
 
 #ifdef DUMP_PACKETS
