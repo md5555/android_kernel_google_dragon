@@ -171,6 +171,7 @@ static struct usb_device_id qc_device_table[] = {
 	{ USB_DEVICE(0x046D, 0x0840) },		/* QuickCam Express */
 	{ USB_DEVICE(0x046D, 0x0850) },		/* LEGO cam / QuickCam Web */
 	{ USB_DEVICE(0x046D, 0x0870) },		/* Dexxa WebCam USB */
+	{ USB_DEVICE(0x046D, 0x08F6) },         /* Logitech QuickCam Messenger */
 	{ }
 };
 MODULE_DEVICE_TABLE(usb, qc_device_table);
