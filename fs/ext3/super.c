@@ -466,6 +466,7 @@ static struct inode *ext3_alloc_inode(struct super_block *sb)
 		return NULL;
 	ei->i_block_alloc_info = NULL;
 	ei->vfs_inode.i_version = 1;
+	ei->vfs_inode.created_when = jiffies;
 	return &ei->vfs_inode;
 }
 

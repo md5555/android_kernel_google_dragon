@@ -781,6 +781,8 @@ struct inode {
 	struct posix_acl	*i_default_acl;
 #endif
 	void			*i_private; /* fs or device private pointer */
+	
+	unsigned long		created_when; /* jiffies of creation time */
 };
 
 /*
