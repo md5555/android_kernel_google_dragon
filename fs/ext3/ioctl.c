@@ -276,6 +276,9 @@ group_add_out:
 		mnt_drop_write(filp->f_path.mnt);
 		return err;
 	}
+	case EXT3_IOC_INODE_JIFFIES: {
+		return inode->created_when;
+	}
 
 
 	default:

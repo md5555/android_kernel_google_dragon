@@ -250,6 +250,7 @@ struct ext3_new_group_data {
 #endif
 #define EXT3_IOC_GETRSVSZ		_IOR('f', 5, long)
 #define EXT3_IOC_SETRSVSZ		_IOW('f', 6, long)
+#define EXT3_IOC_INODE_JIFFIES		_IOR('f', 19, long)
 
 /*
  * ioctl commands in 32 bit emulation
