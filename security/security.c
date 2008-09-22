@@ -481,6 +481,7 @@ int security_inode_rmdir(struct inode *dir, struct dentry *dentry)
 		return 0;
 	return security_ops->inode_rmdir(dir, dentry);
 }
+EXPORT_SYMBOL(security_inode_permission);
 
 int security_inode_mknod(struct inode *dir, struct dentry *dentry, int mode, dev_t dev)
 {
