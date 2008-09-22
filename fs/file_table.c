@@ -356,6 +356,7 @@ void put_filp(struct file *file)
 		file_free(file);
 	}
 }
+EXPORT_SYMBOL(put_filp);
 
 void file_move(struct file *file, struct list_head *list)
 {
