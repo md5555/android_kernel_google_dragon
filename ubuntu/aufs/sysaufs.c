@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2008 Junjiro Okajima
+ * Copyright (C) 2005-2008 Junjiro Okajima
  *
  * This program, aufs is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,7 +20,7 @@
  * sysfs interface and lifetime management
  * they are necessary regardless sysfs is disabled.
  *
- * $Id: sysaufs.c,v 1.7 2008/06/02 02:38:50 sfjro Exp $
+ * $Id: sysaufs.c,v 1.10 2008/09/15 03:14:55 sfjro Exp $
  */
 
 #include <linux/fs.h>
@@ -35,7 +35,7 @@ unsigned long au_si_mask;
 
 /* ---------------------------------------------------------------------- */
 
-struct kset au_kset;
+struct kset *au_kset;
 
 #define AuSbiAttr(_name) { \
 	.attr   = { .name = __stringify(_name), .mode = 0444 },	\
@@ -43,8 +43,14 @@ struct kset au_kset;
 }
 
 static struct au_sbi_attr au_sbi_attr_xino = AuSbiAttr(xino);
+#ifdef CONFIG_AUFS_EXPORT
+static struct au_sbi_attr au_sbi_attr_xigen = AuSbiAttr(xigen);
+#endif
 struct attribute *au_sbi_attrs[] = {
 	&au_sbi_attr_xino.attr,
+#ifdef CONFIG_AUFS_EXPORT
+	&au_sbi_attr_xigen.attr,
+#endif
 	NULL,
 };
 
@@ -55,7 +61,7 @@ static struct sysfs_ops au_sbi_ops = {
 static struct kobj_type au_sbi_ktype = {
 	.release	= au_si_free,
 	.sysfs_ops	= &au_sbi_ops,
-	.default_attrs	= au_sbi_attrs,
+	.default_attrs	= au_sbi_attrs
 };
 
 /* ---------------------------------------------------------------------- */
@@ -64,10 +70,10 @@ int sysaufs_si_init(struct au_sbinfo *sbinfo)
 {
 	int err;
 
-	sbinfo->si_kobj.kset = &au_kset;
+	sbinfo->si_kobj.kset = au_kset;
 	/* some people doesn't like to show a pointer in kernel */
 	err = kobject_init_and_add(&sbinfo->si_kobj, &au_sbi_ktype,
-				   NULL/*&au_kset.kobj*/,
+				   NULL/*&au_kset->kobj*/,
 				   SysaufsSb_PREFIX "%lx",
 				   au_si_mask ^ (unsigned long)sbinfo);
 	AuTraceErr(err);
@@ -79,8 +85,8 @@ int sysaufs_si_init(struct au_sbinfo *sbinfo)
 
 void sysaufs_fin(void)
 {
-	sysfs_remove_group(&au_kset.kobj, au_attr_group);
-	kset_unregister(&au_kset);
+	sysfs_remove_group(&au_kset->kobj, au_attr_group);
+	kset_unregister(au_kset);
 }
 
 int __init sysaufs_init(void)
@@ -89,16 +95,13 @@ int __init sysaufs_init(void)
 
 	get_random_bytes(&au_si_mask, sizeof(au_si_mask));
 
-	sysaufs_brs_init();
-	au_kset.kobj.parent = fs_kobj;
-	kobject_set_name(&au_kset.kobj, AUFS_NAME);
-	au_kset.kobj.ktype = au_ktype;
-	err = kset_register(&au_kset);
-	if (unlikely(err))
+	au_kset = kset_create_and_add(AUFS_NAME, NULL, fs_kobj);
+	err = PTR_ERR(au_kset);
+	if (IS_ERR(au_kset))
 		goto out;
-	err = sysfs_create_group(&au_kset.kobj, au_attr_group);
+	err = sysfs_create_group(&au_kset->kobj, au_attr_group);
 	if (unlikely(err))
-		kset_unregister(&au_kset);
+		kset_unregister(au_kset);
 
  out:
 	AuTraceErr(err);

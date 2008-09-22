@@ -19,7 +19,7 @@
 /*
  * file operations
  *
- * $Id: file.h,v 1.4 2008/05/26 04:04:24 sfjro Exp $
+ * $Id: file.h,v 1.5 2008/06/30 03:53:43 sfjro Exp $
  */
 
 #ifndef __AUFS_FILE_H__
@@ -30,7 +30,7 @@
 #include <linux/file.h>
 #include <linux/fs.h>
 #include <linux/mm.h>
-#include <linux/aufs_types.h>
+#include <linux/aufs_type.h>
 #include "dentry.h"
 #include "misc.h"
 #include "super.h"
@@ -67,9 +67,10 @@ struct file *au_h_open(struct dentry *dentry, aufs_bindex_t bindex, int flags,
 int au_do_open(struct inode *inode, struct file *file,
 	       int (*open)(struct file *file, int flags));
 int au_reopen_nondir(struct file *file);
-int au_ready_to_write(struct file *file, loff_t len);
-int au_reval_and_lock_finfo(struct file *file, int (*reopen)(struct file *file),
-			    int wlock, int locked);
+struct au_pin;
+int au_ready_to_write(struct file *file, loff_t len, struct au_pin *pin);
+int au_reval_and_lock_fdi(struct file *file, int (*reopen)(struct file *file),
+			  int wlock, int locked);
 
 /* f_op.c */
 extern struct file_operations aufs_file_fop;

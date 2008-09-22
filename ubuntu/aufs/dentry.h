@@ -19,7 +19,7 @@
 /*
  * lookup and dentry operations
  *
- * $Id: dentry.h,v 1.5 2008/05/26 04:04:23 sfjro Exp $
+ * $Id: dentry.h,v 1.7 2008/09/01 02:54:54 sfjro Exp $
  */
 
 #ifndef __AUFS_DENTRY_H__
@@ -29,7 +29,7 @@
 
 #include <linux/fs.h>
 #include <linux/namei.h>
-#include <linux/aufs_types.h>
+#include <linux/aufs_type.h>
 #include "misc.h"
 #include "super.h"
 #include "vfsub.h"
@@ -249,6 +249,16 @@ static inline au_gen_t au_digen_dec(struct dentry *d)
 {
 	return atomic_dec_return(&au_di(d)->di_generation);
 }
+
+static inline void au_hin_di_reinit(struct dentry *d)
+{
+	d->d_fsdata = NULL;
+}
+#else
+static inline void au_hin_di_reinit(struct dentry *d)
+{
+	/* empty */
+}
 #endif /* CONFIG_AUFS_HINOTIFY */
 
 /* ---------------------------------------------------------------------- */
@@ -260,7 +270,8 @@ enum {
 	AuLsc_DI_CHILD3,	/* copyup dirs */
 	AuLsc_DI_PARENT,
 	AuLsc_DI_PARENT2,
-	AuLsc_DI_PARENT3
+	AuLsc_DI_PARENT3,
+	AuLsc_DI_PARENT4
 };
 
 /*
@@ -270,6 +281,7 @@ enum {
  * di_read_lock_parent, di_write_lock_parent,
  * di_read_lock_parent2, di_write_lock_parent2,
  * di_read_lock_parent3, di_write_lock_parent3,
+ * di_read_lock_parent4, di_write_lock_parent4,
  */
 #define AuReadLockFunc(name, lsc) \
 static inline void di_read_lock_##name(struct dentry *d, int flags) \
@@ -289,6 +301,7 @@ AuRWLockFuncs(child3, CHILD3);
 AuRWLockFuncs(parent, PARENT);
 AuRWLockFuncs(parent2, PARENT2);
 AuRWLockFuncs(parent3, PARENT3);
+AuRWLockFuncs(parent4, PARENT4);
 
 #undef AuReadLockFunc
 #undef AuWriteLockFunc

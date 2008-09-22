@@ -19,7 +19,7 @@
 /*
  * dentry private data
  *
- * $Id: dinfo.c,v 1.4 2008/05/26 04:04:23 sfjro Exp $
+ * $Id: dinfo.c,v 1.7 2008/09/22 03:52:19 sfjro Exp $
  */
 
 #include "aufs.h"
@@ -40,13 +40,13 @@ int au_alloc_dinfo(struct dentry *dentry)
 		if (unlikely(nbr <= 0))
 			nbr = 1;
 		dinfo->di_hdentry = kcalloc(nbr, sizeof(*dinfo->di_hdentry),
-					    GFP_KERNEL);
+					    GFP_NOFS);
 		if (dinfo->di_hdentry) {
 			au_h_dentry_init_all(dinfo->di_hdentry, nbr);
 			atomic_set(&dinfo->di_generation, au_sigen(sb));
 			/* smp_mb(); */ /* atomic_set */
 			au_rw_init_wlock_nested(&dinfo->di_rwsem,
-						AuLsc_DI_PARENT);
+						AuLsc_DI_CHILD);
 			dinfo->di_bstart = -1;
 			dinfo->di_bend = -1;
 			dinfo->di_bwh = -1;
@@ -100,6 +100,9 @@ static void do_ii_write_lock(struct inode *inode, unsigned int lsc)
 	case AuLsc_DI_PARENT3:
 		ii_write_lock_parent3(inode);
 		break;
+	case AuLsc_DI_PARENT4:
+		ii_write_lock_parent4(inode);
+		break;
 	default:
 		BUG();
 	}
@@ -126,6 +129,9 @@ static void do_ii_read_lock(struct inode *inode, unsigned int lsc)
 	case AuLsc_DI_PARENT3:
 		ii_read_lock_parent3(inode);
 		break;
+	case AuLsc_DI_PARENT4:
+		ii_read_lock_parent4(inode);
+		break;
 	default:
 		BUG();
 	}
@@ -133,7 +139,9 @@ static void do_ii_read_lock(struct inode *inode, unsigned int lsc)
 
 void di_read_lock(struct dentry *d, int flags, unsigned int lsc)
 {
+	LKTRTrace("%.*s, %u\n", AuDLNPair(d), lsc);
 	SiMustAnyLock(d->d_sb);
+
 	/* todo: always nested? */
 	au_rw_read_lock_nested(&au_di(d)->di_rwsem, lsc);
 	if (d->d_inode) {
@@ -146,7 +154,9 @@ void di_read_lock(struct dentry *d, int flags, unsigned int lsc)
 
 void di_read_unlock(struct dentry *d, int flags)
 {
+	LKTRTrace("%.*s\n", AuDLNPair(d));
 	SiMustAnyLock(d->d_sb);
+
 	if (d->d_inode) {
 		if (au_ftest_lock(flags, IW))
 			ii_write_unlock(d->d_inode);
@@ -159,6 +169,7 @@ void di_read_unlock(struct dentry *d, int flags)
 void di_downgrade_lock(struct dentry *d, int flags)
 {
 	SiMustAnyLock(d->d_sb);
+
 	au_rw_dgrade_lock(&au_di(d)->di_rwsem);
 	if (d->d_inode && au_ftest_lock(flags, IR))
 		ii_downgrade_lock(d->d_inode);
@@ -166,7 +177,9 @@ void di_downgrade_lock(struct dentry *d, int flags)
 
 void di_write_lock(struct dentry *d, unsigned int lsc)
 {
+	LKTRTrace("%.*s, %u\n", AuDLNPair(d), lsc);
 	SiMustAnyLock(d->d_sb);
+
 	/* todo: always nested? */
 	au_rw_write_lock_nested(&au_di(d)->di_rwsem, lsc);
 	if (d->d_inode)
@@ -175,7 +188,9 @@ void di_write_lock(struct dentry *d, unsigned int lsc)
 
 void di_write_unlock(struct dentry *d)
 {
+	LKTRTrace("%.*s\n", AuDLNPair(d));
 	SiMustAnyLock(d->d_sb);
+
 	if (d->d_inode)
 		ii_write_unlock(d->d_inode);
 	au_rw_write_unlock(&au_di(d)->di_rwsem);

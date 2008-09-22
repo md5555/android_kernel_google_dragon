@@ -19,7 +19,7 @@
 /*
  * inode private data
  *
- * $Id: iinfo.c,v 1.4 2008/06/02 02:36:59 sfjro Exp $
+ * $Id: iinfo.c,v 1.8 2008/09/15 03:16:36 sfjro Exp $
  */
 
 #include "aufs.h"
@@ -97,9 +97,9 @@ void au_set_h_iptr(struct inode *inode, aufs_bindex_t bindex,
 	IiMustWriteLock(inode);
 	hinode = iinfo->ii_hinode + bindex;
 	hi = hinode->hi_inode;
-	AuDebugOn(bindex < au_ibstart(inode) || au_ibend(inode) < bindex
-		  || (h_inode && atomic_read(&h_inode->i_count) <= 0)
-		  || (h_inode && hi));
+	AuDebugOn(bindex < au_ibstart(inode) || au_ibend(inode) < bindex);
+	AuDebugOn(h_inode && atomic_read(&h_inode->i_count) <= 0);
+	AuDebugOn(h_inode && hi);
 
 	if (hi)
 		au_hiput(hinode);
@@ -203,7 +203,7 @@ int au_iinfo_init(struct inode *inode)
 	nbr = au_sbend(sb) + 1;
 	if (unlikely(nbr <= 0))
 		nbr = 1;
-	iinfo->ii_hinode = kcalloc(nbr, sizeof(*iinfo->ii_hinode), GFP_KERNEL);
+	iinfo->ii_hinode = kcalloc(nbr, sizeof(*iinfo->ii_hinode), GFP_NOFS);
 	if (iinfo->ii_hinode) {
 		for (i = 0; i < nbr; i++)
 			iinfo->ii_hinode[i].hi_id = -1;
@@ -225,7 +225,7 @@ static int au_iinfo_write0(struct super_block *sb, struct au_hinode *hinode,
 	aufs_bindex_t bindex;
 
 	err = 0;
-	locked = si_read_trylock(sb, !AuLock_FLUSH); /* crucio! */
+	locked = si_noflush_read_trylock(sb); /* crucio! */
 	bindex = au_br_index(sb, hinode->hi_id);
 	if (bindex >= 0)
 		err = au_xino_write0(sb, bindex, hinode->hi_inode->i_ino, ino);
@@ -239,9 +239,9 @@ void au_iinfo_fin(struct inode *inode)
 {
 	struct au_iinfo *iinfo;
 	aufs_bindex_t bend;
+	unsigned char unlinked;
 	struct au_hinode *hi;
 	struct super_block *sb;
-	int unlinked;
 	ino_t ino;
 
 	iinfo = au_ii(inode);

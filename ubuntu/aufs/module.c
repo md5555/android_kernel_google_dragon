@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007 Junjiro Okajima
+ * Copyright (C) 2005-2008 Junjiro Okajima
  *
  * This program, aufs is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
 /*
  * module global variables and operations
  *
- * $Id: module.c,v 1.6 2008/06/02 02:33:58 sfjro Exp $
+ * $Id: module.c,v 1.10 2008/08/25 01:50:37 sfjro Exp $
  */
 
 #include <linux/module.h>
@@ -89,6 +89,11 @@ static int __init aufs_init(void)
 	char *p;
 
 	au_debug_init();
+#ifdef CONFIG_AUFS_INO_T_64
+	BUILD_BUG_ON(sizeof(ino_t) != sizeof(long long));
+#else
+	BUILD_BUG_ON(sizeof(ino_t) != sizeof(int));
+#endif
 
 	p = au_esc_chars;
 	for (i = 1; i <= ' '; i++)
@@ -197,10 +202,6 @@ module_exit(aufs_exit);
 #ifdef CONFIG_AUFS
 #warning CONFIG_AUFS_SEC_PERM_PATCH is unnecessary since CONFIG_AUFS is not a module.
 #endif
-#endif
-
-#ifdef CONFIG_AUFS_FAKE_DM
-#warning CONFIG_AUFS_FAKE_DM is obsoleted in linux-2.6.24 and later.
 #endif
 
 #ifdef CONFIG_AUFS_PUT_FILP_PATCH

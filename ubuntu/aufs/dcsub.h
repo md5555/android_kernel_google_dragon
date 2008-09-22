@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2008 Junjiro Okajima
+ * Copyright (C) 2005-2008 Junjiro Okajima
  *
  * This program, aufs is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
 /*
  * sub-routines for dentry cache
  *
- * $Id: dcsub.h,v 1.1 2008/04/18 12:18:29 sfjro Exp $
+ * $Id: dcsub.h,v 1.4 2008/07/21 02:54:22 sfjro Exp $
  */
 
 #ifndef __AUFS_DCSUB_H__
@@ -48,7 +48,7 @@ int au_dcsub_pages(struct au_dcsub_pages *dpages, struct dentry *root,
 		   au_dpages_test test, void *arg);
 int au_dcsub_pages_rev(struct au_dcsub_pages *dpages, struct dentry *dentry,
 		       int do_include, au_dpages_test test, void *arg);
-int au_test_subdir(struct dentry *d1, struct dentry *d2);
+struct dentry *au_test_subdir(struct dentry *d1, struct dentry *d2);
 
 #endif /* __KERNEL__ */
 #endif /* __AUFS_DCSUB_H__ */

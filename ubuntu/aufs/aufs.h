@@ -19,7 +19,7 @@
 /*
  * main header files
  *
- * $Id: aufs.h,v 1.3 2008/05/26 04:04:21 sfjro Exp $
+ * $Id: aufs.h,v 1.4 2008/06/30 03:58:55 sfjro Exp $
  */
 
 #ifndef __AUFS_H__
@@ -52,6 +52,11 @@
 #include "wkq.h"
 /* reserved for future use */
 /* #include "xattr.h" */
+
+#ifdef AuNoInlineForStack
+#undef noinline_for_stack
+#define noinline_for_stack /* */
+#endif
 
 #endif /* __KERNEL__ */
 #endif /* __AUFS_H__ */

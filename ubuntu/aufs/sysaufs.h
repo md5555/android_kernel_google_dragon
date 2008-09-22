@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2008 Junjiro Okajima
+ * Copyright (C) 2005-2008 Junjiro Okajima
  *
  * This program, aufs is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
 /*
  * sysfs interface and lifetime management
  *
- * $Id: sysaufs.h,v 1.8 2008/06/02 02:38:50 sfjro Exp $
+ * $Id: sysaufs.h,v 1.11 2008/09/15 03:14:55 sfjro Exp $
  */
 
 #ifndef __SYSAUFS_H__
@@ -43,7 +43,7 @@ struct au_sbi_attr {
 
 /* sysaufs.c */
 extern unsigned long au_si_mask;
-extern struct kset au_kset;
+extern struct kset *au_kset;
 extern struct attribute *au_sbi_attrs[];
 int sysaufs_si_init(struct au_sbinfo *sbinfo);
 int __init sysaufs_init(void);
@@ -58,6 +58,9 @@ extern struct attribute_group *au_attr_group;
 extern struct kobj_type *au_ktype;
 
 int sysaufs_sbi_xino(struct seq_file *seq, struct super_block *sb);
+#ifdef CONFIG_AUFS_EXPORT
+int sysaufs_sbi_xigen(struct seq_file *seq, struct super_block *sb);
+#endif
 int sysaufs_sbi_mntpnt1(struct seq_file *seq, struct super_block *sb);
 ssize_t sysaufs_sbi_show(struct kobject *kobj, struct attribute *attr,
 			 char *buf);
@@ -65,9 +68,6 @@ ssize_t sysaufs_sbi_show(struct kobject *kobj, struct attribute *attr,
 void sysaufs_br_init(struct au_branch *br);
 void sysaufs_brs_add(struct super_block *sb, aufs_bindex_t bindex);
 void sysaufs_brs_del(struct super_block *sb, aufs_bindex_t bindex);
-
-#define sysaufs_brs_init()	do {} while (0)
-
 #else
 #define au_attr_group	NULL
 #define au_ktype	NULL
@@ -77,6 +77,14 @@ int sysaufs_sbi_xino(struct seq_file *seq, struct super_block *sb)
 {
 	return 0;
 }
+
+#ifdef CONFIG_AUFS_EXPORT
+static inline
+int sysaufs_sbi_xigen(struct seq_file *seq, struct super_block *sb)
+{
+	return 0;
+}
+#endif
 
 static inline
 int sysaufs_sbi_mntpnt1(struct seq_file *seq, struct super_block *sb)
@@ -104,11 +112,6 @@ static inline void sysaufs_brs_add(struct super_block *sb, aufs_bindex_t bindex)
 static inline void sysaufs_brs_del(struct super_block *sb, aufs_bindex_t bindex)
 {
 	/* nothing */
-}
-
-static inline void sysaufs_brs_init(void)
-{
-	sysaufs_brs = 0;
 }
 #endif /* CONFIG_SYSFS */
 

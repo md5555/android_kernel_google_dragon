@@ -19,7 +19,7 @@
 /*
  * inode operations
  *
- * $Id: inode.h,v 1.3 2008/05/26 04:04:26 sfjro Exp $
+ * $Id: inode.h,v 1.13 2008/09/15 03:14:44 sfjro Exp $
  */
 
 #ifndef __AUFS_INODE_H__
@@ -30,7 +30,7 @@
 #include <linux/fs.h>
 #include <linux/namei.h>
 #include <linux/security.h>
-#include <linux/aufs_types.h>
+#include <linux/aufs_type.h>
 #include "hinode.h"
 #include "misc.h"
 #include "super.h"
@@ -43,6 +43,7 @@ struct au_iinfo {
 
 	struct au_rwsem		ii_rwsem;
 	aufs_bindex_t		ii_bstart, ii_bend;
+	__u32			ii_higen;
 	struct au_hinode	*ii_hinode;
 	struct au_vdir		*ii_vdir;
 };
@@ -50,6 +51,27 @@ struct au_iinfo {
 struct aufs_icntnr {
 	struct au_iinfo iinfo;
 	struct inode vfs_inode;
+};
+
+struct au_pin1 {
+	/* input */
+	struct dentry *dentry;
+	unsigned char di_locked, lsc_di, lsc_hi;
+	/* auto */
+	unsigned char do_verify;
+
+	/* output */
+	struct dentry *parent;
+	struct inode *h_dir;
+};
+
+enum {AuPin_PARENT, AuPin_GPARENT};
+struct au_pin {
+#ifdef CONFIG_AUFS_HINOTIFY
+	struct au_pin1 pin[2];
+#else
+	struct au_pin1 pin[1]; /* no grand parent */
+#endif
 };
 
 /* ---------------------------------------------------------------------- */
@@ -65,22 +87,28 @@ int au_test_h_perm_sio(struct inode *h_inode, int mask, int dlgt);
 
 /* i_op.c */
 extern struct inode_operations aufs_iop, aufs_symlink_iop, aufs_dir_iop;
-int aufs_fsetattr(struct file *file, struct iattr *ia);
 
 /* au_wr_dir flags */
 #define AuWrDir_ADD_ENTRY	1
-#define AuWrDir_LOCK_SRCDIR	(1 << 1)
-#define AuWrDir_ISDIR		(1 << 2)
+#define AuWrDir_ISDIR		(1 << 1)
 #define au_ftest_wrdir(flags, name)	((flags) & AuWrDir_##name)
 #define au_fset_wrdir(flags, name)	{ (flags) |= AuWrDir_##name; }
 #define au_fclr_wrdir(flags, name)	{ (flags) &= ~AuWrDir_##name; }
 
 struct au_wr_dir_args {
 	aufs_bindex_t force_btgt;
-	unsigned int flags;
+	unsigned char flags;
 };
 int au_wr_dir(struct dentry *dentry, struct dentry *src_dentry,
 	      struct au_wr_dir_args *args);
+
+void au_pin_init(struct au_pin *args, struct dentry *dentry, int di_locked,
+		 int lsc_di, int lsc_hi, int do_gp);
+int au_pin(struct au_pin *args, struct dentry *dentry, aufs_bindex_t bindex,
+	   int di_locked, int do_gp) __must_check;
+int au_do_pin(struct au_pin1 *p, struct au_pin1 *gp, const aufs_bindex_t bindex,
+	      const int do_gp) __must_check;
+void au_do_unpin(struct au_pin1 *p, struct au_pin1 *gp);
 
 /* i_op_add.c */
 struct au_ndx;
@@ -95,8 +123,7 @@ int aufs_link(struct dentry *src_dentry, struct inode *dir,
 int aufs_mkdir(struct inode *dir, struct dentry *dentry, int mode);
 
 /* i_op_del.c */
-int au_wr_dir_need_wh(struct dentry *dentry, int isdir, aufs_bindex_t *bcpup,
-		      struct dentry *locked);
+int au_wr_dir_need_wh(struct dentry *dentry, int isdir, aufs_bindex_t *bcpup);
 int au_may_del(struct dentry *dentry, aufs_bindex_t bindex,
 	       struct dentry *h_parent, int isdir, struct au_ndx *ndx);
 int aufs_unlink(struct inode *dir, struct dentry *dentry);
@@ -116,12 +143,12 @@ static inline
 int au_security_inode_permission(struct inode *h_inode, int mask,
 				 struct nameidata *fake_nd, int dlgt)
 {
-	return security_inode_permission(h_inode, mask);
+	return vfsub_security_inode_permission(h_inode, mask, fake_nd);
 }
 #endif /* CONFIG_AUFS_DLGT */
 
-#ifdef CONFIG_AUFS_WORKAROUND_FUSE
-/* br_fuse.c */
+#ifdef CONFIG_AUFS_HIN_OR_FUSE
+/* hin_or_fuse.c */
 int aufs_getattr(struct vfsmount *mnt, struct dentry *dentry, struct kstat *st);
 #endif
 
@@ -189,11 +216,11 @@ enum {
 	AuLsc_II_CHILD,		/* child first */
 	AuLsc_II_CHILD2,	/* rename(2), link(2), and cpup at hinotify */
 	AuLsc_II_CHILD3,	/* copyup dirs */
-	AuLsc_II_PARENT,
+	AuLsc_II_PARENT,	/* see AuLsc_I_PARENT in vfsub.h */
 	AuLsc_II_PARENT2,
 	AuLsc_II_PARENT3,
 	AuLsc_II_PARENT4,
-	AuLsc_II_NEW		/* new inode */
+	AuLsc_II_NEW_CHILD,
 };
 
 /*
@@ -204,7 +231,7 @@ enum {
  * ii_read_lock_parent2, ii_write_lock_parent2,
  * ii_read_lock_parent3, ii_write_lock_parent3,
  * ii_read_lock_parent4, ii_write_lock_parent4,
- * ii_read_lock_new, ii_write_lock_new
+ * ii_read_lock_new_child, ii_write_lock_new_child,
  */
 #define AuReadLockFunc(name, lsc) \
 static inline void ii_read_lock_##name(struct inode *i) \
@@ -225,7 +252,7 @@ AuRWLockFuncs(parent, PARENT);
 AuRWLockFuncs(parent2, PARENT2);
 AuRWLockFuncs(parent3, PARENT3);
 AuRWLockFuncs(parent4, PARENT4);
-AuRWLockFuncs(new, NEW);
+AuRWLockFuncs(new_child, NEW_CHILD);
 
 #undef AuReadLockFunc
 #undef AuWriteLockFunc
@@ -253,6 +280,17 @@ AuSimpleUnlockRwsemFuncs(ii, struct inode *i, au_ii(i)->ii_rwsem);
 } while (0)
 
 #define IiMustNoWaiters(i)	AuRwMustNoWaiters(&au_ii(i)->ii_rwsem)
+
+/* ---------------------------------------------------------------------- */
+
+static inline struct inode *au_igrab(struct inode *inode)
+{
+	if (inode) {
+		AuDebugOn(!atomic_read(&inode->i_count));
+		atomic_inc_return(&inode->i_count);
+	}
+	return inode;
+}
 
 /* ---------------------------------------------------------------------- */
 
@@ -315,9 +353,13 @@ static inline struct au_hinode *au_hi(struct inode *inode, aufs_bindex_t bindex)
 /* tmpfs generation is too rough */
 static inline int au_test_higen(struct inode *inode, struct inode *h_inode)
 {
+	struct au_iinfo *iinfo;
+
 	IiMustAnyLock(inode);
-	return !(au_ii(inode)->ii_hsb1 == h_inode->i_sb
-		 && inode->i_generation == h_inode->i_generation);
+
+	iinfo = au_ii(inode);
+	return !(iinfo->ii_hsb1 == h_inode->i_sb
+		 && iinfo->ii_higen == h_inode->i_generation);
 }
 
 static inline au_gen_t au_iigen(struct inode *inode)
@@ -332,6 +374,172 @@ static inline au_gen_t au_iigen_dec(struct inode *inode)
 	return atomic_dec_return(&au_ii(inode)->ii_generation);
 }
 #endif
+
+/* ---------------------------------------------------------------------- */
+
+#ifdef CONFIG_AUFS_HINOTIFY
+static inline struct au_pin1 *au_pin_gp(struct au_pin *args)
+{
+	return args->pin + AuPin_GPARENT;
+}
+
+/* hinotify.c */
+void au_unpin_gp(struct au_pin *args);
+
+#else
+
+static inline struct au_pin1 *au_pin_gp(struct au_pin *args)
+{
+	return NULL;
+}
+
+static inline void au_unpin_gp(struct au_pin *args)
+{
+	/* empty */
+}
+#endif /* HINOTIFY */
+
+static inline void au_unpin(struct au_pin *args)
+{
+	au_do_unpin(args->pin + AuPin_PARENT, au_pin_gp(args));
+}
+
+static inline
+struct au_hinode *au_do_pinned_hdir(struct au_pin1 *pin, aufs_bindex_t bindex)
+{
+	if (pin && pin->parent)
+		return au_hi(pin->parent->d_inode, bindex);
+	return NULL;
+}
+
+struct dentry *au_do_pinned_h_parent(struct au_pin1 *pin, aufs_bindex_t bindex);
+
+static inline struct dentry *au_do_pinned_parent(struct au_pin1 *pin)
+{
+	if (pin)
+		return pin->parent;
+	return NULL;
+}
+
+static inline struct inode *au_do_pinned_h_dir(struct au_pin1 *pin)
+{
+	if (pin)
+		return pin->h_dir;
+	return NULL;
+}
+
+static inline
+void au_pin_do_set_dentry(struct au_pin1 *pin, struct dentry *dentry)
+{
+	if (pin)
+		pin->dentry = dentry;
+}
+
+static inline
+void au_pin_do_set_parent(struct au_pin1 *pin, struct dentry *parent)
+{
+	if (pin) {
+		dput(pin->parent);
+		pin->parent = dget(parent);
+	}
+}
+
+static inline void au_pin_do_set_h_dir(struct au_pin1 *pin, struct inode *h_dir)
+{
+	if (pin) {
+		iput(pin->h_dir);
+		pin->h_dir = au_igrab(h_dir);
+	}
+}
+
+static inline
+void au_pin_do_set_parent_lflag(struct au_pin1 *pin, unsigned char lflag)
+{
+	if (pin)
+		pin->di_locked = lflag;
+}
+
+static inline
+struct au_hinode *au_pinned_hdir(struct au_pin *args, aufs_bindex_t bindex)
+{
+	return au_do_pinned_hdir(args->pin + AuPin_PARENT, bindex);
+}
+
+static inline
+struct au_hinode *au_pinned_hgdir(struct au_pin *args, aufs_bindex_t bindex)
+{
+	return au_do_pinned_hdir(au_pin_gp(args), bindex);
+}
+
+static inline
+struct dentry *au_pinned_h_parent(struct au_pin *args, aufs_bindex_t bindex)
+{
+	return au_do_pinned_h_parent(args->pin + AuPin_PARENT, bindex);
+}
+
+#if 0 /* reserved for future use */
+static inline
+struct dentry *au_pinned_h_gparent(struct au_pin *args, aufs_bindex_t bindex)
+{
+	return au_do_pinned_h_parent(au_pin_gp(args), bindex);
+}
+#endif
+
+static inline
+struct dentry *au_pinned_parent(struct au_pin *args)
+{
+	return au_do_pinned_parent(args->pin + AuPin_PARENT);
+}
+
+static inline
+struct dentry *au_pinned_gparent(struct au_pin *args)
+{
+	return au_do_pinned_parent(au_pin_gp(args));
+}
+
+static inline
+struct inode *au_pinned_h_dir(struct au_pin *args)
+{
+	return au_do_pinned_h_dir(args->pin + AuPin_PARENT);
+}
+
+static inline
+struct inode *au_pinned_h_gdir(struct au_pin *args)
+{
+	return au_do_pinned_h_dir(au_pin_gp(args));
+}
+
+static inline void au_pin_set_parent(struct au_pin *args, struct dentry *d)
+{
+	au_pin_do_set_parent(args->pin + AuPin_PARENT, d);
+}
+
+static inline void au_pin_set_gparent(struct au_pin *args, struct dentry *d)
+{
+	au_pin_do_set_parent(au_pin_gp(args), d);
+}
+
+static inline void au_pin_set_h_dir(struct au_pin *args, struct inode *h_dir)
+{
+	au_pin_do_set_h_dir(args->pin + AuPin_PARENT, h_dir);
+}
+
+static inline void au_pin_set_h_gdir(struct au_pin *args, struct inode *h_dir)
+{
+	au_pin_do_set_h_dir(au_pin_gp(args), h_dir);
+}
+
+static inline
+void au_pin_set_parent_lflag(struct au_pin *args, unsigned char lflag)
+{
+	au_pin_do_set_parent_lflag(args->pin + AuPin_PARENT, lflag);
+}
+
+static inline
+void au_pin_set_gparent_lflag(struct au_pin *args, unsigned char lflag)
+{
+	au_pin_do_set_parent_lflag(au_pin_gp(args), lflag);
+}
 
 #endif /* __KERNEL__ */
 #endif /* __AUFS_INODE_H__ */

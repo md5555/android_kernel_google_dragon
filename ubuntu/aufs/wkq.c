@@ -19,7 +19,7 @@
 /*
  * workqueue for asynchronous/super-io/delegated operations
  *
- * $Id: wkq.c,v 1.6 2008/06/02 02:35:50 sfjro Exp $
+ * $Id: wkq.c,v 1.13 2008/09/15 03:16:36 sfjro Exp $
  */
 
 #include <linux/module.h>
@@ -134,6 +134,7 @@ static void update_busy(struct au_wkq *wkq, struct au_wkinfo *wkinfo)
 static int enqueue(struct au_wkq *wkq, struct au_wkinfo *wkinfo)
 {
 	AuTraceEnter();
+
 	wkinfo->busyp = &wkq->busy;
 	update_busy(wkq, wkinfo);
 	if (au_ftest_wkq(wkinfo->flags, WAIT))
@@ -195,32 +196,75 @@ static void wkq_func(struct work_struct *wk)
 	}
 }
 
+#if defined(CONFIG_4KSTACKS) || defined(Test4KSTACKS)
+#define AuWkqCompDeclare(name)	struct completion *comp = NULL
+
+static int au_wkq_comp_alloc(struct au_wkinfo *wkinfo, struct completion **comp)
+{
+	*comp = kmalloc(sizeof(**comp), GFP_NOFS);
+	if (*comp) {
+		init_completion(*comp);
+		wkinfo->comp = *comp;
+		return 0;
+	}
+	return -ENOMEM;
+}
+
+static void au_wkq_comp_free(struct completion *comp)
+{
+	kfree(comp);
+}
+
+#else
+
+#define AuWkqCompDeclare(name) \
+	DECLARE_COMPLETION_ONSTACK(_ ## name); \
+	struct completion *comp = &_ ## name
+
+static int au_wkq_comp_alloc(struct au_wkinfo *wkinfo, struct completion **comp)
+{
+	wkinfo->comp = *comp;
+	return 0;
+}
+
+static void au_wkq_comp_free(struct completion *comp)
+{
+	/* empty */
+}
+#endif /* 4KSTACKS */
+
+/* todo: break to three funcs */
 int au_wkq_run(au_wkq_func_t func, void *args, struct super_block *sb,
 	       unsigned int flags)
 {
-	int err, do_wait;
-	DECLARE_COMPLETION_ONSTACK(comp);
+	int err;
+	AuWkqCompDeclare(comp);
 	struct au_wkinfo _wkinfo = {
 		.flags	= flags,
 		.func	= func,
-		.args	= args,
-		.comp	= &comp
+		.args	= args
 	}, *wkinfo = &_wkinfo;
+	const unsigned char do_wait = au_ftest_wkq(flags, WAIT);
 
 	LKTRTrace("0x%x\n", flags);
-	/* in dlgt mode, inotify will be fired from aufsd */
-	AuDebugOn(au_ftest_wkq(flags, DLGT) && au_test_wkq(current));
+#if 1 /* tmp debug */
+	if (au_test_wkq(current))
+		au_dbg_blocked();
+#endif
+	AuDebugOn(au_test_wkq(current));
 
-	err = 0;
-	do_wait = au_ftest_wkq(flags, WAIT);
-	if (unlikely(!do_wait)) {
+	if (do_wait) {
+		err = au_wkq_comp_alloc(wkinfo, &comp);
+		if (unlikely(err))
+			goto out;
+	} else {
 		AuDebugOn(!sb);
 		/*
 		 * wkq_func() must free this wkinfo.
 		 * it highly depends upon the implementation of workqueue.
 		 */
 		err = -ENOMEM;
-		wkinfo = kmalloc(sizeof(*wkinfo), GFP_TEMPORARY);
+		wkinfo = kmalloc(sizeof(*wkinfo), GFP_NOFS);
 		if (unlikely(!wkinfo))
 			goto out;
 
@@ -237,11 +281,31 @@ int au_wkq_run(au_wkq_func_t func, void *args, struct super_block *sb,
 	INIT_WORK(&wkinfo->wk, wkq_func);
 	dlgt_cred_store(flags, wkinfo);
 	do_wkq(wkinfo);
-	if (do_wait)
+	if (do_wait) {
 		/* no timeout, no interrupt */
 		wait_for_completion(wkinfo->comp);
+		au_wkq_comp_free(comp);
+	}
  out:
 	AuTraceErr(err);
+	return err;
+}
+
+int au_wkq_nowait(au_wkq_func_t func, void *args, struct super_block *sb,
+		  int dlgt)
+{
+	int err;
+	unsigned int flags = !AuWkq_WAIT;
+
+	AuTraceEnter();
+
+	if (unlikely(dlgt))
+		au_fset_wkq(flags, DLGT);
+	atomic_inc_return(&au_sbi(sb)->si_nowait.nw_len);
+	err = au_wkq_run(func, args, sb, flags);
+	if (unlikely(err))
+		atomic_dec_return(&au_sbi(sb)->si_nowait.nw_len);
+
 	return err;
 }
 
@@ -268,7 +332,7 @@ int __init au_wkq_init(void)
 
 	/* '+1' is for accounting  of nowait queue */
 	err = -ENOMEM;
-	au_wkq = kcalloc(aufs_nwkq + 1, sizeof(*au_wkq), GFP_KERNEL);
+	au_wkq = kcalloc(aufs_nwkq + 1, sizeof(*au_wkq), GFP_NOFS);
 	if (unlikely(!au_wkq))
 		goto out;
 
@@ -277,7 +341,7 @@ int __init au_wkq_init(void)
 		au_wkq[i].q = create_singlethread_workqueue(AUFS_WKQ_NAME);
 		if (au_wkq[i].q && !IS_ERR(au_wkq[i].q)) {
 			atomic_set(&au_wkq[i].busy, 0);
-			au_wkq[i].max_busy = 0;
+			au_wkq_max_busy_init(au_wkq + i);
 			continue;
 		}
 
@@ -289,7 +353,7 @@ int __init au_wkq_init(void)
 	/* nowait accounting */
 	nowaitq = au_wkq + aufs_nwkq;
 	atomic_set(&nowaitq->busy, 0);
-	nowaitq->max_busy = 0;
+	au_wkq_max_busy_init(nowaitq);
 	nowaitq->q = NULL;
 	/* smp_mb(); */ /* atomic_set */
 

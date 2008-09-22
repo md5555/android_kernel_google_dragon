@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2008 Junjiro Okajima
+ * Copyright (C) 2005-2008 Junjiro Okajima
  *
  * This program, aufs is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
 /*
  * sub-routines for VFS
  *
- * $Id: vfsub.h,v 1.5 2008/06/09 01:11:31 sfjro Exp $
+ * $Id: vfsub.h,v 1.11 2008/08/25 01:51:04 sfjro Exp $
  */
 
 #ifndef __AUFS_VFSUB_H__
@@ -29,9 +29,10 @@
 
 #include <linux/fs.h>
 #include <linux/fs_stack.h>
-#include <linux/namei.h>
-#include <linux/splice.h>
 #include <linux/inotify.h>
+#include <linux/namei.h>
+#include <linux/security.h>
+#include <linux/splice.h>
 
 /* ---------------------------------------------------------------------- */
 
@@ -74,9 +75,6 @@ static inline void vfsub_args_reinit(struct vfsub_args *vargs)
 __u32 vfsub_events_notify_change(struct iattr *ia);
 void vfsub_ign_hinode(struct vfsub_args *vargs, __u32 events,
 		      struct au_hinode *hinode);
-void vfsub_ign_inode(struct vfsub_args *vargs, __u32 events,
-		     struct inode *inode, struct inode *h_inode);
-
 void vfsub_ignore(struct vfsub_args *vargs);
 void vfsub_unignore(struct vfsub_args *vargs);
 #else
@@ -98,12 +96,6 @@ static inline __u32 vfsub_events_notify_change(struct iattr *ia)
 
 static inline void vfsub_ign_hinode(struct vfsub_args *vargs, __u32 events,
 				    struct au_hinode *hinode)
-{
-	/* empty */
-}
-
-static inline void vfsub_ign_inode(struct vfsub_args *vargs, __u32 events,
-				   struct inode *inode, struct inode *h_inode)
 {
 	/* empty */
 }
@@ -137,17 +129,33 @@ static inline int au_test_inotify(struct inode *inode)
 
 /* lock subclass for hidden inode */
 /* default MAX_LOCKDEP_SUBCLASSES(8) is not enough */
-/* todo: reduce? */
+/* reduce? gave up. */
 enum {
 	AuLsc_I_Begin = I_MUTEX_QUOTA, /* 4 */
 	AuLsc_I_PARENT,		/* hidden inode, parent first */
-	AuLsc_I_CHILD,
 	AuLsc_I_PARENT2,	/* copyup dirs */
+	AuLsc_I_PARENT3,	/* rename with hinotify */
+	AuLsc_I_PARENT4,	/* ditto */
+	AuLsc_I_CHILD,
 	AuLsc_I_CHILD2,
 	AuLsc_I_End
 };
 
 #define IMustLock(i)	MtxMustLock(&(i)->i_mutex)
+
+static inline void vfsub_lock_rename_mutex(struct super_block *sb)
+{
+	lockdep_off();
+	mutex_lock(&sb->s_vfs_rename_mutex);
+	lockdep_on();
+}
+
+static inline void vfsub_unlock_rename_mutex(struct super_block *sb)
+{
+	lockdep_off();
+	mutex_unlock(&sb->s_vfs_rename_mutex);
+	lockdep_on();
+}
 
 static inline
 struct dentry *vfsub_lock_rename(struct dentry *d1, struct dentry *d2)
@@ -165,6 +173,12 @@ static inline void vfsub_unlock_rename(struct dentry *d1, struct dentry *d2)
 	lockdep_off();
 	unlock_rename(d1, d2);
 	lockdep_on();
+}
+
+static inline int au_verify_parent(struct dentry *dentry, struct inode *dir)
+{
+	IMustLock(dir);
+	return (/* !dir->i_nlink || */ dentry->d_parent->d_inode != dir);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -199,7 +213,22 @@ int do_vfsub_permission(struct inode *inode, int mask, struct nameidata *nd)
 {
 	LKTRTrace("i%lu, mask 0x%x, nd %d\n", inode->i_ino, mask, !!nd);
 	IMustLock(inode);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
 	return inode_permission(inode, mask);
+#else
+	return permission(inode, mask, nd);
+#endif
+}
+
+static inline
+int vfsub_security_inode_permission(struct inode *inode, int mask,
+				    struct nameidata *nd)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
+	return security_inode_permission(inode, mask);
+#else
+	return security_inode_permission(inode, mask, nd);
+#endif
 }
 
 /* ---------------------------------------------------------------------- */
@@ -246,8 +275,7 @@ int do_vfsub_readdir(struct file *file, filldir_t filldir, void *arg);
 
 /* ---------------------------------------------------------------------- */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26) \
-	|| (!defined(MmTree) && !defined(CONFIG_AUFS_UNIONFS22_PATCH))
+#ifndef CONFIG_AUFS_UNIONFS22_PATCH
 static inline void vfsub_copy_inode_size(struct inode *inode,
 					 struct inode *h_inode)
 {
@@ -263,8 +291,7 @@ static inline void vfsub_copy_inode_size(struct inode *inode,
 }
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26) \
-	|| (!defined(MmTree) && !defined(CONFIG_AUFS_UNIONFS23_PATCH))
+#ifndef CONFIG_AUFS_UNIONFS23_PATCH
 #define vfs_splice_to		do_splice_to
 #define vfs_splice_from		do_splice_from
 #endif
@@ -315,23 +342,24 @@ static inline int do_vfsub_getattr(struct vfsmount *mnt, struct dentry *dentry,
 
 /* ---------------------------------------------------------------------- */
 
-#if defined(CONFIG_AUFS_HINOTIFY) || defined(CONFIG_AUFS_DLGT)
+#ifdef CONFIG_AUFS_HIN_OR_DLGT
 /* hin_or_dlgt.c */
 int vfsub_permission(struct inode *inode, int mask, struct nameidata *nd,
 		     int dlgt);
 
 int vfsub_create(struct inode *dir, struct dentry *dentry, int mode,
-		 struct nameidata *nd, int dlgt);
+		 struct nameidata *nd, struct vfsub_args *vargs);
 int vfsub_symlink(struct inode *dir, struct dentry *dentry, const char *symname,
-		  int mode, int dlgt);
+		  int mode, struct vfsub_args *vargs);
 int vfsub_mknod(struct inode *dir, struct dentry *dentry, int mode, dev_t dev,
-		int dlgt);
+		struct vfsub_args *vargs);
 int vfsub_link(struct dentry *src_dentry, struct inode *dir,
-	       struct dentry *dentry, int dlgt);
+	       struct dentry *dentry, struct vfsub_args *vargs);
 int vfsub_rename(struct inode *src_dir, struct dentry *src_dentry,
 		 struct inode *dir, struct dentry *dentry,
 		 struct vfsub_args *vargs);
-int vfsub_mkdir(struct inode *dir, struct dentry *dentry, int mode, int dlgt);
+int vfsub_mkdir(struct inode *dir, struct dentry *dentry, int mode,
+		struct vfsub_args *vargs);
 int vfsub_rmdir(struct inode *dir, struct dentry *dentry,
 		struct vfsub_args *vargs);
 
@@ -364,28 +392,28 @@ int vfsub_permission(struct inode *inode, int mask, struct nameidata *nd,
 
 static inline
 int vfsub_create(struct inode *dir, struct dentry *dentry, int mode,
-		 struct nameidata *nd, int dlgt)
+		 struct nameidata *nd, struct vfsub_args *vargs)
 {
 	return do_vfsub_create(dir, dentry, mode, nd);
 }
 
 static inline
 int vfsub_symlink(struct inode *dir, struct dentry *dentry, const char *symname,
-		  int mode, int dlgt)
+		  int mode, struct vfsub_args *vargs)
 {
 	return do_vfsub_symlink(dir, dentry, symname, mode);
 }
 
 static inline
 int vfsub_mknod(struct inode *dir, struct dentry *dentry, int mode, dev_t dev,
-		int dlgt)
+		struct vfsub_args *vargs)
 {
 	return do_vfsub_mknod(dir, dentry, mode, dev);
 }
 
 static inline
 int vfsub_link(struct dentry *src_dentry, struct inode *dir,
-	       struct dentry *dentry, int dlgt)
+	       struct dentry *dentry, struct vfsub_args *vargs)
 {
 	return do_vfsub_link(src_dentry, dir, dentry);
 }
@@ -395,17 +423,12 @@ int vfsub_rename(struct inode *src_dir, struct dentry *src_dentry,
 		 struct inode *dir, struct dentry *dentry,
 		 struct vfsub_args *vargs)
 {
-	int err;
-
-	vfsub_ignore(vargs);
-	err = do_vfsub_rename(src_dir, src_dentry, dir, dentry);
-	if (unlikely(err))
-		vfsub_unignore(vargs);
-	return err;
+	return do_vfsub_rename(src_dir, src_dentry, dir, dentry);
 }
 
 static inline
-int vfsub_mkdir(struct inode *dir, struct dentry *dentry, int mode, int dlgt)
+int vfsub_mkdir(struct inode *dir, struct dentry *dentry, int mode,
+		struct vfsub_args *vargs)
 {
 	return do_vfsub_mkdir(dir, dentry, mode);
 }
@@ -414,13 +437,7 @@ static inline
 int vfsub_rmdir(struct inode *dir, struct dentry *dentry,
 		struct vfsub_args *vargs)
 {
-	int err;
-
-	vfsub_ignore(vargs);
-	err = do_vfsub_rmdir(dir, dentry);
-	if (unlikely(err))
-		vfsub_unignore(vargs);
-	return err;
+	return do_vfsub_rmdir(dir, dentry);
 }
 
 static inline
@@ -441,26 +458,14 @@ static inline
 ssize_t vfsub_write_u(struct file *file, const char __user *ubuf, size_t count,
 		      loff_t *ppos, struct vfsub_args *vargs)
 {
-	int err;
-
-	vfsub_ignore(vargs);
-	err = do_vfsub_write_u(file, ubuf, count, ppos);
-	if (unlikely(err < 0))
-		vfsub_unignore(vargs);
-	return err;
+	return do_vfsub_write_u(file, ubuf, count, ppos);
 }
 
 static inline
 ssize_t vfsub_write_k(struct file *file, void *kbuf, size_t count, loff_t *ppos,
 		      struct vfsub_args *vargs)
 {
-	int err;
-
-	vfsub_ignore(vargs);
-	err = do_vfsub_write_k(file, kbuf, count, ppos);
-	if (unlikely(err < 0))
-		vfsub_unignore(vargs);
-	return err;
+	return do_vfsub_write_k(file, kbuf, count, ppos);
 }
 
 static inline
@@ -482,13 +487,7 @@ long vfsub_splice_from(struct pipe_inode_info *pipe, struct file *out,
 		       loff_t *ppos, size_t len, unsigned int flags,
 		       struct vfsub_args *vargs)
 {
-	long err;
-
-	vfsub_ignore(vargs);
-	err = do_vfsub_splice_from(pipe, out, ppos, len, flags);
-	if (unlikely(err < 0))
-		vfsub_unignore(vargs);
-	return err;
+	return do_vfsub_splice_from(pipe, out, ppos, len, flags);
 }
 
 static inline
@@ -497,19 +496,18 @@ int vfsub_getattr(struct vfsmount *mnt, struct dentry *dentry, struct kstat *st,
 {
 	return do_vfsub_getattr(mnt, dentry, st);
 }
-#endif /* CONFIG_AUFS_DLGT || CONFIG_AUFS_HINOTIFY */
+#endif /* HIN_OR_DLGT */
 
 /* ---------------------------------------------------------------------- */
 
-int vfsub_sio_mkdir(struct inode *dir, struct dentry *dentry, int mode,
+int vfsub_sio_mkdir(struct au_hinode *hdir, struct dentry *dentry, int mode,
 		    int dlgt);
-int vfsub_sio_rmdir(struct inode *dir, struct dentry *dentry, int dlgt);
-int vfsub_sio_notify_change(struct dentry *dentry, struct iattr *ia);
+int vfsub_sio_rmdir(struct au_hinode *hdir, struct dentry *dentry, int dlgt);
+int vfsub_sio_notify_change(struct au_hinode *hdir, struct dentry *dentry,
+			    struct iattr *ia);
 
 /* ---------------------------------------------------------------------- */
 
-int vfsub_fnotify_change(struct dentry *dentry, struct iattr *ia,
-			struct vfsub_args *vargs, struct file *file);
 int vfsub_notify_change(struct dentry *dentry, struct iattr *ia,
 			struct vfsub_args *vargs);
 int vfsub_unlink(struct inode *dir, struct dentry *dentry,

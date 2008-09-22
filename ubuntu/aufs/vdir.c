@@ -19,7 +19,7 @@
 /*
  * virtual or vertical directory
  *
- * $Id: vdir.c,v 1.6 2008/06/09 01:11:58 sfjro Exp $
+ * $Id: vdir.c,v 1.11 2008/09/22 03:52:19 sfjro Exp $
  */
 
 #include "aufs.h"
@@ -184,7 +184,7 @@ int au_nhash_append_wh(struct au_nhash *whlist, char *name, int namelen,
 	LKTRTrace("%.*s\n", namelen, name);
 
 	err = -ENOMEM;
-	wh = kmalloc(sizeof(*wh) + namelen, GFP_TEMPORARY);
+	wh = kmalloc(sizeof(*wh) + namelen, GFP_NOFS);
 	if (unlikely(!wh))
 		goto out;
 	err = 0;
@@ -230,11 +230,11 @@ static int append_deblk(struct au_vdir *vdir)
 
 	err = -ENOMEM;
 	sz = sizeof(*o) * vdir->vd_nblk;
-	o = au_kzrealloc(vdir->vd_deblk, sz, sz + sizeof(*o), GFP_KERNEL);
+	o = au_kzrealloc(vdir->vd_deblk, sz, sz + sizeof(*o), GFP_NOFS);
 	if (unlikely(!o))
 		goto out;
 	vdir->vd_deblk = o;
-	p.deblk = kmalloc(sizeof(*p.deblk), GFP_KERNEL);
+	p.deblk = kmalloc(sizeof(*p.deblk), GFP_NOFS);
 	if (p.deblk) {
 		i = vdir->vd_nblk++;
 		vdir->vd_deblk[i] = p.deblk;
@@ -261,7 +261,7 @@ static struct au_vdir *alloc_vdir(void)
 	vdir = au_cache_alloc_vdir();
 	if (unlikely(!vdir))
 		goto out;
-	vdir->vd_deblk = kzalloc(sizeof(*vdir->vd_deblk), GFP_KERNEL);
+	vdir->vd_deblk = kzalloc(sizeof(*vdir->vd_deblk), GFP_NOFS);
 	if (unlikely(!vdir->vd_deblk))
 		goto out_free;
 
@@ -354,7 +354,8 @@ static int append_de(struct au_vdir *vdir, char *name, int namelen, ino_t ino,
 	union au_vdir_deblk_p p, *room, deblk_end;
 	struct au_vdir_dehstr *dehstr;
 
-	LKTRTrace("%.*s %d, i%lu, dt%u\n", namelen, name, namelen, ino, d_type);
+	LKTRTrace("%.*s %d, i%lu, dt%u\n",
+		  namelen, name, namelen, (unsigned long)ino, d_type);
 
 	p.deblk = last_deblk(vdir);
 	deblk_end.deblk = p.deblk + 1;
@@ -400,15 +401,19 @@ static int append_de(struct au_vdir *vdir, char *name, int namelen, ino_t ino,
 /* ---------------------------------------------------------------------- */
 
 static int au_ino(struct super_block *sb, aufs_bindex_t bindex, ino_t h_ino,
-		  ino_t *ino)
+		  unsigned int d_type, ino_t *ino)
 {
 	int err;
 	struct au_xino_entry xinoe;
-	/* todo: this lock is too large, try br_xino_nondir mutex by DT_DIR */
-	static DEFINE_MUTEX(mtx);
+	struct mutex *mtx;
+	const int isdir = (d_type == DT_DIR);
 
-	/* a race condition for hardlinks */
-	mutex_lock(&mtx);
+	/* prevent hardlinks from race condition */
+	mtx = NULL;
+	if (!isdir) {
+		mtx = &au_sbr(sb, bindex)->br_xino.xi_nondir_mtx;
+		mutex_lock(mtx);
+	}
 	err = au_xino_read(sb, bindex, h_ino, &xinoe);
 	if (unlikely(err))
 		goto out;
@@ -418,6 +423,7 @@ static int au_ino(struct super_block *sb, aufs_bindex_t bindex, ino_t h_ino,
 		xinoe.ino = au_xino_new_ino(sb);
 		if (unlikely(!xinoe.ino))
 			goto out;
+
 #if 0 /* reserved for future use */
 		struct inode *h_inode;
 		xinoe.h_gen = AuXino_INVALID_HGEN;
@@ -438,16 +444,17 @@ static int au_ino(struct super_block *sb, aufs_bindex_t bindex, ino_t h_ino,
 	*ino = xinoe.ino;
 
  out:
-	mutex_unlock(&mtx);
+	if (!isdir)
+		mutex_unlock(mtx);
 	AuTraceErr(err);
 	return err;
 }
 
 static int au_wh_ino(struct super_block *sb, aufs_bindex_t bindex, ino_t h_ino,
-		     ino_t *ino)
+		     unsigned int d_type, ino_t *ino)
 {
 #ifdef CONFIG_AUFS_SHWH
-	return au_ino(sb, bindex, h_ino, ino);
+	return au_ino(sb, bindex, h_ino, d_type, ino);
 #else
 	return 0;
 #endif
@@ -465,9 +472,9 @@ static int au_wh_ino(struct super_block *sb, aufs_bindex_t bindex, ino_t h_ino,
 
 struct fillvdir_arg {
 	struct file		*file;
-	struct au_vdir 	*vdir;
-	struct au_nhash	*delist;
-	struct au_nhash	*whlist;
+	struct au_vdir		*vdir;
+	struct au_nhash		*delist;
+	struct au_nhash		*whlist;
 	aufs_bindex_t		bindex;
 	unsigned int		flags;
 	int			err;
@@ -483,7 +490,7 @@ static int fillvdir(void *__arg, const char *__name, int namelen, loff_t offset,
 	ino_t ino;
 
 	LKTRTrace("%.*s, namelen %d, i%llu, dt%u\n",
-		  namelen, name, namelen, (u64)h_ino, d_type);
+		  namelen, name, namelen, (unsigned long long)h_ino, d_type);
 
 	sb = arg->file->f_dentry->d_sb;
 	bend = arg->bindex;
@@ -499,7 +506,7 @@ static int fillvdir(void *__arg, const char *__name, int namelen, loff_t offset,
 				goto out; /* already exists or whiteouted */
 
 		ino = 1; /* why does gcc warns? */
-		arg->err = au_ino(sb, bend, h_ino, &ino);
+		arg->err = au_ino(sb, bend, h_ino, d_type, &ino);
 		if (!arg->err)
 			arg->err = append_de(arg->vdir, name, namelen, ino,
 					     d_type, arg->delist + bend);
@@ -513,7 +520,7 @@ static int fillvdir(void *__arg, const char *__name, int namelen, loff_t offset,
 
 		ino = 1; /* dummy */
 		if (unlikely(au_ftest_fillvdir(arg->flags, SHWH)))
-			arg->err = au_wh_ino(sb, bend, h_ino, &ino);
+			arg->err = au_wh_ino(sb, bend, h_ino, d_type, &ino);
 		if (!arg->err)
 			arg->err = au_nhash_append_wh
 				(arg->whlist + bend, name, namelen, ino, d_type,
@@ -584,21 +591,22 @@ static int au_handle_shwh(struct super_block *sb, struct au_vdir *vdir,
 
 static int au_do_read_vdir(struct fillvdir_arg *arg)
 {
-	int err, dlgt, shwh;
-	aufs_bindex_t bend, bindex, bstart;
-	struct super_block *sb;
+	int err;
 	unsigned int mnt_flags;
-	struct file *hf;
 	loff_t offset;
+	aufs_bindex_t bend, bindex, bstart;
+	unsigned char dlgt, shwh;
+	struct super_block *sb;
+	struct file *hf;
 
 	AuTraceEnter();
 
 	err = -ENOMEM;
 	bend = au_fbend(arg->file);
-	arg->delist = kmalloc(sizeof(*arg->delist) * (bend + 1), GFP_TEMPORARY);
+	arg->delist = kmalloc(sizeof(*arg->delist) * (bend + 1), GFP_NOFS);
 	if (unlikely(!arg->delist))
 		goto out;
-	arg->whlist = kmalloc(sizeof(*arg->whlist) * (bend + 1), GFP_TEMPORARY);
+	arg->whlist = kmalloc(sizeof(*arg->whlist) * (bend + 1), GFP_NOFS);
 	if (unlikely(!arg->whlist))
 		goto out_delist;
 	err = 0;
@@ -656,12 +664,13 @@ static int au_do_read_vdir(struct fillvdir_arg *arg)
 
 static int read_vdir(struct file *file, int may_read)
 {
-	int err, do_read;
+	int err;
+	unsigned long expire;
+	struct fillvdir_arg arg;
+	unsigned char do_read;
 	struct dentry *dentry;
 	struct inode *inode;
 	struct au_vdir *vdir, *allocated;
-	unsigned long expire;
-	struct fillvdir_arg arg;
 	struct super_block *sb;
 
 	dentry = file->f_dentry;
@@ -691,8 +700,8 @@ static int read_vdir(struct file *file, int may_read)
 		   && (inode->i_version != vdir->vd_version
 		       || time_after(jiffies, vdir->vd_jiffy + expire))) {
 		LKTRTrace("iver %llu, vdver %lu, exp %lu\n",
-			  inode->i_version, vdir->vd_version,
-			  vdir->vd_jiffy + expire);
+			  (unsigned long long)inode->i_version,
+			  vdir->vd_version, vdir->vd_jiffy + expire);
 		do_read = 1;
 		err = reinit_vdir(vdir);
 		if (unlikely(err))
@@ -732,7 +741,7 @@ static int copy_vdir(struct au_vdir *tgt, struct au_vdir *src)
 	if (tgt->vd_nblk < src->vd_nblk) {
 		au_vdir_deblk_t **p;
 		p = au_kzrealloc(tgt->vd_deblk, sizeof(*p) * tgt->vd_nblk,
-				 sizeof(*p) * src->vd_nblk, GFP_KERNEL);
+				 sizeof(*p) * src->vd_nblk, GFP_NOFS);
 		if (unlikely(!p))
 			goto out;
 		tgt->vd_deblk = p;
@@ -747,7 +756,7 @@ static int copy_vdir(struct au_vdir *tgt, struct au_vdir *src)
 	tgt->vd_jiffy = src->vd_jiffy;
 
 	for (i = 1; i < n; i++) {
-		tgt->vd_deblk[i] = kmalloc(AuSize_DEBLK, GFP_KERNEL);
+		tgt->vd_deblk[i] = kmalloc(AuSize_DEBLK, GFP_NOFS);
 		if (tgt->vd_deblk[i])
 			memcpy(tgt->vd_deblk[i], src->vd_deblk[i],
 			       AuSize_DEBLK);
@@ -901,7 +910,8 @@ int au_vdir_fill_de(struct file *file, void *dirent, filldir_t filldir)
 			de = vdir_cache->vd_last.p.de;
 			LKTRTrace("%.*s, off%lld, i%lu, dt%d\n",
 				  de->de_str.len, de->de_str.name,
-				  file->f_pos, de->de_ino, de->de_type);
+				  file->f_pos, (unsigned long)de->de_ino,
+				  de->de_type);
 			err = filldir(dirent, de->de_str.name, de->de_str.len,
 				      file->f_pos, de->de_ino, de->de_type);
 			if (unlikely(err)) {

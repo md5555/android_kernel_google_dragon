@@ -19,7 +19,7 @@
 /*
  * mount and super_block operations
  *
- * $Id: super.c,v 1.8 2008/06/02 02:40:17 sfjro Exp $
+ * $Id: super.c,v 1.16 2008/09/15 03:14:49 sfjro Exp $
  */
 
 #include <linux/module.h>
@@ -51,7 +51,24 @@ static struct inode *aufs_alloc_inode(struct super_block *sb)
 
 static void aufs_destroy_inode(struct inode *inode)
 {
+	int err;
+
 	LKTRTrace("i%lu\n", inode->i_ino);
+
+	if (!inode->i_nlink) {
+		struct super_block *sb = inode->i_sb;
+		int locked;
+
+		/* in nowait task, sbi is write-locked */
+		/* todo: test kernel thread */
+		locked = si_noflush_read_trylock(sb);
+		err = au_xigen_inc(inode);
+		if (unlikely(err))
+			AuWarn1("failed resetting i_generation, %d\n", err);
+		if (locked)
+			si_read_unlock(sb);
+	}
+
 	au_iinfo_fin(inode);
 	au_cache_free_icntnr(container_of(inode, struct aufs_icntnr,
 					  vfs_inode));
@@ -62,7 +79,7 @@ struct inode *au_iget_locked(struct super_block *sb, ino_t ino)
 	struct inode *inode;
 	int err;
 
-	LKTRTrace("i%lu\n", ino);
+	LKTRTrace("i%lu\n", (unsigned long)ino);
 
 	inode = iget_locked(sb, ino);
 	if (unlikely(!inode)) {
@@ -73,13 +90,12 @@ struct inode *au_iget_locked(struct super_block *sb, ino_t ino)
 	if (unlikely(!(inode->i_state & I_NEW)))
 		goto out;
 
-	err = au_iinfo_init(inode);
-	if (!err) {
+	err = au_xigen_new(inode);
+	if (!err)
+		err = au_iinfo_init(inode);
+	if (!err)
 		inode->i_version++;
-		inode->i_op = &aufs_iop;
-		inode->i_fop = &aufs_file_fop;
-		inode->i_mapping->a_ops = &aufs_aop;
-	} else {
+	else {
 		iget_failed(inode);
 		inode = ERR_PTR(err);
 	}
@@ -133,7 +149,7 @@ static void au_show_wbr_create(struct seq_file *m, int v,
 	case AuWbrCreate_RR:
 	case AuWbrCreate_MFS:
 	case AuWbrCreate_PMFS:
-		seq_printf(m, "%s", pat);
+		seq_printf(m, pat);
 		break;
 	case AuWbrCreate_MFSV:
 		seq_printf(m, /*pat*/"mfs:%lu",
@@ -262,6 +278,7 @@ static int aufs_show_options(struct seq_file *m, struct vfsmount *mnt)
 #undef AuStr_BrOpt
 }
 
+/* todo: in case of round-robin policy, return the sum of all rw branches? */
 static int aufs_statfs(struct dentry *dentry, struct kstatfs *buf)
 {
 	int err;
@@ -296,7 +313,7 @@ static void au_fsync_br(struct super_block *sb)
 	bend = au_sbend(sb);
 	for (bindex = 0; bindex < bend; bindex++) {
 		brperm = au_sbr_perm(sb, bindex);
-		if (brperm == AuBr_RR || brperm == AuBr_RRWH)
+		if (brperm == AuBrPerm_RR || brperm == AuBrPerm_RRWH)
 			continue;
 		h_sb = au_sbr_sb(sb, bindex);
 		if (bdev_read_only(h_sb->s_bdev))
@@ -313,8 +330,17 @@ static void au_fsync_br(struct super_block *sb)
 #endif
 }
 
-static void aufs_umount_begin(struct super_block *sb)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
+/* this IS NOT for super_operations */
+static void aufs_umount_begin(struct super_block *arg)
+#define AuUmountBeginSb(arg)	(arg)
+#else
+/* this IS for super_operations */
+static void aufs_umount_begin(struct vfsmount *arg, int flags)
+#define AuUmountBeginSb(arg)	(arg)->mnt_sb
+#endif
 {
+	struct super_block *sb = AuUmountBeginSb(arg);
 	struct au_sbinfo *sbinfo;
 
 	AuTraceEnter();
@@ -348,9 +374,9 @@ static void aufs_put_super(struct super_block *sb)
 	sbinfo = au_sbi(sb);
 	if (unlikely(!sbinfo))
 		return;
-
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
 	aufs_umount_begin(sb);
-
+#endif
 	kobject_put(&sbinfo->si_kobj);
 }
 
@@ -399,11 +425,11 @@ static int test_dir(struct dentry *dentry, void *arg)
 static int refresh_dir(struct dentry *root, au_gen_t sgen)
 {
 	int err, i, j, ndentry, e;
-	const unsigned int flags = au_hi_flags(root->d_inode, /*isdir*/1);
 	struct au_dcsub_pages dpages;
 	struct au_dpage *dpage;
 	struct dentry **dentries;
 	struct inode *inode;
+	const unsigned int flags = au_hi_flags(root->d_inode, /*isdir*/1);
 
 	LKTRTrace("sgen %d\n", sgen);
 	SiMustWriteLock(root->d_sb);
@@ -424,7 +450,7 @@ static int refresh_dir(struct dentry *root, au_gen_t sgen)
 			}
 		}
 
-	e = au_dpages_init(&dpages, GFP_TEMPORARY);
+	e = au_dpages_init(&dpages, GFP_NOFS);
 	if (unlikely(e)) {
 		if (!err)
 			err = e;
@@ -505,7 +531,7 @@ static int refresh_nondir(struct dentry *root, au_gen_t sgen, int do_dentry)
 	if (!do_dentry)
 		goto out;
 
-	e = au_dpages_init(&dpages, GFP_TEMPORARY);
+	e = au_dpages_init(&dpages, GFP_NOFS);
 	if (unlikely(e)) {
 		if (!err)
 			err = e;
@@ -569,25 +595,27 @@ static int cvt_err(int err)
 /* protected by s_umount */
 static int aufs_remount_fs(struct super_block *sb, int *flags, char *data)
 {
-	int err;
+	int err, rerr;
+	au_gen_t sigen;
 	struct dentry *root;
 	struct inode *inode;
 	struct au_opts opts;
-	unsigned int dlgt;
 	struct au_sbinfo *sbinfo;
+	unsigned char dlgt;
 
 	LKTRTrace("flags 0x%x, data %s, len %lu\n",
 		  *flags, data ? data : "NULL",
 		  (unsigned long)(data ? strlen(data) : 0));
 
 	au_fsync_br(sb);
+
 	err = 0;
 	if (!data || !*data)
 		goto out; /* success */
 
 	err = -ENOMEM;
 	memset(&opts, 0, sizeof(opts));
-	opts.opt = (void *)__get_free_page(GFP_TEMPORARY);
+	opts.opt = (void *)__get_free_page(GFP_NOFS);
 	if (unlikely(!opts.opt))
 		goto out;
 	opts.max_opt = PAGE_SIZE / sizeof(*opts.opt);
@@ -610,9 +638,6 @@ static int aufs_remount_fs(struct super_block *sb, int *flags, char *data)
 
 	if (au_ftest_opts(opts.flags, REFRESH_DIR)
 	    || au_ftest_opts(opts.flags, REFRESH_NONDIR)) {
-		int rerr;
-		au_gen_t sigen;
-
 		dlgt = !!au_opt_test(sbinfo->si_mntflags, DLGT);
 		au_opt_clr(sbinfo->si_mntflags, DLGT);
 		au_sigen_inc(sb);
@@ -667,7 +692,9 @@ static struct super_operations aufs_sop = {
 
 	.put_super	= aufs_put_super,
 	.remount_fs	= aufs_remount_fs,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 	.umount_begin	= aufs_umount_begin
+#endif
 };
 
 /* ---------------------------------------------------------------------- */
@@ -685,8 +712,10 @@ static int alloc_root(struct super_block *sb)
 	err = PTR_ERR(inode);
 	if (IS_ERR(inode))
 		goto out;
-	unlock_new_inode(inode);
+	inode->i_op = &aufs_dir_iop;
+	inode->i_fop = &aufs_dir_fop;
 	inode->i_mode = S_IFDIR;
+	unlock_new_inode(inode);
 	root = d_alloc_root(inode);
 	if (unlikely(!root))
 		goto out_iput;
@@ -728,7 +757,7 @@ static int aufs_fill_super(struct super_block *sb, void *raw_data, int silent)
 
 	err = -ENOMEM;
 	memset(&opts, 0, sizeof(opts));
-	opts.opt = (void *)__get_free_page(GFP_TEMPORARY);
+	opts.opt = (void *)__get_free_page(GFP_NOFS);
 	if (unlikely(!opts.opt))
 		goto out;
 	opts.max_opt = PAGE_SIZE / sizeof(*opts.opt);
@@ -741,7 +770,7 @@ static int aufs_fill_super(struct super_block *sb, void *raw_data, int silent)
 	sb->s_flags |= MS_NOATIME | MS_NODIRATIME;
 	sb->s_op = &aufs_sop;
 	sb->s_magic = AUFS_SUPER_MAGIC;
-	au_init_export_op(sb);
+	au_export_init(sb);
 
 	err = alloc_root(sb);
 	if (unlikely(err)) {
@@ -807,15 +836,14 @@ static int aufs_get_sb(struct file_system_type *fs_type, int flags,
 		       struct vfsmount *mnt)
 {
 	int err;
+	struct super_block *sb;
 
 	/* all timestamps always follow the ones on the branch */
 	/* mnt->mnt_flags |= MNT_NOATIME | MNT_NODIRATIME; */
 	err = get_sb_nodev(fs_type, flags, raw_data, aufs_fill_super, mnt);
 	if (!err) {
-		struct super_block *sb = mnt->mnt_sb;
-		struct au_sbinfo *sbinfo = au_sbi(sb);
-
-		au_mnt_init(sbinfo, mnt);
+		sb = mnt->mnt_sb;
+		au_mnt_init(au_sbi(sb), mnt);
 		si_write_lock(sb);
 		sysaufs_brs_add(sb, 0);
 		si_write_unlock(sb);
@@ -825,7 +853,9 @@ static int aufs_get_sb(struct file_system_type *fs_type, int flags,
 
 struct file_system_type aufs_fs_type = {
 	.name		= AUFS_FSTYPE,
-	.fs_flags	= FS_REVAL_DOT, /* for UDBA and NFS branch */
+	.fs_flags	=
+		FS_RENAME_DOES_D_MOVE	/* a race between rename and others*/
+		| FS_REVAL_DOT,		/* for NFS branch */
 	.get_sb		= aufs_get_sb,
 	.kill_sb	= generic_shutdown_super,
 	/* no need to __module_get() and module_put(). */

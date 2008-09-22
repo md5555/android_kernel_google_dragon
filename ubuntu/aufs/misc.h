@@ -17,7 +17,7 @@
  */
 
 /*
- * $Id: misc.h,v 1.3 2008/05/26 04:04:26 sfjro Exp $
+ * $Id: misc.h,v 1.7 2008/09/22 03:52:19 sfjro Exp $
  */
 
 #ifndef __AUFS_MISC_H__
@@ -27,7 +27,7 @@
 
 #include <linux/fs.h>
 #include <linux/namei.h>
-#include <linux/aufs_types.h>
+#include <linux/aufs_type.h>
 
 /* ---------------------------------------------------------------------- */
 
@@ -94,12 +94,14 @@ static inline void au_rw_read_unlock(struct au_rwsem *rw)
 {
 	AuDbgRcntDec(rw);
 	up_read(&rw->rwsem);
+	//au_dbg_sleep_jiffy(1 * HZ / HZ);
 }
 
 static inline void au_rw_dgrade_lock(struct au_rwsem *rw)
 {
 	AuDbgRcntInc(rw);
 	downgrade_write(&rw->rwsem);
+	//au_dbg_sleep_jiffy(1 * HZ / HZ);
 }
 
 static inline void au_rw_write_lock(struct au_rwsem *rw)
@@ -116,6 +118,7 @@ static inline void au_rw_write_lock_nested(struct au_rwsem *rw,
 static inline void au_rw_write_unlock(struct au_rwsem *rw)
 {
 	up_write(&rw->rwsem);
+	//au_dbg_sleep_jiffy(1 * HZ / HZ);
 }
 
 /* why is not _nested version defined */
@@ -184,18 +187,32 @@ static inline void prefix##_downgrade_lock(param) \
 
 void *au_kzrealloc(void *p, unsigned int nused, unsigned int new_sz, gfp_t gfp);
 
+struct au_nd_store {
+	unsigned int		flags;
+	struct path		path;
+	struct open_intent	intent;
+};
 struct au_sbinfo;
+void au_nd_store(struct au_nd_store *store, struct nameidata *nd,
+		 struct au_sbinfo *sbinfo);
+void au_nd_revert(struct au_nd_store *store, struct nameidata *nd,
+		  struct au_sbinfo *sbinfo);
+
 struct nameidata *au_dup_nd(struct au_sbinfo *sbinfo, struct nameidata *dst,
 			    struct nameidata *src);
 
 struct nameidata *au_fake_dm(struct nameidata *fake_nd, struct nameidata *nd,
 			     struct super_block *sb, aufs_bindex_t bindex);
 void au_fake_dm_release(struct nameidata *fake_nd);
+struct vfsub_args;
 int au_h_create(struct inode *h_dir, struct dentry *h_dentry, int mode,
-		int dlgt, struct nameidata *nd, struct vfsmount *nfsmnt);
+		struct vfsub_args *vargs, struct nameidata *nd,
+		struct vfsmount *nfsmnt);
 
+struct au_hinode;
 int au_copy_file(struct file *dst, struct file *src, loff_t len,
-		 struct super_block *sb);
+		 struct au_hinode *hdir, struct super_block *sb,
+		 struct vfsub_args *vargs);
 
 #endif /* __KERNEL__ */
 #endif /* __AUFS_MISC_H__ */

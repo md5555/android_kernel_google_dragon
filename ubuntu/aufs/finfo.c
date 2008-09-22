@@ -19,7 +19,7 @@
 /*
  * file private data
  *
- * $Id: finfo.c,v 1.3 2008/05/26 04:04:24 sfjro Exp $
+ * $Id: finfo.c,v 1.4 2008/06/30 03:50:21 sfjro Exp $
  */
 
 #include "aufs.h"
@@ -150,7 +150,7 @@ int au_finfo_init(struct file *file)
 	finfo = au_cache_alloc_finfo();
 	if (finfo) {
 		finfo->fi_hfile = kcalloc(au_sbend(dentry->d_sb) + 1,
-					  sizeof(*finfo->fi_hfile), GFP_KERNEL);
+					  sizeof(*finfo->fi_hfile), GFP_NOFS);
 		if (finfo->fi_hfile) {
 			au_rw_init_wlock(&finfo->fi_rwsem);
 			finfo->fi_bstart = -1;

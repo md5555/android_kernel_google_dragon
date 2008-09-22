@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2008 Junjiro Okajima
+ * Copyright (C) 2005-2008 Junjiro Okajima
  *
  * This program, aufs is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,13 +19,14 @@
 /*
  * policies for selecting one among multiple writable branches
  *
- * $Id: wbr_policy.c,v 1.6 2008/06/09 01:11:08 sfjro Exp $
+ * $Id: wbr_policy.c,v 1.12 2008/09/01 02:55:35 sfjro Exp $
  */
 
 #include <linux/statfs.h>
 #include "aufs.h"
 
-static int au_cpdown_attr(struct dentry *h_dst, struct dentry *h_src)
+static int au_cpdown_attr(struct au_hinode *hdir, struct dentry *h_dst,
+			  struct dentry *h_src)
 {
 	int err, sbits;
 	struct iattr ia;
@@ -43,13 +44,13 @@ static int au_cpdown_attr(struct dentry *h_dst, struct dentry *h_src)
 	ia.ia_gid = h_isrc->i_gid;
 	sbits = !!(ia.ia_mode & (S_ISUID | S_ISGID));
 
-	err = vfsub_sio_notify_change(h_dst, &ia);
+	err = vfsub_sio_notify_change(hdir, h_dst, &ia);
 
 	/* is this nfs only? */
 	if (!err && sbits && au_test_nfs(h_dst->d_sb)) {
 		ia.ia_valid = ATTR_FORCE | ATTR_MODE;
 		ia.ia_mode = h_isrc->i_mode;
-		err = vfsub_sio_notify_change(h_dst, &ia);
+		err = vfsub_sio_notify_change(hdir, h_dst, &ia);
 	}
 
 	/* todo: necessary? */
@@ -68,11 +69,12 @@ struct au_cpdown_dir_args {
 static int au_cpdown_dir(struct dentry *dentry, aufs_bindex_t bdst,
 			 struct dentry *h_parent, void *arg)
 {
-	int err, parent_opq, whed, dlgt, do_opq, made_dir, diropq, rerr;
+	int err, rerr;
 	struct au_cpdown_dir_args *args = arg;
 	aufs_bindex_t bend, bopq, bstart;
-	struct dentry *h_dentry, *opq_dentry, *wh_dentry;
-	struct inode *h_dir, *h_inode, *inode;
+	unsigned char parent_opq, whed, dlgt, do_opq, made_dir, diropq;
+	struct dentry *h_dentry, *opq_dentry, *wh_dentry, *parent;
+	struct inode *h_dir, *h_inode, *inode, *dir;
 
 	LKTRTrace("%.*s, b%d\n", AuDLNPair(dentry), bdst);
 	bstart = au_dbstart(dentry);
@@ -80,8 +82,13 @@ static int au_cpdown_dir(struct dentry *dentry, aufs_bindex_t bdst,
 		  && bdst <= au_dbend(dentry)
 		  && au_h_dptr(dentry, bdst));
 	AuDebugOn(!h_parent);
+	/* todo: safe? */
+	parent = dget_parent(dentry);
+	dir = parent->d_inode;
+	dput(parent);
 	h_dir = h_parent->d_inode;
 	AuDebugOn(!h_dir);
+	AuDebugOn(h_dir != au_h_iptr(dir, bdst));
 	IMustLock(h_dir);
 
 	err = au_lkup_neg(dentry, bdst);
@@ -89,7 +96,7 @@ static int au_cpdown_dir(struct dentry *dentry, aufs_bindex_t bdst,
 		goto out;
 	h_dentry = au_h_dptr(dentry, bdst);
 	dlgt = !!au_test_dlgt(au_mntflags(dentry->d_sb));
-	err = vfsub_sio_mkdir(h_dir, h_dentry, S_IRWXU | S_IRUGO | S_IXUGO,
+	err = vfsub_sio_mkdir(au_hi(dir, bdst), h_dentry, S_IRWXU | S_IRUGO | S_IXUGO,
 			      dlgt);
 	if (unlikely(err))
 		goto out_put;
@@ -116,7 +123,7 @@ static int au_cpdown_dir(struct dentry *dentry, aufs_bindex_t bdst,
 		diropq = 1;
 	}
 
-	err = au_cpdown_attr(h_dentry, au_h_dptr(dentry, bstart));
+	err = au_cpdown_attr(au_hi(dir, bdst), h_dentry, au_h_dptr(dentry, bstart));
 	mutex_unlock(&h_inode->i_mutex);
 	if (unlikely(err))
 		goto out_opq;
@@ -129,8 +136,8 @@ static int au_cpdown_dir(struct dentry *dentry, aufs_bindex_t bdst,
 			goto out_opq;
 		err = 0;
 		if (wh_dentry->d_inode)
-			err = au_wh_unlink_dentry(h_dir, wh_dentry, dentry,
-						  NULL, dlgt);
+			err = au_wh_unlink_dentry(au_hi(dir, bdst), wh_dentry,
+						  dentry, dlgt);
 		dput(wh_dentry);
 		if (unlikely(err))
 			goto out_opq;
@@ -139,7 +146,7 @@ static int au_cpdown_dir(struct dentry *dentry, aufs_bindex_t bdst,
 	inode = dentry->d_inode;
 	if (au_ibend(inode) < bdst)
 		au_set_ibend(inode, bdst);
-	au_set_h_iptr(inode, bdst, igrab(h_inode), au_hi_flags(inode, 1));
+	au_set_h_iptr(inode, bdst, au_igrab(h_inode), au_hi_flags(inode, 1));
 	goto out; /* success */
 
 	/* revert */
@@ -157,7 +164,7 @@ static int au_cpdown_dir(struct dentry *dentry, aufs_bindex_t bdst,
 	}
  out_dir:
 	if (made_dir) {
-		rerr = vfsub_sio_rmdir(h_dir, h_dentry, dlgt);
+		rerr = vfsub_sio_rmdir(au_hi(dir, bdst), h_dentry, dlgt);
 		if (unlikely(rerr)) {
 			AuIOErr("failed removing %.*s b%d (%d)\n",
 				AuDLNPair(dentry), bdst, rerr);
@@ -173,8 +180,7 @@ static int au_cpdown_dir(struct dentry *dentry, aufs_bindex_t bdst,
 	return err;
 }
 
-int au_cpdown_dirs(struct dentry *dentry, aufs_bindex_t bdst,
-		   struct dentry *locked)
+int au_cpdown_dirs(struct dentry *dentry, aufs_bindex_t bdst)
 {
 	int err;
 	struct au_cpdown_dir_args args = {
@@ -184,7 +190,7 @@ int au_cpdown_dirs(struct dentry *dentry, aufs_bindex_t bdst,
 
 	LKTRTrace("%.*s, b%d\n", AuDLNPair(dentry), bdst);
 
-	err = au_cp_dirs(dentry, bdst, locked, au_cpdown_dir, &args);
+	err = au_cp_dirs(dentry, bdst, au_cpdown_dir, &args);
 	dput(args.parent);
 
 	AuTraceErr(err);
@@ -206,9 +212,10 @@ static int au_wbr_bu(struct super_block *sb, aufs_bindex_t bindex)
 /* top down parent */
 static int au_wbr_create_tdp(struct dentry *dentry, int isdir)
 {
-	int err, dirperm1;
+	int err;
 	struct super_block *sb;
 	aufs_bindex_t bstart, bindex;
+	unsigned char dirperm1;
 	struct dentry *parent, *h_parent;
 	struct inode *h_dir;
 
@@ -217,8 +224,10 @@ static int au_wbr_create_tdp(struct dentry *dentry, int isdir)
 	sb = dentry->d_sb;
 	dirperm1 = !!au_test_dirperm1(au_mntflags(sb));
 	bstart = au_dbstart(dentry);
+	AuDebugOn(bstart < 0);
 	err = bstart;
-	if (!au_br_rdonly(au_sbr(sb, bstart)))
+	/* todo: can 'err' be an illegal? */
+	if (/* err >= 0 && */ !au_br_rdonly(au_sbr(sb, bstart)))
 		goto out;
 
 	err = -EROFS;
@@ -360,9 +369,10 @@ static void au_mfs(struct dentry *dentry)
 {
 	struct super_block *sb;
 	aufs_bindex_t bindex, bend;
-	int dlgt, err;
+	unsigned char dlgt;
+	int err;
 	struct kstatfs st;
-	u64 b, bavail;
+	unsigned long long b, bavail;
 	void *arg;
 	struct au_branch *br;
 	struct au_wbr_mfs *mfs;
@@ -380,6 +390,7 @@ static void au_mfs(struct dentry *dentry)
 		br = au_sbr(sb, bindex);
 		if (au_br_rdonly(br))
 			continue;
+		AuDebugOn(!br->br_wbr);
 		arg = au_wbr_statfs_arg(br, sb, bindex);
 		if (!arg)
 			continue;
@@ -394,7 +405,7 @@ static void au_mfs(struct dentry *dentry)
 
 		/* when the available size is equal, select lower one */
 		b = st.f_bavail * st.f_bsize;
-		br->br_bytes = b;
+		br->br_wbr->wbr_bytes = b;
 		if (b >= bavail) {
 			bavail = b;
 			mfs->mfs_bindex = bindex;
@@ -493,12 +504,13 @@ static int au_wbr_create_init_mfsrr(struct super_block *sb)
 /* top down parent and most free space */
 static int au_wbr_create_pmfs(struct dentry *dentry, int isdir)
 {
-	int err, e2, dirperm1;
+	int err, e2;
 	struct super_block *sb;
 	struct dentry *parent, *h_parent;
 	aufs_bindex_t bindex, bstart, bend;
+	unsigned char dirperm1;
 	struct au_branch *br;
-	u64 b;
+	unsigned long long b;
 	struct inode *h_dir;
 
 	LKTRTrace("%.*s, %d\n", AuDLNPair(dentry), isdir);
@@ -519,8 +531,9 @@ static int au_wbr_create_pmfs(struct dentry *dentry, int isdir)
 	/* when the available size is equal, select upper one */
 	sb = dentry->d_sb;
 	br = au_sbr(sb, err);
+	AuDebugOn(!br->br_wbr);
 	dirperm1 = !!au_test_dirperm1(au_mntflags(sb));
-	b = br->br_bytes;
+	b = br->br_wbr->wbr_bytes;
 	LKTRTrace("b%d, %llu\n", err, b);
 
 	if (unlikely(dirperm1)) {
@@ -536,8 +549,8 @@ static int au_wbr_create_pmfs(struct dentry *dentry, int isdir)
 			if (!au_br_rdonly(br)
 			    && au_test_h_perm(h_dir, MAY_WRITE | MAY_EXEC,
 					      /*dlgt*/0)
-			    && br->br_bytes > b) {
-				b = br->br_bytes;
+			    && br->br_wbr->wbr_bytes > b) {
+				b = br->br_wbr->wbr_bytes;
 				err = bindex;
 				LKTRTrace("b%d, %llu\n", err, b);
 			}
@@ -551,8 +564,8 @@ static int au_wbr_create_pmfs(struct dentry *dentry, int isdir)
 			continue;
 
 		br = au_sbr(sb, bindex);
-		if (!au_br_rdonly(br) && br->br_bytes > b) {
-			b = br->br_bytes;
+		if (!au_br_rdonly(br) && br->br_wbr->wbr_bytes > b) {
+			b = br->br_wbr->wbr_bytes;
 			err = bindex;
 			LKTRTrace("b%d, %llu\n", err, b);
 		}
@@ -578,9 +591,10 @@ static int au_wbr_copyup_tdp(struct dentry *dentry)
 /* bottom up parent */
 static int au_wbr_copyup_bup(struct dentry *dentry)
 {
-	int err, dirperm1;
+	int err;
 	struct dentry *parent, *h_parent;
 	aufs_bindex_t bindex, bstart;
+	unsigned char dirperm1;
 	struct super_block *sb;
 	struct inode *h_dir;
 

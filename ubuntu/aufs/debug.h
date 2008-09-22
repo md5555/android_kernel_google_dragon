@@ -19,7 +19,7 @@
 /*
  * debug print functions
  *
- * $Id: debug.h,v 1.2 2008/04/21 02:00:37 sfjro Exp $
+ * $Id: debug.h,v 1.8 2008/09/22 03:52:03 sfjro Exp $
  */
 
 #ifndef __AUFS_DEBUG_H__
@@ -28,6 +28,9 @@
 #ifdef __KERNEL__
 
 #include <linux/fs.h>
+#include <linux/kd.h>
+#include <linux/vt_kern.h>
+#include <linux/sysrq.h>
 
 /* to debug easier, do not make it an inlined function */
 #define MtxMustLock(mtx)	AuDebugOn(!mutex_is_locked(mtx))
@@ -135,6 +138,11 @@ void au_dpri_dentry(struct dentry *dentry);
 void au_dpri_file(struct file *filp);
 void au_dpri_sb(struct super_block *sb);
 void au_dbg_sleep(int sec);
+void au_dbg_sleep_jiffy(int jiffy);
+#ifndef ATTR_TIMES_SET
+#define ATTR_TIMES_SET 0
+#endif
+void au_dbg_iattr(struct iattr *ia);
 int __init au_debug_init(void);
 void au_debug_sbinfo_init(struct au_sbinfo *sbinfo);
 #define AuDbgWhlist(w) do { \
@@ -171,6 +179,16 @@ void au_debug_sbinfo_init(struct au_sbinfo *sbinfo);
 	AuDbg("sleep %d sec\n", sec); \
 	au_dbg_sleep(sec); \
 } while (0)
+
+#define AuDbgSleepJiffy(jiffy) do { \
+	AuDbg("sleep %d jiffies\n", jiffy); \
+	au_dbg_sleep_jiffy(jiffy); \
+} while (0)
+
+#define AuDbgIAttr(ia) do { \
+	AuDbg("ia_valid 0x%x\n", (ia)->ia_valid); \
+	au_dbg_iattr(ia); \
+} while (0)
 #else
 static inline int au_debug_init(void)
 {
@@ -187,6 +205,8 @@ static inline void au_debug_sbinfo_init(struct au_sbinfo *sbinfo)
 #define AuDbgFile(f)		do {} while (0)
 #define AuDbgSb(sb)		do {} while (0)
 #define AuDbgSleep(sec)		do {} while (0)
+#define AuDbgSleepJiffy(jiffy)	do {} while (0)
+#define AuDbgIAttr(ia)		do {} while (0)
 #endif /* CONFIG_AUFS_DEBUG */
 
 #ifdef DbgUdbaRace
@@ -198,13 +218,24 @@ static inline void au_debug_sbinfo_init(struct au_sbinfo *sbinfo)
 #ifdef CONFIG_AUFS_MAGIC_SYSRQ
 int __init au_sysrq_init(void);
 void au_sysrq_fin(void);
+
+#ifdef CONFIG_HW_CONSOLE
+#define au_dbg_blocked() do { \
+	WARN_ON(1); \
+	handle_sysrq('w', vc_cons[fg_console].d->vc_tty); \
+} while (0)
+#else
+#define au_dbg_blocked()	do {} while (0)
+#endif
+
 #else
 static inline int au_sysrq_init(void)
 {
 	return 0;
 }
 #define au_sysrq_fin()		do {} while (0)
-#endif
+#define au_dbg_blocked()	do {} while (0)
+#endif /* CONFIG_AUFS_MAGIC_SYSRQ */
 
 #endif /* __KERNEL__ */
 #endif /* __AUFS_DEBUG_H__ */
