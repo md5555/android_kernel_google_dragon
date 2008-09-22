@@ -28,9 +28,7 @@ endif
 # defined in ${srctree}/mm/shmem.c in linux-2.6.26 and earlier
 # tristate
 ifdef CONFIG_TMPFS
-ifeq ($(shell test ${SUBLEVEL} -le 26 && echo t),t)
 ccflags-y += -DTMPFS_MAGIC=0x01021994
-endif
 endif
 
 # defined in ${srctree}fs/sysfs/mount.c
