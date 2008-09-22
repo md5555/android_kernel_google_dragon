@@ -1,5 +1,5 @@
 config AUFS
-	bool "Another unionfs"
+	tristate "Another unionfs"
 	help
 	Aufs is a stackable unification filesystem such as Unionfs,
 	which unifies several directories and provides a merged single
@@ -9,11 +9,11 @@ config AUFS
 	ideas, approaches and improvements, it becomes totally
 	different from Unionfs while keeping the basic features.
 	See Unionfs for the basic features.
-
+if AUFS
+comment "These options are for 2.6.27-3-generic"
 choice
 	prompt "Maximum number of branches"
 	default AUFS_BRANCH_MAX_127
-	depends on AUFS
 	help
 	Specifies the maximum number of branches (or member directories) in a single aufs. The larger value consumes more system resources and has an impact to performance.
 config AUFS_BRANCH_MAX_127
@@ -33,19 +33,233 @@ config AUFS_BRANCH_MAX_32767
 	help
 	Specifies the maximum number of branches (or member directories) in a single aufs. The larger value consumes more system resources and has an impact to performance.
 endchoice
-
 config AUFS_STAT
 	bool "Use <sysfs>/fs/aufs/stat"
-	depends on SYSFS && AUFS
-	default n
+	depends on SYSFS
 	help
 	Shows some statistic data via <sysfs>/fs/aufs/stat.
 	See detail in aufs.5.
-
+comment "SYSFS and AUFS_STAT are disabled"
+	depends on SYSFS = n
+config AUFS_HINOTIFY
+	bool "Use inotify to detect actions on a branch"
+	depends on INOTIFY
+	help
+	If you want to modify files on branches directly, eg. bypassing aufs,
+	and want aufs to detect the changes of them fully, then enable this
+	option and use 'udba=inotify' mount option.
+	It will have a negative impact to the performance.
+	See detail in aufs.5.
+comment "INOTIFY and AUFS_HINOTIFY are disabled"
+	depends on INOTIFY = n
+config AUFS_EXPORT
+	bool "NFS-exportable aufs"
+	depends on (AUFS = y && EXPORTFS = y) || (AUFS = m && EXPORTFS)
+	help
+	If you want to export your mounted aufs, then enable this
+	option. There are several requirements to export aufs.
+	See detail in aufs.5.
+comment "EXPORTFS and AUFS_EXPORT are disabled"
+	depends on EXPORTFS = n
+comment "AUFS_EXPORT is disabled since EXPORTFS is a module but AUFS"
+	depends on EXPORTFS = m && AUFS = y
+config AUFS_INO_T_64
+	bool
+	depends on 64BIT && !(ALPHA || S390)
+	default y
+config AUFS_ROBR
+	bool "Aufs as an readonly branch of another aufs mount"
+	help
+	If you want make your aufs to be a part of another aufs, then
+	enable this option. In other words, you can specify your aufs
+	path in 'br:' mount option for another aufs, but cannot
+	specify 'rw' as the branch permission.
+	It will have a negative impact to the performance.
+	See detail in aufs.5.
+config AUFS_DLGT
+	bool "Delegate the internal branch access the kernel thread"
+	help
+	If you want aufs to delegate
+	the internal access to the branches which is made by aufs, to
+	the kernel thread, in order to hide the access issued by your
+	application from your LSM or something or make your
+	application to be traced strictly by the task I/O accounting,
+	then enable this option and use 'dlgt' mount option.
+	It will have a negative impact to the performance.
+	See detail in aufs.5.
+config AUFS_HIN_OR_DLGT
+	bool
+	depends on AUFS_HINOTIFY || AUFS_DLGT
+	default y
+	help
+	Automatic configuration for internal use.
+config AUFS_SHWH
+	bool "Show whiteouts"
+	help
+	If you want to make the whiteouts in aufs visible, then enable
+	this option and specify 'shwh' mount option. Although it may
+	sounds like philosophy or something, but in technically it
+	simply shows the name of whiteout with keeping its behaviour.
+config AUFS_RR_SQUASHFS
+	bool "Make squashfs branch RR (real readonly) by default"
+	default y
+	help
+	If you use squashfs or LZMA patched squashfs as an aufs branch
+	and want to set '=rr' to it by default, then enable this
+	configuration.
+	'rr' stands for real readonly and it optimizes some aspects of
+	'ro.'
+	See detail in aufs.5.
+config AUFS_SEC_PERM_PATCH
+	bool "sec_perm-2.6.24.patch was applied or not"
+	depends on AUFS = m
+	depends on SECURITY
+	help
+	If you build aufs as a module and enabled CONFIG_SECURITY,
+	then you need to apply the patch
+	'CVS_TREE/aufs/patch/sec_perm-2.6.24.patch' to your kernel
+	source, and enable this configuration.
+	The sec_perm-2.6.24.patch exports a kernel function
+	security_inode_permission() to modules.
+comment "SECURITY and AUFS_SEC_PERM_PATCH are disabled"
+	depends on SECURITY = n
+config AUFS_SPLICE_PATCH
+	bool "splice.patch for sendfile(2) and splice(2)"
+	help
+	If you use 'loopback mount' on a fs-image file, or use
+	splice(2) or sendfile(2) systemcall in aufs, then you need to
+	apply the patch 'CVS_TREE/aufs/patch/splice.patch' to your
+	kernel source, and enable this configuration.
+	The splice.patch makes the kernel function do_splice_to/from()
+	global and exports them to modules.
+config AUFS_PUT_FILP_PATCH
+	bool "put_filp.patch for NFS branch"
+	depends on AUFS = m
+	depends on NFS_FS
+	help
+	If you build aufs as a module and use mounted NFS as an aufs
+	branch filesystem, then you need to apply the patch
+	'CVS_TREE/aufs/patch/put_filp.patch' to your kernel source,
+	and enable this configuration.
+	The put_filp.patch exports a kernel function put_filp() to
+	modules.
+comment "NFS_FS and AUFS_PUT_FILP_PATCH are disabled"
+	depends on NFS_FS = n
+config AUFS_LHASH_PATCH
+	bool "lhash.patch for NFS branch"
+	depends on NFS_FS
+	help
+	If you use mounted NFS as an aufs branch filesystem, then you
+	need to apply the patch 'CVS_TREE/aufs/patch/lhash.patch' (or
+	lhash-2.6.22.patch for linux-2.6.22 and later) to your kernel
+	source, and enable this configuration.
+	The patch file makes the kernel function __lookup_hash() global
+	and exports it to modules.
+comment "NFS_FS and AUFS_LHASH_PATCH are disabled"
+	depends on NFS_FS = n
+config AUFS_BR_NFS
+	bool
+	depends on NFS_FS
+	default n if (!AUFS_LHASH_PATCH || !(AUFS = y || AUFS_PUT_FILP_PATCH))
+	default y
+	help
+	Automatic configuration for internal use.
+	When aufs supports NFS branch, enabled automatically.
+config AUFS_BR_XFS
+	bool
+	depends on XFS_FS
+	default y
+	help
+	Automatic configuration for internal use.
+	When aufs supports XFS branch, enabled automatically.
+config AUFS_FSYNC_SUPER_PATCH
+	bool "fsync_super-2.6.xx.patch was applied or not"
+	depends on AUFS = m
+	help
+	If you build aufs as a module and want to flush everything for
+	branch filesystems which are not marked as 'rr' nor 'rr+wh' at
+	umount or remount time, then you need to apply the patch
+	'CVS_TREE/aufs/patch/fsync_super-2.6.16.patch' or
+	'...-2.6.19.patch' to your kernel source, and enable this
+	configuration.
+	It may be helpful at shutdown time in case of your aufs is a
+	root filesystem. But this behaviour will not guarantee the
+	consistency of branch filesystems. To guarantee it, try the
+	approach described in the aufs manual, and do not forget
+	installing auplink script.
+	The fsync_super-2.6.xx.patch does nothing but exports a kernel
+	function fsync_super() to modules.
+config AUFS_DENY_WRITE_ACCESS_PATCH
+	bool "deny_write_access.patch was applied or not"
+	depends on AUFS = m
+	help
+	A security enhancement to deny writing to a running executable
+	which exists on an aufs branch filesystem and executed through
+	aufs. If you applied
+	'CVS_TREE/aufs/patch/deny_write_access.patch' to your kernel
+	and you are compiling aufs as a module, then enable this
+	option.
+	The write_deny_access.patch does nothing but export the
+	function.
+config AUFS_WORKAROUND_FUSE
+	bool "Special handling for FUSE-based filesystem"
+	depends on FUSE_FS
+	help
+	A FUSE-based filesystem may not initialize its inode
+	attributes and the FUSE developer thinks the inode attributes
+	in a positive dentry which is returned by VFS lookup operation
+	are not reliable.
+	If you use a FUSE-based filesystem as an aufs branch, and it
+	customizes the inode attribute on it without overriding
+	fuse_lowlevel_ops.lookup, probably you need to enable this
+	configuration.
+	If you enable this configuration, aufs calls getattr operation
+	in every lookup and revalidate operation for the FUSE-based
+	filesystem branch.
+	It will have a negative impact to the performance even if you do
+	not use a FUSE-based filesystem branch.
+config AUFS_HIN_OR_FUSE
+	bool
+	depends on AUFS_HINOTIFY || AUFS_WORKAROUND_FUSE
+	default y
+	help
+	Automatic configuration for internal use.
 config AUFS_DEBUG
 	bool "Debug aufs"
-	depends on AUFS
-	default n
+	default y
 	help
 	Enable this to compile aufs internal debug code.
 	It will have a negative impact to the performance.
+config AUFS_MAGIC_SYSRQ
+	bool
+	depends on AUFS_DEBUG && MAGIC_SYSRQ
+	default y
+	help
+	Automatic configuration for internal use.
+	When aufs supports Magic SysRq, enabled automatically.
+config AUFS_COMPAT
+	bool "Compatibility with Unionfs (obsolete)"
+	help
+	This makes aufs compatible with unionfs-style mount options and some
+	behaviours.
+	The dirs= mount option and =nfsro branch permission flag are always
+	interpreted as br: mount option and =ro flag respectively. The
+	'debug', 'delete' and 'imap' mount options are ignored.
+	If you disable this option, you will get,
+	- aufs issues a warning about the ignored mount options
+	- the default branch permission flag is set. RW for the first branch,
+	  and RO for the rests.
+	- the name of a internal file which represents the directory is
+	  'opaque', becomes '.wh..wh..opq'
+	- the 'diropq=w' mount option is set by default
+config AUFS_UNIONFS22_PATCH
+	bool "Unionfs-2.2 or later patch is applied or not (obsolete)"
+	help
+	Unionfs version 2.2 (and later) patch introduces some changes in VFS layer which has an impact to aufs. If you have applied such patch to your kernel, you need to enable this configuration even if you disabled CONFIG_UNIONFS.
+config AUFS_UNIONFS23_PATCH
+	bool "Unionfs-2.3 or later patch is applied or not (obsolete)"
+	select AUFS_SPLICE_PATCH
+	select AUFS_UNIONFS22_PATCH
+	help
+	Unionfs version 2.3 (and later) patch introduces some changes in VFS layer which has an impact to aufs. If you have applied such patch to your kernel, you need to enable this configuration even if you disabled CONFIG_UNIONFS.
+endif

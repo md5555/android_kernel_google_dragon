@@ -19,7 +19,7 @@
 /*
  * mount options/flags
  *
- * $Id: opts.h,v 1.4 2008/06/02 02:39:11 sfjro Exp $
+ * $Id: opts.h,v 1.6 2008/08/17 23:03:27 sfjro Exp $
  */
 
 #ifndef __AUFS_OPTS_H__
@@ -29,7 +29,7 @@
 
 #include <linux/fs.h>
 #include <linux/namei.h>
-#include <linux/aufs_types.h>
+#include <linux/aufs_type.h>
 #include "wkq.h"
 
 /* ---------------------------------------------------------------------- */
@@ -150,14 +150,14 @@ struct au_opt_xino_itrunc {
 };
 
 struct au_opt_xino_trunc_v {
-	u64		upper;
-	int		step;
+	unsigned long long	upper;
+	int			step;
 };
 
 struct au_opt_wbr_create {
-	int wbr_create;
-	int mfs_second;
-	u64 mfsrr_watermark;
+	int			wbr_create;
+	int			mfs_second;
+	unsigned long long	mfsrr_watermark;
 };
 
 struct au_opt {
@@ -228,12 +228,12 @@ static inline int au_opt_test_xino(unsigned int flags)
 #define au_opt_set_coo(flags, name) do { \
 	(flags) &= ~AuOptMask_COO; \
 	((flags) |= AuOpt_##name); \
-} while(0)
+} while (0)
 
 #define au_opt_set_udba(flags, name) do { \
 	(flags) &= ~AuOptMask_UDBA; \
 	((flags) |= AuOpt_##name); \
-} while(0)
+} while (0)
 
 #define au_opt_clr(flags, name)		{ ((flags) &= ~AuOpt_##name); }
 

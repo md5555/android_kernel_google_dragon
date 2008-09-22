@@ -28,7 +28,7 @@
 #ifdef __KERNEL__
 
 #include <linux/fs.h>
-#include <linux/aufs_types.h>
+#include <linux/aufs_type.h>
 
 /* ---------------------------------------------------------------------- */
 

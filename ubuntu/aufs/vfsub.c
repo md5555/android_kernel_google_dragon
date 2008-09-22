@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2008 Junjiro Okajima
+ * Copyright (C) 2005-2008 Junjiro Okajima
  *
  * This program, aufs is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
 /*
  * sub-routines for VFS
  *
- * $Id: vfsub.c,v 1.6 2008/06/09 01:10:49 sfjro Exp $
+ * $Id: vfsub.c,v 1.11 2008/08/04 00:32:35 sfjro Exp $
  */
 
 #include <linux/uaccess.h>
@@ -126,6 +126,12 @@ int do_vfsub_create(struct inode *dir, struct dentry *dentry, int mode,
 	return err;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
+#define VfsubSymlinkArgs	dir, dentry, symname
+#else
+#define VfsubSymlinkArgs	dir, dentry, symname, mode
+#endif
+
 int do_vfsub_symlink(struct inode *dir, struct dentry *dentry,
 		     const char *symname, int mode)
 {
@@ -135,7 +141,7 @@ int do_vfsub_symlink(struct inode *dir, struct dentry *dentry,
 		  dir->i_ino, AuDLNPair(dentry), symname, mode);
 	IMustLock(dir);
 
-	err = vfs_symlink(dir, dentry, NULL, symname);
+	err = vfs_symlink(VfsubSymlinkArgs);
 	if (!err) {
 		/* dir inode is locked */
 		au_update_fuse_h_inode(NULL, dentry->d_parent); /*ignore*/
@@ -152,7 +158,7 @@ int do_vfsub_mknod(struct inode *dir, struct dentry *dentry, int mode,
 	LKTRTrace("i%lu, %.*s, 0x%x\n", dir->i_ino, AuDLNPair(dentry), mode);
 	IMustLock(dir);
 
-	err = vfs_mknod(dir, dentry, NULL, mode, dev);
+	err = vfs_mknod(dir, dentry, mode, dev);
 	if (!err) {
 		/* dir inode is locked */
 		au_update_fuse_h_inode(NULL, dentry->d_parent); /*ignore*/
@@ -171,7 +177,7 @@ int do_vfsub_link(struct dentry *src_dentry, struct inode *dir,
 	IMustLock(dir);
 
 	lockdep_off();
-	err = vfs_link(src_dentry, NULL, dir, dentry, 0);
+	err = vfs_link(src_dentry, dir, dentry);
 	lockdep_on();
 	if (!err) {
 		LKTRTrace("src_i %p, dst_i %p\n",
@@ -197,7 +203,7 @@ int do_vfsub_rename(struct inode *src_dir, struct dentry *src_dentry,
 	IMustLock(src_dir);
 
 	lockdep_off();
-	err = vfs_rename(src_dir, src_dentry, NULL, dir, dentry, 0);
+	err = vfs_rename(src_dir, src_dentry, dir, dentry);
 	lockdep_on();
 	if (!err) {
 		/* dir inode is locked */
@@ -215,7 +221,7 @@ int do_vfsub_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 	LKTRTrace("i%lu, %.*s, 0x%x\n", dir->i_ino, AuDLNPair(dentry), mode);
 	IMustLock(dir);
 
-	err = vfs_mkdir(dir, dentry, NULL, mode);
+	err = vfs_mkdir(dir, dentry, mode);
 	if (!err) {
 		/* dir inode is locked */
 		au_update_fuse_h_inode(NULL, dentry->d_parent); /*ignore*/
@@ -232,7 +238,7 @@ int do_vfsub_rmdir(struct inode *dir, struct dentry *dentry)
 	IMustLock(dir);
 
 	lockdep_off();
-	err = vfs_rmdir(dir, dentry, 0);
+	err = vfs_rmdir(dir, dentry);
 	lockdep_on();
 	/* dir inode is locked */
 	if (!err)
@@ -249,7 +255,7 @@ int do_vfsub_unlink(struct inode *dir, struct dentry *dentry)
 
 	/* vfs_unlink() locks inode */
 	lockdep_off();
-	err = vfs_unlink(dir, dentry, 0);
+	err = vfs_unlink(dir, dentry);
 	lockdep_on();
 	/* dir inode is locked */
 	if (!err)
@@ -267,13 +273,10 @@ ssize_t do_vfsub_read_u(struct file *file, char __user *ubuf, size_t count,
 	LKTRTrace("%.*s, cnt %lu, pos %lld\n",
 		  AuDLNPair(file->f_dentry), (unsigned long)count, *ppos);
 
-	if (0 /*!au_test_nfs(file->f_vfsmnt->mnt_sb)*/)
-		err = vfs_read(file, ubuf, count, ppos);
-	else {
-		lockdep_off();
-		err = vfs_read(file, ubuf, count, ppos);
-		lockdep_on();
-	}
+	/* todo: always off, regardless nfs branch? */
+	au_br_nfs_lockdep_off(file->f_vfsmnt->mnt_sb);
+	err = vfs_read(file, ubuf, count, ppos);
+	au_br_nfs_lockdep_on(file->f_vfsmnt->mnt_sb);
 	if (err >= 0)
 		au_update_fuse_h_inode(file->f_vfsmnt, file->f_dentry);
 	/*ignore*/
@@ -381,33 +384,39 @@ struct au_vfsub_mkdir_args {
 	struct inode *dir;
 	struct dentry *dentry;
 	int mode;
-	int dlgt;
+	struct vfsub_args *vargs;
 };
 
 static void au_call_vfsub_mkdir(void *args)
 {
 	struct au_vfsub_mkdir_args *a = args;
-	*a->errp = vfsub_mkdir(a->dir, a->dentry, a->mode, a->dlgt);
+	*a->errp = vfsub_mkdir(a->dir, a->dentry, a->mode, a->vargs);
 }
 
-int vfsub_sio_mkdir(struct inode *dir, struct dentry *dentry, int mode,
+int vfsub_sio_mkdir(struct au_hinode *hdir, struct dentry *dentry, int mode,
 		    int dlgt)
 {
 	int err, do_sio, wkq_err;
+	struct inode *dir = hdir->hi_inode;
+	struct au_hin_ignore ign;
+	struct vfsub_args vargs;
 
 	LKTRTrace("i%lu, %.*s\n", dir->i_ino, AuDLNPair(dentry));
 
+	vfsub_args_init(&vargs, &ign, dlgt, /*force_unlink*/0);
+	vfsub_ign_hinode(&vargs, IN_CREATE, hdir);
 	do_sio = au_test_h_perm_sio(dir, MAY_EXEC | MAY_WRITE, dlgt);
 	if (!do_sio)
-		err = vfsub_mkdir(dir, dentry, mode, dlgt);
+		err = vfsub_mkdir(dir, dentry, mode, &vargs);
 	else {
 		struct au_vfsub_mkdir_args args = {
 			.errp	= &err,
 			.dir	= dir,
 			.dentry	= dentry,
 			.mode	= mode,
-			.dlgt	= 0
+			.vargs	= &vargs
 		};
+		vfsub_fclr(vargs.flags, DLGT);
 		wkq_err = au_wkq_wait(au_call_vfsub_mkdir, &args, /*dlgt*/0);
 		if (unlikely(wkq_err))
 			err = wkq_err;
@@ -430,14 +439,17 @@ static void au_call_vfsub_rmdir(void *args)
 	*a->errp = vfsub_rmdir(a->dir, a->dentry, a->vargs);
 }
 
-int vfsub_sio_rmdir(struct inode *dir, struct dentry *dentry, int dlgt)
+int vfsub_sio_rmdir(struct au_hinode *hdir, struct dentry *dentry, int dlgt)
 {
 	int err, do_sio, wkq_err;
+	struct inode *dir = hdir->hi_inode;
+	struct au_hin_ignore ign;
 	struct vfsub_args vargs;
 
 	LKTRTrace("i%lu, %.*s\n", dir->i_ino, AuDLNPair(dentry));
 
-	vfsub_args_init(&vargs, /*ign*/NULL, dlgt, /*force_unlink*/0);
+	vfsub_args_init(&vargs, &ign, dlgt, /*force_unlink*/0);
+	vfsub_ign_hinode(&vargs, IN_DELETE, hdir);
 	do_sio = au_test_h_perm_sio(dir, MAY_EXEC | MAY_WRITE, dlgt);
 	if (!do_sio)
 		err = vfsub_rmdir(dir, dentry, &vargs);
@@ -458,41 +470,6 @@ int vfsub_sio_rmdir(struct inode *dir, struct dentry *dentry, int dlgt)
 	return err;
 }
 
-struct au_vfsub_notify_change_args {
-	int *errp;
-	struct dentry *dentry;
-	struct iattr *ia;
-	struct vfsub_args *vargs;
-};
-
-static void au_call_vfsub_notify_change(void *args)
-{
-	struct au_vfsub_notify_change_args *a = args;
-	*a->errp = vfsub_notify_change(a->dentry, a->ia, a->vargs);
-}
-
-int vfsub_sio_notify_change(struct dentry *dentry, struct iattr *ia)
-{
-	int err, wkq_err;
-	struct vfsub_args vargs;
-	struct au_vfsub_notify_change_args args = {
-		.errp		= &err,
-		.dentry		= dentry,
-		.ia		= ia,
-		.vargs		= &vargs
-	};
-
-	LKTRTrace("%.*s, 0x%x\n", AuDLNPair(dentry), ia->ia_valid);
-
-	vfsub_args_init(&vargs, /*ign*/NULL, /*dlgt*/0, /*force_unlink*/0);
-	wkq_err = au_wkq_wait(au_call_vfsub_notify_change, &args, /*dlgt*/0);
-	if (unlikely(wkq_err))
-		err = wkq_err;
-
-	AuTraceErr(err);
-	return err;
-}
-
 /* ---------------------------------------------------------------------- */
 
 struct notify_change_args {
@@ -500,7 +477,6 @@ struct notify_change_args {
 	struct dentry *h_dentry;
 	struct iattr *ia;
 	struct vfsub_args *vargs;
-	struct file *file;
 };
 
 static void call_notify_change(void *args)
@@ -517,12 +493,13 @@ static void call_notify_change(void *args)
 	if (!IS_IMMUTABLE(h_inode) && !IS_APPEND(h_inode)) {
 		vfsub_ignore(a->vargs);
 		lockdep_off();
-		*a->errp = fnotify_change(a->h_dentry, NULL, a->ia, a->file);
+		*a->errp = notify_change(a->h_dentry, a->ia);
 		lockdep_on();
 		if (!*a->errp)
 			au_update_fuse_h_inode(NULL, a->h_dentry); /*ignore*/
 		else
 			vfsub_unignore(a->vargs);
+		au_dbg_hin_list(a->vargs);
 	}
 	AuTraceErr(*a->errp);
 }
@@ -548,8 +525,8 @@ static void vfsub_notify_change_dlgt(struct notify_change_args *args,
 }
 #endif
 
-int vfsub_fnotify_change(struct dentry *dentry, struct iattr *ia,
-			struct vfsub_args *vargs, struct file *file)
+int vfsub_notify_change(struct dentry *dentry, struct iattr *ia,
+			struct vfsub_args *vargs)
 {
 	int err;
 	struct notify_change_args args = {
@@ -565,10 +542,32 @@ int vfsub_fnotify_change(struct dentry *dentry, struct iattr *ia,
 	return err;
 }
 
-int vfsub_notify_change(struct dentry *dentry, struct iattr *ia,
-			struct vfsub_args *vargs)
+int vfsub_sio_notify_change(struct au_hinode *hdir, struct dentry *dentry,
+			    struct iattr *ia)
 {
-	return vfsub_fnotify_change(dentry, ia, vargs, NULL);
+	int err, wkq_err;
+	struct au_hin_ignore ign;
+	struct vfsub_args vargs;
+	__u32 events;
+	struct notify_change_args args = {
+		.errp		= &err,
+		.h_dentry	= dentry,
+		.ia		= ia,
+		.vargs		= &vargs
+	};
+
+	LKTRTrace("%.*s, 0x%x\n", AuDLNPair(dentry), ia->ia_valid);
+
+	vfsub_args_init(&vargs, &ign, /*dlgt*/0, /*force_unlink*/0);
+	events = vfsub_events_notify_change(ia);
+	if (events)
+		vfsub_ign_hinode(&vargs, events, hdir);
+	wkq_err = au_wkq_wait(call_notify_change, &args, /*dlgt*/0);
+	if (unlikely(wkq_err))
+		err = wkq_err;
+
+	AuTraceErr(err);
+	return err;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -596,7 +595,11 @@ static void call_unlink(void *args)
 	h_inode = a->dentry->d_inode;
 	if (h_inode)
 		atomic_inc_return(&h_inode->i_count);
+	vfsub_ignore(a->vargs);
 	*a->errp = do_vfsub_unlink(a->dir, a->dentry);
+	if (unlikely(*a->errp || (a->dentry->d_flags & DCACHE_NFSFS_RENAMED)))
+		vfsub_unignore(a->vargs);
+	au_dbg_hin_list(a->vargs);
 	if (!stop_sillyrename)
 		dput(a->dentry);
 	if (h_inode)

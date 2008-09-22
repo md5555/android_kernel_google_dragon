@@ -17,7 +17,7 @@
  */
 
 /*
- * $Id: misc.c,v 1.8 2008/06/02 02:38:21 sfjro Exp $
+ * $Id: misc.c,v 1.17 2008/09/08 02:40:48 sfjro Exp $
  */
 
 #include "aufs.h"
@@ -94,7 +94,8 @@ void au_fake_dm_release(struct nameidata *fake_nd)
 }
 
 int au_h_create(struct inode *h_dir, struct dentry *h_dentry, int mode,
-		int dlgt, struct nameidata *nd, struct vfsmount *nfsmnt)
+		struct vfsub_args *vargs, struct nameidata *nd,
+		struct vfsmount *nfsmnt)
 {
 	int err;
 
@@ -103,7 +104,7 @@ int au_h_create(struct inode *h_dir, struct dentry *h_dentry, int mode,
 
 	err = -ENOSYS;
 	if (!nfsmnt)
-		err = vfsub_create(h_dir, h_dentry, mode, /*nd*/NULL, dlgt);
+		err = vfsub_create(h_dir, h_dentry, mode, /*nd*/NULL, vargs);
 	else {
 		struct nameidata fake_nd;
 
@@ -118,7 +119,7 @@ int au_h_create(struct inode *h_dir, struct dentry *h_dentry, int mode,
 		fake_nd.intent.open.flags = O_CREAT | FMODE_READ;
 		fake_nd.intent.open.create_mode = mode;
 
-		err = vfsub_create(h_dir, h_dentry, mode, &fake_nd, dlgt);
+		err = vfsub_create(h_dir, h_dentry, mode, &fake_nd, vargs);
 		path_put(&fake_nd.path);
 	}
 
@@ -129,13 +130,13 @@ int au_h_create(struct inode *h_dir, struct dentry *h_dentry, int mode,
 /* ---------------------------------------------------------------------- */
 
 int au_copy_file(struct file *dst, struct file *src, loff_t len,
-		 struct super_block *sb)
+		 struct au_hinode *hdir, struct super_block *sb,
+		 struct vfsub_args *vargs)
 {
-	int err, all_zero;
+	int err, all_zero, do_kfree;
 	unsigned long blksize;
-	char *buf;
-	struct vfsub_args vargs;
-	/* reduce stack space */
+	char *buf, *zp;
+	/* reduce stack usage */
 	struct iattr *ia;
 
 	LKTRTrace("%.*s, %.*s\n",
@@ -155,24 +156,40 @@ int au_copy_file(struct file *dst, struct file *src, loff_t len,
 	if (!blksize || PAGE_SIZE < blksize)
 		blksize = PAGE_SIZE;
 	LKTRTrace("blksize %lu\n", blksize);
-	buf = kmalloc(blksize, GFP_TEMPORARY);
-	if (unlikely(!buf))
-		goto out;
-	ia = kmalloc(sizeof(*ia), GFP_TEMPORARY);
-	if (unlikely(!ia))
-		goto out_buf;
+	/* todo: use ZERO_PAGE(0) */
+	BUILD_BUG_ON(KMALLOC_MAX_SIZE < 128 << 10);
+	do_kfree = 1;
+	if (blksize <= 64 << 10 && blksize * 2 >= sizeof(*ia)) {
+		buf = kmalloc(blksize * 2, GFP_NOFS);
+		if (unlikely(!buf))
+			goto out;
+		zp = buf + blksize;
+		memset(zp, 0, blksize);
+	} else {
+		BUILD_BUG_ON(PAGE_SIZE * 2 < sizeof(*ia));
+#if 0
+		buf = (void *)__get_free_pages(GFP_NOFS, 1);
+		zp = buf + PAGE_SIZE;
+#endif
+		do_kfree = 0;
+		buf = (void *)__get_free_page(GFP_NOFS);
+		if (unlikely(!buf))
+			goto out;
+		zp = (void *)get_zeroed_page(GFP_NOFS);
+		if (unlikely(!zp))
+			goto out_buf;
+	}
 
 #ifdef CONFIG_AUFS_DEBUG
 	if (len > (1 << 22))
 		AuWarn("copying a large file %lld\n", (long long)len);
 #endif
-	vfsub_args_init(&vargs, NULL, au_test_dlgt(au_mntflags(sb)), 0);
 	err = 0;
 	all_zero = 0;
 	src->f_pos = 0;
 	dst->f_pos = 0;
 	while (len) {
-		size_t sz, rbytes, wbytes, i;
+		size_t sz, rbytes, wbytes;
 		char *p;
 
 		LKTRTrace("len %lld\n", len);
@@ -185,7 +202,7 @@ int au_copy_file(struct file *dst, struct file *src, loff_t len,
 		/* todo: signal_pending? */
 		while (!rbytes || err == -EAGAIN || err == -EINTR) {
 			rbytes = vfsub_read_k(src, buf, sz, &src->f_pos,
-					      vfsub_ftest(vargs.flags, DLGT));
+					      vfsub_ftest(vargs->flags, DLGT));
 			err = rbytes;
 		}
 		if (unlikely(err < 0))
@@ -193,22 +210,20 @@ int au_copy_file(struct file *dst, struct file *src, loff_t len,
 
 		all_zero = 0;
 		if (len >= rbytes && rbytes == blksize) {
-			/* todo: try bitmap or memcmp()/get_zeroed_page()? */
-#if 0 /* todo: is there commonly re-usable zero page? */
-			static const char *zero_page[PAGE_SIZE];
-			all_zero = !memcmp(buf, zero_page, rbytes);
-#else
-			unsigned long *ulp;
-			size_t n;
+#if 1
+			all_zero = !memcmp(buf, zp, rbytes);
+#else /* reserved for future use */
+			unsigned long long *ullp;
+			size_t n, i;
 
 			all_zero = 1;
-			ulp = (void *)buf;
-			n = rbytes / sizeof(*ulp);
+			ullp = (void *)buf;
+			n = rbytes / sizeof(*ullp);
 			i = n;
 			while (n-- > 0 && all_zero)
-				all_zero = !*ulp++;
-			p = (void *)ulp;
-			i *= sizeof(*ulp);
+				all_zero = !*ullp++;
+			p = (void *)ullp;
+			i *= sizeof(*ullp);
 			for (; all_zero && i < rbytes; i++)
 				all_zero = !*p++;
 #endif
@@ -219,8 +234,10 @@ int au_copy_file(struct file *dst, struct file *src, loff_t len,
 			while (wbytes) {
 				size_t b;
 				/* support LSM and notify */
+				vfsub_args_reinit(vargs);
+				vfsub_ign_hinode(vargs, IN_MODIFY, hdir);
 				b = vfsub_write_k(dst, p, wbytes, &dst->f_pos,
-						  &vargs);
+						  vargs);
 				err = b;
 				/* todo: signal_pending? */
 				if (unlikely(err == -EAGAIN || err == -EINTR))
@@ -250,20 +267,31 @@ int au_copy_file(struct file *dst, struct file *src, loff_t len,
 		LKTRLabel(last hole);
 		do {
 			/* todo: signal_pending? */
-			err = vfsub_write_k(dst, "\0", 1, &dst->f_pos, &vargs);
+			vfsub_args_reinit(vargs);
+			vfsub_ign_hinode(vargs, IN_MODIFY, hdir);
+			err = vfsub_write_k(dst, "\0", 1, &dst->f_pos, vargs);
 		} while (err == -EAGAIN || err == -EINTR);
 		if (err == 1) {
+			ia = (void *)buf;
 			ia->ia_size = dst->f_pos;
-			ia->ia_valid = ATTR_SIZE;
+			ia->ia_valid = ATTR_SIZE | ATTR_FILE;
+			ia->ia_file = dst;
+			vfsub_args_reinit(vargs);
+			vfsub_ign_hinode(vargs, vfsub_events_notify_change(ia),
+					 hdir);
 			mutex_lock_nested(&h_i->i_mutex, AuLsc_I_CHILD2);
-			err = vfsub_fnotify_change(h_d, ia, &vargs, dst);
+			err = vfsub_notify_change(h_d, ia, vargs);
 			mutex_unlock(&h_i->i_mutex);
 		}
 	}
+	if (do_kfree)
+		kfree(buf);
+	else
+		free_page((unsigned long)zp);
 
-	kfree(ia);
  out_buf:
-	kfree(buf);
+	if (unlikely(!do_kfree))
+		free_page((unsigned long)buf);
  out:
 	AuTraceErr(err);
 	return err;

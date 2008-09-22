@@ -19,7 +19,7 @@
 /*
  * superblock private data
  *
- * $Id: sbinfo.c,v 1.8 2008/06/02 02:39:58 sfjro Exp $
+ * $Id: sbinfo.c,v 1.11 2008/07/27 22:49:36 sfjro Exp $
  */
 
 #include <linux/smp_lock.h>
@@ -57,10 +57,10 @@ int au_si_alloc(struct super_block *sb)
 	AuTraceEnter();
 
 	err = -ENOMEM;
-	sbinfo = kmalloc(sizeof(*sbinfo), GFP_KERNEL);
+	sbinfo = kmalloc(sizeof(*sbinfo), GFP_NOFS);
 	if (unlikely(!sbinfo))
 		goto out;
-	sbinfo->si_branch = kzalloc(sizeof(*sbinfo->si_branch), GFP_KERNEL);
+	sbinfo->si_branch = kzalloc(sizeof(*sbinfo->si_branch), GFP_NOFS);
 	if (unlikely(!sbinfo->si_branch))
 		goto out_sbinfo;
 
@@ -87,6 +87,7 @@ int au_si_alloc(struct super_block *sb)
 	sbinfo->si_xib = NULL;
 	mutex_init(&sbinfo->si_xib_mtx);
 	sbinfo->si_xib_buf = NULL;
+	au_xino_def_br_set(NULL, sbinfo);
 	/* leave si_xib_last_pindex and si_xib_next_bit */
 
 	au_nwt_init(&sbinfo->si_nowait);

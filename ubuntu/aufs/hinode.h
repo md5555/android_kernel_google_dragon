@@ -19,7 +19,7 @@
 /*
  * lower (branch filesystem) inode and setting inotify
  *
- * $Id: hinode.h,v 1.4 2008/05/26 04:04:24 sfjro Exp $
+ * $Id: hinode.h,v 1.9 2008/08/25 01:49:59 sfjro Exp $
  */
 
 #ifndef __AUFS_HINODE_H__
@@ -29,7 +29,7 @@
 
 #include <linux/fs.h>
 #include <linux/inotify.h>
-#include <linux/aufs_types.h>
+#include <linux/aufs_type.h>
 #include "super.h"
 #include "vfsub.h"
 
@@ -37,11 +37,11 @@
 
 struct au_hinotify {
 #ifdef CONFIG_AUFS_HINOTIFY
+	spinlock_t		hin_ignore_lock;
+	struct list_head	hin_ignore_list;
+
 	struct inotify_watch	hin_watch;
 	struct inode		*hin_aufs_inode;	/* no get/put */
-
-	/* an array of atomic_t X au_hin_nignore */
-	atomic_t		hin_ignore[0];
 #endif
 };
 
@@ -58,7 +58,10 @@ struct au_hinode {
 
 struct au_hin_ignore {
 #ifdef CONFIG_AUFS_HINOTIFY
-	__u32			ign_events;
+	struct list_head	ign_list;
+
+	pid_t			ign_pid;
+	__u32			ign_events, ign_handled;
 	struct au_hinode	*ign_hinode;
 #endif
 };
@@ -66,6 +69,13 @@ struct au_hin_ignore {
 /* ---------------------------------------------------------------------- */
 
 #ifdef CONFIG_AUFS_HINOTIFY
+/* inotify events */
+static const __u32 AuInMask = (IN_MOVE | IN_DELETE | IN_CREATE
+			       /* | IN_ACCESS */
+			       | IN_MODIFY | IN_ATTRIB
+			       /* | IN_DELETE_SELF | IN_MOVE_SELF */
+	);
+
 static inline
 void au_hin_init(struct au_hinode *hinode, struct au_hinotify *val)
 {
@@ -76,22 +86,23 @@ void au_hin_init(struct au_hinode *hinode, struct au_hinotify *val)
 int au_hin_alloc(struct au_hinode *hinode, struct inode *inode,
 		 struct inode *h_inode);
 void au_hin_free(struct au_hinode *hinode);
-void au_do_hdir_lock(struct inode *h_dir, struct inode *dir,
-		     aufs_bindex_t bindex, unsigned int lsc);
-void au_hdir_unlock(struct inode *h_dir, struct inode *dir,
-		    aufs_bindex_t bindex);
-struct dentry *au_hdir_lock_rename(struct dentry **h_parents,
-				   struct inode **dirs, aufs_bindex_t bindex,
-				   int issamedir);
-void au_hdir_unlock_rename(struct dentry **h_parents, struct inode **dirs,
-			   aufs_bindex_t bindex, int issamedir);
+void au_hin_ctl(struct au_hinode *hinode, const __u32 mask);
 void au_reset_hinotify(struct inode *inode, unsigned int flags);
 
-void au_hin_ignore(struct au_hinode *hinode, __u32 events);
-void au_hin_unignore(struct au_hinode *hinode, __u32 events);
+int au_hin_verify_gen(struct dentry *dentry);
 
 int __init au_inotify_init(void);
 void au_inotify_fin(void);
+
+static inline void au_hin_suspend(struct au_hinode *hinode)
+{
+	au_hin_ctl(hinode, 0);
+}
+
+static inline void au_hin_resume(struct au_hinode *hinode)
+{
+	au_hin_ctl(hinode, AuInMask);
+}
 
 #else
 
@@ -113,48 +124,14 @@ static inline void au_hin_free(struct au_hinode *hinode)
 	/* nothing */
 }
 
-static inline
-void au_do_hdir_lock(struct inode *h_dir, struct inode *dir,
-		     aufs_bindex_t bindex, unsigned int lsc)
-{
-	mutex_lock_nested(&h_dir->i_mutex, lsc);
-}
-
-static inline
-void au_hdir_unlock(struct inode *h_dir, struct inode *dir,
-		    aufs_bindex_t bindex)
-{
-	mutex_unlock(&h_dir->i_mutex);
-}
-
-static inline
-struct dentry *au_hdir_lock_rename(struct dentry **h_parents,
-				   struct inode **dirs, aufs_bindex_t bindex,
-				   int issamedir)
-{
-	return vfsub_lock_rename(h_parents[0], h_parents[1]);
-}
-
-static inline
-void au_hdir_unlock_rename(struct dentry **h_parents, struct inode **dirs,
-			   aufs_bindex_t bindex, int issamedir)
-{
-	vfsub_unlock_rename(h_parents[0], h_parents[1]);
-}
-
 static inline void au_reset_hinotify(struct inode *inode, unsigned int flags)
 {
 	/* nothing */
 }
 
-static inline void au_hin_ignore(struct au_hinotify *hinotify, __u32 events)
+static inline int au_hin_verify_gen(struct dentry *dentry)
 {
-	/* nothing */
-}
-
-static inline void au_hin_unignore(struct au_hinotify *hinotify, __u32 events)
-{
-	/* nothing */
+	return 0;
 }
 
 static inline int au_inotify_init(void)
@@ -163,22 +140,36 @@ static inline int au_inotify_init(void)
 }
 
 #define au_inotify_fin()	do {} while (0)
+
+static inline void au_hin_suspend(struct au_hinode *hinode)
+{
+	/* empty */
+}
+
+static inline void au_hin_resume(struct au_hinode *hinode)
+{
+	/* empty */
+}
 #endif /* CONFIG_AUFS_HINOTIFY */
 
-/* ---------------------------------------------------------------------- */
+#if defined(CONFIG_AUFS_HINOTIFY) && defined(CONFIG_AUFS_DEBUG)
+static inline void au_hin_list_del(struct list_head *e)
+{
+	list_del_init(e);
+}
 
-/*
- * au_hdir_lock, au_hdir2_lock
- */
-#define AuLockFunc(name, lsc) \
-static inline \
-void name##_lock(struct inode *h_dir, struct inode *dir, aufs_bindex_t bindex) \
-{ au_do_hdir_lock(h_dir, dir, bindex, AuLsc_I_##lsc); }
+void au_dbg_hin_list(struct vfsub_args *vargs);
+#else
+static inline void au_hin_list_del(struct list_head *e)
+{
+	list_del(e);
+}
 
-AuLockFunc(au_hdir, PARENT);
-AuLockFunc(au_hdir2, PARENT2);
-
-#undef AuLockFunc
+static inline void au_dbg_hin_list(struct vfsub_args *vargs)
+{
+	/* empty */
+}
+#endif /* CONFIG_AUFS_DEBUG */
 
 /* ---------------------------------------------------------------------- */
 

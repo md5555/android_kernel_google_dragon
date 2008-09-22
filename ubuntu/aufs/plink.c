@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2008 Junjiro Okajima
+ * Copyright (C) 2005-2008 Junjiro Okajima
  *
  * This program, aufs is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
 /*
  * pseudo-link
  *
- * $Id: plink.c,v 1.4 2008/06/02 02:38:21 sfjro Exp $
+ * $Id: plink.c,v 1.9 2008/09/01 02:55:35 sfjro Exp $
  */
 
 #include "aufs.h"
@@ -96,6 +96,7 @@ struct dentry *au_plink_lkup(struct super_block *sb, aufs_bindex_t bindex,
 {
 	struct dentry *h_dentry, *h_parent;
 	struct au_branch *br;
+	struct au_wbr *wbr;
 	struct inode *h_dir;
 	char tgtname[PLINK_NAME_LEN];
 	int len;
@@ -107,7 +108,9 @@ struct dentry *au_plink_lkup(struct super_block *sb, aufs_bindex_t bindex,
 
 	LKTRTrace("b%d, i%lu\n", bindex, inode->i_ino);
 	br = au_sbr(sb, bindex);
-	h_parent = br->br_plink;
+	wbr = br->br_wbr;
+	AuDebugOn(!wbr);
+	h_parent = wbr->wbr_plink;
 	AuDebugOn(!h_parent);
 	h_dir = h_parent->d_inode;
 	AuDebugOn(!h_dir);
@@ -137,6 +140,8 @@ static int do_whplink(char *tgt, int len, struct dentry *h_parent,
 		/* .br	= NULL */
 	};
 
+	AuTraceEnter();
+
 	dlgt = !!au_test_dlgt(au_mntflags(sb));
 	if (unlikely(dlgt))
 		au_fset_ndx(ndx.flags, DLGT);
@@ -147,11 +152,12 @@ static int do_whplink(char *tgt, int len, struct dentry *h_parent,
 
 	err = 0;
 	vfsub_args_init(&vargs, NULL, dlgt, 0);
+	/* wh.plink dir is not monitored */
 	h_dir = h_parent->d_inode;
 	if (unlikely(h_tgt->d_inode && h_tgt->d_inode != h_dentry->d_inode))
 		err = vfsub_unlink(h_dir, h_tgt, &vargs);
 	if (!err && !h_tgt->d_inode) {
-		err = vfsub_link(h_dentry, h_dir, h_tgt, dlgt);
+		err = vfsub_link(h_dentry, h_dir, h_tgt, &vargs);
 		/* todo: unnecessary? */
 		/* inc_nlink(inode); */
 	}
@@ -184,13 +190,16 @@ static int whplink(struct dentry *h_dentry, struct inode *inode,
 {
 	int err, len, wkq_err;
 	struct au_branch *br;
+	struct au_wbr *wbr;
 	struct dentry *h_parent;
 	struct inode *h_dir;
 	char tgtname[PLINK_NAME_LEN];
 
 	LKTRTrace("%.*s\n", AuDLNPair(h_dentry));
 	br = au_sbr(inode->i_sb, bindex);
-	h_parent = br->br_plink;
+	wbr = br->br_wbr;
+	AuDebugOn(!wbr);
+	h_parent = wbr->wbr_plink;
 	AuDebugOn(!h_parent);
 	h_dir = h_parent->d_inode;
 	AuDebugOn(!h_dir);
@@ -250,13 +259,18 @@ void au_plink_append(struct super_block *sb, struct inode *inode,
 	if (!found) {
 		plink = kmalloc(sizeof(*plink), GFP_ATOMIC);
 		if (plink) {
-			plink->inode = igrab(inode);
+			plink->inode = au_igrab(inode);
 			list_add(&plink->list, plink_list);
 			cnt++;
 		} else
 			err = -ENOMEM;
 	}
 	spin_unlock(&sbinfo->si_plink_lock);
+
+#if 0 /* todo: test here */
+	if (found)
+		return; /* success */
+#endif
 
 	if (!err)
 		err = whplink(h_dentry, inode, bindex, sb);
@@ -314,7 +328,7 @@ void au_plink_half_refresh(struct super_block *sb, aufs_bindex_t br_id)
 	/* spin_lock(&sbinfo->si_plink_lock); */
 	list_for_each_entry_safe(plink, tmp, plink_list, list) {
 		do_put = 0;
-		inode = igrab(plink->inode);
+		inode = au_igrab(plink->inode);
 		ii_write_lock_child(inode);
 		bstart = au_ibstart(inode);
 		bend = au_ibend(inode);

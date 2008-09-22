@@ -19,12 +19,10 @@
 /*
  * debug print functions
  *
- * $Id: debug.c,v 1.4 2008/06/02 02:37:28 sfjro Exp $
+ * $Id: debug.c,v 1.14 2008/09/22 03:52:03 sfjro Exp $
  */
 
 #include "aufs.h"
-
-#ifdef CONFIG_AUFS_DEBUG
 
 atomic_t au_cond = ATOMIC_INIT(0);
 
@@ -100,8 +98,8 @@ static int do_pri_inode(aufs_bindex_t bindex, struct inode *inode,
 	     inode->i_ino, inode->i_sb ? au_sbtype(inode->i_sb) : "??",
 	     atomic_read(&inode->i_count), inode->i_nlink, inode->i_mode,
 	     ntfy,
-	     i_size_read(inode), (u64)inode->i_blocks,
-	     timespec_to_ns(&inode->i_ctime) & 0x0ffff,
+	     i_size_read(inode), (unsigned long long)inode->i_blocks,
+	     (long long)timespec_to_ns(&inode->i_ctime) & 0x0ffff,
 	     inode->i_mapping ? inode->i_mapping->nrpages : 0,
 	     inode->i_state, inode->i_flags, inode->i_generation,
 	     l ? ", wh " : "", l, n);
@@ -140,7 +138,7 @@ static int do_pri_dentry(aufs_bindex_t bindex, struct dentry *dentry,
 		return -1;
 	}
 	/* do not call dget_parent() here */
-	dpri("d%d: %.*s/%.*s, %s, cnt %d, flags 0x%x, intent %d\n",
+	dpri("d%d: %.*s?/%.*s, %s, cnt %d, flags 0x%x, intent %d\n",
 	     bindex,
 	     AuDLNPair(dentry->d_parent), AuDLNPair(dentry),
 	     dentry->d_sb ? au_sbtype(dentry->d_sb) : "??",
@@ -201,8 +199,8 @@ static int do_pri_file(aufs_bindex_t bindex, struct file *file)
 	    && au_test_aufs(file->f_dentry->d_sb)
 	    && au_fi(file))
 		snprintf(a, sizeof(a), ", mmapped %d", au_test_mmapped(file));
-	dpri("f%d: mode 0x%x, flags 0%o, cnt %d, pos %llu%s\n",
-	     bindex, file->f_mode, file->f_flags, file_count(file),
+	dpri("f%d: mode 0x%x, flags 0%o, cnt %ld, pos %llu%s\n",
+	     bindex, file->f_mode, file->f_flags, (long)file_count(file),
 	     file->f_pos, a);
 	if (file->f_dentry)
 		do_pri_dentry(bindex, file->f_dentry, NULL);
@@ -243,11 +241,13 @@ static int do_pri_br(aufs_bindex_t bindex, struct au_branch *br)
 		return -1;
 	}
 
-	dpri("s%d: {perm 0x%x, cnt %d}, "
-	     "%s, flags 0x%lx, cnt(BIAS) %d, active %d, xino %d\n",
-	     bindex, br->br_perm, au_br_count(br),
-	     au_sbtype(sb), sb->s_flags, sb->s_count - S_BIAS,
-	     atomic_read(&sb->s_active), !!br->br_xino);
+	dpri("s%d: {perm 0x%x, cnt %d, wbr %p}, "
+	     "%s, dev 0x%02x%02x, flags 0x%lx, cnt(BIAS) %d, active %d, "
+	     "xino %d\n",
+	     bindex, br->br_perm, au_br_count(br), br->br_wbr,
+	     au_sbtype(sb), MAJOR(sb->s_dev), MINOR(sb->s_dev),
+	     sb->s_flags, sb->s_count - S_BIAS,
+	     atomic_read(&sb->s_active), !!br->br_xino.xi_file);
 	return 0;
 }
 
@@ -256,17 +256,27 @@ void au_dpri_sb(struct super_block *sb)
 	struct au_sbinfo *sbinfo;
 	aufs_bindex_t bindex;
 	int err;
-	struct vfsmount mnt = { .mnt_sb = sb };
-	struct au_branch fake = {
-		.br_perm = 0,
-		.br_mnt = &mnt,
-		.br_count = ATOMIC_INIT(0),
-		.br_xino = NULL
-	};
+	/* to reuduce stack size */
+	struct {
+		struct vfsmount mnt;
+		struct au_branch fake;
+	} *a;
 
-	atomic_set(&fake.br_count, 0);
+	/* this function can be called from magic sysrq */
+	a = kzalloc(sizeof(*a), GFP_ATOMIC);
+	if (unlikely(!a)) {
+		dpri("no memory\n");
+		return;
+	}
+
+	a->mnt.mnt_sb = sb;
+	a->fake.br_perm = 0;
+	a->fake.br_mnt = &a->mnt;
+	a->fake.br_xino.xi_file = NULL;
+	atomic_set(&a->fake.br_count, 0);
 	smp_mb(); /* atomic_set */
-	err = do_pri_br(-1, &fake);
+	err = do_pri_br(-1, &a->fake);
+	kfree(a);
 	dpri("dev 0x%x\n", sb->s_dev);
 	if (err || !au_test_aufs(sb))
 		return;
@@ -274,6 +284,7 @@ void au_dpri_sb(struct super_block *sb)
 	sbinfo = au_sbi(sb);
 	if (!sbinfo)
 		return;
+	dpri("gen %u\n", sbinfo->si_generation);
 	for (bindex = 0; bindex <= sbinfo->si_bend; bindex++)
 		do_pri_br(bindex, sbinfo->si_branch[0 + bindex]);
 }
@@ -284,6 +295,36 @@ void au_dbg_sleep(int sec)
 {
 	static DECLARE_WAIT_QUEUE_HEAD(wq);
 	wait_event_timeout(wq, 0, sec * HZ);
+}
+
+void au_dbg_sleep_jiffy(int jiffy)
+{
+	static DECLARE_WAIT_QUEUE_HEAD(wq);
+	wait_event_timeout(wq, 0, jiffy);
+}
+
+void au_dbg_iattr(struct iattr *ia)
+{
+#define AuBit(name)	if (ia->ia_valid & ATTR_ ## name) dpri(#name "\n")
+	AuBit(MODE);
+	AuBit(UID);
+	AuBit(GID);
+	AuBit(SIZE);
+	AuBit(ATIME);
+	AuBit(MTIME);
+	AuBit(CTIME);
+	AuBit(ATIME_SET);
+	AuBit(MTIME_SET);
+	AuBit(FORCE);
+	AuBit(ATTR_FLAG);
+	AuBit(KILL_SUID);
+	AuBit(KILL_SGID);
+	AuBit(FILE);
+	AuBit(KILL_PRIV);
+	AuBit(OPEN);
+	AuBit(TIMES_SET);
+#undef	AuBit
+	dpri("ia_file %p\n", ia->ia_file);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -305,6 +346,9 @@ void au_debug_sbinfo_init(struct au_sbinfo *sbinfo)
 #ifdef ForceNoRefrof
 	au_opt_clr(sbinfo->si_mntflags, REFROF);
 #endif
+#ifdef ForceShwh
+	au_opt_set(sbinfo->si_mntflags, SHWH);
+#endif
 }
 
 int __init au_debug_init(void)
@@ -320,6 +364,10 @@ int __init au_debug_init(void)
 
 #ifdef CONFIG_4KSTACKS
 	AuWarn("CONFIG_4KSTACKS is defined.\n");
+#endif
+
+#ifdef ForceBrs
+	sysaufs_brs = 1;
 #endif
 
 #if 0 /* verbose debug */
@@ -340,9 +388,8 @@ int __init au_debug_init(void)
 		pr_info("br{"
 			"xino %d, "
 			"id %d, perm %d, mnt %d, count %d, "
-			"wh_sem %d, wh %d, run %d, plink %d, "
+			"wbr %d, "
 			"xup %d, xrun %d, "
-			"by %d, "
 			"gen %d, "
 			"sa %d} %d\n",
 			offsetof(typeof(*u.br), br_xino),
@@ -350,13 +397,9 @@ int __init au_debug_init(void)
 			offsetof(typeof(*u.br), br_perm),
 			offsetof(typeof(*u.br), br_mnt),
 			offsetof(typeof(*u.br), br_count),
-			offsetof(typeof(*u.br), br_wh_rwsem),
-			offsetof(typeof(*u.br), br_wh),
-			offsetof(typeof(*u.br), br_wh_running),
-			offsetof(typeof(*u.br), br_plink),
+			offsetof(typeof(*u.br), wbr),
 			offsetof(typeof(*u.br), br_xino_upper),
 			offsetof(typeof(*u.br), br_xino_running),
-			offsetof(typeof(*u.br), br_bytes),
 			offsetof(typeof(*u.br), br_generation),
 			offsetof(typeof(*u.br), br_sabr),
 			sizeof(*u.br));
@@ -467,5 +510,3 @@ int __init au_debug_init(void)
 
 	return 0;
 }
-
-#endif /* CONFIG_AUFS_DEBUG */

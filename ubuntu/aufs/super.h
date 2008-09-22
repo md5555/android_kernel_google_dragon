@@ -19,7 +19,7 @@
 /*
  * super_block operations
  *
- * $Id: super.h,v 1.8 2008/06/02 02:39:58 sfjro Exp $
+ * $Id: super.h,v 1.14 2008/09/15 03:14:52 sfjro Exp $
  */
 
 #ifndef __AUFS_SUPER_H__
@@ -31,7 +31,7 @@
 #include <linux/cramfs_fs.h>
 #include <linux/kobject.h>
 #include <linux/magic.h>
-#include <linux/aufs_types.h>
+#include <linux/aufs_type.h>
 #include "misc.h"
 #include "wkq.h"
 
@@ -55,8 +55,8 @@ struct au_wbr_mfs {
 	unsigned long	mfs_expire;
 	aufs_bindex_t	mfs_bindex;
 
-	u64		mfsrr_bytes;
-	u64		mfsrr_watermark;
+	unsigned long long	mfsrr_bytes;
+	unsigned long long	mfsrr_watermark;
 };
 
 /* sbinfo status flags */
@@ -116,6 +116,18 @@ struct au_sbinfo {
 	/* reserved for future use */
 	/* unsigned long long	si_xib_limit; */	/* Max xib file size */
 
+#ifdef CONFIG_AUFS_HINOTIFY
+	struct au_branch	*si_xino_def_br;
+#endif
+
+#ifdef CONFIG_AUFS_EXPORT
+	/* i_generation */
+	struct file		*si_xigen;
+	/* todo: atomic_t? */
+	spinlock_t		si_xigen_lock;
+	__u32			si_xigen_next;
+#endif
+
 	/* readdir cache time, max, in HZ */
 	unsigned long		si_rdcache;
 
@@ -137,8 +149,7 @@ struct au_sbinfo {
 	spinlock_t		si_plink_lock;
 	struct list_head	si_plink;
 
-#if defined(CONFIG_AUFS_EXPORT) \
-	&& (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26) || !defined(MmTree))
+#if defined(CONFIG_AUFS_EXPORT) && LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 	/* dirty, for export, async ops, and sysfs */
 	spinlock_t		si_mntcache_lock;
 	struct vfsmount		*si_mntcache;	/* no get/put */
@@ -208,13 +219,11 @@ aufs_bindex_t au_new_br_id(struct super_block *sb);
 /* wbr_policy.c */
 extern struct au_wbr_copyup_operations au_wbr_copyup_ops[];
 extern struct au_wbr_create_operations au_wbr_create_ops[];
-int au_cpdown_dirs(struct dentry *dentry, aufs_bindex_t bdst,
-		   struct dentry *locked);
+int au_cpdown_dirs(struct dentry *dentry, aufs_bindex_t bdst);
 
 /* ---------------------------------------------------------------------- */
 
-#if defined(CONFIG_AUFS_EXPORT) \
-	&& (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26) || !defined(MmTree))
+#if defined(CONFIG_AUFS_EXPORT) && LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 static inline void au_mnt_init(struct au_sbinfo *sbinfo, struct vfsmount *mnt)
 {
 	spin_lock_init(&sbinfo->si_mntcache_lock);
@@ -268,45 +277,60 @@ static inline int au_test_nfs(struct super_block *sb)
 static inline int au_test_fuse(struct super_block *sb)
 {
 #ifdef CONFIG_AUFS_WORKAROUND_FUSE
-#ifdef FUSE_SUPER_MAGIC
 	return (sb->s_magic == FUSE_SUPER_MAGIC);
 #else
-	return !strcmp(au_sbtype(sb), "fuse");
-#endif
-#endif
 	return 0;
+#endif
 }
 
 static inline int au_test_xfs(struct super_block *sb)
 {
 #ifdef CONFIG_AUFS_BR_XFS
-#ifdef XFS_SB_MAGIC
 	return (sb->s_magic == XFS_SB_MAGIC);
 #else
-	return !strcmp(au_sbtype(sb), "xfs");
-#endif
-#endif
 	return 0;
+#endif
 }
 
 static inline int au_test_tmpfs(struct super_block *sb)
 {
 #ifdef CONFIG_TMPFS
-#define TMPFS_MAGIC 0x01021994
 	return (sb->s_magic == TMPFS_MAGIC);
-#endif
+#else
 	return 0;
+#endif
 }
 
 /* ---------------------------------------------------------------------- */
 
-#ifdef CONFIG_AUFS_EXPORT
-extern struct export_operations aufs_export_op;
-static inline void au_init_export_op(struct super_block *sb)
+#ifdef CONFIG_AUFS_HINOTIFY
+static inline void au_xino_def_br_set(struct au_branch *br,
+				      struct au_sbinfo *sbinfo)
 {
-	sb->s_export_op = &aufs_export_op;
-	memset(&au_sbi(sb)->si_xinodir, 0, sizeof(struct path));
+	sbinfo->si_xino_def_br = br;
 }
+
+static inline struct au_branch *au_xino_def_br(struct au_sbinfo *sbinfo)
+{
+	return sbinfo->si_xino_def_br;
+}
+#else
+static inline void au_xino_def_br_set(struct au_branch *br,
+				      struct au_sbinfo *sbinfo)
+{
+	/* empty */
+}
+
+static inline struct au_branch *au_xino_def_br(struct au_sbinfo *sbinfo)
+{
+	return NULL;
+}
+#endif
+
+/* ---------------------------------------------------------------------- */
+
+#ifdef CONFIG_AUFS_EXPORT
+void au_export_init(struct super_block *sb);
 
 static inline int au_test_nfsd(struct task_struct *tsk)
 {
@@ -329,15 +353,21 @@ static inline void au_export_put(struct au_sbinfo *sbinfo)
 {
 	path_put(&sbinfo->si_xinodir);
 }
+
+int au_xigen_inc(struct inode *inode);
+int au_xigen_new(struct inode *inode);
+int au_xigen_set(struct super_block *sb, struct file *base);
+void au_xigen_clr(struct super_block *sb);
+
 #else
+static inline void au_export_init(struct super_block *sb)
+{
+	/* nothing */
+}
+
 static inline int au_test_nfsd(struct task_struct *tsk)
 {
 	return 0;
-}
-
-static inline void au_init_export_op(struct super_block *sb)
-{
-	/* nothing */
 }
 
 #define au_nfsd_lockdep_off()	do {} while (0)
@@ -346,6 +376,26 @@ static inline void au_init_export_op(struct super_block *sb)
 static inline void au_export_put(struct au_sbinfo *sbinfo)
 {
 	/* nothing */
+}
+
+static inline int au_xigen_inc(struct inode *inode)
+{
+	return 0;
+}
+
+static inline int au_xigen_new(struct inode *inode)
+{
+	return 0;
+}
+
+static inline int au_xigen_set(struct super_block *sb, struct file *base)
+{
+	return 0;
+}
+
+static inline void au_xigen_clr(struct super_block *sb)
+{
+	/* empty */
 }
 #endif /* CONFIG_AUFS_EXPORT */
 

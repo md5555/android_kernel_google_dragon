@@ -19,7 +19,7 @@
 /*
  * inode functions
  *
- * $Id: inode.c,v 1.4 2008/05/26 04:04:25 sfjro Exp $
+ * $Id: inode.c,v 1.13 2008/09/22 03:52:19 sfjro Exp $
  */
 
 #include "aufs.h"
@@ -43,7 +43,7 @@ int au_refresh_hinode_self(struct inode *inode)
 	new_sz = sizeof(*iinfo->ii_hinode) * (bend + 1);
 	iinfo = au_ii(inode);
 	p = au_kzrealloc(iinfo->ii_hinode, sizeof(*p) * (iinfo->ii_bend + 1),
-			 new_sz, GFP_KERNEL);
+			 new_sz, GFP_NOFS);
 	if (unlikely(!p))
 		goto out;
 
@@ -98,12 +98,13 @@ int au_refresh_hinode_self(struct inode *inode)
 
 int au_refresh_hinode(struct inode *inode, struct dentry *dentry)
 {
-	int err, update, isdir;
+	int err, update;
 	struct inode *first;
 	struct au_hinode *p;
 	struct super_block *sb;
 	struct au_iinfo *iinfo;
 	aufs_bindex_t bindex, bend;
+	unsigned char isdir;
 	unsigned int flags;
 
 	LKTRTrace("%.*s\n", AuDLNPair(dentry));
@@ -143,7 +144,7 @@ int au_refresh_hinode(struct inode *inode, struct dentry *dentry)
 			iinfo->ii_bstart = bindex;
 		if (iinfo->ii_bend < bindex)
 			iinfo->ii_bend = bindex;
-		au_set_h_iptr(inode, bindex, igrab(hd->d_inode), flags);
+		au_set_h_iptr(inode, bindex, au_igrab(hd->d_inode), flags);
 		update++;
 	}
 	au_update_brange(inode, /*do_put_zero*/0);
@@ -164,11 +165,12 @@ int au_refresh_hinode(struct inode *inode, struct dentry *dentry)
 
 static int set_inode(struct inode *inode, struct dentry *dentry)
 {
-	int err, isdir;
+	int err;
 	struct dentry *h_dentry;
 	struct inode *h_inode;
 	umode_t mode;
 	aufs_bindex_t bindex, bstart, btail;
+	unsigned char isdir;
 	struct au_iinfo *iinfo;
 	unsigned int flags;
 
@@ -187,6 +189,9 @@ static int set_inode(struct inode *inode, struct dentry *dentry)
 	switch (mode & S_IFMT) {
 	case S_IFREG:
 		btail = au_dbtail(dentry);
+		inode->i_op = &aufs_iop;
+		inode->i_fop = &aufs_file_fop;
+		inode->i_mapping->a_ops = &aufs_aop;
 		break;
 	case S_IFDIR:
 		isdir = 1;
@@ -197,6 +202,7 @@ static int set_inode(struct inode *inode, struct dentry *dentry)
 	case S_IFLNK:
 		btail = au_dbtail(dentry);
 		inode->i_op = &aufs_symlink_iop;
+		/* inode->i_fop = &aufs_file_fop; */
 		break;
 	case S_IFBLK:
 	case S_IFCHR:
@@ -212,7 +218,14 @@ static int set_inode(struct inode *inode, struct dentry *dentry)
 		goto out;
 	}
 
+	/* do not set inotify for whiteouted dirs (SHWH mode) */
 	flags = au_hi_flags(inode, isdir);
+	if (unlikely(au_opt_test(au_mntflags(dentry->d_sb), SHWH)
+		     && au_ftest_hi(flags, NOTIFY)
+		     && dentry->d_name.len > AUFS_WH_PFX_LEN
+		     && !memcmp(dentry->d_name.name, AUFS_WH_PFX,
+				AUFS_WH_PFX_LEN)))
+		au_fclr_hi(flags, NOTIFY);
 	iinfo = au_ii(inode);
 	iinfo->ii_bstart = bstart;
 	iinfo->ii_bend = btail;
@@ -221,7 +234,8 @@ static int set_inode(struct inode *inode, struct dentry *dentry)
 		if (!h_dentry)
 			continue;
 		AuDebugOn(!h_dentry->d_inode);
-		au_set_h_iptr(inode, bindex, igrab(h_dentry->d_inode), flags);
+		au_set_h_iptr(inode, bindex, au_igrab(h_dentry->d_inode),
+			      flags);
 	}
 	au_cpup_attr_all(inode);
 
@@ -250,11 +264,13 @@ static int reval_inode(struct inode *inode, struct dentry *dentry, int *matched)
 	err = -EIO;
 	if (unlikely(inode->i_ino == parent_ino(dentry)))
 		goto out;
+	/* todo: test here */
+	//AuDebugOn(IS_DEADDIR(inode));
 
 	err = 0;
 	h_dinode = au_h_dptr(dentry, au_dbstart(dentry))->d_inode;
-	mutex_lock_nested(&inode->i_mutex, AuLsc_I_CHILD);
-	ii_write_lock_new(inode);
+	/* mutex_lock_nested(&inode->i_mutex, AuLsc_I_CHILD); */
+	ii_write_lock_new_child(inode);
 	bend = au_ibend(inode);
 	for (bindex = au_ibstart(inode); bindex <= bend; bindex++) {
 		h_inode = au_h_iptr(inode, bindex);
@@ -270,7 +286,7 @@ static int reval_inode(struct inode *inode, struct dentry *dentry, int *matched)
 	}
 	if (unlikely(err))
 		ii_write_unlock(inode);
-	mutex_unlock(&inode->i_mutex);
+	/* mutex_unlock(&inode->i_mutex); */
 
  out:
 	AuTraceErr(err);
@@ -311,15 +327,17 @@ struct inode *au_new_inode(struct dentry *dentry)
 		}
 	}
 
-	LKTRTrace("i%lu\n", xinoe.ino);
+	LKTRTrace("i%lu\n", (unsigned long)xinoe.ino);
 	inode = au_iget_locked(sb, xinoe.ino);
 	err = PTR_ERR(inode);
 	if (IS_ERR(inode))
 		goto out;
+	/* todo: test here */
+	//AuDebugOn(IS_DEADDIR(inode));
 
 	LKTRTrace("%lx, new %d\n", inode->i_state, !!(inode->i_state & I_NEW));
 	if (inode->i_state & I_NEW) {
-		ii_write_lock_new(inode);
+		ii_write_lock_new_child(inode);
 		err = set_inode(inode, dentry);
 		unlock_new_inode(inode);
 		if (!err)
@@ -340,7 +358,7 @@ struct inode *au_new_inode(struct dentry *dentry)
 		AuWarn1("Un-notified UDBA or repeatedly renamed dir,"
 			" b%d, %s, %.*s, hi%lu, i%lu.\n",
 			bstart, au_sbtype(h_dentry->d_sb), AuDLNPair(dentry),
-			h_ino, xinoe.ino);
+			(unsigned long)h_ino, (unsigned long)xinoe.ino);
 	xinoe.ino = 0;
 	err = au_xino_write0(sb, bstart, h_ino, 0);
 	if (!err) {

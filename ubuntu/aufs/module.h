@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2008 Junjiro Okajima
+ * Copyright (C) 2005-2008 Junjiro Okajima
  *
  * This program, aufs is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
 /*
  * module initialization and module-global
  *
- * $Id: module.h,v 1.4 2008/06/02 02:38:50 sfjro Exp $
+ * $Id: module.h,v 1.8 2008/08/25 01:50:37 sfjro Exp $
  */
 
 #ifndef __AUFS_MODULE_H__
@@ -52,15 +52,14 @@ enum {
 extern struct kmem_cache *au_cachep[];
 
 #define AuCacheArgs(type, sz)	(type), (sz), 0, SLAB_RECLAIM_ACCOUNT, NULL
-#define AuCacheX(type, extra) \
-	kmem_cache_create(AuCacheArgs(#type, sizeof(struct type) + extra))
-#define AuCache(type)		AuCacheX(type, 0)
+#define AuCache(type) \
+	kmem_cache_create(AuCacheArgs(#type, sizeof(struct type)))
 
 /* ---------------------------------------------------------------------- */
 
 #define AuCacheFuncs(name, index) \
 static inline void *au_cache_alloc_##name(void) \
-{ return kmem_cache_alloc(au_cachep[index], GFP_KERNEL); } \
+{ return kmem_cache_alloc(au_cachep[index], GFP_NOFS); } \
 static inline void au_cache_free_##name(void *p) \
 { kmem_cache_free(au_cachep[index], p); }
 

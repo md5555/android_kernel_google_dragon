@@ -19,7 +19,7 @@
 /*
  * whiteout for logical deletion and opaque directory
  *
- * $Id: whout.h,v 1.2 2008/04/21 02:00:37 sfjro Exp $
+ * $Id: whout.h,v 1.3 2008/06/30 03:57:35 sfjro Exp $
  */
 
 #ifndef __AUFS_WHOUT_H__
@@ -28,7 +28,7 @@
 #ifdef __KERNEL__
 
 #include <linux/fs.h>
-#include <linux/aufs_types.h>
+#include <linux/aufs_type.h>
 #include "dir.h"
 #include "opts.h"
 #include "super.h"
@@ -43,14 +43,15 @@ int au_diropq_test(struct dentry *h_dentry, struct au_ndx *ndx);
 
 struct dentry *au_whtmp_lkup(struct dentry *h_parent, struct qstr *prefix,
 			     struct au_ndx *ndx);
-int au_whtmp_ren(struct inode *dir, struct dentry *dentry, aufs_bindex_t bindex,
-		 int noself);
-int au_wh_unlink_dentry(struct inode *h_dir, struct dentry *wh_dentry,
-			struct dentry *dentry, struct inode *dir, int dlgt);
+int au_whtmp_ren(struct inode *dir, aufs_bindex_t bindex,
+		 struct dentry *h_dentry);
+int au_wh_unlink_dentry(struct au_hinode *dir, struct dentry *wh_dentry,
+			struct dentry *dentry, int dlgt);
 
 struct au_branch;
 int au_wh_init(struct dentry *h_parent, struct au_branch *br,
-	       struct vfsmount *nfsmnt, struct super_block *sb);
+	       struct vfsmount *nfsmnt, struct super_block *sb,
+	       aufs_bindex_t bindex);
 
 /* diropq flags */
 #define AuDiropq_CREATE	1
@@ -68,26 +69,22 @@ struct dentry *au_diropq_sio(struct dentry *dentry, aufs_bindex_t bindex,
 
 struct dentry *au_wh_lkup(struct dentry *h_parent, struct qstr *base_name,
 			  struct au_ndx *ndx);
-struct dentry *au_wh_create(struct inode *dir, struct dentry *dentry,
-			    aufs_bindex_t bindex, struct dentry *h_parent,
-			    struct au_ndx *ndx);
+struct dentry *au_wh_create(struct dentry *dentry, aufs_bindex_t bindex,
+			    struct dentry *h_parent, struct au_ndx *ndx);
 
 /* real rmdir the whiteout-ed dir */
 struct au_whtmp_rmdir_args {
-	struct dentry *h_dentry;
-	struct au_nhash whlist;
+	struct inode *dir;
 	aufs_bindex_t bindex;
-	struct inode *dir, *inode;
-	int noself;
+	struct dentry *wh_dentry;
+	struct au_nhash whlist;
 };
 
 struct au_nhash;
-int au_whtmp_rmdir(struct dentry *h_dentry, struct au_nhash *whlist,
-		   aufs_bindex_t bindex, struct inode *dir, struct inode *inode,
-		   int noself);
-void au_whtmp_kick_rmdir(struct dentry *h_dentry, struct au_nhash *whlist,
-			 aufs_bindex_t bindex, struct inode *dir,
-			 struct inode *inode, int noself,
+int au_whtmp_rmdir(struct inode *dir, aufs_bindex_t bindex,
+		   struct dentry *wh_dentry, struct au_nhash *whlist);
+void au_whtmp_kick_rmdir(struct inode *dir, aufs_bindex_t bindex,
+			 struct dentry *wh_dentry, struct au_nhash *whlist,
 			 struct au_whtmp_rmdir_args *args);
 
 /* ---------------------------------------------------------------------- */
