@@ -30,7 +30,7 @@
  * e1000_ich9lan
  */
 
-#include "e1000_hw.h"
+#include "e1000.h"
 
 static s32  e1000_init_phy_params_ich8lan(struct e1000_hw *hw);
 static s32  e1000_init_nvm_params_ich8lan(struct e1000_hw *hw);
@@ -138,6 +138,54 @@ struct e1000_dev_spec_ich8lan {
 	struct e1000_shadow_ram shadow_ram[E1000_SHADOW_RAM_WORDS];
 };
 
+/*
+ * NV RAM mapping can get nested, so keep track of the mapping depth.
+ */
+static int e1000e_map_nvram(struct e1000_hw *hw)
+{
+	int ret_val = E1000_SUCCESS;
+	struct e1000_adapter *adapter = hw->back;
+
+	spin_lock(&hw->flash_address_map_lock);
+
+	hw->flash_address_map_cnt++;
+
+	if (hw->flash_address_map_cnt==1) {
+		BUG_ON(adapter->hw.flash_address);
+		WARN_ON(irqs_disabled());
+		adapter->hw.flash_address = ioremap(pci_resource_start(adapter->pdev, 1),
+							pci_resource_len(adapter->pdev, 1));
+		if (!adapter->hw.flash_address) {
+			hw->flash_address_map_cnt--;
+			ret_val = -E1000_ERR_NVM;
+		}
+	}
+
+	spin_unlock(&hw->flash_address_map_lock);
+
+	return ret_val;
+}
+
+static void e1000e_unmap_nvram(struct e1000_hw *hw)
+{
+	struct e1000_adapter *adapter = hw->back;
+
+	spin_lock(&hw->flash_address_map_lock);
+
+	BUG_ON(!hw->flash_address_map_cnt);
+
+	hw->flash_address_map_cnt--;
+
+	if (hw->flash_address_map_cnt==0) {
+		BUG_ON(!adapter->hw.flash_address);
+		WARN_ON(irqs_disabled());
+		iounmap(adapter->hw.flash_address);
+		adapter->hw.flash_address = NULL;
+	}
+
+	spin_unlock(&hw->flash_address_map_lock);
+}
+
 /**
  *  e1000_init_phy_params_ich8lan - Initialize PHY function pointers
  *  @hw: pointer to the HW structure
@@ -241,10 +289,10 @@ static s32 e1000_init_nvm_params_ich8lan(struct e1000_hw *hw)
 	DEBUGFUNC("e1000_init_nvm_params_ich8lan");
 
 	/* Can't read flash registers if the register set isn't mapped. */
-	if (!hw->flash_address) {
+	ret_val = e1000e_map_nvram(hw);
+	if (ret_val) {
 		DEBUGOUT("ERROR: Flash registers not mapped\n");
-		ret_val = -E1000_ERR_CONFIG;
-		goto out;
+		return -E1000_ERR_CONFIG;
 	}
 
 	nvm->type               = e1000_nvm_flash_sw;
@@ -298,6 +346,7 @@ static s32 e1000_init_nvm_params_ich8lan(struct e1000_hw *hw)
 	nvm->ops.write         = e1000_write_nvm_ich8lan;
 
 out:
+	e1000e_unmap_nvram(hw);
 	return ret_val;
 }
 
@@ -1143,6 +1192,12 @@ static s32 e1000_flash_cycle_init_ich8lan(struct e1000_hw *hw)
 
 	DEBUGFUNC("e1000_flash_cycle_init_ich8lan");
 
+	ret_val = e1000e_map_nvram(hw);
+	if (ret_val) {
+		DEBUGOUT("ERROR: Flash registers not mapped\n");
+		return ret_val;
+	}
+
 	hsfsts.regval = E1000_READ_FLASH_REG16(hw, ICH_FLASH_HSFSTS);
 
 	/* Check if the flash descriptor is valid */
@@ -1205,6 +1260,7 @@ static s32 e1000_flash_cycle_init_ich8lan(struct e1000_hw *hw)
 	}
 
 out:
+	e1000e_unmap_nvram(hw);
 	return ret_val;
 }
 
@@ -1224,6 +1280,12 @@ static s32 e1000_flash_cycle_ich8lan(struct e1000_hw *hw, u32 timeout)
 
 	DEBUGFUNC("e1000_flash_cycle_ich8lan");
 
+	ret_val = e1000e_map_nvram(hw);
+	if (ret_val) {
+		DEBUGOUT("ERROR: Flash registers not mapped\n");
+		return ret_val;
+	}
+
 	/* Start a cycle by writing 1 in Flash Cycle Go in Hw Flash Control */
 	hsflctl.regval = E1000_READ_FLASH_REG16(hw, ICH_FLASH_HSFCTL);
 	hsflctl.hsf_ctrl.flcgo = 1;
@@ -1239,6 +1301,8 @@ static s32 e1000_flash_cycle_ich8lan(struct e1000_hw *hw, u32 timeout)
 
 	if (hsfsts.hsf_status.flcdone == 1 && hsfsts.hsf_status.flcerr == 0)
 		ret_val = E1000_SUCCESS;
+
+	e1000e_unmap_nvram(hw);
 
 	return ret_val;
 }
@@ -1318,6 +1382,12 @@ static s32 e1000_read_flash_data_ich8lan(struct e1000_hw *hw, u32 offset,
 
 	DEBUGFUNC("e1000_read_flash_data_ich8lan");
 
+	ret_val = e1000e_map_nvram(hw);
+	if (ret_val) {
+		DEBUGOUT("ERROR: Flash registers not mapped\n");
+		return ret_val;
+	}
+
 	if (size < 1  || size > 2 || offset > ICH_FLASH_LINEAR_ADDR_MASK)
 		goto out;
 
@@ -1377,6 +1447,7 @@ static s32 e1000_read_flash_data_ich8lan(struct e1000_hw *hw, u32 offset,
 	} while (count++ < ICH_FLASH_CYCLE_REPEAT_COUNT);
 
 out:
+	e1000e_unmap_nvram(hw);
 	return ret_val;
 }
 
@@ -1648,6 +1719,12 @@ static s32 e1000_write_flash_data_ich8lan(struct e1000_hw *hw, u32 offset,
 
 	DEBUGFUNC("e1000_write_ich8_data");
 
+	ret_val = e1000e_map_nvram(hw);
+	if (ret_val) {
+		DEBUGOUT("ERROR: Flash registers not mapped\n");
+		return ret_val;
+	}
+
 	if (size < 1 || size > 2 || data > size * 0xff ||
 	    offset > ICH_FLASH_LINEAR_ADDR_MASK)
 		goto out;
@@ -1706,6 +1783,7 @@ static s32 e1000_write_flash_data_ich8lan(struct e1000_hw *hw, u32 offset,
 	} while (count++ < ICH_FLASH_CYCLE_REPEAT_COUNT);
 
 out:
+	e1000e_unmap_nvram(hw);
 	return ret_val;
 }
 
@@ -1785,6 +1863,12 @@ static s32 e1000_erase_flash_bank_ich8lan(struct e1000_hw *hw, u32 bank)
 	s32  j, iteration, sector_size;
 
 	DEBUGFUNC("e1000_erase_flash_bank_ich8lan");
+
+	ret_val = e1000e_map_nvram(hw);
+	if (ret_val) {
+		DEBUGOUT("ERROR: Flash registers not mapped\n");
+		return ret_val;
+	}
 
 	hsfsts.regval = E1000_READ_FLASH_REG16(hw, ICH_FLASH_HSFSTS);
 
@@ -1886,6 +1970,7 @@ static s32 e1000_erase_flash_bank_ich8lan(struct e1000_hw *hw, u32 bank)
 	}
 
 out:
+	e1000e_unmap_nvram(hw);
 	return ret_val;
 }
 
