@@ -640,6 +640,10 @@ struct e1000_hw {
 	u8 __iomem *flash_address;
 	unsigned long io_base;
 
+	/* Protect access to NV RAM mapping */
+	spinlock_t flash_address_map_lock;
+	u32 flash_address_map_cnt;
+
 	struct e1000_mac_info  mac;
 	struct e1000_fc_info   fc;
 	struct e1000_phy_info  phy;

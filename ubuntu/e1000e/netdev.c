@@ -5210,6 +5210,11 @@ static int __devinit e1000_probe(struct pci_dev *pdev,
 						    pci_resource_len(pdev, 1));
 		if (!adapter->hw.flash_address)
 			goto err_flashmap;
+
+		/* Now that we're sure NV RAM is mappable, unmap it until needed. */
+		iounmap(adapter->hw.flash_address);
+		adapter->hw.flash_address = NULL;
+		spin_lock_init(&adapter->hw.flash_address_map_lock);
 	}
 
 	adapter->bd_number = cards_found++;
