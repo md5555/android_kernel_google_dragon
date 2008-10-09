@@ -869,6 +869,30 @@ static int wlan_change_mtu(netdevice_t *dev, int new_mtu)
         return 0;
 }
 
+/*---------------------------------------------------------
+ * wlan_alloc_netdev
+ *
+ * create a netdev properly over different kernel versions
+ * this should work with kernels earlier than 2.6.26, and if
+ * anyone cares they can change it
+----------------------------------------------------------*/   
+
+static inline netdevice_t * wlan_alloc_netdev() {
+	netdevice_t *dev;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,26) )
+	dev = alloc_netdev(0,"wlan%d",ether_setup);
+#else
+	dev = kmalloc(sizeof(netdevice_t), GFP_ATOMIC);
+	if ( dev ) {
+		memset( dev, 0, sizeof(netdevice_t));
+		ether_setup(dev);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,24) )
+		dev->nd_net = &init_net;
+#endif
+	}
+#endif
+	return dev;
+}
 
 
 /*----------------------------------------------------------------
@@ -911,14 +935,12 @@ int wlan_setup(wlandevice_t *wlandev)
 		     p80211netdev_rx_bh, 
 		     (unsigned long)wlandev);
 
-	/* Allocate and initialize the struct device */
-	dev = kmalloc(sizeof(netdevice_t), GFP_ATOMIC);
+	/* Allocate and initialize the struct net device */
+	dev = wlan_alloc_netdev();
 	if ( dev == NULL ) {
 		WLAN_LOG_ERROR("Failed to alloc netdev.\n");
 		result = 1;
 	} else {
-		memset( dev, 0, sizeof(netdevice_t));
-		ether_setup(dev);
 		wlandev->netdev = dev;
 		dev->priv = wlandev;
 		dev->hard_start_xmit =	p80211knetdev_hard_start_xmit;
@@ -945,12 +967,6 @@ int wlan_setup(wlandevice_t *wlandev)
 #if WIRELESS_EXT > 12
 		dev->wireless_handlers = &p80211wext_handler_def;
 #endif
-#endif
-	
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,26) )
-		dev_net_set(dev, &init_net);
-#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,24) )
-		dev->nd_net = &init_net;
 #endif
 		
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,3,38) )
@@ -1044,7 +1060,12 @@ int register_wlandev(wlandevice_t *wlandev)
 	netdevice_t	*dev = wlandev->netdev;
 
 	DBFENTER;
-
+/* alloc_netdev already sets up the name */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,26) )
+	i = register_netdev(dev);
+	if (i) 
+		return i;
+#else
 	i = dev_alloc_name(wlandev->netdev, "wlan%d");
 	if (i >= 0) {
 		i = register_netdev(wlandev->netdev);
@@ -1058,6 +1079,8 @@ int register_wlandev(wlandevice_t *wlandev)
 #else
 	strcpy(wlandev->name, dev->name);
 #endif
+#endif
+
 
 #ifdef CONFIG_PROC_FS
 	if (proc_p80211) {
