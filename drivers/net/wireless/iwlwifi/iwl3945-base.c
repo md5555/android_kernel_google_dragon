@@ -3442,6 +3442,11 @@ static void iwl3945_bg_request_scan(struct work_struct *data)
 		goto done;
 	}
 
+	if (scan->channel_count == 0) {
+		IWL_DEBUG_SCAN("channel count %d\n", scan->channel_count);
+		goto done;
+	}
+
 	cmd.len += le16_to_cpu(scan->tx_cmd.len) +
 	    scan->channel_count * sizeof(struct iwl3945_scan_channel);
 	cmd.data = scan;
