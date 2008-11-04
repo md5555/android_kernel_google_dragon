@@ -877,7 +877,7 @@ struct ndis_device {
 	struct timer_list iw_stats_timer;
 	unsigned long scan_timestamp;
 	struct encr_info encr_info;
-	char nick[IW_ESSID_MAX_SIZE];
+	char nick[IW_ESSID_MAX_SIZE + 1];
 	struct ndis_essid essid;
 	struct auth_encr_capa capa;
 	enum ndis_infrastructure_mode infrastructure_mode;

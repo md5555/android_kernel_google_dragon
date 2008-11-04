@@ -47,12 +47,6 @@ int set_essid(struct ndis_device *wnd, const char *ssid, int ssid_len)
 	req.length = ssid_len;
 	if (ssid_len)
 		memcpy(&req.essid, ssid, ssid_len);
-	DBG_BLOCK(2) {
-		char buf[NDIS_ESSID_MAX_SIZE+1];
-		memcpy(buf, ssid, ssid_len);
-		buf[ssid_len] = 0;
-		TRACE2("ssid = '%s'", buf);
-	}
 
 	res = mp_set(wnd, OID_802_11_SSID, &req, sizeof(req));
 	if (res) {
@@ -125,7 +119,6 @@ static int iw_get_essid(struct net_device *dev, struct iw_request_info *info,
 		EXIT2(return -EOPNOTSUPP);
 	}
 	memcpy(extra, req.essid, req.length);
-	extra[req.length] = 0;
 	if (req.length > 0)
 		wrqu->essid.flags  = 1;
 	else
@@ -998,10 +991,10 @@ static int iw_set_nick(struct net_device *dev, struct iw_request_info *info,
 {
 	struct ndis_device *wnd = netdev_priv(dev);
 
-	if (wrqu->data.length > IW_ESSID_MAX_SIZE || wrqu->data.length <= 0)
+	if (wrqu->data.length >= IW_ESSID_MAX_SIZE || wrqu->data.length <= 0)
 		return -EINVAL;
-	memset(wnd->nick, 0, sizeof(wnd->nick));
 	memcpy(wnd->nick, extra, wrqu->data.length);
+	wnd->nick[wrqu->data.length] = 0;
 	return 0;
 }
 
