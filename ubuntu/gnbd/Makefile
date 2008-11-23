@@ -1,1 +1,1 @@
-obj-$(CONFIG_GNBD) += gnbd.o
+#obj-$(CONFIG_GNBD) += gnbd.o
