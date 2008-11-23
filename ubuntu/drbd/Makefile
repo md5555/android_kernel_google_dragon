@@ -4,4 +4,4 @@ drbd-objs  :=	drbd_buildtag.o drbd_bitmap.o drbd_proc.o \
 
 EXTRA_CFLAGS += -I$(src)
 
-obj-$(CONFIG_BLK_DEV_DRBD)     += drbd.o
+#obj-$(CONFIG_BLK_DEV_DRBD)     += drbd.o

@@ -1,4 +1,4 @@
-obj-$(CONFIG_GFS_FS) += gfs.o
+#obj-$(CONFIG_GFS_FS) += gfs.o
 gfs-objs := acl.o \
 	bits.o \
 	bmap.o \
