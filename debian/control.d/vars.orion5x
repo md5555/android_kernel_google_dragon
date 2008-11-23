@@ -1,0 +1,8 @@
+arch="armel"
+supported="Orion 5181, 5182 and 5281"
+desc="Orion5x-based systems"
+target="QNAP TS-109/TS-209, etc."
+bootloader=""
+provides=""
+section_image="universe/base"
+do_debug="Yes"

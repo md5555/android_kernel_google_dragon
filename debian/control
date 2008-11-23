@@ -1,0 +1,420 @@
+Source: linux
+Section: devel
+Priority: optional
+Maintainer: Ubuntu Kernel Team <kernel-team@lists.ubuntu.com>
+Standards-Version: 3.6.1
+Build-Depends: debhelper (>= 3), module-init-tools, kernel-wedge (>= 2.24ubuntu1), makedumpfile [!armel]
+Build-Depends-Indep: xmlto, docbook-utils, gs, transfig, bzip2, sharutils
+Vcs-Git: http://kernel.ubuntu.com/git-repos/ubuntu/ubuntu-intrepid
+
+Package: linux-source-2.6.27
+Architecture: all
+Section: devel
+Priority: optional
+Provides: linux-source, linux-source-2.6
+Depends: binutils, bzip2, coreutils | fileutils (>= 4.0)
+Recommends: libc-dev, gcc, make
+Suggests: libncurses-dev | ncurses-dev, kernel-package, libqt3-dev
+Description: Linux kernel source for version 2.6.27 with Ubuntu patches
+ This package provides the source code for the Linux kernel version
+ 2.6.27.
+ .
+ This package is mainly meant for other packages to use, in order to build
+ custom flavours.
+ .
+ If you wish to use this package to create a custom Linux kernel, then it
+ is suggested that you investigate the package kernel-package, which has
+ been designed to ease the task of creating kernel image packages.
+ .
+ If you are simply trying to build third-party modules for your kernel,
+ you do not want this package. Install the appropriate linux-headers
+ package instead.
+
+Package: linux-doc-2.6.27
+Architecture: all
+Section: doc
+Priority: optional
+Provides: linux-doc-2.6
+Conflicts: linux-doc-2.6
+Replaces: linux-doc-2.6
+Depends: coreutils | fileutils (>= 4.0)
+Description: Linux kernel specific documentation for version 2.6.27
+ This package provides the various readme's in the 2.6.27 kernel
+ Documentation/ subdirectory: these typically contain kernel-specific
+ installation notes for some drivers for example. See
+ /usr/share/doc/linux-doc-2.6.27/Documentation/00-INDEX for a list of what
+ is contained in each file.  Please read the Changes file, as it contains
+ information about the problems, which may result by upgrading your
+ kernel.
+
+Package: linux-headers-2.6.27-9
+Architecture: all
+Section: devel
+Priority: optional
+Depends: coreutils | fileutils (>= 4.0)
+Provides: linux-headers, linux-headers-2.6
+Description: Header files related to Linux kernel version 2.6.27
+ This package provides kernel header files for version 2.6.27, for sites
+ that want the latest kernel headers. Please read
+ /usr/share/doc/linux-headers-2.6.27-9/debian.README.gz for details
+
+Package: linux-libc-dev
+Architecture: i386 amd64 armel
+Conflicts: libc6-dev (<< 2.3.2.ds1-6), libc6.1-dev (<< 2.3.2.ds1-6), dvb-dev (<< 1.0.1-6), amd64-libs-dev (<= 1.1), linux-kernel-headers
+Replaces: libc6-dev (<< 2.3.2.ds1-6), libc6.1-dev (<< 2.3.2.ds1-6), dvb-dev (<< 1.0.1-6), linux-kernel-headers
+Provides: linux-kernel-headers
+Description: Linux Kernel Headers for development
+ This package provides headers from the Linux kernel.  These headers
+ are used by the installed headers for GNU glibc and other system
+ libraries. They are NOT meant to be used to build third-party modules for
+ your kernel. Use linux-headers-* packages for that.
+
+Package: linux-image-2.6.27-9-generic
+Architecture: i386 amd64
+Section: base
+Priority: optional
+Pre-Depends: dpkg (>= 1.10.24)
+Provides: linux-image, linux-image-2.6, fuse-module, kvm-api-4, redhat-cluster-modules, ivtv-modules, ndiswrapper-modules-1.9
+Depends: initramfs-tools (>= 0.36ubuntu6), coreutils | fileutils (>= 4.0), module-init-tools (>= 3.3-pre11-4ubuntu3)
+Conflicts: hotplug (<< 0.0.20040105-1)
+Recommends: lilo (>= 19.1) | grub
+Suggests: fdutils, linux-doc-2.6.27 | linux-source-2.6.27
+Description: Linux kernel image for version 2.6.27 on x86/x86_64
+ This package contains the Linux kernel image for version 2.6.27 on
+ x86/x86_64.
+ .
+ Also includes the corresponding System.map file, the modules built by the
+ packager, and scripts that try to ensure that the system is not left in an
+ unbootable state after an update.
+ .
+ Supports Generic processors.
+ .
+ Geared toward desktop systems.
+ .
+ You likely do not want to install this package directly. Instead, install
+ the linux-generic meta-package, which will ensure that upgrades work
+ correctly, and that supporting packages are also installed.
+
+Package: linux-headers-2.6.27-9-generic
+Architecture: i386 amd64
+Section: devel
+Priority: optional
+Depends: coreutils | fileutils (>= 4.0), linux-headers-2.6.27-9, ${shlibs:Depends}
+Provides: linux-headers, linux-headers-2.6
+Description: Linux kernel headers for version 2.6.27 on x86/x86_64
+ This package provides kernel header files for version 2.6.27 on
+ x86/x86_64.
+ .
+ This is for sites that want the latest kernel headers.  Please read
+ /usr/share/doc/linux-headers-2.6.27-9/debian.README.gz for details.
+
+Package: linux-image-debug-2.6.27-9-generic
+Architecture: i386 amd64
+Section: devel
+Priority: optional
+Provides: linux-debug
+Description: Linux kernel debug image for version 2.6.27 on x86/x86_64
+ This package provides a kernel debug image for version 2.6.27 on
+ x86/x86_64.
+ .
+ This is for sites that wish to debug the kernel.
+ .
+ The kernel image contained in this package is NOT meant to boot from. It
+ is uncompressed, and unstripped. This package also includes the
+ unstripped modules.
+
+Package: linux-image-2.6.27-9-iop32x
+Architecture: armel
+Section: base
+Priority: optional
+Pre-Depends: dpkg (>= 1.10.24)
+Provides: linux-image, linux-image-2.6, fuse-module, 
+Depends: initramfs-tools (>= 0.36ubuntu6), coreutils | fileutils (>= 4.0), module-init-tools (>= 3.3-pre11-4ubuntu3)
+Conflicts: hotplug (<< 0.0.20040105-1)
+Recommends: 
+Suggests: fdutils, linux-doc-2.6.27 | linux-source-2.6.27
+Description: Linux kernel image for version 2.6.27 on IOP32x-based systems
+ This package contains the Linux kernel image for version 2.6.27 on
+ IOP32x-based systems.
+ .
+ Also includes the corresponding System.map file, the modules built by the
+ packager, and scripts that try to ensure that the system is not left in an
+ unbootable state after an update.
+ .
+ Supports IOP32x processors.
+ .
+ Thecus N2100, etc.
+ .
+ You likely do not want to install this package directly. Instead, install
+ the linux-iop32x meta-package, which will ensure that upgrades work
+ correctly, and that supporting packages are also installed.
+
+Package: linux-headers-2.6.27-9-iop32x
+Architecture: armel
+Section: devel
+Priority: optional
+Depends: coreutils | fileutils (>= 4.0), linux-headers-2.6.27-9, ${shlibs:Depends}
+Provides: linux-headers, linux-headers-2.6
+Description: Linux kernel headers for version 2.6.27 on IOP32x-based systems
+ This package provides kernel header files for version 2.6.27 on
+ IOP32x-based systems.
+ .
+ This is for sites that want the latest kernel headers.  Please read
+ /usr/share/doc/linux-headers-2.6.27-9/debian.README.gz for details.
+
+Package: linux-image-debug-2.6.27-9-iop32x
+Architecture: armel
+Section: devel
+Priority: optional
+Provides: linux-debug
+Description: Linux kernel debug image for version 2.6.27 on IOP32x-based systems
+ This package provides a kernel debug image for version 2.6.27 on
+ IOP32x-based systems.
+ .
+ This is for sites that wish to debug the kernel.
+ .
+ The kernel image contained in this package is NOT meant to boot from. It
+ is uncompressed, and unstripped. This package also includes the
+ unstripped modules.
+
+Package: linux-image-2.6.27-9-ixp4xx
+Architecture: armel
+Section: base
+Priority: optional
+Pre-Depends: dpkg (>= 1.10.24)
+Provides: linux-image, linux-image-2.6, fuse-module, 
+Depends: initramfs-tools (>= 0.36ubuntu6), coreutils | fileutils (>= 4.0), module-init-tools (>= 3.3-pre11-4ubuntu3)
+Conflicts: hotplug (<< 0.0.20040105-1)
+Recommends: 
+Suggests: fdutils, linux-doc-2.6.27 | linux-source-2.6.27
+Description: Linux kernel image for version 2.6.27 on IXP4xx-based systems
+ This package contains the Linux kernel image for version 2.6.27 on
+ IXP4xx-based systems.
+ .
+ Also includes the corresponding System.map file, the modules built by the
+ packager, and scripts that try to ensure that the system is not left in an
+ unbootable state after an update.
+ .
+ Supports IXP4xx processors.
+ .
+ Linksys NSLU2, etc.
+ .
+ You likely do not want to install this package directly. Instead, install
+ the linux-ixp4xx meta-package, which will ensure that upgrades work
+ correctly, and that supporting packages are also installed.
+
+Package: linux-headers-2.6.27-9-ixp4xx
+Architecture: armel
+Section: devel
+Priority: optional
+Depends: coreutils | fileutils (>= 4.0), linux-headers-2.6.27-9, ${shlibs:Depends}
+Provides: linux-headers, linux-headers-2.6
+Description: Linux kernel headers for version 2.6.27 on IXP4xx-based systems
+ This package provides kernel header files for version 2.6.27 on
+ IXP4xx-based systems.
+ .
+ This is for sites that want the latest kernel headers.  Please read
+ /usr/share/doc/linux-headers-2.6.27-9/debian.README.gz for details.
+
+Package: linux-image-debug-2.6.27-9-ixp4xx
+Architecture: armel
+Section: devel
+Priority: optional
+Provides: linux-debug
+Description: Linux kernel debug image for version 2.6.27 on IXP4xx-based systems
+ This package provides a kernel debug image for version 2.6.27 on
+ IXP4xx-based systems.
+ .
+ This is for sites that wish to debug the kernel.
+ .
+ The kernel image contained in this package is NOT meant to boot from. It
+ is uncompressed, and unstripped. This package also includes the
+ unstripped modules.
+
+Package: linux-image-2.6.27-9-orion5x
+Architecture: armel
+Section: base
+Priority: optional
+Pre-Depends: dpkg (>= 1.10.24)
+Provides: linux-image, linux-image-2.6, fuse-module, 
+Depends: initramfs-tools (>= 0.36ubuntu6), coreutils | fileutils (>= 4.0), module-init-tools (>= 3.3-pre11-4ubuntu3)
+Conflicts: hotplug (<< 0.0.20040105-1)
+Recommends: 
+Suggests: fdutils, linux-doc-2.6.27 | linux-source-2.6.27
+Description: Linux kernel image for version 2.6.27 on Orion5x-based systems
+ This package contains the Linux kernel image for version 2.6.27 on
+ Orion5x-based systems.
+ .
+ Also includes the corresponding System.map file, the modules built by the
+ packager, and scripts that try to ensure that the system is not left in an
+ unbootable state after an update.
+ .
+ Supports Orion 5181, 5182 and 5281 processors.
+ .
+ QNAP TS-109/TS-209, etc.
+ .
+ You likely do not want to install this package directly. Instead, install
+ the linux-orion5x meta-package, which will ensure that upgrades work
+ correctly, and that supporting packages are also installed.
+
+Package: linux-headers-2.6.27-9-orion5x
+Architecture: armel
+Section: devel
+Priority: optional
+Depends: coreutils | fileutils (>= 4.0), linux-headers-2.6.27-9, ${shlibs:Depends}
+Provides: linux-headers, linux-headers-2.6
+Description: Linux kernel headers for version 2.6.27 on Orion5x-based systems
+ This package provides kernel header files for version 2.6.27 on
+ Orion5x-based systems.
+ .
+ This is for sites that want the latest kernel headers.  Please read
+ /usr/share/doc/linux-headers-2.6.27-9/debian.README.gz for details.
+
+Package: linux-image-debug-2.6.27-9-orion5x
+Architecture: armel
+Section: devel
+Priority: optional
+Provides: linux-debug
+Description: Linux kernel debug image for version 2.6.27 on Orion5x-based systems
+ This package provides a kernel debug image for version 2.6.27 on
+ Orion5x-based systems.
+ .
+ This is for sites that wish to debug the kernel.
+ .
+ The kernel image contained in this package is NOT meant to boot from. It
+ is uncompressed, and unstripped. This package also includes the
+ unstripped modules.
+
+Package: linux-image-2.6.27-9-server
+Architecture: i386 amd64
+Section: base
+Priority: optional
+Pre-Depends: dpkg (>= 1.10.24)
+Provides: linux-image, linux-image-2.6, fuse-module, redhat-cluster-modules, kvm-api-4, ivtv-modules, ndiswrapper-modules-1.9
+Depends: initramfs-tools (>= 0.36ubuntu6), coreutils | fileutils (>= 4.0), module-init-tools (>= 3.3-pre11-4ubuntu3)
+Conflicts: hotplug (<< 0.0.20040105-1)
+Recommends: lilo (>= 19.1) | grub
+Suggests: fdutils, linux-doc-2.6.27 | linux-source-2.6.27
+Description: Linux kernel image for version 2.6.27 on x86/x86_64
+ This package contains the Linux kernel image for version 2.6.27 on
+ x86/x86_64.
+ .
+ Also includes the corresponding System.map file, the modules built by the
+ packager, and scripts that try to ensure that the system is not left in an
+ unbootable state after an update.
+ .
+ Supports Server processors.
+ .
+ Geared toward server systems.
+ .
+ You likely do not want to install this package directly. Instead, install
+ the linux-server meta-package, which will ensure that upgrades work
+ correctly, and that supporting packages are also installed.
+
+Package: linux-headers-2.6.27-9-server
+Architecture: i386 amd64
+Section: devel
+Priority: optional
+Depends: coreutils | fileutils (>= 4.0), linux-headers-2.6.27-9, ${shlibs:Depends}
+Provides: linux-headers, linux-headers-2.6
+Description: Linux kernel headers for version 2.6.27 on x86/x86_64
+ This package provides kernel header files for version 2.6.27 on
+ x86/x86_64.
+ .
+ This is for sites that want the latest kernel headers.  Please read
+ /usr/share/doc/linux-headers-2.6.27-9/debian.README.gz for details.
+
+Package: linux-image-debug-2.6.27-9-server
+Architecture: i386 amd64
+Section: devel
+Priority: optional
+Provides: linux-debug
+Description: Linux kernel debug image for version 2.6.27 on x86/x86_64
+ This package provides a kernel debug image for version 2.6.27 on
+ x86/x86_64.
+ .
+ This is for sites that wish to debug the kernel.
+ .
+ The kernel image contained in this package is NOT meant to boot from. It
+ is uncompressed, and unstripped. This package also includes the
+ unstripped modules.
+
+Package: linux-image-2.6.27-9-versatile
+Architecture: armel
+Section: base
+Priority: optional
+Pre-Depends: dpkg (>= 1.10.24)
+Provides: linux-image, linux-image-2.6, fuse-module, 
+Depends: initramfs-tools (>= 0.36ubuntu6), coreutils | fileutils (>= 4.0), module-init-tools (>= 3.3-pre11-4ubuntu3)
+Conflicts: hotplug (<< 0.0.20040105-1)
+Recommends: 
+Suggests: fdutils, linux-doc-2.6.27 | linux-source-2.6.27
+Description: Linux kernel image for version 2.6.27 on Versatile-based systems
+ This package contains the Linux kernel image for version 2.6.27 on
+ Versatile-based systems.
+ .
+ Also includes the corresponding System.map file, the modules built by the
+ packager, and scripts that try to ensure that the system is not left in an
+ unbootable state after an update.
+ .
+ Supports Versatile processors.
+ .
+ PB, AB, Qemu, etc.
+ .
+ You likely do not want to install this package directly. Instead, install
+ the linux-versatile meta-package, which will ensure that upgrades work
+ correctly, and that supporting packages are also installed.
+
+Package: linux-headers-2.6.27-9-versatile
+Architecture: armel
+Section: devel
+Priority: optional
+Depends: coreutils | fileutils (>= 4.0), linux-headers-2.6.27-9, ${shlibs:Depends}
+Provides: linux-headers, linux-headers-2.6
+Description: Linux kernel headers for version 2.6.27 on Versatile-based systems
+ This package provides kernel header files for version 2.6.27 on
+ Versatile-based systems.
+ .
+ This is for sites that want the latest kernel headers.  Please read
+ /usr/share/doc/linux-headers-2.6.27-9/debian.README.gz for details.
+
+Package: linux-image-debug-2.6.27-9-versatile
+Architecture: armel
+Section: devel
+Priority: optional
+Provides: linux-debug
+Description: Linux kernel debug image for version 2.6.27 on Versatile-based systems
+ This package provides a kernel debug image for version 2.6.27 on
+ Versatile-based systems.
+ .
+ This is for sites that wish to debug the kernel.
+ .
+ The kernel image contained in this package is NOT meant to boot from. It
+ is uncompressed, and unstripped. This package also includes the
+ unstripped modules.
+
+Package: linux-image-2.6.27-9-virtual
+Architecture: i386 amd64
+Section: base
+Priority: optional
+Pre-Depends: dpkg (>= 1.10.24)
+Provides: linux-image, linux-image-2.6, fuse-module, redhat-cluster-modules
+Depends: initramfs-tools (>= 0.36ubuntu6), coreutils | fileutils (>= 4.0), module-init-tools (>= 3.3-pre11-4ubuntu3)
+Conflicts: hotplug (<< 0.0.20040105-1), linux-image-2.6.27-9-server
+Recommends: lilo (>= 19.1) | grub
+Suggests: fdutils, linux-doc-2.6.27 | linux-source-2.6.27
+Description: Linux kernel image for version 2.6.27 on x86/x86_64
+ This package contains the Linux kernel image for version 2.6.27 on
+ x86/x86_64.
+ .
+ Also includes the corresponding System.map file, the modules built by the
+ packager, and scripts that try to ensure that the system is not left in an
+ unbootable state after an update.
+ .
+ Supports Virtual processors.
+ .
+ Geared toward virtual machine guests.
+ .
+ You likely do not want to install this package directly. Instead, install
+ the linux-virtual meta-package, which will ensure that upgrades work
+ correctly, and that supporting packages are also installed.

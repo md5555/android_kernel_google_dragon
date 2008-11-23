@@ -1,0 +1,21 @@
+# PHY
+8390
+mii
+
+# CRC modules
+crc-ccitt
+crc-itu-t
+
+# mac80211 stuff
+mac80211
+cfg80211
+
+# rt2x00 lib (since rt2x00 is split across usb/pci/cb
+rt2x00lib
+
+# Wireless 802.11 modules
+ieee80211
+ieee80211_crypt
+ieee80211_crypt_ccmp
+ieee80211_crypt_tkip
+ieee80211_crypt_wep

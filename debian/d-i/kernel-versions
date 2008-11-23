@@ -1,0 +1,4 @@
+# arch	version		flavour		installedname			suffix	bdep
+amd64	2.6.27-9	generic			2.6.27-9-generic		-	
+
+i386	2.6.27-9	generic			2.6.27-9-generic		-	
