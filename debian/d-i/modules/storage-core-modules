@@ -1,0 +1,17 @@
+# Core stacks
+libata
+scsi_mod
+usbcore
+usb-storage
+
+# Block level
+cdrom
+sd_mod
+sr_mod
+
+# Loop modules
+loop
+cryptoloop
+
+# Needs to be here for better cdrom initrd layout
+isofs

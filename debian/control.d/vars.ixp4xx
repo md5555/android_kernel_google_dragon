@@ -1,0 +1,8 @@
+arch="armel"
+supported="IXP4xx"
+desc="IXP4xx-based systems"
+target="Linksys NSLU2, etc."
+bootloader=""
+provides=""
+section_image="universe/base"
+do_debug="Yes"

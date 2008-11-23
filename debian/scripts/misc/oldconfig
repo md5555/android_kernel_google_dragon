@@ -1,0 +1,64 @@
+#!/bin/bash
+
+# We have to be in the top level kernel source directory
+if [ ! -f MAINTAINERS ] || [ ! -f Makefile ]; then
+	echo "This does not appear to be the kernel source directory." 1>&2
+	exit 1
+fi
+
+
+# One arg, and that's it. Just pass an architecture
+if [ $# -ne 1 ]; then
+	echo "Usage: $0 <arch>" 1>&2
+	exit 1
+fi
+
+arch="$1"
+
+case "$arch" in
+	amd64)	kernarch="x86_64"	;;
+	armel)	kernarch="arm"	;;
+	*)	kernarch="$arch"	;;
+esac
+
+confdir="`pwd`/debian/config/$arch"
+bindir="`pwd`/debian/scripts/misc"
+
+# Make sure the architecture exists
+if [ ! -d $confdir ]; then
+	echo "Could not find config directory for $arch" 1>&2
+	exit 1
+fi
+
+echo "Processing $arch ($kernarch) ... "
+
+configs=$(cd $confdir && ls config.*)
+
+if [ -f $confdir/config ]; then
+	for config in $configs; do
+		case $config in
+			*)
+				cat $confdir/config >> $confdir/$config
+				;;
+		esac
+	done
+	rm -f $confdir/config
+fi
+
+test -d build || mkdir build
+cd build
+for config in $configs; do
+	echo "Running silentoldconfig for $config ... "
+
+	cat $confdir/$config > .config
+
+	make -C ../ O=`pwd` silentoldconfig ARCH=$kernarch
+
+	cat .config > $confdir/$config
+done
+cd ..
+
+echo "Running splitconfig.pl ... "
+echo
+
+(cd $confdir ; $bindir/splitconfig.pl)

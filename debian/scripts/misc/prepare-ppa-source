@@ -1,0 +1,106 @@
+#!/bin/sh
+#
+# This script prepares a source upload for a PPA build.
+#
+LAST_UPLOAD=../last-ppa-upload
+LAST_GIT_CHANGELOG=../last_git_changelog
+LAST_PPA_CHANGELOG=../last_ppa_changelog
+PPA_FILE="`make --no-print-directory -f debian/rules print-ppa-file-name`"
+
+if [ "$1" = "scrub" ]
+then
+	SCRUB=1
+fi
+
+#
+# The identity of the git committer must be known.
+#
+if [ ! -z "$GIT_AUTHOR_NAME" ] && [ ! -z "$GIT_AUTHOR_EMAIL" ]
+then
+	SIGNER_NAME="$GIT_AUTHOR_NAME"
+	SIGNER_EMAIL="$GIT_AUTHOR_EMAIL"
+elif [ ! -z "$GIT_COMMITTER_NAME" ] && [ ! -z "$GIT_COMMITTER_EMAIL" ]
+then
+	SIGNER_NAME="$GIT_COMMITTER_NAME"
+	SIGNER_EMAIL="$GIT_COMMITTER_EMAIL"
+else
+	echo Error: Unknown committer.
+	exit 1
+fi
+
+#
+# git current and cleanup.
+#
+git checkout -f
+git ls-files --others | xargs rm -rf
+
+#
+# Don't bother if the repo hasn't changed since the last upload.
+#
+if [ ! -f ${LAST_UPLOAD} ]
+then
+	touch ${LAST_UPLOAD}
+fi
+git log|head -n 1|sed 's/commit //' > ${LAST_UPLOAD}.tmp
+if cmp ${LAST_UPLOAD} ${LAST_UPLOAD}.tmp > /dev/null
+then
+	rm -f ${LAST_UPLOAD}.tmp
+	echo No upload needed.
+	exit 0
+fi
+mv ${LAST_UPLOAD}.tmp ${LAST_UPLOAD}
+
+#
+# The git HEAD can change without anyone updating the debian/changelog.
+# However, if the changelog version is updated, then we want to work
+# forward from that  version.
+#
+cp debian/changelog changelog.sav
+if [ -f ${LAST_GIT_CHANGELOG} ] && [ -f ${LAST_PPA_CHANGELOG} ]
+then
+	#
+	# If the changelog has not changed, then work forward from the
+	# last daily build version.
+	#
+	if cmp ${LAST_GIT_CHANGELOG} debian/changelog > /dev/null
+	then
+		cp ${LAST_PPA_CHANGELOG} debian/changelog
+	fi
+fi
+mv changelog.sav ${LAST_GIT_CHANGELOG}
+
+#
+# Notify the build scripts that this is a PPA build.
+#
+cp -v ${LAST_UPLOAD} ${PPA_FILE}
+
+#
+# In order to sign the package you must override the first signer's changelog entry.
+#
+export DEBEMAIL="$SIGNER_EMAIL"
+export DEBFULLNAME="$SIGNER_NAME"
+DEBCHANGE_COMMENT="PPA Upload from git HEAD `cat ${LAST_UPLOAD}`"
+debchange --increment --preserve "${DEBCHANGE_COMMENT}"
+if ! head -n 1 debian/changelog | grep ubuntu > /dev/null
+then
+	echo debchange did not work.
+	exit 1
+fi
+
+#
+# Make sure the third changelog field says hardy.
+#
+sed -i 's/) .*;/) hardy;/1' debian/changelog
+
+#
+# Make sure the next daily build works forward from this version if the git
+# changelog has not changed.
+#
+cp debian/changelog ${LAST_PPA_CHANGELOG}
+
+rm -rf ../linux* include/config .config
+dpkg-buildpackage -S -sa -rfakeroot -I.git -I.gitignore -i'\.git.*'
+
+rm -f ${PPA_FILE}
+exit 0
+

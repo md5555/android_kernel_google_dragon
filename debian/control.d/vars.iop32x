@@ -1,0 +1,8 @@
+arch="armel"
+supported="IOP32x"
+desc="IOP32x-based systems"
+target="Thecus N2100, etc."
+bootloader=""
+provides=""
+section_image="universe/base"
+do_debug="Yes"

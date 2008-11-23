@@ -1,0 +1,47 @@
+#!/bin/sh
+
+#
+# Use this script as a template for the daily kernel build cron job.
+# You should copy it somewhere outside of the git tree 'cause the whole
+# git tree gets removed and recreated.
+#
+KNAME=intrepid
+DAILY_BUILD_DIR=${KBDIR:=${HOME}/${KNAME}}
+KERNEL_GIT_REPO=${KREPO:=/srv/kernel.ubuntu.com/git/ubuntu/ubuntu-${KNAME}.git}
+
+#
+# Nothing works unless there is a dput configuration.
+#
+if [ ! -f ${HOME}/.dput.cf ]
+then
+	echo No dput configuration.
+	exit 1
+fi
+
+if [ ! -d ${DAILY_BUILD_DIR} ]
+then
+	rm -rf ${DAILY_BUILD_DIR}
+	mkdir -p ${DAILY_BUILD_DIR}
+fi
+
+#
+# Start with a fresh repo.
+#
+cd ${DAILY_BUILD_DIR}
+rm -rf ubuntu-${KNAME}
+git clone ${KERNEL_GIT_REPO}
+
+#
+# Remember that the success of prepare-ppa depends on
+# this user account having an un-passworded GPG key.
+# Otherwise it requires user intervention, e.g., a
+# user must enter the GPG key password.
+#
+rm -f *.changes
+(cd ubuntu-${KNAME}; debian/scripts/misc/prepare-ppa-source)
+
+find . -maxdepth 1 -type f -name "*.changes" | while read f
+do
+	echo dput my-ppa $f
+done
+

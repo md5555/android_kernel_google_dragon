@@ -1,0 +1,82 @@
+#!/bin/bash
+
+if [ "$#" != "2" ]; then
+	echo "Usage: $0 <release> <revision>" 1>&2
+	exit 1
+fi
+
+ver=$1
+revision=$2
+abi=$(echo $revision | awk -F. '{print $1}')
+
+verabi=$ver-$abi
+verfull=$ver-$revision
+
+repo="http://archive.ubuntu.com/ubuntu/pool/main/l"
+repo_ports="http://ports.ubuntu.com/ubuntu-ports/pool/main/l"
+repo_uni="http://archive.ubuntu.com/ubuntu/pool/universe/l"
+
+WGET="wget --quiet -c"
+
+abidir="`pwd`/debian/abi/$verfull"
+tmpdir="`pwd`/abi-tmp-$verfull"
+origdir="`pwd`"
+
+test -d $tmpdir || mkdir $tmpdir
+
+getall() {
+	arch=$1
+	shift
+
+	mkdir -p $abidir/$arch
+
+	for sub in $@; do
+		if [ -f $abidir/$arch/$sub ]; then
+			echo "Exists: $sub"
+			continue
+		fi
+		echo -n "Fetching $sub..."
+		filename=linux-image-${verabi}-${sub}_${verfull}_${arch}.deb
+		cd $tmpdir
+		if ! [ -f $filename ]; then
+			$WGET $repo/linux/$filename
+		fi
+		if ! [ -f $filename ]; then
+			$WGET $repo_ports/linux/$filename
+		fi
+		if ! [ -f $filename ]; then
+			$WGET $repo_uni/linux/$filename
+		fi
+		if [ "$?" = "0" ]; then
+			echo -n "extracting..."
+			dpkg-deb --extract $filename tmp
+			if [ -f tmp/boot/abi-* ]; then
+				mv tmp/boot/abi-* $abidir/$arch/$sub
+			else
+				echo -n "NO ABI FILE..."
+			fi
+			(cd tmp; find lib/modules/$verabi-$sub/kernel -name '*.ko') | \
+				sed -e 's/.*\/\([^\/]*\)\.ko/\1/' | sort > \
+				$abidir/$arch/$sub.modules
+			rm -rf tmp $filename
+			echo "done."
+		else
+			echo "FAILED."
+		fi
+		cd $origdir
+	done
+}
+
+# MAIN
+
+# Setup abi directory
+mkdir -p $abidir
+echo $abi > $abidir/abiname
+
+# NOTE: The flavours are hardcoded, because they may have changed from the
+# current build.
+
+getall amd64 generic server
+getall i386 generic server
+
+rmdir $tmpdir
