@@ -78,5 +78,6 @@ echo $abi > $abidir/abiname
 
 getall amd64 generic server
 getall i386 generic server
+getall armel iop32xx ixp4xx versatile orion5x
 
 rmdir $tmpdir
