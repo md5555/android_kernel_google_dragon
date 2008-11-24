@@ -1,4 +1,9 @@
 # arch	version		flavour		installedname			suffix	bdep
 amd64	PKGVER-ABINUM	generic			PKGVER-ABINUM-generic		-	
 
+armel	PKGVER-ABINUM	iop32x			PKGVER-ABINUM-iop32x		y
+armel	PKGVER-ABINUM	ixp4xx			PKGVER-ABINUM-ixp4xx		y
+armel	PKGVER-ABINUM	orion5x			PKGVER-ABINUM-orion5x		y
+armel	PKGVER-ABINUM	versatile		PKGVER-ABINUM-versatile		y
+
 i386	PKGVER-ABINUM	generic			PKGVER-ABINUM-generic		-	

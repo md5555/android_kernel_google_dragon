@@ -1,0 +1,6 @@
+# Block level
+cdrom
+sr_mod
+
+# Needs to be here for better cdrom initrd layout
+isofs
