@@ -88,6 +88,18 @@ debian/control: debian/control.stub
 	cp debian/d-i/package-list debian/d-i/kernel-versions .
 	touch modules/$(arch)/kernel-image
 
+	# Some files may need to differ between architectures
+	if [ -d debian/d-i/modules-$(arch) ]; then			\
+	    cp debian/d-i/modules-$(arch)/* modules/$(arch)/;		\
+	fi
+
+	# Remove unwanted stuff for this architecture
+	if [ -r "debian/d-i/exclude-modules.$(arch)" ]; then	\
+	    (cat debian/d-i/exclude-modules.$(arch);		\
+	     ls modules/$(arch)/) | sort | uniq -d |		\
+		(cd modules/$(arch)/; xargs rm -f);		\
+	fi
+
 	# Per flavour module lists
 	flavour_modules=`ls debian/d-i/modules.$(arch)-* 2>/dev/null`	\
 		|| true;						\
@@ -95,17 +107,36 @@ debian/control: debian/control.stub
 	    for flav in $$flavour_modules; do				\
 		name=`echo $$flav | sed 's/.*\/modules.$(arch)-//'`;	\
 		mkdir modules/$(arch)-$$name;				\
-		(cd debian/d-i/modules/; tar cf - `cat ../../../$$flav`) |\
+		(cd modules/; tar cf - `cat ../$$flav`) |		\
 		    (cd modules/$(arch)-$$name/; tar xf -);		\
 		touch modules/$(arch)-$$name/kernel-image;		\
 	    done;							\
 	fi
 
-	# Remove unwanted stuff
-	if [ -r "debian/d-i/exclude-modules.$(arch)" ]; then	\
-	    (cat debian/d-i/exclude-modules.$(arch);		\
-	     ls modules/$(arch)/) | sort | uniq -d |		\
-		(cd modules/$(arch)/; xargs rm -f);		\
+	# Some files may need to differ between flavours
+	flavour_module_dirs=`ls -d debian/d-i/modules-$(arch)-* 2>/dev/null`\
+		|| true;						\
+	if [ "$$flavour_module_dirs" ]; then				\
+	    for flav in $$flavour_module_dirs; do			\
+		name=`echo $$flav | sed 's/.*\/modules-$(arch)-//'`;	\
+		[ -d modules/$(arch)-$$name ] ||			\
+		    cp -a modules/$(arch) modules/$(arch)-$$name;	\
+		cp $$flav/* modules/$(arch)-$$name/;			\
+	    done;							\
+	fi
+
+	# Remove unwanted stuff for each flavour
+	flavour_exclude=`ls debian/d-i/exclude-modules.$(arch)-* 2>/dev/null`\
+		|| true;						\
+	if [ "$$flavour_exclude" ]; then				\
+	    for flav in $$flavour_exclude; do				\
+		name=`echo $$flav | sed 's/.*\/exclude-modules.$(arch)-//'`;\
+		[ -d modules/$(arch)-$$name ] ||			\
+		    cp -a modules/$(arch) modules/$(arch)-$$name;	\
+		(cat $$flav;						\
+		 ls modules/$(arch)-$$name) | sort | uniq -d |		\
+		    (cd modules/$(arch)-$$name/; xargs rm -f);		\
+	    done;							\
 	fi
 
 	if [ ! -d modules/$(build_arch) ]; then			\
