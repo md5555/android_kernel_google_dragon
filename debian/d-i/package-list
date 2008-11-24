@@ -1,3 +1,7 @@
+Package: kernel-image
+Provides_armel: crypto-modules, ext2-modules, ext3-modules, socket-modules, fat-modules
+Provides_armel_versatile: crypto-modules, ext2-modules, ext3-modules, socket-modules, fb-modules
+
 Package: acpi-modules
 Depends: kernel-image
 Priority: standard
@@ -28,6 +32,7 @@ Package: fs-core-modules
 Depends: kernel-image
 Priority: standard
 Provides: ext2-modules, ext3-modules, jfs-modules, reiserfs-modules, xfs-modules
+Provides_armel: jfs-modules, reiserfs-modules, xfs-modules
 Description: Base filesystem modules
  This includes ext2, ext3, jfs, reiserfs and xfs.
 
