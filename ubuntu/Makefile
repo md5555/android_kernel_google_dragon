@@ -14,7 +14,6 @@ obj-$(CONFIG_NDISWRAPPER)	+= ndiswrapper/
 obj-$(CONFIG_TLSF)		+= compcache/
 obj-$(CONFIG_HECI)		+= heci/
 obj-$(CONFIG_QC_USB)		+= qc-usb/
-obj-$(CONFIG_E1000E_NEW)	+= e1000e/
 obj-$(CONFIG_DRM_VIA_CHROME9)	+= via_chrome9/
 obj-$(CONFIG_FS_UNIONFS)	+= unionfs/
 obj-$(CONFIG_LIRC_DEV)          += lirc/
