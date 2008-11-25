@@ -51,7 +51,8 @@ endif
 abinum		:= $(shell echo $(revision) | sed -e 's/\..*//')$(abi_suffix)
 prev_abinum	:= $(shell echo $(prev_revision) | sed -e 's/\..*//')$(abi_suffix)
 
-abi_release	:= $(release)-$(abinum)
+# Added -ub to allow apps like kerneloops to recognize Ubuntu kernels
+abi_release	:= $(release)-$(abinum)-ub
 
 # We force the sublevel to be exactly what we want. The actual source may
 # be an in development git tree. We want to force it here instead of
@@ -90,7 +91,8 @@ endif
 conc_level		= -j$(CONCURRENCY_LEVEL)
 
 # target_flavour is filled in for each step
-kmake = make ARCH=$(build_arch) EXTRAVERSION=-$(abinum)-$(target_flavour) \
+kmake = make ARCH=$(build_arch) \
+	EXTRAVERSION=-$(abinum)-ub-$(target_flavour) \
 	CONFIG_DEBUG_SECTION_MISMATCH=y SUBLEVEL=$(SUBLEVEL)
 ifneq ($(LOCAL_ENV_CC),)
 kmake += CC=$(LOCAL_ENV_CC) DISTCC_HOSTS=$(LOCAL_ENV_DISTCC_HOSTS)
