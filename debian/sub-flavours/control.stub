@@ -12,7 +12,7 @@
 #
 # XXX: Leave the blank line before the first package!!
 
-Package: linux-image-PKGVER-ABINUM-FLAVOUR
+Package: linux-image-PKGVER-ABINUM-ub-FLAVOUR
 Architecture: ARCH
 Section: base
 Priority: optional
