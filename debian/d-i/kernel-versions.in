@@ -3,7 +3,7 @@ amd64	PKGVER-ABINUM	generic			PKGVER-ABINUM-ub-generic		-
 
 armel	PKGVER-ABINUM	iop32x			PKGVER-ABINUM-ub-iop32x		y
 armel	PKGVER-ABINUM	ixp4xx			PKGVER-ABINUM-ub-ixp4xx		y
-armel	PKGVER-ABINUM	orion5x			PKGVER-ABINUM-ub-orion5x		y
-armel	PKGVER-ABINUM	versatile		PKGVER-ABINUM-ub-versatile		y
+armel	PKGVER-ABINUM	orion5x			PKGVER-ABINUM-ub-orion5x	y
+armel	PKGVER-ABINUM	versatile		PKGVER-ABINUM-ub-versatile	y
 
 i386	PKGVER-ABINUM	generic			PKGVER-ABINUM-ub-generic		-	
