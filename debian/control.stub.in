@@ -47,7 +47,7 @@ Description: Linux kernel specific documentation for version PKGVER
  information about the problems, which may result by upgrading your
  kernel.
 
-Package: linux-headers-PKGVER-ABINUM
+Package: linux-headers-PKGVER-ABINUM-ub
 Architecture: all
 Section: devel
 Priority: optional

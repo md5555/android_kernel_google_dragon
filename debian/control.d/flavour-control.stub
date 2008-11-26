@@ -41,7 +41,7 @@ Package: linux-headers-PKGVER-ABINUM-ub-FLAVOUR
 Architecture: ARCH
 Section: devel
 Priority: optional
-Depends: coreutils | fileutils (>= 4.0), linux-headers-PKGVER-ABINUM, ${shlibs:Depends}
+Depends: coreutils | fileutils (>= 4.0), linux-headers-PKGVER-ABINUM-ub, ${shlibs:Depends}
 Provides: linux-headers, linux-headers-2.6
 Description: Linux kernel headers for version PKGVER on DESC
  This package provides kernel header files for version PKGVER on
