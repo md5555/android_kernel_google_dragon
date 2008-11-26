@@ -47,7 +47,7 @@ Description: Linux kernel specific documentation for version 2.6.28
  information about the problems, which may result by upgrading your
  kernel.
 
-Package: linux-headers-2.6.28-1
+Package: linux-headers-2.6.28-1-ub
 Architecture: all
 Section: devel
 Priority: optional
@@ -99,7 +99,7 @@ Package: linux-headers-2.6.28-1-ub-generic
 Architecture: i386 amd64
 Section: devel
 Priority: optional
-Depends: coreutils | fileutils (>= 4.0), linux-headers-2.6.28-1, ${shlibs:Depends}
+Depends: coreutils | fileutils (>= 4.0), linux-headers-2.6.28-1-ub, ${shlibs:Depends}
 Provides: linux-headers, linux-headers-2.6
 Description: Linux kernel headers for version 2.6.28 on x86/x86_64
  This package provides kernel header files for version 2.6.28 on
@@ -153,7 +153,7 @@ Package: linux-headers-2.6.28-1-ub-iop32x
 Architecture: armel
 Section: devel
 Priority: optional
-Depends: coreutils | fileutils (>= 4.0), linux-headers-2.6.28-1, ${shlibs:Depends}
+Depends: coreutils | fileutils (>= 4.0), linux-headers-2.6.28-1-ub, ${shlibs:Depends}
 Provides: linux-headers, linux-headers-2.6
 Description: Linux kernel headers for version 2.6.28 on IOP32x-based systems
  This package provides kernel header files for version 2.6.28 on
@@ -207,7 +207,7 @@ Package: linux-headers-2.6.28-1-ub-ixp4xx
 Architecture: armel
 Section: devel
 Priority: optional
-Depends: coreutils | fileutils (>= 4.0), linux-headers-2.6.28-1, ${shlibs:Depends}
+Depends: coreutils | fileutils (>= 4.0), linux-headers-2.6.28-1-ub, ${shlibs:Depends}
 Provides: linux-headers, linux-headers-2.6
 Description: Linux kernel headers for version 2.6.28 on IXP4xx-based systems
  This package provides kernel header files for version 2.6.28 on
@@ -261,7 +261,7 @@ Package: linux-headers-2.6.28-1-ub-orion5x
 Architecture: armel
 Section: devel
 Priority: optional
-Depends: coreutils | fileutils (>= 4.0), linux-headers-2.6.28-1, ${shlibs:Depends}
+Depends: coreutils | fileutils (>= 4.0), linux-headers-2.6.28-1-ub, ${shlibs:Depends}
 Provides: linux-headers, linux-headers-2.6
 Description: Linux kernel headers for version 2.6.28 on Orion5x-based systems
  This package provides kernel header files for version 2.6.28 on
@@ -315,7 +315,7 @@ Package: linux-headers-2.6.28-1-ub-server
 Architecture: i386 amd64
 Section: devel
 Priority: optional
-Depends: coreutils | fileutils (>= 4.0), linux-headers-2.6.28-1, ${shlibs:Depends}
+Depends: coreutils | fileutils (>= 4.0), linux-headers-2.6.28-1-ub, ${shlibs:Depends}
 Provides: linux-headers, linux-headers-2.6
 Description: Linux kernel headers for version 2.6.28 on x86/x86_64
  This package provides kernel header files for version 2.6.28 on
@@ -369,7 +369,7 @@ Package: linux-headers-2.6.28-1-ub-versatile
 Architecture: armel
 Section: devel
 Priority: optional
-Depends: coreutils | fileutils (>= 4.0), linux-headers-2.6.28-1, ${shlibs:Depends}
+Depends: coreutils | fileutils (>= 4.0), linux-headers-2.6.28-1-ub, ${shlibs:Depends}
 Provides: linux-headers, linux-headers-2.6
 Description: Linux kernel headers for version 2.6.28 on Versatile-based systems
  This package provides kernel header files for version 2.6.28 on
