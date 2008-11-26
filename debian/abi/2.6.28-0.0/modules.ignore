@@ -20,3 +20,5 @@ pc300
 quickcam
 snd-bt-sco
 tuner-3036
+snd-cs4231-lib
+snd-ad1848-lib
