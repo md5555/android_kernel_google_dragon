@@ -36,6 +36,9 @@ install-headers:
 	     -name '*.sh' -o -name '*.pl' -o -name '*.lds' \) \
 	  -print | cpio -pd --preserve-modification-time $(indep_hdrdir)
 	cp -a scripts include $(indep_hdrdir)
+	(find arch -name include -type d -print | \
+		xargs -n1 -i: find : -type f) | \
+		cpio -pd --preserve-modification-time $(indep_hdrdir)
 
 srcpkg = linux-source-$(release)
 srcdir = $(CURDIR)/debian/$(srcpkg)/usr/src/$(srcpkg)
