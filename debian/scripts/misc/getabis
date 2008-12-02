@@ -9,7 +9,7 @@ ver=$1
 revision=$2
 abi=$(echo $revision | awk -F. '{print $1}')
 
-verabi=$ver-$abi
+verabi=$ver-$abi-ub
 verfull=$ver-$revision
 
 repo="http://archive.ubuntu.com/ubuntu/pool/main/l"
@@ -78,6 +78,6 @@ echo $abi > $abidir/abiname
 
 getall amd64 generic server
 getall i386 generic server
-getall armel iop32xx ixp4xx versatile orion5x
+getall armel iop32x ixp4xx versatile orion5x
 
 rmdir $tmpdir
