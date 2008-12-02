@@ -1,6 +1,0 @@
-config DRM_VIA_CHROME9
-	tristate "Via unichrome9 video cards"
-	depends on DRM
-	help
-	  Choose this option if you have a Via unichrome9 or compatible video
-	  chipset. If M is selected the module will be called via_chrome9.
