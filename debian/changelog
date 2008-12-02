@@ -1,3 +1,23 @@
+linux (2.6.28-2.2) jaunty; urgency=low
+
+  [ Andy Whitcroft ]
+
+  * Revert "SAUCE: (no-up) version: Implement version_signature proc file."
+  * SAUCE: (no-up) version: Implement version_signature proc file.
+  * SAUCE: serial: RS485 ioctl structure uses __u32 include linux/types.h
+    - LP: #303711
+
+  [ Tim Gardner ]
+
+  * UBUNTU: Removed CONFIG_DRM_VIA_CHROME9 since it is upstream.
+  * UBUNTU: Removed ubuntu/via_chrome9
+
+  [ Upstream Kernel Changes ]
+
+  * Rebased to v2.6.28-rc7
+
+ --  Tim Gardner <tim.gardner@canonical.com>  Tue, 02 Dec 2008 07:33:32 -0700
+
 linux (2.6.28-1.1) jaunty; urgency=low
 
   [ Amit Kucheria ]
