@@ -30,8 +30,9 @@
 # Ignore: yes will keep this commit from showing up in the changelog.
 #
 UBUNTU: SAUCE: 
+
 # OriginalAuthor: 
 # OriginalLocation: 
-# Bug: 
+# Bug: #
 # Ignore: yes
 # Other text below here.
