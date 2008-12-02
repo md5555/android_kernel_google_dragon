@@ -9,7 +9,7 @@ ver=$1
 revision=$2
 abi=$(echo $revision | awk -F. '{print $1}')
 
-verabi=$ver-$abi-ub
+verabi=$ver-$abi
 verfull=$ver-$revision
 
 repo="http://archive.ubuntu.com/ubuntu/pool/main/l"

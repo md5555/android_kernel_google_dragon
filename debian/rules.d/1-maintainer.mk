@@ -51,6 +51,7 @@ printenv:
 	@echo "release           = $(release)"
 	@echo "revisions         = $(revisions)"
 	@echo "revision          = $(revision)"
+	@echo "uploadnum         = $(uploadnum)"
 	@echo "prev_revisions    = $(prev_revisions)"
 	@echo "prev_revision     = $(prev_revision)"
 	@echo "abinum            = $(abinum)"

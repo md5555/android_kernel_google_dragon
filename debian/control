@@ -47,7 +47,7 @@ Description: Linux kernel specific documentation for version 2.6.28
  information about the problems, which may result by upgrading your
  kernel.
 
-Package: linux-headers-2.6.28-2-ub
+Package: linux-headers-2.6.28-2
 Architecture: all
 Section: devel
 Priority: optional
@@ -69,7 +69,7 @@ Description: Linux Kernel Headers for development
  libraries. They are NOT meant to be used to build third-party modules for
  your kernel. Use linux-headers-* packages for that.
 
-Package: linux-image-2.6.28-2-ub-generic
+Package: linux-image-2.6.28-2-generic
 Architecture: i386 amd64
 Section: base
 Priority: optional
@@ -95,11 +95,11 @@ Description: Linux kernel image for version 2.6.28 on x86/x86_64
  the linux-generic meta-package, which will ensure that upgrades work
  correctly, and that supporting packages are also installed.
 
-Package: linux-headers-2.6.28-2-ub-generic
+Package: linux-headers-2.6.28-2-generic
 Architecture: i386 amd64
 Section: devel
 Priority: optional
-Depends: coreutils | fileutils (>= 4.0), linux-headers-2.6.28-2-ub, ${shlibs:Depends}
+Depends: coreutils | fileutils (>= 4.0), linux-headers-2.6.28-2, ${shlibs:Depends}
 Provides: linux-headers, linux-headers-2.6
 Description: Linux kernel headers for version 2.6.28 on x86/x86_64
  This package provides kernel header files for version 2.6.28 on
@@ -108,7 +108,7 @@ Description: Linux kernel headers for version 2.6.28 on x86/x86_64
  This is for sites that want the latest kernel headers.  Please read
  /usr/share/doc/linux-headers-2.6.28-2/debian.README.gz for details.
 
-Package: linux-image-debug-2.6.28-2-ub-generic
+Package: linux-image-debug-2.6.28-2-generic
 Architecture: i386 amd64
 Section: devel
 Priority: optional
@@ -123,7 +123,7 @@ Description: Linux kernel debug image for version 2.6.28 on x86/x86_64
  is uncompressed, and unstripped. This package also includes the
  unstripped modules.
 
-Package: linux-image-2.6.28-2-ub-iop32x
+Package: linux-image-2.6.28-2-iop32x
 Architecture: armel
 Section: base
 Priority: optional
@@ -149,11 +149,11 @@ Description: Linux kernel image for version 2.6.28 on IOP32x-based systems
  the linux-iop32x meta-package, which will ensure that upgrades work
  correctly, and that supporting packages are also installed.
 
-Package: linux-headers-2.6.28-2-ub-iop32x
+Package: linux-headers-2.6.28-2-iop32x
 Architecture: armel
 Section: devel
 Priority: optional
-Depends: coreutils | fileutils (>= 4.0), linux-headers-2.6.28-2-ub, ${shlibs:Depends}
+Depends: coreutils | fileutils (>= 4.0), linux-headers-2.6.28-2, ${shlibs:Depends}
 Provides: linux-headers, linux-headers-2.6
 Description: Linux kernel headers for version 2.6.28 on IOP32x-based systems
  This package provides kernel header files for version 2.6.28 on
@@ -162,7 +162,7 @@ Description: Linux kernel headers for version 2.6.28 on IOP32x-based systems
  This is for sites that want the latest kernel headers.  Please read
  /usr/share/doc/linux-headers-2.6.28-2/debian.README.gz for details.
 
-Package: linux-image-debug-2.6.28-2-ub-iop32x
+Package: linux-image-debug-2.6.28-2-iop32x
 Architecture: armel
 Section: devel
 Priority: optional
@@ -177,7 +177,7 @@ Description: Linux kernel debug image for version 2.6.28 on IOP32x-based systems
  is uncompressed, and unstripped. This package also includes the
  unstripped modules.
 
-Package: linux-image-2.6.28-2-ub-ixp4xx
+Package: linux-image-2.6.28-2-ixp4xx
 Architecture: armel
 Section: base
 Priority: optional
@@ -203,11 +203,11 @@ Description: Linux kernel image for version 2.6.28 on IXP4xx-based systems
  the linux-ixp4xx meta-package, which will ensure that upgrades work
  correctly, and that supporting packages are also installed.
 
-Package: linux-headers-2.6.28-2-ub-ixp4xx
+Package: linux-headers-2.6.28-2-ixp4xx
 Architecture: armel
 Section: devel
 Priority: optional
-Depends: coreutils | fileutils (>= 4.0), linux-headers-2.6.28-2-ub, ${shlibs:Depends}
+Depends: coreutils | fileutils (>= 4.0), linux-headers-2.6.28-2, ${shlibs:Depends}
 Provides: linux-headers, linux-headers-2.6
 Description: Linux kernel headers for version 2.6.28 on IXP4xx-based systems
  This package provides kernel header files for version 2.6.28 on
@@ -216,7 +216,7 @@ Description: Linux kernel headers for version 2.6.28 on IXP4xx-based systems
  This is for sites that want the latest kernel headers.  Please read
  /usr/share/doc/linux-headers-2.6.28-2/debian.README.gz for details.
 
-Package: linux-image-debug-2.6.28-2-ub-ixp4xx
+Package: linux-image-debug-2.6.28-2-ixp4xx
 Architecture: armel
 Section: devel
 Priority: optional
@@ -231,7 +231,7 @@ Description: Linux kernel debug image for version 2.6.28 on IXP4xx-based systems
  is uncompressed, and unstripped. This package also includes the
  unstripped modules.
 
-Package: linux-image-2.6.28-2-ub-orion5x
+Package: linux-image-2.6.28-2-orion5x
 Architecture: armel
 Section: base
 Priority: optional
@@ -257,11 +257,11 @@ Description: Linux kernel image for version 2.6.28 on Orion5x-based systems
  the linux-orion5x meta-package, which will ensure that upgrades work
  correctly, and that supporting packages are also installed.
 
-Package: linux-headers-2.6.28-2-ub-orion5x
+Package: linux-headers-2.6.28-2-orion5x
 Architecture: armel
 Section: devel
 Priority: optional
-Depends: coreutils | fileutils (>= 4.0), linux-headers-2.6.28-2-ub, ${shlibs:Depends}
+Depends: coreutils | fileutils (>= 4.0), linux-headers-2.6.28-2, ${shlibs:Depends}
 Provides: linux-headers, linux-headers-2.6
 Description: Linux kernel headers for version 2.6.28 on Orion5x-based systems
  This package provides kernel header files for version 2.6.28 on
@@ -270,7 +270,7 @@ Description: Linux kernel headers for version 2.6.28 on Orion5x-based systems
  This is for sites that want the latest kernel headers.  Please read
  /usr/share/doc/linux-headers-2.6.28-2/debian.README.gz for details.
 
-Package: linux-image-debug-2.6.28-2-ub-orion5x
+Package: linux-image-debug-2.6.28-2-orion5x
 Architecture: armel
 Section: devel
 Priority: optional
@@ -285,7 +285,7 @@ Description: Linux kernel debug image for version 2.6.28 on Orion5x-based system
  is uncompressed, and unstripped. This package also includes the
  unstripped modules.
 
-Package: linux-image-2.6.28-2-ub-server
+Package: linux-image-2.6.28-2-server
 Architecture: i386 amd64
 Section: base
 Priority: optional
@@ -311,11 +311,11 @@ Description: Linux kernel image for version 2.6.28 on x86/x86_64
  the linux-server meta-package, which will ensure that upgrades work
  correctly, and that supporting packages are also installed.
 
-Package: linux-headers-2.6.28-2-ub-server
+Package: linux-headers-2.6.28-2-server
 Architecture: i386 amd64
 Section: devel
 Priority: optional
-Depends: coreutils | fileutils (>= 4.0), linux-headers-2.6.28-2-ub, ${shlibs:Depends}
+Depends: coreutils | fileutils (>= 4.0), linux-headers-2.6.28-2, ${shlibs:Depends}
 Provides: linux-headers, linux-headers-2.6
 Description: Linux kernel headers for version 2.6.28 on x86/x86_64
  This package provides kernel header files for version 2.6.28 on
@@ -324,7 +324,7 @@ Description: Linux kernel headers for version 2.6.28 on x86/x86_64
  This is for sites that want the latest kernel headers.  Please read
  /usr/share/doc/linux-headers-2.6.28-2/debian.README.gz for details.
 
-Package: linux-image-debug-2.6.28-2-ub-server
+Package: linux-image-debug-2.6.28-2-server
 Architecture: i386 amd64
 Section: devel
 Priority: optional
@@ -339,7 +339,7 @@ Description: Linux kernel debug image for version 2.6.28 on x86/x86_64
  is uncompressed, and unstripped. This package also includes the
  unstripped modules.
 
-Package: linux-image-2.6.28-2-ub-versatile
+Package: linux-image-2.6.28-2-versatile
 Architecture: armel
 Section: base
 Priority: optional
@@ -365,11 +365,11 @@ Description: Linux kernel image for version 2.6.28 on Versatile-based systems
  the linux-versatile meta-package, which will ensure that upgrades work
  correctly, and that supporting packages are also installed.
 
-Package: linux-headers-2.6.28-2-ub-versatile
+Package: linux-headers-2.6.28-2-versatile
 Architecture: armel
 Section: devel
 Priority: optional
-Depends: coreutils | fileutils (>= 4.0), linux-headers-2.6.28-2-ub, ${shlibs:Depends}
+Depends: coreutils | fileutils (>= 4.0), linux-headers-2.6.28-2, ${shlibs:Depends}
 Provides: linux-headers, linux-headers-2.6
 Description: Linux kernel headers for version 2.6.28 on Versatile-based systems
  This package provides kernel header files for version 2.6.28 on
@@ -378,7 +378,7 @@ Description: Linux kernel headers for version 2.6.28 on Versatile-based systems
  This is for sites that want the latest kernel headers.  Please read
  /usr/share/doc/linux-headers-2.6.28-2/debian.README.gz for details.
 
-Package: linux-image-debug-2.6.28-2-ub-versatile
+Package: linux-image-debug-2.6.28-2-versatile
 Architecture: armel
 Section: devel
 Priority: optional
@@ -393,14 +393,14 @@ Description: Linux kernel debug image for version 2.6.28 on Versatile-based syst
  is uncompressed, and unstripped. This package also includes the
  unstripped modules.
 
-Package: linux-image-2.6.28-2-ub-virtual
+Package: linux-image-2.6.28-2-virtual
 Architecture: i386 amd64
 Section: base
 Priority: optional
 Pre-Depends: dpkg (>= 1.10.24)
 Provides: linux-image, linux-image-2.6, fuse-module, redhat-cluster-modules
 Depends: initramfs-tools (>= 0.36ubuntu6), coreutils | fileutils (>= 4.0), module-init-tools (>= 3.3-pre11-4ubuntu3)
-Conflicts: hotplug (<< 0.0.20040105-1), linux-image-2.6.28-2-ub-server
+Conflicts: hotplug (<< 0.0.20040105-1), linux-image-2.6.28-2-server
 Recommends: lilo (>= 19.1) | grub
 Suggests: fdutils, linux-doc-2.6.28 | linux-source-2.6.28
 Description: Linux kernel image for version 2.6.28 on x86/x86_64
