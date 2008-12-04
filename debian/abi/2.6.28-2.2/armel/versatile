@@ -1256,6 +1256,7 @@ EXPORT_SYMBOL vmlinux 0x00000000	int_sqrt
 EXPORT_SYMBOL vmlinux 0x00000000	interruptible_sleep_on
 EXPORT_SYMBOL vmlinux 0x00000000	interruptible_sleep_on_timeout
 EXPORT_SYMBOL vmlinux 0x00000000	invalidate_bdev
+EXPORT_SYMBOL vmlinux 0x00000000	invalidate_inode_buffers
 EXPORT_SYMBOL vmlinux 0x00000000	invalidate_inodes
 EXPORT_SYMBOL vmlinux 0x00000000	invalidate_mapping_pages
 EXPORT_SYMBOL vmlinux 0x00000000	invalidate_partition
