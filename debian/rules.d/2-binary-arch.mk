@@ -182,10 +182,10 @@ install-arch-headers:
 	$(hmake) silentoldconfig
 	$(hmake) headers_install
 
-	mv $(headers_tmp)/install/include/asm* \
-		$(headers_dir)/usr/include/
-	mv $(headers_tmp)/install/include/linux \
-		$(headers_dir)/usr/include/
+	( cd $(headers_tmp)/install/include/ && \
+		find . -name '.' -o -name '.*' -prune -o -print | \
+                cpio -pvd --preserve-modification-time \
+			$(headers_dir)/usr/include/ )
 
 	rm -rf $(headers_tmp)
 
