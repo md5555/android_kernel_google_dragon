@@ -16,7 +16,6 @@ obj-$(CONFIG_HECI)		+= heci/
 obj-$(CONFIG_QC_USB)		+= qc-usb/
 obj-$(CONFIG_FS_UNIONFS)	+= unionfs/
 obj-$(CONFIG_LIRC_DEV)          += lirc/
-obj-$(CONFIG_GNBD)		+= gnbd/
 obj-$(CONFIG_GFS_FS)		+= gfs/
 obj-$(CONFIG_TLSUP)		+= tlsup/
 
