@@ -16,7 +16,6 @@ source "ubuntu/qc-usb/Kconfig"
 source "ubuntu/rfkill/Kconfig"
 source "ubuntu/unionfs/Kconfig"
 source "ubuntu/lirc/Kconfig"
-source "ubuntu/gnbd/Kconfig"
 source "ubuntu/gfs/Kconfig"
 source "ubuntu/tlsup/Kconfig"
 
