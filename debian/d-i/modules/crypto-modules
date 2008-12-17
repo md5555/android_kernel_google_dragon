@@ -4,4 +4,5 @@ twofish
 serpent
 sha256_generic
 cbc
+ecb
 crc32c
