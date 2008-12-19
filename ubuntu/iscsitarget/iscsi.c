@@ -16,7 +16,7 @@
 unsigned long debug_enable_flags;
 
 static struct kmem_cache *iscsi_cmnd_cache;
-static char dummy_data[1024];
+static u8 dummy_data[PAGE_SIZE];
 
 static int ctr_major;
 static char ctr_name[] = "ietctl";

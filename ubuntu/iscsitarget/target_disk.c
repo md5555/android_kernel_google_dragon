@@ -22,15 +22,18 @@ static int insert_disconnect_pg(u8 *ptr)
 	return sizeof(disconnect_pg);
 }
 
-static int insert_caching_pg(u8 *ptr, int async)
+static int insert_caching_pg(u8 *ptr, int wcache, int rcache)
 {
 	unsigned char caching_pg[] = {0x08, 0x12, 0x10, 0x00, 0xff, 0xff, 0x00, 0x00,
 				      0xff, 0xff, 0xff, 0xff, 0x80, 0x14, 0x00, 0x00,
 				      0x00, 0x00, 0x00, 0x00};
 
 	memcpy(ptr, caching_pg, sizeof(caching_pg));
-	if (async)
+	if (wcache)
 		ptr[2] |= 0x04;	/* set WCE bit if we're caching writes */
+	if (!rcache)
+		ptr[2] |= 0x01; /* Read Cache Disable */
+
 	return sizeof(caching_pg);
 }
 
@@ -86,6 +89,10 @@ static int build_mode_sense_response(struct iscsi_cmnd *cmnd)
 	int len = 4, err = 0;
 	u8 pcode;
 
+	/* changeable parameter mode pages are unsupported */
+	if ((scb[2] & 0xc0) >> 6 == 0x1)
+		return -1;
+
 	pcode = req->scb[2] & 0x3f;
 
 	assert(!tio);
@@ -120,7 +127,8 @@ static int build_mode_sense_response(struct iscsi_cmnd *cmnd)
 		len += insert_geo_m_pg(data + len, cmnd->lun->blk_cnt);
 		break;
 	case 0x8:
-		len += insert_caching_pg(data + len, LUAsync(cmnd->lun));
+		len += insert_caching_pg(data + len, LUWCache(cmnd->lun),
+					 LURCache(cmnd->lun));
 		break;
 	case 0xa:
 		len += insert_ctrl_m_pg(data + len);
@@ -132,7 +140,8 @@ static int build_mode_sense_response(struct iscsi_cmnd *cmnd)
 		len += insert_disconnect_pg(data + len);
 		len += insert_format_m_pg(data + len);
 		len += insert_geo_m_pg(data + len, cmnd->lun->blk_cnt);
-		len += insert_caching_pg(data + len, LUAsync(cmnd->lun));
+		len += insert_caching_pg(data + len, LUWCache(cmnd->lun),
+					 LURCache(cmnd->lun));
 		len += insert_ctrl_m_pg(data + len);
 		len += insert_iec_m_pg(data + len);
 		break;
@@ -155,7 +164,11 @@ static int build_inquiry_response(struct iscsi_cmnd *cmnd)
 	u8 *scb = req->scb;
 	int err = -1;
 
-	if (((req->scb[1] & 0x3) == 0x3) || (!(req->scb[1] & 0x3) && req->scb[2]))
+	/*
+	 * - CmdDt and EVPD both set or EVPD and Page Code set: illegal
+	 * - CmdDt set: not supported
+	 */
+	if ((scb[1] & 0x3) > 0x1 || (!(scb[1] & 0x3) && scb[2]))
 		return err;
 
 	assert(!tio);
@@ -166,7 +179,7 @@ static int build_inquiry_response(struct iscsi_cmnd *cmnd)
 
 	if (!(scb[1] & 0x3)) {
 		data[2] = 4;
-		data[3] = 0x42;
+		data[3] = 0x52;
 		data[4] = 59;
 		data[7] = 0x02;
 		memset(data + 8, 0x20, 28);
@@ -183,13 +196,6 @@ static int build_inquiry_response(struct iscsi_cmnd *cmnd)
 		data[62] = 0x03;
 		data[63] = 0x00;
 		tio_set(tio, 64, 0);
-		err = 0;
-	} else if (scb[1] & 0x2) {
-		/* CmdDt bit is set */
-		/* We do not support it now. */
-		data[1] = 0x1;
-		data[5] = 0;
-		tio_set(tio, 6, 0);
 		err = 0;
 	} else if (scb[1] & 0x1) {
 		/* EVPD bit set */
@@ -366,7 +372,7 @@ static int build_write_response(struct iscsi_cmnd *cmnd)
 
 	list_del_init(&cmnd->list);
 	err = tio_write(cmnd->lun, tio);
-	if (!err && !LUAsync(cmnd->lun))
+	if (!err && !LUWCache(cmnd->lun))
 		err = tio_sync(cmnd->lun, tio);
 
 	return err;

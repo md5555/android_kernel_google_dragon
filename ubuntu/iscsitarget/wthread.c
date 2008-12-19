@@ -120,7 +120,9 @@ static int stop_one_worker_thread(struct worker_thread *wt)
 	int err;
 
 	assert(wt->w_task);
-	if ((err = kthread_stop(wt->w_task)) < 0)
+	err = kthread_stop(wt->w_task);
+
+	if (err < 0 && err != -EINTR)
 		return err;
 
 	list_del(&wt->w_list);
