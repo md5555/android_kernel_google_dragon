@@ -1,2 +1,5 @@
-Downloaded from:	http://www.amherst.edu/~swplotner/iscsitarget/download/iscsitarget/
-Current Version:	0.4.15.145
+Downloaded from:	http://iscsitarget.sourceforge.net/
+Current Version:	0.4.17
+
+Applied iscsitarget.diff in order to compile with 2.6.28.
+

@@ -37,7 +37,7 @@ static void event_recv_skb(struct sk_buff *skb)
 	while (skb->len >= NLMSG_SPACE(0)) {
 		nlh = (struct nlmsghdr *)skb->data;
 		if (nlh->nlmsg_len < sizeof(*nlh) || skb->len < nlh->nlmsg_len)
-			return;
+			break;
 		rlen = NLMSG_ALIGN(nlh->nlmsg_len);
 		if (rlen > skb->len)
 			rlen = skb->len;
@@ -47,22 +47,7 @@ static void event_recv_skb(struct sk_buff *skb)
 			netlink_ack(skb, nlh, 0);
 		skb_pull(skb, rlen);
 	}
-	return;
 }
-
-#if 0
-static void event_recv(struct sock *sk, int length)
-{
-	struct sk_buff *skb;
-
-	while ((skb = skb_dequeue(&sk->sk_receive_queue))) {
-		if (event_recv_skb(skb) && skb->len)
-			skb_queue_head(&sk->sk_receive_queue, skb);
-		else
-			kfree_skb(skb);
-	}
-}
-#endif
 
 static int notify(void *data, int len, int gfp_mask)
 {
@@ -99,7 +84,6 @@ int event_init(void)
 {
 	nl = netlink_kernel_create(&init_net, NETLINK_IET, 1, event_recv_skb,
 				   NULL, THIS_MODULE);
-
 	if (!nl)
 		return -ENOMEM;
 	else

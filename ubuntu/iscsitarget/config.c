@@ -40,7 +40,7 @@ int iet_procfs_init(void)
 	int i;
 	struct proc_dir_entry *ent;
 
-	if (!(proc_iet_dir = proc_mkdir("net/iet", 0)))
+	if (!(proc_iet_dir = proc_mkdir("iet", init_net.proc_net)))
 		goto err;
 
 	proc_iet_dir->owner = THIS_MODULE;

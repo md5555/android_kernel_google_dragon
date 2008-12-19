@@ -4,9 +4,10 @@
  * This code is licenced under the GPL.
  */
 
+#include <linux/types.h>
 #include <linux/blkdev.h>
-#include <linux/writeback.h>
 #include <linux/parser.h>
+#include <linux/writeback.h>
 
 #include "iscsi.h"
 #include "iscsi_dbg.h"
@@ -184,6 +185,7 @@ static match_table_t tokens = {
 
 static int parse_fileio_params(struct iet_volume *volume, char *params)
 {
+	struct fileio_data *info = volume->private;
 	int err = 0;
 	char *p, *q;
 
@@ -215,6 +217,13 @@ static int parse_fileio_params(struct iet_volume *volume, char *params)
 				goto out;
 			break;
 		case Opt_path:
+			if (info->path) {
+				iprintk("Target %s, LUN %u: "
+					"duplicate \"Path\" param\n",
+					volume->target->name, volume->lun);
+				err = -EINVAL;
+				goto out;
+			}
 			if (!(q = match_strdup(&args[0]))) {
 				err = -ENOMEM;
 				goto out;
@@ -227,11 +236,17 @@ static int parse_fileio_params(struct iet_volume *volume, char *params)
 		case Opt_ignore:
 			break;
 		default:
-			eprintk("Unknown %s\n", p);
+			iprintk("Target %s, LUN %u: unknown param %s\n",
+				volume->target->name, volume->lun, p);
 			return -EINVAL;
 		}
 	}
 
+	if (!info->path) {
+		iprintk("Target %s, LUN %u: missing \"Path\" param\n",
+			volume->target->name, volume->lun);
+		err = -EINVAL;
+	}
 out:
 	return err;
 }
@@ -284,13 +299,15 @@ static int fileio_attach(struct iet_volume *lu, char *args)
 	lu->blk_shift = SECTOR_SIZE_BITS;
 	lu->blk_cnt = inode->i_size >> lu->blk_shift;
 
+	/* we're using the page cache */
+	SetLURCache(lu);
 out:
 	if (err < 0)
 		fileio_detach(lu);
 	return err;
 }
 
-void fileio_show(struct iet_volume *lu, struct seq_file *seq)
+static void fileio_show(struct iet_volume *lu, struct seq_file *seq)
 {
 	struct fileio_data *p = lu->private;
 	seq_printf(seq, " path:%s\n", p->path);

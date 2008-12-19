@@ -10,8 +10,8 @@
  */
 
 #include <linux/types.h>
-#include <linux/parser.h>
 #include <linux/blkdev.h>
+#include <linux/parser.h>
 #include <linux/buffer_head.h>
 
 #include "iscsi.h"
@@ -21,6 +21,7 @@
 struct blockio_data {
 	char *path;
 	struct block_device *bdev;
+	fmode_t fmode;
 };
 
 struct tio_work {
@@ -29,14 +30,9 @@ struct tio_work {
 	struct completion tio_complete;
 };
 
-static void
-blockio_bio_endio(struct bio *bio, int error)
+static void blockio_bio_endio(struct bio *bio, int error)
 {
 	struct tio_work *tio_work = bio->bi_private;
-
-	/* Ignore partials */
-	if (bio->bi_size)
-		return;
 
 	error = test_bit(BIO_UPTODATE, &bio->bi_flags) ? error : -EIO;
 
@@ -159,19 +155,21 @@ blockio_open_path(struct iet_volume *volume, const char *path)
 {
 	struct blockio_data *bio_data = volume->private;
 	struct block_device *bdev;
-	int flags = LUReadonly(volume) ? MS_RDONLY : 0;
 	int err = 0;
 
+	bio_data->fmode = FMODE_READ|FMODE_WRITE;
 	bio_data->path = kstrdup(path, GFP_KERNEL);
 	if (!bio_data->path)
 		return -ENOMEM;
 
-	bdev = open_bdev_excl(path, flags, THIS_MODULE);
+	bdev = open_bdev_exclusive(path, bio_data->fmode, THIS_MODULE);
 	if (IS_ERR(bdev)) {
 		err = PTR_ERR(bdev);
 		eprintk("Can't open device %s, error %d\n", path, err);
 		bio_data->bdev = NULL;
 	} else {
+		if (LUReadonly(volume))
+			set_device_ro(bdev,1);
 		bio_data->bdev = bdev;
 		fsync_bdev(bio_data->bdev);
 	}
@@ -253,8 +251,9 @@ static match_table_t tokens = {
 };
 
 static int
-parse_blockio_params (struct iet_volume *volume, char *params)
+parse_blockio_params(struct iet_volume *volume, char *params)
 {
+	struct blockio_data *info = volume->private;
 	int err = 0;
 	char *p, *q;
 
@@ -289,6 +288,13 @@ parse_blockio_params (struct iet_volume *volume, char *params)
 				goto out;
 			break;
 		case Opt_path:
+			if (info->path) {
+				iprintk("Target %s, LUN %u: "
+					"duplicate \"Path\" param\n",
+					volume->target->name, volume->lun);
+				err = -EINVAL;
+				goto out;
+			}
 			if (!(q = match_strdup(&args[0]))) {
 				err = -ENOMEM;
 				goto out;
@@ -301,12 +307,17 @@ parse_blockio_params (struct iet_volume *volume, char *params)
 		case Opt_ignore:
 			break;
 		default:
-			eprintk("Bad option %s for Lun %u on Target %s \n",
-				p, volume->lun, volume->target->name);
+			iprintk("Target %s, LUN %u: unknown param %s\n",
+				volume->target->name, volume->lun, p);
 			return -EINVAL;
 		}
 	}
 
+	if (!info->path) {
+		iprintk("Target %s, LUN %u: missing \"Path\" param\n",
+			volume->target->name, volume->lun);
+		err = -EINVAL;
+	}
   out:
 	return err;
 }
@@ -317,14 +328,14 @@ blockio_detach(struct iet_volume *volume)
 	struct blockio_data *bio_data = volume->private;
 
 	if (bio_data->bdev)
-		close_bdev_excl(bio_data->bdev);
+		close_bdev_exclusive(bio_data->bdev,bio_data->fmode);
 	kfree(bio_data->path);
 
 	kfree(volume->private);
 }
 
 static int
-blockio_attach (struct iet_volume *volume, char *args)
+blockio_attach(struct iet_volume *volume, char *args)
 {
 	struct blockio_data *bio_data;
 	int err = 0;
@@ -349,6 +360,10 @@ blockio_attach (struct iet_volume *volume, char *args)
 
 	/* Assign a vendor id, generate scsi id if none exists */
 	gen_scsiid(volume, bio_data->bdev->bd_inode);
+
+	/* Offer neither write nor read caching */
+	ClearLURCache(volume);
+	ClearLUWCache(volume);
 
 	volume->blk_shift = SECTOR_SIZE_BITS;
 	volume->blk_cnt = bio_data->bdev->bd_inode->i_size >> volume->blk_shift;

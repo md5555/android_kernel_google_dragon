@@ -96,6 +96,28 @@ static void iet_data_ready(struct sock *sk, int len)
 	target->nthread_info.old_data_ready(sk, len);
 }
 
+/*
+ * @locking: grabs the target's nthread_lock to protect it from races with
+ * set_conn_wspace_wait()
+ */
+static void iet_write_space(struct sock *sk)
+{
+	struct iscsi_conn *conn = sk->sk_user_data;
+	struct network_thread_info *info = &conn->session->target->nthread_info;
+
+	spin_lock_bh(&info->nthread_lock);
+
+	if (sk_stream_wspace(sk) >= sk_stream_min_wspace(sk) &&
+	    test_bit(CONN_WSPACE_WAIT, &conn->state)) {
+		clear_bit(CONN_WSPACE_WAIT, &conn->state);
+		__nthread_wakeup(info);
+	}
+
+	spin_unlock_bh(&info->nthread_lock);
+
+	info->old_write_space(sk);
+}
+
 static void iet_socket_bind(struct iscsi_conn *conn)
 {
 	int opt = 1;
@@ -114,6 +136,9 @@ static void iet_socket_bind(struct iscsi_conn *conn)
 
 	target->nthread_info.old_data_ready = conn->sock->sk->sk_data_ready;
 	conn->sock->sk->sk_data_ready = iet_data_ready;
+
+	target->nthread_info.old_write_space = conn->sock->sk->sk_write_space;
+	conn->sock->sk->sk_write_space = iet_write_space;
 	write_unlock_bh(&conn->sock->sk->sk_callback_lock);
 
 	oldfs = get_fs();

@@ -18,13 +18,18 @@ enum daemon_state_bit {
 	D_DATA_READY,
 };
 
+void __nthread_wakeup(struct network_thread_info *info)
+{
+	set_bit(D_DATA_READY, &info->flags);
+	wake_up_process(info->task);
+}
+
 void nthread_wakeup(struct iscsi_target *target)
 {
 	struct network_thread_info *info = &target->nthread_info;
 
 	spin_lock_bh(&info->nthread_lock);
-	set_bit(D_DATA_READY, &info->flags);
-	wake_up_process(info->task);
+	__nthread_wakeup(info);
 	spin_unlock_bh(&info->nthread_lock);
 }
 
@@ -283,6 +288,23 @@ static int recv(struct iscsi_conn *conn)
 	return 0;
 }
 
+/*
+ * @locking: grabs the target's nthread_lock to protect it from races with
+ * iet_write_space()
+ */
+static void set_conn_wspace_wait(struct iscsi_conn *conn)
+{
+	struct network_thread_info *info = &conn->session->target->nthread_info;
+	struct sock *sk = conn->sock->sk;
+
+	spin_lock_bh(&info->nthread_lock);
+
+	if (sk_stream_wspace(sk) < sk_stream_min_wspace(sk))
+		set_bit(CONN_WSPACE_WAIT, &conn->state);
+
+	spin_unlock_bh(&info->nthread_lock);
+}
+
 /* This is taken from the Ardis code. */
 static int write_data(struct iscsi_conn *conn)
 {
@@ -399,8 +421,11 @@ static int write_data(struct iscsi_conn *conn)
 	conn->write_offset = (idx << PAGE_CACHE_SHIFT) + offset;
  out_iov:
 	conn->write_size = size;
-	if ((saved_size == size) && res == -EAGAIN)
-		return res;
+	if (res == -EAGAIN) {
+		set_conn_wspace_wait(conn);
+		if (saved_size == size)
+			return res;
+	}
 
 	return saved_size - size;
 
@@ -557,6 +582,9 @@ static void process_io(struct iscsi_conn *conn)
 		goto out;
 	}
 
+	if (test_bit(CONN_WSPACE_WAIT, &conn->state))
+		goto out;
+
 	res = send(conn);
 
 	if (!list_empty(&conn->write_list) || conn->write_cmnd)
@@ -572,6 +600,7 @@ out:
 static void close_conn(struct iscsi_conn *conn)
 {
 	struct iscsi_session *session = conn->session;
+	struct iscsi_target *target = session->target;
 	struct iscsi_cmnd *cmnd;
 
 	assert(conn);
@@ -579,8 +608,9 @@ static void close_conn(struct iscsi_conn *conn)
 	conn->sock->ops->shutdown(conn->sock, 2);
 
 	write_lock_bh(&conn->sock->sk->sk_callback_lock);
-	conn->sock->sk->sk_state_change = session->target->nthread_info.old_state_change;
-	conn->sock->sk->sk_data_ready = session->target->nthread_info.old_data_ready;
+	conn->sock->sk->sk_state_change = target->nthread_info.old_state_change;
+	conn->sock->sk->sk_data_ready = target->nthread_info.old_data_ready;
+	conn->sock->sk->sk_write_space = target->nthread_info.old_write_space;
 	write_unlock_bh(&conn->sock->sk->sk_callback_lock);
 
 	fput(conn->file);
@@ -604,11 +634,11 @@ static void close_conn(struct iscsi_conn *conn)
 		assert(0);
 	}
 
-	event_send(session->target->tid, session->sid, conn->cid, E_CONN_CLOSE, 0);
+	event_send(target->tid, session->sid, conn->cid, E_CONN_CLOSE, 0);
 	conn_free(conn);
 
 	if (list_empty(&session->conn_list))
-		session_del(session->target, session->sid);
+		session_del(target, session->sid);
 }
 
 static int istd(void *arg)
@@ -654,6 +684,7 @@ int nthread_init(struct iscsi_target *target)
 
 	info->old_state_change = NULL;
 	info->old_data_ready = NULL;
+	info->old_write_space = NULL;
 
 	INIT_LIST_HEAD(&info->active_conns);
 

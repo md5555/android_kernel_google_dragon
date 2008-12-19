@@ -4,8 +4,7 @@
  * This code is licensed under the GPL.
  */
 
-#include <asm/types.h>
-#include <asm/scatterlist.h>
+#include <linux/types.h>
 
 #include "iscsi.h"
 #include "digest.h"
@@ -215,6 +214,7 @@ static void digest_data(struct hash_desc *hash, struct iscsi_cmnd *cmnd,
 
 	assert(count <= ISCSI_CONN_IOV_MAX);
 
+	sg_init_table(sg, ARRAY_SIZE(cmnd->conn->hash_sg));
 	crypto_hash_init(hash);
 
 	for (i = 0; size; i++) {
@@ -227,6 +227,8 @@ static void digest_data(struct hash_desc *hash, struct iscsi_cmnd *cmnd,
 		size -= length;
 		offset = 0;
 	}
+
+	sg_mark_end(&sg[i - 1]);
 
 	crypto_hash_update(hash, sg, nbytes);
 	crypto_hash_final(hash, crc);
