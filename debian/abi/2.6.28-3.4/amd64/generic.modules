@@ -474,7 +474,6 @@ ebt_ulog
 ebt_vlan
 ecb
 econet
-ecryptfs
 edac_core
 eeepc-laptop
 eepro100
