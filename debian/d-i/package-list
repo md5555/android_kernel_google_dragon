@@ -31,10 +31,10 @@ Description: Floppy driver support
 Package: fs-core-modules
 Depends: kernel-image
 Priority: standard
-Provides: ext2-modules, ext3-modules, jfs-modules, reiserfs-modules, xfs-modules
+Provides: jfs-modules, reiserfs-modules, xfs-modules
 Provides_armel: jfs-modules, reiserfs-modules, xfs-modules
 Description: Base filesystem modules
- This includes ext2, ext3, jfs, reiserfs and xfs.
+ This includes jfs, reiserfs and xfs.
 
 Package: fs-secondary-modules
 Depends: kernel-image, fat-modules
