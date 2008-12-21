@@ -1,14 +1,12 @@
 dm-crypt
 dm-log
 dm-mirror
-dm-mod
 dm-multipath
 dm-round-robin
 dm-snapshot
 dm-zero
 faulty
 linear
-md-mod
 multipath
 raid0
 raid1
