@@ -2,11 +2,6 @@ Package: kernel-image
 Provides_armel: crypto-modules, ext2-modules, ext3-modules, socket-modules, fat-modules
 Provides_armel_versatile: crypto-modules, ext2-modules, ext3-modules, socket-modules, fb-modules
 
-Package: acpi-modules
-Depends: kernel-image
-Priority: standard
-Description: Support for ACPI
-
 Package: fat-modules
 Depends: kernel-image
 Priority: standard
