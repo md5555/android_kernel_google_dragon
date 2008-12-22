@@ -43,11 +43,6 @@ Depends: kernel-image, usb-modules
 Priority: standard
 Description: Support for various input methods
 
-Package: ipv6-modules
-Depends: kernel-image
-Priority: standard
-Description: Support for IPv6 networking
-
 Package: irda-modules
 Depends: kernel-image, nic-shared-modules
 Priority: standard
