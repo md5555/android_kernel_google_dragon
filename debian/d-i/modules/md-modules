@@ -1,9 +1,3 @@
-dm-crypt
-dm-log
-dm-mirror
-dm-multipath
-dm-round-robin
-dm-snapshot
 dm-zero
 faulty
 linear
