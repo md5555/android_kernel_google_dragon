@@ -7,7 +7,6 @@ fb-modules
 firewire-core-modules
 floppy-modules
 input-modules
-ipv6-modules
 irda-modules
 md-modules
 message-modules
