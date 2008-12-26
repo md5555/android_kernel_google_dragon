@@ -1,6 +1,5 @@
 ppp_async
 ppp_deflate
-ppp_generic
 ppp_mppe
 pppoe
 pppox
