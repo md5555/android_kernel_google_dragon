@@ -571,6 +571,9 @@ struct address {
 	unsigned di, pi;	/* Data and parity disks index. */
 };
 
+static inline void set_page_locked(struct page *page) { set_bit(PG_locked, &page->flags); }
+static inline void clear_page_locked(struct page *page) { clear_bit(PG_locked, &page->flags); }
+
 /* REMOVEME: reset statistics counters. */
 static void stats_reset(struct raid_set *rs)
 {
@@ -3296,7 +3299,7 @@ context_alloc(struct raid_set **raid_set, struct raid_type *raid_type,
 
 	/* Size and allocate the RAID set structure. */
 	len = sizeof(*rs->data) + sizeof(*rs->dev);
-	if (array_too_big(sizeof(*rs), len, raid_devs))
+	if (dm_array_too_big(sizeof(*rs), len, raid_devs))
 		goto bad_array;
 
 	len = sizeof(*rs) + raid_devs * len;
