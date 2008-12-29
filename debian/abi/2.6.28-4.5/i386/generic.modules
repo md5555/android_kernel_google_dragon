@@ -36,7 +36,6 @@ aacraid
 abituguru
 abituguru3
 abyss
-ac
 ac3200
 ac97_bus
 acecad
@@ -83,14 +82,10 @@ adv7175
 advansys
 advantechwdt
 aedsp16
-aes_generic
-aes-i586
 af9013
 affs
 af_key
-af_packet
 af-rxrpc
-agpgart
 ah4
 ah6
 aha152x
@@ -106,16 +101,13 @@ aircable
 airo
 airo_cs
 alauda
-ali-agp
 ali-ircc
 alim1535_wdt
 alim7101_wdt
 ambassador
-amd64-agp
 amd76x_edac
 amd76xrom
 amd8111e
-amd-k7-agp
 amd-rng
 analog
 ansi_cprng
@@ -155,7 +147,6 @@ ata_generic
 ata_piix
 aten
 ath9k
-ati-agp
 ati_remote
 ati_remote2
 atl1
@@ -195,7 +186,6 @@ b43
 b43legacy
 b44
 bas_gigaset
-battery
 baycom_epp
 baycom_par
 baycom_ser_fdx
@@ -214,7 +204,6 @@ bitblit
 block2mtd
 blowfish
 bluecard_cs
-bluetooth
 bnep
 bnx2
 bnx2x
@@ -244,7 +233,6 @@ budget-ci
 budget-core
 budget-patch
 BusLogic
-button
 bw-qcam
 c101
 c2port-duramar2150
@@ -262,14 +250,12 @@ cassini
 cast5
 cast6
 catc
-cbc
 cciss
 ccm
 cdc-acm
 cdc_ether
 cdc_subset
 cdc-wdm
-cdrom
 cfag12864b
 cfag12864bfb
 cfg80211
@@ -310,7 +296,6 @@ compal-laptop
 compat_ioctl32
 compcache
 configfs
-container
 core
 coretemp
 corgi_bl
@@ -325,22 +310,15 @@ cpia_usb
 cpqarray
 cpqphp
 cpu5wdt
-cpufreq_conservative
 cpufreq-nforce2
-cpufreq_ondemand
-cpufreq_powersave
-cpufreq_stats
-cpufreq_userspace
 cpuid
 c-qcam
 cr_bllcd
-crc16
 crc32c
 crc32c-intel
 crc7
 crc-ccitt
 crc-itu-t
-crc-t10dif
 crvml
 cryptd
 cryptoloop
@@ -381,10 +359,12 @@ cycx_drv
 cypress_cy7c63
 cypress_m8
 cytherm
+da903x
 DAC960
 davicom
 db9
 dc395x
+dca
 dccp
 dccp_ccid2
 dccp_ccid3
@@ -424,17 +404,13 @@ dlm
 dm1105
 dm9601
 dm-bbr
-dm-crypt
 dme1737
 dmfe
-dm-log
 dm-loop
-dm-mirror
-dm-mod
-dm-multipath
-dm-region-hash
-dm-round-robin
-dm-snapshot
+dm-mem-cache
+dm-message
+dm-raid4-5
+dm-region_hash
 dmx3191d
 dm-zero
 dn_rtmsg
@@ -445,7 +421,6 @@ docecc
 docprobe
 donauboe
 dpt_i2o
-drm
 drx397xD
 ds1621
 ds1682
@@ -523,7 +498,6 @@ ebt_snat
 ebt_stp
 ebt_ulog
 ebt_vlan
-ecb
 econet
 edac_core
 eeepc-laptop
@@ -532,7 +506,6 @@ eepro100
 eeprom
 eeprom_93cx6
 eexpress
-efficeon-agp
 efs
 ehci-hcd
 elo
@@ -569,17 +542,12 @@ eth1394
 eth16i
 eurotechwdt
 evbug
-evdev
 ewrk3
 exportfs
-ext2
-ext3
-ext4
 f71805f
 f71882fg
 f75375s
 fakephp
-fan
 farsync
 fat
 faulty
@@ -593,6 +561,9 @@ fdomain_cs
 fealnx
 ff-memless
 firestream
+firewire-core
+firewire-ohci
+firewire-sbp2
 fit2
 fit3
 floppy
@@ -602,7 +573,6 @@ font
 forcedeth
 fore_200e
 freevxfs
-freq_table
 friq
 frpw
 fsam7400
@@ -703,7 +673,6 @@ hfc_usb
 hfs
 hfsplus
 hgafb
-hid
 hid-a4tech
 hid-apple
 hid-belkin
@@ -763,7 +732,6 @@ i2c-ali15x3
 i2c-amd756
 i2c-amd756-s4882
 i2c-amd8111
-i2c-core
 i2c-dev
 i2c-gpio
 i2c-i801
@@ -855,12 +823,12 @@ inftl
 initio
 inport
 input-polldev
-intel-agp
 intelfb
 intel_menlow
 intel-rng
 intel_vr_nor
 interact
+ioatdma
 ioc4
 io_edgeport
 io_ti
@@ -919,7 +887,6 @@ ipt_REJECT
 ipt_ttl
 ipt_TTL
 ipt_ULOG
-ipv6
 ip_vs
 ip_vs_dh
 ip_vs_ftp
@@ -948,6 +915,7 @@ irnet
 irtty-sir
 iscsi_ibft
 iscsi_tcp
+iscsi_trgt
 isdn
 isdn_bsdcomp
 isdnhdlc
@@ -976,8 +944,6 @@ ixgb
 ixgbe
 ixj
 ixj_pcmcia
-jbd
-jbd2
 jedec_probe
 jffs2
 jfs
@@ -1011,7 +977,6 @@ kvm-amd
 kvm-intel
 kyrofb
 l1oip
-l2cap
 l440gx
 l64781
 lanai
@@ -1023,6 +988,7 @@ lcd
 ldusb
 lec
 led-class
+leds-da903x
 leds-gpio
 leds-hp-disk
 leds-net48xx
@@ -1036,7 +1002,6 @@ ledtrig-timer
 legousbtower
 lgdt330x
 lgs8gl5
-libata
 libcrc32c
 libertas
 libertas_cs
@@ -1046,7 +1011,6 @@ libertas_tf_usb
 libiscsi
 libsas
 libsrp
-libusual
 lightning
 linear
 lirc_atiusb
@@ -1091,7 +1055,6 @@ lock_dlm
 logibm
 longhaul
 longrun
-loop
 lp
 lp486e
 lpfc
@@ -1133,7 +1096,6 @@ max6875
 max7301
 max732x
 mb862xxfb
-mbcache
 mbp_nvidia_bl
 mcp2120-sir
 mcp23s08
@@ -1144,7 +1106,6 @@ md4
 mdacon
 mdc800
 mdio-bitbang
-md-mod
 megaraid
 megaraid_mbox
 megaraid_mm
@@ -1166,7 +1127,6 @@ mlx4_core
 mlx4_en
 mlx4_ib
 mmc_block
-mmc_core
 mos7720
 mos7840
 moto_modem
@@ -1331,7 +1291,6 @@ nsc-ircc
 nsp32
 nsp_cs
 ntfs
-nvidia-agp
 nvidiafb
 nvram
 nxt200x
@@ -1443,11 +1402,8 @@ pcf857x
 pcf8591
 pci
 pci200syn
-pciehp
-pci_hotplug
 pcilynx
 pcips2
-pci_slot
 pcmcia
 pcmcia_core
 pcnet32
@@ -1473,7 +1429,6 @@ phonedev
 phonet
 phram
 physmap
-pktcdvd
 pktgen
 pl2303
 platform_lcd
@@ -1495,7 +1450,6 @@ ppa
 ppdev
 ppp_async
 ppp_deflate
-ppp_generic
 ppp_mppe
 pppoatm
 pppoe
@@ -1504,7 +1458,6 @@ pppox
 ppp_synctty
 prism2_usb
 prism54
-processor
 progear_bl
 proteon
 psmouse
@@ -1563,9 +1516,7 @@ reed_solomon
 reiserfs
 rfc1051
 rfc1201
-rfcomm
 rfd_ftl
-rfkill
 rfkill-input
 ricoh_mmc
 rio
@@ -1678,8 +1629,6 @@ sbc_gxx
 sb_lib
 sbni
 sbp2
-sbs
-sbshc
 sc
 sc1200wdt
 sc520cdp
@@ -1701,14 +1650,11 @@ sch_red
 sch_sfq
 sch_tbf
 sch_teql
-sco
 scsi_debug
-scsi_dh
 scsi_dh_alua
 scsi_dh_emc
 scsi_dh_hp_sw
 scsi_dh_rdac
-scsi_mod
 scsi_tgt
 scsi_transport_fc
 scsi_transport_iscsi
@@ -1728,7 +1674,6 @@ sdhci
 sdhci-pci
 sdio_uart
 sdla
-sd_mod
 sdricoh_cs
 se401
 sealevel
@@ -1744,7 +1689,6 @@ serpent
 serport
 ses
 sfc
-sg
 sha1_generic
 sha256_generic
 sha512_generic
@@ -1759,7 +1703,6 @@ sis
 sis190
 sis5595
 sis900
-sis-agp
 sisfb
 sisusbvga
 sit
@@ -1769,7 +1712,6 @@ skisa
 sky2
 sl811_cs
 sl811-hcd
-slhc
 slip
 slram
 sm501
@@ -1987,7 +1929,6 @@ spi_butterfly
 spidev
 spi_lm70llp
 squashfs
-sr_mod
 ssb
 sscape
 ssfdc
@@ -2017,7 +1958,6 @@ sunkbd
 sunrpc
 svcrdma
 svgalib
-sworks-agp
 sx
 sx8
 sym53c416
@@ -2077,7 +2017,6 @@ tekram-sir
 teles_cs
 tg3
 tgr192
-thermal
 thinkpad_acpi
 thinkpad_ec
 thmc50
@@ -2167,7 +2106,6 @@ upd64083
 uPD98402
 usb8xxx
 usbatm
-usbcore
 usb_debug
 usb_gigaset
 usbhid
@@ -2175,10 +2113,8 @@ usbkbd
 usblcd
 usbled
 usblp
-usbmon
 usbmouse
 usbnet
-usbserial
 usbsevseg
 usb-storage
 usbtmc
@@ -2202,7 +2138,6 @@ vgastate
 vgg2432a4
 via
 via686a
-via-agp
 viafb
 via-ircc
 via-rhine
@@ -2291,7 +2226,6 @@ wm8400-regulator
 wm8739
 wm8775
 wm97xx-ts
-wmi
 wp512
 wusb-cbaf
 wusbcore
@@ -2301,10 +2235,6 @@ x25_asy
 x38_edac
 xc5000
 xcbc
-xen-blkfront
-xen-fbfront
-xen-kbdfront
-xen-netfront
 xfrm4_mode_beet
 xfrm4_mode_transport
 xfrm4_mode_tunnel
