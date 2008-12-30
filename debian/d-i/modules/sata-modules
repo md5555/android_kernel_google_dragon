@@ -1,19 +1,2 @@
-# Rerquired by sata_sis
-pata_sis
 
-ahci
-ata_piix
-pdc_adma
-sata_inic162x
 sata_mv
-sata_nv
-sata_promise
-sata_qstor
-sata_sil
-sata_sil24
-sata_sis
-sata_svw
-sata_sx4
-sata_uli
-sata_via
-sata_vsc
