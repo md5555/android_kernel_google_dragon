@@ -101,13 +101,16 @@ aircable
 airo
 airo_cs
 alauda
+ali-agp
 ali-ircc
 alim1535_wdt
 alim7101_wdt
 ambassador
+amd64-agp
 amd76x_edac
 amd76xrom
 amd8111e
+amd-k7-agp
 amd-rng
 analog
 ansi_cprng
@@ -147,6 +150,7 @@ ata_generic
 ata_piix
 aten
 ath9k
+ati-agp
 ati_remote
 ati_remote2
 atl1
@@ -420,6 +424,7 @@ docecc
 docprobe
 donauboe
 dpt_i2o
+drm
 drx397xD
 ds1621
 ds1682
@@ -505,6 +510,7 @@ eepro100
 eeprom
 eeprom_93cx6
 eexpress
+efficeon-agp
 efs
 ehci-hcd
 elo
@@ -822,6 +828,7 @@ inftl
 initio
 inport
 input-polldev
+intel-agp
 intelfb
 intel_menlow
 intel-rng
@@ -1289,6 +1296,7 @@ nsc-ircc
 nsp32
 nsp_cs
 ntfs
+nvidia-agp
 nvidiafb
 nvram
 nxt200x
@@ -1701,6 +1709,7 @@ sis
 sis190
 sis5595
 sis900
+sis-agp
 sisfb
 sisusbvga
 sit
@@ -1956,6 +1965,7 @@ sunkbd
 sunrpc
 svcrdma
 svgalib
+sworks-agp
 sx
 sx8
 sym53c416
@@ -2136,6 +2146,7 @@ vgastate
 vgg2432a4
 via
 via686a
+via-agp
 viafb
 via-ircc
 via-rhine
