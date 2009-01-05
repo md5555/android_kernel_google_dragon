@@ -1,10 +1,10 @@
 #!/usr/bin/perl -w
 
-open(TAGS, "git-tag -l |") or die "Could not get list of tags";
+open(TAGS, "git tag -l |") or die "Could not get list of tags";
 @tags = <TAGS>;
 close(TAGS);
 
-open(LOGS, "git-log --pretty=short |") or die "ERROR: Calling git-log";
+open(LOGS, "git log --pretty=short |") or die "ERROR: Calling git log";
 my $commit = "";
 
 while (<LOGS>) {
@@ -23,12 +23,12 @@ while (<LOGS>) {
 
 	if (!defined($origtag)) {
 		print "I: Adding original tag for $tag\n";
-		system("git-tag -m $tag $tag.orig $tag");
+		system("git tag -m $tag $tag.orig $tag");
 	}
 
 	print "I: Tagging $tag => $commit\n";
 
-	system("git-tag -f -m $tag $tag $commit");
+	system("git tag -f -m $tag $tag $commit");
 }
 
 close(LOGS);
