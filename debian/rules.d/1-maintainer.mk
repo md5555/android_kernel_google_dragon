@@ -67,14 +67,14 @@ endif
 	@echo "CONCURRENCY_LEVEL = $(CONCURRENCY_LEVEL)"
 
 printchanges:
-	@git-log Ubuntu-$(release)-$(prev_revision)..HEAD | \
+	@git log Ubuntu-$(release)-$(prev_revision)..HEAD | \
 		perl -w -f debian/scripts/misc/git-ubuntu-log $(ubuntu_log_opts)
 
 insertchanges:
 	@perl -w -f debian/scripts/misc/insert-changes.pl
 
 diffupstream:
-	@git-diff-tree -p refs/remotes/linux-2.6/master..HEAD $(shell ls | grep -vE '^(ubuntu|debian|\.git.*)')
+	@git diff-tree -p refs/remotes/linux-2.6/master..HEAD $(shell ls | grep -vE '^(ubuntu|debian|\.git.*)')
 
 startnewrelease:
 	dh_testdir
