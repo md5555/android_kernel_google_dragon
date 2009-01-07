@@ -5,7 +5,7 @@
 # You should copy it somewhere outside of the git tree 'cause the whole
 # git tree gets removed and recreated.
 #
-KNAME=intrepid
+KNAME=jaunty
 DAILY_BUILD_DIR=${KBDIR:=${HOME}/${KNAME}}
 KERNEL_GIT_REPO=${KREPO:=/srv/kernel.ubuntu.com/git/ubuntu/ubuntu-${KNAME}.git}
 
