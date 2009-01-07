@@ -7,6 +7,5 @@ build_image	= zImage
 kernel_file	= arch/$(build_arch)/boot/zImage
 install_file	= vmlinuz
 no_dumpfile = true
-disable_d_i = true
 
 loader		= grub
