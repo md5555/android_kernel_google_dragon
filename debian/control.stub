@@ -77,7 +77,7 @@ Pre-Depends: dpkg (>= 1.10.24)
 Provides: linux-image, linux-image-2.6, fuse-module, kvm-api-4, redhat-cluster-modules, ivtv-modules, ndiswrapper-modules-1.9
 Depends: initramfs-tools (>= 0.36ubuntu6), coreutils | fileutils (>= 4.0), module-init-tools (>= 3.3-pre11-4ubuntu3)
 Conflicts: hotplug (<< 0.0.20040105-1)
-Recommends: lilo (>= 19.1) | grub
+Recommends: grub | lilo (>= 19.1)
 Suggests: fdutils, linux-doc-2.6.28 | linux-source-2.6.28
 Description: Linux kernel image for version 2.6.28 on x86/x86_64
  This package contains the Linux kernel image for version 2.6.28 on
@@ -293,7 +293,7 @@ Pre-Depends: dpkg (>= 1.10.24)
 Provides: linux-image, linux-image-2.6, fuse-module, redhat-cluster-modules, kvm-api-4, ivtv-modules, ndiswrapper-modules-1.9
 Depends: initramfs-tools (>= 0.36ubuntu6), coreutils | fileutils (>= 4.0), module-init-tools (>= 3.3-pre11-4ubuntu3)
 Conflicts: hotplug (<< 0.0.20040105-1)
-Recommends: lilo (>= 19.1) | grub
+Recommends: grub | lilo (>= 19.1)
 Suggests: fdutils, linux-doc-2.6.28 | linux-source-2.6.28
 Description: Linux kernel image for version 2.6.28 on x86/x86_64
  This package contains the Linux kernel image for version 2.6.28 on
@@ -401,7 +401,7 @@ Pre-Depends: dpkg (>= 1.10.24)
 Provides: linux-image, linux-image-2.6, fuse-module, redhat-cluster-modules
 Depends: initramfs-tools (>= 0.36ubuntu6), coreutils | fileutils (>= 4.0), module-init-tools (>= 3.3-pre11-4ubuntu3)
 Conflicts: hotplug (<< 0.0.20040105-1), linux-image-2.6.28-4-server
-Recommends: lilo (>= 19.1) | grub
+Recommends: grub | lilo (>= 19.1)
 Suggests: fdutils, linux-doc-2.6.28 | linux-source-2.6.28
 Description: Linux kernel image for version 2.6.28 on x86/x86_64
  This package contains the Linux kernel image for version 2.6.28 on
