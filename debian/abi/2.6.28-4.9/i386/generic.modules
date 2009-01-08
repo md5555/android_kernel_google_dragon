@@ -82,6 +82,8 @@ adv7175
 advansys
 advantechwdt
 aedsp16
+aes_generic
+aes-i586
 af9013
 affs
 af_key
@@ -253,6 +255,7 @@ cassini
 cast5
 cast6
 catc
+cbc
 cciss
 ccm
 cdc-acm
@@ -407,6 +410,7 @@ dlm
 dm1105
 dm9601
 dm-bbr
+dm-crypt
 dme1737
 dmfe
 dm-loop
@@ -502,6 +506,7 @@ ebt_snat
 ebt_stp
 ebt_ulog
 ebt_vlan
+ecb
 econet
 edac_core
 eeepc-laptop

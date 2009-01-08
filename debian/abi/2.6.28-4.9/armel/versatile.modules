@@ -1,6 +1,5 @@
 8250
 ac97_bus
-aead
 aes_generic
 anubis
 arc4
@@ -12,21 +11,16 @@ cast5
 cast6
 cbc
 cfg80211
-chainiv
 configfs
 cramfs
 crc32c
 crc-itu-t
 crc-t10dif
-crypto_blkcipher
-crypto_hash
 cryptoloop
-cryptomgr
 crypto_null
 des_generic
 ecb
 eeprom
-eseqiv
 fat
 fuse
 gf128mul
@@ -35,7 +29,6 @@ i2c-dev
 inet_lro
 jfs
 khazad
-krng
 libcrc32c
 libertas_tf
 lrw
@@ -56,7 +49,6 @@ pn_pep
 reiserfs
 rfkill
 rfkill-input
-rng
 rng-core
 serpent
 sha1_generic
