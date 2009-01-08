@@ -5836,6 +5836,12 @@ EXPORT_SYMBOL_GPL arch/x86/kvm/kvm 0xf4d7a3ae	kvm_set_cr3
 EXPORT_SYMBOL_GPL arch/x86/kvm/kvm 0xf760b57a	kvm_get_msr_common
 EXPORT_SYMBOL_GPL arch/x86/kvm/kvm 0xfc6bb8e6	kvm_vcpu_uninit
 EXPORT_SYMBOL_GPL arch/x86/kvm/kvm 0xfcbdf6c9	kvm_lapic_enabled
+EXPORT_SYMBOL_GPL crypto/aes_generic 0x1381bf2d	crypto_ft_tab
+EXPORT_SYMBOL_GPL crypto/aes_generic 0x22894d94	crypto_il_tab
+EXPORT_SYMBOL_GPL crypto/aes_generic 0x3339118e	crypto_aes_set_key
+EXPORT_SYMBOL_GPL crypto/aes_generic 0x5f943003	crypto_it_tab
+EXPORT_SYMBOL_GPL crypto/aes_generic 0x5fe743de	crypto_aes_expand_key
+EXPORT_SYMBOL_GPL crypto/aes_generic 0x6e9cc2ba	crypto_fl_tab
 EXPORT_SYMBOL_GPL crypto/async_tx/async_memcpy 0x91cf5eed	async_memcpy
 EXPORT_SYMBOL_GPL crypto/async_tx/async_tx 0x0e037625	async_tx_submit
 EXPORT_SYMBOL_GPL crypto/async_tx/async_tx 0x6ddf8512	async_tx_quiesce
@@ -7282,7 +7288,6 @@ EXPORT_SYMBOL_GPL vmlinux 0x12f410ab	scsi_queue_work
 EXPORT_SYMBOL_GPL vmlinux 0x1313b748	tty_ldisc_ref
 EXPORT_SYMBOL_GPL vmlinux 0x13155494	inotify_rm_watch
 EXPORT_SYMBOL_GPL vmlinux 0x13605cb1	spi_alloc_master
-EXPORT_SYMBOL_GPL vmlinux 0x1381bf2d	crypto_ft_tab
 EXPORT_SYMBOL_GPL vmlinux 0x13b2a946	register_keyboard_notifier
 EXPORT_SYMBOL_GPL vmlinux 0x13c994c4	ata_bmdma_port_ops
 EXPORT_SYMBOL_GPL vmlinux 0x13f2b874	devres_find
@@ -7378,7 +7383,6 @@ EXPORT_SYMBOL_GPL vmlinux 0x210cf086	ata_bmdma_mode_filter
 EXPORT_SYMBOL_GPL vmlinux 0x213c1513	klist_iter_exit
 EXPORT_SYMBOL_GPL vmlinux 0x21cac914	xattr_getsecurity
 EXPORT_SYMBOL_GPL vmlinux 0x22472bf4	xfrm_calg_get_byid
-EXPORT_SYMBOL_GPL vmlinux 0x22894d94	crypto_il_tab
 EXPORT_SYMBOL_GPL vmlinux 0x2296c00d	crypto_attr_u32
 EXPORT_SYMBOL_GPL vmlinux 0x22be8c71	sata_link_debounce
 EXPORT_SYMBOL_GPL vmlinux 0x22f7583c	scsi_mode_select
@@ -7480,7 +7484,6 @@ EXPORT_SYMBOL_GPL vmlinux 0x325e677c	gnttab_grant_foreign_transfer_ref
 EXPORT_SYMBOL_GPL vmlinux 0x32867045	inet6_csk_xmit
 EXPORT_SYMBOL_GPL vmlinux 0x32924a4d	scatterwalk_copychunks
 EXPORT_SYMBOL_GPL vmlinux 0x32b4ae01	rtc_set_alarm
-EXPORT_SYMBOL_GPL vmlinux 0x3339118e	crypto_aes_set_key
 EXPORT_SYMBOL_GPL vmlinux 0x336295fa	__rtnl_link_unregister
 EXPORT_SYMBOL_GPL vmlinux 0x336eef4a	get_driver
 EXPORT_SYMBOL_GPL vmlinux 0x33993de8	macvlan_handle_frame_hook
@@ -7725,8 +7728,6 @@ EXPORT_SYMBOL_GPL vmlinux 0x5ee7937f	pciserial_resume_ports
 EXPORT_SYMBOL_GPL vmlinux 0x5f2da8c4	check_tsc_unstable
 EXPORT_SYMBOL_GPL vmlinux 0x5f43244a	inotify_remove_watch_locked
 EXPORT_SYMBOL_GPL vmlinux 0x5f5e7dc8	xfrm_audit_policy_delete
-EXPORT_SYMBOL_GPL vmlinux 0x5f943003	crypto_it_tab
-EXPORT_SYMBOL_GPL vmlinux 0x5fe743de	crypto_aes_expand_key
 EXPORT_SYMBOL_GPL vmlinux 0x605ff123	klist_add_tail
 EXPORT_SYMBOL_GPL vmlinux 0x607ffad4	usb_serial_generic_open
 EXPORT_SYMBOL_GPL vmlinux 0x6091797f	synchronize_rcu
@@ -7805,7 +7806,6 @@ EXPORT_SYMBOL_GPL vmlinux 0x6e58ddf0	gnttab_end_foreign_transfer_ref
 EXPORT_SYMBOL_GPL vmlinux 0x6e62637c	tty_mode_ioctl
 EXPORT_SYMBOL_GPL vmlinux 0x6e84bed7	queue_work
 EXPORT_SYMBOL_GPL vmlinux 0x6e8c28a1	usb_register_dev
-EXPORT_SYMBOL_GPL vmlinux 0x6e9cc2ba	crypto_fl_tab
 EXPORT_SYMBOL_GPL vmlinux 0x6ebe305d	raw_seq_stop
 EXPORT_SYMBOL_GPL vmlinux 0x6ec7f217	__cpufreq_driver_target
 EXPORT_SYMBOL_GPL vmlinux 0x6f5958d6	bus_find_device_by_name
