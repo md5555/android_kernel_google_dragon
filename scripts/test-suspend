@@ -1,0 +1,198 @@
+#!/bin/bash
+#
+# Script to automate suspend / resume
+#
+# Copyright (C) 2008-2009 Canonical Ltd.
+#
+# Authors:
+#  Michael Frey <michael.frey@canonical.com>
+#  Andy Whitcroft <apw@canonical.com>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License version 2,
+# as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+#
+# Script to automate suspend / resume
+#
+# We set a RTC alarm that wakes the system back up and then sleep
+# for  seconds before we go back to sleep.
+#
+# Changelog:
+#
+# V2:
+#  - support newer rtc sysfs wakealarm interface
+#  - move to using pmi action suspend
+#  - allow the user to specify the number of iterations
+#  - ensure we are running as root
+#  - report the iterations to the user
+#  - clean up the output and put it in a standard logfile
+#  - add a descriptive warning and allow user cancel
+#  - add tracing enable/disable
+#  - fix logfile location
+#  - add a failure cleanup mode
+#  - make time sleep time and delay time configurable
+#  - ensure the log directory exists
+#  - clock will be fixed automatically on network connect
+#  - default sleep before wakeup to 20s
+#  - do not use dates after we have corrupted the clock
+#  - sort out the copyright information
+#  - we do not have any failure cleanup currently
+#
+# V1:
+#  - add the suspend test scripts
+#
+P="test-suspend"
+
+LOGDIR='/var/lib/pm-utils'
+LOGFILE="$LOGDIR/stress.log"
+
+setup_wakeup_timer ()
+{
+	timeout="$1"
+
+	#
+	# Request wakeup from the RTC or ACPI alarm timers.  Set the timeout
+	# at 'now' + $timeout seconds.
+	#
+	ctl='/sys/class/rtc/rtc0/wakealarm'
+	if [ -f "$ctl" ]; then
+		time=`date '+%s' -d "+ $timeout seconds"`
+		# Cancel any outstanding timers.
+		echo "0" >"$ctl"
+		# rtcN/wakealarm uses absolute time in seconds
+		echo "$time" >"$ctl"
+		return 0
+	fi
+	ctl='/proc/acpu/alarm'
+	if [ -f "$ctl" ]; then
+		echo `date '+%F %H:%M:%S' -d '+ '$timeout' seconds'` >"$ctl"
+		return 0
+	fi
+
+	echo "no method to awaken machine automatically" 1>&2
+	exit 1
+}
+
+suspend_system ()
+{
+
+	hwclock --directisa --localtime --systohc
+
+
+	setup_wakeup_timer "$timer_sleep"
+
+	pmi action suspend >/dev/null
+
+	#
+	# wait for $timer_delay seconds after system resume from S3
+	#
+	ECHO "wait for $timer_delay seconds"
+	sleep $timer_delay
+
+}
+
+ECHO ()
+{
+	echo "$@" | tee -a "$LOGFILE"
+}
+
+run_suspend ()
+{
+	CNT=1
+	TOTAL=$1
+	ECHO "Suspend Test starting on $(date '+%F %H:%M:%S') ($TOTAL cycles)"
+	while [ "$CNT" -le "$TOTAL" ]
+	do
+		ECHO "Suspend iteration $CNT of $TOTAL"
+
+		suspend_system "$START"
+
+		(( CNT++ ))
+	done
+	ECHO "Suspend Test completed"
+}
+
+enable_trace()
+{
+    echo 1 > '/sys/power/pm_trace'
+}
+
+disable_trace()
+{
+    echo 0 > '/sys/power/pm_trace'
+}
+
+#
+# MAIN
+#
+USAGE="$P [--sleep <seconds>] [--delay <seconds>] [<iterations>]"
+# We need TEMP as the `eval set --' would nuke the return value of getopt.
+TEMP=`getopt -o '' -l sleep:,delay: -n "$P" -- "$@"`
+if [ $? != 0 ] ; then
+	echo "$USAGE"
+        exit 1
+fi
+
+# Note the quotes around `$TEMP': they are essential!
+eval set -- "$TEMP"
+
+# Options handling.
+iterations=10
+timer_sleep=20
+timer_delay=10
+
+while :
+do
+        case "$1" in
+	--sleep)		timer_sleep="$2"; shift 2 ;;
+	--delay)		timer_delay="$2"; shift 2 ;;
+        --)                     shift; break ;;
+        esac
+done
+
+if [ "$#" -gt 1 ]; then
+	echo "Usage: $USAGE" 1>&2
+	exit 1
+fi
+if [ "$#" -eq 1 ]; then
+	iterations="$1"
+fi
+
+# Check we are running as root as we are going to fiddle with the clock
+# and use the rtc wakeups.
+id=`id -u`
+if [ "$id" -ne 0 ]; then
+	echo "ERROR: must be run as root to perform this test, use sudo:" 1>&2
+	echo "       sudo $0 $@" 1>&2
+	exit 1
+fi
+
+cat - <<EOM
+This script will attempt to suspend and resume your computer $iterations times.
+Should the test fail power your system off and on which will generate
+an apport bug report automatically.
+
+Press CTRL-C in the next 5 seconds if you wish to abort the test...
+EOM
+sleep 6
+
+# Ensure the log directory exists.
+mkdir -p "$LOGDIR"
+
+enable_trace
+run_suspend "$iterations"
+disable_trace
+
+# XXX: apw: any positive report needs to be triggered here
+
+# All suceessful, clean up.
+rm -f "$LOGFILE"
