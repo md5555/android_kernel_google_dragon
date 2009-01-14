@@ -1,2 +1,4 @@
 fat-modules
 storage-core-modules
+nic-pcmcia-modules
+nic-usb-modules
