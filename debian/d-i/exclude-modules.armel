@@ -12,6 +12,7 @@ md-modules
 message-modules
 mouse-modules
 nfs-modules
+nic-pcmcia-modules
 nic-shared-modules
 parport-modules
 pata-modules
