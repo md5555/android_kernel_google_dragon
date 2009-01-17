@@ -22,10 +22,10 @@
 
 extern const char *drbd_buildtag(void);
 
-#define REL_VERSION "8.2.6"
+#define REL_VERSION "8.3.0"
 #define API_VERSION 88
 #define PRO_VERSION_MIN 86
-#define PRO_VERSION_MAX 88
+#define PRO_VERSION_MAX 89
 
 #ifndef __CHECKER__   /* for a sparse run, we need all STATICs */
 #define DBG_ALL_SYMBOLS /* no static functs, improves quality of OOPS traces */
@@ -85,5 +85,15 @@ extern const char *drbd_buildtag(void);
 // some vendor kernels have it, some don't
 //#define NEED_SG_SET_BUF
 #define HAVE_LINUX_SCATTERLIST_H
+
+/* Some vendor kernels < 2.6.7 might define msleep in one or
+ * another way .. */
+
+#define KERNEL_HAS_MSLEEP
+
+/* Some other kernels < 2.6.8 do not have struct kvec,
+ * others do.. */
+
+#define KERNEL_HAS_KVEC
 
 #endif

@@ -47,7 +47,8 @@ static inline int drbd_bio_has_active_page(struct bio *bio)
 	int i;
 
 	__bio_for_each_segment(bvec, bio, i, 0) {
-		if (page_count(bvec->bv_page) > 1) return 1;
+		if (page_count(bvec->bv_page) > 1)
+			return 1;
 	}
 
 	return 0;
@@ -64,11 +65,11 @@ static inline int drbd_bio_has_active_page(struct bio *bio)
 #else
 #define BIO_ENDIO_TYPE void
 #define BIO_ENDIO_ARGS(b,e) (b,e)
-#define BIO_ENDIO_FN_START while(0) {}
+#define BIO_ENDIO_FN_START do {} while (0)
 #define BIO_ENDIO_FN_RETURN return
 #endif
 
-// bi_end_io handlers
+/* bi_end_io handlers */
 extern BIO_ENDIO_TYPE drbd_md_io_complete BIO_ENDIO_ARGS(struct bio *bio, int error);
 extern BIO_ENDIO_TYPE drbd_endio_read_sec BIO_ENDIO_ARGS(struct bio *bio, int error);
 extern BIO_ENDIO_TYPE drbd_endio_write_sec BIO_ENDIO_ARGS(struct bio *bio, int error);
@@ -78,6 +79,11 @@ extern BIO_ENDIO_TYPE drbd_endio_pri BIO_ENDIO_ARGS(struct bio *bio, int error);
 /* Before 2.6.23 (with 20c2df83d25c6a95affe6157a4c9cac4cf5ffaac) kmem_cache_create had a
    ctor and a dtor */
 #define kmem_cache_create(N,S,A,F,C) kmem_cache_create(N,S,A,F,C,NULL)
+#endif
+
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,26)
+# undef HAVE_bvec_merge_data
+# define HAVE_bvec_merge_data 1
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24)
@@ -99,6 +105,10 @@ static inline void sg_set_buf(struct scatterlist *sg, const void *buf,
 }
 #endif
 
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,28)
+# define BD_OPS_USE_FMODE
 #endif
 
 /*
@@ -152,7 +162,7 @@ static inline void drbd_plug_device(struct drbd_conf *mdev)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23)
 static inline void drbd_unregister_blkdev(unsigned int major, const char *name)
 {
-	int ret = unregister_blkdev(major,name);
+	int ret = unregister_blkdev(major, name);
 	if (ret)
 		printk(KERN_ERR "drbd: unregister of device failed\n");
 }
@@ -176,7 +186,7 @@ static __inline__ int atomic_add_return(int i, atomic_t *v)
 
 static __inline__ int atomic_sub_return(int i, atomic_t *v)
 {
-	return atomic_add_return(-i,v);
+	return atomic_add_return(-i, v);
 }
 
 #define atomic_inc_return(v)  (atomic_add_return(1,v))
@@ -212,7 +222,7 @@ no_xadd: /* Legacy 386 processor */
 
 static __inline__ int atomic_sub_return(int i, atomic_t *v)
 {
-	return atomic_add_return(-i,v);
+	return atomic_add_return(-i, v);
 }
 
 #define atomic_inc_return(v)  (atomic_add_return(1,v))
@@ -251,11 +261,12 @@ crypto_alloc_hash(char *alg_name, u32 type, u32 mask)
 	struct crypto_hash *ch;
 	char *closing_bracket;
 
-	// "hmac(xxx)" is in alg_name we need that xxx.
-	closing_bracket = strchr(alg_name,')');
-	if(!closing_bracket) {
-		ch = kmalloc(sizeof(struct crypto_hash),GFP_KERNEL);
-		if(!ch) return ERR_PTR(-ENOMEM);
+	/* "hmac(xxx)" is in alg_name we need that xxx. */
+	closing_bracket = strchr(alg_name, ')');
+	if (!closing_bracket) {
+		ch = kmalloc(sizeof(struct crypto_hash), GFP_KERNEL);
+		if (!ch)
+			return ERR_PTR(-ENOMEM);
 		ch->base = crypto_alloc_tfm(alg_name, 0);
 		if (ch->base == NULL) {
 			kfree(ch);
@@ -263,10 +274,12 @@ crypto_alloc_hash(char *alg_name, u32 type, u32 mask)
 		}
 		return ch;
 	}
-	if(closing_bracket-alg_name < 6) return ERR_PTR(-ENOENT);
+	if (closing_bracket-alg_name < 6)
+		return ERR_PTR(-ENOENT);
 
-	ch = kmalloc(sizeof(struct crypto_hash),GFP_KERNEL);
-	if(!ch) return ERR_PTR(-ENOMEM);
+	ch = kmalloc(sizeof(struct crypto_hash), GFP_KERNEL);
+	if (!ch)
+		return ERR_PTR(-ENOMEM);
 
 	*closing_bracket = 0;
 	ch->base = crypto_alloc_tfm(alg_name + 5, 0);
@@ -281,7 +294,7 @@ crypto_alloc_hash(char *alg_name, u32 type, u32 mask)
 }
 
 static inline int
-crypto_hash_setkey(struct crypto_hash *hash,const u8 *key,unsigned int keylen)
+crypto_hash_setkey(struct crypto_hash *hash, const u8 *key, unsigned int keylen)
 {
 	hash->key = key;
 	hash->keylen = keylen;
@@ -294,7 +307,7 @@ crypto_hash_digest(struct hash_desc *desc, struct scatterlist *sg,
 		   unsigned int nbytes, u8 *out)
 {
 
-	crypto_hmac(desc->tfm->base, (u8*)desc->tfm->key,
+	crypto_hmac(desc->tfm->base, (u8 *)desc->tfm->key,
 		    &desc->tfm->keylen, sg, 1 /* ! */ , out);
 	/* ! this is not generic. Would need to convert nbytes -> nsg */
 
@@ -303,8 +316,9 @@ crypto_hash_digest(struct hash_desc *desc, struct scatterlist *sg,
 
 static inline void crypto_free_hash(struct crypto_hash *tfm)
 {
-	if (!tfm) return;
-	crypto_free_tfm(tfm->base); 
+	if (!tfm)
+		return;
+	crypto_free_tfm(tfm->base);
 	kfree(tfm);
 }
 
@@ -345,8 +359,9 @@ static inline int crypto_hash_final(struct hash_desc *desc, u8 *out)
 #ifdef NEED_BACKPORT_OF_KZALLOC
 static inline void *kzalloc(size_t size, int flags)
 {
-	void *rv = kmalloc(size,flags);
-	if(rv) memset(rv,0,size);
+	void *rv = kmalloc(size, flags);
+	if (rv)
+		memset(rv, 0, size);
 
 	return rv;
 }
@@ -440,3 +455,13 @@ static inline int backport_bitmap_parse(const char *buf, unsigned int buflen,
 #define KERNEL_HAS_GFP_T
 typedef unsigned gfp_t;
 #endif
+
+
+/* struct kvec didn't exist before 2.6.8, this is an ugly
+ * #define to work around it ... - jt */
+
+#ifndef KERNEL_HAS_KVEC
+#define kvec iovec
+#endif
+
+

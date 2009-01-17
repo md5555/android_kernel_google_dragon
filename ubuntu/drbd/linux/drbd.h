@@ -26,6 +26,7 @@
 #ifndef DRBD_H
 #define DRBD_H
 #include <linux/drbd_config.h>
+#include <linux/connector.h>
 
 #include <asm/types.h>
 
@@ -37,7 +38,7 @@
 #include <sys/wait.h>
 #include <limits.h>
 
-/* Altough the Linux source code makes a difference between 
+/* Altough the Linux source code makes a difference between
    generic endiness and the bitfields' endianess, there is no
    architecture as of Linux-2.6.24-rc4 where the bitfileds' endianess
    does not match the generic endianess. */
@@ -139,6 +140,7 @@ enum ret_codes {
 	CSUMSResyncRunning,
 	VERIFYIsRunning,
 	DataOfWrongCurrent,
+	MayNotBeConnected,
 
 	/* insert new ones above this line */
 	AfterLastRetCode,
@@ -188,9 +190,7 @@ enum drbd_conns {
 	WFBitMapT,
 	WFSyncUUID,
 
-	/* The distance between original state and pause
-	 * state must be the same for source and target. (+2)
-	 * All SyncStates are tested with this comparison
+	/* All SyncStates are tested with this comparison
 	 * xx >= SyncSource && xx <= PausedSyncT */
 	SyncSource,
 	SyncTarget,
@@ -226,29 +226,36 @@ union drbd_state_t {
  */
 	struct {
 #if defined(__LITTLE_ENDIAN_BITFIELD)
-		unsigned role : 2 ;   /* 3/4	 primary/secondary/unknown */
-		unsigned peer : 2 ;   /* 3/4	 primary/secondary/unknown */
-		unsigned conn : 5 ;   /* 17/32	 cstates */
-		unsigned disk : 4 ;   /* 8/16	 from Diskless to UpToDate */
-		unsigned pdsk : 4 ;   /* 8/16	 from Diskless to UpToDate */
-		unsigned susp : 1 ;   /* 2/2	 IO suspended  no/yes */
-		unsigned aftr_isp : 1 ; /* isp .. imposed sync pause */
-		unsigned peer_isp : 1 ;
-		unsigned user_isp : 1 ;
-		unsigned _pad : 11;   /* 0	 unused */
+		unsigned role:2 ;   /* 3/4	 primary/secondary/unknown */
+		unsigned peer:2 ;   /* 3/4	 primary/secondary/unknown */
+		unsigned conn:5 ;   /* 17/32	 cstates */
+		unsigned disk:4 ;   /* 8/16	 from Diskless to UpToDate */
+		unsigned pdsk:4 ;   /* 8/16	 from Diskless to UpToDate */
+		unsigned susp:1 ;   /* 2/2	 IO suspended  no/yes */
+		unsigned aftr_isp:1 ; /* isp .. imposed sync pause */
+		unsigned peer_isp:1 ;
+		unsigned user_isp:1 ;
+		unsigned _pad:11;   /* 0	 unused */
 #elif defined(__BIG_ENDIAN_BITFIELD)
-		unsigned _pad : 11;   /* 0	 unused */
-		unsigned user_isp : 1 ;
-		unsigned peer_isp : 1 ;
-		unsigned aftr_isp : 1 ; /* isp .. imposed sync pause */
-		unsigned susp : 1 ;   /* 2/2	 IO suspended  no/yes */
-		unsigned pdsk : 4 ;   /* 8/16	 from Diskless to UpToDate */
-		unsigned disk : 4 ;   /* 8/16	 from Diskless to UpToDate */
-		unsigned conn : 5 ;   /* 17/32	 cstates */
-		unsigned peer : 2 ;   /* 3/4	 primary/secondary/unknown */
-		unsigned role : 2 ;   /* 3/4	 primary/secondary/unknown */
+		unsigned _pad:11;   /* 0	 unused */
+		unsigned user_isp:1 ;
+		unsigned peer_isp:1 ;
+		unsigned aftr_isp:1 ; /* isp .. imposed sync pause */
+		unsigned susp:1 ;   /* 2/2	 IO suspended  no/yes */
+		unsigned pdsk:4 ;   /* 8/16	 from Diskless to UpToDate */
+		unsigned disk:4 ;   /* 8/16	 from Diskless to UpToDate */
+		unsigned conn:5 ;   /* 17/32	 cstates */
+		unsigned peer:2 ;   /* 3/4	 primary/secondary/unknown */
+		unsigned role:2 ;   /* 3/4	 primary/secondary/unknown */
 #else
 # error "this endianess is not supported"
+#endif
+#ifndef DRBD_DEBUG_STATE_CHANGES
+#define DRBD_DEBUG_STATE_CHANGES 0
+#endif
+#if DRBD_DEBUG_STATE_CHANGES
+		unsigned int line;
+		const char *func;
 #endif
 	};
 	unsigned int i;
@@ -278,8 +285,8 @@ enum set_st_err {
 	SS_NotSupported = -17,      /* drbd-8.2 only */
 	SS_InTransientState = -18,  /* Retry after the next state change */
 	SS_ConcurrentStChg = -19,   /* Concurrent cluster side state change! */
+	SS_AfterLastError = -20,    /* Keep this at bottom */
 };
-
 
 /* from drbd_strings.c */
 extern const char *conns_to_name(enum drbd_conns);
@@ -335,8 +342,14 @@ enum UuidIndex {
 
 /* The following line should be moved over to linux/connector.h
  * when the time comes */
-//#define CN_IDX_DRBD			0x5
-//#define CN_VAL_DRBD			0x1
+#ifndef CN_IDX_DRBD
+# define CN_IDX_DRBD			0x6
+/* Ubuntu "intrepid ibex" release defined CN_IDX_DRBD as 0x6 */
+#endif
+#define CN_VAL_DRBD			0x1
+
+/* For searching a vacant cn_idx value */
+#define CN_IDX_STEP			6977
 
 struct drbd_nl_cfg_req {
 	int packet_type;
