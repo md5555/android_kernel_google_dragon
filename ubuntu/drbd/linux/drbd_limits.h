@@ -65,8 +65,8 @@
 #define DRBD_MAX_EPOCH_SIZE_DEF 2048
 
   /* I don't think that a tcp send buffer of more than 10M is usefull */
-#define DRBD_SNDBUF_SIZE_MIN  1
-#define DRBD_SNDBUF_SIZE_MAX  10000000
+#define DRBD_SNDBUF_SIZE_MIN  0
+#define DRBD_SNDBUF_SIZE_MAX  (10<<20)
 #define DRBD_SNDBUF_SIZE_DEF  (2*65535)
 
   /* @4k PageSize -> 128kB - 512MB */
@@ -89,7 +89,8 @@
 /* syncer { */
   /* FIXME allow rate to be zero? */
 #define DRBD_RATE_MIN 1
-#define DRBD_RATE_MAX 700000
+/* channel bonding 10 GbE, or other hardware */
+#define DRBD_RATE_MAX (4 << 20)
 #define DRBD_RATE_DEF 250  /* kb/second */
 
   /* less than 7 would hit performance unneccessarily.
@@ -107,10 +108,11 @@
 
 /* drbdsetup XY resize -d Z
  * you are free to reduce the device size to nothing, if you want to.
- * but more than 3998G are currently not possible */
+ * the upper limit with 64bit kernel, enough ram and flexible meta data
+ * is 16 TB, currently. */
 /* DRBD_MAX_SECTORS */
 #define DRBD_DISK_SIZE_SECT_MIN  0
-#define DRBD_DISK_SIZE_SECT_MAX  ((128LLU*1024*2 - 72)*512LLU*8*8)
+#define DRBD_DISK_SIZE_SECT_MAX  (16 * (2LLU << 30))
 #define DRBD_DISK_SIZE_SECT_DEF  0 /* = disabled = no user size... */
 
 #define DRBD_ON_IO_ERROR_DEF PassOn

@@ -38,7 +38,7 @@
 #include "drbd_int.h"
 #include "lru_cache.h" /* for lc_sprintf_stats */
 
-int drbd_proc_open(struct inode *inode, struct file *file);
+STATIC int drbd_proc_open(struct inode *inode, struct file *file);
 
 
 struct proc_dir_entry *drbd_proc;
@@ -80,11 +80,11 @@ STATIC void drbd_syncer_progress(struct drbd_conf *mdev, struct seq_file *seq)
 	if (mdev->rs_total > 0x100000L)
 		seq_printf(seq, "(%lu/%lu)M\n\t",
 			    (unsigned long) Bit2KB(rs_left) >> 10,
-			    (unsigned long) Bit2KB(mdev->rs_total) >> 10 );
+			    (unsigned long) Bit2KB(mdev->rs_total) >> 10);
 	else
 		seq_printf(seq, "(%lu/%lu)K\n\t",
 			    (unsigned long) Bit2KB(rs_left),
-			    (unsigned long) Bit2KB(mdev->rs_total) );
+			    (unsigned long) Bit2KB(mdev->rs_total));
 
 	/* see drivers/md/md.c
 	 * We do not want to overflow, so the order of operands and
@@ -154,20 +154,34 @@ STATIC int drbd_seq_show(struct seq_file *seq, void *v)
 	const char *sn;
 	struct drbd_conf *mdev;
 
+	static char write_ordering_chars[] = {
+		[WO_none] = 'n',
+		[WO_drain_io] = 'd',
+		[WO_bdev_flush] = 'f',
+		[WO_bio_barrier] = 'b',
+	};
+
 	seq_printf(seq, "version: " REL_VERSION " (api:%d/proto:%d-%d)\n%s\n",
 		   API_VERSION, PRO_VERSION_MIN, PRO_VERSION_MAX, drbd_buildtag());
 
 	/*
 	  cs .. connection state
-	  st .. node state (local/remote)
-	  ld .. local data consistentency
+	  ro .. node role (local/remote)
+	  ds .. disk state (local/remote)
+	     protocol
+	     various flags
 	  ns .. network send
 	  nr .. network receive
 	  dw .. disk write
 	  dr .. disk read
-	  pe .. pending (waiting for ack)
-	  ua .. unack'd (still need to send ack)
-	  al .. access log write count
+	  al .. activity log write count
+	  bm .. bitmap update write count
+	  pe .. pending (waiting for ack or data reply)
+	  ua .. unack'd (still need to send ack or data reply)
+	  ap .. application requests accepted, but not yet completed
+	  ep .. number of epochs currently "on the fly", BarrierAck pending
+	  wo .. write ordering mode currently in use
+	 oos .. known out-of-sync kB
 	*/
 
 	for (i = 0; i < minor_count; i++) {
@@ -178,19 +192,20 @@ STATIC int drbd_seq_show(struct seq_file *seq, void *v)
 		}
 		if (hole) {
 			hole = 0;
-			seq_printf( seq, "\n");
+			seq_printf(seq, "\n");
 		}
 
 		sn = conns_to_name(mdev->state.conn);
 
-		if ( mdev->state.conn == StandAlone &&
-		     mdev->state.disk == Diskless) {
-			seq_printf( seq, "%2d: cs:Unconfigured\n", i);
+		if (mdev->state.conn == StandAlone &&
+		    mdev->state.disk == Diskless &&
+		    mdev->state.role == Secondary) {
+			seq_printf(seq, "%2d: cs:Unconfigured\n", i);
 		} else {
-			seq_printf( seq,
-			   "%2d: cs:%s st:%s/%s ds:%s/%s %c %c%c%c%c\n"
+			seq_printf(seq,
+			   "%2d: cs:%s ro:%s/%s ds:%s/%s %c %c%c%c%c\n"
 			   "    ns:%u nr:%u dw:%u dr:%u al:%u bm:%u "
-			   "lo:%d pe:%d ua:%d ap:%d",
+			   "lo:%d pe:%d ua:%d ap:%d ep:%d wo:%c",
 			   i, sn,
 			   roles_to_name(mdev->state.role),
 			   roles_to_name(mdev->state.peer),
@@ -212,23 +227,23 @@ STATIC int drbd_seq_show(struct seq_file *seq, void *v)
 			   atomic_read(&mdev->ap_pending_cnt) +
 			   atomic_read(&mdev->rs_pending_cnt),
 			   atomic_read(&mdev->unacked_cnt),
-			   atomic_read(&mdev->ap_bio_cnt)
+			   atomic_read(&mdev->ap_bio_cnt),
+			   mdev->epochs,
+			   write_ordering_chars[mdev->write_ordering]
 			);
 			seq_printf(seq, " oos:%lu\n",
-				   drbd_bm_total_weight(mdev) << (BM_BLOCK_SIZE_B - 10));
+				   Bit2KB(drbd_bm_total_weight(mdev)));
 		}
-		if ( mdev->state.conn == SyncSource ||
-		     mdev->state.conn == SyncTarget )
+		if (mdev->state.conn == SyncSource ||
+		    mdev->state.conn == SyncTarget)
 			drbd_syncer_progress(mdev, seq);
 
-		if ( mdev->state.conn == VerifyS ||
-		     mdev->state.conn == VerifyT ) {
+		if (mdev->state.conn == VerifyS || mdev->state.conn == VerifyT)
 			seq_printf(seq,"\t%3d%%      %lu/%lu\n",
 				   (int)((mdev->rs_total-mdev->ov_left) /
 					 (mdev->rs_total/100+1)),
 				   mdev->rs_total - mdev->ov_left,
 				   mdev->rs_total);
-		}
 
 #ifdef ENABLE_DYNAMIC_TRACE
 		if (proc_details >= 1 && inc_local_if_state(mdev, Failed)) {
@@ -249,7 +264,7 @@ STATIC int drbd_seq_show(struct seq_file *seq, void *v)
 	return 0;
 }
 
-int drbd_proc_open(struct inode *inode, struct file *file)
+STATIC int drbd_proc_open(struct inode *inode, struct file *file)
 {
 	return single_open(file, drbd_seq_show, PDE(inode)->data);
 }

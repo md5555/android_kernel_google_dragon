@@ -29,9 +29,12 @@ NL_PACKET(disk_conf, 3,
 	NL_BIT(		54,	T_MAY_IGNORE,	no_md_flush)
 	  /*  55 max_bio_size was available in 8.2.6rc2 */
 	NL_INTEGER(	56,	T_MAY_IGNORE,	max_bio_bvecs)
+	NL_BIT(		57,	T_MAY_IGNORE,	no_disk_barrier)
+	NL_BIT(		58,	T_MAY_IGNORE,	no_disk_drain)
 )
 
 NL_PACKET(detach, 4, )
+
 NL_PACKET(net_conf, 5,
 	NL_STRING(	8,	T_MANDATORY,	my_addr,	128)
 	NL_STRING(	9,	T_MANDATORY,	peer_addr,	128)
@@ -52,9 +55,13 @@ NL_PACKET(net_conf, 5,
 	NL_INTEGER(	26,	T_MAY_IGNORE,	after_sb_2p)
 	NL_INTEGER(	39,	T_MAY_IGNORE,	rr_conflict)
 	NL_INTEGER(	40,	T_MAY_IGNORE,	ping_timeo)
+	  /* 59 addr_family was available in GIT, never released */
+	NL_BIT(		60,	T_MANDATORY,	mind_af)
 	NL_BIT(		27,	T_MAY_IGNORE,	want_lose)
 	NL_BIT(		28,	T_MAY_IGNORE,	two_primaries)
 	NL_BIT(		41,	T_MAY_IGNORE,	always_asbp)
+	NL_BIT(		61,	T_MAY_IGNORE,	no_cork)
+	NL_BIT(		62,	T_MANDATORY,	auto_sndbuf_size)
 )
 
 NL_PACKET(disconnect, 6, )
@@ -69,6 +76,7 @@ NL_PACKET(syncer_conf, 8,
 	NL_INTEGER(	32,	T_MAY_IGNORE,	al_extents)
 	NL_STRING(      52,     T_MAY_IGNORE,   verify_alg,     SHARED_SECRET_MAX)
 	NL_STRING(      51,     T_MAY_IGNORE,   cpu_mask,       32)
+	NL_STRING(	64,	T_MAY_IGNORE,	csums_alg,	SHARED_SECRET_MAX)
 )
 
 NL_PACKET(invalidate, 9, )
@@ -96,8 +104,7 @@ NL_PACKET(call_helper, 20,
 	NL_STRING(	38,	T_MAY_IGNORE,	helper,		32)
 )
 
-/* Tag nr 42 already allocated in drbd-8.1 development.
- * Packet numbers 21 and 22 already in drbd-8.1 development. */
+/* Tag nr 42 already allocated in drbd-8.1 development. */
 
 NL_PACKET(sync_progress, 23,
 	NL_INTEGER(	43,	T_MAY_IGNORE,	sync_progress)
@@ -113,6 +120,10 @@ NL_PACKET(dump_ee, 24,
 )
 
 NL_PACKET(start_ov, 25,
+)
+
+NL_PACKET(new_c_uuid, 26,
+       NL_BIT(		63,	T_MANDATORY,	clear_bm)
 )
 
 #undef NL_PACKET
