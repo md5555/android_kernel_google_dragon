@@ -18,5 +18,6 @@ source "ubuntu/unionfs/Kconfig"
 source "ubuntu/lirc/Kconfig"
 source "ubuntu/gfs/Kconfig"
 source "ubuntu/tlsup/Kconfig"
+source "drivers/staging/rt2860/Kconfig"
 
 endmenu
