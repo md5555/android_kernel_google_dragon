@@ -19,6 +19,7 @@ obj-$(CONFIG_LIRC_DEV)          += lirc/
 obj-$(CONFIG_GFS_FS)		+= gfs/
 obj-$(CONFIG_TLSUP)		+= tlsup/
 obj-$(CONFIG_RT2860)            += ../drivers/staging/rt2860
+obj-$(CONFIG_RT2870)            += ../drivers/staging/rt2870
 
 obj-m				+= misc/ rfkill/
 
