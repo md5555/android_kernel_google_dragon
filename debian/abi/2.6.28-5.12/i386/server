@@ -1328,7 +1328,6 @@ EXPORT_SYMBOL drivers/net/wireless/iwlwifi/iwlcore 0xcc89aa77	iwl_hwrate_to_tx_c
 EXPORT_SYMBOL drivers/net/wireless/iwlwifi/iwlcore 0xd0356d44	iwl_setup_power_deferred_work
 EXPORT_SYMBOL drivers/net/wireless/iwlwifi/iwlcore 0xd08f9097	iwl_init_drv
 EXPORT_SYMBOL drivers/net/wireless/iwlwifi/iwlcore 0xd231324e	iwl_rx_replenish
-EXPORT_SYMBOL drivers/net/wireless/iwlwifi/iwlcore 0xda709db9	iwl_rx_allocate
 EXPORT_SYMBOL drivers/net/wireless/iwlwifi/iwlcore 0xdba329f6	iwl_scan_cancel_timeout
 EXPORT_SYMBOL drivers/net/wireless/iwlwifi/iwlcore 0xdf0d8e97	iwl_rx_queue_reset
 EXPORT_SYMBOL drivers/net/wireless/iwlwifi/iwlcore 0xdf2775ff	iwl_power_set_system_mode
@@ -4678,6 +4677,7 @@ EXPORT_SYMBOL vmlinux 0xa7c35c6b	getnstimeofday
 EXPORT_SYMBOL vmlinux 0xa800c18e	sysctl_jiffies
 EXPORT_SYMBOL vmlinux 0xa82ebffd	serio_unregister_port
 EXPORT_SYMBOL vmlinux 0xa83a822e	km_query
+EXPORT_SYMBOL vmlinux 0xa873c380	__page_symlink
 EXPORT_SYMBOL vmlinux 0xa89acbb3	acpi_evaluate_reference
 EXPORT_SYMBOL vmlinux 0xa8a6f639	__check_region
 EXPORT_SYMBOL vmlinux 0xa8b2f666	scsi_block_requests
@@ -5621,6 +5621,7 @@ EXPORT_SYMBOL vmlinux 0xf5c13cb4	have_submounts
 EXPORT_SYMBOL vmlinux 0xf5ce9811	tcp_memory_allocated
 EXPORT_SYMBOL vmlinux 0xf5d2600f	key_instantiate_and_link
 EXPORT_SYMBOL vmlinux 0xf5f8c316	__dev_get_by_name
+EXPORT_SYMBOL vmlinux 0xf6088329	grab_cache_page_write_begin
 EXPORT_SYMBOL vmlinux 0xf620c8eb	per_cpu__current_task
 EXPORT_SYMBOL vmlinux 0xf6272dbb	eisa_driver_unregister
 EXPORT_SYMBOL vmlinux 0xf62a9c9b	input_open_device
@@ -5653,7 +5654,6 @@ EXPORT_SYMBOL vmlinux 0xf7d938df	kill_pgrp
 EXPORT_SYMBOL vmlinux 0xf7eafc66	scsi_set_medium_removal
 EXPORT_SYMBOL vmlinux 0xf7f1db04	xfrm_policy_unregister_afinfo
 EXPORT_SYMBOL vmlinux 0xf80c4192	blk_requeue_request
-EXPORT_SYMBOL vmlinux 0xf80eb0cc	__page_symlink
 EXPORT_SYMBOL vmlinux 0xf811e69d	scsi_eh_flush_done_q
 EXPORT_SYMBOL vmlinux 0xf8147881	pci_lost_interrupt
 EXPORT_SYMBOL vmlinux 0xf82abc1d	isa_dma_bridge_buggy
@@ -5689,7 +5689,6 @@ EXPORT_SYMBOL vmlinux 0xfb0a1d92	unregister_quota_format
 EXPORT_SYMBOL vmlinux 0xfb0cf2e9	touch_all_softlockup_watchdogs
 EXPORT_SYMBOL vmlinux 0xfb19dc00	__ip_select_ident
 EXPORT_SYMBOL vmlinux 0xfb43c7f7	phy_ethtool_gset
-EXPORT_SYMBOL vmlinux 0xfb4c168f	__grab_cache_page
 EXPORT_SYMBOL vmlinux 0xfb6af58d	recalc_sigpending
 EXPORT_SYMBOL vmlinux 0xfba0c2e0	llc_sap_list_lock
 EXPORT_SYMBOL vmlinux 0xfbbe8167	tcp_proc_unregister

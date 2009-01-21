@@ -1312,7 +1312,6 @@ EXPORT_SYMBOL drivers/net/wireless/iwlwifi/iwlcore 0x9cde1f24	iwl_queue_space
 EXPORT_SYMBOL drivers/net/wireless/iwlwifi/iwlcore 0x9d34b274	iwl_verify_ucode
 EXPORT_SYMBOL drivers/net/wireless/iwlwifi/iwlcore 0x9ff3dd53	iwl_set_tx_power
 EXPORT_SYMBOL drivers/net/wireless/iwlwifi/iwlcore 0xa0a64d7a	iwl_add_station_flags
-EXPORT_SYMBOL drivers/net/wireless/iwlwifi/iwlcore 0xa71cb6c9	iwl_rx_allocate
 EXPORT_SYMBOL drivers/net/wireless/iwlwifi/iwlcore 0xa7d201c5	iwl_dump_nic_error_log
 EXPORT_SYMBOL drivers/net/wireless/iwlwifi/iwlcore 0xab399384	iwl_leds_background
 EXPORT_SYMBOL drivers/net/wireless/iwlwifi/iwlcore 0xab3fa57a	iwl_tx_skb
@@ -3650,7 +3649,6 @@ EXPORT_SYMBOL vmlinux 0x52004f0e	pcix_get_mmrbc
 EXPORT_SYMBOL vmlinux 0x52026cdf	security_sb_parse_opts_str
 EXPORT_SYMBOL vmlinux 0x520c6333	pci_get_device
 EXPORT_SYMBOL vmlinux 0x520fe0af	netif_device_attach
-EXPORT_SYMBOL vmlinux 0x52256b55	__page_symlink
 EXPORT_SYMBOL vmlinux 0x522c20a4	qdisc_list_del
 EXPORT_SYMBOL vmlinux 0x528c709d	simple_read_from_buffer
 EXPORT_SYMBOL vmlinux 0x52a58c24	ifla_policy
@@ -4345,6 +4343,7 @@ EXPORT_SYMBOL vmlinux 0x8aaf8654	mutex_lock
 EXPORT_SYMBOL vmlinux 0x8ad181e9	dev_set_mtu
 EXPORT_SYMBOL vmlinux 0x8afe00f6	devm_request_irq
 EXPORT_SYMBOL vmlinux 0x8b18496f	__copy_to_user_ll
+EXPORT_SYMBOL vmlinux 0x8b4118b4	__page_symlink
 EXPORT_SYMBOL vmlinux 0x8b4321b2	inet_del_protocol
 EXPORT_SYMBOL vmlinux 0x8b50bd1c	udp_memory_allocated
 EXPORT_SYMBOL vmlinux 0x8b523f65	should_remove_suid
@@ -4893,6 +4892,7 @@ EXPORT_SYMBOL vmlinux 0xb802df22	jbd2_journal_begin_ordered_truncate
 EXPORT_SYMBOL vmlinux 0xb8234d67	current_fs_time
 EXPORT_SYMBOL vmlinux 0xb828c786	per_cpu__cpu_sibling_map
 EXPORT_SYMBOL vmlinux 0xb82bcbec	read_cache_page_async
+EXPORT_SYMBOL vmlinux 0xb8423cfa	grab_cache_page_write_begin
 EXPORT_SYMBOL vmlinux 0xb8473f7e	xfrm_prepare_input
 EXPORT_SYMBOL vmlinux 0xb85b2bac	vm_stat
 EXPORT_SYMBOL vmlinux 0xb86650a9	sock_no_sendmsg
@@ -5224,7 +5224,6 @@ EXPORT_SYMBOL vmlinux 0xd4a78884	sk_send_sigurg
 EXPORT_SYMBOL vmlinux 0xd4a7fe74	inet_frag_destroy
 EXPORT_SYMBOL vmlinux 0xd4c40e95	md_error
 EXPORT_SYMBOL vmlinux 0xd4df12b7	blk_run_queue
-EXPORT_SYMBOL vmlinux 0xd4df73e2	__grab_cache_page
 EXPORT_SYMBOL vmlinux 0xd4f6f512	__bforget
 EXPORT_SYMBOL vmlinux 0xd4fa34aa	blkdev_issue_discard
 EXPORT_SYMBOL vmlinux 0xd51a528c	simple_write_end
