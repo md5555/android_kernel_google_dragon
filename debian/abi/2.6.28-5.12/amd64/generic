@@ -1207,7 +1207,6 @@ EXPORT_SYMBOL drivers/net/wireless/iwlwifi/iwlcore 0x5b56fe2b	iwl_hwrate_to_tx_c
 EXPORT_SYMBOL drivers/net/wireless/iwlwifi/iwlcore 0x5c59811b	iwl_setup_mac
 EXPORT_SYMBOL drivers/net/wireless/iwlwifi/iwlcore 0x5ea6f9ab	iwl_rx_queue_space
 EXPORT_SYMBOL drivers/net/wireless/iwlwifi/iwlcore 0x60774702	iwl_queue_space
-EXPORT_SYMBOL drivers/net/wireless/iwlwifi/iwlcore 0x620ee33c	iwl_rx_allocate
 EXPORT_SYMBOL drivers/net/wireless/iwlwifi/iwlcore 0x65c159b0	iwl_tx_skb
 EXPORT_SYMBOL drivers/net/wireless/iwlwifi/iwlcore 0x66ec2637	iwl_rx_reply_rx_phy
 EXPORT_SYMBOL drivers/net/wireless/iwlwifi/iwlcore 0x680d1efd	iwl_get_ra_sta_id
@@ -2747,6 +2746,7 @@ EXPORT_SYMBOL vmlinux 0x16f98e8c	posix_test_lock
 EXPORT_SYMBOL vmlinux 0x170c25ee	acpi_get_next_object
 EXPORT_SYMBOL vmlinux 0x17178730	blkdev_issue_flush
 EXPORT_SYMBOL vmlinux 0x172ed4d7	__vmalloc
+EXPORT_SYMBOL vmlinux 0x174e3146	__page_symlink
 EXPORT_SYMBOL vmlinux 0x175eae30	generic_file_aio_read
 EXPORT_SYMBOL vmlinux 0x178ff66a	pci_bus_add_devices
 EXPORT_SYMBOL vmlinux 0x17a33d26	add_to_page_cache_locked
@@ -3124,7 +3124,6 @@ EXPORT_SYMBOL vmlinux 0x35c2ba9e	refrigerator
 EXPORT_SYMBOL vmlinux 0x35ff32bf	inet_dgram_ops
 EXPORT_SYMBOL vmlinux 0x360b1afe	probe_irq_mask
 EXPORT_SYMBOL vmlinux 0x36139a51	memcpy_fromiovec
-EXPORT_SYMBOL vmlinux 0x361dec09	__page_symlink
 EXPORT_SYMBOL vmlinux 0x36212135	simple_readpage
 EXPORT_SYMBOL vmlinux 0x362412d5	agp_generic_alloc_page
 EXPORT_SYMBOL vmlinux 0x36274d01	blkdev_put
@@ -3335,6 +3334,7 @@ EXPORT_SYMBOL vmlinux 0x478d10b2	ht_destroy_irq
 EXPORT_SYMBOL vmlinux 0x4792b78d	__dev_get_by_index
 EXPORT_SYMBOL vmlinux 0x47939e0d	__tasklet_hi_schedule
 EXPORT_SYMBOL vmlinux 0x479c3c86	find_next_zero_bit
+EXPORT_SYMBOL vmlinux 0x47bb3eb8	grab_cache_page_write_begin
 EXPORT_SYMBOL vmlinux 0x47e1699f	neigh_lookup
 EXPORT_SYMBOL vmlinux 0x47ffe546	register_chrdev
 EXPORT_SYMBOL vmlinux 0x4813bc30	ip6_frag_match
@@ -5138,7 +5138,6 @@ EXPORT_SYMBOL vmlinux 0xd9ca3514	bio_integrity_split
 EXPORT_SYMBOL vmlinux 0xda05d1c7	xfrm_state_unregister_afinfo
 EXPORT_SYMBOL vmlinux 0xda0a6b0e	acpi_map_lsapic
 EXPORT_SYMBOL vmlinux 0xda1a7335	kasprintf
-EXPORT_SYMBOL vmlinux 0xda1c2975	__grab_cache_page
 EXPORT_SYMBOL vmlinux 0xda2ee9c7	__nla_put_nohdr
 EXPORT_SYMBOL vmlinux 0xda45ba06	inet_sock_destruct
 EXPORT_SYMBOL vmlinux 0xda4629e4	radix_tree_insert

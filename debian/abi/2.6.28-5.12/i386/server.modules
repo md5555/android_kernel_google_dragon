@@ -427,6 +427,7 @@ docecc
 docprobe
 donauboe
 dpt_i2o
+drbd
 drm
 drx397xD
 ds1621
@@ -1523,6 +1524,8 @@ rsrc_nonstatic
 rt2400pci
 rt2500pci
 rt2500usb
+rt2860sta
+rt2870sta
 rt2x00lib
 rt2x00pci
 rt2x00usb
