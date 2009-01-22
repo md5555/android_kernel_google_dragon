@@ -1,3 +1,13 @@
+linux (2.6.28-5.15) jaunty; urgency=low
+
+  [ Tim Gardner ]
+
+  * Revert "Enabled CONFIG_PID_NS=y for i386/amd64"
+    Somehow this commit also reverted the 7 prior commits (which is bad).
+  * Enabled CONFIG_PID_NS=y for i386/amd64 (version 2)
+
+ --  Tim Gardner <tim.gardner@canonical.com>  Thu, 22 Jan 2009 13:48:34 -0700
+
 linux (2.6.28-5.14) jaunty; urgency=low
 
   [ Ben Collins ]
