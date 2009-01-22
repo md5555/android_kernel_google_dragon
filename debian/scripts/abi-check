@@ -10,6 +10,7 @@ my $skipabi = shift;
 my $fail_exit = 1;
 my $EE = "EE:";
 my $errors = 0;
+my $abiskip = 0;
 
 my $count;
 
@@ -19,6 +20,7 @@ if (-f "$prev_abidir/ignore"
     or -f "$prev_abidir/$flavour.ignore" or "$skipabi" eq "true") {
 	print "WW: Explicitly asked to ignore ABI, running in no-fail mode\n";
 	$fail_exit = 0;
+	$abiskip = 1;
 	$EE = "WW:";
 }
 
@@ -32,8 +34,14 @@ if (not -f "$abidir/$flavour" or not -f "$prev_abidir/$flavour") {
 	print "EE: Previous or current ABI file missing!\n";
 	print "    $abidir/$flavour\n" if not -f "$abidir/$flavour";
 	print "    $prev_abidir/$flavour\n" if not -f "$prev_abidir/$flavour";
-	# Always fail here. This is bad
-	exit(1);
+
+	# Exit if the ABI files are missing, but return status based on whether
+	# skip ABI was indicated.
+	if ("$abiskip" eq "1") {
+		exit(0);
+	} else {
+		exit(1);
+	}
 }
 
 my %symbols;
