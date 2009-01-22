@@ -30,52 +30,52 @@
  */
 
 #include <linux/version.h>
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 2, 4)
-#error "*******************************************************"
-#error "Sorry, this driver needs kernel version 2.2.4 or higher"
-#error "*******************************************************"
-#endif
 
 #include <linux/version.h>
 #include <linux/module.h>
 #include <linux/kmod.h>
 #include <linux/sched.h>
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 0)
-#include <linux/wrapper.h>
-#endif
 #include <linux/errno.h>
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 4, 0)
-#include "../drivers/char/bttv.h"
-#include "../drivers/char/bttvp.h"
-#elif LINUX_VERSION_CODE == KERNEL_VERSION(2,6,16)
-#include "extra_2.6.16/bttv.h"
-#include "extra_2.6.16/bttvp.h"
-#elif LINUX_VERSION_CODE == KERNEL_VERSION(2,6,17)
-#include "extra_2.6.17/bttv.h"
-#include "extra_2.6.17/bttvp.h"
-#elif LINUX_VERSION_CODE == KERNEL_VERSION(2,6,18)
-#include "extra_2.6.18/bttv.h"
-#include "extra_2.6.18/bttvp.h"
-#elif LINUX_VERSION_CODE == KERNEL_VERSION(2,6,20)
-#include "extra_2.6.20/bttv.h"
-#include "extra_2.6.20/bttvp.h"
-#elif LINUX_VERSION_CODE == KERNEL_VERSION(2,6,22)
-#include "extra_2.6.22/bttv.h"
-#include "extra_2.6.22/bttvp.h"
-#include "bttv_deprecated.h"
-#endif
-
-#if BTTV_VERSION_CODE < KERNEL_VERSION(0, 7, 45)
-#error "*******************************************************"
-#error " Sorry, this driver needs bttv version 0.7.45 or       "
-#error " higher. If you are using the bttv package, copy it to "
-#error " the kernel					    "
-#error "*******************************************************"
-#endif
+#include <bt8xx/bttv.h>
+#include <bt8xx/bttvp.h>
 
 #include "kcompat.h"
 #include "lirc_dev/lirc_dev.h"
+
+/* Obsoleted in current kernels. Added here for portability */
+struct bttv bttvs[BTTV_MAX];
+unsigned int bttv_debug;
+unsigned int bttv_num; /* number of Bt848s in use */
+
+int bttv_get_cardinfo(unsigned int card, int *type, unsigned *cardid)
+{
+    printk("The bttv_* interface is obsolete and will go away,\n"
+           "please use the new, sysfs based interface instead.\n");
+    if (card >= bttv_num) {
+        return -1;
+    }
+    *type = bttvs[card].c.type;
+    *cardid = bttvs[card].cardid;
+    return 0;
+}
+
+wait_queue_head_t* bttv_get_gpio_queue(unsigned int card)
+{
+    struct bttv *btv;
+
+    if (card >= bttv_num) {
+        return NULL;
+    }
+
+    btv = &bttvs[card];
+    if (bttvs[card].shutdown) {
+        return NULL;
+    }
+    return &btv->gpioq;
+}
+/* End of obsolete code */
+
 
 /* insmod parameters */
 static int debug;
