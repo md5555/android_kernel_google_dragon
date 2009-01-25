@@ -370,7 +370,6 @@ DAC960
 davicom
 db9
 dc395x
-dca
 dccp
 dccp_ccid2
 dccp_ccid3
@@ -540,7 +539,6 @@ epat
 epca
 epia
 epic100
-e_powersaver
 eql
 es3210
 esb2rom
@@ -841,7 +839,6 @@ intel_menlow
 intel-rng
 intel_vr_nor
 interact
-ioatdma
 ioc4
 io_edgeport
 io_ti
@@ -1030,6 +1027,7 @@ lirc_atiusb
 lirc_bt829
 lirc_cmdir
 lirc_dev
+lirc_gpio
 lirc_i2c
 lirc_igorplugusb
 lirc_imon
@@ -2217,6 +2215,10 @@ x25_asy
 x38_edac
 xc5000
 xcbc
+xen-blkfront
+xen-fbfront
+xen-kbdfront
+xen-netfront
 xfrm4_mode_beet
 xfrm4_mode_transport
 xfrm4_mode_tunnel
