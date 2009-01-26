@@ -23,11 +23,6 @@ extern unsigned long kexec_indirection_page;
 extern unsigned long kexec_mach_type;
 extern unsigned long kexec_boot_atags;
 
-typedef NORET_TYPE void (*relocate_new_kernel_t)(
-				unsigned long indirection_page,
-				unsigned long reboot_code_buffer,
-				unsigned long start_address) ATTRIB_NORET;
-				
 /*
  * Provide a dummy crash_notes definition while crash dump arrives to arm.
  * This prevents breakage of crash_notes attribute in kernel/ksysfs.c.
@@ -55,7 +50,7 @@ void machine_kexec(struct kimage *image)
 	unsigned long page_list;
 	unsigned long reboot_code_buffer_phys;
 	void *reboot_code_buffer;
-	relocate_new_kernel_t rnk;
+
 
 	page_list = image->head & PAGE_MASK;
 
@@ -81,7 +76,5 @@ void machine_kexec(struct kimage *image)
 
 	cpu_proc_fin();
 	setup_mm_for_reboot(0); /* mode is not used, so just pass 0*/
-	
-	rnk = (relocate_new_kernel_t) reboot_code_buffer;
-	(*rnk)(page_list, reboot_code_buffer_phys, image->start);
+	cpu_reset(reboot_code_buffer_phys);
 }
