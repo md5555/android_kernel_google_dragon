@@ -3,6 +3,7 @@
 ac97_bus
 aead
 cbc
+cdrom
 chainiv
 crypto_algapi
 crypto_blkcipher
@@ -36,4 +37,5 @@ snd-page-alloc
 snd-pcm
 snd-pcm-oss
 snd-timer
+sr_mod
 vfat
