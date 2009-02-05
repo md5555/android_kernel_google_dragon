@@ -1,3 +1,9 @@
+linux (2.6.28-7.19) jaunty; urgency=low
+
+  * Fix missing modules FTBS
+
+ --  Tim Gardner <tim.gardner@canonical.com>  Thu, 05 Feb 2009 15:28:15 -0700
+
 linux (2.6.28-7.18) jaunty; urgency=low
 
   [ Alok Kataria ]
