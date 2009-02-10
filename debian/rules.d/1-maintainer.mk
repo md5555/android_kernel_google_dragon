@@ -30,7 +30,7 @@ help:
 	@echo "                  : Use -jX for kernel compile"
 	@echo "  PRINTSHAS       : Include SHAs for commits in changelog"
 
-ARCH_CONFIGS=i386 amd64 armel
+ARCH_CONFIGS=i386 amd64 armel lpia
 
 updateconfigs:
 	dh_testdir

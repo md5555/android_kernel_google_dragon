@@ -17,7 +17,8 @@ arch="$1"
 
 case "$arch" in
 	amd64)	kernarch="x86_64"	;;
-	armel)	kernarch="arm"	;;
+	armel)	kernarch="arm"		;;
+	lpia)	kernarch="i386"		;;
 	*)	kernarch="$arch"	;;
 esac
 
