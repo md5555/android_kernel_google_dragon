@@ -599,7 +599,7 @@ static int hub_port_disable(struct usb_hub *hub, int port1, int set_state)
  * time later khubd will disconnect() any existing usb_device on the port
  * and will re-enumerate if there actually is a device attached.
  */
-static void hub_port_logical_disconnect(struct usb_hub *hub, int port1)
+void hub_port_logical_disconnect(struct usb_hub *hub, int port1)
 {
 	dev_dbg(hub->intfdev, "logical disconnect on port %d\n", port1);
 	hub_port_disable(hub, port1, 1);
@@ -616,6 +616,7 @@ static void hub_port_logical_disconnect(struct usb_hub *hub, int port1)
 	set_bit(port1, hub->change_bits);
  	kick_khubd(hub);
 }
+EXPORT_SYMBOL(hub_port_logical_disconnect);
 
 enum hub_activation_type {
 	HUB_INIT, HUB_INIT2, HUB_INIT3,
