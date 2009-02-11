@@ -61,7 +61,7 @@ Description: Header files related to Linux kernel version PKGVER
 Package: linux-libc-dev
 Architecture: i386 amd64 armel lpia
 Conflicts: libc6-dev (<< 2.3.2.ds1-6), libc6.1-dev (<< 2.3.2.ds1-6), dvb-dev (<< 1.0.1-6), amd64-libs-dev (<= 1.1), linux-kernel-headers
-Replaces: libc6-dev (<< 2.3.2.ds1-6), libc6.1-dev (<< 2.3.2.ds1-6), dvb-dev (<< 1.0.1-6), linux-kernel-headers
+Replaces: libc6-dev (<< 2.3.2.ds1-6), libc6.1-dev (<< 2.3.2.ds1-6), dvb-dev (<< 1.0.1-6), linux-kernel-headers, libdrm-dev
 Provides: linux-kernel-headers
 Description: Linux Kernel Headers for development
  This package provides headers from the Linux kernel.  These headers
