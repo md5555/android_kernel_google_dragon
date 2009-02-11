@@ -932,6 +932,20 @@ static const struct pci_device_id uhci_pci_ids[] = { {
 
 MODULE_DEVICE_TABLE(pci, uhci_pci_ids);
 
+#ifdef CONFIG_X86_LPIA
+extern void uhci_clear_usb_int(unsigned long base);
+static int usb_hcd_resume_early(struct pci_dev *dev)
+{
+	struct usb_hcd  *hcd;
+	struct uhci_hcd *uhci;
+
+	hcd = pci_get_drvdata(dev);
+	uhci = hcd_to_uhci(hcd);
+	uhci_clear_usb_int(uhci->io_addr);
+	return 0;
+}
+#endif
+
 static struct pci_driver uhci_pci_driver = {
 	.name =		(char *)hcd_name,
 	.id_table =	uhci_pci_ids,
@@ -941,6 +955,9 @@ static struct pci_driver uhci_pci_driver = {
 	.shutdown =	uhci_shutdown,
 
 #ifdef	CONFIG_PM
+#ifdef	CONFIG_X86_LPIA
+	.resume_early =	usb_hcd_resume_early,
+#endif
 	.suspend =	usb_hcd_pci_suspend,
 	.resume =	usb_hcd_pci_resume,
 #endif	/* PM */
