@@ -1,11 +1,11 @@
 # arch	version		flavour		installedname			suffix	bdep
-amd64	2.6.28-7	generic		2.6.28-7-generic		-	
+amd64	2.6.28-8	generic		2.6.28-8-generic		-	
 
-armel	2.6.28-7	iop32x		2.6.28-7-iop32x		y
-armel	2.6.28-7	ixp4xx		2.6.28-7-ixp4xx		y
-armel	2.6.28-7	orion5x		2.6.28-7-orion5x		y
-armel	2.6.28-7	versatile	2.6.28-7-versatile		y
+armel	2.6.28-8	iop32x		2.6.28-8-iop32x		y
+armel	2.6.28-8	ixp4xx		2.6.28-8-ixp4xx		y
+armel	2.6.28-8	orion5x		2.6.28-8-orion5x		y
+armel	2.6.28-8	versatile	2.6.28-8-versatile		y
 
-i386	2.6.28-7	generic		2.6.28-7-generic		-	
+i386	2.6.28-8	generic		2.6.28-8-generic		-	
 
-lpia	2.6.28-7	lpia		2.6.28-7-lpia
+lpia	2.6.28-8	lpia		2.6.28-8-lpia
