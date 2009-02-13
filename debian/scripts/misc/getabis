@@ -15,6 +15,7 @@ verfull=$ver-$revision
 repo="http://archive.ubuntu.com/ubuntu/pool/main/l"
 repo_ports="http://ports.ubuntu.com/ubuntu-ports/pool/main/l"
 repo_uni="http://archive.ubuntu.com/ubuntu/pool/universe/l"
+repo_ports_uni="http://ports.ubuntu.com/ubuntu-ports/pool/universe/l"
 
 WGET="wget --quiet -c"
 
@@ -76,6 +77,7 @@ echo $abi > $abidir/abiname
 # NOTE: The flavours are hardcoded, because they may have changed from the
 # current build.
 
+getall lpia lpia
 getall amd64 generic server
 getall i386 generic server
 getall armel iop32x ixp4xx versatile orion5x
