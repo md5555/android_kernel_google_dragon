@@ -2990,6 +2990,7 @@ EXPORT_SYMBOL vmlinux 0x2b0ba2b0	scsi_sense_desc_find
 EXPORT_SYMBOL vmlinux 0x2b25cc56	ip_xfrm_me_harder
 EXPORT_SYMBOL vmlinux 0x2b40f484	__insert_inode_hash
 EXPORT_SYMBOL vmlinux 0x2b46adb9	qdisc_reset
+EXPORT_SYMBOL vmlinux 0x2b52587a	hub_port_logical_disconnect
 EXPORT_SYMBOL vmlinux 0x2b601853	scsi_remove_host
 EXPORT_SYMBOL vmlinux 0x2b6aac8c	tcp_sockets_allocated
 EXPORT_SYMBOL vmlinux 0x2b9df187	remove_inode_hash
@@ -5526,6 +5527,7 @@ EXPORT_SYMBOL vmlinux 0xf89843f9	schedule_work
 EXPORT_SYMBOL vmlinux 0xf8aa47ae	mutex_lock_killable
 EXPORT_SYMBOL vmlinux 0xf8b30e93	mempool_create
 EXPORT_SYMBOL vmlinux 0xf8bc1623	journal_errno
+EXPORT_SYMBOL vmlinux 0xf8cf9ee5	abort_exclusive_wait
 EXPORT_SYMBOL vmlinux 0xf8d30475	agp_bind_memory
 EXPORT_SYMBOL vmlinux 0xf8d3da07	kmem_cache_create
 EXPORT_SYMBOL vmlinux 0xf8deb08a	__inet6_lookup_established

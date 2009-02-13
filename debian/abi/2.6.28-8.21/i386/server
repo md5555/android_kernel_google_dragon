@@ -4649,6 +4649,7 @@ EXPORT_SYMBOL vmlinux 0xa44072fc	posix_acl_alloc
 EXPORT_SYMBOL vmlinux 0xa44ad274	wait_for_completion_interruptible_timeout
 EXPORT_SYMBOL vmlinux 0xa45d2e96	simple_sync_file
 EXPORT_SYMBOL vmlinux 0xa49d8f82	mpage_writepage
+EXPORT_SYMBOL vmlinux 0xa4aec8dd	hub_port_logical_disconnect
 EXPORT_SYMBOL vmlinux 0xa4b8a1c0	dma_set_mask
 EXPORT_SYMBOL vmlinux 0xa4b94fea	iowrite8_rep
 EXPORT_SYMBOL vmlinux 0xa4df1151	kref_set
@@ -5664,6 +5665,7 @@ EXPORT_SYMBOL vmlinux 0xf88e0ee2	acpi_get_table_header
 EXPORT_SYMBOL vmlinux 0xf890fe7f	pm_idle
 EXPORT_SYMBOL vmlinux 0xf8aa47ae	mutex_lock_killable
 EXPORT_SYMBOL vmlinux 0xf8b30e93	mempool_create
+EXPORT_SYMBOL vmlinux 0xf8cf9ee5	abort_exclusive_wait
 EXPORT_SYMBOL vmlinux 0xf8d23f49	pci_pme_active
 EXPORT_SYMBOL vmlinux 0xf8e6972d	scsi_report_device_reset
 EXPORT_SYMBOL vmlinux 0xf8e6e207	i2c_smbus_read_byte_data
