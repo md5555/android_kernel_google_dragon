@@ -4983,6 +4983,7 @@ EXPORT_SYMBOL vmlinux 0xbb60abe4	scsi_device_lookup_by_target
 EXPORT_SYMBOL vmlinux 0xbb83bd29	xfrm_cfg_mutex
 EXPORT_SYMBOL vmlinux 0xbb89de17	ida_init
 EXPORT_SYMBOL vmlinux 0xbb9f425f	ipv6_getsockopt
+EXPORT_SYMBOL vmlinux 0xbbac56af	hub_port_logical_disconnect
 EXPORT_SYMBOL vmlinux 0xbbbf5061	seq_bitmap_list
 EXPORT_SYMBOL vmlinux 0xbbc8e804	param_set_ushort
 EXPORT_SYMBOL vmlinux 0xbbe19006	dma_async_client_chan_request
@@ -5675,6 +5676,7 @@ EXPORT_SYMBOL vmlinux 0xf8aa47ae	mutex_lock_killable
 EXPORT_SYMBOL vmlinux 0xf8adee3d	sk_dst_check
 EXPORT_SYMBOL vmlinux 0xf8b30e93	mempool_create
 EXPORT_SYMBOL vmlinux 0xf8c20bc7	neigh_resolve_output
+EXPORT_SYMBOL vmlinux 0xf8cf9ee5	abort_exclusive_wait
 EXPORT_SYMBOL vmlinux 0xf8ebde41	mmc_detect_change
 EXPORT_SYMBOL vmlinux 0xf8fe374e	tcp_check_req
 EXPORT_SYMBOL vmlinux 0xf9011b0d	eth_header_cache
