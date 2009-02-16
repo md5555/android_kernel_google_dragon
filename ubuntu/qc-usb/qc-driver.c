@@ -2131,7 +2131,7 @@ static int qc_capt_get(struct quickcam *qc, unsigned char **frame)
 		}
 
 		if (qc->settings.adaptive && !qc->sensor_data.sensor->autoexposure && r>=0 && midvalue>=0) {
-			int ex, gn;
+			int ex = 0, gn = 0;
 			qc_adapt(qc, midvalue, qc->vpic.brightness>>8, &ex, &gn);
 			qc->sensor_data.sensor->set_levels(qc, ex, gn, qc->vpic.hue, qc->vpic.colour);
 		}
@@ -2251,7 +2251,11 @@ static unsigned int qc_v4l_poll(struct video_device *dev, struct file *file, pol
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)
 	struct video_device *dev = video_devdata(file);
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,28)
+	struct quickcam *qc = (struct quickcam *)video_get_drvdata(dev);
+#else
 	struct quickcam *qc = (struct quickcam *)dev->priv;
+#endif
 	struct qc_frame_data *fd = &qc->frame_data;
 	int mask;
 
@@ -2303,7 +2307,11 @@ static int qc_v4l_open(struct video_device *dev, int flags)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)
 	struct video_device *dev = video_devdata(file);
 #endif
-	struct quickcam *qc = dev->priv;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,28)
+	struct quickcam *qc = (struct quickcam *)video_get_drvdata(dev);
+#else
+	struct quickcam *qc = (struct quickcam *)dev->priv;
+#endif
 	int r;
 
 	if (qcdebug&QC_DEBUGLOGIC || qcdebug&QC_DEBUGUSER) PDEBUG("qc_v4l_open(qc=%p)", qc);
@@ -2371,7 +2379,11 @@ static void qc_v4l_close(struct video_device *dev)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)
 	struct video_device *dev = video_devdata(file);
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,28)
+	struct quickcam *qc = (struct quickcam *)video_get_drvdata(dev);
+#else
 	struct quickcam *qc = (struct quickcam *)dev->priv;
+#endif
 	if (qcdebug&QC_DEBUGLOGIC || qcdebug&QC_DEBUGUSER) PDEBUG("qc_v4l_close(dev=%p,qc=%p)",dev,qc);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)
 	TEST_BUGR_MSG(qc==NULL, "qc==NULL");
@@ -2415,7 +2427,11 @@ static ssize_t qc_v4l_read(struct file *file, char __user *buf, size_t count, lo
 	struct video_device *dev = video_devdata(file);
 	int noblock = file->f_flags & O_NONBLOCK;
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,28)
+	struct quickcam *qc = (struct quickcam *)video_get_drvdata(dev);
+#else
 	struct quickcam *qc = (struct quickcam *)dev->priv;
+#endif
 	int frame_len;
 	unsigned char *frame;
 	long r = 0;
@@ -2470,7 +2486,11 @@ static int qc_v4l_mmap(
 	const void *start = (void *)vma->vm_start;
 	unsigned long size  = vma->vm_end - vma->vm_start;
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,28)
+	struct quickcam *qc = (struct quickcam *)video_get_drvdata(dev);
+#else
 	struct quickcam *qc = (struct quickcam *)dev->priv;
+#endif
 	unsigned char *frame;
 	int ret = 0,  frame_size;
 #if !HAVE_VMA && LINUX_VERSION_CODE<KERNEL_VERSION(2,6,0)
@@ -2502,7 +2522,11 @@ static int qc_v4l_ioctl(struct video_device *dev, unsigned int cmd, void *argp)
 	struct video_device *dev = video_devdata(file);
 	void *argp = (void *)arg;
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,28)
+	struct quickcam *qc = (struct quickcam *)video_get_drvdata(dev);
+#else
 	struct quickcam *qc = (struct quickcam *)dev->priv;
+#endif
 	int i, retval = 0;
 
 	if (qcdebug&QC_DEBUGLOGIC || qcdebug&QC_DEBUGUSER) PDEBUG("qc_v4l_ioctl(dev=%p,cmd=%u,arg=%p,qc=%p)",dev,cmd,argp,qc);
@@ -3152,7 +3176,11 @@ PDEBUG("poisoning qc in qc_usb_init");
 
 		/* Register V4L video device */
 		memcpy(&qc->vdev, &qc_v4l_template, sizeof(qc_v4l_template));
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,28)
+		video_set_drvdata(&(qc->vdev), qc);
+#else
 		qc->vdev.priv = qc;
+#endif
 		r = video_register_device(&qc->vdev, VFL_TYPE_GRABBER, video_nr);
 		if (r<0) goto fail3;
 		PRINTK(KERN_INFO, "Registered device: /dev/video%i", qc->vdev.minor);
