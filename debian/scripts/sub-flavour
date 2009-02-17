@@ -11,7 +11,7 @@ from_moddir="debian/$from_pkg/lib/modules/$ABI_RELEASE-$FROM"
 to_moddir="debian/$to_pkg/lib/modules/$ABI_RELEASE-$FROM"
 
 install -d "debian/$to_pkg/boot"
-install -m644 debian/$from_pkg/boot/{vmlinuz,System.map}-$ABI_RELEASE-$FROM \
+install -m644 debian/$from_pkg/boot/{vmlinuz,System.map,config}-$ABI_RELEASE-$FROM \
 	debian/$to_pkg/boot/
 
 cat debian/sub-flavours/$TO.list | while read line; do
