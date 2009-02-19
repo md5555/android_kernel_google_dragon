@@ -42,7 +42,6 @@ acecad
 acenic
 acerhk
 acer-wmi
-acpi-cpufreq
 acpiphp
 acpiphp_ibm
 acquirewdt
@@ -316,7 +315,6 @@ cpia_usb
 cpqarray
 cpqphp
 cpu5wdt
-cpufreq-nforce2
 cpuid
 c-qcam
 cr_bllcd
@@ -370,7 +368,6 @@ DAC960
 davicom
 db9
 dc395x
-dca
 dccp
 dccp_ccid2
 dccp_ccid3
@@ -540,7 +537,6 @@ epat
 epca
 epia
 epic100
-e_powersaver
 eql
 es3210
 esb2rom
@@ -656,7 +652,6 @@ guillemot
 gunze
 gx1fb
 gxfb
-gx-suspmod
 g_zero
 hamachi
 hangcheck-timer
@@ -841,7 +836,6 @@ intel_menlow
 intel-rng
 intel_vr_nor
 interact
-ioatdma
 ioc4
 io_edgeport
 io_ti
@@ -1067,8 +1061,6 @@ lne390
 lockd
 lock_dlm
 logibm
-longhaul
-longrun
 lp
 lp486e
 lpfc
@@ -1347,7 +1339,6 @@ ov511_decomp
 ov518_decomp
 ov7670
 ovcamchip
-p4-clockmod
 p54common
 p54pci
 p54usb
@@ -1432,9 +1423,6 @@ pmc551
 pms
 pn_pep
 powermate
-powernow-k6
-powernow-k7
-powernow-k8
 ppa
 ppdev
 ppp_async
@@ -1901,10 +1889,6 @@ spaceorb
 spcp8x5
 specialix
 spectrum_cs
-speedstep-centrino
-speedstep-ich
-speedstep-lib
-speedstep-smi
 speedtch
 spi_bitbang
 spi_butterfly
@@ -2219,6 +2203,10 @@ x25_asy
 x38_edac
 xc5000
 xcbc
+xen-blkfront
+xen-fbfront
+xen-kbdfront
+xen-netfront
 xfrm4_mode_beet
 xfrm4_mode_transport
 xfrm4_mode_tunnel

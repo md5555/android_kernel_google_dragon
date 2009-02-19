@@ -5763,9 +5763,6 @@ EXPORT_SYMBOL vmlinux 0xffb3703a	k8_northbridges
 EXPORT_SYMBOL vmlinux 0xffd5a395	default_wake_function
 EXPORT_SYMBOL vmlinux 0xffdb82bc	sg_free_table
 EXPORT_SYMBOL vmlinux 0xffdc20d6	proc_dointvec_userhz_jiffies
-EXPORT_SYMBOL_GPL arch/x86/kernel/cpu/cpufreq/speedstep-lib 0x16836e04	speedstep_detect_processor
-EXPORT_SYMBOL_GPL arch/x86/kernel/cpu/cpufreq/speedstep-lib 0x4cdb4bd0	speedstep_get_processor_frequency
-EXPORT_SYMBOL_GPL arch/x86/kernel/cpu/cpufreq/speedstep-lib 0xd494ee54	speedstep_get_freqs
 EXPORT_SYMBOL_GPL arch/x86/kernel/microcode 0xdf66ca81	ucode_cpu_info
 EXPORT_SYMBOL_GPL arch/x86/kvm/kvm 0x00aaf935	kvm_disable_tdp
 EXPORT_SYMBOL_GPL arch/x86/kvm/kvm 0x0411c84d	kvm_set_memory_region
@@ -7327,6 +7324,7 @@ EXPORT_SYMBOL_GPL vmlinux 0x1598dc9d	unregister_netevent_notifier
 EXPORT_SYMBOL_GPL vmlinux 0x15b0606e	e820_any_mapped
 EXPORT_SYMBOL_GPL vmlinux 0x15c592b2	hid_set_field
 EXPORT_SYMBOL_GPL vmlinux 0x15cb37fa	bus_remove_file
+EXPORT_SYMBOL_GPL vmlinux 0x16836e04	speedstep_detect_processor
 EXPORT_SYMBOL_GPL vmlinux 0x1695e237	pci_bus_add_device
 EXPORT_SYMBOL_GPL vmlinux 0x16f76869	probe_kernel_read
 EXPORT_SYMBOL_GPL vmlinux 0x16f8af5c	crypto_aead_type
@@ -7620,6 +7618,7 @@ EXPORT_SYMBOL_GPL vmlinux 0x4c32215e	power_supply_unregister
 EXPORT_SYMBOL_GPL vmlinux 0x4c759827	byte_rev_table
 EXPORT_SYMBOL_GPL vmlinux 0x4caba063	__blkdev_driver_ioctl
 EXPORT_SYMBOL_GPL vmlinux 0x4ccfed1f	transport_destroy_device
+EXPORT_SYMBOL_GPL vmlinux 0x4cdb4bd0	speedstep_get_processor_frequency
 EXPORT_SYMBOL_GPL vmlinux 0x4cf06b68	sysdev_create_file
 EXPORT_SYMBOL_GPL vmlinux 0x4d2d9e1b	sysfs_create_group
 EXPORT_SYMBOL_GPL vmlinux 0x4d4201dc	inet_hash
@@ -8416,6 +8415,7 @@ EXPORT_SYMBOL_GPL vmlinux 0xd3a60ace	d_obtain_alias
 EXPORT_SYMBOL_GPL vmlinux 0xd3dd0acd	inet_unhash
 EXPORT_SYMBOL_GPL vmlinux 0xd405ce07	usb_sg_init
 EXPORT_SYMBOL_GPL vmlinux 0xd4605677	devres_add
+EXPORT_SYMBOL_GPL vmlinux 0xd494ee54	speedstep_get_freqs
 EXPORT_SYMBOL_GPL vmlinux 0xd4ab14c3	sdio_memcpy_fromio
 EXPORT_SYMBOL_GPL vmlinux 0xd4d633ba	usb_buffer_unmap_sg
 EXPORT_SYMBOL_GPL vmlinux 0xd4d9710e	ata_scsi_simulate
