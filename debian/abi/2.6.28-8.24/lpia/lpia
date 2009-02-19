@@ -5284,9 +5284,6 @@ EXPORT_SYMBOL vmlinux 0xffc453b3	pnp_register_card_driver
 EXPORT_SYMBOL vmlinux 0xffd5a395	default_wake_function
 EXPORT_SYMBOL vmlinux 0xffdb82bc	sg_free_table
 EXPORT_SYMBOL vmlinux 0xfff63cae	tty_hangup
-EXPORT_SYMBOL_GPL arch/x86/kernel/cpu/cpufreq/speedstep-lib 0x16836e04	speedstep_detect_processor
-EXPORT_SYMBOL_GPL arch/x86/kernel/cpu/cpufreq/speedstep-lib 0x4cdb4bd0	speedstep_get_processor_frequency
-EXPORT_SYMBOL_GPL arch/x86/kernel/cpu/cpufreq/speedstep-lib 0xd494ee54	speedstep_get_freqs
 EXPORT_SYMBOL_GPL arch/x86/kernel/microcode 0xdf66ca81	ucode_cpu_info
 EXPORT_SYMBOL_GPL arch/x86/kvm/kvm 0x00aaf935	kvm_disable_tdp
 EXPORT_SYMBOL_GPL arch/x86/kvm/kvm 0x068a151b	kvm_set_memory_region
@@ -6981,6 +6978,7 @@ EXPORT_SYMBOL_GPL vmlinux 0x15c11515	platform_device_register
 EXPORT_SYMBOL_GPL vmlinux 0x16018da1	raw_hash_sk
 EXPORT_SYMBOL_GPL vmlinux 0x1672321e	free_vm_area
 EXPORT_SYMBOL_GPL vmlinux 0x1680ff4f	inotify_remove_watch_locked
+EXPORT_SYMBOL_GPL vmlinux 0x16836e04	speedstep_detect_processor
 EXPORT_SYMBOL_GPL vmlinux 0x16a62964	vring_new_virtqueue
 EXPORT_SYMBOL_GPL vmlinux 0x16d21dd9	anon_transport_class_register
 EXPORT_SYMBOL_GPL vmlinux 0x16f76869	probe_kernel_read
@@ -7180,6 +7178,7 @@ EXPORT_SYMBOL_GPL vmlinux 0x4bcfb2d4	input_ff_destroy
 EXPORT_SYMBOL_GPL vmlinux 0x4bf3638b	cpufreq_cpu_put
 EXPORT_SYMBOL_GPL vmlinux 0x4c759827	byte_rev_table
 EXPORT_SYMBOL_GPL vmlinux 0x4cbfbe2c	security_inode_setattr
+EXPORT_SYMBOL_GPL vmlinux 0x4cdb4bd0	speedstep_get_processor_frequency
 EXPORT_SYMBOL_GPL vmlinux 0x4d4a4e2d	cpufreq_driver_target
 EXPORT_SYMBOL_GPL vmlinux 0x4d8f4f46	__create_workqueue_key
 EXPORT_SYMBOL_GPL vmlinux 0x4e0f45df	kobject_create_and_add
@@ -7713,6 +7712,7 @@ EXPORT_SYMBOL_GPL vmlinux 0xd38f9ad6	power_supply_am_i_supplied
 EXPORT_SYMBOL_GPL vmlinux 0xd3c4c812	device_add
 EXPORT_SYMBOL_GPL vmlinux 0xd42c12d2	get_cpu_sysdev
 EXPORT_SYMBOL_GPL vmlinux 0xd462cb92	file_ra_state_init
+EXPORT_SYMBOL_GPL vmlinux 0xd494ee54	speedstep_get_freqs
 EXPORT_SYMBOL_GPL vmlinux 0xd4e94209	seq_release_net
 EXPORT_SYMBOL_GPL vmlinux 0xd5b5c24c	cpuidle_register_device
 EXPORT_SYMBOL_GPL vmlinux 0xd64dae61	uart_set_options

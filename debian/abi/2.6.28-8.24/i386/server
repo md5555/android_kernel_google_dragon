@@ -5750,9 +5750,6 @@ EXPORT_SYMBOL vmlinux 0xff91b1af	blk_queue_max_segment_size
 EXPORT_SYMBOL vmlinux 0xff9ca065	fb_edid_to_monspecs
 EXPORT_SYMBOL vmlinux 0xffafdc5c	_read_unlock_irq
 EXPORT_SYMBOL vmlinux 0xffd5a395	default_wake_function
-EXPORT_SYMBOL_GPL arch/x86/kernel/cpu/cpufreq/speedstep-lib 0x16836e04	speedstep_detect_processor
-EXPORT_SYMBOL_GPL arch/x86/kernel/cpu/cpufreq/speedstep-lib 0x4cdb4bd0	speedstep_get_processor_frequency
-EXPORT_SYMBOL_GPL arch/x86/kernel/cpu/cpufreq/speedstep-lib 0xd494ee54	speedstep_get_freqs
 EXPORT_SYMBOL_GPL arch/x86/kernel/microcode 0xdf66ca81	ucode_cpu_info
 EXPORT_SYMBOL_GPL arch/x86/kvm/kvm 0x00aaf935	kvm_disable_tdp
 EXPORT_SYMBOL_GPL arch/x86/kvm/kvm 0x094ac8f4	kvm_get_pfn
@@ -7331,6 +7328,7 @@ EXPORT_SYMBOL_GPL vmlinux 0x163a0a2c	relay_flush
 EXPORT_SYMBOL_GPL vmlinux 0x164a958c	blkcipher_walk_done
 EXPORT_SYMBOL_GPL vmlinux 0x16729cb1	do_sync_mapping_range
 EXPORT_SYMBOL_GPL vmlinux 0x168183ab	__ip_route_output_key
+EXPORT_SYMBOL_GPL vmlinux 0x16836e04	speedstep_detect_processor
 EXPORT_SYMBOL_GPL vmlinux 0x16ec8213	regulator_bulk_enable
 EXPORT_SYMBOL_GPL vmlinux 0x16f76869	probe_kernel_read
 EXPORT_SYMBOL_GPL vmlinux 0x172e72d4	vdso_enabled
@@ -7640,6 +7638,7 @@ EXPORT_SYMBOL_GPL vmlinux 0x4c89e850	hidraw_report_event
 EXPORT_SYMBOL_GPL vmlinux 0x4cbec0cb	sata_port_ops
 EXPORT_SYMBOL_GPL vmlinux 0x4cc35363	__cpufreq_driver_getavg
 EXPORT_SYMBOL_GPL vmlinux 0x4ccfed1f	transport_destroy_device
+EXPORT_SYMBOL_GPL vmlinux 0x4cdb4bd0	speedstep_get_processor_frequency
 EXPORT_SYMBOL_GPL vmlinux 0x4cf06b68	sysdev_create_file
 EXPORT_SYMBOL_GPL vmlinux 0x4d2d9e1b	sysfs_create_group
 EXPORT_SYMBOL_GPL vmlinux 0x4d5c7f4a	__cpufreq_driver_target
@@ -8435,6 +8434,7 @@ EXPORT_SYMBOL_GPL vmlinux 0xd379fd34	crypto_hash_walk_first
 EXPORT_SYMBOL_GPL vmlinux 0xd3b78da3	xenbus_suspend_cancel
 EXPORT_SYMBOL_GPL vmlinux 0xd4605677	devres_add
 EXPORT_SYMBOL_GPL vmlinux 0xd481d1ef	blk_rq_bytes
+EXPORT_SYMBOL_GPL vmlinux 0xd494ee54	speedstep_get_freqs
 EXPORT_SYMBOL_GPL vmlinux 0xd4d2ea05	usb_buffer_alloc
 EXPORT_SYMBOL_GPL vmlinux 0xd51b7570	sata_scr_write
 EXPORT_SYMBOL_GPL vmlinux 0xd62122c0	dev_attr_em_message_type

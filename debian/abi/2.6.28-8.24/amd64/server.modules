@@ -23,7 +23,6 @@ ac97_bus
 acecad
 acenic
 acer-wmi
-acpi-cpufreq
 acpiphp
 acpiphp_ibm
 acquirewdt
@@ -1239,7 +1238,6 @@ ov511_decomp
 ov518_decomp
 ov7670
 ovcamchip
-p4-clockmod
 p54common
 p54pci
 p54usb
@@ -1313,7 +1311,6 @@ pm3fb
 pmc551
 pn_pep
 powermate
-powernow-k8
 ppa
 ppdev
 ppp_async
@@ -1702,8 +1699,6 @@ spaceorb
 spcp8x5
 specialix
 spectrum_cs
-speedstep-centrino
-speedstep-lib
 speedtch
 spi_bitbang
 spi_butterfly

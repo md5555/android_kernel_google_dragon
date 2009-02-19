@@ -283,7 +283,6 @@ cpqarray
 cpqphp
 cpu5wdt
 cpufreq_conservative
-cpufreq-nforce2
 cpufreq_powersave
 cpufreq_stats
 cpufreq_userspace
@@ -583,7 +582,6 @@ guillemot
 gunze
 gx1fb
 gxfb
-gx-suspmod
 g_zero
 hamachi
 hangcheck-timer
@@ -949,7 +947,6 @@ lockd
 lock_dlm
 logibm
 longhaul
-longrun
 loop
 lp
 lp486e
@@ -1209,7 +1206,6 @@ ov511_decomp
 ov518_decomp
 ov7670
 ovcamchip
-p4-clockmod
 p54common
 p54pci
 p54usb
@@ -1317,9 +1313,6 @@ pm3fb
 pmc551
 pms
 powermate
-powernow-k6
-powernow-k7
-powernow-k8
 ppa
 ppdev
 ppp_async
@@ -1712,10 +1705,6 @@ spaceorb
 spcp8x5
 specialix
 spectrum_cs
-speedstep-centrino
-speedstep-ich
-speedstep-lib
-speedstep-smi
 spi_bitbang
 spi_butterfly
 spidev
