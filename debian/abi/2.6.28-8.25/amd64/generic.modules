@@ -1238,6 +1238,7 @@ ov511_decomp
 ov518_decomp
 ov7670
 ovcamchip
+p4-clockmod
 p54common
 p54pci
 p54usb
@@ -1699,6 +1700,7 @@ spaceorb
 spcp8x5
 specialix
 spectrum_cs
+speedstep-lib
 speedtch
 spi_bitbang
 spi_butterfly

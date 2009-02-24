@@ -5619,6 +5619,9 @@ EXPORT_SYMBOL vmlinux 0xffafdc5c	_read_unlock_irq
 EXPORT_SYMBOL vmlinux 0xffd0db64	block_truncate_page
 EXPORT_SYMBOL vmlinux 0xffd5a395	default_wake_function
 EXPORT_SYMBOL vmlinux 0xffe1f840	bio_kmalloc
+EXPORT_SYMBOL_GPL arch/x86/kernel/cpu/cpufreq/speedstep-lib 0x16836e04	speedstep_detect_processor
+EXPORT_SYMBOL_GPL arch/x86/kernel/cpu/cpufreq/speedstep-lib 0x4cdb4bd0	speedstep_get_processor_frequency
+EXPORT_SYMBOL_GPL arch/x86/kernel/cpu/cpufreq/speedstep-lib 0xd494ee54	speedstep_get_freqs
 EXPORT_SYMBOL_GPL arch/x86/kernel/microcode 0xdf66ca81	ucode_cpu_info
 EXPORT_SYMBOL_GPL arch/x86/kvm/kvm 0x00622d64	__kvm_set_memory_region
 EXPORT_SYMBOL_GPL arch/x86/kvm/kvm 0x00aaf935	kvm_disable_tdp
@@ -7210,7 +7213,6 @@ EXPORT_SYMBOL_GPL vmlinux 0x15b0606e	e820_any_mapped
 EXPORT_SYMBOL_GPL vmlinux 0x15bcf9b5	pci_intx
 EXPORT_SYMBOL_GPL vmlinux 0x15e5f816	spi_add_device
 EXPORT_SYMBOL_GPL vmlinux 0x1636b5ab	queue_delayed_work_on
-EXPORT_SYMBOL_GPL vmlinux 0x16836e04	speedstep_detect_processor
 EXPORT_SYMBOL_GPL vmlinux 0x16a5b4c8	key_type_user
 EXPORT_SYMBOL_GPL vmlinux 0x171cb398	xfrm_audit_policy_delete
 EXPORT_SYMBOL_GPL vmlinux 0x177213ec	dm_rh_flush
@@ -7549,7 +7551,6 @@ EXPORT_SYMBOL_GPL vmlinux 0x4c19a75c	ezusb_set_reset
 EXPORT_SYMBOL_GPL vmlinux 0x4c23c970	ata_do_eh
 EXPORT_SYMBOL_GPL vmlinux 0x4c759827	byte_rev_table
 EXPORT_SYMBOL_GPL vmlinux 0x4ca935aa	dm_rh_delay
-EXPORT_SYMBOL_GPL vmlinux 0x4cdb4bd0	speedstep_get_processor_frequency
 EXPORT_SYMBOL_GPL vmlinux 0x4d22b45b	ata_port_start
 EXPORT_SYMBOL_GPL vmlinux 0x4d2ddfc6	blk_abort_queue
 EXPORT_SYMBOL_GPL vmlinux 0x4d44c06d	platform_get_irq
@@ -8365,7 +8366,6 @@ EXPORT_SYMBOL_GPL vmlinux 0xd42d2bbd	sysfs_create_file
 EXPORT_SYMBOL_GPL vmlinux 0xd42dd118	disk_get_part
 EXPORT_SYMBOL_GPL vmlinux 0xd4873efc	pid_vnr
 EXPORT_SYMBOL_GPL vmlinux 0xd48d0359	sysfs_remove_bin_file
-EXPORT_SYMBOL_GPL vmlinux 0xd494ee54	speedstep_get_freqs
 EXPORT_SYMBOL_GPL vmlinux 0xd4b3f765	input_ff_event
 EXPORT_SYMBOL_GPL vmlinux 0xd5348904	sdio_f0_writeb
 EXPORT_SYMBOL_GPL vmlinux 0xd591e8d7	zap_vma_ptes

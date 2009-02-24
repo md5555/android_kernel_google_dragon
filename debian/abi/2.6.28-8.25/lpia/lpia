@@ -17,11 +17,6 @@ EXPORT_SYMBOL crypto/gf128mul 0xbd17a0df	gf128mul_4k_lle
 EXPORT_SYMBOL crypto/gf128mul 0xc0890413	gf128mul_64k_lle
 EXPORT_SYMBOL crypto/gf128mul 0xd60736ec	gf128mul_free_64k
 EXPORT_SYMBOL crypto/xor 0x5b6c00e6	xor_blocks
-EXPORT_SYMBOL drivers/acpi/processor 0x1f4ac055	acpi_processor_preregister_performance
-EXPORT_SYMBOL drivers/acpi/processor 0x49bc7c83	acpi_processor_notify_smm
-EXPORT_SYMBOL drivers/acpi/processor 0x5984e4fd	acpi_processor_register_performance
-EXPORT_SYMBOL drivers/acpi/processor 0x7bc5ca03	acpi_processor_unregister_performance
-EXPORT_SYMBOL drivers/acpi/processor 0xe8a3605f	acpi_processor_set_thermal_limit
 EXPORT_SYMBOL drivers/block/loop 0x7f5b440a	loop_register_transfer
 EXPORT_SYMBOL drivers/block/loop 0xbfee3ad5	loop_unregister_transfer
 EXPORT_SYMBOL drivers/block/paride/paride 0x04230caa	pi_do_claimed
@@ -2950,6 +2945,7 @@ EXPORT_SYMBOL vmlinux 0x1f27d6d7	_write_unlock
 EXPORT_SYMBOL vmlinux 0x1f2ef7fa	nobh_truncate_page
 EXPORT_SYMBOL vmlinux 0x1f3d9707	inode_change_ok
 EXPORT_SYMBOL vmlinux 0x1f40904c	dget_locked
+EXPORT_SYMBOL vmlinux 0x1f4ac055	acpi_processor_preregister_performance
 EXPORT_SYMBOL vmlinux 0x1f63705c	netif_rx_ni
 EXPORT_SYMBOL vmlinux 0x1f65b05e	tcp_tso_segment
 EXPORT_SYMBOL vmlinux 0x1f8ef92b	ipv4_specific
@@ -3394,6 +3390,7 @@ EXPORT_SYMBOL vmlinux 0x4939c674	filemap_fdatawrite
 EXPORT_SYMBOL vmlinux 0x493e25e1	udp_hash
 EXPORT_SYMBOL vmlinux 0x49603fb8	security_sb_copy_data
 EXPORT_SYMBOL vmlinux 0x49775efe	find_or_create_page
+EXPORT_SYMBOL vmlinux 0x49bc7c83	acpi_processor_notify_smm
 EXPORT_SYMBOL vmlinux 0x49c8b09a	seq_lseek
 EXPORT_SYMBOL vmlinux 0x49ce9c5c	tty_flip_buffer_push
 EXPORT_SYMBOL vmlinux 0x49da9a9a	_read_unlock_bh
@@ -3555,6 +3552,7 @@ EXPORT_SYMBOL vmlinux 0x594bf15b	ioport_map
 EXPORT_SYMBOL vmlinux 0x59521983	bdev_read_only
 EXPORT_SYMBOL vmlinux 0x59706f79	nf_log_unregister_pf
 EXPORT_SYMBOL vmlinux 0x59779a56	neigh_connected_output
+EXPORT_SYMBOL vmlinux 0x5984e4fd	acpi_processor_register_performance
 EXPORT_SYMBOL vmlinux 0x59b62467	__lock_buffer
 EXPORT_SYMBOL vmlinux 0x59b782b8	pci_remove_bus
 EXPORT_SYMBOL vmlinux 0x59d4e56e	pci_fixup_device
@@ -3912,6 +3910,7 @@ EXPORT_SYMBOL vmlinux 0x7b52a859	wrmsr_safe_on_cpu
 EXPORT_SYMBOL vmlinux 0x7b69467e	posix_acl_from_xattr
 EXPORT_SYMBOL vmlinux 0x7b6efd52	dma_mark_declared_memory_occupied
 EXPORT_SYMBOL vmlinux 0x7bb1f812	read_cache_pages
+EXPORT_SYMBOL vmlinux 0x7bc5ca03	acpi_processor_unregister_performance
 EXPORT_SYMBOL vmlinux 0x7bc7a049	d_find_alias
 EXPORT_SYMBOL vmlinux 0x7bcf8f6e	ip_dev_find
 EXPORT_SYMBOL vmlinux 0x7c0edd7d	acpi_check_region
@@ -5025,6 +5024,7 @@ EXPORT_SYMBOL vmlinux 0xe7dcc29b	set_page_dirty_lock
 EXPORT_SYMBOL vmlinux 0xe7ddab7f	pci_find_parent_resource
 EXPORT_SYMBOL vmlinux 0xe7e8031c	skb_dequeue_tail
 EXPORT_SYMBOL vmlinux 0xe80ce219	sysctl_tcp_dma_copybreak
+EXPORT_SYMBOL vmlinux 0xe8a3605f	acpi_processor_set_thermal_limit
 EXPORT_SYMBOL vmlinux 0xe8ae6476	tcp_v4_remember_stamp
 EXPORT_SYMBOL vmlinux 0xe8cd902e	hweight16
 EXPORT_SYMBOL vmlinux 0xe8cfd327	skb_dma_map
