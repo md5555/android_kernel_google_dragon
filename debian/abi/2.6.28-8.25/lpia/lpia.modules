@@ -37,7 +37,6 @@ ac97_bus
 acecad
 acenic
 acerhk
-acpi-cpufreq
 acpiphp
 acpiphp_ibm
 acquirewdt
@@ -269,7 +268,6 @@ compal-laptop
 compat_ioctl32
 compcache
 configfs
-container
 coretemp
 corgi_bl
 cp2101
@@ -946,7 +944,6 @@ lne390
 lockd
 lock_dlm
 logibm
-longhaul
 loop
 lp
 lp486e
@@ -1206,6 +1203,7 @@ ov511_decomp
 ov518_decomp
 ov7670
 ovcamchip
+p4-clockmod
 p54common
 p54pci
 p54usb
@@ -1325,7 +1323,6 @@ pppox
 ppp_synctty
 prism2_usb
 prism54
-processor
 progear_bl
 proteon
 psmouse
