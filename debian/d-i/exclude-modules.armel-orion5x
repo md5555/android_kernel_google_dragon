@@ -1,3 +1,5 @@
+crypto-modules
 fat-modules
 nic-pcmcia-modules
 nic-usb-modules
+nfs-modules
