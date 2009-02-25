@@ -1,6 +1,5 @@
 acpi-modules
 block-modules
-crypto-modules
 ext2-modules
 ext3-modules
 fb-modules
@@ -11,7 +10,6 @@ irda-modules
 md-modules
 message-modules
 mouse-modules
-nfs-modules
 nic-pcmcia-modules
 nic-shared-modules
 parport-modules
