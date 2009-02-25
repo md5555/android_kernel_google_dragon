@@ -19,7 +19,7 @@ while read file; do
 	dir=$file
 	lastdir=$file
 
-	if [ -f "$hdrdir/$file" ]; then
+	if [ -e "$hdrdir/$file" -o -L "$hdrdir/$file" ]; then
 		continue
 	fi
 
