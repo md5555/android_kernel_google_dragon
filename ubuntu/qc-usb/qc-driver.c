@@ -132,7 +132,7 @@ module_param(retryerrors, int, 0444);
 
 /* Bug in Xvideo(?): if the width is not divisible by 8 and Xvideo is used, the frame is shown wrongly */
 MODULE_PARM_DESC(compatible, "Enable workaround for bugs in application programs (bitfield)");
-static int compatible = 0;	/* Disabled by default */
+static int compatible = 2;	/* Enable double-buffering by default */
 module_param(compatible, int, 0444);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,5)
