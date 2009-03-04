@@ -155,9 +155,14 @@ endif
 	 run-parts -v debian/tests
 
 	#
-	# Remove files which are generated at installation by postinst.
+	# Remove files which are generated at installation by postinst, except for
+	# modules.order.
 	#
+	mv $(pkgdir)/lib/modules/$(abi_release)-$*/modules.order \
+		$(pkgdir)/lib/modules/$(abi_release)-$*/_modules.order
 	rm -f $(pkgdir)/lib/modules/$(abi_release)-$*/modules.*
+	mv $(pkgdir)/lib/modules/$(abi_release)-$*/_modules.order \
+		$(pkgdir)/lib/modules/$(abi_release)-$*/modules.order
 
 headers_tmp := $(CURDIR)/debian/tmp-headers
 headers_dir := $(CURDIR)/debian/linux-libc-dev
