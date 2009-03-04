@@ -83,7 +83,7 @@ ifeq ($(CONCURRENCY_LEVEL),)
   # No? Check if this is on a buildd
   ifeq ($(CONCURRENCY_LEVEL),)
     ifeq ($(wildcard /CurrentlyBuilding),)
-      CONCURRENCY_LEVEL := $(shell expr `getconf _NPROCESSORS_ONLN` \* 2)
+      CONCURRENCY_LEVEL := $(shell expr `getconf _NPROCESSORS_ONLN` \* 1)
     endif
   endif
   # Oh hell, give 'em one
