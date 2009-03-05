@@ -1707,6 +1707,7 @@ EXPORT_SYMBOL net/bridge/netfilter/ebtables 0x4c0f4eda	ebt_do_table
 EXPORT_SYMBOL net/bridge/netfilter/ebtables 0xac59f34b	ebt_register_table
 EXPORT_SYMBOL net/ieee80211/ieee80211 0x009e6d77	ieee80211_wx_get_encode
 EXPORT_SYMBOL net/ieee80211/ieee80211 0x1677e6e2	ieee80211_channel_to_index
+EXPORT_SYMBOL net/ieee80211/ieee80211 0x1d140dd2	ieee80211_networks_age
 EXPORT_SYMBOL net/ieee80211/ieee80211 0x1fd76be6	ieee80211_get_channel_flags
 EXPORT_SYMBOL net/ieee80211/ieee80211 0x29bff402	ieee80211_get_channel
 EXPORT_SYMBOL net/ieee80211/ieee80211 0x3f90b72a	free_ieee80211
