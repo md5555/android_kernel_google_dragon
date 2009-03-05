@@ -5,6 +5,7 @@ ext3-modules
 fb-modules
 firewire-core-modules
 floppy-modules
+fs-secondary-modules
 input-modules
 irda-modules
 md-modules
