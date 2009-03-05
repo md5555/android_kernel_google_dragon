@@ -1714,6 +1714,7 @@ EXPORT_SYMBOL net/ieee80211/ieee80211 0x402fd50c	ieee80211_get_channel_flags
 EXPORT_SYMBOL net/ieee80211/ieee80211 0x53aa073d	ieee80211_freq_to_channel
 EXPORT_SYMBOL net/ieee80211/ieee80211 0x62af0337	ieee80211_wx_set_encode
 EXPORT_SYMBOL net/ieee80211/ieee80211 0x667ecefb	ieee80211_txb_free
+EXPORT_SYMBOL net/ieee80211/ieee80211 0x67af56ee	ieee80211_networks_age
 EXPORT_SYMBOL net/ieee80211/ieee80211 0x7e3decf7	ieee80211_rx
 EXPORT_SYMBOL net/ieee80211/ieee80211 0x807014a9	ieee80211_set_geo
 EXPORT_SYMBOL net/ieee80211/ieee80211 0x9f10dc2d	ieee80211_get_geo

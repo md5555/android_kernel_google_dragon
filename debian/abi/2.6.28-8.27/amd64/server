@@ -1646,6 +1646,7 @@ EXPORT_SYMBOL net/ieee80211/ieee80211 0x7fafe21e	alloc_ieee80211
 EXPORT_SYMBOL net/ieee80211/ieee80211 0x838650ca	ieee80211_rx_mgt
 EXPORT_SYMBOL net/ieee80211/ieee80211 0x93895028	ieee80211_wx_get_encodeext
 EXPORT_SYMBOL net/ieee80211/ieee80211 0xa2019bec	ieee80211_set_geo
+EXPORT_SYMBOL net/ieee80211/ieee80211 0xa3e3c2e8	ieee80211_networks_age
 EXPORT_SYMBOL net/ieee80211/ieee80211 0xa9fb135f	escape_essid
 EXPORT_SYMBOL net/ieee80211/ieee80211 0xad4b31f8	ieee80211_rx
 EXPORT_SYMBOL net/ieee80211/ieee80211 0xb5aa9934	free_ieee80211
