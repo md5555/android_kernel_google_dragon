@@ -305,7 +305,7 @@ Description: Linux kernel image for version 2.6.28 on MV78XX0-based systems
  .
  Supports MV78XX0 processors.
  .
- 
+ Marvell ARM
  .
  You likely do not want to install this package directly. Instead, install
  the linux-mv78xx0 meta-package, which will ensure that upgrades work
