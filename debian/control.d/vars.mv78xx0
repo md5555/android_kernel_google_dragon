@@ -1,7 +1,7 @@
 arch="armel"
 supported="MV78XX0"
 desc="MV78XX0-based systems"
-target=""
+target="Marvell ARM"
 bootloader=""
 provides=""
 section_image="universe/base"
