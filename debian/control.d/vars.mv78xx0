@@ -1,0 +1,8 @@
+arch="armel"
+supported="MV78XX0"
+desc="MV78XX0-based systems"
+target=""
+bootloader=""
+provides=""
+section_image="universe/base"
+do_debug="Yes"
