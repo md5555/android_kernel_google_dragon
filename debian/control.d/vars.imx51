@@ -1,0 +1,8 @@
+arch="armel"
+supported="I.MX51"
+desc="I.MX51-based systems"
+target="Babbage and 3-stack boards"
+bootloader=""
+provides=""
+section_image="universe/base"
+do_debug="Yes"
