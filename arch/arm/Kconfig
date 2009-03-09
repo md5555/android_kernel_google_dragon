@@ -1323,6 +1323,8 @@ endmenu
 
 source "net/Kconfig"
 
+source "ubuntu/Kconfig"
+
 menu "Device Drivers"
 
 source "drivers/base/Kconfig"
