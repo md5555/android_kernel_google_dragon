@@ -51,6 +51,7 @@ config LIRC_PVR150
 	tristate "LIRC Hauppauge PVR-XXX remote"
 	default m
 	depends on LIRC_DEV
+	depends on VIDEO_IVTV
 
 config LIRC_PARALLEL
 	tristate "LIRC Parallel port custom remote"
