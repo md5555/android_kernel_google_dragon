@@ -18,12 +18,14 @@ cat debian/sub-flavours/$TO.list | while read line; do
 	(cd debian/$from_pkg/lib/modules/$ABI_RELEASE-$FROM/kernel;
 	eval find $line -name '*.ko');
 done | while read mod; do
-	echo "SUB_INST $mod"
-	grep "^/lib/modules/$ABI_RELEASE-$FROM/kernel/$mod:" \
-		$from_moddir/modules.dep | sed -e 's/://' -e 's/ /\n/g' | \
+	echo "SUB_INST checking: $mod"
+	fromdir="/lib/modules/$ABI_RELEASE-$FROM/"
+	egrep "^($fromdir)?kernel/$mod:" \
+		$from_moddir/modules.dep | sed -e "s|^$fromdir||" -e 's/://' -e 's/ /\n/g' | \
 	while read m; do
+		m="${fromdir}$m"
 		test -f debian/$to_pkg/$m && continue
-		echo "SUB_INST $mod"
+		echo "SUB_INST installing: $mod"
 		install -D -m644 debian/$from_pkg/$m \
 			debian/$to_pkg/$m
 	done
