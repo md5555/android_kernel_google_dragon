@@ -4990,6 +4990,7 @@ EXPORT_SYMBOL vmlinux 0xbbc8e804	param_set_ushort
 EXPORT_SYMBOL vmlinux 0xbbe19006	dma_async_client_chan_request
 EXPORT_SYMBOL vmlinux 0xbbf4e584	unlock_page
 EXPORT_SYMBOL vmlinux 0xbbf7af0e	llc_sap_close
+EXPORT_SYMBOL vmlinux 0xbbfcde03	jbd2_journal_begin_ordered_truncate
 EXPORT_SYMBOL vmlinux 0xbc1f3be2	acpi_lock_ac_dir
 EXPORT_SYMBOL vmlinux 0xbc2f74dd	sock_register
 EXPORT_SYMBOL vmlinux 0xbc4b78d6	proto_register
@@ -5409,7 +5410,6 @@ EXPORT_SYMBOL vmlinux 0xe1c38104	rtnetlink_put_metrics
 EXPORT_SYMBOL vmlinux 0xe1e72ddb	security_task_getsecid
 EXPORT_SYMBOL vmlinux 0xe21c8607	block_is_partially_uptodate
 EXPORT_SYMBOL vmlinux 0xe24d3a97	jiffies_64
-EXPORT_SYMBOL vmlinux 0xe263631a	jbd2_journal_begin_ordered_truncate
 EXPORT_SYMBOL vmlinux 0xe28b6f35	mdiobus_free
 EXPORT_SYMBOL vmlinux 0xe29653ca	neigh_parms_alloc
 EXPORT_SYMBOL vmlinux 0xe29c8520	sk_filter

@@ -2,9 +2,11 @@
 8250_pci
 ac97_bus
 aead
+aufs
 cbc
 cdrom
 chainiv
+compcache
 crypto_algapi
 crypto_blkcipher
 crypto_hash
@@ -22,6 +24,8 @@ eseqiv
 fat
 i2c-dev
 krng
+lzo_compress
+lzo_decompress
 mmci
 nls_base
 nls_cp850
@@ -37,5 +41,7 @@ snd-page-alloc
 snd-pcm
 snd-pcm-oss
 snd-timer
+squashfs
 sr_mod
+tlsf
 vfat

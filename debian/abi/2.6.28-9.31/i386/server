@@ -3414,7 +3414,6 @@ EXPORT_SYMBOL vmlinux 0x3fec048f	sg_next
 EXPORT_SYMBOL vmlinux 0x3ff62317	local_bh_disable
 EXPORT_SYMBOL vmlinux 0x3ff6845b	skb_copy_bits
 EXPORT_SYMBOL vmlinux 0x40448fc2	dev_unicast_delete
-EXPORT_SYMBOL vmlinux 0x4053c7b1	jbd2_journal_begin_ordered_truncate
 EXPORT_SYMBOL vmlinux 0x4059792f	print_hex_dump
 EXPORT_SYMBOL vmlinux 0x405c1144	get_seconds
 EXPORT_SYMBOL vmlinux 0x409873e3	tty_termios_baud_rate
@@ -4473,6 +4472,7 @@ EXPORT_SYMBOL vmlinux 0x954488a4	syncookie_secret
 EXPORT_SYMBOL vmlinux 0x9545af6d	tasklet_init
 EXPORT_SYMBOL vmlinux 0x954c8af3	dm_io_client_destroy
 EXPORT_SYMBOL vmlinux 0x954cbb26	vsprintf
+EXPORT_SYMBOL vmlinux 0x954d90d1	jbd2_journal_begin_ordered_truncate
 EXPORT_SYMBOL vmlinux 0x95eaba58	mca_unregister_driver
 EXPORT_SYMBOL vmlinux 0x95f638d5	posix_acl_chmod_masq
 EXPORT_SYMBOL vmlinux 0x9634498a	rfkill_allocate
