@@ -12,9 +12,12 @@ anubis
 arc4
 arptable_filter
 arp_tables
+arpt_mangle
 async_memcpy
 async_xor
+aufs
 blowfish
+brd
 cast5
 cast6
 cbc
@@ -28,8 +31,10 @@ cls_rsvp
 cls_rsvp6
 cls_tcindex
 cls_u32
+compcache
 configfs
 cramfs
+crc16
 crc32c
 crc-itu-t
 crc-t10dif
@@ -44,7 +49,6 @@ des_generic
 dm-mod
 ecb
 eseqiv
-ff-memless
 gf128mul
 hid-belkin
 hid-bright
@@ -67,7 +71,6 @@ hwa-hc
 hwa-rc
 i2c-algo-bit
 i2c-gpio
-icplus
 ide-cd_mod
 ide-pci-generic
 ide-tape
@@ -91,6 +94,8 @@ khazad
 krng
 libcrc32c
 lrw
+lzo_compress
+lzo_decompress
 md4
 md5
 md-mod
@@ -99,9 +104,10 @@ msdos
 nand
 nand_ecc
 nand_ids
-orion_nand
+nbd
 pcbc
 phonet
+plat_nand
 pn_pep
 raid0
 raid1
@@ -127,8 +133,10 @@ sha1_generic
 sha256_generic
 sha512_generic
 sit
+squashfs
 tea
 tgr192
+tlsf
 ts_bm
 ts_fsm
 ts_kmp

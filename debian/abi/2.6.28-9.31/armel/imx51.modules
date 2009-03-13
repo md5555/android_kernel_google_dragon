@@ -1,0 +1,17 @@
+autofs4
+crc-ccitt
+gadgetfs
+g_ether
+g_file_storage
+g_serial
+gspca_main
+hid-dummy
+mxc_w1
+nls_ascii
+nls_utf8
+scsi_wait_scan
+snd-spdif
+squashfs
+tlsf
+unionfs
+wire

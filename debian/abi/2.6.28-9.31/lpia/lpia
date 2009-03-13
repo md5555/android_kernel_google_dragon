@@ -1756,7 +1756,6 @@ EXPORT_SYMBOL fs/jbd2/jbd2 0x4c86deaa	jbd2_journal_init_inode
 EXPORT_SYMBOL fs/jbd2/jbd2 0x4d493439	jbd2_journal_file_inode
 EXPORT_SYMBOL fs/jbd2/jbd2 0x59133457	jbd2_journal_load
 EXPORT_SYMBOL fs/jbd2/jbd2 0x5cac0e2b	jbd2_log_wait_commit
-EXPORT_SYMBOL fs/jbd2/jbd2 0x5df102c4	jbd2_journal_begin_ordered_truncate
 EXPORT_SYMBOL fs/jbd2/jbd2 0x5ecfe627	jbd2_journal_check_used_features
 EXPORT_SYMBOL fs/jbd2/jbd2 0x69cb110a	jbd2_journal_blocks_per_page
 EXPORT_SYMBOL fs/jbd2/jbd2 0x6a1d9aaf	jbd2_journal_revoke
@@ -1764,6 +1763,7 @@ EXPORT_SYMBOL fs/jbd2/jbd2 0x6c781f24	jbd2_journal_get_write_access
 EXPORT_SYMBOL fs/jbd2/jbd2 0x6de98b4b	jbd2_journal_release_buffer
 EXPORT_SYMBOL fs/jbd2/jbd2 0x6e5f9e21	jbd2_journal_forget
 EXPORT_SYMBOL fs/jbd2/jbd2 0x81dce922	jbd2_journal_stop
+EXPORT_SYMBOL fs/jbd2/jbd2 0x81edd301	jbd2_journal_begin_ordered_truncate
 EXPORT_SYMBOL fs/jbd2/jbd2 0x85f7fbdd	jbd2_journal_lock_updates
 EXPORT_SYMBOL fs/jbd2/jbd2 0x9685602d	jbd2_journal_abort
 EXPORT_SYMBOL fs/jbd2/jbd2 0x9998ec71	jbd2_journal_invalidatepage

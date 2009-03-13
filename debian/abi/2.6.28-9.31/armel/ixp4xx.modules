@@ -85,6 +85,7 @@ cls_rsvp6
 cls_tcindex
 cls_u32
 cn
+compcache
 configfs
 cp2101
 cramfs
@@ -249,7 +250,6 @@ ip6table_filter
 ip6table_mangle
 ip6table_raw
 ip6_tables
-ip6table_security
 ip6t_ah
 ip6t_eui64
 ip6t_frag
@@ -272,7 +272,6 @@ iptable_mangle
 iptable_nat
 iptable_raw
 ip_tables
-iptable_security
 ipt_addrtype
 ipt_ah
 ipt_CLUSTERIP
@@ -636,6 +635,7 @@ thmc50
 tifm_core
 tifm_sd
 ti_usb_3410_5052
+tlsf
 toim3232-sir
 trancevibrator
 ts_bm

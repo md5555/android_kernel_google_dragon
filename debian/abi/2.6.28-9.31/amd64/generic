@@ -2912,6 +2912,7 @@ EXPORT_SYMBOL vmlinux 0x23df8543	__xfrm_route_forward
 EXPORT_SYMBOL vmlinux 0x23f9bc7c	xfrm_state_unregister_afinfo
 EXPORT_SYMBOL vmlinux 0x23fd3028	vmalloc_node
 EXPORT_SYMBOL vmlinux 0x240abeb8	sock_register
+EXPORT_SYMBOL vmlinux 0x240e306e	jbd2_journal_begin_ordered_truncate
 EXPORT_SYMBOL vmlinux 0x2416335c	unregister_filesystem
 EXPORT_SYMBOL vmlinux 0x242c36d5	generic_write_checks
 EXPORT_SYMBOL vmlinux 0x24428be5	strncpy_from_user
@@ -4063,7 +4064,6 @@ EXPORT_SYMBOL vmlinux 0x84620ee7	__blk_run_queue
 EXPORT_SYMBOL vmlinux 0x8472fc5e	scsi_remove_device
 EXPORT_SYMBOL vmlinux 0x8475dca4	blk_queue_invalidate_tags
 EXPORT_SYMBOL vmlinux 0x84addb3b	tcp_close
-EXPORT_SYMBOL vmlinux 0x84b5696e	jbd2_journal_begin_ordered_truncate
 EXPORT_SYMBOL vmlinux 0x84cd8267	blk_rq_map_kern
 EXPORT_SYMBOL vmlinux 0x84d7f055	gnet_stats_start_copy_compat
 EXPORT_SYMBOL vmlinux 0x84defe48	udp_prot
