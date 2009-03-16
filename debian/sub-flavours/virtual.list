@@ -77,8 +77,6 @@ drivers/scsi/sd_mod.ko
 drivers/scsi/sg.ko
 drivers/scsi/sr_mod.ko
 drivers/usb/core/usbcore.ko
-drivers/usb/host/ehci-hcd.ko
-drivers/usb/host/uhci-hcd.ko
 drivers/usb/storage/usb-storage.ko
 drivers/video/cirrusfb.ko
 drivers/video/console/bitblit.ko
