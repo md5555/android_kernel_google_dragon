@@ -14,8 +14,8 @@ cfg80211
 rt2x00lib
 
 # Wireless 802.11 modules
-ieee80211
-ieee80211_crypt
-ieee80211_crypt_ccmp
-ieee80211_crypt_tkip
-ieee80211_crypt_wep
+lib80211
+cfg80211
+lib80211_crypt_ccmp
+lib80211_crypt_tkip
+lib80211_crypt_wep
