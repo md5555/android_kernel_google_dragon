@@ -89,7 +89,7 @@ static int mode = 0;
 static u32 ipw_debug_level;
 static int associate;
 static int auto_create = 1;
-static int led = 0;
+static int led = 1;
 static int disable = 0;
 static int bt_coexist = 0;
 static int hwcrypto = 0;
@@ -11964,7 +11964,7 @@ module_param(auto_create, int, 0444);
 MODULE_PARM_DESC(auto_create, "auto create adhoc network (default on)");
 
 module_param(led, int, 0444);
-MODULE_PARM_DESC(led, "enable led control on some systems (default 0 off)");
+MODULE_PARM_DESC(led, "enable led control on some systems (default 1 on)");
 
 module_param(debug, int, 0444);
 MODULE_PARM_DESC(debug, "debug output mask");
