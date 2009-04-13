@@ -3,11 +3,6 @@ config USB_APPLEIR
 	default m
 	depends on USB
 
-config BLK_DEV_DM_BBR
-	tristate "Bad-block-relocation target for device-mapper"
-	default m
-	depends on BLK_DEV_DM
-
 config INPUT_ACERHK
 	tristate "Acer Travelmate laptop special key support"
 	default m
