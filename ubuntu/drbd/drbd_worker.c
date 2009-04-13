@@ -1,7 +1,5 @@
 /*
--*- linux-c -*-
    drbd_worker.c
-   Kernel module for 2.6.x Kernels
 
    This file is part of DRBD by Philipp Reisner and Lars Ellenberg.
 
@@ -34,21 +32,23 @@
 #include <linux/wait.h>
 #include <linux/mm.h>
 #include <linux/drbd_config.h>
+#include <linux/memcontrol.h>
 #include <linux/mm_inline.h>
 #include <linux/slab.h>
 #include <linux/random.h>
-#ifdef HAVE_LINUX_SCATTERLIST_H
-/* 2.6.11 (suse 9.3, fc4) does not include requisites
- * from linux/scatterlist.h :( */
-#include <asm/scatterlist.h>
 #include <linux/mm.h>
 #include <linux/string.h>
 #include <linux/scatterlist.h>
-#endif
 
 #include <linux/drbd.h>
 #include "drbd_int.h"
 #include "drbd_req.h"
+
+#define SLEEP_TIME (HZ/10)
+
+STATIC int w_make_ov_request(struct drbd_conf *mdev, struct drbd_work *w, int cancel);
+
+
 
 /* defined here:
    drbd_md_io_complete
@@ -67,14 +67,20 @@
  *
  */
 
+
+/* About the global_state_lock
+   Each state transition on an device holds a read lock. In case we have
+   to evaluate the sync after dependencies, we grab a write lock, because
+   we need stable states on all devices for that.  */
+rwlock_t global_state_lock;
+
 /* used for synchronous meta data and bitmap IO
  * submitted by drbd_md_sync_page_io()
  */
-BIO_ENDIO_TYPE drbd_md_io_complete BIO_ENDIO_ARGS(struct bio *bio, int error)
+void drbd_md_io_complete(struct bio *bio, int error)
 {
 	struct drbd_md_io *md_io;
 
-	BIO_ENDIO_FN_START;
 	/* error parameter ignored:
 	 * drbd_md_sync_page_io explicitly tests bio_uptodate(bio); */
 
@@ -85,13 +91,12 @@ BIO_ENDIO_TYPE drbd_md_io_complete BIO_ENDIO_ARGS(struct bio *bio, int error)
 	dump_internal_bio("Md", md_io->mdev, bio, 1);
 
 	complete(&md_io->event);
-	BIO_ENDIO_FN_RETURN;
 }
 
 /* reads on behalf of the partner,
  * "submitted" by the receiver
  */
-BIO_ENDIO_TYPE drbd_endio_read_sec BIO_ENDIO_ARGS(struct bio *bio, int error) __releases(local)
+void drbd_endio_read_sec(struct bio *bio, int error) __releases(local)
 {
 	unsigned long flags = 0;
 	struct Tl_epoch_entry *e = NULL;
@@ -101,7 +106,6 @@ BIO_ENDIO_TYPE drbd_endio_read_sec BIO_ENDIO_ARGS(struct bio *bio, int error) __
 	e = bio->bi_private;
 	mdev = e->mdev;
 
-	BIO_ENDIO_FN_START;
 	if (!error && !uptodate) {
 		/* strange behaviour of some lower level drivers...
 		 * fail the request by clearing the uptodate flag,
@@ -129,13 +133,12 @@ BIO_ENDIO_TYPE drbd_endio_read_sec BIO_ENDIO_ARGS(struct bio *bio, int error) __
 	       INFO("Moved EE (READ) to worker sec=%llus size=%u ee=%p\n",
 		    (unsigned long long)e->sector, e->size, e);
 	       );
-	BIO_ENDIO_FN_RETURN;
 }
 
 /* writes on behalf of the partner, or resync writes,
  * "submitted" by the receiver.
  */
-BIO_ENDIO_TYPE drbd_endio_write_sec BIO_ENDIO_ARGS(struct bio *bio, int error) __releases(local)
+void drbd_endio_write_sec(struct bio *bio, int error) __releases(local)
 {
 	unsigned long flags = 0;
 	struct Tl_epoch_entry *e = NULL;
@@ -149,7 +152,6 @@ BIO_ENDIO_TYPE drbd_endio_write_sec BIO_ENDIO_ARGS(struct bio *bio, int error) _
 	e = bio->bi_private;
 	mdev = e->mdev;
 
-	BIO_ENDIO_FN_START;
 	if (!error && !uptodate) {
 		/* strange behaviour of some lower level drivers...
 		 * fail the request by clearing the uptodate flag,
@@ -168,7 +170,7 @@ BIO_ENDIO_TYPE drbd_endio_write_sec BIO_ENDIO_ARGS(struct bio *bio, int error) _
 		__release(local); /* Actually happens in w_e_reissue. */
 		spin_unlock_irqrestore(&mdev->req_lock, flags);
 		drbd_queue_work(&mdev->data.work, &e->w);
-		BIO_ENDIO_FN_RETURN;
+		return;
 	}
 
 	D_ASSERT(e->block_id != ID_VACANT);
@@ -219,12 +221,11 @@ BIO_ENDIO_TYPE drbd_endio_write_sec BIO_ENDIO_ARGS(struct bio *bio, int error) _
 	wake_asender(mdev);
 	dec_local(mdev);
 
-	BIO_ENDIO_FN_RETURN;
 }
 
 /* read, readA or write requests on Primary comming from drbd_make_request
  */
-BIO_ENDIO_TYPE drbd_endio_pri BIO_ENDIO_ARGS(struct bio *bio, int error)
+void drbd_endio_pri(struct bio *bio, int error)
 {
 	unsigned long flags;
 	struct drbd_request *req = bio->bi_private;
@@ -232,7 +233,6 @@ BIO_ENDIO_TYPE drbd_endio_pri BIO_ENDIO_ARGS(struct bio *bio, int error)
 	enum drbd_req_event what;
 	int uptodate = bio_flagged(bio, BIO_UPTODATE);
 
-	BIO_ENDIO_FN_START;
 	if (!error && !uptodate) {
 		/* strange behaviour of some lower level drivers...
 		 * fail the request by clearing the uptodate flag,
@@ -252,7 +252,6 @@ BIO_ENDIO_TYPE drbd_endio_pri BIO_ENDIO_ARGS(struct bio *bio, int error)
 	spin_lock_irqsave(&mdev->req_lock, flags);
 	_req_mod(req, what, error);
 	spin_unlock_irqrestore(&mdev->req_lock, flags);
-	BIO_ENDIO_FN_RETURN;
 }
 
 int w_io_error(struct drbd_conf *mdev, struct drbd_work *w, int cancel)
@@ -260,12 +259,6 @@ int w_io_error(struct drbd_conf *mdev, struct drbd_work *w, int cancel)
 	struct drbd_request *req = (struct drbd_request *)w;
 	int ok;
 
-	/* FIXME send a "set_out_of_sync" packet to the peer
-	 * in the PassOn case...
-	 * in the Detach (or Panic) case, we (try to) send
-	 * a "we are diskless" param packet anyways, and the peer
-	 * will then set the FullSync bit in the meta data ...
-	 */
 	/* NOTE: mdev->bc can be NULL by the time we get here! */
 	/* D_ASSERT(mdev->bc->dc.on_io_error != PassOn); */
 
@@ -283,7 +276,7 @@ int w_read_retry_remote(struct drbd_conf *mdev, struct drbd_work *w, int cancel)
 {
 	struct drbd_request *req = (struct drbd_request *)w;
 
-	/* FIXME this is ugly. we should not detach for read io-error,
+	/* We should not detach for read io-error,
 	 * but try to WRITE the DataReply to the failed location,
 	 * to give the disk the chance to relocate that block */
 	drbd_io_error(mdev, FALSE); /* tries to schedule a detach and notifies peer */
@@ -292,7 +285,7 @@ int w_read_retry_remote(struct drbd_conf *mdev, struct drbd_work *w, int cancel)
 	if (cancel ||
 	    mdev->state.conn < Connected ||
 	    mdev->state.pdsk <= Inconsistent) {
-		_req_mod(req, send_canceled, 0); /* FIXME freeze? ... */
+		_req_mod(req, send_canceled, 0);
 		spin_unlock_irq(&mdev->req_lock);
 		ALERT("WE ARE LOST. Local IO failure, no peer.\n");
 		return 1;
@@ -316,8 +309,8 @@ STATIC void drbd_csum(struct drbd_conf *mdev, struct crypto_hash *tfm, struct bi
 	struct bio_vec *bvec;
 	int i;
 
-	desc.tfm=tfm;
-	desc.flags=0;
+	desc.tfm = tfm;
+	desc.flags = 0;
 
 	sg_init_table(&sg, 1);
 	crypto_hash_init(&desc);
@@ -331,22 +324,22 @@ STATIC void drbd_csum(struct drbd_conf *mdev, struct crypto_hash *tfm, struct bi
 
 STATIC int w_e_send_csum(struct drbd_conf *mdev, struct drbd_work *w, int cancel)
 {
-	struct Tl_epoch_entry *e = (struct Tl_epoch_entry*)w;
+	struct Tl_epoch_entry *e = (struct Tl_epoch_entry *)w;
 	int digest_size;
 	void *digest;
 	int ok;
 
-	D_ASSERT( e->block_id == DRBD_MAGIC + 0xbeef );
+	D_ASSERT(e->block_id == DRBD_MAGIC + 0xbeef);
 
-	if(unlikely(cancel)) {
-		drbd_free_ee(mdev,e);
+	if (unlikely(cancel)) {
+		drbd_free_ee(mdev, e);
 		return 1;
 	}
 
-	if(likely(drbd_bio_uptodate(e->private_bio))) {
+	if (likely(drbd_bio_uptodate(e->private_bio))) {
 		digest_size = crypto_hash_digestsize(mdev->csums_tfm);
-		digest = kmalloc(digest_size,GFP_KERNEL);
-		if(digest) {
+		digest = kmalloc(digest_size, GFP_KERNEL);
+		if (digest) {
 			drbd_csum(mdev, mdev->csums_tfm, e->private_bio, digest);
 
 			inc_rs_pending(mdev);
@@ -363,16 +356,17 @@ STATIC int w_e_send_csum(struct drbd_conf *mdev, struct drbd_work *w, int cancel
 		}
 	} else {
 		drbd_io_error(mdev, FALSE);
-		ok=1;
+		ok = 1;
 	}
 
-	drbd_free_ee(mdev,e);
+	drbd_free_ee(mdev, e);
 
-	if(unlikely(!ok)) ERR("drbd_send_drequest(..., csum) failed\n");
+	if (unlikely(!ok))
+		ERR("drbd_send_drequest(..., csum) failed\n");
 	return ok;
 }
 
-#define GFP_TRY	( __GFP_HIGHMEM | __GFP_NOWARN )
+#define GFP_TRY	(__GFP_HIGHMEM | __GFP_NOWARN)
 
 STATIC int read_for_csum(struct drbd_conf *mdev, sector_t sector, int size)
 {
@@ -399,12 +393,10 @@ STATIC int read_for_csum(struct drbd_conf *mdev, sector_t sector, int size)
 	e->w.cb = w_e_send_csum;
 
 	mdev->read_cnt += size >> 9;
-	drbd_generic_make_request(mdev,DRBD_FAULT_RS_RD,e->private_bio);
+	drbd_generic_make_request(mdev, DRBD_FAULT_RS_RD, e->private_bio);
 
 	return 1;
 }
-
-int w_make_ov_request(struct drbd_conf *mdev, struct drbd_work *w, int cancel);
 
 void resync_timer_fn(unsigned long data)
 {
@@ -432,8 +424,6 @@ void resync_timer_fn(unsigned long data)
 		drbd_queue_work(&mdev->data.work, &mdev->resync_work);
 }
 
-#define SLEEP_TIME (HZ/10)
-
 int w_make_resync_request(struct drbd_conf *mdev,
 		struct drbd_work *w, int cancel)
 {
@@ -443,8 +433,6 @@ int w_make_resync_request(struct drbd_conf *mdev,
 	int max_segment_size = mdev->rq_queue->max_segment_size;
 	int number, i, size;
 	int align;
-
-	PARANOIA_BUG_ON(w != &mdev->resync_work);
 
 	if (unlikely(cancel))
 		return 1;
@@ -478,13 +466,10 @@ int w_make_resync_request(struct drbd_conf *mdev,
 	for (i = 0; i < number; i++) {
 next_sector:
 		size = BM_BLOCK_SIZE;
-		/* as of now, we are the only user of drbd_bm_find_next */
-		bit  = drbd_bm_find_next(mdev);
+		bit  = drbd_bm_find_next(mdev, mdev->bm_resync_fo);
 
 		if (bit == -1UL) {
-			/* FIXME either test_and_set some bit,
-			 * or make this the _only_ place that is allowed
-			 * to assign w_resync_inactive! */
+			mdev->bm_resync_fo = drbd_bm_bits(mdev);
 			mdev->resync_work.cb = w_resync_inactive;
 			dec_local(mdev);
 			return 1;
@@ -493,9 +478,10 @@ next_sector:
 		sector = BM_BIT_TO_SECT(bit);
 
 		if (drbd_try_rs_begin_io(mdev, sector)) {
-			drbd_bm_set_find(mdev, bit);
+			mdev->bm_resync_fo = bit;
 			goto requeue;
 		}
+		mdev->bm_resync_fo = bit + 1;
 
 		if (unlikely(drbd_bm_test_bit(mdev, bit) == 0)) {
 			drbd_rs_complete_io(mdev, sector);
@@ -543,7 +529,7 @@ next_sector:
 		/* if we merged some,
 		 * reset the offset to start the next drbd_bm_find_next from */
 		if (size > BM_BLOCK_SIZE)
-			drbd_bm_set_find(mdev, bit+1);
+			mdev->bm_resync_fo = bit + 1;
 #endif
 
 		/* adjust very last sectors, in case we are oddly sized */
@@ -556,7 +542,7 @@ next_sector:
 				return 0;
 			case 2: /* Allocation failed */
 				drbd_rs_complete_io(mdev, sector);
-				drbd_bm_set_find(mdev, BM_SECT_TO_BIT(sector));
+				mdev->bm_resync_fo = BM_SECT_TO_BIT(sector);
 				goto requeue;
 			/* case 1: everything ok */
 			}
@@ -572,7 +558,7 @@ next_sector:
 		}
 	}
 
-	if (drbd_bm_rs_done(mdev)) {
+	if (mdev->bm_resync_fo >= drbd_bm_bits(mdev)) {
 		/* last syncer _request_ was sent,
 		 * but the RSDataReply not yet received.  sync will end (and
 		 * next sync group will resume), as soon as we receive the last
@@ -592,11 +578,12 @@ next_sector:
 
 int w_make_ov_request(struct drbd_conf *mdev, struct drbd_work *w, int cancel)
 {
-	int number,i,size;
+	int number, i, size;
 	sector_t sector;
 	const sector_t capacity = drbd_get_capacity(mdev->this_bdev);
 
-	if(unlikely(cancel)) return 1;
+	if (unlikely(cancel))
+		return 1;
 
 	if (unlikely(mdev->state.conn < Connected)) {
 		ERR("Confused in w_make_ov_request()! cstate < Connected");
@@ -604,13 +591,13 @@ int w_make_ov_request(struct drbd_conf *mdev, struct drbd_work *w, int cancel)
 	}
 
 	number = SLEEP_TIME*mdev->sync_conf.rate / ((BM_BLOCK_SIZE/1024)*HZ);
-	if (atomic_read(&mdev->rs_pending_cnt)>number) {
+	if (atomic_read(&mdev->rs_pending_cnt) > number)
 		goto requeue;
-	}
+
 	number -= atomic_read(&mdev->rs_pending_cnt);
 
 	sector = mdev->ov_position;
-	for(i=0;i<number;i++) {
+	for (i = 0; i < number; i++) {
 		size = BM_BLOCK_SIZE;
 
 		if (drbd_try_rs_begin_io(mdev, sector)) {
@@ -618,15 +605,16 @@ int w_make_ov_request(struct drbd_conf *mdev, struct drbd_work *w, int cancel)
 			goto requeue;
 		}
 
-		if (sector + (size>>9) > capacity) size = (capacity-sector)<<9;
+		if (sector + (size>>9) > capacity)
+			size = (capacity-sector)<<9;
 
 		inc_rs_pending(mdev);
-		if(!drbd_send_ov_request(mdev, sector, size)) {
+		if (!drbd_send_ov_request(mdev, sector, size)) {
 			dec_rs_pending(mdev);
 			return 0;
 		}
 		sector += BM_SECT_PER_BIT;
-		if(sector >= capacity) {
+		if (sector >= capacity) {
 			mdev->resync_work.cb = w_resync_inactive;
 
 			return 1;
@@ -640,7 +628,7 @@ int w_make_ov_request(struct drbd_conf *mdev, struct drbd_work *w, int cancel)
 }
 
 
-int w_ov_finished(struct drbd_conf *mdev, struct drbd_work* w,int cancel)
+int w_ov_finished(struct drbd_conf *mdev, struct drbd_work *w, int cancel)
 {
 	kfree(w);
 	ov_oos_print(mdev);
@@ -664,7 +652,7 @@ int drbd_resync_finished(struct drbd_conf *mdev)
 	unsigned long n_oos;
 	union drbd_state_t os, ns;
 	struct drbd_work *w;
-	char * khelper_cmd = NULL;
+	char *khelper_cmd = NULL;
 
 	/* Remove all elements from the resync LRU. Since future actions
 	 * might set bits in the (main) bitmap, then the entries in the
@@ -779,7 +767,6 @@ int drbd_resync_finished(struct drbd_conf *mdev)
 		}
 	}
 
-	DRBD_STATE_DEBUG_INIT_VAL(ns);
 	_drbd_set_state(mdev, ns, ChgStateVerbose, NULL);
 out_unlock:
 	spin_unlock_irq(&mdev->req_lock);
@@ -819,15 +806,12 @@ int w_e_end_data_req(struct drbd_conf *mdev, struct drbd_work *w, int cancel)
 	if (likely(drbd_bio_uptodate(e->private_bio))) {
 		ok = drbd_send_block(mdev, DataReply, e);
 	} else {
-		if (DRBD_ratelimit(5*HZ, 5))
+		if (__ratelimit(&drbd_ratelimit_state))
 			ERR("Sending NegDReply. sector=%llus.\n",
 			    (unsigned long long)e->sector);
 
 		ok = drbd_send_ack(mdev, NegDReply, e);
 
-		/* FIXME we should not detach for read io-errors, in particular
-		 * not now: when the peer asked us for our data, we are likely
-		 * the only remaining disk... */
 		drbd_io_error(mdev, FALSE);
 	}
 
@@ -871,13 +855,13 @@ int w_e_end_rsdata_req(struct drbd_conf *mdev, struct drbd_work *w, int cancel)
 			inc_rs_pending(mdev);
 			ok = drbd_send_block(mdev, RSDataReply, e);
 		} else {
-			if (DRBD_ratelimit(5*HZ, 5))
+			if (__ratelimit(&drbd_ratelimit_state))
 				ERR("Not sending RSDataReply, "
 				    "partner DISKLESS!\n");
 			ok = 1;
 		}
 	} else {
-		if (DRBD_ratelimit(5*HZ, 5))
+		if (__ratelimit(&drbd_ratelimit_state))
 			ERR("Sending NegRSDReply. sector %llus.\n",
 			    (unsigned long long)e->sector);
 
@@ -907,14 +891,14 @@ int w_e_end_rsdata_req(struct drbd_conf *mdev, struct drbd_work *w, int cancel)
 
 int w_e_end_csum_rs_req(struct drbd_conf *mdev, struct drbd_work *w, int cancel)
 {
-	struct Tl_epoch_entry *e = (struct Tl_epoch_entry*)w;
+	struct Tl_epoch_entry *e = (struct Tl_epoch_entry *)w;
 	struct digest_info *di;
 	int digest_size;
 	void *digest = NULL;
-	int ok,eq=0;
+	int ok, eq = 0;
 
 	if (unlikely(cancel)) {
-		drbd_free_ee(mdev,e);
+		drbd_free_ee(mdev, e);
 		dec_unacked(mdev);
 		return 1;
 	}
@@ -930,7 +914,7 @@ int w_e_end_csum_rs_req(struct drbd_conf *mdev, struct drbd_work *w, int cancel)
 		if (mdev->csums_tfm) {
 			digest_size = crypto_hash_digestsize(mdev->csums_tfm);
 			D_ASSERT(digest_size == di->digest_size);
-			digest = kmalloc(digest_size,GFP_KERNEL);
+			digest = kmalloc(digest_size, GFP_KERNEL);
 		}
 		if (digest) {
 			drbd_csum(mdev, mdev->csums_tfm, e->private_bio, digest);
@@ -939,17 +923,17 @@ int w_e_end_csum_rs_req(struct drbd_conf *mdev, struct drbd_work *w, int cancel)
 		}
 
 		if (eq) {
-			drbd_set_in_sync(mdev, e->sector,e->size);
+			drbd_set_in_sync(mdev, e->sector, e->size);
 			mdev->rs_same_csum++;
-			ok=drbd_send_ack(mdev, RSIsInSync, e);
+			ok = drbd_send_ack(mdev, RSIsInSync, e);
 		} else {
 			inc_rs_pending(mdev);
 			e->block_id = ID_SYNCER;
-			ok=drbd_send_block(mdev, RSDataReply, e);
+			ok = drbd_send_block(mdev, RSDataReply, e);
 		}
 	} else {
-		ok=drbd_send_ack(mdev,NegRSDReply,e);
-		if (DRBD_ratelimit(5*HZ,5))
+		ok = drbd_send_ack(mdev, NegRSDReply, e);
+		if (__ratelimit(&drbd_ratelimit_state))
 			ERR("Sending NegDReply. I guess it gets messy.\n");
 		drbd_io_error(mdev, FALSE);
 	}
@@ -961,9 +945,9 @@ int w_e_end_csum_rs_req(struct drbd_conf *mdev, struct drbd_work *w, int cancel)
 	spin_lock_irq(&mdev->req_lock);
 	if (drbd_bio_has_active_page(e->private_bio)) {
 		/* This might happen if sendpage() has not finished */
-		list_add_tail(&e->w.list,&mdev->net_ee);
+		list_add_tail(&e->w.list, &mdev->net_ee);
 	} else {
-		drbd_free_ee(mdev,e);
+		drbd_free_ee(mdev, e);
 	}
 	spin_unlock_irq(&mdev->req_lock);
 
@@ -974,25 +958,26 @@ int w_e_end_csum_rs_req(struct drbd_conf *mdev, struct drbd_work *w, int cancel)
 
 int w_e_end_ov_req(struct drbd_conf *mdev, struct drbd_work *w, int cancel)
 {
-	struct Tl_epoch_entry *e = (struct Tl_epoch_entry*)w;
+	struct Tl_epoch_entry *e = (struct Tl_epoch_entry *)w;
 	int digest_size;
 	void *digest;
-	int ok=1;
+	int ok = 1;
 
-	if(unlikely(cancel)) {
-		drbd_free_ee(mdev,e);
+	if (unlikely(cancel)) {
+		drbd_free_ee(mdev, e);
 		dec_unacked(mdev);
 		return 1;
 	}
 
-	if(likely(drbd_bio_uptodate(e->private_bio))) {
+	if (likely(drbd_bio_uptodate(e->private_bio))) {
 		digest_size = crypto_hash_digestsize(mdev->verify_tfm);
-		digest = kmalloc(digest_size,GFP_KERNEL);
-		if(digest) {
-			drbd_csum(mdev,mdev->verify_tfm,e->private_bio,digest);
+		digest = kmalloc(digest_size, GFP_KERNEL);
+		if (digest) {
+			drbd_csum(mdev, mdev->verify_tfm, e->private_bio, digest);
 			ok = drbd_send_drequest_csum(mdev, e->sector, e->size,
 						     digest, digest_size, OVReply);
-			if (ok) inc_rs_pending(mdev);
+			if (ok)
+				inc_rs_pending(mdev);
 			kfree(digest);
 		}
 	}
@@ -1000,7 +985,7 @@ int w_e_end_ov_req(struct drbd_conf *mdev, struct drbd_work *w, int cancel)
 	dec_unacked(mdev);
 
 	spin_lock_irq(&mdev->req_lock);
-	drbd_free_ee(mdev,e);
+	drbd_free_ee(mdev, e);
 	spin_unlock_irq(&mdev->req_lock);
 
 	return ok;
@@ -1020,28 +1005,28 @@ void drbd_ov_oos_found(struct drbd_conf *mdev, sector_t sector, int size)
 
 int w_e_end_ov_reply(struct drbd_conf *mdev, struct drbd_work *w, int cancel)
 {
-	struct Tl_epoch_entry *e = (struct Tl_epoch_entry*)w;
+	struct Tl_epoch_entry *e = (struct Tl_epoch_entry *)w;
 	struct digest_info *di;
 	int digest_size;
 	void *digest;
-	int ok,eq=0;
+	int ok, eq = 0;
 
-	if(unlikely(cancel)) {
-		drbd_free_ee(mdev,e);
+	if (unlikely(cancel)) {
+		drbd_free_ee(mdev, e);
 		dec_unacked(mdev);
 		return 1;
 	}
 
 	/* after "cancel", because after drbd_disconnect/drbd_rs_cancel_all
 	 * the resync lru has been cleaned up already */
-	drbd_rs_complete_io(mdev,e->sector);
+	drbd_rs_complete_io(mdev, e->sector);
 
 	di = (struct digest_info *)(unsigned long)e->block_id;
 
-	if(likely(drbd_bio_uptodate(e->private_bio))) {
+	if (likely(drbd_bio_uptodate(e->private_bio))) {
 		digest_size = crypto_hash_digestsize(mdev->verify_tfm);
-		digest = kmalloc(digest_size,GFP_KERNEL);
-		if(digest) {
+		digest = kmalloc(digest_size, GFP_KERNEL);
+		if (digest) {
 			drbd_csum(mdev, mdev->verify_tfm, e->private_bio, digest);
 
 			D_ASSERT(digest_size == di->digest_size);
@@ -1049,8 +1034,8 @@ int w_e_end_ov_reply(struct drbd_conf *mdev, struct drbd_work *w, int cancel)
 			kfree(digest);
 		}
 	} else {
-		ok=drbd_send_ack(mdev,NegRSDReply,e);
-		if (DRBD_ratelimit(5*HZ,5))
+		ok = drbd_send_ack(mdev, NegRSDReply, e);
+		if (__ratelimit(&drbd_ratelimit_state))
 			ERR("Sending NegDReply. I guess it gets messy.\n");
 		drbd_io_error(mdev, FALSE);
 	}
@@ -1059,17 +1044,19 @@ int w_e_end_ov_reply(struct drbd_conf *mdev, struct drbd_work *w, int cancel)
 
 	kfree(di);
 
-	if (!eq) drbd_ov_oos_found(mdev,e->sector,e->size);
-	else ov_oos_print(mdev);
+	if (!eq)
+		drbd_ov_oos_found(mdev, e->sector, e->size);
+	else
+		ov_oos_print(mdev);
 
-	ok = drbd_send_ack_ex(mdev,OVResult,e->sector,e->size,
+	ok = drbd_send_ack_ex(mdev, OVResult, e->sector, e->size,
 			      eq ? ID_IN_SYNC : ID_OUT_OF_SYNC);
 
 	spin_lock_irq(&mdev->req_lock);
-	drbd_free_ee(mdev,e);
+	drbd_free_ee(mdev, e);
 	spin_unlock_irq(&mdev->req_lock);
 
-	if( --mdev->ov_left == 0 ) {
+	if (--mdev->ov_left == 0) {
 		ov_oos_print(mdev);
 		drbd_resync_finished(mdev);
 	}
@@ -1168,38 +1155,6 @@ int w_send_read_req(struct drbd_conf *mdev, struct drbd_work *w, int cancel)
 	return ok;
 }
 
-STATIC void drbd_global_lock(void) __acquires(drbd_global_lock)
-{
-	struct drbd_conf *mdev;
-	int i;
-
-	__acquire(drbd_global_lock);
-	local_irq_disable();
-	for (i = 0; i < minor_count; i++) {
-		mdev = minor_to_mdev(i);
-		if (!mdev)
-			continue;
-		spin_lock(&mdev->req_lock);
-		__release(&mdev->req_lock); /* annihilate the spin_lock's annotation here */
-	}
-}
-
-STATIC void drbd_global_unlock(void) __releases(drbd_global_lock)
-{
-	struct drbd_conf *mdev;
-	int i;
-
-	for (i = 0; i < minor_count; i++) {
-		mdev = minor_to_mdev(i);
-		if (!mdev)
-			continue;
-		__acquire(&mdev->req_lock);
-		spin_unlock(&mdev->req_lock);
-	}
-	local_irq_enable();
-	__release(drbd_global_lock);
-}
-
 STATIC int _drbd_may_sync_now(struct drbd_conf *mdev)
 {
 	struct drbd_conf *odev = mdev;
@@ -1235,8 +1190,8 @@ STATIC int _drbd_pause_after(struct drbd_conf *mdev)
 		if (odev->state.conn == StandAlone && odev->state.disk == Diskless)
 			continue;
 		if (!_drbd_may_sync_now(odev))
-			rv |= (_drbd_set_state(_NS(odev, aftr_isp, 1), ChgStateHard, NULL)
-				!= SS_NothingToDo);
+			rv |= (__drbd_set_state(_NS(odev, aftr_isp, 1), ChgStateHard, NULL)
+			       != SS_NothingToDo);
 	}
 
 	return rv;
@@ -1257,11 +1212,13 @@ STATIC int _drbd_resume_next(struct drbd_conf *mdev)
 		odev = minor_to_mdev(i);
 		if (!odev)
 			continue;
+		if (odev->state.conn == StandAlone && odev->state.disk == Diskless)
+			continue;
 		if (odev->state.aftr_isp) {
 			if (_drbd_may_sync_now(odev))
-				rv |= (_drbd_set_state(_NS(odev, aftr_isp, 0),
-						       ChgStateHard, NULL)
-					!= SS_NothingToDo) ;
+				rv |= (__drbd_set_state(_NS(odev, aftr_isp, 0),
+							ChgStateHard, NULL)
+				       != SS_NothingToDo) ;
 		}
 	}
 	return rv;
@@ -1269,23 +1226,23 @@ STATIC int _drbd_resume_next(struct drbd_conf *mdev)
 
 void resume_next_sg(struct drbd_conf *mdev)
 {
-	drbd_global_lock();
+	write_lock_irq(&global_state_lock);
 	_drbd_resume_next(mdev);
-	drbd_global_unlock();
+	write_unlock_irq(&global_state_lock);
 }
 
 void suspend_other_sg(struct drbd_conf *mdev)
 {
-	drbd_global_lock();
+	write_lock_irq(&global_state_lock);
 	_drbd_pause_after(mdev);
-	drbd_global_unlock();
+	write_unlock_irq(&global_state_lock);
 }
 
 void drbd_alter_sa(struct drbd_conf *mdev, int na)
 {
 	int changes;
 
-	drbd_global_lock();
+	write_lock_irq(&global_state_lock);
 	mdev->sync_conf.after = na;
 
 	do {
@@ -1293,7 +1250,7 @@ void drbd_alter_sa(struct drbd_conf *mdev, int na)
 		changes |= _drbd_resume_next(mdev);
 	} while (changes);
 
-	drbd_global_unlock();
+	write_unlock_irq(&global_state_lock);
 }
 
 /**
@@ -1341,7 +1298,7 @@ void drbd_start_resync(struct drbd_conf *mdev, enum drbd_conns side)
 	}
 
 	if (side == SyncTarget) {
-		drbd_bm_reset_find(mdev);
+		mdev->bm_resync_fo = 0;
 	} else /* side == SyncSource */ {
 		u64 uuid;
 
@@ -1352,7 +1309,7 @@ void drbd_start_resync(struct drbd_conf *mdev, enum drbd_conns side)
 		D_ASSERT(mdev->state.disk == UpToDate);
 	}
 
-	drbd_global_lock();
+	write_lock_irq(&global_state_lock);
 	ns = mdev->state;
 
 	ns.aftr_isp = !_drbd_may_sync_now(mdev);
@@ -1364,8 +1321,7 @@ void drbd_start_resync(struct drbd_conf *mdev, enum drbd_conns side)
 	else /* side == SyncSource */
 		ns.pdsk = Inconsistent;
 
-	DRBD_STATE_DEBUG_INIT_VAL(ns);
-	r = _drbd_set_state(mdev, ns, ChgStateVerbose, NULL);
+	r = __drbd_set_state(mdev, ns, ChgStateVerbose, NULL);
 	ns = mdev->state;
 
 	if (ns.conn < Connected)
@@ -1381,7 +1337,7 @@ void drbd_start_resync(struct drbd_conf *mdev, enum drbd_conns side)
 		mdev->rs_same_csum = 0;
 		_drbd_pause_after(mdev);
 	}
-	drbd_global_unlock();
+	write_unlock_irq(&global_state_lock);
 	drbd_state_unlock(mdev);
 	dec_local(mdev);
 
@@ -1418,17 +1374,17 @@ int drbd_worker(struct Drbd_thread *thi)
 		drbd_thread_current_set_cpu(mdev);
 
 		if (down_trylock(&mdev->data.work.s)) {
-			down(&mdev->data.mutex);
+			mutex_lock(&mdev->data.mutex);
 			if (mdev->data.socket && !mdev->net_conf->no_cork)
 				drbd_tcp_uncork(mdev->data.socket);
-			up(&mdev->data.mutex);
+			mutex_unlock(&mdev->data.mutex);
 
 			intr = down_interruptible(&mdev->data.work.s);
 
-			down(&mdev->data.mutex);
+			mutex_lock(&mdev->data.mutex);
 			if (mdev->data.socket  && !mdev->net_conf->no_cork)
 				drbd_tcp_cork(mdev->data.socket);
-			up(&mdev->data.mutex);
+			mutex_unlock(&mdev->data.mutex);
 		}
 
 		if (intr) {
@@ -1496,11 +1452,6 @@ int drbd_worker(struct Drbd_thread *thi)
 	 * So don't do that.
 	 */
 	spin_unlock_irq(&mdev->data.work.q_lock);
-	/* FIXME verify that there absolutely can not be any more work
-	 * on the queue now...
-	 * if so, the comment above is no longer true, but historic
-	 * from the times when the worker did not live as long as the
-	 * device.. */
 
 	D_ASSERT(mdev->state.disk == Diskless && mdev->state.conn == StandAlone);
 	/* _drbd_set_state only uses stop_nowait.

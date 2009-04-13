@@ -1,7 +1,5 @@
 /*
--*- linux-c -*-
    drbd_actlog.c
-   Kernel module for 2.6.x Kernels
 
    This file is part of DRBD by Philipp Reisner and Lars Ellenberg.
 
@@ -28,12 +26,45 @@
 #include <linux/slab.h>
 #include <linux/drbd.h>
 #include "drbd_int.h"
+#include "drbd_wrappers.h"
 
-/* This is what I like so much about the linux kernel:
- * if you have a close look, you can almost always reuse code by someone else
- * ;)
- * this is mostly from drivers/md/md.c
- */
+/* I do not believe that all storage medias can guarantee atomic
+ * 512 byte write operations. When the journal is read, only
+ * transactions with correct xor_sums are considered.
+ * sizeof() = 512 byte */
+struct __attribute__((packed)) al_transaction {
+	u32       magic;
+	u32       tr_number;
+	struct __attribute__((packed)) {
+		u32 pos;
+		u32 extent; } updates[1 + AL_EXTENTS_PT];
+	u32       xor_sum;
+};
+
+struct update_odbm_work {
+	struct drbd_work w;
+	unsigned int enr;
+};
+
+struct update_al_work {
+	struct drbd_work w;
+	struct lc_element *al_ext;
+	struct completion event;
+	unsigned int enr;
+	/* if old_enr != LC_FREE, write corresponding bitmap sector, too */
+	unsigned int old_enr;
+};
+
+struct drbd_atodb_wait {
+	atomic_t           count;
+	struct completion  io_done;
+	struct drbd_conf   *mdev;
+	int                error;
+};
+
+
+int w_al_write_transaction(struct drbd_conf *, struct drbd_work *, int);
+
 STATIC int _drbd_md_sync_page_io(struct drbd_conf *mdev,
 				 struct drbd_backing_dev *bdev,
 				 struct page *page, sector_t sector,
@@ -49,7 +80,7 @@ STATIC int _drbd_md_sync_page_io(struct drbd_conf *mdev,
 
 	if (rw == WRITE && !test_bit(MD_NO_BARRIER, &mdev->flags))
 		rw |= (1<<BIO_RW_BARRIER);
-	rw |= (1 << BIO_RW_SYNC);
+	rw |= ((1<<BIO_RW_UNPLUG) | (1<<BIO_RW_SYNCIO));
 
  retry:
 	bio = bio_alloc(GFP_NOIO, 1);
@@ -94,15 +125,9 @@ int drbd_md_sync_page_io(struct drbd_conf *mdev, struct drbd_backing_dev *bdev,
 	int offset = 0;
 	struct page *iop = mdev->md_io_page;
 
-	D_ASSERT(semaphore_is_locked(&mdev->md_io_mutex));
+	D_ASSERT(mutex_is_locked(&mdev->md_io_mutex));
 
-	if (!bdev->md_bdev) {
-		if (DRBD_ratelimit(5*HZ, 5)) {
-			ERR("bdev->md_bdev==NULL\n");
-			dump_stack();
-		}
-		return 0;
-	}
+	BUG_ON(!bdev->md_bdev);
 
 	hardsect = drbd_get_hardsect(bdev->md_bdev);
 	if (hardsect == 0)
@@ -110,18 +135,6 @@ int drbd_md_sync_page_io(struct drbd_conf *mdev, struct drbd_backing_dev *bdev,
 
 	/* in case hardsect != 512 [ s390 only? ] */
 	if (hardsect != MD_HARDSECT) {
-		if (!mdev->md_io_tmpp) {
-			struct page *page = alloc_page(GFP_NOIO);
-			if (!page)
-				return 0;
-
-			drbd_WARN("Meta data's bdev hardsect = %d != %d\n",
-			     hardsect, MD_HARDSECT);
-			drbd_WARN("Workaround engaged (has performace impact).\n");
-
-			mdev->md_io_tmpp = page;
-		}
-
 		mask = (hardsect / MD_HARDSECT) - 1;
 		D_ASSERT(mask == 1 || mask == 3 || mask == 7);
 		D_ASSERT(hardsect == (mask+1) * MD_HARDSECT);
@@ -147,12 +160,6 @@ int drbd_md_sync_page_io(struct drbd_conf *mdev, struct drbd_backing_dev *bdev,
 		}
 	}
 
-#if DUMP_MD >= 3
-	INFO("%s [%d]:%s(,%llus,%s)\n",
-	     current->comm, current->pid, __func__,
-	     (unsigned long long)sector, rw ? "WRITE" : "READ");
-#endif
-
 	if (sector < drbd_md_first_sector(bdev) ||
 	    sector > drbd_md_last_sector(bdev))
 		ALERT("%s [%d]:%s(,%llus,%s) out of range md access!\n",
@@ -175,36 +182,6 @@ int drbd_md_sync_page_io(struct drbd_conf *mdev, struct drbd_backing_dev *bdev,
 
 	return ok;
 }
-
-/* I do not believe that all storage medias can guarantee atomic
- * 512 byte write operations. When the journal is read, only
- * transactions with correct xor_sums are considered.
- * sizeof() = 512 byte */
-struct __attribute__((packed)) al_transaction {
-	u32       magic;
-	u32       tr_number;
-	/* u32       tr_generation; TODO */
-	struct __attribute__((packed)) {
-		u32 pos;
-		u32 extent; } updates[1 + AL_EXTENTS_PT];
-	u32       xor_sum;
-};
-
-struct update_odbm_work {
-	struct drbd_work w;
-	unsigned int enr;
-};
-
-struct update_al_work {
-	struct drbd_work w;
-	struct lc_element *al_ext;
-	struct completion event;
-	unsigned int enr;
-	/* if old_enr != LC_FREE, write corresponding bitmap sector, too */
-	unsigned int old_enr;
-};
-
-int w_al_write_transaction(struct drbd_conf *, struct drbd_work *, int);
 
 static inline
 struct lc_element *_al_get(struct drbd_conf *mdev, unsigned int enr)
@@ -238,9 +215,6 @@ struct lc_element *_al_get(struct drbd_conf *mdev, unsigned int enr)
 	return al_ext;
 }
 
-/* FIXME
- * this should be able to return failure when meta data update has failed.
- */
 void drbd_al_begin_io(struct drbd_conf *mdev, sector_t sector)
 {
 	unsigned int enr = (sector >> (AL_EXTENT_SIZE_B-9));
@@ -273,10 +247,6 @@ void drbd_al_begin_io(struct drbd_conf *mdev, sector_t sector)
 
 		mdev->al_writ_cnt++;
 
-		/*
-		DUMPI(al_ext->lc_number);
-		DUMPI(mdev->act_log->new_number);
-		*/
 		spin_lock_irq(&mdev->al_lock);
 		lc_changed(mdev->act_log, al_ext);
 		spin_unlock_irq(&mdev->al_lock);
@@ -338,7 +308,7 @@ w_al_write_transaction(struct drbd_conf *mdev, struct drbd_work *w, int unused)
 	if (mdev->state.conn < Connected && evicted != LC_FREE)
 		drbd_bm_write_sect(mdev, evicted/AL_EXT_PER_BM_SECT);
 
-	down(&mdev->md_io_mutex); /* protects md_io_buffer, al_tr_cycle, ... */
+	mutex_lock(&mdev->md_io_mutex); /* protects md_io_page, al_tr_cycle, ... */
 	buffer = (struct al_transaction *)page_address(mdev->md_io_page);
 
 	buffer->magic = __constant_cpu_to_be32(DRBD_MAGIC);
@@ -386,7 +356,7 @@ w_al_write_transaction(struct drbd_conf *mdev, struct drbd_work *w, int unused)
 	D_ASSERT(mdev->al_tr_pos < MD_AL_MAX_SIZE);
 	mdev->al_tr_number++;
 
-	up(&mdev->md_io_mutex);
+	mutex_unlock(&mdev->md_io_mutex);
 
 	complete(&((struct update_al_work *)w)->event);
 	dec_local(mdev);
@@ -450,7 +420,7 @@ int drbd_al_read_log(struct drbd_conf *mdev, struct drbd_backing_dev *bdev)
 	/* lock out all other meta data io for now,
 	 * and make sure the page is mapped.
 	 */
-	down(&mdev->md_io_mutex);
+	mutex_lock(&mdev->md_io_mutex);
 	buffer = page_address(mdev->md_io_page);
 
 	/* Find the valid transaction in the log */
@@ -459,7 +429,7 @@ int drbd_al_read_log(struct drbd_conf *mdev, struct drbd_backing_dev *bdev)
 		if (rv == 0)
 			continue;
 		if (rv == -1) {
-			up(&mdev->md_io_mutex);
+			mutex_unlock(&mdev->md_io_mutex);
 			return 0;
 		}
 		cnr = be32_to_cpu(buffer->tr_number);
@@ -480,7 +450,7 @@ int drbd_al_read_log(struct drbd_conf *mdev, struct drbd_backing_dev *bdev)
 	if (from == -1 || to == -1) {
 		drbd_WARN("No usable activity log found.\n");
 
-		up(&mdev->md_io_mutex);
+		mutex_unlock(&mdev->md_io_mutex);
 		return 1;
 	}
 
@@ -495,7 +465,7 @@ int drbd_al_read_log(struct drbd_conf *mdev, struct drbd_backing_dev *bdev)
 		rv = drbd_al_read_tr(mdev, bdev, buffer, i);
 		ERR_IF(rv == 0) goto cancel;
 		if (rv == -1) {
-			up(&mdev->md_io_mutex);
+			mutex_unlock(&mdev->md_io_mutex);
 			return 0;
 		}
 
@@ -536,7 +506,7 @@ cancel:
 		mdev->al_tr_pos = 0;
 
 	/* ok, we are done with it */
-	up(&mdev->md_io_mutex);
+	mutex_unlock(&mdev->md_io_mutex);
 
 	INFO("Found %d transactions (%d active extents) in activity log.\n",
 	     transactions, active_extents);
@@ -544,21 +514,13 @@ cancel:
 	return 1;
 }
 
-struct drbd_atodb_wait {
-	atomic_t           count;
-	struct completion  io_done;
-	struct drbd_conf   *mdev;
-	int                error;
-};
-
-STATIC BIO_ENDIO_TYPE atodb_endio BIO_ENDIO_ARGS(struct bio *bio, int error)
+STATIC void atodb_endio(struct bio *bio, int error)
 {
 	struct drbd_atodb_wait *wc = bio->bi_private;
 	struct drbd_conf *mdev = wc->mdev;
 	struct page *page;
 	int uptodate = bio_flagged(bio, BIO_UPTODATE);
 
-	BIO_ENDIO_FN_START;
 	/* strange behaviour of some lower level drivers...
 	 * fail the request by clearing the uptodate flag,
 	 * but do not return any error?! */
@@ -578,8 +540,6 @@ STATIC BIO_ENDIO_TYPE atodb_endio BIO_ENDIO_ARGS(struct bio *bio, int error)
 	bio_put(bio);
 	mdev->bm_writ_cnt++;
 	dec_local(mdev);
-
-	BIO_ENDIO_FN_RETURN;
 }
 
 #define S2W(s)	((s)<<(BM_EXT_SIZE_B-BM_BLOCK_SIZE_B-LN2_BPL))
@@ -838,7 +798,7 @@ STATIC int w_update_odbm(struct drbd_conf *mdev, struct drbd_work *w, int unused
 	struct update_odbm_work *udw = (struct update_odbm_work *)w;
 
 	if (!inc_local(mdev)) {
-		if (DRBD_ratelimit(5*HZ, 5))
+		if (__ratelimit(&drbd_ratelimit_state))
 			drbd_WARN("Can not update on disk bitmap, local IO disabled.\n");
 		return 1;
 	}
@@ -878,7 +838,6 @@ STATIC void drbd_try_clear_on_disk_bm(struct drbd_conf *mdev, sector_t sector,
 
 	unsigned int enr;
 
-	MUST_HOLD(&mdev->al_lock);
 	D_ASSERT(atomic_read(&mdev->local_cnt));
 
 	/* I simply assume that a sector/size pair never crosses
@@ -899,7 +858,7 @@ STATIC void drbd_try_clear_on_disk_bm(struct drbd_conf *mdev, sector_t sector,
 				     ext->lce.lc_number, ext->rs_left,
 				     ext->rs_failed, count);
 				dump_stack();
-				/* FIXME brrrgs. should never happen! */
+
 				lc_put(mdev->resync, &ext->lce);
 				drbd_force_state(mdev, NS(conn, Disconnecting));
 				return;
@@ -1047,7 +1006,7 @@ void __drbd_set_out_of_sync(struct drbd_conf *mdev, sector_t sector, int size,
 	unsigned long sbnr, ebnr, lbnr, flags;
 	sector_t esector, nr_sectors;
 	unsigned int enr, count;
-	struct bm_extent* ext;
+	struct bm_extent *ext;
 
 	if (size <= 0 || (size & 0x1ff) != 0 || size > DRBD_MAX_SEGMENT_SIZE) {
 		ERR("sector: %llus, size: %d\n",

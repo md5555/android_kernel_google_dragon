@@ -1,7 +1,5 @@
 /*
--*- linux-c -*-
    lru_cache.c
-   Kernel module for 2.6.x Kernels
 
    This file is part of DRBD by Philipp Reisner and Lars Ellenberg.
 
@@ -30,8 +28,6 @@
 #include <linux/string.h> /* for memset */
 #include <linux/seq_file.h> /* for seq_printf */
 #include "lru_cache.h"
-
-#define STATIC static
 
 /* this is developers aid only! */
 #define PARANOIA_ENTRY() BUG_ON(test_and_set_bit(__LC_PARANOIA, &lc->flags))
@@ -150,7 +146,7 @@ struct lc_element *lc_find(struct lru_cache *lc, unsigned int enr)
 	return NULL;
 }
 
-STATIC struct lc_element *lc_evict(struct lru_cache *lc)
+static struct lc_element *lc_evict(struct lru_cache *lc)
 {
 	struct list_head  *n;
 	struct lc_element *e;
@@ -175,7 +171,6 @@ STATIC struct lc_element *lc_evict(struct lru_cache *lc)
  */
 void lc_del(struct lru_cache *lc, struct lc_element *e)
 {
-	/* FIXME what to do with refcnt != 0 ? */
 	PARANOIA_ENTRY();
 	BUG_ON(e->refcnt);
 	list_del(&e->list);
@@ -186,7 +181,7 @@ void lc_del(struct lru_cache *lc, struct lc_element *e)
 	RETURN();
 }
 
-STATIC struct lc_element *lc_get_unused_element(struct lru_cache *lc)
+static struct lc_element *lc_get_unused_element(struct lru_cache *lc)
 {
 	struct list_head *n;
 
@@ -198,7 +193,7 @@ STATIC struct lc_element *lc_get_unused_element(struct lru_cache *lc)
 	return list_entry(n, struct lc_element, list);
 }
 
-STATIC int lc_unused_element_available(struct lru_cache *lc)
+static int lc_unused_element_available(struct lru_cache *lc)
 {
 	if (!list_empty(&lc->free))
 		return 1; /* something on the free list */
@@ -330,7 +325,7 @@ void lc_changed(struct lru_cache *lc, struct lc_element *e)
 	lc->new_number = -1;
 	clear_bit(__LC_DIRTY, &lc->flags);
 	smp_mb__after_clear_bit();
-	PARANOIA_LEAVE();
+	RETURN();
 }
 
 
