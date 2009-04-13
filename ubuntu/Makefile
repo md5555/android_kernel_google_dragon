@@ -9,7 +9,6 @@
 #obj-$(CONFIG_DM_LOOP)		+= dm-loop/
 obj-$(CONFIG_NDISWRAPPER)	+= ndiswrapper/
 obj-$(CONFIG_TLSF)		+= compcache/
-#obj-$(CONFIG_FS_UNIONFS)	+= unionfs/
 obj-$(CONFIG_GFS_FS)		+= gfs/
 obj-$(CONFIG_TLSUP)		+= tlsup/
 
