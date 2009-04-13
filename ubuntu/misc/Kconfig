@@ -3,11 +3,6 @@ config USB_APPLEIR
 	default m
 	depends on USB
 
-config INPUT_ACERHK
-	tristate "Acer Travelmate laptop special key support"
-	default m
-	depends on X86_32
-
 config FSAM7400
 	tristate "SW RF kill switch for Fujitsu Siemens Amilo M 7400"
 	default m
