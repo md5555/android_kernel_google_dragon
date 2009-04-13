@@ -10,7 +10,6 @@ source "ubuntu/compcache/Kconfig"
 source "ubuntu/misc/Kconfig"
 source "ubuntu/rfkill/Kconfig"
 source "ubuntu/unionfs/Kconfig"
-source "ubuntu/lirc/Kconfig"
 source "ubuntu/gfs/Kconfig"
 source "ubuntu/tlsup/Kconfig"
 
