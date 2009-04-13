@@ -1,6 +1,5 @@
 /*
   drbd_int.h
-  Kernel module for 2.6.x Kernels
 
   This file is part of DRBD by Philipp Reisner and Lars Ellenberg.
 
@@ -37,6 +36,9 @@
 #include <linux/crypto.h>
 #include <linux/tcp.h>
 #include <linux/mutex.h>
+#include <linux/major.h>
+#include <linux/blkdev.h>
+#include <linux/bio.h>
 #include <net/tcp.h>
 #include "lru_cache.h"
 
@@ -54,23 +56,6 @@
 
 #define __no_warn(lock, stmt) do { __acquire(lock); stmt; __release(lock); } while (0)
 
-/* Compatibility for older kernels */
-#ifndef __acquires
-# ifdef __CHECKER__
-#  define __acquires(x)	__attribute__((context(x,0,1)))
-#  define __releases(x)	__attribute__((context(x,1,0)))
-#  define __acquire(x)	__context__(x,1)
-#  define __release(x)	__context__(x,-1)
-#  define __cond_lock(x,c)	((c) ? ({ __acquire(x); 1; }) : 0)
-# else
-#  define __acquires(x)
-#  define __releases(x)
-#  define __acquire(x)	(void)0
-#  define __release(x)	(void)0
-#  define __cond_lock(x,c) (c)
-# endif
-#endif
-
 /* module parameter, defined in drbd_main.c */
 extern unsigned int minor_count;
 extern int allow_oos;
@@ -84,15 +69,7 @@ extern int fault_devs;
 
 extern char usermode_helper[];
 
-#include <linux/major.h>
-#ifndef DRBD_MAJOR
-# define DRBD_MAJOR 147
-#endif
 
-#include <linux/blkdev.h>
-#include <linux/bio.h>
-
-/* XXX do we need this? */
 #ifndef TRUE
 #define TRUE 1
 #endif
@@ -111,8 +88,6 @@ extern char usermode_helper[];
  * Cannot use SIGTERM nor SIGKILL, since these
  * are sent out by init on runlevel changes
  * I choose SIGHUP for now.
- *
- * FIXME btw, we should register some reboot notifier.
  */
 #define DRBD_SIGKILL SIGHUP
 
@@ -136,38 +111,16 @@ struct drbd_conf;
 # define STATIC static
 #endif
 
-#ifdef PARANOIA
-# define PARANOIA_BUG_ON(x) BUG_ON(x)
-#else
-# define PARANOIA_BUG_ON(x)
-#endif
-
 /*
  * Some Message Macros
  *************************/
 
-/* handy macro: DUMPP(somepointer) */
 #define DUMPP(A)   ERR(#A " = %p in %s:%d\n", (A), __FILE__, __LINE__);
 #define DUMPLU(A)  ERR(#A " = %lu in %s:%d\n", (unsigned long)(A), __FILE__, __LINE__);
 #define DUMPLLU(A) ERR(#A " = %llu in %s:%d\n", (unsigned long long)(A), __FILE__, __LINE__);
 #define DUMPLX(A)  ERR(#A " = %lx in %s:%d\n", (A), __FILE__, __LINE__);
 #define DUMPI(A)   ERR(#A " = %d in %s:%d\n", (int)(A), __FILE__, __LINE__);
 
-#define DUMPST(A) DUMPLLU((unsigned long long)(A))
-
-#if 0
-#define D_DUMPP(A)   DUMPP(A)
-#define D_DUMPLU(A)  DUMPLU(A)
-#define D_DUMPLLU(A) DUMPLLU(A)
-#define D_DUMPLX(A)  DUMPLX(A)
-#define D_DUMPI(A)   DUMPI(A)
-#else
-#define D_DUMPP(A)
-#define D_DUMPLU(A)
-#define D_DUMPLLU(A)
-#define D_DUMPLX(A)
-#define D_DUMPI(A)
-#endif
 
 #define PRINTK(level, fmt, args...) \
 	printk(level "drbd%d: " fmt, \
@@ -180,46 +133,9 @@ struct drbd_conf;
 #define INFO(fmt, args...)  PRINTK(KERN_INFO, fmt , ##args)
 #define DBG(fmt, args...)   PRINTK(KERN_DEBUG, fmt , ##args)
 
-/* see kernel/printk.c:printk_ratelimit
- * macro, so it is easy do have independend rate limits at different locations
- * "initializer element not constant ..." with kernel 2.4 :(
- * so I initialize toks to something large
- */
-#define DRBD_ratelimit(ratelimit_jiffies, ratelimit_burst)	\
-({								\
-	int __ret;						\
-	static unsigned long toks = 0x80000000UL;		\
-	static unsigned long last_msg;				\
-	static int missed;					\
-	unsigned long now = jiffies;				\
-	toks += now - last_msg;					\
-	last_msg = now;						\
-	if (toks > (ratelimit_burst * ratelimit_jiffies))	\
-		toks = ratelimit_burst * ratelimit_jiffies;	\
-	if (toks >= ratelimit_jiffies) {			\
-		int lost = missed;				\
-		missed = 0;					\
-		toks -= ratelimit_jiffies;			\
-		if (lost)					\
-			drbd_WARN("%d messages suppressed in %s:%d.\n", \
-				lost, __FILE__, __LINE__);	\
-		__ret = 1;					\
-	} else {						\
-		missed++;					\
-		__ret = 0;					\
-	}							\
-	__ret;							\
-})
-
-
-#ifdef DBG_ASSERTS
-extern void drbd_assert_breakpoint(struct drbd_conf *, char *, char *, int);
-# define D_ASSERT(exp)	if (!(exp)) \
-	 drbd_assert_breakpoint(mdev, #exp, __FILE__, __LINE__)
-#else
-# define D_ASSERT(exp)	if (!(exp)) \
+#define D_ASSERT(exp)	if (!(exp)) \
 	 ERR("ASSERT( " #exp " ) in %s:%d\n", __FILE__, __LINE__)
-#endif
+
 #define ERR_IF(exp) if (({				\
 	int _b = (exp) != 0;				\
 	if (_b) ERR("%s: (%s) in %s:%d\n",		\
@@ -236,6 +152,7 @@ enum {
     DRBD_FAULT_DT_WR,		/* data            */
     DRBD_FAULT_DT_RD,
     DRBD_FAULT_DT_RA,		/* data read ahead */
+    DRBD_FAULT_BM_ALLOC,        /* bitmap allocation */
     DRBD_FAULT_AL_EE,		/* alloc ee */
 
     DRBD_FAULT_MAX,
@@ -256,60 +173,17 @@ drbd_insert_fault(struct drbd_conf *mdev, unsigned int type) {
 #define FAULT_ACTIVE(_m, _t) (0)
 #endif
 
-#include <linux/stringify.h>
 /* integer division, round _UP_ to the next integer */
 #define div_ceil(A, B) ((A)/(B) + ((A)%(B) ? 1 : 0))
 /* usual integer division */
 #define div_floor(A, B) ((A)/(B))
-
-/*
- * Compatibility Section
- *************************/
-
-#define LOCK_SIGMASK(task, flags)   spin_lock_irqsave(&task->sighand->siglock, flags)
-#define UNLOCK_SIGMASK(task, flags) spin_unlock_irqrestore(&task->sighand->siglock, flags)
-#define RECALC_SIGPENDING()	    recalc_sigpending();
-
-#if defined(DBG_SPINLOCKS) && defined(__SMP__)
-# define MUST_HOLD(lock) if (!spin_is_locked(lock)) ERR("Not holding lock! in %s\n", __func__);
-#else
-# define MUST_HOLD(lock)
-#endif
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,8)
-# define HAVE_KERNEL_SENDMSG 1
-#else
-# define HAVE_KERNEL_SENDMSG 0
-#endif
-
-#ifndef uninitialized_var
-/* in upstream since 9490991482a2091a828d997adbc088e24c310a4d
- * Date:   Sun May 6 14:49:17 2007 -0700 */
-/*
- * A trick to suppress uninitialized variable warning without generating any
- * code
- */
-#define uninitialized_var(x) x = x
-#endif
-
-
-
-/*
- * our structs
- *************************/
-
-#define SET_MDEV_MAGIC(x) \
-	({ typecheck(struct drbd_conf*, x); \
-	  (x)->magic = (long)(x) ^ DRBD_MAGIC; })
-#define IS_VALID_MDEV(x)  \
-	(typecheck(struct drbd_conf*, x) && \
-	  ((x) ? (((x)->magic ^ DRBD_MAGIC) == (long)(x)) : 0))
 
 /* drbd_meta-data.c (still in drbd_main.c) */
 /* 4th incarnation of the disk layout. */
 #define DRBD_MD_MAGIC (DRBD_MAGIC+4)
 
 extern struct drbd_conf **minor_table;
+extern struct ratelimit_state drbd_ratelimit_state;
 
 /***
  * on the wire
@@ -358,8 +232,9 @@ enum Drbd_Packet_Cmd {
 	CsumRSRequest     = 0x21, /* data socket */
 	RSIsInSync        = 0x22, /* meta socket */
 	SyncParam89       = 0x23, /* data socket, protocol version 89 replacement for SyncParam */
+	ReportCBitMap     = 0x24, /* compressed or otherwise encoded bitmap transfer */
 
-	MAX_CMD           = 0x24,
+	MAX_CMD           = 0x25,
 	MayIgnore         = 0x100, /* Flag to test if (cmd > MayIgnore) ... */
 	MAX_OPT_CMD       = 0x101,
 
@@ -413,6 +288,7 @@ static inline const char *cmdname(enum Drbd_Packet_Cmd cmd)
 		[OVResult]         = "OVResult",
 		[CsumRSRequest]    = "CsumRSRequest",
 		[RSIsInSync]       = "RSIsInSync",
+		[ReportCBitMap]    = "ReportCBitMap",
 		[MAX_CMD]	   = NULL,
 	};
 
@@ -427,6 +303,45 @@ static inline const char *cmdname(enum Drbd_Packet_Cmd cmd)
 	return cmdnames[cmd];
 }
 
+/* for sending/receiving the bitmap,
+ * possibly in some encoding scheme */
+struct bm_xfer_ctx {
+	/* "const"
+	 * stores total bits and long words
+	 * of the bitmap, so we don't need to
+	 * call the accessor functions over and again. */
+	unsigned long bm_bits;
+	unsigned long bm_words;
+	/* during xfer, current position within the bitmap */
+	unsigned long bit_offset;
+	unsigned long word_offset;
+
+	/* statistics; index: (h->command == ReportBitMap) */
+	unsigned packets[2];
+	unsigned bytes[2];
+};
+
+extern void INFO_bm_xfer_stats(struct drbd_conf *mdev,
+		const char *direction, struct bm_xfer_ctx *c);
+
+static inline void bm_xfer_ctx_bit_to_word_offset(struct bm_xfer_ctx *c)
+{
+	/* word_offset counts "native long words" (32 or 64 bit),
+	 * aligned at 64 bit.
+	 * Encoded packet may end at an unaligned bit offset.
+	 * In case a fallback clear text packet is transmitted in
+	 * between, we adjust this offset back to the last 64bit
+	 * aligned "native long word", which makes coding and decoding
+	 * the plain text bitmap much more convenient.  */
+#if BITS_PER_LONG == 64
+	c->word_offset = c->bit_offset >> 6;
+#elif BITS_PER_LONG == 32
+	c->word_offset = c->bit_offset >> 5;
+	c->word_offset &= ~(1UL);
+#else
+# error "unsupported BITS_PER_LONG"
+#endif
+}
 
 /* This is the layout for a packet on the wire.
  * The byteorder is the network byte order.
@@ -442,7 +357,7 @@ struct Drbd_Header {
 	u32	  magic;
 	u16	  command;
 	u16	  length;	/* bytes of data after this header */
-	char	  payload[0];
+	u8	  payload[0];
 } __attribute((packed));
 /* 8 bytes. packet FIXED for the next century! */
 
@@ -459,8 +374,10 @@ struct Drbd_Header {
  * commands with out-of-struct payload:
  *   ReportBitMap    (no additional fields)
  *   Data, DataReply (see Drbd_Data_Packet)
+ *   ReportCBitMap (see receive_compressed_bitmap)
  */
 
+/* these defines must not be changed without changing the protocol version */
 #define DP_HARDBARRIER	      1
 #define DP_RW_SYNC	      2
 #define DP_MAY_SET_IN_SYNC    4
@@ -616,6 +533,80 @@ struct Drbd_Discard_Packet {
 	u32	    pad;
 } __attribute((packed));
 
+/* Valid values for the encoding field.
+ * Bump proto version when changing this. */
+enum Drbd_bitmap_code {
+	RLE_VLI_Bytes = 0,
+	RLE_VLI_BitsFibD_0_1 = 1,
+	RLE_VLI_BitsFibD_1_1 = 2,
+	RLE_VLI_BitsFibD_1_2 = 3,
+	RLE_VLI_BitsFibD_2_3 = 4,
+	RLE_VLI_BitsFibD_3_5 = 5,
+};
+
+struct Drbd_Compressed_Bitmap_Packet {
+	struct Drbd_Header head;
+	/* (encoding & 0x0f): actual encoding, see enum Drbd_bitmap_code
+	 * (encoding & 0x80): polarity (set/unset) of first runlength
+	 * ((encoding >> 4) & 0x07): pad_bits, number of trailing zero bits
+	 * used to pad up to head.length bytes
+	 */
+	u8 encoding;
+
+	u8 code[0];
+} __attribute((packed));
+
+static inline enum Drbd_bitmap_code
+DCBP_get_code(struct Drbd_Compressed_Bitmap_Packet *p)
+{
+	return (enum Drbd_bitmap_code)(p->encoding & 0x0f);
+}
+
+static inline void
+DCBP_set_code(struct Drbd_Compressed_Bitmap_Packet *p, enum Drbd_bitmap_code code)
+{
+	BUG_ON(code & ~0xf);
+	p->encoding = (p->encoding & ~0xf) | code;
+}
+
+static inline int
+DCBP_get_start(struct Drbd_Compressed_Bitmap_Packet *p)
+{
+	return (p->encoding & 0x80) != 0;
+}
+
+static inline void
+DCBP_set_start(struct Drbd_Compressed_Bitmap_Packet *p, int set)
+{
+	p->encoding = (p->encoding & ~0x80) | (set ? 0x80 : 0);
+}
+
+static inline int
+DCBP_get_pad_bits(struct Drbd_Compressed_Bitmap_Packet *p)
+{
+	return (p->encoding >> 4) & 0x7;
+}
+
+static inline void
+DCBP_set_pad_bits(struct Drbd_Compressed_Bitmap_Packet *p, int n)
+{
+	BUG_ON(n & ~0x7);
+	p->encoding = (p->encoding & (~0x7 << 4)) | (n << 4);
+}
+
+/* one bitmap packet, including the Drbd_Header,
+ * should fit within one _architecture independend_ page.
+ * so we need to use the fixed size 4KiB page size
+ * most architechtures have used for a long time.
+ */
+#define BM_PACKET_PAYLOAD_BYTES (4096 - sizeof(struct Drbd_Header))
+#define BM_PACKET_WORDS (BM_PACKET_PAYLOAD_BYTES/sizeof(long))
+#define BM_PACKET_VLI_BYTES_MAX (4096 - sizeof(struct Drbd_Compressed_Bitmap_Packet))
+#if (PAGE_SIZE < 4096)
+/* drbd_send_bitmap / receive_bitmap would break horribly */
+#error "PAGE_SIZE too small"
+#endif
+
 union Drbd_Polymorph_Packet {
 	struct Drbd_Header		head;
 	struct Drbd_HandShake_Packet	HandShake;
@@ -644,7 +635,7 @@ enum Drbd_thread_state {
 struct Drbd_thread {
 	spinlock_t t_lock;
 	struct task_struct *task;
-	struct completion startstop;
+	struct completion stop;
 	enum Drbd_thread_state t_state;
 	int (*function) (struct Drbd_thread *);
 	struct drbd_conf *mdev;
@@ -796,6 +787,7 @@ enum {
 				   once no more io in flight, start bitmap io */
 	BITMAP_IO_QUEUED,       /* Started bitmap IO */
 	RESYNC_AFTER_NEG,       /* Resync after online grow after the attach&negotiate finished. */
+	NET_CONGESTED,		/* The data socket is congested */
 };
 
 struct drbd_bitmap; /* opaque for drbd_conf */
@@ -816,14 +808,9 @@ struct drbd_work_queue {
 	spinlock_t q_lock;  /* to protect the list. */
 };
 
-/* If Philipp agrees, we remove the "mutex", and make_request will only
- * (throttle on "queue full" condition and) queue it to the worker thread...
- * which then is free to do whatever is needed, and has exclusive send access
- * to the data socket ...
- */
 struct drbd_socket {
 	struct drbd_work_queue work;
-	struct semaphore  mutex;
+	struct mutex mutex;
 	struct socket    *socket;
 	/* this way we get our
 	 * send/receive buffers off the stack */
@@ -888,9 +875,6 @@ enum write_ordering_e {
 };
 
 struct drbd_conf {
-#ifdef PARANOIA
-	long magic;
-#endif
 	/* things that are stored as / read from meta data on disk */
 	unsigned long flags;
 
@@ -968,6 +952,7 @@ struct drbd_conf {
 	struct Drbd_thread worker;
 	struct Drbd_thread asender;
 	struct drbd_bitmap *bitmap;
+	unsigned long bm_resync_fo; /* bit offset for drbd_bm_find_next */
 
 	/* Used to track operations of resync... */
 	struct lru_cache *resync;
@@ -978,8 +963,6 @@ struct drbd_conf {
 
 	int open_cnt;
 	u64 *p_uuid;
-	/* FIXME clean comments, restructure so it is more obvious which
-	 * members are protected by what */
 	struct drbd_epoch *current_epoch;
 	spinlock_t epoch_lock;
 	unsigned int epochs;
@@ -1002,7 +985,7 @@ struct drbd_conf {
 	wait_queue_head_t ee_wait;
 	struct page *md_io_page;	/* one page buffer for md_io */
 	struct page *md_io_tmpp;	/* for hardsect != 512 [s390 only?] */
-	struct semaphore md_io_mutex;	/* protects the md_io_buffer */
+	struct mutex md_io_mutex;	/* protects the md_io_buffer */
 	spinlock_t al_lock;
 	wait_queue_head_t al_wait;
 	struct lru_cache *act_log;	/* activity log */
@@ -1019,12 +1002,13 @@ struct drbd_conf {
 	atomic_t packet_seq;
 	unsigned int peer_seq;
 	spinlock_t peer_seq_lock;
-	int minor;
+	unsigned int minor;
 	unsigned long comm_bm_set; /* communicated number of set bits. */
 	cpumask_t cpu_mask;
 	struct bm_io_work bm_io_work;
 	u64 ed_uuid; /* UUID of the exposed data */
 	struct mutex state_mutex;
+	char congestion_reason;  /* Why we where congested... */
 };
 
 static inline struct drbd_conf *minor_to_mdev(unsigned int minor)
@@ -1036,7 +1020,7 @@ static inline struct drbd_conf *minor_to_mdev(unsigned int minor)
 	return mdev;
 }
 
-static inline int mdev_to_minor(struct drbd_conf *mdev)
+static inline unsigned int mdev_to_minor(struct drbd_conf *mdev)
 {
 	return mdev->minor;
 }
@@ -1051,11 +1035,11 @@ static inline int mdev_to_minor(struct drbd_conf *mdev)
  */
 static inline int drbd_get_data_sock(struct drbd_conf *mdev)
 {
-	down(&mdev->data.mutex);
+	mutex_lock(&mdev->data.mutex);
 	/* drbd_disconnect() could have called drbd_free_sock()
 	 * while we were waiting in down()... */
 	if (unlikely(mdev->data.socket == NULL)) {
-		up(&mdev->data.mutex);
+		mutex_unlock(&mdev->data.mutex);
 		return 0;
 	}
 	return 1;
@@ -1063,7 +1047,7 @@ static inline int drbd_get_data_sock(struct drbd_conf *mdev)
 
 static inline void drbd_put_data_sock(struct drbd_conf *mdev)
 {
-	up(&mdev->data.mutex);
+	mutex_unlock(&mdev->data.mutex);
 }
 
 /*
@@ -1087,8 +1071,8 @@ extern void drbd_force_state(struct drbd_conf *, union drbd_state_t,
 			union drbd_state_t);
 extern int _drbd_request_state(struct drbd_conf *, union drbd_state_t,
 			union drbd_state_t, enum chg_state_flags);
-extern int _drbd_set_state(struct drbd_conf *, union drbd_state_t,
-			   enum chg_state_flags, struct completion *done);
+extern int __drbd_set_state(struct drbd_conf *, union drbd_state_t,
+			    enum chg_state_flags, struct completion *done);
 extern void print_st_err(struct drbd_conf *, union drbd_state_t,
 			union drbd_state_t, int);
 extern int  drbd_thread_start(struct Drbd_thread *thi);
@@ -1264,20 +1248,8 @@ struct bm_extent {
 #define AL_EXT_PER_BM_SECT  (1 << (BM_EXT_SIZE_B - AL_EXTENT_SIZE_B))
 #define BM_WORDS_PER_AL_EXT (1 << (AL_EXTENT_SIZE_B-BM_BLOCK_SIZE_B-LN2_BPL))
 
-
 #define BM_BLOCKS_PER_BM_EXT_B (BM_EXT_SIZE_B - BM_BLOCK_SIZE_B)
 #define BM_BLOCKS_PER_BM_EXT_MASK  ((1<<BM_BLOCKS_PER_BM_EXT_B) - 1)
-
-/* I want the packet to fit within one page
- * THINK maybe use a special bitmap header,
- * including offset and compression scheme and whatnot
- * Do not use PAGE_SIZE here! Use a architecture agnostic constant!
- */
-#define BM_PACKET_WORDS ((4096-sizeof(struct Drbd_Header))/sizeof(long))
-#if (PAGE_SIZE < 4096)
-/* drbd_send_bitmap / receive_bitmap would break horribly */
-#error "PAGE_SIZE too small"
-#endif
 
 /* the extent in "PER_EXTENT" below is an activity log extent
  * we need that many (long words/bytes) to store the bitmap
@@ -1305,7 +1277,14 @@ struct bm_extent {
 #else
 #define DRBD_MAX_SECTORS      DRBD_MAX_SECTORS_BM
 /* 16 TB in units of sectors */
-#define DRBD_MAX_SECTORS_FLEX (1ULL<<(32+BM_BLOCK_SIZE_B-9))
+#if BITS_PER_LONG == 32
+/* adjust by one page worth of bitmap,
+ * so we won't wrap around in drbd_bm_find_next_bit.
+ * you should use 64bit OS for that much storage, anyways. */
+#define DRBD_MAX_SECTORS_FLEX BM_BIT_TO_SECT(0xffff7fff)
+#else
+#define DRBD_MAX_SECTORS_FLEX BM_BIT_TO_SECT(0x1LU << 32)
+#endif
 #endif
 
 /* Sector shift value for the "hash" functions of tl_hash and ee_hash tables.
@@ -1322,11 +1301,13 @@ extern int  drbd_bm_resize(struct drbd_conf *mdev, sector_t sectors);
 extern void drbd_bm_cleanup(struct drbd_conf *mdev);
 extern void drbd_bm_set_all(struct drbd_conf *mdev);
 extern void drbd_bm_clear_all(struct drbd_conf *mdev);
-extern void drbd_bm_reset_find(struct drbd_conf *mdev);
 extern int  drbd_bm_set_bits(
 		struct drbd_conf *mdev, unsigned long s, unsigned long e);
 extern int  drbd_bm_clear_bits(
 		struct drbd_conf *mdev, unsigned long s, unsigned long e);
+/* bm_set_bits variant for use while holding drbd_bm_lock */
+extern int _drbd_bm_set_bits(struct drbd_conf *mdev,
+		const unsigned long s, const unsigned long e);
 extern int  drbd_bm_test_bit(struct drbd_conf *mdev, unsigned long bitnr);
 extern int  drbd_bm_e_weight(struct drbd_conf *mdev, unsigned long enr);
 extern int  drbd_bm_write_sect(struct drbd_conf *mdev, unsigned long enr) __must_hold(local);
@@ -1337,8 +1318,10 @@ extern unsigned long drbd_bm_ALe_set_all(struct drbd_conf *mdev,
 extern size_t	     drbd_bm_words(struct drbd_conf *mdev);
 extern unsigned long drbd_bm_bits(struct drbd_conf *mdev);
 extern sector_t      drbd_bm_capacity(struct drbd_conf *mdev);
-extern unsigned long drbd_bm_find_next(struct drbd_conf *mdev);
-extern void drbd_bm_set_find(struct drbd_conf *mdev, unsigned long i);
+extern unsigned long drbd_bm_find_next(struct drbd_conf *mdev, unsigned long bm_fo);
+/* bm_find_next variants for use while you hold drbd_bm_lock() */
+extern unsigned long _drbd_bm_find_next(struct drbd_conf *mdev, unsigned long bm_fo);
+extern unsigned long _drbd_bm_find_next_zero(struct drbd_conf *mdev, unsigned long bm_fo);
 extern unsigned long drbd_bm_total_weight(struct drbd_conf *mdev);
 extern int drbd_bm_rs_done(struct drbd_conf *mdev);
 /* for receive_bitmap */
@@ -1357,10 +1340,6 @@ extern void _drbd_bm_recount_bits(struct drbd_conf *mdev, char *file, int line);
 extern int drbd_bm_count_bits(struct drbd_conf *mdev, const unsigned long s, const unsigned long e);
 /* drbd_main.c */
 
-/* needs to be included here,
- * because of kmem_cache_t weirdness */
-#include "drbd_wrappers.h"
-
 extern struct kmem_cache *drbd_request_cache;
 extern struct kmem_cache *drbd_ee_cache;
 extern mempool_t *drbd_request_mempool;
@@ -1371,7 +1350,10 @@ extern spinlock_t   drbd_pp_lock;
 extern int	    drbd_pp_vacant;
 extern wait_queue_head_t drbd_pp_wait;
 
-extern struct drbd_conf *drbd_new_device(int minor);
+extern rwlock_t global_state_lock;
+
+extern struct drbd_conf *drbd_new_device(unsigned int minor);
+extern void drbd_free_mdev(struct drbd_conf *mdev);
 
 /* Dynamic tracing framework */
 #ifdef ENABLE_DYNAMIC_TRACE
@@ -1488,13 +1470,7 @@ dump_packet(struct drbd_conf *mdev, struct socket *sock,
 /* drbd_req */
 extern int drbd_make_request_26(struct request_queue *q, struct bio *bio);
 extern int drbd_read_remote(struct drbd_conf *mdev, struct drbd_request *req);
-extern int drbd_merge_bvec(struct request_queue *q,
-#ifdef HAVE_bvec_merge_data
-		struct bvec_merge_data *bvm,
-#else
-		struct bio *bvm,
-#endif
-		struct bio_vec *bvec);
+extern int drbd_merge_bvec(struct request_queue *q, struct bvec_merge_data *bvm, struct bio_vec *bvec);
 extern int is_valid_ar_handle(struct drbd_request *, sector_t);
 
 
@@ -1659,45 +1635,55 @@ void drbd_bcast_ee(struct drbd_conf *mdev,
 		const char* seen_hash, const char* calc_hash,
 		const struct Tl_epoch_entry* e);
 
-/*
- * inline helper functions
- *************************/
 
+/** DRBD State macros:
+ * These macros are used to express state changes in easily readable form.
+ *
+ * The NS macros expand to a mask and a value, that can be bit ored onto the
+ * current state as soon as the spinlock (req_lock) was taken.
+ *
+ * The _NS macros are used for state functions that get called with the
+ * spinlock. These macros expand directly to the new state value.
+ *
+ * Besides the basic forms NS() and _NS() additional _?NS[23] are defined
+ * to express state changes that affect more than one aspect of the state.
+ *
+ * E.g. NS2(conn, Connected, peer, Secondary)
+ * Means that the network connection was established and that the peer
+ * is in secondary role.
+ */
 #define peer_mask role_mask
 #define pdsk_mask disk_mask
 #define susp_mask 1
 #define user_isp_mask 1
 #define aftr_isp_mask 1
 
-/* drbd state debug */
-#if DRBD_DEBUG_STATE_CHANGES
-#define DRBD_STATE_DEBUG_INIT_VAL(s) ({ (s).line = __LINE__; (s).func = __func__; })
-#else
-#define DRBD_STATE_DEBUG_INIT_VAL(s) do { } while (0)
-#endif
-
 #define NS(T, S) \
 	({ union drbd_state_t mask; mask.i = 0; mask.T = T##_mask; mask; }), \
-	({ union drbd_state_t val; DRBD_STATE_DEBUG_INIT_VAL(val); val.i = 0; val.T = (S); val; })
+	({ union drbd_state_t val; val.i = 0; val.T = (S); val; })
 #define NS2(T1, S1, T2, S2) \
 	({ union drbd_state_t mask; mask.i = 0; mask.T1 = T1##_mask; \
 	  mask.T2 = T2##_mask; mask; }), \
-	({ union drbd_state_t val; DRBD_STATE_DEBUG_INIT_VAL(val); val.i = 0; val.T1 = (S1); \
+	({ union drbd_state_t val; val.i = 0; val.T1 = (S1); \
 	  val.T2 = (S2); val; })
 #define NS3(T1, S1, T2, S2, T3, S3) \
 	({ union drbd_state_t mask; mask.i = 0; mask.T1 = T1##_mask; \
 	  mask.T2 = T2##_mask; mask.T3 = T3##_mask; mask; }), \
-	({ union drbd_state_t val; DRBD_STATE_DEBUG_INIT_VAL(val); val.i = 0; val.T1 = (S1); \
+	({ union drbd_state_t val;  val.i = 0; val.T1 = (S1); \
 	  val.T2 = (S2); val.T3 = (S3); val; })
 
 #define _NS(D, T, S) \
-	D, ({ union drbd_state_t __ns; DRBD_STATE_DEBUG_INIT_VAL(__ns); __ns.i = D->state.i; __ns.T = (S); __ns; })
+	D, ({ union drbd_state_t __ns; __ns.i = D->state.i; __ns.T = (S); __ns; })
 #define _NS2(D, T1, S1, T2, S2) \
-	D, ({ union drbd_state_t __ns; DRBD_STATE_DEBUG_INIT_VAL(__ns); __ns.i = D->state.i; __ns.T1 = (S1); \
+	D, ({ union drbd_state_t __ns; __ns.i = D->state.i; __ns.T1 = (S1); \
 	__ns.T2 = (S2); __ns; })
 #define _NS3(D, T1, S1, T2, S2, T3, S3) \
-	D, ({ union drbd_state_t __ns; DRBD_STATE_DEBUG_INIT_VAL(__ns); __ns.i = D->state.i; __ns.T1 = (S1); \
+	D, ({ union drbd_state_t __ns; __ns.i = D->state.i; __ns.T1 = (S1); \
 	__ns.T2 = (S2); __ns.T3 = (S3); __ns; })
+
+/*
+ * inline helper functions
+ *************************/
 
 static inline void drbd_state_lock(struct drbd_conf *mdev)
 {
@@ -1709,6 +1695,19 @@ static inline void drbd_state_unlock(struct drbd_conf *mdev)
 {
 	clear_bit(CLUSTER_ST_CHANGE, &mdev->flags);
 	wake_up(&mdev->misc_wait);
+}
+
+static inline int _drbd_set_state(struct drbd_conf *mdev,
+				   union drbd_state_t ns, enum chg_state_flags flags,
+				   struct completion *done)
+{
+	int rv;
+
+	read_lock(&global_state_lock);
+	rv = __drbd_set_state(mdev, ns, flags, done);
+	read_unlock(&global_state_lock);
+
+	return rv;
 }
 
 static inline int drbd_request_state(struct drbd_conf *mdev,
@@ -1725,7 +1724,7 @@ static inline int drbd_request_state(struct drbd_conf *mdev,
 static inline void __drbd_chk_io_error(struct drbd_conf *mdev, int forcedetach)
 {
 	switch (mdev->bc->dc.on_io_error) {
-	case PassOn: /* FIXME would this be better named "Ignore"? */
+	case PassOn:
 		if (!forcedetach) {
 			if (printk_ratelimit())
 				ERR("Local IO failed. Passing error on...\n");
@@ -1751,15 +1750,6 @@ static inline void drbd_chk_io_error(struct drbd_conf *mdev,
 		__drbd_chk_io_error(mdev, forcedetach);
 		spin_unlock_irqrestore(&mdev->req_lock, flags);
 	}
-}
-
-static inline int semaphore_is_locked(struct semaphore *s)
-{
-	if (!down_trylock(s)) {
-		up(s);
-		return 0;
-	}
-	return 1;
 }
 
 /* Returns the first sector number of our meta data,
@@ -1790,6 +1780,13 @@ static inline sector_t drbd_md_last_sector(struct drbd_backing_dev *bdev)
 	default:
 		return bdev->md.md_offset + bdev->md.md_size_sect;
 	}
+}
+
+/* Returns the number of 512 byte sectors of the device */
+static inline sector_t drbd_get_capacity(struct block_device *bdev)
+{
+	/* return bdev ? get_capacity(bdev->bd_disk) : 0; */
+	return bdev ? bdev->bd_inode->i_size >> 9 : 0;
 }
 
 /* returns the capacity we announce to out peer.
@@ -1834,7 +1831,7 @@ static inline sector_t drbd_md_ss__(struct drbd_conf *mdev,
 		/* sizeof(struct md_on_disk_07) == 4k
 		 * position: last 4k aligned block of 4k size */
 		if (!bdev->backing_bdev) {
-			if (DRBD_ratelimit(5*HZ, 5)) {
+			if (__ratelimit(&drbd_ratelimit_state)) {
 				ERR("bdev->backing_bdev==NULL\n");
 				dump_stack();
 			}
@@ -1937,7 +1934,6 @@ static inline void drbd_thread_restart_nowait(struct Drbd_thread *thi)
  *     [from receive_DataReply]
  *  _req_mod(req, write_acked_by_peer or recv_acked_by_peer or neg_acked)
  *     [from got_BlockAck (WriteAck, RecvAck)]
- *     FIXME
  *     for some reason it is NOT decreased in got_NegAck,
  *     but in the resulting cleanup code from report_params.
  *     we should try to remember the reason for that...
@@ -2277,6 +2273,13 @@ static inline void update_peer_seq(struct drbd_conf *mdev, unsigned int new_seq)
 		wake_up(&mdev->seq_wait);
 }
 
+static inline void drbd_update_congested(struct drbd_conf *mdev)
+{
+	struct sock *sk = mdev->data.socket->sk;
+	if (sk->sk_wmem_queued > sk->sk_sndbuf * 4 / 5)
+		set_bit(NET_CONGESTED, &mdev->flags);
+}
+
 static inline int drbd_queue_order_type(struct drbd_conf *mdev)
 {
 	/* sorry, we currently have no working implementation
@@ -2287,20 +2290,6 @@ static inline int drbd_queue_order_type(struct drbd_conf *mdev)
 	return QUEUE_ORDERED_NONE;
 }
 
-/*
- * FIXME investigate what makes most sense:
- * a) blk_run_queue(q);
- *
- * b) struct backing_dev_info *bdi;
- *    b1) bdi = &q->backing_dev_info;
- *    b2) bdi = mdev->bc->backing_bdev->bd_inode->i_mapping->backing_dev_info;
- *    blk_run_backing_dev(bdi,NULL);
- *
- * c) generic_unplug(q) ? __generic_unplug(q) ?
- *
- * d) q->unplug_fn(q), which is what all the drivers/md/ stuff uses...
- *
- */
 static inline void drbd_blk_run_queue(struct request_queue *q)
 {
 	if (q && q->unplug_fn)

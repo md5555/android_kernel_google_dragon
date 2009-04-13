@@ -1,7 +1,5 @@
 /*
--*- linux-c -*-
    drbd_proc.c
-   Kernel module for 2.6.x Kernels
 
    This file is part of DRBD by Philipp Reisner and Lars Ellenberg.
 
@@ -79,8 +77,8 @@ STATIC void drbd_syncer_progress(struct drbd_conf *mdev, struct seq_file *seq)
 	/* if more than 1 GB display in MB */
 	if (mdev->rs_total > 0x100000L)
 		seq_printf(seq, "(%lu/%lu)M\n\t",
-			    (unsigned long) Bit2KB(rs_left) >> 10,
-			    (unsigned long) Bit2KB(mdev->rs_total) >> 10);
+			    (unsigned long) Bit2KB(rs_left >> 10),
+			    (unsigned long) Bit2KB(mdev->rs_total >> 10));
 	else
 		seq_printf(seq, "(%lu/%lu)K\n\t",
 			    (unsigned long) Bit2KB(rs_left),
@@ -203,7 +201,7 @@ STATIC int drbd_seq_show(struct seq_file *seq, void *v)
 			seq_printf(seq, "%2d: cs:Unconfigured\n", i);
 		} else {
 			seq_printf(seq,
-			   "%2d: cs:%s ro:%s/%s ds:%s/%s %c %c%c%c%c\n"
+			   "%2d: cs:%s ro:%s/%s ds:%s/%s %c %c%c%c%c%c\n"
 			   "    ns:%u nr:%u dw:%u dr:%u al:%u bm:%u "
 			   "lo:%d pe:%d ua:%d ap:%d ep:%d wo:%c",
 			   i, sn,
@@ -217,6 +215,7 @@ STATIC int drbd_seq_show(struct seq_file *seq, void *v)
 			   mdev->state.aftr_isp ? 'a' : '-',
 			   mdev->state.peer_isp ? 'p' : '-',
 			   mdev->state.user_isp ? 'u' : '-',
+			   mdev->congestion_reason ?: '-',
 			   mdev->send_cnt/2,
 			   mdev->recv_cnt/2,
 			   mdev->writ_cnt/2,
@@ -239,7 +238,7 @@ STATIC int drbd_seq_show(struct seq_file *seq, void *v)
 			drbd_syncer_progress(mdev, seq);
 
 		if (mdev->state.conn == VerifyS || mdev->state.conn == VerifyT)
-			seq_printf(seq,"\t%3d%%      %lu/%lu\n",
+			seq_printf(seq, "\t%3d%%      %lu/%lu\n",
 				   (int)((mdev->rs_total-mdev->ov_left) /
 					 (mdev->rs_total/100+1)),
 				   mdev->rs_total - mdev->ov_left,

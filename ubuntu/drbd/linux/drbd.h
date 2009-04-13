@@ -161,10 +161,6 @@ enum drbd_role {
  * The lower ones (<WFReportParams) indicate
  * that there is no socket!
  * >=WFReportParams ==> There is a socket
- *
- * THINK
- * Skipped should be < Connected,
- * so writes on a Primary after Skipped sync are not mirrored either ?
  */
 enum drbd_conns {
 	StandAlone,
@@ -306,7 +302,8 @@ enum MetaDataFlags {
 	__MDF_ConnectedInd,
 	__MDF_FullSync,
 	__MDF_WasUpToDate,
-	__MDF_PeerOutDated /* or worse (e.g. invalid). */
+	__MDF_PeerOutDated, /* or worse (e.g. invalid). */
+	__MDF_CrashedPrimary,
 };
 #define MDF_Consistent      (1<<__MDF_Consistent)
 #define MDF_PrimaryInd      (1<<__MDF_PrimaryInd)
@@ -314,6 +311,7 @@ enum MetaDataFlags {
 #define MDF_FullSync        (1<<__MDF_FullSync)
 #define MDF_WasUpToDate     (1<<__MDF_WasUpToDate)
 #define MDF_PeerOutDated    (1<<__MDF_PeerOutDated)
+#define MDF_CrashedPrimary  (1<<__MDF_CrashedPrimary)
 
 enum UuidIndex {
 	Current,
@@ -323,6 +321,12 @@ enum UuidIndex {
 	UUID_SIZE,      /* nl-packet: number of dirty bits */
 	UUID_FLAGS,     /* nl-packet: flags */
 	EXT_UUID_SIZE   /* Everything. */
+};
+
+enum UseTimeout {
+	UT_Default      = 0,
+	UT_Degraded     = 1,
+	UT_PeerOutdated = 2,
 };
 
 #define UUID_JUST_CREATED ((__u64)4)
@@ -343,7 +347,7 @@ enum UuidIndex {
 /* The following line should be moved over to linux/connector.h
  * when the time comes */
 #ifndef CN_IDX_DRBD
-# define CN_IDX_DRBD			0x6
+# define CN_IDX_DRBD			0x4
 /* Ubuntu "intrepid ibex" release defined CN_IDX_DRBD as 0x6 */
 #endif
 #define CN_VAL_DRBD			0x1
@@ -353,14 +357,14 @@ enum UuidIndex {
 
 struct drbd_nl_cfg_req {
 	int packet_type;
-	int drbd_minor;
+	unsigned int drbd_minor;
 	int flags;
 	unsigned short tag_list[];
 };
 
 struct drbd_nl_cfg_reply {
 	int packet_type;
-	int minor;
+	unsigned int minor;
 	int ret_code; /* enum ret_code or set_st_err_t */
 	unsigned short tag_list[]; /* only used with get_* calls */
 };

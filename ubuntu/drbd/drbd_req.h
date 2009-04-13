@@ -1,6 +1,5 @@
 /*
    drbd_req.h
-   Kernel module for 2.6.x Kernels
 
    This file is part of DRBD by Philipp Reisner and Lars Ellenberg.
 
@@ -32,6 +31,7 @@
 #include <linux/slab.h>
 #include <linux/drbd.h>
 #include "drbd_int.h"
+#include "drbd_wrappers.h"
 
 /* The request callbacks will be called in irq context by the IDE drivers,
    and in Softirqs/Tasklets/BH context by the SCSI drivers,
@@ -52,10 +52,6 @@
  *
  *  It has to be placed on the transfer log and other housekeeping lists,
  *  In case we have a network connection.
- *    FIXME I believe that for consistency we should place even READ requests
- *    on these lists, so we can moan when we detect that the other node is
- *    writing to an area that we currently read from (when this happens, our
- *    users are broken).
  *
  *  It may be identified as a concurrent (write) request
  *    and be handled accordingly.
