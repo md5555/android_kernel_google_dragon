@@ -5,6 +5,9 @@
 # 'debian/rules insertchanges' from inserting this commit meesage
 # as a changelog entry.
 #
-UBUNTU: Updating configs
+# Please give a one-line description of the config change followed
+# by a detailed explanation if necessary
 
-Ignore: yes
+UBUNTU: [Config] XXXX
+
+#Ignore: yes
