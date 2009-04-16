@@ -19,7 +19,7 @@
 #
 # Ignore: yes will keep this commit from showing up in the changelog.
 #
-UBUNTU: 
+UBUNTU: [Upstream]
 
 # OriginalAuthor: 
 # OriginalLocation: 
