@@ -11,6 +11,7 @@ obj-$(CONFIG_NDISWRAPPER)	+= ndiswrapper/
 obj-$(CONFIG_TLSF)		+= compcache/
 obj-$(CONFIG_GFS_FS)		+= gfs/
 obj-$(CONFIG_TLSUP)		+= tlsup/
+obj-$(CONFIG_LENOVO_SL_LAPTOP)	+= lenovo-sl-laptop/
 
 obj-m				+= misc/ rfkill/
 
