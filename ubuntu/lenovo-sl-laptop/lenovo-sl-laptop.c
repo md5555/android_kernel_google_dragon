@@ -1307,6 +1307,7 @@ static void __exit lenovo_sl_laptop_exit(void)
 }
 
 MODULE_ALIAS("dmi:bvnLENOVO:*:svnLENOVO:*:pvrThinkPad SL*:rvnLENOVO:*");
+MODULE_ALIAS("dmi:bvnLENOVO:*:svnLENOVO.:*:pvrThinkPadSL*:rvnLENOVO:*");
 
 module_init(lenovo_sl_laptop_init);
 module_exit(lenovo_sl_laptop_exit);
