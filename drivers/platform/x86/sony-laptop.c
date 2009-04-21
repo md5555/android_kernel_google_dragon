@@ -1399,8 +1399,11 @@ struct device_ctrl {
 	u16				evport_offset;
 	u8				has_camera;
 	u8				has_bluetooth;
-	u8				has_wwan;
 	struct sonypi_eventtypes	*event_types;
+};
+
+struct sony_pic_quirk_entry {
+	u8				set_wwan_power;
 };
 
 struct sony_pic_dev {
@@ -1411,6 +1414,7 @@ struct sony_pic_dev {
 	struct list_head	interrupts;
 	struct list_head	ioports;
 	struct mutex		lock;
+	struct sony_pic_quirk_entry *quirks;
 	u8			camera_power;
 	u8			bluetooth_power;
 	u8			wwan_power;
@@ -2844,6 +2848,12 @@ static int sony_pic_add(struct acpi_device *device)
 	if (result)
 		goto err_remove_pf;
 
+	if (spic_dev.quirks && spic_dev.quirks->set_wwan_power) {
+		/*
+		 * Power isn't enabled by default.
+		 */
+		__sony_pic_set_wwanpower(1);
+	}
 	return 0;
 
 err_remove_pf:
@@ -2914,6 +2924,16 @@ static struct acpi_driver sony_pic_driver = {
 		},
 };
 
+static struct sony_pic_quirk_entry sony_pic_vaio_vgn = {
+	.set_wwan_power = 1,
+};
+
+static int dmi_matched(const struct dmi_system_id *dmi)
+{
+	spic_dev.quirks = dmi->driver_data;
+	return 0;
+}
+
 static struct dmi_system_id __initdata sonypi_dmi_table[] = {
 	{
 		.ident = "Sony Vaio",
@@ -2928,6 +2948,8 @@ static struct dmi_system_id __initdata sonypi_dmi_table[] = {
 			DMI_MATCH(DMI_SYS_VENDOR, "Sony Corporation"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "VGN-"),
 		},
+		.callback = dmi_matched,
+		.driver_data = &sony_pic_vaio_vgn,
 	},
 	{ }
 };
