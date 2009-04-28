@@ -365,14 +365,14 @@ sub really_reverse_link {
 
   if ($use_hard_links =~ m/YES/i) {
     link($Old . "$link_name", $src_dir . "$link_name") ||
-      die("Failed to symbolic-link " . $dest_dir . "$link_name to " . $src_dir
-          . "$link_name .\n");
+      die("Failed to link " . $dest_dir . "$link_name to " . $src_dir . 
+          "$link_name .\n");
     warn "ln " . $Old . "$link_name " . $src_dir . "$link_name"  if $DEBUG;
   }
   else {
     symlink($Old . "$link_name", $src_dir . "$link_name") ||
-      die("Failed to link " . $dest_dir . "$link_name to " . $src_dir . 
-          "$link_name .\n");
+      die("Failed to symbolic-link " . $dest_dir . "$link_name to " . $src_dir
+          . "$link_name .\n");
     warn "ln -s " . $Old . "$link_name " . $src_dir . "$link_name" if $DEBUG;
   }
 }
