@@ -379,12 +379,12 @@ struct _sas_node {
 
 /**
  * enum reset_type - reset state
- * @FORCE_BIG_HAMMER: issue diagnostic reset
- * @SOFT_RESET: issue message_unit_reset, if fails to to big hammer
+ * @MPT2SAS_FORCE_BIG_HAMMER: issue diagnostic reset
+ * @MPT2SAS_SOFT_RESET: issue message_unit_reset, if fails to to big hammer
  */
 enum reset_type {
-	FORCE_BIG_HAMMER,
-	SOFT_RESET,
+	MPT2SAS_FORCE_BIG_HAMMER,
+	MPT2SAS_SOFT_RESET,
 };
 
 /**

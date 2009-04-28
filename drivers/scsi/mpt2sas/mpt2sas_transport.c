@@ -447,7 +447,7 @@ transport_expander_report_manufacture(struct MPT2SAS_ADAPTER *ioc,
  issue_host_reset:
 	if (issue_reset)
 		mpt2sas_base_hard_reset_handler(ioc, CAN_SLEEP,
-		    FORCE_BIG_HAMMER);
+		    MPT2SAS_FORCE_BIG_HAMMER);
  out:
 	ioc->transport_cmds.status = MPT2_CMD_NOT_USED;
 	if (data_out)
@@ -1182,7 +1182,7 @@ transport_smp_handler(struct Scsi_Host *shost, struct sas_rphy *rphy,
  issue_host_reset:
 	if (issue_reset) {
 		mpt2sas_base_hard_reset_handler(ioc, CAN_SLEEP,
-		    FORCE_BIG_HAMMER);
+		    MPT2SAS_FORCE_BIG_HAMMER);
 		rc = -ETIMEDOUT;
 	}
 

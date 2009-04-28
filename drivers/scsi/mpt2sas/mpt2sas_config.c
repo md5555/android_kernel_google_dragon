@@ -308,7 +308,7 @@ _config_request(struct MPT2SAS_ADAPTER *ioc, Mpi2ConfigRequest_t
  issue_host_reset:
 	if (issue_reset)
 		mpt2sas_base_hard_reset_handler(ioc, CAN_SLEEP,
-		    FORCE_BIG_HAMMER);
+		    MPT2SAS_FORCE_BIG_HAMMER);
 	ioc->config_cmds.status = MPT2_CMD_NOT_USED;
 	if (!retry_count) {
 		printk(MPT2SAS_INFO_FMT "%s: attempting retry\n",

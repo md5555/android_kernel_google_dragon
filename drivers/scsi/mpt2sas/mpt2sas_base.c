@@ -101,7 +101,7 @@ _base_fault_reset_work(struct work_struct *work)
 	doorbell = mpt2sas_base_get_iocstate(ioc, 0);
 	if ((doorbell & MPI2_IOC_STATE_MASK) == MPI2_IOC_STATE_FAULT) {
 		rc = mpt2sas_base_hard_reset_handler(ioc, CAN_SLEEP,
-		    FORCE_BIG_HAMMER);
+		    MPT2SAS_FORCE_BIG_HAMMER);
 		printk(MPT2SAS_WARN_FMT "%s: hard reset: %s\n", ioc->name,
 		    __func__, (rc == 0) ? "success" : "failed");
 		doorbell = mpt2sas_base_get_iocstate(ioc, 0);
@@ -2424,7 +2424,7 @@ mpt2sas_base_sas_iounit_control(struct MPT2SAS_ADAPTER *ioc,
  issue_host_reset:
 	if (issue_reset)
 		mpt2sas_base_hard_reset_handler(ioc, CAN_SLEEP,
-		    FORCE_BIG_HAMMER);
+		    MPT2SAS_FORCE_BIG_HAMMER);
 	ioc->base_cmds.status = MPT2_CMD_NOT_USED;
 	rc = -EFAULT;
  out:
@@ -2521,7 +2521,7 @@ mpt2sas_base_scsi_enclosure_processor(struct MPT2SAS_ADAPTER *ioc,
  issue_host_reset:
 	if (issue_reset)
 		mpt2sas_base_hard_reset_handler(ioc, CAN_SLEEP,
-		    FORCE_BIG_HAMMER);
+		    MPT2SAS_FORCE_BIG_HAMMER);
 	ioc->base_cmds.status = MPT2_CMD_NOT_USED;
 	rc = -EFAULT;
  out:
@@ -3056,7 +3056,7 @@ _base_diag_reset(struct MPT2SAS_ADAPTER *ioc, int sleep_flag)
  * _base_make_ioc_ready - put controller in READY state
  * @ioc: per adapter object
  * @sleep_flag: CAN_SLEEP or NO_SLEEP
- * @type: FORCE_BIG_HAMMER or SOFT_RESET
+ * @type: MPT2SAS_FORCE_BIG_HAMMER or MPT2SAS_SOFT_RESET
  *
  * Returns 0 for success, non-zero for failure.
  */
@@ -3088,7 +3088,7 @@ _base_make_ioc_ready(struct MPT2SAS_ADAPTER *ioc, int sleep_flag,
 		goto issue_diag_reset;
 	}
 
-	if (type == FORCE_BIG_HAMMER)
+	if (type == MPT2SAS_FORCE_BIG_HAMMER)
 		goto issue_diag_reset;
 
 	if ((ioc_state & MPI2_IOC_STATE_MASK) == MPI2_IOC_STATE_OPERATIONAL)
@@ -3179,7 +3179,7 @@ mpt2sas_base_free_resources(struct MPT2SAS_ADAPTER *ioc)
 	    __func__));
 
 	_base_mask_interrupts(ioc);
-	_base_make_ioc_ready(ioc, CAN_SLEEP, SOFT_RESET);
+	_base_make_ioc_ready(ioc, CAN_SLEEP, MPT2SAS_SOFT_RESET);
 	if (ioc->pci_irq) {
 		synchronize_irq(pdev->irq);
 		free_irq(ioc->pci_irq, ioc);
@@ -3214,7 +3214,7 @@ mpt2sas_base_attach(struct MPT2SAS_ADAPTER *ioc)
 	if (r)
 		return r;
 
-	r = _base_make_ioc_ready(ioc, CAN_SLEEP, SOFT_RESET);
+	r = _base_make_ioc_ready(ioc, CAN_SLEEP, MPT2SAS_SOFT_RESET);
 	if (r)
 		goto out_free_resources;
 
@@ -3450,7 +3450,7 @@ _wait_for_commands_to_complete(struct MPT2SAS_ADAPTER *ioc, int sleep_flag)
  * mpt2sas_base_hard_reset_handler - reset controller
  * @ioc: Pointer to MPT_ADAPTER structure
  * @sleep_flag: CAN_SLEEP or NO_SLEEP
- * @type: FORCE_BIG_HAMMER or SOFT_RESET
+ * @type: MPT2SAS_FORCE_BIG_HAMMER or MPT2SAS_SOFT_RESET
  *
  * Returns 0 for success, non-zero for failure.
  */
