@@ -164,7 +164,10 @@ unsigned long __init_refok init_memory_mapping(unsigned long start,
 	set_nx();
 	if (nx_enabled)
 		printk(KERN_INFO "NX (Execute Disable) protection: active\n");
+	else
 #endif
+	printk(KERN_INFO "Using x86 segment limits to approximate "
+		"NX protection\n");
 
 	/* Enable PSE if available */
 	if (cpu_has_pse)
