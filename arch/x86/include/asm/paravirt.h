@@ -139,6 +139,9 @@ struct pv_cpu_ops {
 	void (*store_gdt)(struct desc_ptr *);
 	void (*store_idt)(struct desc_ptr *);
 	void (*set_ldt)(const void *desc, unsigned entries);
+#ifdef CONFIG_X86_32
+	void (*load_user_cs_desc)(int cpu, struct mm_struct *mm);
+#endif /*CONFIG_X86_32*/
 	unsigned long (*store_tr)(void);
 	void (*load_tls)(struct thread_struct *t, unsigned int cpu);
 #ifdef CONFIG_X86_64
@@ -955,6 +958,12 @@ static inline void set_ldt(const void *addr, unsigned entries)
 {
 	PVOP_VCALL2(pv_cpu_ops.set_ldt, addr, entries);
 }
+#ifdef CONFIG_X86_32
+static inline void load_user_cs_desc(unsigned int cpu, struct mm_struct *mm)
+{
+	PVOP_VCALL2(pv_cpu_ops.load_user_cs_desc, cpu, mm);
+}
+#endif /*CONFIG_X86_32*/
 static inline void store_gdt(struct desc_ptr *dtr)
 {
 	PVOP_VCALL1(pv_cpu_ops.store_gdt, dtr);

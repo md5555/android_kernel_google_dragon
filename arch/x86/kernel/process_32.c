@@ -299,6 +299,8 @@ int copy_thread(unsigned long clone_flags, unsigned long sp,
 void
 start_thread(struct pt_regs *regs, unsigned long new_ip, unsigned long new_sp)
 {
+	int cpu;
+
 	set_user_gs(regs, 0);
 	regs->fs		= 0;
 	set_fs(USER_DS);
@@ -308,6 +310,11 @@ start_thread(struct pt_regs *regs, unsigned long new_ip, unsigned long new_sp)
 	regs->cs		= __USER_CS;
 	regs->ip		= new_ip;
 	regs->sp		= new_sp;
+
+	cpu = get_cpu();
+	load_user_cs_desc(cpu, current->mm);
+	put_cpu();
+
 	/*
 	 * Free the old FP and other extended state
 	 */
@@ -354,7 +361,8 @@ __switch_to(struct task_struct *prev_p, struct task_struct *next_p)
 	/* never put a printk in __switch_to... printk() calls wake_up*() indirectly */
 
 	__unlazy_fpu(prev_p);
-
+	if (next_p->mm)
+		load_user_cs_desc(cpu, next_p->mm);
 
 	/* we're going to use this soon, after a few expensive things */
 	if (next_p->fpu_counter > 5)
@@ -495,3 +503,40 @@ unsigned long get_wchan(struct task_struct *p)
 	return 0;
 }
 
+static void modify_cs(struct mm_struct *mm, unsigned long limit)
+{
+	mm->context.exec_limit = limit;
+	set_user_cs(&mm->context.user_cs, limit);
+	if (mm == current->mm) {
+		int cpu;
+
+		cpu = get_cpu();
+		load_user_cs_desc(cpu, mm);
+		put_cpu();
+	}
+}
+
+void arch_add_exec_range(struct mm_struct *mm, unsigned long limit)
+{
+	if (limit > mm->context.exec_limit)
+		modify_cs(mm, limit);
+}
+
+void arch_remove_exec_range(struct mm_struct *mm, unsigned long old_end)
+{
+	struct vm_area_struct *vma;
+	unsigned long limit = PAGE_SIZE;
+
+	if (old_end == mm->context.exec_limit) {
+		for (vma = mm->mmap; vma; vma = vma->vm_next)
+			if ((vma->vm_flags & VM_EXEC) && (vma->vm_end > limit))
+				limit = vma->vm_end;
+		modify_cs(mm, limit);
+	}
+}
+
+void arch_flush_exec_range(struct mm_struct *mm)
+{
+	mm->context.exec_limit = 0;
+	set_user_cs(&mm->context.user_cs, 0);
+}
