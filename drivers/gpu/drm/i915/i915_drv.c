@@ -37,7 +37,12 @@
 #include <linux/console.h>
 #include "drm_crtc_helper.h"
 
+#if defined(CONFIG_DRM_I915_KMS)
+static unsigned int i915_modeset = 0;
+#else
 static unsigned int i915_modeset = -1;
+#endif
+
 module_param_named(modeset, i915_modeset, int, 0400);
 
 unsigned int i915_fbpercrtc = 0;
