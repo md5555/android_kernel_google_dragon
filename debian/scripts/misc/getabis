@@ -39,15 +39,12 @@ getall() {
 		echo -n "Fetching $sub..."
 		filename=linux-image-${verabi}-${sub}_${verfull}_${arch}.deb
 		cd $tmpdir
-		if ! [ -f $filename ]; then
-			$WGET $repo/linux/$filename
-		fi
-		if ! [ -f $filename ]; then
-			$WGET $repo_ports/linux/$filename
-		fi
-		if ! [ -f $filename ]; then
-			$WGET $repo_uni/linux/$filename
-		fi
+		for r in $repo $repo_ports $repo_uni $repo_ports_uni
+		do
+			if ! [ -f $filename ]; then
+				$WGET $r/linux/$filename
+			fi
+		done
 		if [ "$?" = "0" ]; then
 			echo -n "extracting..."
 			dpkg-deb --extract $filename tmp
