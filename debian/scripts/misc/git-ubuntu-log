@@ -70,7 +70,9 @@ sub shortlog_entry($$$$$) {
 	$desc =~ s# *UBUNTU: ##g;
 
 	$entry->{'desc'} = $desc;
-	$entry->{'bugno'} = $bug;
+	if ($bug ne '') {
+		$entry->{'bugno'} = $bug;
+	}
 	$entry->{'cve'} = $cve;
 	$entry->{'commit'} = $commit;
 	$entry->{'author'} = $name;
@@ -167,6 +169,8 @@ sub changelog_input {
 			next unless /^\s*?(.*)/;
 			my $ignore = 0;
 			my $bug = undef;
+			my %bugz = ();
+			my $k;
 
 			# skip lines that are obviously not
 			# a 1-line cset description
@@ -177,9 +181,18 @@ sub changelog_input {
 
 			if ($desc =~ /^ *(Revert "|)UBUNTU:/) {
 				while (<STDIN>) {
-					$ignore = 1 if /^ *Ignore: yes/i;
-					$bug = $2 if /^ *Bug: *(#|)(.*)/;
-					$cve = $1 if /^ *(CVE-.*)/;
+					$ignore  =  1 if /^ *Ignore: yes/i;
+					if    (/^ *Bug: *(#|)(.*)/i) {
+						foreach $k (split('(,|)*\s*#', $2)) {
+							$bugz{$k} = 1 if ($k ne '');
+						}
+					}
+					elsif (/^ *BugLink: *http.*:\/\/.*\/([0-9]+)/i) {
+						$bugz{$1} = 1;
+					}
+					elsif (/^ *(CVE-.*)/) {
+						$cve = $1
+					}
 					last if /^commit /;
 				}
 			} else {
@@ -192,6 +205,7 @@ sub changelog_input {
 				}
 			}
 
+                        $bug = join(", #", keys(%bugz));
 			if (!$ignore) {
 				&shortlog_entry($author, $desc, $bug,
 						$cve, $commit, 0);
