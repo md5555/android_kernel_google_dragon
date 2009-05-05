@@ -259,6 +259,11 @@ ifneq ($(skipdbg),true)
 	dh_builddeb -p$(dbgpkg)
 
 	# Hokay...here's where we do a little twiddling...
+	# Renaming the debug package prevents it from getting into
+	# the primary archive, and therefore prevents this very large
+	# package from being mirrored. It is instead, through some
+	# archive admin hackery, copied to http://ddebs.ubuntu.com.
+	#
 	mv ../$(dbgpkg)_$(release)-$(revision)_$(arch).deb \
 		../$(dbgpkg)_$(release)-$(revision)_$(arch).ddeb
 	grep -v '^$(dbgpkg)_.*$$' debian/files > debian/files.new
