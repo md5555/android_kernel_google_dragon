@@ -14,8 +14,7 @@
 # OriginalLocation allows for a URL or description of where the patch came
 # from.
 #
-# Bug is a reference to a Malone bug number. Be sure to include the '#' as
-# part of the bug number, e.g., 'Bug: #1'.
+# BugLink is a URL to a Malone bug.
 #
 # Ignore: yes will keep this commit from showing up in the changelog.
 #
@@ -23,6 +22,6 @@ UBUNTU: [Upstream]
 
 # OriginalAuthor: 
 # OriginalLocation: 
-# Bug: #
+# BugLink:
 # Ignore: yes
 # Other text below here.
