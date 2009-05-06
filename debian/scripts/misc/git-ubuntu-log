@@ -184,7 +184,7 @@ sub changelog_input {
 					$ignore  =  1 if /^ *Ignore: yes/i;
 					if    (/^ *Bug: *(#|)(.*)/i) {
 						foreach $k (split('(,|)*\s*#', $2)) {
-							$bugz{$k} = 1 if ($k ne '');
+							$bugz{$k} = 1 if (($k ne '') and ($k =~ /[0-9]+/));
 						}
 					}
 					elsif (/^ *BugLink: *http.*:\/\/.*\/([0-9]+)/i) {
@@ -199,8 +199,17 @@ sub changelog_input {
 				$author = $kernel_auth;
 				$ignore = 1 if $desc =~ /Merge /;
 				while (<STDIN>) {
-					$bug = $2 if /^ *Bug: *(#|)(.*)/;
-					$cve = $1 if /^ *(CVE-.*)/;
+					if    (/^ *Bug: *(#|)(.*)/i) {
+						foreach $k (split('(,|)*\s*#', $2)) {
+							$bugz{$k} = 1 if (($k ne '') and ($k =~ /[0-9]+/));
+						}
+					}
+					elsif (/^ *BugLink: *http.*:\/\/.*\/([0-9]+)/i) {
+						$bugz{$1} = 1;
+					}
+					elsif (/^ *(CVE-.*)/) {
+						$cve = $1
+					}
 					last if /^commit /;
 				}
 			}
