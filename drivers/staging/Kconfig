@@ -69,9 +69,9 @@ source "drivers/staging/agnx/Kconfig"
 
 source "drivers/staging/otus/Kconfig"
 
-#source "drivers/staging/rt2860/Kconfig"
+source "drivers/staging/rt2860/Kconfig"
 
-#source "drivers/staging/rt2870/Kconfig"
+source "drivers/staging/rt2870/Kconfig"
 
 source "drivers/staging/rt3070/Kconfig"
 
@@ -83,7 +83,7 @@ source "drivers/staging/panel/Kconfig"
 
 source "drivers/staging/altpciechdma/Kconfig"
 
-#source "drivers/staging/rtl8187se/Kconfig"
+source "drivers/staging/rtl8187se/Kconfig"
 
 source "drivers/staging/rtl8192su/Kconfig"
 
