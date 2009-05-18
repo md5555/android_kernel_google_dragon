@@ -312,6 +312,7 @@ cb_pcimdda
 cciss
 ccm
 cdc-acm
+cdc_eem
 cdc_ether
 cdc_subset
 cdc-wdm
@@ -1691,6 +1692,8 @@ rsrc_nonstatic
 rt2400pci
 rt2500pci
 rt2500usb
+rt2860sta
+rt2870sta
 rt2x00lib
 rt2x00pci
 rt2x00usb
@@ -1734,6 +1737,7 @@ rti802
 rtl8150
 rtl8180
 rtl8187
+rtl8187se
 rxkad
 s1d13xxxfb
 s2255drv

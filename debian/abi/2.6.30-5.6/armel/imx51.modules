@@ -24,6 +24,7 @@ cx231xx-alsa
 cx25840
 davicom
 dnet
+ds1wm
 eeprom
 eseqiv
 et1011c
@@ -97,6 +98,7 @@ mtd_speedtest
 mtd_stresstest
 mtd_subpagetest
 mtd_torturetest
+musb_hdrc
 mxcmmc
 mxc_w1
 national

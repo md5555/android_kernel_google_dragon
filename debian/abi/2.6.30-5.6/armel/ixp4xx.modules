@@ -71,6 +71,7 @@ catc
 cbc
 ccm
 cdc-acm
+cdc_eem
 cdc_ether
 cdc_subset
 cdc-wdm
