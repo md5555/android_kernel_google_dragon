@@ -258,7 +258,6 @@ icplus
 idmouse
 ifb
 inet_diag
-inet_lro
 io_edgeport
 io_ti
 iowarrior
