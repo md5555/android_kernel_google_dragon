@@ -2,7 +2,6 @@ menu "Ubuntu Supplied Third-Party Device Drivers"
 
 source "ubuntu/drbd/Kconfig"
 source "ubuntu/iscsitarget/Kconfig"
-source "ubuntu/aufs/Kconfig"
 source "ubuntu/dm-raid4-5/Kconfig"
 source "ubuntu/dm-loop/Kconfig"
 source "ubuntu/ndiswrapper/Kconfig"
