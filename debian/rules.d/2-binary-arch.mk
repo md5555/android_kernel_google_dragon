@@ -40,8 +40,17 @@ install-%: $(stampdir)/stamp-build-% checks-%
 	dh_clean -k -plinux-image-debug-$(abi_release)-$*
 
 	# The main image
+	# compress_file logic required because not all architectures
+	# generate a zImage automatically out of the box
+ifeq ($(compress_file),)
 	install -m644 -D $(builddir)/build-$*/$(kernel_file) \
 		$(pkgdir)/boot/$(install_file)-$(abi_release)-$*
+else
+	install -d $(pkgdir)/boot
+	gzip -c9v $(builddir)/build-$*/$(kernel_file) > \
+		$(pkgdir)/boot/$(install_file)-$(abi_release)-$*
+	chmod 644 $(pkgdir)/boot/$(install_file)-$(abi_release)-$*
+endif
 
 	install -m644 $(builddir)/build-$*/.config \
 		$(pkgdir)/boot/config-$(abi_release)-$*
