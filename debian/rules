@@ -81,10 +81,13 @@ debian/control.stub: debian/d-i/kernel-versions.in	\
 
 .PHONY: debian/control
 debian/control: debian/control.stub
-	rm -rf $(builddir)/modules $(builddir)/kernel-versions \
-		$(builddir)/package-list $(builddir)/debian
+	rm -rf $(builddir)/modules $(builddir)/firmware			\
+		$(builddir)/kernel-versions $(builddir)/package-list	\
+		$(builddir)/debian
 	mkdir -p $(builddir)/modules/$(arch)/
 	cp debian/d-i/modules/* $(builddir)/modules/$(arch)/
+	mkdir -p $(builddir)/firmware/$(arch)/
+	cp debian/d-i/firmware/* $(builddir)/firmware/$(arch)/
 	cp debian/d-i/package-list debian/d-i/kernel-versions $(builddir)/
 	touch $(builddir)/modules/$(arch)/kernel-image
 	# kernel-wedge needs to poke around in debian/
@@ -95,12 +98,21 @@ debian/control: debian/control.stub
 	    cp debian/d-i/modules-$(arch)/* \
 		$(builddir)/modules/$(arch)/;				\
 	fi
+	if [ -d debian/d-i/firmware-$(arch) ]; then			\
+	    cp debian/d-i/firmware-$(arch)/* \
+		$(builddir)/firmware/$(arch)/;				\
+	fi
 
 	# Remove unwanted stuff for this architecture
 	if [ -r "debian/d-i/exclude-modules.$(arch)" ]; then		\
 	    (cat debian/d-i/exclude-modules.$(arch);			\
 	     ls $(builddir)/modules/$(arch)/) | sort | uniq -d |	\
 		(cd $(builddir)/modules/$(arch)/; xargs rm -f);		\
+	fi
+	if [ -r "debian/d-i/exclude-firmware.$(arch)" ]; then		\
+	    (cat debian/d-i/exclude-firmware.$(arch);			\
+	     ls $(builddir)/firmware/$(arch)/) | sort | uniq -d |	\
+		(cd $(builddir)/firmware/$(arch)/; xargs rm -f);	\
 	fi
 
 	# Per flavour module lists
@@ -115,6 +127,17 @@ debian/control: debian/control.stub
 		touch $(builddir)/modules/$(arch)-$$name/kernel-image;	\
 	    done;							\
 	fi
+	flavour_firmware=`ls debian/d-i/firmware.$(arch)-* 2>/dev/null`	\
+		|| true;						\
+	if [ "$$flavour_firmware" != "" ]; then				\
+	    for flav in $$flavour_firmware; do				\
+		name=`echo $$flav | sed 's/.*\/firmware.$(arch)-//'`;	\
+		mkdir $(builddir)/firmware/$(arch)-$$name;		\
+		(cd $(builddir)/firmware/; tar cf - `cat ../$$flav`) |	\
+		    (cd $(builddir)/firmware/$(arch)-$$name/; tar xf -);\
+		touch $(builddir)/firmware/$(arch)-$$name/kernel-image;	\
+	    done;							\
+	fi
 
 	# Some files may need to differ between flavours
 	flavour_module_dirs=`ls -d debian/d-i/modules-$(arch)-* 2>/dev/null`\
@@ -126,6 +149,17 @@ debian/control: debian/control.stub
 		    cp -a $(builddir)/modules/$(arch)			\
 			modules/$(arch)-$$name;				\
 		cp $$flav/* $(builddir)/modules/$(arch)-$$name/;	\
+	    done;							\
+	fi
+	flavour_firmware_dirs=`ls -d debian/d-i/firmware-$(arch)-* 2>/dev/null`\
+		|| true;						\
+	if [ "$$flavour_firmware_dirs" ]; then				\
+	    for flav in $$flavour_firmware_dirs; do			\
+		name=`echo $$flav | sed 's/.*\/firmware-$(arch)-//'`;	\
+		[ -d $(builddir)/firmware/$(arch)-$$name ] ||		\
+		    cp -a $(builddir)/firmware/$(arch)			\
+			firmware/$(arch)-$$name;			\
+		cp $$flav/* $(builddir)/firmware/$(arch)-$$name/;	\
 	    done;							\
 	fi
 
@@ -145,11 +179,31 @@ debian/control: debian/control.stub
 		     xargs rm -f);					\
 	    done;							\
 	fi
+	flavour_exclude=`ls debian/d-i/exclude-firmware.$(arch)-* 2>/dev/null`\
+		|| true;						\
+	if [ "$$flavour_exclude" ]; then				\
+	    for flav in $$flavour_exclude; do				\
+		name=`echo $$flav | sed 's/.*\/exclude-firmware.$(arch)-//'`;\
+		[ -d $(builddir)/firmware/$(arch)-$$name ] ||		\
+		    cp -a $(builddir)/firmware/$(arch) 			\
+			$(builddir)/firmware/$(arch)-$$name;		\
+		(cat $$flav;						\
+		 ls $(builddir)/firmware/$(arch)-$$name) |		\
+		 sort |	uniq -d |					\
+		    (cd $(builddir)/firmware/$(arch)-$$name/;		\
+		     xargs rm -f);					\
+	    done;							\
+	fi
 
 	if [ ! -d $(builddir)/modules/$(build_arch) ]; then		\
 		mkdir -p $(builddir)/modules/$(build_arch);		\
 		cp $(builddir)/modules/$(arch)/*			\
 			$(builddir)/modules/$(build_arch);		\
+	fi
+	if [ ! -d $(builddir)/firmware/$(build_arch) ]; then		\
+		mkdir -p $(builddir)/firmware/$(build_arch);		\
+		cp $(builddir)/firmware/$(arch)/*			\
+			$(builddir)/firmware/$(build_arch);		\
 	fi
 
 	cd $(builddir) && kernel-wedge gen-control > debian/control
