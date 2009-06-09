@@ -11,7 +11,7 @@ do-binary-udebs:
 	# unpack the kernels into a temporary directory
 	mkdir -p debian/d-i-${arch}
 
-	imagelist=$$(cat kernel-versions | grep ^${arch} | awk '{print $$4}') && \
+	imagelist=$$(cat $(builddir)/kernel-versions | grep ^${arch} | awk '{print $$4}') && \
 	for i in $$imagelist; do \
 	  dpkg -x $$(ls ../linux-image-$$i\_$(release)-$(revision)_${arch}.deb) \
 		debian/d-i-${arch}; \
@@ -19,7 +19,8 @@ do-binary-udebs:
 	done
 
 	touch ignore-dups
-	export SOURCEDIR=debian/d-i-${arch} && \
+	export SOURCEDIR=$(CURDIR)/debian/d-i-${arch} && \
+	  cd $(builddir) && \
 	  kernel-wedge install-files && \
 	  kernel-wedge check
 

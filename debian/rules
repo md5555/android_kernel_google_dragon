@@ -37,7 +37,6 @@ clean: debian/control
 	dh_clean
 
 	# d-i stuff
-	rm -rf modules kernel-versions package-list
 	rm -rf debian/d-i-$(arch)
 
 	# normal build junk
@@ -82,22 +81,26 @@ debian/control.stub: debian/d-i/kernel-versions.in	\
 
 .PHONY: debian/control
 debian/control: debian/control.stub
-	rm -rf modules kernel-versions package-list
-	mkdir -p modules/$(arch)/
-	cp debian/d-i/modules/* modules/$(arch)/
-	cp debian/d-i/package-list debian/d-i/kernel-versions .
-	touch modules/$(arch)/kernel-image
+	rm -rf $(builddir)/modules $(builddir)/kernel-versions \
+		$(builddir)/package-list $(builddir)/debian
+	mkdir -p $(builddir)/modules/$(arch)/
+	cp debian/d-i/modules/* $(builddir)/modules/$(arch)/
+	cp debian/d-i/package-list debian/d-i/kernel-versions $(builddir)/
+	touch $(builddir)/modules/$(arch)/kernel-image
+	# kernel-wedge needs to poke around in debian/
+	ln -nsf $(CURDIR)/debian $(builddir)/debian
 
 	# Some files may need to differ between architectures
 	if [ -d debian/d-i/modules-$(arch) ]; then			\
-	    cp debian/d-i/modules-$(arch)/* modules/$(arch)/;		\
+	    cp debian/d-i/modules-$(arch)/* \
+		$(builddir)/modules/$(arch)/;				\
 	fi
 
 	# Remove unwanted stuff for this architecture
-	if [ -r "debian/d-i/exclude-modules.$(arch)" ]; then	\
-	    (cat debian/d-i/exclude-modules.$(arch);		\
-	     ls modules/$(arch)/) | sort | uniq -d |		\
-		(cd modules/$(arch)/; xargs rm -f);		\
+	if [ -r "debian/d-i/exclude-modules.$(arch)" ]; then		\
+	    (cat debian/d-i/exclude-modules.$(arch);			\
+	     ls $(builddir)/modules/$(arch)/) | sort | uniq -d |	\
+		(cd $(builddir)/modules/$(arch)/; xargs rm -f);		\
 	fi
 
 	# Per flavour module lists
@@ -106,10 +109,10 @@ debian/control: debian/control.stub
 	if [ "$$flavour_modules" != "" ]; then				\
 	    for flav in $$flavour_modules; do				\
 		name=`echo $$flav | sed 's/.*\/modules.$(arch)-//'`;	\
-		mkdir modules/$(arch)-$$name;				\
-		(cd modules/; tar cf - `cat ../$$flav`) |		\
-		    (cd modules/$(arch)-$$name/; tar xf -);		\
-		touch modules/$(arch)-$$name/kernel-image;		\
+		mkdir $(builddir)/modules/$(arch)-$$name;		\
+		(cd $(builddir)/modules/; tar cf - `cat ../$$flav`) |	\
+		    (cd $(builddir)/modules/$(arch)-$$name/; tar xf -);	\
+		touch $(builddir)/modules/$(arch)-$$name/kernel-image;	\
 	    done;							\
 	fi
 
@@ -119,9 +122,10 @@ debian/control: debian/control.stub
 	if [ "$$flavour_module_dirs" ]; then				\
 	    for flav in $$flavour_module_dirs; do			\
 		name=`echo $$flav | sed 's/.*\/modules-$(arch)-//'`;	\
-		[ -d modules/$(arch)-$$name ] ||			\
-		    cp -a modules/$(arch) modules/$(arch)-$$name;	\
-		cp $$flav/* modules/$(arch)-$$name/;			\
+		[ -d $(builddir)/modules/$(arch)-$$name ] ||		\
+		    cp -a $(builddir)/modules/$(arch)			\
+			modules/$(arch)-$$name;				\
+		cp $$flav/* $(builddir)/modules/$(arch)-$$name/;	\
 	    done;							\
 	fi
 
@@ -131,17 +135,21 @@ debian/control: debian/control.stub
 	if [ "$$flavour_exclude" ]; then				\
 	    for flav in $$flavour_exclude; do				\
 		name=`echo $$flav | sed 's/.*\/exclude-modules.$(arch)-//'`;\
-		[ -d modules/$(arch)-$$name ] ||			\
-		    cp -a modules/$(arch) modules/$(arch)-$$name;	\
+		[ -d $(builddir)/modules/$(arch)-$$name ] ||		\
+		    cp -a $(builddir)/modules/$(arch) 			\
+			$(builddir)/modules/$(arch)-$$name;		\
 		(cat $$flav;						\
-		 ls modules/$(arch)-$$name) | sort | uniq -d |		\
-		    (cd modules/$(arch)-$$name/; xargs rm -f);		\
+		 ls $(builddir)/modules/$(arch)-$$name) |		\
+		 sort |	uniq -d |					\
+		    (cd $(builddir)/modules/$(arch)-$$name/;		\
+		     xargs rm -f);					\
 	    done;							\
 	fi
 
-	if [ ! -d modules/$(build_arch) ]; then			\
-		mkdir -p modules/$(build_arch);			\
-		cp modules/$(arch)/* modules/$(build_arch);	\
+	if [ ! -d $(builddir)/modules/$(build_arch) ]; then		\
+		mkdir -p $(builddir)/modules/$(build_arch);		\
+		cp $(builddir)/modules/$(arch)/*			\
+			$(builddir)/modules/$(build_arch);		\
 	fi
 
-	kernel-wedge gen-control > debian/control
+	cd $(builddir) && kernel-wedge gen-control > debian/control
