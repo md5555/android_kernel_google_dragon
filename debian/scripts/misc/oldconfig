@@ -1,65 +1,111 @@
 #!/bin/bash
 
+# Script to merge all configs and run 'make silentoldconfig' on it to wade out bad juju.
+# Then split the configs into distro-commmon and flavour-specific parts
+
 # We have to be in the top level kernel source directory
 if [ ! -f MAINTAINERS ] || [ ! -f Makefile ]; then
 	echo "This does not appear to be the kernel source directory." 1>&2
 	exit 1
 fi
 
-
-# One arg, and that's it. Just pass an architecture
-if [ $# -ne 1 ]; then
-	echo "Usage: $0 <arch>" 1>&2
-	exit 1
-fi
-
-arch="$1"
-
-case "$arch" in
-	amd64)	kernarch="x86_64"	;;
-	armel)	kernarch="arm"		;;
-	lpia)	kernarch="i386"		;;
-	*)	kernarch="$arch"	;;
+mode=${1:?"Usage: $0 [oldconfig|editconfig]"}
+case "$mode" in
+    oldconfig)  ;; # All is good
+    editconfig) ;; # All is good
+    *) echo "$0 called with invalid mode" 1>&2
+       exit 1 ;;
 esac
-
-confdir="`pwd`/debian/config/$arch"
+kerneldir="`pwd`"
+confdir="debian/config"
+archs=$(find $confdir -mindepth 1 -type d | cut -d'/' -f3)
 bindir="`pwd`/debian/scripts/misc"
-
-# Make sure the architecture exists
-if [ ! -d $confdir ]; then
-	echo "Could not find config directory for $arch" 1>&2
-	exit 1
-fi
-
-echo "Processing $arch ($kernarch) ... "
-
-configs=$(cd $confdir && ls config.*)
-
-if [ -f $confdir/config ]; then
-	for config in $configs; do
-		case $config in
-			*)
-				cat $confdir/config >> $confdir/$config
-				;;
-		esac
-	done
-	rm -f $confdir/config
-fi
+common_conf="$confdir/config.common.ubuntu"
+tmpdir=`mktemp -d`
 
 test -d build || mkdir build
-cd build
-for config in $configs; do
-	echo "Running silentoldconfig for $config ... "
 
-	cat $confdir/$config > .config
+for arch in $archs; do
+	# Map debian archs to kernel archs
+	case "$arch" in
+		amd64)	kernarch="x86_64"	;;
+		armel)	kernarch="arm"	;;
+		lpia)   kernarch="x86" ;;
+		*)	kernarch="$arch"	;;
+	esac
 
-	make -C ../ O=`pwd` silentoldconfig ARCH=$kernarch
+	echo ""
+	echo "***************************************"
+	echo "* Processing $arch ($kernarch) ... "
+	archconfdir=$confdir/$arch
+	flavourconfigs=$(cd $archconfdir && ls config.flavour.*)
 
-	cat .config > $confdir/$config
+	# Merge configs
+	# We merge config.common.ubuntu + config.common.<arch> +
+	# config.flavour.<flavour>
+	if [ -f $common_conf ]; then
+		for config in $flavourconfigs; do
+			case $config in
+			    *)
+			    cat $common_conf >> $archconfdir/$config
+			    ;;
+			esac
+		done
+	fi
+	if [ -f $archconfdir/config.common.$arch ]; then
+		for config in $flavourconfigs; do
+			case $config in
+			    *)
+			    cat $archconfdir/config.common.$arch >> $archconfdir/$config
+			    ;;
+			esac
+		done
+	fi
+
+	rm -f $archconfdir/config.common.$arch
+
+	for config in $flavourconfigs; do
+		if [ -f $archconfdir/$config ]; then
+			cat $archconfdir/$config > build/.config
+			# Call oldconfig or menuconfig
+			case "$mode" in
+			    oldconfig)
+				# Weed out incorrect config parameters
+				echo "* Run silentoldconfig on $arch/$config ..."
+				make O=`pwd`/build ARCH=$kernarch silentoldconfig ;;
+			    editconfig)
+				# Interactively edit config parameters
+				echo " * Run menuconfig on $arch/$config... Press a key."
+				read
+				make O=`pwd`/build ARCH=$kernarch menuconfig ;;
+			    *)  # Bad!
+				exit 1 ;;
+			esac
+			cat build/.config > $archconfdir/$config
+		else
+			echo "!! Config not found $archconfdir/$config..."
+		fi
+	done
+
+	echo "Running splitconfig.pl for $arch"
+	echo
+
+	# Can we make this more robust by avoiding $tmpdir completely?
+	# This approach was used for now because I didn't want to change
+	# splitconfig.pl
+	(cd $archconfdir; $bindir/splitconfig.pl; mv config.common \
+	 config.common.$arch; cp config.common.$arch $tmpdir)
 done
-cd ..
 
-echo "Running splitconfig.pl ... "
-echo
+rm -f $common_conf
 
-(cd $confdir ; $bindir/splitconfig.pl)
+# Now run splitconfig.pl on all the config.common.<arch> copied to
+# $tmpdir
+(cd $tmpdir; $bindir/splitconfig.pl)
+(cd $kerneldir/$confdir; mv $tmpdir/config.common \
+	$kerneldir/$confdir/config.common.ubuntu; \
+for arch in $archs; do \
+	mv $tmpdir/config.common.$arch $arch/config.common.$arch; \
+done; \
+)
+
