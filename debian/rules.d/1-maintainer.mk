@@ -32,12 +32,12 @@ help:
 
 updateconfigs:
 	dh_testdir;
-	$(SHELL) debian/scripts/misc/oldconfig oldconfig
+	$(SHELL) debian/scripts/misc/kernelconfig oldconfig
 	rm -rf build
 
 editconfigs:
 	dh_testdir
-	$(SHELL) debian/scripts/misc/oldconfig editconfig
+	$(SHELL) debian/scripts/misc/kernelconfig editconfig
 	rm -rf build
 
 printenv:
