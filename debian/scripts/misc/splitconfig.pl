@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 
-%configs = ();
+%allconfigs = ();
 %common = ();
 
 print "Reading config's ...\n";
@@ -12,19 +12,18 @@ while (defined($config = readdir(DIR))) {
 	next if $config !~ /^config\..*/;
 	# Nothing that is disabled, or remnant
 	next if $config =~ /.*\.(default|disabled|stub)$/;
-	# Server config's are standalone
-	#next if $config =~ /config.server-.*/;
 
-	%{$configs{$config}} = ();
+	%{$allconfigs{$config}} = ();
 
 	print "  processing $config ... ";
 
 	open(CONFIG, "< $config");
 
 	while (<CONFIG>) {
+		# Skip comments
 		/^#*\s*CONFIG_(\w+)[\s=](.*)$/ or next;
 
-		${$configs{$config}}{$1} = $2;
+		${$allconfigs{$config}}{$1} = $2;
 
 		$common{$1} = $2;
 	}
@@ -40,8 +39,9 @@ print "\n";
 
 print "Merging lists ... \n";
 
-for $config (keys(%configs)) {
-	my %options = %{$configs{$config}};
+# %options - pointer to flavour config inside the allconfigs array
+for $config (keys(%allconfigs)) {
+	my %options = %{$allconfigs{$config}};
 
 	print "   processing $config ... ";
 
@@ -86,8 +86,8 @@ print "done.\n\n";
 
 print "Creating stub configs ...\n";
 
-for $config (keys(%configs)) {
-	my %options = %{$configs{$config}};
+for $config (keys(%allconfigs)) {
+	my %options = %{$allconfigs{$config}};
 
 	print "  processing $config ... ";
 
