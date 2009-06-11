@@ -30,20 +30,14 @@ help:
 	@echo "                  : Use -jX for kernel compile"
 	@echo "  PRINTSHAS       : Include SHAs for commits in changelog"
 
-ARCH_CONFIGS=i386 amd64 armel lpia
-
 updateconfigs:
-	dh_testdir
-	@for arch in $(ARCH_CONFIGS); do	\
-		$(SHELL) debian/scripts/misc/oldconfig $$arch;		\
-	done
+	dh_testdir;
+	$(SHELL) debian/scripts/misc/oldconfig oldconfig
 	rm -rf build
 
 editconfigs:
 	dh_testdir
-	@for arch in $(ARCH_CONFIGS); do	\
-		$(SHELL) debian/scripts/misc/doconfig $$arch;		\
-	done
+	$(SHELL) debian/scripts/misc/oldconfig editconfig
 	rm -rf build
 
 printenv:
