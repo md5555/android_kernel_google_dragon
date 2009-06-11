@@ -66,7 +66,8 @@ SUBLEVEL	:= $(shell echo $(release) | awk -F. '{print $$3}')
 arch		:= $(shell dpkg-architecture -qDEB_HOST_ARCH)
 abidir		:= $(CURDIR)/debian/abi/$(release)-$(revision)/$(arch)
 prev_abidir	:= $(CURDIR)/debian/abi/$(release)-$(prev_revision)/$(arch)
-confdir		:= $(CURDIR)/debian/config/$(arch)
+commonconfdir	:= $(CURDIR)/debian/config
+archconfdir	:= $(CURDIR)/debian/config/$(arch)
 builddir	:= $(CURDIR)/debian/build
 stampdir	:= $(CURDIR)/debian/stamps
 
@@ -98,7 +99,7 @@ conc_level		= -j$(CONCURRENCY_LEVEL)
 kmake = make ARCH=$(build_arch) \
 	EXTRAVERSION=-$(abinum)-$(target_flavour) \
 	CONFIG_DEBUG_SECTION_MISMATCH=y SUBLEVEL=$(SUBLEVEL) \
- 	KBUILD_BUILD_VERSION="$(uploadnum)"
+	KBUILD_BUILD_VERSION="$(uploadnum)"
 ifneq ($(LOCAL_ENV_CC),)
 kmake += CC=$(LOCAL_ENV_CC) DISTCC_HOSTS=$(LOCAL_ENV_DISTCC_HOSTS)
 endif
