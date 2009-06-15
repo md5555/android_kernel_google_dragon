@@ -644,6 +644,8 @@ girbil-sir
 gl518sm
 gl520sm
 gl620a
+go7007
+go7007-usb
 gpio_keys
 gpio_mouse
 gpio_vbus
@@ -1031,6 +1033,7 @@ ledtrig-gpio
 ledtrig-heartbeat
 ledtrig-timer
 legousbtower
+lenovo-sl-laptop
 lgdt3305
 lgdt330x
 lgs8gl5
@@ -1112,6 +1115,7 @@ matroxfb_Ti3026
 matrox_w1
 max1111
 max1619
+max3100
 max6650
 max6875
 max7301
@@ -1615,6 +1619,7 @@ rtl8187
 rtl8187se
 rxkad
 s1d13xxxfb
+s2250
 s2255drv
 s2io
 s3fb
