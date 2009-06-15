@@ -189,6 +189,15 @@ config FTRACE_SYSCALLS
 	help
 	  Basic tracer to catch the syscall entry and exit events.
 
+config OPEN_TRACER
+	bool "Trace open() calls"
+	depends on DEBUG_KERNEL
+	select TRACING
+	select MARKERS
+	help
+	  This tracer records open() syscalls. These calls are made when
+	  files are accessed on disk.
+
 config BOOT_TRACER
 	bool "Trace boot initcalls"
 	select TRACING

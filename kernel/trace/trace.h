@@ -37,6 +37,7 @@ enum trace_type {
 	TRACE_KMEM_FREE,
 	TRACE_POWER,
 	TRACE_BLK,
+	TRACE_OPEN,
 
 	__TRACE_LAST_TYPE,
 };
