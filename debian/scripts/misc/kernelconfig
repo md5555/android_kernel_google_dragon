@@ -102,10 +102,12 @@ rm -f $common_conf
 # Now run splitconfig.pl on all the config.common.<arch> copied to
 # $tmpdir
 (cd $tmpdir; $bindir/splitconfig.pl)
-(cd $kerneldir/$confdir; mv $tmpdir/config.common \
-	$kerneldir/$confdir/config.common.ubuntu; \
-for arch in $archs; do \
-	mv $tmpdir/config.common.$arch $arch/config.common.$arch; \
-done; \
+(
+	cd $kerneldir/$confdir;
+	grep -v 'is UNMERGABLE' <$tmpdir/config.common \
+		>$kerneldir/$confdir/config.common.ubuntu
+	for arch in $archs; do
+		grep -v 'is UNMERGABLE' <$tmpdir/config.common.$arch \
+			>$arch/config.common.$arch
+	done
 )
-
