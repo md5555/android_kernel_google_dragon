@@ -13,3 +13,5 @@ custom_flavours	=
 
 no_dumpfile = true
 skipdbg		= true
+skipabi		= true
+skipmodule	= true
