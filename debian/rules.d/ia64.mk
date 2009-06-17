@@ -12,3 +12,5 @@ loader		= elilo
 
 skipdbg		= true
 no_dumpfile	= true
+skipabi		= true
+skipmodule	= true

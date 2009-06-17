@@ -12,3 +12,5 @@ loader		= silo
 
 skipdbg		= true
 no_dumpfile	= true
+skipabi		= true
+skipmodule	= true
