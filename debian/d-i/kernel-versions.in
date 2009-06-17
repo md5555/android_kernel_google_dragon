@@ -6,3 +6,12 @@ armel	PKGVER-ABINUM	imx51		PKGVER-ABINUM-imx51			y
 i386	PKGVER-ABINUM	generic		PKGVER-ABINUM-generic		-	
 
 lpia	PKGVER-ABINUM	lpia		PKGVER-ABINUM-lpia
+
+# Ports
+# arch	version		flavour		installedname			suffix	bdep
+ia64	PKGVER-ABINUM	ia64			PKGVER-ABINUM-ia64	-	
+
+powerpc	PKGVER-ABINUM	powerpc			PKGVER-ABINUM-powerpc		-	
+powerpc	PKGVER-ABINUM	powerpc64-smp		PKGVER-ABINUM-powerpc64-smp	-	
+
+sparc	PKGVER-ABINUM	sparc64			PKGVER-ABINUM-sparc64		-	
