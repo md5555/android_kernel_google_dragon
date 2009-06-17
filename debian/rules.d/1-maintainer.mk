@@ -1,16 +1,20 @@
 # The following targets are for the maintainer only! do no run if you don't
 # know what they do.
 
-.PHONY: printenv updateconfigs printchanges insertchanges startnewrelease diffupstream help
+.PHONY: printenv updateconfigs printchanges insertchanges startnewrelease diffupstream help updateportsconfigs editportsconfigs
 
 help:
 	@echo "These are the targets in addition to the normal debian ones:"
 	@echo
 	@echo "  printenv        : Print some variables used in the build"
 	@echo
-	@echo "  updateconfigs   : Update debian/config/*"
+	@echo "  updateconfigs        : Update amd64, armel, i386 and lpia"
 	@echo
-	@echo "  editconfigs     : Update debian/config/* interactively"
+	@echo "  editconfigs          ; Update amd64, armel, i386 and lpia interractively"
+	@echo
+	@echo "  updateportsconfigs   : Update debian/config/*"
+	@echo
+	@echo "  editportsconfigs     : Update debian/config/* interactively"
 	@echo
 	@echo "  printchanges    : Print the current changelog entries (from git)"
 	@echo
@@ -38,6 +42,16 @@ updateconfigs:
 editconfigs:
 	dh_testdir
 	$(SHELL) debian/scripts/misc/kernelconfig editconfig
+	rm -rf build
+
+updateportsconfigs:
+	dh_testdir;
+	$(SHELL) debian/scripts/misc/kernelconfig oldconfig ports
+	rm -rf build
+
+editportsconfigs:
+	dh_testdir
+	$(SHELL) debian/scripts/misc/kernelconfig editconfig ports
 	rm -rf build
 
 printenv:
