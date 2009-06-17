@@ -18,7 +18,12 @@ case "$mode" in
 esac
 kerneldir="`pwd`"
 confdir="debian/config"
-archs=$(find $confdir -mindepth 1 -type d | cut -d'/' -f3)
+ports=$2
+if [ "$ports" = "ports" ]; then
+	archs=$(find $confdir -mindepth 1 -type d | cut -d'/' -f3)
+else
+	archs="amd64 armel i386 lpia"
+fi
 bindir="`pwd`/debian/scripts/misc"
 common_conf="$confdir/config.common.ubuntu"
 tmpdir=`mktemp -d`
