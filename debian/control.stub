@@ -124,6 +124,60 @@ Description: Linux kernel debug image for version 2.6.30 on x86/x86_64
  is uncompressed, and unstripped. This package also includes the
  unstripped modules.
 
+Package: linux-image-2.6.30-10-generic-pae
+Architecture: i386
+Section: base
+Priority: optional
+Pre-Depends: dpkg (>= 1.10.24)
+Provides: linux-image, linux-image-2.6, fuse-module, kvm-api-4, redhat-cluster-modules, ivtv-modules, ndiswrapper-modules-1.9
+Depends: initramfs-tools (>= 0.36ubuntu6), coreutils | fileutils (>= 4.0), module-init-tools (>= 3.3-pre11-4ubuntu3), wireless-crda
+Conflicts: hotplug (<< 0.0.20040105-1)
+Recommends: grub-pc | grub | lilo (>= 19.1)
+Suggests: fdutils, linux-doc-2.6.30 | linux-source-2.6.30
+Description: Linux kernel image for version 2.6.30 on x86
+ This package contains the Linux kernel image for version 2.6.30 on
+ x86.
+ .
+ Also includes the corresponding System.map file, the modules built by the
+ packager, and scripts that try to ensure that the system is not left in an
+ unbootable state after an update.
+ .
+ Supports Generic processors.
+ .
+ Geared toward 32 bit desktop systems with more then 4GB RAM.
+ .
+ You likely do not want to install this package directly. Instead, install
+ the linux-generic-pae meta-package, which will ensure that upgrades work
+ correctly, and that supporting packages are also installed.
+
+Package: linux-headers-2.6.30-10-generic-pae
+Architecture: i386
+Section: devel
+Priority: optional
+Depends: coreutils | fileutils (>= 4.0), linux-headers-2.6.30-10, ${shlibs:Depends}
+Provides: linux-headers, linux-headers-2.6
+Description: Linux kernel headers for version 2.6.30 on x86
+ This package provides kernel header files for version 2.6.30 on
+ x86.
+ .
+ This is for sites that want the latest kernel headers.  Please read
+ /usr/share/doc/linux-headers-2.6.30-10/debian.README.gz for details.
+
+Package: linux-image-debug-2.6.30-10-generic-pae
+Architecture: i386
+Section: devel
+Priority: optional
+Provides: linux-debug
+Description: Linux kernel debug image for version 2.6.30 on x86
+ This package provides a kernel debug image for version 2.6.30 on
+ x86.
+ .
+ This is for sites that wish to debug the kernel.
+ .
+ The kernel image contained in this package is NOT meant to boot from. It
+ is uncompressed, and unstripped. This package also includes the
+ unstripped modules.
+
 Package: linux-image-2.6.30-10-imx51
 Architecture: armel
 Section: base
@@ -233,7 +287,7 @@ Description: Linux kernel debug image for version 2.6.30 on Intel Atom processor
  unstripped modules.
 
 Package: linux-image-2.6.30-10-server
-Architecture: i386 amd64
+Architecture: amd64
 Section: base
 Priority: optional
 Pre-Depends: dpkg (>= 1.10.24)
@@ -242,9 +296,9 @@ Depends: initramfs-tools (>= 0.36ubuntu6), coreutils | fileutils (>= 4.0), modul
 Conflicts: hotplug (<< 0.0.20040105-1)
 Recommends: grub-pc | grub | lilo (>= 19.1)
 Suggests: fdutils, linux-doc-2.6.30 | linux-source-2.6.30
-Description: Linux kernel image for version 2.6.30 on x86/x86_64
+Description: Linux kernel image for version 2.6.30 on x86_64
  This package contains the Linux kernel image for version 2.6.30 on
- x86/x86_64.
+ x86_64.
  .
  Also includes the corresponding System.map file, the modules built by the
  packager, and scripts that try to ensure that the system is not left in an
@@ -252,33 +306,33 @@ Description: Linux kernel image for version 2.6.30 on x86/x86_64
  .
  Supports Server processors.
  .
- Geared toward server systems.
+ Geared toward 64 bit server systems.
  .
  You likely do not want to install this package directly. Instead, install
  the linux-server meta-package, which will ensure that upgrades work
  correctly, and that supporting packages are also installed.
 
 Package: linux-headers-2.6.30-10-server
-Architecture: i386 amd64
+Architecture: amd64
 Section: devel
 Priority: optional
 Depends: coreutils | fileutils (>= 4.0), linux-headers-2.6.30-10, ${shlibs:Depends}
 Provides: linux-headers, linux-headers-2.6
-Description: Linux kernel headers for version 2.6.30 on x86/x86_64
+Description: Linux kernel headers for version 2.6.30 on x86_64
  This package provides kernel header files for version 2.6.30 on
- x86/x86_64.
+ x86_64.
  .
  This is for sites that want the latest kernel headers.  Please read
  /usr/share/doc/linux-headers-2.6.30-10/debian.README.gz for details.
 
 Package: linux-image-debug-2.6.30-10-server
-Architecture: i386 amd64
+Architecture: amd64
 Section: devel
 Priority: optional
 Provides: linux-debug
-Description: Linux kernel debug image for version 2.6.30 on x86/x86_64
+Description: Linux kernel debug image for version 2.6.30 on x86_64
  This package provides a kernel debug image for version 2.6.30 on
- x86/x86_64.
+ x86_64.
  .
  This is for sites that wish to debug the kernel.
  .
