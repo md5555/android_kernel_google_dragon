@@ -6,3 +6,12 @@ armel	2.6.30-10	imx51		2.6.30-10-imx51			y
 i386	2.6.30-10	generic		2.6.30-10-generic		-	
 
 lpia	2.6.30-10	lpia		2.6.30-10-lpia
+
+# Ports
+# arch	version		flavour		installedname			suffix	bdep
+ia64	2.6.30-10	ia64			2.6.30-10-ia64	-	
+
+powerpc	2.6.30-10	powerpc			2.6.30-10-powerpc		-	
+powerpc	2.6.30-10	powerpc64-smp		2.6.30-10-powerpc64-smp	-	
+
+sparc	2.6.30-10	sparc64			2.6.30-10-sparc64		-	
