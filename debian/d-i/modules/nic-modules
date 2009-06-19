@@ -90,6 +90,7 @@ ne2 ?
 ne2k-pci ?
 ne3210 ?
 netconsole ?
+netxen_nic ?
 ni5010 ?
 ni52 ?
 ni65 ?
