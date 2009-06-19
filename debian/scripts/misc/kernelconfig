@@ -36,6 +36,7 @@ for arch in $archs; do
 		amd64)	kernarch="x86_64"	;;
 		armel)	kernarch="arm"	;;
 		lpia)   kernarch="x86" ;;
+		sparc)	kernarch="sparc64"	;;
 		*)	kernarch="$arch"	;;
 	esac
 
