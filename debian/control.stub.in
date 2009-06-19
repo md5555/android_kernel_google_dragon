@@ -31,22 +31,18 @@ Description: Linux kernel source for version PKGVER with Ubuntu patches
  you do not want this package. Install the appropriate linux-headers
  package instead.
 
-Package: linux-doc-PKGVER
+Package: linux-doc
 Architecture: all
 Section: doc
 Priority: optional
-Provides: linux-doc-2.6
 Conflicts: linux-doc-2.6
 Replaces: linux-doc-2.6
-Depends: coreutils | fileutils (>= 4.0)
 Description: Linux kernel specific documentation for version PKGVER
- This package provides the various readme's in the PKGVER kernel
- Documentation/ subdirectory: these typically contain kernel-specific
- installation notes for some drivers for example. See
- /usr/share/doc/linux-doc-PKGVER/Documentation/00-INDEX for a list of what
- is contained in each file.  Please read the Changes file, as it contains
- information about the problems, which may result by upgrading your
- kernel.
+ This package provides the various documents in the PKGVER kernel
+ Documentation/ subdirectory.  These document kernel subsystems, APIs, device
+ drivers, and so on.  See
+ /usr/share/doc/linux-doc/00-INDEX for a list of what is
+ contained in each file.
 
 Package: linux-headers-PKGVER-ABINUM
 Architecture: all
