@@ -7,6 +7,8 @@ revision ?= $(word $(words $(revisions)),$(revisions))
 prev_revisions := $(filter-out $(revision),0.0 $(revisions))
 prev_revision := $(word $(words $(prev_revisions)),$(prev_revisions))
 
+family=ubuntu
+
 # This is an internally used mechanism for the daily kernel builds. It
 # creates packages who's ABI is suffixed with a minimal representation of
 # the current git HEAD sha. If .git/HEAD is not present, then it uses the
