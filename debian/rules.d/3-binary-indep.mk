@@ -1,6 +1,6 @@
 build-indep:
 
-docpkg = linux-doc
+docpkg = linux-doc-$(release)
 docdir = $(CURDIR)/debian/$(docpkg)/usr/share/doc/$(docpkg)
 install-doc:
 	dh_testdir
