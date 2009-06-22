@@ -17,15 +17,17 @@ case "$mode" in
        exit 1 ;;
 esac
 kerneldir="`pwd`"
-confdir="debian/config"
+confdir="$kerneldir/debian/config"
 ports=$2
 if [ "$ports" = "ports" ]; then
-	archs=$(find $confdir -mindepth 1 -type d | cut -d'/' -f3)
+	archs="sparc powerpc ia64"
+	family='ports'
 else
 	archs="amd64 armel i386 lpia"
+	family='ubuntu'
 fi
 bindir="`pwd`/debian/scripts/misc"
-common_conf="$confdir/config.common.ubuntu"
+common_conf="$confdir/config.common.$family"
 tmpdir=`mktemp -d`
 
 test -d build || mkdir build
@@ -109,9 +111,8 @@ rm -f $common_conf
 # $tmpdir
 (cd $tmpdir; $bindir/splitconfig.pl)
 (
-	cd $kerneldir/$confdir;
-	grep -v 'is UNMERGABLE' <$tmpdir/config.common \
-		>$kerneldir/$confdir/config.common.ubuntu
+	cd $confdir;
+	grep -v 'is UNMERGABLE' <$tmpdir/config.common >$common_conf
 	for arch in $archs; do
 		grep -v 'is UNMERGABLE' <$tmpdir/config.common.$arch \
 			>$arch/config.common.$arch
