@@ -387,7 +387,7 @@ static int __init compcache_init(void)
 
 	set_capacity(compcache.disk, compcache.size);
 	blk_queue_make_request(compcache.disk->queue, compcache_make_request);
-	blk_queue_hardsect_size(compcache.disk->queue, PAGE_SIZE);
+	blk_queue_logical_block_size(compcache.disk->queue, PAGE_SIZE);
 	add_disk(compcache.disk);
 
 	compcache.mem_pool = tlsf_create_memory_pool("compcache",
