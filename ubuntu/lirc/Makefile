@@ -5,7 +5,7 @@ EXTRA_CFLAGS =-DIRCTL_DEV_MAJOR=61 -DLIRC_SERIAL_TRANSMITTER -DLIRC_SERIAL_SOFTC
 obj-$(CONFIG_LIRC_DEV)		+= lirc_dev/
 obj-$(CONFIG_LIRC_ATIUSB)	+= lirc_atiusb/
 obj-$(CONFIG_LIRC_BT829)	+= lirc_bt829/
-obj-$(CONFIG_LIRC_I2C)		+= lirc_i2c/
+#obj-$(CONFIG_LIRC_I2C)		+= lirc_i2c/
 obj-$(CONFIG_LIRC_IGORPLUGUSB)	+= lirc_igorplugusb/
 obj-$(CONFIG_LIRC_IMON)		+= lirc_imon/
 obj-$(CONFIG_LIRC_IT87)		+= lirc_it87/
