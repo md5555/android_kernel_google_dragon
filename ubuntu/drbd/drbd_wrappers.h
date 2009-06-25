@@ -7,7 +7,7 @@ extern char *drbd_sec_holder;
 
 static inline sector_t drbd_get_hardsect(struct block_device *bdev)
 {
-	return bdev->bd_disk->queue->hardsect_size;
+	return bdev_logical_block_size(bdev);
 }
 
 /* sets the number of 512 byte sectors of our virtual device */

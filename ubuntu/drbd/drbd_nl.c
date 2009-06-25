@@ -714,28 +714,28 @@ void drbd_setup_queue_param(struct drbd_conf *mdev, unsigned int max_seg_s) __mu
 	if (b->merge_bvec_fn && !mdev->bc->dc.use_bmbv)
 		max_seg_s = PAGE_SIZE;
 
-	max_seg_s = min(b->max_sectors * b->hardsect_size, max_seg_s);
+	max_seg_s = min(queue_max_sectors(b) * queue_logical_block_size(b), max_seg_s);
 
 	MTRACE(TraceTypeRq, TraceLvlSummary,
-	       DUMPI(b->max_sectors);
-	       DUMPI(b->max_phys_segments);
-	       DUMPI(b->max_hw_segments);
-	       DUMPI(b->max_segment_size);
-	       DUMPI(b->hardsect_size);
-	       DUMPI(b->seg_boundary_mask);
+	       DUMPI(queue_max_sectors(b));
+	       DUMPI(queue_max_phys_segments(b));
+	       DUMPI(queue_max_hw_segments(b));
+	       DUMPI(queue_max_segment_size(b));
+	       DUMPI(queue_logical_block_size(b));
+	       DUMPI(queue_segment_boundary(b));
 	       );
 
-	q->max_sectors	     = max_seg_s >> 9;
+	blk_queue_max_sectors(q, max_seg_s >> 9);
 	if (max_segments) {
-		q->max_phys_segments = max_segments;
-		q->max_hw_segments   = max_segments;
+		blk_queue_max_phys_segments(q, max_segments);
+		blk_queue_max_hw_segments(q, max_segments);
 	} else {
-		q->max_phys_segments = MAX_PHYS_SEGMENTS;
-		q->max_hw_segments   = MAX_HW_SEGMENTS;
+		blk_queue_max_phys_segments(q, MAX_PHYS_SEGMENTS);
+		blk_queue_max_hw_segments(q, MAX_HW_SEGMENTS);
 	}
-	q->max_segment_size  = max_seg_s;
-	q->hardsect_size     = 512;
-	q->seg_boundary_mask = PAGE_SIZE-1;
+	blk_queue_max_segment_size(q, max_seg_s);
+	blk_queue_logical_block_size(q, 512);
+	blk_queue_segment_boundary(q, PAGE_SIZE-1);
 	blk_queue_stack_limits(q, b);
 
 	/* KERNEL BUG. in ll_rw_blk.c ??
@@ -743,22 +743,22 @@ void drbd_setup_queue_param(struct drbd_conf *mdev, unsigned int max_seg_s) __mu
 	 * should be
 	 * t->max_segment_size = min_not_zero(...,...)
 	 * workaround here: */
-	if (q->max_segment_size == 0)
-		q->max_segment_size = max_seg_s;
+	if (queue_max_segment_size(q) == 0)
+		blk_queue_max_segment_size(q, max_seg_s);
 
 	MTRACE(TraceTypeRq, TraceLvlSummary,
-	       DUMPI(q->max_sectors);
-	       DUMPI(q->max_phys_segments);
-	       DUMPI(q->max_hw_segments);
-	       DUMPI(q->max_segment_size);
-	       DUMPI(q->hardsect_size);
-	       DUMPI(q->seg_boundary_mask);
+	       DUMPI(queue_max_sectors(q));
+	       DUMPI(queue_max_phys_segments(q));
+	       DUMPI(queue_max_hw_segments(q));
+	       DUMPI(queue_max_segment_size(q));
+	       DUMPI(queue_logical_block_size(q));
+	       DUMPI(queue_segment_boundary(q));
 	       );
 
 	if (b->merge_bvec_fn)
 		drbd_WARN("Backing device's merge_bvec_fn() = %p\n",
 		     b->merge_bvec_fn);
-	INFO("max_segment_size ( = BIO size ) = %u\n", q->max_segment_size);
+	INFO("max_segment_size ( = BIO size ) = %u\n", queue_max_segment_size(q));
 
 	if (q->backing_dev_info.ra_pages != b->backing_dev_info.ra_pages) {
 		INFO("Adjusting my ra_pages to backing device's (%lu -> %lu)\n",
