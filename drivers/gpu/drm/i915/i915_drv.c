@@ -55,6 +55,7 @@ MODULE_DEVICE_TABLE(pci, pciidlist);
 static int i915_suspend(struct drm_device *dev, pm_message_t state)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
+	struct drm_connector *connector;
 
 	if (!dev || !dev_priv) {
 		printk(KERN_ERR "dev: %p, dev_priv: %p\n", dev, dev_priv);
@@ -66,6 +67,9 @@ static int i915_suspend(struct drm_device *dev, pm_message_t state)
 		return 0;
 
 	pci_save_state(dev->pdev);
+
+	list_for_each_entry(connector, &dev->mode_config.connector_list, head)
+		connector->funcs->dpms(connector, DRM_MODE_DPMS_OFF);
 
 	i915_save_state(dev);
 
@@ -91,6 +95,7 @@ static int i915_suspend(struct drm_device *dev, pm_message_t state)
 static int i915_resume(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
+	struct drm_connector *connector;
 	int ret = 0;
 
 	pci_set_power_state(dev->pdev, PCI_D0);
@@ -100,6 +105,9 @@ static int i915_resume(struct drm_device *dev)
 	pci_set_master(dev->pdev);
 
 	i915_restore_state(dev);
+
+	list_for_each_entry(connector, &dev->mode_config.connector_list, head)
+		connector->funcs->dpms(connector, DRM_MODE_DPMS_ON);
 
 	intel_opregion_init(dev, 1);
 
