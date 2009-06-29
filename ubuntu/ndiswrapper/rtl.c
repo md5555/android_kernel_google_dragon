@@ -202,7 +202,7 @@ wstdcall ULONG WIN_FUNC(RtlxAnsiStringToUnicodeSize,1)
 
 	for (i = 0; i < string->max_length && string->buf[i]; i++)
 		;
-	return (i * sizeof(wchar_t));
+	return i * sizeof(wchar_t);
 }
 
 wstdcall ULONG WIN_FUNC(RtlxUnicodeStringToAnsiSize,1)
@@ -451,9 +451,9 @@ wstdcall NTSTATUS WIN_FUNC(RtlUpcaseUnicodeString,3)
 
 	if (alloc) {
 		dst->buf = ExAllocatePoolWithTag(NonPagedPool, src->length, 0);
-		if (dst->buf) {
+		if (dst->buf)
 			dst->max_length = src->length;
-		} else
+		else
 			EXIT2(return STATUS_NO_MEMORY);
 	} else {
 		if (dst->max_length < src->length)

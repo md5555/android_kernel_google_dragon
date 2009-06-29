@@ -44,7 +44,7 @@ static int num_pe_exports;
 
 #if defined(DEBUGLINKER) && DEBUGLINKER > 0
 #define DBGLINKER(fmt, ...) printk(KERN_INFO "%s (%s:%d): " fmt "\n",	\
-				   DRIVER_NAME, __FUNCTION__,		\
+				   DRIVER_NAME, __func__,		\
 				   __LINE__ , ## __VA_ARGS__);
 static const char *image_directory_name[] = {
 	"EXPORT",
@@ -207,10 +207,10 @@ static int check_nt_hdr(IMAGE_NT_HEADERS *nt_hdr)
 			  opt_hdr->DataDirectory[i].Size);
 	}
 
-	if ((nt_hdr->FileHeader.Characteristics & IMAGE_FILE_DLL))
-		return IMAGE_FILE_DLL;
 	if ((nt_hdr->FileHeader.Characteristics & IMAGE_FILE_EXECUTABLE_IMAGE))
 		return IMAGE_FILE_EXECUTABLE_IMAGE;
+	if ((nt_hdr->FileHeader.Characteristics & IMAGE_FILE_DLL))
+		return IMAGE_FILE_DLL;
 	return -EINVAL;
 }
 

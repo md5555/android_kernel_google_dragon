@@ -16,7 +16,7 @@
 #ifndef _NDISWRAPPER_H_
 #define _NDISWRAPPER_H_
 
-#define DRIVER_VERSION "1.53"
+#define DRIVER_VERSION "1.55"
 #define UTILS_VERSION "1.9"
 
 #define DRIVER_NAME "ndiswrapper"
@@ -76,7 +76,7 @@
 
 #define MSG(level, fmt, ...)				\
 	printk(level "ndiswrapper (%s:%d): " fmt "\n",	\
-	       __FUNCTION__, __LINE__ , ## __VA_ARGS__)
+	       __func__, __LINE__ , ## __VA_ARGS__)
 
 #define WARNING(fmt, ...) MSG(KERN_WARNING, fmt, ## __VA_ARGS__)
 #define ERROR(fmt, ...) MSG(KERN_ERR, fmt , ## __VA_ARGS__)
@@ -102,7 +102,7 @@ extern int debug;
 do {								       \
 	if (debug >= level)					       \
 		printk(KERN_INFO "%s (%s:%d): " fmt "\n", DRIVER_NAME, \
-		       __FUNCTION__, __LINE__ , ## __VA_ARGS__);       \
+		       __func__, __LINE__ , ## __VA_ARGS__);       \
 } while (0)
 #undef DBG_BLOCK
 #define DBG_BLOCK(level) if (debug >= level)

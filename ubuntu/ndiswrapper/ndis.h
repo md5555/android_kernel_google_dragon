@@ -606,6 +606,11 @@ struct ndis_radio_status_indication
 	enum ndis_radio_status radio_state;
 };
 
+enum ndis_media_state {
+	NdisMediaStateConnected,
+	NdisMediaStateDisconnected,
+};
+
 enum ndis_media_stream_mode {
 	Ndis802_11MediaStreamOff, Ndis802_11MediaStreamOn
 };

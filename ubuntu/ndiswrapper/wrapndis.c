@@ -547,7 +547,7 @@ static struct ndis_packet *alloc_tx_packet(struct ndis_device *wnd,
 			(void *)(ULONG_PTR)csum.value;
 	}
 	DBG_BLOCK(4) {
-		dump_bytes(__FUNCTION__, skb->data, skb->len);
+		dump_bytes(__func__, skb->data, skb->len);
 	}
 	TRACE4("%p, %p, %p", packet, buffer, skb);
 	return packet;
@@ -801,6 +801,32 @@ static int set_packet_filter(struct ndis_device *wnd, ULONG packet_filter)
 		EXIT3(return -1);
 }
 
+void set_media_state(struct ndis_device *wnd, enum ndis_media_state state)
+{
+	ENTER2("state: 0x%x", state);
+	if (state == NdisMediaStateConnected) {
+		netif_carrier_on(wnd->net_dev);
+		wnd->tx_ok = 1;
+		if (netif_queue_stopped(wnd->net_dev))
+			netif_wake_queue(wnd->net_dev);
+		if (wnd->physical_medium == NdisPhysicalMediumWirelessLan) {
+			set_bit(LINK_STATUS_ON, &wnd->ndis_pending_work);
+			schedule_wrapndis_work(&wnd->ndis_work);
+		}
+	} else if (state == NdisMediaStateDisconnected) {
+		netif_carrier_off(wnd->net_dev);
+		netif_stop_queue(wnd->net_dev);
+		wnd->tx_ok = 0;
+		if (wnd->physical_medium == NdisPhysicalMediumWirelessLan) {
+			memset(&wnd->essid, 0, sizeof(wnd->essid));
+			set_bit(LINK_STATUS_OFF, &wnd->ndis_pending_work);
+			schedule_wrapndis_work(&wnd->ndis_work);
+		}
+	} else {
+		WARNING("invalid media state: 0x%x", state);
+	}
+}
+
 static int ndis_net_dev_open(struct net_device *net_dev)
 {
 	ENTER1("%p", netdev_priv(net_dev));
@@ -995,7 +1021,7 @@ static void link_status_on(struct ndis_device *wnd)
 		TRACE2("query assoc_info failed (%08X)", res);
 		kfree(ndis_assoc_info);
 		goto send_assoc_event;
-	}	
+	}
 	TRACE2("%u, 0x%x, %u, 0x%x, %u", ndis_assoc_info->length,
 	       ndis_assoc_info->req_ies, ndis_assoc_info->req_ie_length,
 	       ndis_assoc_info->resp_ies, ndis_assoc_info->resp_ie_length);
@@ -1626,7 +1652,7 @@ static u32 ndis_get_rx_csum(struct net_device *dev)
 		return 1;
 	else
 		return 0;
-} 
+}
 
 static int ndis_set_tx_csum(struct net_device *dev, u32 data)
 {
@@ -1635,9 +1661,9 @@ static int ndis_set_tx_csum(struct net_device *dev, u32 data)
 	if (data && (wnd->tx_csum.value == 0))
 		return -EOPNOTSUPP;
 
-	if (wnd->tx_csum.ip_csum) {
+	if (wnd->tx_csum.ip_csum)
 		ethtool_op_set_tx_hw_csum(dev, data);
-	} else
+	else
 		ethtool_op_set_tx_csum(dev, data);
 	return 0;
 }
@@ -1660,7 +1686,7 @@ static u32 ndis_get_sg(struct net_device *dev)
 		return ethtool_op_get_sg(dev);
 	else
 		return 0;
-} 
+}
 
 static int ndis_set_sg(struct net_device *dev, u32 data)
 {
@@ -1669,7 +1695,7 @@ static int ndis_set_sg(struct net_device *dev, u32 data)
 		return ethtool_op_set_sg(dev, data);
 	else
 		return -EOPNOTSUPP;
-} 
+}
 
 static struct ethtool_ops ndis_ethtool_ops = {
 	.get_drvinfo	= ndis_get_drvinfo,
@@ -1690,7 +1716,8 @@ static int notifier_event(struct notifier_block *notifier, unsigned long event,
 	struct net_device *net_dev = ptr;
 
 	ENTER2("0x%lx", event);
-	if (net_dev->open == ndis_net_dev_open && event == NETDEV_CHANGENAME) {
+	if (net_dev->ethtool_ops == &ndis_ethtool_ops
+	    && event == NETDEV_CHANGENAME) {
 		struct ndis_device *wnd = netdev_priv(net_dev);
 		/* called with rtnl lock held, so no need to lock */
 		wrap_procfs_remove_ndis_device(wnd);
@@ -1706,6 +1733,21 @@ static int notifier_event(struct notifier_block *notifier, unsigned long event,
 static struct notifier_block netdev_notifier = {
 	.notifier_call = notifier_event,
 };
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+static const struct net_device_ops ndis_netdev_ops = {
+	.ndo_open = ndis_net_dev_open,
+	.ndo_stop = ndis_net_dev_close,
+	.ndo_start_xmit = tx_skbuff,
+	.ndo_change_mtu = ndis_change_mtu,
+	.ndo_set_multicast_list = ndis_set_multicast_list,
+	.ndo_set_mac_address = ndis_set_mac_address,
+	.ndo_get_stats = ndis_get_stats,
+#ifdef CONFIG_NET_POLL_CONTROLLER
+	.ndo_poll_controller = ndis_poll_controller,
+#endif
+};
+#endif
 
 static NDIS_STATUS ndis_start_device(struct ndis_device *wnd)
 {
@@ -1746,17 +1788,23 @@ static NDIS_STATUS ndis_start_device(struct ndis_device *wnd)
 
 	wnd->packet_filter = NDIS_PACKET_TYPE_DIRECTED |
 		NDIS_PACKET_TYPE_BROADCAST | NDIS_PACKET_TYPE_MULTICAST;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+	net_dev->netdev_ops = &ndis_netdev_ops;
+#else
 	net_dev->open = ndis_net_dev_open;
 	net_dev->hard_start_xmit = tx_skbuff;
 	net_dev->stop = ndis_net_dev_close;
 	net_dev->get_stats = ndis_get_stats;
 	net_dev->change_mtu = ndis_change_mtu;
-	net_dev->do_ioctl = NULL;
+	net_dev->set_multicast_list = ndis_set_multicast_list;
+	net_dev->set_mac_address = ndis_set_mac_address;
+#ifdef CONFIG_NET_POLL_CONTROLLER
+	net_dev->poll_controller = ndis_poll_controller;
+#endif
+#endif
 	if (wnd->physical_medium == NdisPhysicalMediumWirelessLan) {
 		net_dev->wireless_handlers = &ndis_handler_def;
 	}
-	net_dev->set_multicast_list = ndis_set_multicast_list;
-	net_dev->set_mac_address = ndis_set_mac_address;
 	net_dev->ethtool_ops = &ndis_ethtool_ops;
 	if (wnd->mp_interrupt)
 		net_dev->irq = wnd->mp_interrupt->irq;
@@ -1770,9 +1818,6 @@ static NDIS_STATUS ndis_start_device(struct ndis_device *wnd)
 		net_dev->flags |= IFF_MULTICAST;
 	else
 		net_dev->flags &= ~IFF_MULTICAST;
-#ifdef CONFIG_NET_POLL_CONTROLLER
-	net_dev->poll_controller = ndis_poll_controller;
-#endif
 
 	buf = kmalloc(buf_len, GFP_KERNEL);
 	if (!buf) {
@@ -1879,6 +1924,9 @@ static NDIS_STATUS ndis_start_device(struct ndis_device *wnd)
 
 		set_default_iw_params(wnd);
 	}
+	status = mp_query_int(wnd, OID_GEN_MEDIA_CONNECT_STATUS, (int *)buf);
+	if (status == NDIS_STATUS_SUCCESS)
+		set_media_state(wnd, *((int *)buf));
 	kfree(buf);
 	wrap_procfs_add_ndis_device(wnd);
 	hangcheck_add(wnd);

@@ -482,61 +482,61 @@ noregparm int WIN_FUNC(_win_isprint,1)
 wstdcall s64 WIN_FUNC(_alldiv,2)
 	(s64 a, s64 b)
 {
-	return (a / b);
+	return a / b;
 }
 
 wstdcall u64 WIN_FUNC(_aulldiv,2)
 	(u64 a, u64 b)
 {
-	return (a / b);
+	return a / b;
 }
 
 wstdcall s64 WIN_FUNC(_allmul,2)
 	(s64 a, s64 b)
 {
-	return (a * b);
+	return a * b;
 }
 
 wstdcall u64 WIN_FUNC(_aullmul,2)
 	(u64 a, u64 b)
 {
-	return (a * b);
+	return a * b;
 }
 
 wstdcall s64 WIN_FUNC(_allrem,2)
 	(s64 a, s64 b)
 {
-	return (a % b);
+	return a % b;
 }
 
 wstdcall u64 WIN_FUNC(_aullrem,2)
 	(u64 a, u64 b)
 {
-	return (a % b);
+	return a % b;
 }
 
 __attribute__((regparm(3))) s64 WIN_FUNC(_allshl,2)
 	(s64 a, u8 b)
 {
-	return (a << b);
+	return a << b;
 }
 
 __attribute__((regparm(3))) u64 WIN_FUNC(_aullshl,2)
 	(u64 a, u8 b)
 {
-	return (a << b);
+	return a << b;
 }
 
 __attribute__((regparm(3))) s64 WIN_FUNC(_allshr,2)
 	(s64 a, u8 b)
 {
-	return (a >> b);
+	return a >> b;
 }
 
 __attribute__((regparm(3))) u64 WIN_FUNC(_aullshr,2)
 	(u64 a, u8 b)
 {
-	return (a >> b);
+	return a >> b;
 }
 
 int stricmp(const char *s1, const char *s2)

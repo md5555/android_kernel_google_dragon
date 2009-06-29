@@ -76,6 +76,7 @@ void free_tx_packet(struct ndis_device *wnd, struct ndis_packet *packet,
 		    NDIS_STATUS status);
 int init_ndis_driver(struct driver_object *drv_obj);
 NDIS_STATUS ndis_reinit(struct ndis_device *wnd);
+void set_media_state(struct ndis_device *wnd, enum ndis_media_state state);
 
 void hangcheck_add(struct ndis_device *wnd);
 void hangcheck_del(struct ndis_device *wnd);

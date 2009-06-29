@@ -945,19 +945,19 @@ wstdcall NDIS_STATUS WIN_FUNC(NdisMAllocateMapRegisters,5)
 		EXIT2(return NDIS_STATUS_RESOURCES);
 	}
 	if (dmasize == NDIS_DMA_24BITS) {
-		if (pci_set_dma_mask(wnd->wd->pci.pdev, DMA_24BIT_MASK) ||
+		if (pci_set_dma_mask(wnd->wd->pci.pdev, DMA_BIT_MASK(24)) ||
 		    pci_set_consistent_dma_mask(wnd->wd->pci.pdev,
-						DMA_24BIT_MASK))
+						DMA_BIT_MASK(24)))
 			WARNING("setting dma mask failed");
 	} else if (dmasize == NDIS_DMA_32BITS) {
 		/* consistent dma is in low 32-bits by default */
-		if (pci_set_dma_mask(wnd->wd->pci.pdev, DMA_32BIT_MASK))
+		if (pci_set_dma_mask(wnd->wd->pci.pdev, DMA_BIT_MASK(32)))
 			WARNING("setting dma mask failed");
 #ifdef CONFIG_X86_64
 	} else if (dmasize == NDIS_DMA_64BITS) {
-		if (pci_set_dma_mask(wnd->wd->pci.pdev, DMA_64BIT_MASK) ||
+		if (pci_set_dma_mask(wnd->wd->pci.pdev, DMA_BIT_MASK(64)) ||
 		    pci_set_consistent_dma_mask(wnd->wd->pci.pdev,
-						DMA_64BIT_MASK))
+						DMA_BIT_MASK(64)))
 			WARNING("setting dma mask failed");
 		else
 			wnd->net_dev->features |= NETIF_F_HIGHDMA;
@@ -1033,10 +1033,10 @@ wstdcall void WIN_FUNC(NdisMStartBufferPhysicalMapping,6)
 	TRACE3("%p, %p, %u", buf, MmGetSystemAddressForMdl(buf),
 	       MmGetMdlByteCount(buf));
 	DBG_BLOCK(4) {
-		dump_bytes(__FUNCTION__, MmGetSystemAddressForMdl(buf),
+		dump_bytes(__func__, MmGetSystemAddressForMdl(buf),
 			   MmGetMdlByteCount(buf));
 	}
-	wnd->dma_map_addr[index] = 
+	wnd->dma_map_addr[index] =
 		PCI_DMA_MAP_SINGLE(wnd->wd->pci.pdev,
 				   MmGetSystemAddressForMdl(buf),
 				   MmGetMdlByteCount(buf), PCI_DMA_TODEVICE);
@@ -1893,7 +1893,7 @@ wstdcall BOOLEAN ndis_isr(struct kinterrupt *kinterrupt, void *ctx)
 {
 	struct ndis_mp_interrupt *mp_interrupt = ctx;
 	struct ndis_device *wnd = mp_interrupt->nmb->wnd;
-	BOOLEAN recognized, queue_handler;
+	BOOLEAN recognized = TRUE, queue_handler = TRUE;
 
 	TRACE6("%p", wnd);
 	/* kernel may call ISR when registering interrupt, in
@@ -2014,24 +2014,10 @@ wstdcall void WIN_FUNC(NdisMIndicateStatus,4)
 	ENTER2("status=0x%x len=%d", status, len);
 	switch (status) {
 	case NDIS_STATUS_MEDIA_CONNECT:
-		netif_carrier_on(wnd->net_dev);
-		wnd->tx_ok = 1;
-		if (netif_queue_stopped(wnd->net_dev))
-			netif_wake_queue(wnd->net_dev);
-		if (wnd->physical_medium == NdisPhysicalMediumWirelessLan) {
-			set_bit(LINK_STATUS_ON, &wnd->ndis_pending_work);
-			schedule_wrapndis_work(&wnd->ndis_work);
-		}
+		set_media_state(wnd, NdisMediaStateConnected);
 		break;
 	case NDIS_STATUS_MEDIA_DISCONNECT:
-		netif_carrier_off(wnd->net_dev);
-		netif_stop_queue(wnd->net_dev);
-		wnd->tx_ok = 0;
-		if (wnd->physical_medium == NdisPhysicalMediumWirelessLan) {
-			memset(&wnd->essid, 0, sizeof(wnd->essid));
-			set_bit(LINK_STATUS_OFF, &wnd->ndis_pending_work);
-			schedule_wrapndis_work(&wnd->ndis_work);
-		}
+		set_media_state(wnd, NdisMediaStateDisconnected);
 		break;
 	case NDIS_STATUS_MEDIA_SPECIFIC_INDICATION:
 		if (!buf)
@@ -2614,9 +2600,9 @@ wstdcall NDIS_STATUS WIN_FUNC(NdisMInitializeScatterGatherDma,3)
 #ifdef CONFIG_X86_64
 	if (dma_size != NDIS_DMA_64BITS) {
 		TRACE1("DMA size is not 64-bits");
-		if (pci_set_dma_mask(wnd->wd->pci.pdev, DMA_32BIT_MASK) ||
+		if (pci_set_dma_mask(wnd->wd->pci.pdev, DMA_BIT_MASK(32)) ||
 		    pci_set_consistent_dma_mask(wnd->wd->pci.pdev,
-						DMA_32BIT_MASK))
+						DMA_BIT_MASK(32)))
 			WARNING("setting dma mask failed");
 	}
 #endif
@@ -2638,7 +2624,7 @@ wstdcall ULONG WIN_FUNC(NdisMGetDmaAlignment,1)
 wstdcall CHAR WIN_FUNC(NdisSystemProcessorCount,0)
 	(void)
 {
-	return NR_CPUS;
+	return (CHAR)NR_CPUS;
 }
 
 wstdcall void WIN_FUNC(NdisGetCurrentProcessorCounts,3)

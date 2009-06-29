@@ -419,12 +419,12 @@ static void timer_proc(unsigned long data)
 	BUG_ON(wrap_timer->wrap_timer_magic != WRAP_TIMER_MAGIC);
 	BUG_ON(nt_timer->wrap_timer_magic != WRAP_TIMER_MAGIC);
 #endif
-	kdpc = nt_timer->kdpc;
-	if (kdpc)
-		queue_kdpc(kdpc);
 	KeSetEvent((struct nt_event *)nt_timer, 0, FALSE);
 	if (wrap_timer->repeat)
 		mod_timer(&wrap_timer->timer, jiffies + wrap_timer->repeat);
+	kdpc = nt_timer->kdpc;
+	if (kdpc)
+		queue_kdpc(kdpc);
 	TIMEREXIT(return);
 }
 
@@ -561,11 +561,10 @@ wstdcall BOOLEAN WIN_FUNC(KeCancelTimer,1)
 #ifdef TIMER_DEBUG
 	BUG_ON(wrap_timer->wrap_timer_magic != WRAP_TIMER_MAGIC);
 #endif
-	TIMERTRACE("canceling timer %p(%p)", wrap_timer, nt_timer);
 	/* disable timer before deleting so if it is periodic timer, it
 	 * won't be re-armed after deleting */
 	wrap_timer->repeat = 0;
-	ret = del_timer(&wrap_timer->timer);
+	ret = del_timer_sync(&wrap_timer->timer);
 	/* the documentation for KeCancelTimer suggests the DPC is
 	 * deqeued, but actually DPC is left to run */
 	if (ret)
@@ -1698,14 +1697,14 @@ wstdcall void *WIN_FUNC(MmAllocateContiguousMemorySpecifyCache,5)
 #ifdef CONFIG_X86_64
 	/* GFP_DMA is really only 16MB even on x86-64, but there is no
 	 * other zone available */
-	if (highest <= DMA_31BIT_MASK)
+	if (highest <= DMA_BIT_MASK(31))
 		flags |= __GFP_DMA;
-	else if (highest <= DMA_32BIT_MASK)
+	else if (highest <= DMA_BIT_MASK(32))
 		flags |= __GFP_DMA32;
 #else
-	if (highest <= DMA_24BIT_MASK)
+	if (highest <= DMA_BIT_MASK(24))
 		flags |= __GFP_DMA;
-	else if (highest > DMA_30BIT_MASK)
+	else if (highest > DMA_BIT_MASK(30))
 		flags |= __GFP_HIGHMEM;
 #endif
 	addr = wrap_get_free_pages(flags, size);
@@ -1760,8 +1759,8 @@ wstdcall void WIN_FUNC(MmUnmapIoSpace,2)
 wstdcall ULONG WIN_FUNC(MmSizeOfMdl,2)
 	(void *base, ULONG length)
 {
-	return (sizeof(struct mdl) +
-		(sizeof(PFN_NUMBER) * SPAN_PAGES(base, length)));
+	return sizeof(struct mdl) +
+	       (sizeof(PFN_NUMBER) * SPAN_PAGES(base, length));
 }
 
 struct mdl *allocate_init_mdl(void *virt, ULONG length)
@@ -2389,10 +2388,17 @@ noregparm ULONG WIN_FUNC(DbgPrint,12)
 
 	va_start(args, format);
 	vsnprintf(buf, sizeof(buf), format, args);
-	printk(KERN_DEBUG "%s (%s): %s", DRIVER_NAME, __FUNCTION__, buf);
+	printk(KERN_DEBUG "%s (%s): %s", DRIVER_NAME, __func__, buf);
 	va_end(args);
 #endif
 	return STATUS_SUCCESS;
+}
+
+wstdcall void WIN_FUNC(KeBugCheck,1)
+	(ULONG code)
+{
+	TODO();
+	return;
 }
 
 wstdcall void WIN_FUNC(KeBugCheckEx,5)

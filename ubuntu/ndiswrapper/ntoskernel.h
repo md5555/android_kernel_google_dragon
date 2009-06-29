@@ -53,11 +53,13 @@
 
 /* Interrupt backwards compatibility stuff */
 #include <linux/interrupt.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,29)
 #ifndef IRQ_HANDLED
 #define IRQ_HANDLED
 #define IRQ_NONE
 #define irqreturn_t void
 #endif
+#endif /* Linux < 2.6.29 */
 
 /* pci functions in 2.6 kernels have problems allocating dma buffers,
  * but seem to work fine with dma functions
@@ -304,20 +306,10 @@ typedef u32 pm_message_t;
 #define memcpy_skb(skb, from, length)			\
 	memcpy(skb_put(skb, length), from, length)
 
-#ifndef DMA_24BIT_MASK
-#define DMA_24BIT_MASK 0x0000000000ffffffULL
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24)
+#ifndef DMA_BIT_MASK
+#define DMA_BIT_MASK(n)	(((n) == 64) ? ~0ULL : ((1ULL<<(n))-1))
 #endif
-
-#ifndef DMA_30BIT_MASK
-#define DMA_30BIT_MASK 0x000000003fffffffULL
-#endif
-
-#ifndef DMA_31BIT_MASK
-#define DMA_31BIT_MASK 0x000000007fffffffULL
-#endif
-
-#ifndef DMA_32BIT_MASK
-#define DMA_32BIT_MASK 0x00000000ffffffffULL
 #endif
 
 #ifndef __GFP_DMA32
@@ -692,7 +684,7 @@ static inline KIRQL raise_irql(KIRQL newirql)
 }
 
 static inline void lower_irql(KIRQL oldirql)
-{									
+{
 	irql_info_t *info;
 
 	assert(oldirql <= DISPATCH_LEVEL);
@@ -883,6 +875,7 @@ static inline struct nt_slist *PopEntrySList(nt_slist_header *head,
 #define u64_low_32(x) ((u32)x)
 #define u64_high_32(x) ((u32)(x >> 32))
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,31)
 static inline u64 cmpxchg8b(volatile u64 *ptr, u64 old, u64 new)
 {
 	u64 prev;
@@ -894,6 +887,7 @@ static inline u64 cmpxchg8b(volatile u64 *ptr, u64 old, u64 new)
 		: "A" (old), "b" (u64_low_32(new)), "c" (u64_high_32(new)));
 	return prev;
 }
+#endif
 
 /* slist routines below update slist atomically - no need for
  * spinlocks */

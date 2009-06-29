@@ -129,7 +129,7 @@ void *wrap_kmalloc(size_t size, gfp_t flags, const char *file, int line)
 	spin_unlock_bh(&alloc_lock);
 #endif
 	TRACE4("%p", info + 1);
-	return (info + 1);
+	return info + 1;
 }
 
 void *wrap_kzalloc(size_t size, gfp_t flags, const char *file, int line)
@@ -178,7 +178,7 @@ void *wrap_vmalloc(unsigned long size, const char *file, int line)
 	InsertTailList(&allocs, &info->list);
 	spin_unlock_bh(&alloc_lock);
 #endif
-	return (info + 1);
+	return info + 1;
 }
 
 void *wrap__vmalloc(unsigned long size, gfp_t gfp_mask, pgprot_t prot,
@@ -203,7 +203,7 @@ void *wrap__vmalloc(unsigned long size, gfp_t gfp_mask, pgprot_t prot,
 	InsertTailList(&allocs, &info->list);
 	spin_unlock_bh(&alloc_lock);
 #endif
-	return (info + 1);
+	return info + 1;
 }
 
 void wrap_vfree(void *ptr)
