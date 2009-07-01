@@ -1,7 +1,9 @@
 /*
- * Copyright (C) 2007  Red Hat GmbH
+ * Copyright (C) 2007,2008 Red Hat Inc. All rights reserved.
  *
- * Module Author: Heinz Mauelshagen <Mauelshagen@RedHat.de>
+ * Module Author: Heinz Mauelshagen <heinzm@redhat.com>
+ *
+ * General device-mapper message interface argument parser.
  *
  * This file is released under the GPL.
  *
@@ -60,7 +62,7 @@ message_arguments(struct dm_msg *msg, int argc, char **argv)
 				r = sscanf(argv[i], "%llu",
 					   ((unsigned long long **) ptr)[i]);
 
-   check:
+check:
 				if (r != 1) {
 					set_bit(dm_msg_ret_undef, &msg->ret);
 					set_bit(dm_msg_ret_arg, &msg->ret);
@@ -131,13 +133,14 @@ dm_message_parse(const char *caller, struct dm_msg *msg, void *context,
 		 int argc, char **argv)
 {
 	int hit = 0;
-	size_t l1 = strlen(*argv), l_hit = 0;
+	size_t l1, l_hit = 0;
 	struct dm_msg_spec *s, *s_hit = NULL,
 			   *s_end = msg->specs + msg->num_specs;
 
 	if (argc < 2)
 		return -EINVAL;
 
+	l1 = strlen(*argv);
 	for (s = msg->specs; s < s_end; s++) {
 		size_t l2 = strlen(s->cmd);
 
@@ -169,7 +172,7 @@ dm_message_parse(const char *caller, struct dm_msg *msg, void *context,
 	if (!msg->ret)
 		return msg->spec->f(msg, context);
 
-   bad:
+bad:
 	print_ret(caller, msg->ret);
 	return -EINVAL;
 }
