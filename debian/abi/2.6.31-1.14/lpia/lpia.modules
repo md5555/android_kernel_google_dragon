@@ -1120,6 +1120,7 @@ ncpfs
 NCR53c406a
 NCR_D700
 NCR_Q720_mod
+ndiswrapper
 ne
 ne2
 ne2k-pci
