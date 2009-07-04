@@ -328,8 +328,8 @@ static int __init radeon_init(void)
 #endif
 	/* if enabled by default */
 	if (radeon_modeset == -1) {
-		DRM_INFO("radeon default to kernel modesetting.\n");
-		radeon_modeset = 1;
+		DRM_INFO("radeon default to kernel modesetting DISABLED.\n");
+		radeon_modeset = 0;
 	}
 	if (radeon_modeset == 1) {
 		DRM_INFO("radeon kernel modesetting enabled.\n");
