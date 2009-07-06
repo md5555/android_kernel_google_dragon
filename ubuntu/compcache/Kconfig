@@ -28,14 +28,4 @@ config BLK_DEV_COMPCACHE_STATS
 	  This adds about 4K to size with negligible performance loss.
 	  If unsure, say Y.
  
-config TLSF
-	tristate "TLSF Allocator"
-	default m
-	help
-	  Two Level Segregate Fit Allocator. Its fast and gives low
-	  fragmentation. See:
-		http://rtportal.upv.es/rtmalloc/
-		http://code.google.com/p/compcache/wiki/TLSFAllocator
-	  for more information.
-
 endmenu
