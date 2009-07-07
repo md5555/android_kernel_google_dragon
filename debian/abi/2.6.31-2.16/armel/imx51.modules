@@ -113,6 +113,8 @@ lpddr_cmds
 ltc4215
 ltc4245
 lxt
+lzo_compress
+lzo_decompress
 marvell
 max1586
 max17040_battery
@@ -184,7 +186,6 @@ tea5761
 tea5767
 ths7303
 timeriomem-rng
-tlsf
 tmp401
 tps65010
 tsc2007

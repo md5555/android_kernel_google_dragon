@@ -2416,16 +2416,6 @@ EXPORT_SYMBOL net/wireless/cfg80211 0xf374cc02	cfg80211_send_rx_auth
 EXPORT_SYMBOL net/wireless/cfg80211 0xf3f50f37	cfg80211_classify8021d
 EXPORT_SYMBOL net/wireless/cfg80211 0xfa6521d2	freq_reg_info
 EXPORT_SYMBOL net/wireless/cfg80211 0xfc8d238f	cfg80211_send_rx_assoc
-EXPORT_SYMBOL net/wireless/lib80211 0x230f3ffb	lib80211_crypt_deinit_handler
-EXPORT_SYMBOL net/wireless/lib80211 0x2d0f99e5	print_ssid
-EXPORT_SYMBOL net/wireless/lib80211 0x3a76af96	lib80211_crypt_info_init
-EXPORT_SYMBOL net/wireless/lib80211 0x5de7e112	lib80211_get_crypto_ops
-EXPORT_SYMBOL net/wireless/lib80211 0xa64a90a9	lib80211_crypt_delayed_deinit
-EXPORT_SYMBOL net/wireless/lib80211 0xa995fd94	lib80211_crypt_quiescing
-EXPORT_SYMBOL net/wireless/lib80211 0xb2a45ef9	lib80211_register_crypto_ops
-EXPORT_SYMBOL net/wireless/lib80211 0xbbe2eeff	lib80211_unregister_crypto_ops
-EXPORT_SYMBOL net/wireless/lib80211 0xf5bfaae9	lib80211_crypt_deinit_entries
-EXPORT_SYMBOL net/wireless/lib80211 0xfcfcf81e	lib80211_crypt_info_free
 EXPORT_SYMBOL sound/ac97_bus 0x028ecaaa	ac97_bus_type
 EXPORT_SYMBOL sound/core/oss/snd-mixer-oss 0x15e04186	snd_mixer_oss_ioctl_card
 EXPORT_SYMBOL sound/core/seq/snd-seq 0x1a724fcc	snd_seq_kernel_client_ctl
@@ -2846,6 +2836,13 @@ EXPORT_SYMBOL sound/usb/snd-usb-lib 0x16756dc0	snd_usbmidi_input_start
 EXPORT_SYMBOL sound/usb/snd-usb-lib 0x63343b1d	snd_usbmidi_input_stop
 EXPORT_SYMBOL sound/usb/snd-usb-lib 0xd9d2bb03	snd_usbmidi_disconnect
 EXPORT_SYMBOL sound/usb/snd-usb-lib 0xedbaadfe	snd_usb_create_midi_interface
+EXPORT_SYMBOL ubuntu/dm-raid4-5/dm-raid45 0x079ac9fd	dm_mem_cache_client_create
+EXPORT_SYMBOL ubuntu/dm-raid4-5/dm-raid45 0x75e34de6	dm_mem_cache_alloc
+EXPORT_SYMBOL ubuntu/dm-raid4-5/dm-raid45 0x920a7a41	dm_message_parse
+EXPORT_SYMBOL ubuntu/dm-raid4-5/dm-raid45 0x93458832	dm_mem_cache_free
+EXPORT_SYMBOL ubuntu/dm-raid4-5/dm-raid45 0xa8afd2da	dm_mem_cache_client_destroy
+EXPORT_SYMBOL ubuntu/dm-raid4-5/dm-raid45 0xb5166a80	dm_mem_cache_shrink
+EXPORT_SYMBOL ubuntu/dm-raid4-5/dm-raid45 0xdd72f419	dm_mem_cache_grow
 EXPORT_SYMBOL ubuntu/lirc/lirc_dev/lirc_dev 0x04dca738	lirc_unregister_driver
 EXPORT_SYMBOL ubuntu/lirc/lirc_dev/lirc_dev 0x4f41198e	lirc_get_pdata
 EXPORT_SYMBOL ubuntu/lirc/lirc_dev/lirc_dev 0xca6af8ce	lirc_register_driver
@@ -3304,6 +3301,7 @@ EXPORT_SYMBOL vmlinux 0x22b6533b	xfrm_sad_getinfo
 EXPORT_SYMBOL vmlinux 0x22c04c7d	qdisc_list_del
 EXPORT_SYMBOL vmlinux 0x22c152bf	generic_block_fiemap
 EXPORT_SYMBOL vmlinux 0x22f2a4bb	agp_unbind_memory
+EXPORT_SYMBOL vmlinux 0x230f3ffb	lib80211_crypt_deinit_handler
 EXPORT_SYMBOL vmlinux 0x231775c5	tcp_splice_read
 EXPORT_SYMBOL vmlinux 0x231f3a66	__kfifo_put
 EXPORT_SYMBOL vmlinux 0x23269a13	strict_strtoul
@@ -3419,6 +3417,7 @@ EXPORT_SYMBOL vmlinux 0x2cec48b4	pci_request_selected_regions_exclusive
 EXPORT_SYMBOL vmlinux 0x2cf48c5a	pci_bus_assign_resources
 EXPORT_SYMBOL vmlinux 0x2cf52dbc	brioctl_set
 EXPORT_SYMBOL vmlinux 0x2d0bc8b8	hci_unregister_proto
+EXPORT_SYMBOL vmlinux 0x2d0f99e5	print_ssid
 EXPORT_SYMBOL vmlinux 0x2d2371eb	bt_sock_recvmsg
 EXPORT_SYMBOL vmlinux 0x2d29ac3e	dev_addr_add_multiple
 EXPORT_SYMBOL vmlinux 0x2d5528c9	sg_copy_to_buffer
@@ -3587,6 +3586,7 @@ EXPORT_SYMBOL vmlinux 0x3a5de670	generic_removexattr
 EXPORT_SYMBOL vmlinux 0x3a67b3c1	simple_statfs
 EXPORT_SYMBOL vmlinux 0x3a73ec8b	unregister_qdisc
 EXPORT_SYMBOL vmlinux 0x3a7511ab	lock_rename
+EXPORT_SYMBOL vmlinux 0x3a76af96	lib80211_crypt_info_init
 EXPORT_SYMBOL vmlinux 0x3a770dcb	do_splice_to
 EXPORT_SYMBOL vmlinux 0x3a91d429	tty_name
 EXPORT_SYMBOL vmlinux 0x3a9b6fb9	blk_unregister_region
@@ -4067,6 +4067,7 @@ EXPORT_SYMBOL vmlinux 0x5d9841d6	bdi_set_max_ratio
 EXPORT_SYMBOL vmlinux 0x5db22487	bio_integrity_trim
 EXPORT_SYMBOL vmlinux 0x5db8662f	cdev_add
 EXPORT_SYMBOL vmlinux 0x5de63901	vlan_dev_real_dev
+EXPORT_SYMBOL vmlinux 0x5de7e112	lib80211_get_crypto_ops
 EXPORT_SYMBOL vmlinux 0x5dfa7192	ip6_route_output
 EXPORT_SYMBOL vmlinux 0x5e1b1876	bitmap_startwrite
 EXPORT_SYMBOL vmlinux 0x5e4618bb	tcp_sync_mss
@@ -5035,6 +5036,7 @@ EXPORT_SYMBOL vmlinux 0xa624a69e	tty_pair_get_tty
 EXPORT_SYMBOL vmlinux 0xa6286fe0	per_cpu__irq_stat
 EXPORT_SYMBOL vmlinux 0xa637ff63	i2c_smbus_xfer
 EXPORT_SYMBOL vmlinux 0xa63d85ab	slhc_remember
+EXPORT_SYMBOL vmlinux 0xa64a90a9	lib80211_crypt_delayed_deinit
 EXPORT_SYMBOL vmlinux 0xa6681f1f	netlink_broadcast
 EXPORT_SYMBOL vmlinux 0xa66d6081	cdrom_mode_sense
 EXPORT_SYMBOL vmlinux 0xa68124fa	hweight8
@@ -5083,6 +5085,7 @@ EXPORT_SYMBOL vmlinux 0xa97f191f	blk_run_queue
 EXPORT_SYMBOL vmlinux 0xa9805128	input_release_device
 EXPORT_SYMBOL vmlinux 0xa98e6da1	scsi_is_sdev_device
 EXPORT_SYMBOL vmlinux 0xa994cd26	set_groups
+EXPORT_SYMBOL vmlinux 0xa995fd94	lib80211_crypt_quiescing
 EXPORT_SYMBOL vmlinux 0xa9bd2676	__vmalloc
 EXPORT_SYMBOL vmlinux 0xa9e9fcff	pneigh_lookup
 EXPORT_SYMBOL vmlinux 0xa9f77a73	scsi_nonblockable_ioctl
@@ -5202,6 +5205,7 @@ EXPORT_SYMBOL vmlinux 0xb22fe6a3	netdev_increment_features
 EXPORT_SYMBOL vmlinux 0xb2682405	utf8_to_utf32
 EXPORT_SYMBOL vmlinux 0xb279da12	pv_lock_ops
 EXPORT_SYMBOL vmlinux 0xb2913063	fb_validate_mode
+EXPORT_SYMBOL vmlinux 0xb2a45ef9	lib80211_register_crypto_ops
 EXPORT_SYMBOL vmlinux 0xb2a57aa6	dquot_destroy
 EXPORT_SYMBOL vmlinux 0xb2b1b57f	agp_generic_alloc_pages
 EXPORT_SYMBOL vmlinux 0xb2d21cf2	genphy_config_aneg
@@ -5345,6 +5349,7 @@ EXPORT_SYMBOL vmlinux 0xbb97e35f	phy_disable_interrupts
 EXPORT_SYMBOL vmlinux 0xbbae597f	__vlan_hwaccel_rx
 EXPORT_SYMBOL vmlinux 0xbbafe3b5	swiotlb_free_coherent
 EXPORT_SYMBOL vmlinux 0xbbdc619a	nf_getsockopt
+EXPORT_SYMBOL vmlinux 0xbbe2eeff	lib80211_unregister_crypto_ops
 EXPORT_SYMBOL vmlinux 0xbbf99d95	tty_port_block_til_ready
 EXPORT_SYMBOL vmlinux 0xbc17f88d	pci_clear_master
 EXPORT_SYMBOL vmlinux 0xbc29f48a	ip4_datagram_connect
@@ -6087,6 +6092,7 @@ EXPORT_SYMBOL vmlinux 0xf5892ff8	proc_doulongvec_minmax
 EXPORT_SYMBOL vmlinux 0xf5ac9b2b	scsi_register
 EXPORT_SYMBOL vmlinux 0xf5ae53c7	dma_async_memcpy_buf_to_buf
 EXPORT_SYMBOL vmlinux 0xf5b533a8	rtnl_create_link
+EXPORT_SYMBOL vmlinux 0xf5bfaae9	lib80211_crypt_deinit_entries
 EXPORT_SYMBOL vmlinux 0xf5c9012e	timespec_trunc
 EXPORT_SYMBOL vmlinux 0xf5eb86ea	blk_verify_command
 EXPORT_SYMBOL vmlinux 0xf60278b5	user_path_at
@@ -6177,6 +6183,7 @@ EXPORT_SYMBOL vmlinux 0xfcec0987	enable_irq
 EXPORT_SYMBOL vmlinux 0xfcefd18a	mem_section
 EXPORT_SYMBOL vmlinux 0xfcf89c90	eth_change_mtu
 EXPORT_SYMBOL vmlinux 0xfcfa03ff	fb_videomode_to_modelist
+EXPORT_SYMBOL vmlinux 0xfcfcf81e	lib80211_crypt_info_free
 EXPORT_SYMBOL vmlinux 0xfd2e2b7c	tcp_init_xmit_timers
 EXPORT_SYMBOL vmlinux 0xfd47e482	__bio_clone
 EXPORT_SYMBOL vmlinux 0xfd7d7713	acpi_exception
@@ -8109,13 +8116,6 @@ EXPORT_SYMBOL_GPL sound/soc/snd-soc-core 0xf023863a	snd_soc_dapm_get_pin_switch
 EXPORT_SYMBOL_GPL sound/soc/snd-soc-core 0xf178cef8	snd_soc_update_bits
 EXPORT_SYMBOL_GPL sound/soc/snd-soc-core 0xf33bd2f0	snd_soc_dai_set_sysclk
 EXPORT_SYMBOL_GPL sound/soc/snd-soc-core 0xf8b2e259	snd_soc_info_volsw_ext
-EXPORT_SYMBOL_GPL ubuntu/compcache/tlsf 0x0d93d0e1	tlsf_create_memory_pool
-EXPORT_SYMBOL_GPL ubuntu/compcache/tlsf 0x1584fdb9	tlsf_destroy_memory_pool
-EXPORT_SYMBOL_GPL ubuntu/compcache/tlsf 0x2c383ca4	tlsf_calloc
-EXPORT_SYMBOL_GPL ubuntu/compcache/tlsf 0x54064cb9	tlsf_get_used_size
-EXPORT_SYMBOL_GPL ubuntu/compcache/tlsf 0x60d233a6	tlsf_malloc
-EXPORT_SYMBOL_GPL ubuntu/compcache/tlsf 0xbe77d1fe	tlsf_get_total_size
-EXPORT_SYMBOL_GPL ubuntu/compcache/tlsf 0xe6acc368	tlsf_free
 EXPORT_SYMBOL_GPL ubuntu/misc/thinkpad_ec 0x02500586	thinkpad_ec_unlock
 EXPORT_SYMBOL_GPL ubuntu/misc/thinkpad_ec 0x0dc7484e	thinkpad_ec_try_read_row
 EXPORT_SYMBOL_GPL ubuntu/misc/thinkpad_ec 0x2552d213	thinkpad_ec_lock

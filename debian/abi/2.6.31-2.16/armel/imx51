@@ -3114,6 +3114,8 @@ EXPORT_SYMBOL_GPL drivers/w1/wire 0x94b227ba	w1_write_block
 EXPORT_SYMBOL_GPL drivers/w1/wire 0xa0dcc99e	w1_reset_select_slave
 EXPORT_SYMBOL_GPL drivers/w1/wire 0xb4cd8985	w1_touch_block
 EXPORT_SYMBOL_GPL drivers/w1/wire 0xfcc7dcf6	w1_read_block
+EXPORT_SYMBOL_GPL lib/lzo/lzo_compress 0x56b63670	lzo1x_1_compress
+EXPORT_SYMBOL_GPL lib/lzo/lzo_decompress 0xf30fda27	lzo1x_decompress_safe
 EXPORT_SYMBOL_GPL net/wimax/wimax 0x046224ea	wimax_msg_len
 EXPORT_SYMBOL_GPL net/wimax/wimax 0x133359dc	wimax_dev_rm
 EXPORT_SYMBOL_GPL net/wimax/wimax 0x2000c497	wimax_msg_data
@@ -3127,13 +3129,6 @@ EXPORT_SYMBOL_GPL net/wimax/wimax 0xa77fee09	wimax_msg_send
 EXPORT_SYMBOL_GPL net/wimax/wimax 0xa86f2d69	wimax_report_rfkill_hw
 EXPORT_SYMBOL_GPL net/wimax/wimax 0xdea97d49	wimax_state_get
 EXPORT_SYMBOL_GPL net/wimax/wimax 0xe0f69a94	wimax_report_rfkill_sw
-EXPORT_SYMBOL_GPL ubuntu/compcache/tlsf 0x1584fdb9	tlsf_destroy_memory_pool
-EXPORT_SYMBOL_GPL ubuntu/compcache/tlsf 0x42a50f11	tlsf_malloc
-EXPORT_SYMBOL_GPL ubuntu/compcache/tlsf 0x66da3d8f	tlsf_create_memory_pool
-EXPORT_SYMBOL_GPL ubuntu/compcache/tlsf 0xe6acc368	tlsf_free
-EXPORT_SYMBOL_GPL ubuntu/compcache/tlsf 0xee6c65c9	tlsf_get_used_size
-EXPORT_SYMBOL_GPL ubuntu/compcache/tlsf 0xeec8caeb	tlsf_get_total_size
-EXPORT_SYMBOL_GPL ubuntu/compcache/tlsf 0xf9805f1b	tlsf_calloc
 EXPORT_SYMBOL_GPL vmlinux 0x003adc61	page_mkclean
 EXPORT_SYMBOL_GPL vmlinux 0x00566d8f	inotify_get_cookie
 EXPORT_SYMBOL_GPL vmlinux 0x0067df75	ata_tf_from_fis

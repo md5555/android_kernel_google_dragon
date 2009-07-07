@@ -3030,6 +3030,13 @@ EXPORT_SYMBOL sound/usb/snd-usb-lib 0x16756dc0	snd_usbmidi_input_start
 EXPORT_SYMBOL sound/usb/snd-usb-lib 0x63343b1d	snd_usbmidi_input_stop
 EXPORT_SYMBOL sound/usb/snd-usb-lib 0xd9d2bb03	snd_usbmidi_disconnect
 EXPORT_SYMBOL sound/usb/snd-usb-lib 0xf31c47f8	snd_usb_create_midi_interface
+EXPORT_SYMBOL ubuntu/dm-raid4-5/dm-raid45 0x138bc445	dm_mem_cache_grow
+EXPORT_SYMBOL ubuntu/dm-raid4-5/dm-raid45 0x6f4c7344	dm_mem_cache_free
+EXPORT_SYMBOL ubuntu/dm-raid4-5/dm-raid45 0x920a7a41	dm_message_parse
+EXPORT_SYMBOL ubuntu/dm-raid4-5/dm-raid45 0xa7a36a4e	dm_mem_cache_shrink
+EXPORT_SYMBOL ubuntu/dm-raid4-5/dm-raid45 0xacdbf798	dm_mem_cache_client_create
+EXPORT_SYMBOL ubuntu/dm-raid4-5/dm-raid45 0xb342cfd2	dm_mem_cache_client_destroy
+EXPORT_SYMBOL ubuntu/dm-raid4-5/dm-raid45 0xce53ecbd	dm_mem_cache_alloc
 EXPORT_SYMBOL ubuntu/lirc/lirc_dev/lirc_dev 0x04dca738	lirc_unregister_driver
 EXPORT_SYMBOL ubuntu/lirc/lirc_dev/lirc_dev 0x7ba6eda5	lirc_register_driver
 EXPORT_SYMBOL ubuntu/lirc/lirc_dev/lirc_dev 0xd9ff351b	lirc_get_pdata
@@ -8215,13 +8222,6 @@ EXPORT_SYMBOL_GPL sound/soc/snd-soc-core 0xf20857bd	snd_soc_get_volsw_s8
 EXPORT_SYMBOL_GPL sound/soc/snd-soc-core 0xf57525b0	snd_soc_jack_add_gpios
 EXPORT_SYMBOL_GPL sound/soc/snd-soc-core 0xf6a474fe	snd_soc_dapm_add_routes
 EXPORT_SYMBOL_GPL sound/soc/snd-soc-core 0xf96c3a52	snd_soc_info_volsw_2r
-EXPORT_SYMBOL_GPL ubuntu/compcache/tlsf 0x1584fdb9	tlsf_destroy_memory_pool
-EXPORT_SYMBOL_GPL ubuntu/compcache/tlsf 0x42a50f11	tlsf_malloc
-EXPORT_SYMBOL_GPL ubuntu/compcache/tlsf 0x66da3d8f	tlsf_create_memory_pool
-EXPORT_SYMBOL_GPL ubuntu/compcache/tlsf 0xe6acc368	tlsf_free
-EXPORT_SYMBOL_GPL ubuntu/compcache/tlsf 0xee6c65c9	tlsf_get_used_size
-EXPORT_SYMBOL_GPL ubuntu/compcache/tlsf 0xeec8caeb	tlsf_get_total_size
-EXPORT_SYMBOL_GPL ubuntu/compcache/tlsf 0xf9805f1b	tlsf_calloc
 EXPORT_SYMBOL_GPL ubuntu/misc/thinkpad_ec 0x02500586	thinkpad_ec_unlock
 EXPORT_SYMBOL_GPL ubuntu/misc/thinkpad_ec 0x0dc7484e	thinkpad_ec_try_read_row
 EXPORT_SYMBOL_GPL ubuntu/misc/thinkpad_ec 0x2552d213	thinkpad_ec_lock
