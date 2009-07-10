@@ -1,5 +1,7 @@
 menu "Ubuntu Supplied Third-Party Device Drivers"
 
+source "ubuntu/apparmor/Kconfig"
+
 source "ubuntu/drbd/Kconfig"
 source "ubuntu/iscsitarget/Kconfig"
 source "ubuntu/dm-raid4-5/Kconfig"
