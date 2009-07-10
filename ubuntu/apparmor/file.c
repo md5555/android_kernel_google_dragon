@@ -310,7 +310,7 @@ int aa_path_link(struct aa_profile *profile, struct dentry *old_dentry,
 	sa.perms.quiet &= AA_MAY_LINK;
 	sa.perms.kill &= AA_MAY_LINK;
 
-	if ((!sa.perms.allowed & AA_MAY_LINK)) {
+	if (!(sa.perms.allowed & AA_MAY_LINK)) {
 		sa.base.error = -EACCES;
 		goto audit;
 	}
