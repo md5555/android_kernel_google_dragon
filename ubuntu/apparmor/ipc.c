@@ -94,7 +94,7 @@ int aa_ptrace(struct task_struct *tracer, struct task_struct *tracee,
 
 			sa.base.error = aa_may_ptrace(tracer, tracer_p,
 						      tracee_p, mode);
-			//sa.base.error = aa_audit_ptrace(tracer_p, &sa);
+			sa.base.error = aa_audit_ptrace(tracer_p, &sa);
 
 			put_cred(lcred);
 		}
