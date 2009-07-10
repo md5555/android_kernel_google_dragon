@@ -3129,6 +3129,12 @@ EXPORT_SYMBOL_GPL net/wimax/wimax 0xa77fee09	wimax_msg_send
 EXPORT_SYMBOL_GPL net/wimax/wimax 0xa86f2d69	wimax_report_rfkill_hw
 EXPORT_SYMBOL_GPL net/wimax/wimax 0xdea97d49	wimax_state_get
 EXPORT_SYMBOL_GPL net/wimax/wimax 0xe0f69a94	wimax_report_rfkill_sw
+EXPORT_SYMBOL_GPL ubuntu/compcache/xvmalloc 0x24e660a0	xv_create_pool
+EXPORT_SYMBOL_GPL ubuntu/compcache/xvmalloc 0x67ed7575	xv_malloc
+EXPORT_SYMBOL_GPL ubuntu/compcache/xvmalloc 0xa3b7474c	xv_free
+EXPORT_SYMBOL_GPL ubuntu/compcache/xvmalloc 0xaf69699e	xv_get_object_size
+EXPORT_SYMBOL_GPL ubuntu/compcache/xvmalloc 0xbf39bf05	xv_destroy_pool
+EXPORT_SYMBOL_GPL ubuntu/compcache/xvmalloc 0xc96aa6af	xv_get_total_size_bytes
 EXPORT_SYMBOL_GPL vmlinux 0x003adc61	page_mkclean
 EXPORT_SYMBOL_GPL vmlinux 0x00566d8f	inotify_get_cookie
 EXPORT_SYMBOL_GPL vmlinux 0x0067df75	ata_tf_from_fis

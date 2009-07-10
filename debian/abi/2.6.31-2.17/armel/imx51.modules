@@ -159,6 +159,7 @@ pwm
 pwm_bl
 qinfo_probe
 qsemi
+ramzswap
 realtek
 rng
 rtc-pcf50633
@@ -210,4 +211,5 @@ wacom_w8001
 wimax
 wire
 xc5000
+xvmalloc
 zlib

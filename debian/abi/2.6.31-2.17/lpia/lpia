@@ -7693,6 +7693,12 @@ EXPORT_SYMBOL_GPL sound/soc/snd-soc-core 0xf08acb13	dapm_reg_event
 EXPORT_SYMBOL_GPL sound/soc/snd-soc-core 0xf3bea1b0	snd_soc_new_ac97_codec
 EXPORT_SYMBOL_GPL sound/soc/snd-soc-core 0xf63fa0ab	snd_soc_unregister_codec
 EXPORT_SYMBOL_GPL sound/soc/snd-soc-core 0xf95f19eb	snd_soc_test_bits
+EXPORT_SYMBOL_GPL ubuntu/compcache/xvmalloc 0x2e0a0be5	xv_destroy_pool
+EXPORT_SYMBOL_GPL ubuntu/compcache/xvmalloc 0x51958fac	xv_malloc
+EXPORT_SYMBOL_GPL ubuntu/compcache/xvmalloc 0x7e80b9f6	xv_create_pool
+EXPORT_SYMBOL_GPL ubuntu/compcache/xvmalloc 0x9a79aa81	xv_free
+EXPORT_SYMBOL_GPL ubuntu/compcache/xvmalloc 0xaf69699e	xv_get_object_size
+EXPORT_SYMBOL_GPL ubuntu/compcache/xvmalloc 0xc1f55d16	xv_get_total_size_bytes
 EXPORT_SYMBOL_GPL ubuntu/misc/thinkpad_ec 0x02500586	thinkpad_ec_unlock
 EXPORT_SYMBOL_GPL ubuntu/misc/thinkpad_ec 0x0dc7484e	thinkpad_ec_try_read_row
 EXPORT_SYMBOL_GPL ubuntu/misc/thinkpad_ec 0x2552d213	thinkpad_ec_lock
