@@ -1,8 +1,0 @@
-menu "Wireless Drivers"
-
-config WIRELESS_ACX
-	tristate "TI ACX1xx based wireless cards (CardBus/PCI/USB)"
-	default m
-	depends on NET && IEEE80211
-
-endmenu

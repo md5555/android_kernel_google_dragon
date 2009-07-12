@@ -22,5 +22,3 @@ config TP_SMAPI_EC
 	default m
 
 source "ubuntu/misc/media/Kconfig"
-
-source "ubuntu/misc/wireless/Kconfig"
