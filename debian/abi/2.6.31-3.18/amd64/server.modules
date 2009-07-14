@@ -866,6 +866,11 @@ ics932s401
 idmouse
 idt77252
 ieee1394
+ieee80211_crypt
+ieee80211_crypt_ccmp
+ieee80211_crypt_tkip
+ieee80211_crypt_wep
+ieee80211-rsl
 ifb
 iforce
 igb
@@ -1143,6 +1148,7 @@ map_funcs
 map_ram
 map_rom
 marvell
+matrix_keypad
 matroxfb_accel
 matroxfb_base
 matroxfb_crtc2
@@ -1239,6 +1245,7 @@ mt352
 mt9m001
 mt9m111
 mt9t031
+mt9v011
 mt9v022
 mtd
 mtd_blkdevs
@@ -1277,7 +1284,6 @@ natsemi
 navman
 nbd
 ncpfs
-ndiswrapper
 ne2k-pci
 neofb
 net1080
@@ -1429,6 +1435,7 @@ orinoco_pci
 orinoco_plx
 orinoco_tmd
 osd
+osdblk
 osst
 oti6858
 output
@@ -1575,6 +1582,7 @@ quota_v1
 quota_v2
 r128
 r8169
+r8192s_usb
 r8a66597-hcd
 radeon
 radeonfb
