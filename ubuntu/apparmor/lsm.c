@@ -983,6 +983,7 @@ static int __init apparmor_init(void)
 
 	if (!apparmor_enabled || !security_module_enable(&apparmor_ops)) {
 		info_message("AppArmor disabled by boot time parameter\n");
+		apparmor_enabled = 0;
 		return 0;
 	}
 
@@ -1031,6 +1032,7 @@ alloc_out:
 	destroy_apparmorfs();
 
 /*createfs_out:*/
+	apparmor_enabled = 0;
 	return error;
 
 }
