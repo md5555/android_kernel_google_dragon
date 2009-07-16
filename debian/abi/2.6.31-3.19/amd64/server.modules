@@ -183,6 +183,7 @@ aty128fb
 atyfb
 au0828
 au8522
+aufs
 authenc
 auth_rpcgss
 autofs
@@ -1284,6 +1285,7 @@ natsemi
 navman
 nbd
 ncpfs
+ndiswrapper
 ne2k-pci
 neofb
 net1080

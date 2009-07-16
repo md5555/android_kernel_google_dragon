@@ -282,6 +282,7 @@ EXPORT_SYMBOL vmlinux 0x017a64b7	genl_register_ops
 EXPORT_SYMBOL vmlinux 0x01a4aab6	set_irq_chip_data
 EXPORT_SYMBOL vmlinux 0x02124474	ip_send_check
 EXPORT_SYMBOL vmlinux 0x02196324	__aeabi_idiv
+EXPORT_SYMBOL vmlinux 0x021979ec	lookup_hash
 EXPORT_SYMBOL vmlinux 0x0242b7e4	dev_get_by_flags
 EXPORT_SYMBOL vmlinux 0x025b44db	rtnl_create_link
 EXPORT_SYMBOL vmlinux 0x0283dfe3	_snd_pcm_hw_params_any
@@ -1056,6 +1057,7 @@ EXPORT_SYMBOL vmlinux 0x4cbbd171	__bitmap_weight
 EXPORT_SYMBOL vmlinux 0x4d0d163d	copy_page
 EXPORT_SYMBOL vmlinux 0x4d3a38ef	fb_set_var
 EXPORT_SYMBOL vmlinux 0x4d3c153f	sigprocmask
+EXPORT_SYMBOL vmlinux 0x4d611a6c	deny_write_access
 EXPORT_SYMBOL vmlinux 0x4d6214d7	boot_tvec_bases
 EXPORT_SYMBOL vmlinux 0x4d77ecf6	__scsi_iterate_devices
 EXPORT_SYMBOL vmlinux 0x4d9b6d35	snd_pcm_format_size
@@ -1091,6 +1093,7 @@ EXPORT_SYMBOL vmlinux 0x50535901	i2c_del_adapter
 EXPORT_SYMBOL vmlinux 0x505e8e7b	pagecache_write_begin
 EXPORT_SYMBOL vmlinux 0x506746b6	getrawmonotonic
 EXPORT_SYMBOL vmlinux 0x5093fa82	_clear_bit_le
+EXPORT_SYMBOL vmlinux 0x509ead1b	__lookup_one_len
 EXPORT_SYMBOL vmlinux 0x50e9de07	journal_ack_err
 EXPORT_SYMBOL vmlinux 0x50ebf090	xfrm_state_lookup
 EXPORT_SYMBOL vmlinux 0x5107a5c4	seq_write
@@ -1324,6 +1327,7 @@ EXPORT_SYMBOL vmlinux 0x67b0ac15	ip_setsockopt
 EXPORT_SYMBOL vmlinux 0x67b27ec1	tty_std_termios
 EXPORT_SYMBOL vmlinux 0x67be1d3d	cpu_active_mask
 EXPORT_SYMBOL vmlinux 0x67c2fa54	__copy_to_user
+EXPORT_SYMBOL vmlinux 0x67de725d	do_splice_to
 EXPORT_SYMBOL vmlinux 0x67e8f56d	tcp_recvmsg
 EXPORT_SYMBOL vmlinux 0x67f2cee5	udp_table
 EXPORT_SYMBOL vmlinux 0x681057d6	skb_dequeue
@@ -2262,6 +2266,7 @@ EXPORT_SYMBOL vmlinux 0xc419a7fc	skb_queue_tail
 EXPORT_SYMBOL vmlinux 0xc41ae31c	netlink_broadcast
 EXPORT_SYMBOL vmlinux 0xc42a9808	xfrm_state_update
 EXPORT_SYMBOL vmlinux 0xc440c451	sg_alloc_table
+EXPORT_SYMBOL vmlinux 0xc4591780	do_splice_from
 EXPORT_SYMBOL vmlinux 0xc4599876	phy_attach_direct
 EXPORT_SYMBOL vmlinux 0xc485b98e	find_inode_number
 EXPORT_SYMBOL vmlinux 0xc48deee1	sock_sendmsg
@@ -2520,6 +2525,7 @@ EXPORT_SYMBOL vmlinux 0xdec23d3f	shrink_dcache_parent
 EXPORT_SYMBOL vmlinux 0xdedd2104	tty_port_hangup
 EXPORT_SYMBOL vmlinux 0xdee38e7d	sb_set_blocksize
 EXPORT_SYMBOL vmlinux 0xdeea449e	neigh_seq_start
+EXPORT_SYMBOL vmlinux 0xdf16efc2	vfsmount_lock
 EXPORT_SYMBOL vmlinux 0xdf31be06	napi_frags_skb
 EXPORT_SYMBOL vmlinux 0xdf4c8767	ns_to_timeval
 EXPORT_SYMBOL vmlinux 0xdf531288	neigh_update
@@ -2844,6 +2850,7 @@ EXPORT_SYMBOL vmlinux 0xff67b37f	__lshrdi3
 EXPORT_SYMBOL vmlinux 0xff6878cf	fb_default_cmap
 EXPORT_SYMBOL vmlinux 0xff964b25	param_set_int
 EXPORT_SYMBOL vmlinux 0xff9ca065	fb_edid_to_monspecs
+EXPORT_SYMBOL vmlinux 0xff9caada	do_truncate
 EXPORT_SYMBOL vmlinux 0xffa6841e	linkwatch_fire_event
 EXPORT_SYMBOL vmlinux 0xffa6cee9	dev_alloc_name
 EXPORT_SYMBOL vmlinux 0xffb6840f	scsi_execute
