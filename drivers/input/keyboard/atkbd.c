@@ -1679,6 +1679,15 @@ static struct dmi_system_id atkbd_dmi_quirk_table[] __initdata = {
 		.callback = atkbd_setup_forced_release,
 		.driver_data = atkdb_soltech_ta12_forced_release_keys,
 	},
+	{
+		.ident = "Soltech Corporation TA12",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "Soltech Corporation"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "TA12"),
+		},
+		.callback = atkbd_setup_forced_release,
+		.driver_data = atkdb_soltech_ta12_forced_release_keys,
+	},
 	{ }
 };
 
