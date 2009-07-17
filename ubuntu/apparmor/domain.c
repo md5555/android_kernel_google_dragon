@@ -335,6 +335,11 @@ int apparmor_bprm_set_creds(struct linux_binprm *bprm)
 		bprm->unsafe |= AA_SECURE_X_NEEDED;
 
 apply:
+	sa.name2 = new_profile->fqname;
+	/* When switching namespace ensure its part of audit message */
+	if (new_profile->ns != profile->ns)
+		sa.name3 = new_profile->ns->base.name;
+
 	/* when transitioning profiles clear unsafe personality bits */
 	bprm->per_clear |= PER_CLEAR_ON_SETID;
 
