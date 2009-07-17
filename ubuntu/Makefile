@@ -5,7 +5,7 @@
 obj-$(CONFIG_SECURITY_APPARMOR)        += apparmor/
 
 obj-$(CONFIG_BLK_DEV_DRBD)	+= drbd/
-#obj-$(CONFIG_SCSI_ISCSITARGET)	+= iscsitarget/
+obj-$(CONFIG_SCSI_ISCSITARGET)	+= iscsitarget/
 obj-$(CONFIG_AUFS_FS)		+= aufs/
 obj-$(CONFIG_DM_RAID45)		+= dm-raid4-5/
 #obj-$(CONFIG_DM_LOOP)		+= dm-loop/
