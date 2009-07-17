@@ -9,9 +9,11 @@
 #include "iscsi.h"
 #include "iscsi_dbg.h"
 
+struct worker_thread_info *worker_thread_pool;
+
 void wthread_queue(struct iscsi_cmnd *cmnd)
 {
-	struct worker_thread_info *info = &cmnd->conn->session->target->wthread_info;
+	struct worker_thread_info *info = cmnd->conn->session->target->wthread_info;
 
 	if (!list_empty(&cmnd->list)) {
 		struct iscsi_scsi_cmd_hdr *req = cmnd_hdr(cmnd);
@@ -89,9 +91,8 @@ static int worker_thread(void *arg)
 	return 0;
 }
 
-static int start_one_worker_thread(struct iscsi_target *target)
+static int start_one_worker_thread(struct worker_thread_info *info, u32 tid)
 {
-	struct worker_thread_info *info = &target->wthread_info;
 	struct worker_thread *wt;
 	struct task_struct *task;
 
@@ -99,7 +100,7 @@ static int start_one_worker_thread(struct iscsi_target *target)
 		return -ENOMEM;
 
 	wt->w_info = info;
-	task = kthread_create(worker_thread, wt, "istiod%d", target->tid);
+	task = kthread_create(worker_thread, wt, "istiod%d", tid);
 	if (IS_ERR(task)) {
 		kfree(wt);
 		return PTR_ERR(task);
@@ -132,10 +133,8 @@ static int stop_one_worker_thread(struct worker_thread *wt)
 	return 0;
 }
 
-int wthread_init(struct iscsi_target *target)
+int wthread_init(struct worker_thread_info *info)
 {
-	struct worker_thread_info *info = &target->wthread_info;
-
 	spin_lock_init(&info->wthread_lock);
 
 	info->nr_running_wthreads = 0;
@@ -148,19 +147,18 @@ int wthread_init(struct iscsi_target *target)
 	return 0;
 }
 
-int wthread_start(struct iscsi_target *target)
+int wthread_start(struct worker_thread_info *info, int wthreads, u32 tid)
 {
 	int err = 0;
-	struct worker_thread_info *info = &target->wthread_info;
 
-	while (info->nr_running_wthreads < target->trgt_param.wthreads) {
-		if ((err = start_one_worker_thread(target)) < 0) {
+	while (info->nr_running_wthreads < wthreads) {
+		if ((err = start_one_worker_thread(info, tid)) < 0) {
 			eprintk("Fail to create a worker thread %d\n", err);
 			goto out;
 		}
 	}
 
-	while (info->nr_running_wthreads > target->trgt_param.wthreads) {
+	while (info->nr_running_wthreads > wthreads) {
 		struct worker_thread *wt;
 		wt = list_entry(info->wthread_list.next, struct worker_thread, w_list);
 		if ((err = stop_one_worker_thread(wt)) < 0) {
@@ -172,11 +170,10 @@ out:
 	return err;
 }
 
-int wthread_stop(struct iscsi_target *target)
+int wthread_stop(struct worker_thread_info *info)
 {
 	struct worker_thread *wt, *tmp;
 	int err = 0;
-	struct worker_thread_info *info = &target->wthread_info;
 
 	list_for_each_entry_safe(wt, tmp, &info->wthread_list, w_list) {
 		if ((err = stop_one_worker_thread(wt)) < 0) {
@@ -186,4 +183,40 @@ int wthread_stop(struct iscsi_target *target)
 	}
 
 	return err;
+}
+
+int wthread_module_init()
+{
+	int err;
+
+	if (!worker_thread_pool_size)
+		return 0;
+
+	worker_thread_pool = kmalloc(sizeof(struct worker_thread_info),
+				     GFP_KERNEL);
+	if (!worker_thread_pool)
+		return -ENOMEM;
+
+	wthread_init(worker_thread_pool);
+
+	err = wthread_start(worker_thread_pool, worker_thread_pool_size, 0);
+	if (err) {
+		kfree(worker_thread_pool);
+		worker_thread_pool = NULL;
+		return err;
+	}
+
+	iprintk("iscsi_trgt using worker thread pool; size = %ld\n",
+		worker_thread_pool_size);
+
+	return 0;
+}
+
+void wthread_module_exit()
+{
+	if (!worker_thread_pool_size)
+		return;
+
+	wthread_stop(worker_thread_pool);
+	kfree(worker_thread_pool);
 }

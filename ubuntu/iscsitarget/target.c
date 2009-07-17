@@ -100,8 +100,11 @@ static int target_thread_start(struct iscsi_target *target)
 	if ((err = nthread_start(target)) < 0)
 		return err;
 
-	if ((err = wthread_start(target)) < 0) {
-		nthread_stop(target);
+	if (!worker_thread_pool) {
+		err = wthread_start(target->wthread_info,
+				    target->trgt_param.wthreads, target->tid);
+		if (err)
+			nthread_stop(target);
 	}
 
 	return err;
@@ -109,7 +112,9 @@ static int target_thread_start(struct iscsi_target *target)
 
 static void target_thread_stop(struct iscsi_target *target)
 {
-	wthread_stop(target);
+	if (!worker_thread_pool)
+		wthread_stop(target->wthread_info);
+
 	nthread_stop(target);
 }
 
@@ -137,6 +142,14 @@ static int iscsi_target_create(struct target_info *info, u32 tid)
 		goto out;
 	}
 
+	if (!worker_thread_pool) {
+		target->wthread_info = kmalloc(sizeof(struct worker_thread_info), GFP_KERNEL);
+		if (!target->wthread_info) {
+			err = -ENOMEM;
+			goto out;
+		}
+	}
+
 	target->tid = info->tid = tid;
 
 	memcpy(&target->sess_param, &default_session_param, sizeof(default_session_param));
@@ -151,18 +164,25 @@ static int iscsi_target_create(struct target_info *info, u32 tid)
 
 	atomic_set(&target->nr_volumes, 0);
 
-	list_add(&target->t_list, &target_list);
-
 	nthread_init(target);
-	wthread_init(target);
+
+	if (!worker_thread_pool)
+		wthread_init(target->wthread_info);
+	else
+		target->wthread_info = worker_thread_pool;
+
 
 	if ((err = target_thread_start(target)) < 0) {
 		target_thread_stop(target);
 		goto out;
 	}
 
+	list_add(&target->t_list, &target_list);
+
 	return 0;
 out:
+	if (!worker_thread_pool)
+		kfree(target->wthread_info);
 	kfree(target);
 	module_put(THIS_MODULE);
 
@@ -217,6 +237,8 @@ static void target_destroy(struct iscsi_target *target)
 		iscsi_volume_destroy(volume);
 	}
 
+	if (!worker_thread_pool)
+		kfree(target->wthread_info);
 	kfree(target);
 
 	module_put(THIS_MODULE);
@@ -256,26 +278,53 @@ out:
 	return err;
 }
 
-int iet_info_show(struct seq_file *seq, iet_show_info_t *func)
+static void *iet_seq_start(struct seq_file *m, loff_t *pos)
 {
 	int err;
-	struct iscsi_target *target;
 
-	if ((err = down_interruptible(&target_list_sem)) < 0)
+	/* are you sure this is to be interruptible? */
+	err = down_interruptible(&target_list_sem);
+	if (err < 0)
+		return ERR_PTR(err);
+
+	return seq_list_start(&target_list, *pos);
+}
+
+static void *iet_seq_next(struct seq_file *m, void *v, loff_t *pos)
+{
+	return seq_list_next(v, &target_list, pos);
+}
+
+static void iet_seq_stop(struct seq_file *m, void *v)
+{
+	up(&target_list_sem);
+}
+
+static int iet_seq_show(struct seq_file *m, void *p)
+{
+	iet_show_info_t *func = (iet_show_info_t *)m->private;
+	struct iscsi_target *target =
+		list_entry(p, struct iscsi_target, t_list);
+	int err;
+
+	/* relly, interruptible?  I'd think target_lock(target, 0)
+	 * would be more appropriate. --lge */
+	err = target_lock(target, 1);
+	if (err < 0)
 		return err;
 
-	list_for_each_entry(target, &target_list, t_list) {
-		seq_printf(seq, "tid:%u name:%s\n", target->tid, target->name);
+	seq_printf(m, "tid:%u name:%s\n", target->tid, target->name);
 
-		if ((err = target_lock(target, 1)) < 0)
-			break;
+	func(m, target);
 
-		func(seq, target);
-
-		target_unlock(target);
-	}
-
-	up(&target_list_sem);
+	target_unlock(target);
 
 	return 0;
 }
+
+struct seq_operations iet_seq_op = {
+	.start = iet_seq_start,
+	.next = iet_seq_next,
+	.stop = iet_seq_stop,
+	.show = iet_seq_show,
+};

@@ -46,9 +46,8 @@ void conn_info_show(struct seq_file *seq, struct iscsi_session *session)
 				 "%u.%u.%u.%u", NIPQUAD(inet_sk(sk)->daddr));
 			break;
 		case AF_INET6:
-			snprintf(buf, sizeof(buf),
-				 "[%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x]",
-				 NIP6(inet6_sk(sk)->daddr));
+			snprintf(buf, sizeof(buf), "[%pI6]",
+				 &inet6_sk(sk)->daddr);
 			break;
 		default:
 			break;

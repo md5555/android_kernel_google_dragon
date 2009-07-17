@@ -43,8 +43,6 @@ int iet_procfs_init(void)
 	if (!(proc_iet_dir = proc_mkdir("iet", init_net.proc_net)))
 		goto err;
 
-	proc_iet_dir->owner = THIS_MODULE;
-
 	for (i = 0; i < ARRAY_SIZE(iet_proc_entries); i++) {
 		ent = create_proc_entry(iet_proc_entries[i].name, 0, proc_iet_dir);
 		if (ent)

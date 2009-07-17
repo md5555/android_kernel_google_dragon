@@ -245,14 +245,14 @@ static void iet_volume_info_show(struct seq_file *seq, struct iscsi_target *targ
 	}
 }
 
-static int iet_volumes_info_show(struct seq_file *seq, void *v)
-{
-	return iet_info_show(seq, iet_volume_info_show);
-}
-
 static int iet_volume_seq_open(struct inode *inode, struct file *file)
 {
-	return single_open(file, iet_volumes_info_show, NULL);
+	int res;
+	res = seq_open(file, &iet_seq_op);
+	if (!res)
+		((struct seq_file *)file->private_data)->private =
+			iet_volume_info_show;
+	return res;
 }
 
 struct file_operations volume_seq_fops = {
@@ -260,5 +260,5 @@ struct file_operations volume_seq_fops = {
 	.open		= iet_volume_seq_open,
 	.read		= seq_read,
 	.llseek		= seq_lseek,
-	.release	= single_release,
+	.release	= seq_release,
 };

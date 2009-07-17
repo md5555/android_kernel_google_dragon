@@ -124,8 +124,10 @@ static void trgt_param_set(struct iscsi_target *target, struct iscsi_param_info 
 	struct iscsi_trgt_param *param = &target->trgt_param;
 	u32 *iparam = info->target_param;
 
-	if (SET_PARAM(param, info, iparam, wthreads))
-		wthread_start(target);
+	if (!worker_thread_pool &&
+	    SET_PARAM(param, info, iparam, wthreads))
+		wthread_start(target->wthread_info,
+			      target->trgt_param.wthreads, target->tid);
 	SET_PARAM(param, info, iparam, target_type);
 	SET_PARAM(param, info, iparam, queued_cmnds);
 }

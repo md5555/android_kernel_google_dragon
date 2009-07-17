@@ -1,5 +1,2 @@
-Downloaded from:	http://iscsitarget.sourceforge.net/
-Current Version:	0.4.17
-
-Applied iscsitarget.diff in order to compile with 2.6.28.
-
+Downloaded from:	svn://svn.berlios.de/iscsitarget/trunk
+Current Version:	SVN revision r214 (0.4.17 base)

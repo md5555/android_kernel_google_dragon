@@ -724,8 +724,10 @@ int nthread_stop(struct iscsi_target *target)
 
 	err = kthread_stop(info->task);
 
-	if (!err)
-		info->task = NULL;
+	if (err < 0 && err != -EINTR)
+		return err;
 
-	return err;
+	info->task = NULL;
+
+	return 0;
 }
