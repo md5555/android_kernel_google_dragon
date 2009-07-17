@@ -25,7 +25,6 @@
 # CONFIG_BINARY_PRINTF is not set
 # CONFIG_BINFMT_AOUT is not set
 # CONFIG_BINFMT_MISC is not set
-# CONFIG_BLK_DEV_CRYPTOLOOP is not set
 # CONFIG_BLK_DEV_DRBD is not set
 # CONFIG_BLK_DEV_INTEGRITY is not set
 # CONFIG_BLK_DEV_IO_TRACE is not set
