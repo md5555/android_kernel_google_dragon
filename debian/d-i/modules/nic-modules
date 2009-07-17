@@ -33,6 +33,7 @@ bcm43xx ?
 bcm43xx-mac80211 ?
 bmac ?
 bnx2 ?
+bnx2x ?
 bonding ?
 cassini ?
 com20020 ?

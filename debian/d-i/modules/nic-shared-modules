@@ -5,6 +5,7 @@ mii
 # CRC modules
 crc-ccitt
 crc-itu-t
+libcrc32c
 
 # mac80211 stuff
 mac80211
