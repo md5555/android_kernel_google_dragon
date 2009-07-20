@@ -31,11 +31,9 @@ static void aa_audit_file_sub_mask(struct audit_buffer *ab, char *buffer,
 
 	if (mask & AA_EXEC_MMAP)
 		*m++ = 'm';
-	if (mask & AA_MAY_CREATE)
-		*m++ = 'c';
 	if (mask & MAY_READ)
 		*m++ = 'r';
-	if (mask & MAY_WRITE)
+	if (mask & (MAY_WRITE | AA_MAY_CREATE))
 		*m++ = 'w';
 	else if (mask & MAY_APPEND)
 		*m++ = 'a';
