@@ -13,6 +13,7 @@ mode=${1:?"Usage: $0 [oldconfig|editconfig]"}
 case "$mode" in
     oldconfig)  ;; # All is good
     editconfig) ;; # All is good
+    genconfig)  ;; # All is good
     *) echo "$0 called with invalid mode" 1>&2
        exit 1 ;;
 esac
@@ -29,6 +30,12 @@ fi
 bindir="`pwd`/debian/scripts/misc"
 common_conf="$confdir/config.common.$family"
 tmpdir=`mktemp -d`
+
+if [ "$mode" = "genconfig" ]; then
+	keep=1
+	mode="oldconfig"
+	test -d CONFIGS || mkdir CONFIGS
+fi
 
 test -d build || mkdir build
 
@@ -90,6 +97,9 @@ for arch in $archs; do
 				exit 1 ;;
 			esac
 			cat build/.config > $archconfdir/$config
+			if [ "$keep" = "1" ]; then
+				cat build/.config > CONFIGS/$arch-$config
+			fi
 		else
 			echo "!! Config not found $archconfdir/$config..."
 		fi

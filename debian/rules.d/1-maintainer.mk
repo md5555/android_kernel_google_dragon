@@ -8,13 +8,15 @@ help:
 	@echo
 	@echo "  printenv        : Print some variables used in the build"
 	@echo
-	@echo "  updateconfigs        : Update amd64, armel, i386 and lpia"
+	@echo "  updateconfigs        : Update core arch configs"
 	@echo
-	@echo "  editconfigs          ; Update amd64, armel, i386 and lpia interractively"
+	@echo "  editconfigs          : Update core arch configs interractively"
+	@echo "  genconfigs           : Generate core arch configs in CONFIGS/*"
 	@echo
-	@echo "  updateportsconfigs   : Update debian/config/*"
+	@echo "  updateportsconfigs   : Update ports arch configs"
 	@echo
-	@echo "  editportsconfigs     : Update debian/config/* interactively"
+	@echo "  editportsconfigs     : Update ports arch configs interactivly"
+	@echo "  genportconfigs       : Generate ports arch configs in CONFIGS/*"
 	@echo
 	@echo "  printchanges    : Print the current changelog entries (from git)"
 	@echo
@@ -44,6 +46,11 @@ editconfigs:
 	$(SHELL) debian/scripts/misc/kernelconfig editconfig
 	rm -rf build
 
+genconfigs:
+	dh_testdir
+	$(SHELL) debian/scripts/misc/kernelconfig genconfig
+	rm -rf build
+
 updateportsconfigs:
 	dh_testdir;
 	$(SHELL) debian/scripts/misc/kernelconfig oldconfig ports
@@ -52,6 +59,11 @@ updateportsconfigs:
 editportsconfigs:
 	dh_testdir
 	$(SHELL) debian/scripts/misc/kernelconfig editconfig ports
+	rm -rf build
+
+genportsconfigs:
+	dh_testdir
+	$(SHELL) debian/scripts/misc/kernelconfig genconfig ports
 	rm -rf build
 
 printenv:
