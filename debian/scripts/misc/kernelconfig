@@ -58,30 +58,27 @@ for arch in $archs; do
 	# Merge configs
 	# We merge config.common.ubuntu + config.common.<arch> +
 	# config.flavour.<flavour>
-	if [ -f $common_conf ]; then
-		for config in $flavourconfigs; do
-			case $config in
-			    *)
-			    cat $common_conf >> $archconfdir/$config
-			    ;;
-			esac
-		done
-	fi
-	if [ -f $archconfdir/config.common.$arch ]; then
-		for config in $flavourconfigs; do
-			case $config in
-			    *)
-			    cat $archconfdir/config.common.$arch >> $archconfdir/$config
-			    ;;
-			esac
-		done
-	fi
 
-	rm -f $archconfdir/config.common.$arch
+	for config in $flavourconfigs; do
+		fullconf="$tmpdir/$arch-$config-full"
+		case $config in
+		*)
+			: >"$fullconf"
+			if [ -f $common_conf ]; then
+				cat $common_conf >> "$fullconf"
+			fi
+			if [ -f $archconfdir/config.common.$arch ]; then
+				cat $archconfdir/config.common.$arch >> "$fullconf"
+			fi
+			cat "$archconfdir/$config" >>"$fullconf"
+			;;
+		esac
+	done
 
 	for config in $flavourconfigs; do
 		if [ -f $archconfdir/$config ]; then
-			cat $archconfdir/$config > build/.config
+			fullconf="$tmpdir/$arch-$config-full"
+			cat "$fullconf" > build/.config
 			# Call oldconfig or menuconfig
 			case "$mode" in
 			    oldconfig)
@@ -122,6 +119,7 @@ rm -f $common_conf
 (cd $tmpdir; $bindir/splitconfig.pl)
 (
 	cd $confdir;
+	rm -f *-full
 	grep -v 'is UNMERGABLE' <$tmpdir/config.common >$common_conf
 	for arch in $archs; do
 		grep -v 'is UNMERGABLE' <$tmpdir/config.common.$arch \
