@@ -90,8 +90,11 @@ static struct file_perms change_profile_perms(struct aa_profile *profile,
 		perms.allowed = AA_MAY_CHANGE_PROFILE;
 		perms.xindex = perms.dindex = 0;
 		perms.audit = perms.quiet = perms.kill = 0;
-		*rstate = 0;
+		if (rstate)
+			*rstate = 0;
 		return perms;
+	} else if (!profile->file.dfa) {
+		return nullperms;
 	} else if ((ns == profile->ns)) {
 		/* try matching against rules with out namespace prependend */
 		perms = aa_str_perms(profile->file.dfa, DFA_START, name, &cond,
@@ -101,9 +104,6 @@ static struct file_perms change_profile_perms(struct aa_profile *profile,
 	}
 
 	/* try matching with namespace name and then profile */
-	if (!profile->file.dfa)
-		return nullperms;
-
 	state = aa_dfa_match(profile->file.dfa, DFA_START, ns->base.name);
 	state = aa_dfa_null_transition(profile->file.dfa, state);
 	return aa_str_perms(profile->file.dfa, state, name, &cond, rstate);
@@ -619,9 +619,8 @@ int aa_change_profile(const char *ns_name, const char *fqname, int onexec,
 	struct aa_profile *profile, *target = NULL;
 	struct aa_namespace *ns = NULL;
 	struct aa_audit_file sa;
-	char *name = NULL;
 
-	if (!name && !ns_name)
+	if (!fqname && !ns_name)
 		return -EINVAL;
 
 	memset(&sa, 0, sizeof(sa));
