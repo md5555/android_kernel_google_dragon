@@ -92,14 +92,15 @@ static void aa_audit_init(struct aa_audit_iface *sa, const char *operation,
 static void audit_cb(struct audit_buffer *ab, void *va)
 {
 	struct aa_audit_iface *sa = va;
-	long len = sa->e->pos - sa->e->start;
 
 	if (sa->name)
 		audit_log_format(ab, " name=%s", sa->name);
 	if (sa->name2)
 		audit_log_format(ab, " namespace=%s", sa->name2);
-	if (sa->base.error && sa->e)
+	if (sa->base.error && sa->e) {
+		long len = sa->e->pos - sa->e->start;
 		audit_log_format(ab, " offset=%ld", len);
+	}
 }
 
 static int aa_audit_iface(struct aa_audit_iface *sa)
