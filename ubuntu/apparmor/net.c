@@ -74,6 +74,7 @@ static int aa_audit_net(struct aa_profile *profile, struct aa_audit_net *sa)
 		if (likely((PROFILE_AUDIT_MODE(profile) != AUDIT_ALL) &&
 			   !(1 << sa->type & audit_mask)))
 			return 0;
+		type = AUDIT_APPARMOR_AUDIT;
 	} else {
 		u16 quiet_mask = profile->net.quiet[sa->family];
 		u16 kill_mask = 0;

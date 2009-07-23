@@ -137,6 +137,7 @@ int aa_audit_file(struct aa_profile *profile, struct aa_audit_file *sa)
 
 		if (likely(!sa->request))
 			return 0;
+		type = AUDIT_APPARMOR_AUDIT;
 	} else {
 		/* quiet auditing of specific known rejects */
 		u16 mask = sa->perms.quiet;
