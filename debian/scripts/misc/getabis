@@ -76,7 +76,7 @@ echo $abi > $abidir/abiname
 
 getall lpia lpia
 getall amd64 generic server
-getall i386 generic generic-pae
+getall i386 generic generic-pae 386
 getall armel imx51
 
 # Ports arches and flavours.
