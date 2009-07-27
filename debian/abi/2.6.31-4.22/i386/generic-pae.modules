@@ -298,6 +298,10 @@ cachefiles
 cafe_ccic
 cafe_nand
 camellia
+can
+can-bcm
+can-dev
+can-raw
 capi
 capidrv
 capifs
@@ -452,7 +456,6 @@ das800
 davicom
 db9
 dc395x
-dca
 dccp
 dccp_diag
 dccp_ipv4
@@ -617,6 +620,7 @@ emi62
 em_meta
 em_nbyte
 empeg
+ems_pci
 em_text
 emu10k1-gp
 em_u32
@@ -961,7 +965,6 @@ intel_menlow
 intel-rng
 intel_vr_nor
 interact
-ioatdma
 ioc4
 io_edgeport
 io_ti
@@ -1108,6 +1111,7 @@ ks8851
 ks959-sir
 ksdazzle-sir
 ktti
+kvaser_pci
 kvm
 kvm-amd
 kvm-intel
@@ -1935,6 +1939,8 @@ sis-agp
 sisfb
 sisusbvga
 sit
+sja1000
+sja1000_platform
 skel
 skfp
 skge
@@ -2409,6 +2415,7 @@ usblcd
 usbled
 usblp
 usbnet
+usbserial
 usbsevseg
 usb-storage
 usbtmc
@@ -2423,6 +2430,7 @@ uwb
 v4l1-compat
 v4l2-common
 v4l2-int-device
+vcan
 ves1820
 ves1x93
 vesafb
