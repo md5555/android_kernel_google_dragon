@@ -55,7 +55,7 @@ struct au_iinfo {
 	atomic_t		ii_generation;
 	struct super_block	*ii_hsb1;	/* no get/put */
 
-	struct rw_semaphore	ii_rwsem;
+	struct au_rwsem		ii_rwsem;
 	aufs_bindex_t		ii_bstart, ii_bend;
 	__u32			ii_higen;
 	struct au_hinode	*ii_hinode;
@@ -232,13 +232,13 @@ enum {
 #define AuReadLockFunc(name, lsc) \
 static inline void ii_read_lock_##name(struct inode *i) \
 { \
-	down_read_nested(&au_ii(i)->ii_rwsem, AuLsc_II_##lsc); \
+	au_rw_read_lock_nested(&au_ii(i)->ii_rwsem, AuLsc_II_##lsc); \
 }
 
 #define AuWriteLockFunc(name, lsc) \
 static inline void ii_write_lock_##name(struct inode *i) \
 { \
-	down_write_nested(&au_ii(i)->ii_rwsem, AuLsc_II_##lsc); \
+	au_rw_write_lock_nested(&au_ii(i)->ii_rwsem, AuLsc_II_##lsc); \
 }
 
 #define AuRWLockFuncs(name, lsc) \
@@ -263,6 +263,8 @@ AuRWLockFuncs(new_child, NEW_CHILD);
 AuSimpleUnlockRwsemFuncs(ii, struct inode *i, &au_ii(i)->ii_rwsem);
 
 #define IiMustNoWaiters(i)	AuRwMustNoWaiters(&au_ii(i)->ii_rwsem)
+#define IiMustAnyLock(i)	AuRwMustAnyLock(&au_ii(i)->ii_rwsem)
+#define IiMustWriteLock(i)	AuRwMustWriteLock(&au_ii(i)->ii_rwsem)
 
 /* ---------------------------------------------------------------------- */
 
@@ -278,6 +280,7 @@ static inline int au_test_higen(struct inode *inode, struct inode *h_inode)
 	struct au_iinfo *iinfo;
 
 	iinfo = au_ii(inode);
+	AuRwMustAnyLock(&iinfo->ii_rwsem);
 	return !(iinfo->ii_hsb1 == h_inode->i_sb
 		 && iinfo->ii_higen == h_inode->i_generation);
 }
@@ -287,41 +290,49 @@ static inline int au_test_higen(struct inode *inode, struct inode *h_inode)
 static inline aufs_bindex_t au_ii_br_id(struct inode *inode,
 					aufs_bindex_t bindex)
 {
+	IiMustAnyLock(inode);
 	return au_ii(inode)->ii_hinode[0 + bindex].hi_id;
 }
 
 static inline aufs_bindex_t au_ibstart(struct inode *inode)
 {
+	IiMustAnyLock(inode);
 	return au_ii(inode)->ii_bstart;
 }
 
 static inline aufs_bindex_t au_ibend(struct inode *inode)
 {
+	IiMustAnyLock(inode);
 	return au_ii(inode)->ii_bend;
 }
 
 static inline struct au_vdir *au_ivdir(struct inode *inode)
 {
+	IiMustAnyLock(inode);
 	return au_ii(inode)->ii_vdir;
 }
 
 static inline struct dentry *au_hi_wh(struct inode *inode, aufs_bindex_t bindex)
 {
+	IiMustAnyLock(inode);
 	return au_ii(inode)->ii_hinode[0 + bindex].hi_whdentry;
 }
 
 static inline void au_set_ibend(struct inode *inode, aufs_bindex_t bindex)
 {
+	IiMustWriteLock(inode);
 	au_ii(inode)->ii_bend = bindex;
 }
 
 static inline void au_set_ivdir(struct inode *inode, struct au_vdir *vdir)
 {
+	IiMustWriteLock(inode);
 	au_ii(inode)->ii_vdir = vdir;
 }
 
 static inline struct au_hinode *au_hi(struct inode *inode, aufs_bindex_t bindex)
 {
+	IiMustAnyLock(inode);
 	return au_ii(inode)->ii_hinode + bindex;
 }
 
@@ -396,7 +407,7 @@ void au_hin_init(struct au_hinode *hinode, struct au_hinotify *val)
 
 static inline void au_iigen_dec(struct inode *inode)
 {
-	atomic_dec(&au_ii(inode)->ii_generation);
+	atomic_dec_return(&au_ii(inode)->ii_generation);
 }
 
 #else

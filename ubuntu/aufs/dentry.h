@@ -38,7 +38,7 @@ struct au_hdentry {
 struct au_dinfo {
 	atomic_t		di_generation;
 
-	struct rw_semaphore	di_rwsem;
+	struct au_rwsem		di_rwsem;
 	aufs_bindex_t		di_bstart, di_bend, di_bwh, di_bdiropq;
 	struct au_hdentry	*di_hdentry;
 };
@@ -137,6 +137,8 @@ AuRWLockFuncs(parent3, PARENT3);
 #undef AuRWLockFuncs
 
 #define DiMustNoWaiters(d)	AuRwMustNoWaiters(&au_di(d)->di_rwsem)
+#define DiMustAnyLock(d)	AuRwMustAnyLock(&au_di(d)->di_rwsem)
+#define DiMustWriteLock(d)	AuRwMustWriteLock(&au_di(d)->di_rwsem)
 
 /* ---------------------------------------------------------------------- */
 
@@ -158,43 +160,51 @@ static inline void au_hdput(struct au_hdentry *hd)
 
 static inline aufs_bindex_t au_dbstart(struct dentry *dentry)
 {
+	DiMustAnyLock(dentry);
 	return au_di(dentry)->di_bstart;
 }
 
 static inline aufs_bindex_t au_dbend(struct dentry *dentry)
 {
+	DiMustAnyLock(dentry);
 	return au_di(dentry)->di_bend;
 }
 
 static inline aufs_bindex_t au_dbwh(struct dentry *dentry)
 {
+	DiMustAnyLock(dentry);
 	return au_di(dentry)->di_bwh;
 }
 
 static inline aufs_bindex_t au_dbdiropq(struct dentry *dentry)
 {
+	DiMustAnyLock(dentry);
 	return au_di(dentry)->di_bdiropq;
 }
 
 /* todo: hard/soft set? */
 static inline void au_set_dbstart(struct dentry *dentry, aufs_bindex_t bindex)
 {
+	DiMustWriteLock(dentry);
 	au_di(dentry)->di_bstart = bindex;
 }
 
 static inline void au_set_dbend(struct dentry *dentry, aufs_bindex_t bindex)
 {
+	DiMustWriteLock(dentry);
 	au_di(dentry)->di_bend = bindex;
 }
 
 static inline void au_set_dbwh(struct dentry *dentry, aufs_bindex_t bindex)
 {
+	DiMustWriteLock(dentry);
 	/* dbwh can be outside of bstart - bend range */
 	au_di(dentry)->di_bwh = bindex;
 }
 
 static inline void au_set_dbdiropq(struct dentry *dentry, aufs_bindex_t bindex)
 {
+	DiMustWriteLock(dentry);
 	au_di(dentry)->di_bdiropq = bindex;
 }
 
@@ -203,7 +213,7 @@ static inline void au_set_dbdiropq(struct dentry *dentry, aufs_bindex_t bindex)
 #ifdef CONFIG_AUFS_HINOTIFY
 static inline void au_digen_dec(struct dentry *d)
 {
-	atomic_dec(&au_di(d)->di_generation);
+	atomic_dec_return(&au_di(d)->di_generation);
 }
 
 static inline void au_hin_di_reinit(struct dentry *dentry)

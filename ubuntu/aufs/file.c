@@ -65,10 +65,14 @@ struct file *au_h_open(struct dentry *dentry, aufs_bindex_t bindex, int flags,
 	struct au_branch *br;
 	int err;
 
-	h_dentry = au_h_dptr(dentry, bindex);
-	h_inode = h_dentry->d_inode;
 	/* a race condition can happen between open and unlink/rmdir */
 	h_file = ERR_PTR(-ENOENT);
+	h_dentry = au_h_dptr(dentry, bindex);
+	if (au_test_nfsd(current) && !h_dentry)
+		goto out;
+	h_inode = h_dentry->d_inode;
+	if (au_test_nfsd(current) && !h_inode)
+		goto out;
 	if (unlikely((!d_unhashed(dentry) && d_unhashed(h_dentry))
 		     || !h_inode))
 		goto out;
@@ -189,6 +193,8 @@ static int au_reopen_wh(struct file *file, aufs_bindex_t btgt,
 	struct dentry *h_dentry;
 
 	dinfo = au_di(file->f_dentry);
+	AuRwMustWriteLock(&dinfo->di_rwsem);
+
 	bstart = dinfo->di_bstart;
 	dinfo->di_bstart = btgt;
 	h_dentry = dinfo->di_hdentry[0 + btgt].hd_dentry;
@@ -311,6 +317,8 @@ static int au_file_refresh_by_inode(struct file *file, int *need_reopen)
 	struct inode *inode;
 	struct super_block *sb;
 
+	FiMustWriteLock(file);
+
 	err = 0;
 	finfo = au_fi(file);
 	dentry = file->f_dentry;
@@ -367,6 +375,8 @@ static void au_do_refresh_file(struct file *file)
 	struct au_hfile *p, tmp, *q;
 	struct au_finfo *finfo;
 	struct super_block *sb;
+
+	FiMustWriteLock(file);
 
 	sb = file->f_dentry->d_sb;
 	finfo = au_fi(file);

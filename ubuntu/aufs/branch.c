@@ -42,7 +42,7 @@ static void au_br_do_free(struct au_branch *br)
 		for (i = 0; i < AuBrWh_Last; i++)
 			dput(wbr->wbr_wh[i]);
 		AuDebugOn(atomic_read(&wbr->wbr_wh_running));
-		au_rwsem_destroy(&wbr->wbr_wh_rwsem);
+		AuRwDestroy(&wbr->wbr_wh_rwsem);
 	}
 
 	/* some filesystems acquire extra lock */
@@ -61,6 +61,8 @@ void au_br_free(struct au_sbinfo *sbinfo)
 {
 	aufs_bindex_t bmax;
 	struct au_branch **br;
+
+	AuRwMustWriteLock(&sbinfo->si_rwsem);
 
 	bmax = sbinfo->si_bend + 1;
 	br = sbinfo->si_branch;
@@ -297,7 +299,7 @@ static int au_wbr_init(struct au_branch *br, struct super_block *sb,
 	struct au_wbr *wbr;
 
 	wbr = br->br_wbr;
-	init_rwsem(&wbr->wbr_wh_rwsem);
+	au_rw_init(&wbr->wbr_wh_rwsem);
 	memset(wbr->wbr_wh, 0, sizeof(wbr->wbr_wh));
 	atomic_set(&wbr->wbr_wh_running, 0);
 	wbr->wbr_bytes = 0;
@@ -351,6 +353,8 @@ static void au_br_do_add_brp(struct au_sbinfo *sbinfo, aufs_bindex_t bindex,
 {
 	struct au_branch **brp;
 
+	AuRwMustWriteLock(&sbinfo->si_rwsem);
+
 	brp = sbinfo->si_branch + bindex;
 	memmove(brp + 1, brp, sizeof(*brp) * amount);
 	*brp = br;
@@ -364,6 +368,8 @@ static void au_br_do_add_hdp(struct au_dinfo *dinfo, aufs_bindex_t bindex,
 {
 	struct au_hdentry *hdp;
 
+	AuRwMustWriteLock(&dinfo->di_rwsem);
+
 	hdp = dinfo->di_hdentry + bindex;
 	memmove(hdp + 1, hdp, sizeof(*hdp) * amount);
 	au_h_dentry_init(hdp);
@@ -376,6 +382,8 @@ static void au_br_do_add_hip(struct au_iinfo *iinfo, aufs_bindex_t bindex,
 			     aufs_bindex_t bend, aufs_bindex_t amount)
 {
 	struct au_hinode *hip;
+
+	AuRwMustWriteLock(&iinfo->ii_rwsem);
 
 	hip = iinfo->ii_hinode + bindex;
 	memmove(hip + 1, hip, sizeof(*hip) * amount);
@@ -613,6 +621,8 @@ static void au_br_do_del_brp(struct au_sbinfo *sbinfo,
 {
 	struct au_branch **brp, **p;
 
+	AuRwMustWriteLock(&sbinfo->si_rwsem);
+
 	brp = sbinfo->si_branch + bindex;
 	if (bindex < bend)
 		memmove(brp, brp + 1, sizeof(*brp) * (bend - bindex));
@@ -629,6 +639,8 @@ static void au_br_do_del_hdp(struct au_dinfo *dinfo, const aufs_bindex_t bindex,
 {
 	struct au_hdentry *hdp, *p;
 
+	AuRwMustWriteLock(&dinfo->di_rwsem);
+
 	hdp = dinfo->di_hdentry + bindex;
 	if (bindex < bend)
 		memmove(hdp, hdp + 1, sizeof(*hdp) * (bend - bindex));
@@ -644,6 +656,8 @@ static void au_br_do_del_hip(struct au_iinfo *iinfo, const aufs_bindex_t bindex,
 			     const aufs_bindex_t bend)
 {
 	struct au_hinode *hip, *p;
+
+	AuRwMustWriteLock(&iinfo->ii_rwsem);
 
 	hip = iinfo->ii_hinode + bindex;
 	if (bindex < bend)
@@ -664,6 +678,8 @@ static void au_br_do_del(struct super_block *sb, aufs_bindex_t bindex,
 	struct au_sbinfo *sbinfo;
 	struct dentry *root;
 	struct inode *inode;
+
+	SiMustWriteLock(sb);
 
 	root = sb->s_root;
 	inode = root->d_inode;
@@ -718,6 +734,8 @@ int au_br_del(struct super_block *sb, struct au_opt_del *del, int remount)
 	wbr = br->br_wbr;
 	do_wh = wbr && (wbr->wbr_whbase || wbr->wbr_plink || wbr->wbr_orph);
 	if (do_wh) {
+		/* instead of WbrWhMustWriteLock(wbr) */
+		SiMustWriteLock(sb);
 		for (i = 0; i < AuBrWh_Last; i++) {
 			dput(wbr->wbr_wh[i]);
 			wbr->wbr_wh[i] = NULL;

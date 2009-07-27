@@ -40,7 +40,7 @@ void au_si_free(struct kobject *kobj)
 	kfree(sbinfo->si_branch);
 	mutex_destroy(&sbinfo->si_xib_mtx);
 	si_write_unlock(sb);
-	au_rwsem_destroy(&sbinfo->si_rwsem);
+	AuRwDestroy(&sbinfo->si_rwsem);
 
 	kfree(sbinfo);
 }
@@ -66,8 +66,7 @@ int au_si_alloc(struct super_block *sb)
 		goto out_br;
 
 	au_nwt_init(&sbinfo->si_nowait);
-	init_rwsem(&sbinfo->si_rwsem);
-	down_write(&sbinfo->si_rwsem);
+	au_rw_init_wlock(&sbinfo->si_rwsem);
 	sbinfo->si_generation = 0;
 	sbinfo->au_si_status = 0;
 	sbinfo->si_bend = -1;
@@ -115,6 +114,8 @@ int au_sbr_realloc(struct au_sbinfo *sbinfo, int nbr)
 	int err, sz;
 	struct au_branch **brp;
 
+	AuRwMustWriteLock(&sbinfo->si_rwsem);
+
 	err = -ENOMEM;
 	sz = sizeof(*brp) * (sbinfo->si_bend + 1);
 	if (unlikely(!sz))
@@ -134,6 +135,8 @@ unsigned int au_sigen_inc(struct super_block *sb)
 {
 	unsigned int gen;
 
+	SiMustWriteLock(sb);
+
 	gen = ++au_sbi(sb)->si_generation;
 	au_update_digen(sb->s_root);
 	au_update_iigen(sb->s_root->d_inode);
@@ -146,6 +149,8 @@ aufs_bindex_t au_new_br_id(struct super_block *sb)
 	aufs_bindex_t br_id;
 	int i;
 	struct au_sbinfo *sbinfo;
+
+	SiMustWriteLock(sb);
 
 	sbinfo = au_sbi(sb);
 	for (i = 0; i <= AUFS_BRANCH_MAX; i++) {

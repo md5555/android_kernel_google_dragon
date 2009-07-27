@@ -26,7 +26,7 @@ struct inode *au_igrab(struct inode *inode)
 {
 	if (inode) {
 		AuDebugOn(!atomic_read(&inode->i_count));
-		atomic_inc(&inode->i_count);
+		atomic_inc_return(&inode->i_count);
 	}
 	return inode;
 }
@@ -48,6 +48,8 @@ int au_refresh_hinode_self(struct inode *inode, int do_attr)
 	struct au_hinode *p, *q, tmp;
 	struct super_block *sb;
 	struct au_iinfo *iinfo;
+
+	IiMustWriteLock(inode);
 
 	update = 0;
 	sb = inode->i_sb;
@@ -163,6 +165,8 @@ static int set_inode(struct inode *inode, struct dentry *dentry)
 	struct dentry *h_dentry;
 	struct inode *h_inode;
 	struct au_iinfo *iinfo;
+
+	IiMustWriteLock(inode);
 
 	err = 0;
 	isdir = 0;
@@ -315,12 +319,12 @@ struct inode *au_new_inode(struct dentry *dentry, int must_new)
 	}
 
 	if (unlikely(au_test_fs_unique_ino(h_dentry->d_inode)))
-		AuWarn1("Un-notified UDBA or repeatedly renamed dir,"
+		AuWarn1("Warning: Un-notified UDBA or repeatedly renamed dir,"
 			" b%d, %s, %.*s, hi%lu, i%lu.\n",
 			bstart, au_sbtype(h_dentry->d_sb), AuDLNPair(dentry),
 			(unsigned long)h_ino, (unsigned long)ino);
 	ino = 0;
-	err = au_xino_write0(sb, bstart, h_ino, 0);
+	err = au_xino_write(sb, bstart, h_ino, /*ino*/0);
 	if (!err) {
 		iput(inode);
 		goto new_ino;

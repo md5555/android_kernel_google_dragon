@@ -92,6 +92,8 @@ void au_cpup_igen(struct inode *inode, struct inode *h_inode)
 {
 	struct au_iinfo *iinfo = au_ii(inode);
 
+	IiMustWriteLock(inode);
+
 	iinfo->ii_higen = h_inode->i_generation;
 	iinfo->ii_hsb1 = h_inode->i_sb;
 }
@@ -518,7 +520,7 @@ int cpup_entry(struct dentry *dentry, aufs_bindex_t bdst,
 	    /* && dentry->d_inode->i_nlink == 1 */
 	    && bdst < bsrc
 	    && !au_ftest_cpup(flags, KEEPLINO))
-		au_xino_write0(sb, bsrc, h_inode->i_ino, /*ino*/0);
+		au_xino_write(sb, bsrc, h_inode->i_ino, /*ino*/0);
 		/* ignore this error */
 
 	if (do_dt)
@@ -792,6 +794,8 @@ static int au_do_cpup_wh(struct dentry *dentry, aufs_bindex_t bdst,
 	struct dentry *h_d_dst, *h_d_start;
 
 	dinfo = au_di(dentry);
+	AuRwMustWriteLock(&dinfo->di_rwsem);
+
 	bstart = dinfo->di_bstart;
 	h_d_dst = dinfo->di_hdentry[0 + bdst].hd_dentry;
 	dinfo->di_bstart = bdst;
@@ -901,7 +905,7 @@ int au_sio_cpup_wh(struct dentry *dentry, aufs_bindex_t bdst, loff_t len,
 		h_inode = h_dentry->d_inode;
 		IMustLock(h_inode);
 		mutex_unlock(&h_inode->i_mutex);
-		mutex_lock_nested(&h_tmpdir->i_mutex, AuLsc_I_PARENT2);
+		mutex_lock_nested(&h_tmpdir->i_mutex, AuLsc_I_PARENT3);
 		mutex_lock_nested(&h_inode->i_mutex, AuLsc_I_CHILD);
 	}
 

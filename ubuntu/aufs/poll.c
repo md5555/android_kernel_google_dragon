@@ -17,51 +17,40 @@
  */
 
 /*
- * ioctl
- * currently plink-management only.
+ * poll operation
+ * There is only one filesystem which implements ->poll operation, currently.
  */
 
-#include <linux/uaccess.h>
 #include "aufs.h"
 
-long aufs_ioctl_dir(struct file *file, unsigned int cmd,
-		    unsigned long arg __maybe_unused)
+unsigned int aufs_poll(struct file *file, poll_table *wait)
 {
-	long err;
+	unsigned int mask;
+	int err;
+	struct file *h_file;
+	struct dentry *dentry;
 	struct super_block *sb;
-	struct au_sbinfo *sbinfo;
 
-	err = -EACCES;
-	if (!capable(CAP_SYS_ADMIN))
+	/* We should pretend an error happened. */
+	mask = POLLERR /* | POLLIN | POLLOUT */;
+	dentry = file->f_dentry;
+	sb = dentry->d_sb;
+	si_read_lock(sb, AuLock_FLUSH);
+	err = au_reval_and_lock_fdi(file, au_reopen_nondir, /*wlock*/0);
+	if (unlikely(err))
 		goto out;
 
-	err = 0;
-	sb = file->f_dentry->d_sb;
-	sbinfo = au_sbi(sb);
-	switch (cmd) {
-	case AUFS_CTL_PLINK_MAINT:
-		/*
-		 * pseudo-link maintenance mode,
-		 * cleared by aufs_release_dir()
-		 */
-		si_write_lock(sb);
-		if (!au_ftest_si(sbinfo, MAINTAIN_PLINK)) {
-			au_fset_si(sbinfo, MAINTAIN_PLINK);
-			au_fi(file)->fi_maintain_plink = 1;
-		} else
-			err = -EBUSY;
-		si_write_unlock(sb);
-		break;
-	case AUFS_CTL_PLINK_CLEAN:
-		aufs_write_lock(sb->s_root);
-		if (au_opt_test(sbinfo->si_mntflags, PLINK))
-			au_plink_put(sb);
-		aufs_write_unlock(sb->s_root);
-		break;
-	default:
-		err = -EINVAL;
-	}
+	/* it is not an error if h_file has no operation */
+	mask = DEFAULT_POLLMASK;
+	h_file = au_h_fptr(file, au_fbstart(file));
+	if (h_file->f_op && h_file->f_op->poll)
+		mask = h_file->f_op->poll(h_file, wait);
+
+	di_read_unlock(dentry, AuLock_IR);
+	fi_read_unlock(file);
 
  out:
-	return err;
+	si_read_unlock(sb);
+	AuTraceErr((int)mask);
+	return mask;
 }

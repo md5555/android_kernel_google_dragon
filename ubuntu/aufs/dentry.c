@@ -446,6 +446,8 @@ static void au_do_refresh_hdentry(struct au_hdentry *p, struct au_dinfo *dinfo,
 	struct super_block *sb;
 	aufs_bindex_t new_bindex, bindex, bend, bwh, bdiropq;
 
+	AuRwMustWriteLock(&dinfo->di_rwsem);
+
 	bend = dinfo->di_bend;
 	bwh = dinfo->di_bwh;
 	bdiropq = dinfo->di_bdiropq;
@@ -522,6 +524,8 @@ int au_refresh_hdentry(struct dentry *dentry, mode_t type)
 	struct au_dinfo *dinfo;
 	struct super_block *sb;
 	struct dentry *parent;
+
+	DiMustWriteLock(dentry);
 
 	sb = dentry->d_sb;
 	AuDebugOn(IS_ROOT(dentry));
@@ -865,7 +869,7 @@ static void aufs_d_release(struct dentry *dentry)
 		}
 	}
 	kfree(dinfo->di_hdentry);
-	au_rwsem_destroy(&dinfo->di_rwsem);
+	AuRwDestroy(&dinfo->di_rwsem);
 	au_cache_free_dinfo(dinfo);
 	au_hin_di_reinit(dentry);
 }

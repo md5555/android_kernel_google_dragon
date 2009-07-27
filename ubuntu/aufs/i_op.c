@@ -368,7 +368,6 @@ int au_do_pin(struct au_pin *p)
 
 	/* udba case */
 	if (unlikely(!p->hdir || !h_dir)) {
-		err = au_busy_or_stale();
 		if (!au_ftest_pin(p->flags, DI_LOCKED))
 			di_read_unlock(p->parent, AuLock_IR);
 		dput(p->parent);
@@ -379,6 +378,10 @@ int au_do_pin(struct au_pin *p)
 	au_igrab(h_dir);
 	au_hin_imtx_lock_nested(p->hdir, p->lsc_hi);
 
+	if (unlikely(p->hdir->hi_inode != h_parent->d_inode)) {
+		err = -EBUSY;
+		goto out_unpin;
+	}
 	if (h_dentry) {
 		err = au_h_verify(h_dentry, p->udba, h_dir, h_parent, br);
 		if (unlikely(err)) {
@@ -644,6 +647,8 @@ static int au_getattr_lock_reval(struct dentry *dentry, unsigned int sigen)
 			err = -EIO;
 	}
 	di_downgrade_lock(dentry, AuLock_IR);
+	if (unlikely(err))
+		di_read_unlock(dentry, AuLock_IR);
 
 	return err;
 }
@@ -676,25 +681,16 @@ static int aufs_getattr(struct vfsmount *mnt __maybe_unused,
 	int err;
 	unsigned int mnt_flags;
 	aufs_bindex_t bindex;
-	unsigned char udba_none, positive, did_lock;
+	unsigned char udba_none, positive;
 	struct super_block *sb, *h_sb;
 	struct inode *inode;
 	struct vfsmount *h_mnt;
 	struct dentry *h_dentry;
 
 	err = 0;
-	did_lock = 0;
 	sb = dentry->d_sb;
 	inode = dentry->d_inode;
 	si_read_lock(sb, AuLock_FLUSH);
-	if (IS_ROOT(dentry)) {
-		/* lock free root dinfo */
-		h_dentry = dget(au_di(dentry)->di_hdentry->hd_dentry);
-		h_mnt = au_sbr_mnt(sb, 0);
-		goto getattr;
-	}
-
-	did_lock = 1;
 	mnt_flags = au_mntflags(sb);
 	udba_none = !!au_opt_test(mnt_flags, UDBA_NONE);
 
@@ -704,6 +700,7 @@ static int aufs_getattr(struct vfsmount *mnt __maybe_unused,
 		if (au_digen(dentry) == sigen && au_iigen(inode) == sigen)
 			di_read_lock_child(dentry, AuLock_IR);
 		else {
+			AuDebugOn(!IS_ROOT(dentry));
 			err = au_getattr_lock_reval(dentry, sigen);
 			if (unlikely(err))
 				goto out;
@@ -717,17 +714,18 @@ static int aufs_getattr(struct vfsmount *mnt __maybe_unused,
 	if (!au_test_fs_bad_iattr(h_sb) && udba_none)
 		goto out_fill; /* success */
 
+	h_dentry = NULL;
 	if (au_dbstart(dentry) == bindex)
 		h_dentry = dget(au_h_dptr(dentry, bindex));
 	else if (au_opt_test(mnt_flags, PLINK) && au_plink_test(inode)) {
 		h_dentry = au_plink_lkup(inode, bindex);
 		if (IS_ERR(h_dentry))
 			goto out_fill; /* pretending success */
-	} else
-		/* illegally overlapped or something */
+	}
+	/* illegally overlapped or something */
+	if (unlikely(!h_dentry))
 		goto out_fill; /* pretending success */
 
- getattr:
 	positive = !!h_dentry->d_inode;
 	if (positive)
 		err = vfs_getattr(h_mnt, h_dentry, st);
@@ -737,13 +735,13 @@ static int aufs_getattr(struct vfsmount *mnt __maybe_unused,
 			au_refresh_iattr(inode, st, h_dentry->d_inode->i_nlink);
 		goto out_fill; /* success */
 	}
-	goto out;
+	goto out_unlock;
 
  out_fill:
 	generic_fillattr(inode, st);
+ out_unlock:
+	di_read_unlock(dentry, AuLock_IR);
  out:
-	if (did_lock)
-		di_read_unlock(dentry, AuLock_IR);
 	si_read_unlock(sb);
 	return err;
 }

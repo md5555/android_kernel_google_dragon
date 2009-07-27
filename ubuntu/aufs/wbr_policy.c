@@ -308,6 +308,7 @@ static int au_wbr_create_init_rr(struct super_block *sb)
 
 	err = au_wbr_bu(sb, au_sbend(sb));
 	atomic_set(&au_sbi(sb)->si_wbr_rr_next, -err); /* less important */
+	/* smp_mb(); */
 
 	AuDbg("b%d\n", err);
 	return err;
@@ -374,6 +375,7 @@ static void au_mfs(struct dentry *dentry)
 	bavail = 0;
 	sb = dentry->d_sb;
 	mfs = &au_sbi(sb)->si_wbr_mfs;
+	MtxMustLock(&mfs->mfs_lock);
 	mfs->mfs_bindex = -EROFS;
 	mfs->mfsrr_bytes = 0;
 	bend = au_sbend(sb);
@@ -460,8 +462,10 @@ static int au_wbr_create_mfsrr(struct dentry *dentry, int isdir)
 	err = au_wbr_create_mfs(dentry, isdir);
 	if (err >= 0) {
 		mfs = &au_sbi(dentry->d_sb)->si_wbr_mfs;
+		mutex_lock(&mfs->mfs_lock);
 		if (mfs->mfsrr_bytes < mfs->mfsrr_watermark)
 			err = au_wbr_create_rr(dentry, isdir);
+		mutex_unlock(&mfs->mfs_lock);
 	}
 
 	AuDbg("b%d\n", err);

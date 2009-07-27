@@ -255,6 +255,7 @@ static int au_ren_del_whtmp(struct au_ren_args *a)
 	struct inode *dir;
 
 	dir = a->dst_dir;
+	SiMustAnyLock(dir->i_sb);
 	if (!au_nhash_test_longer_wh(&a->whlist, a->btgt,
 				     au_sbi(dir->i_sb)->si_dirwh)
 	    || au_test_fs_remote(a->h_dst->d_sb)) {
@@ -457,6 +458,7 @@ static int may_rename_srcdir(struct dentry *dentry, aufs_bindex_t btgt)
 	if (bstart != btgt) {
 		struct au_nhash whlist;
 
+		SiMustAnyLock(dentry->d_sb);
 		err = au_nhash_alloc(&whlist, au_sbi(dentry->d_sb)->si_rdhash,
 				     GFP_NOFS);
 		if (unlikely(err))
@@ -487,6 +489,7 @@ static int au_ren_may_dir(struct au_ren_args *a)
 	struct dentry *d;
 
 	d = a->dst_dentry;
+	SiMustAnyLock(d->d_sb);
 	err = au_nhash_alloc(&a->whlist, au_sbi(d->d_sb)->si_rdhash, GFP_NOFS);
 	if (unlikely(err))
 		goto out;
@@ -615,7 +618,10 @@ static int au_ren_lock(struct au_ren_args *a)
 	a->h_trap = vfsub_lock_rename(a->src_h_parent, a->src_hdir,
 				      a->dst_h_parent, a->dst_hdir);
 	udba = au_opt_udba(a->src_dentry->d_sb);
-	if (au_dbstart(a->src_dentry) == a->btgt)
+	if (unlikely(a->src_hdir->hi_inode != a->src_h_parent->d_inode
+		     || a->dst_hdir->hi_inode != a->dst_h_parent->d_inode))
+		err = au_busy_or_stale();
+	if (!err && au_dbstart(a->src_dentry) == a->btgt)
 		err = au_h_verify(a->src_h_dentry, udba,
 				  a->src_h_parent->d_inode, a->src_h_parent,
 				  a->br);
@@ -696,7 +702,7 @@ static void au_ren_refresh(struct au_ren_args *a)
 	for (bindex = a->btgt + 1; bindex <= bend; bindex++) {
 		h_i = au_h_iptr(i, bindex);
 		if (h_i) {
-			au_xino_write0(sb, bindex, h_i->i_ino, 0);
+			au_xino_write(sb, bindex, h_i->i_ino, /*ino*/0);
 			/* ignore this error */
 			au_set_h_iptr(i, bindex, NULL, 0);
 		}

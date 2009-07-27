@@ -23,7 +23,6 @@
 #include <linux/file.h>
 #include <linux/fs_stack.h>
 #include <linux/mm.h>
-#include <linux/poll.h>
 #include <linux/security.h>
 #include "aufs.h"
 
@@ -69,6 +68,8 @@ static int do_open_nondir(struct file *file, int flags)
 	struct file *h_file;
 	struct dentry *dentry;
 	struct au_finfo *finfo;
+
+	FiMustWriteLock(file);
 
 	err = 0;
 	dentry = file->f_dentry;
@@ -392,7 +393,7 @@ static int aufs_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	/* do not revalidate, no si lock */
 	finfo = au_fi(file);
 	h_file = finfo->fi_hfile[0 + finfo->fi_bstart].hf_file;
-	AuDebugOn(!h_file || !au_test_mmapped(file));
+	AuDebugOn(!h_file || !finfo->fi_h_vm_ops);
 
 	fi_write_lock(file);
 	vma->vm_file = h_file;
@@ -422,7 +423,7 @@ static int aufs_page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
 
 	finfo = au_fi(file);
 	h_file = finfo->fi_hfile[0 + finfo->fi_bstart].hf_file;
-	AuDebugOn(!h_file || !au_test_mmapped(file));
+	AuDebugOn(!h_file || !finfo->fi_h_vm_ops);
 
 	fi_write_lock(file);
 	vma->vm_file = h_file;
@@ -444,7 +445,7 @@ static void aufs_vm_close(struct vm_area_struct *vma)
 
 	finfo = au_fi(file);
 	h_file = finfo->fi_hfile[0 + finfo->fi_bstart].hf_file;
-	AuDebugOn(!h_file || !au_test_mmapped(file));
+	AuDebugOn(!h_file || !finfo->fi_h_vm_ops);
 
 	fi_write_lock(file);
 	vma->vm_file = h_file;
@@ -494,6 +495,8 @@ static int au_custom_vm_ops(struct au_finfo *finfo, struct vm_area_struct *vma)
 	int err;
 	struct vm_operations_struct *h_ops;
 
+	AuRwMustAnyLock(&finfo->fi_rwsem);
+
 	err = 0;
 	h_ops = finfo->fi_h_vm_ops;
 	AuDebugOn(!h_ops);
@@ -528,14 +531,14 @@ static int aufs_mmap(struct file *file, struct vm_area_struct *vma)
 	struct vm_operations_struct *vm_ops;
 
 	dentry = file->f_dentry;
-	mmapped = !!au_test_mmapped(file); /* can be harmless race condition */
 	wlock = !!(file->f_mode & FMODE_WRITE) && (vma->vm_flags & VM_SHARED);
 	sb = dentry->d_sb;
 	si_read_lock(sb, AuLock_FLUSH);
-	err = au_reval_and_lock_fdi(file, au_reopen_nondir, wlock | !mmapped);
+	err = au_reval_and_lock_fdi(file, au_reopen_nondir, /*wlock*/1);
 	if (unlikely(err))
 		goto out;
 
+	mmapped = !!au_test_mmapped(file);
 	if (wlock) {
 		struct au_pin pin;
 
@@ -544,11 +547,11 @@ static int aufs_mmap(struct file *file, struct vm_area_struct *vma)
 		if (unlikely(err))
 			goto out_unlock;
 		au_unpin(&pin);
-	} else if (!mmapped)
+	} else
 		di_downgrade_lock(dentry, AuLock_IR);
 
 	h_file = au_h_fptr(file, au_fbstart(file));
-	if (au_test_fs_bad_mapping(h_file->f_dentry->d_sb)) {
+	if (!mmapped && au_test_fs_bad_mapping(h_file->f_dentry->d_sb)) {
 		/*
 		 * by this assignment, f_mapping will differs from aufs inode
 		 * i_mapping.
@@ -591,48 +594,13 @@ static int aufs_mmap(struct file *file, struct vm_area_struct *vma)
 
  out_unlock:
 	di_read_unlock(dentry, AuLock_IR);
-	if (!wlock && mmapped)
-		fi_read_unlock(file);
-	else
-		fi_write_unlock(file);
+	fi_write_unlock(file);
  out:
 	si_read_unlock(sb);
 	return err;
 }
 
 /* ---------------------------------------------------------------------- */
-
-static unsigned int aufs_poll(struct file *file, poll_table *wait)
-{
-	unsigned int mask;
-	int err;
-	struct file *h_file;
-	struct dentry *dentry;
-	struct super_block *sb;
-
-	/* We should pretend an error happened. */
-	mask = POLLERR /* | POLLIN | POLLOUT */;
-	dentry = file->f_dentry;
-	sb = dentry->d_sb;
-	si_read_lock(sb, AuLock_FLUSH);
-	err = au_reval_and_lock_fdi(file, au_reopen_nondir, /*wlock*/0);
-	if (unlikely(err))
-		goto out;
-
-	/* it is not an error if h_file has no operation */
-	mask = DEFAULT_POLLMASK;
-	h_file = au_h_fptr(file, au_fbstart(file));
-	if (h_file->f_op && h_file->f_op->poll)
-		mask = h_file->f_op->poll(h_file, wait);
-
-	di_read_unlock(dentry, AuLock_IR);
-	fi_read_unlock(file);
-
- out:
-	si_read_unlock(sb);
-	AuTraceErr((int)mask);
-	return mask;
-}
 
 static int aufs_fsync_nondir(struct file *file, struct dentry *dentry,
 			     int datasync)
@@ -814,7 +782,9 @@ const struct file_operations aufs_file_fop = {
 	.write		= aufs_write,
 	.aio_read	= aufs_aio_read,
 	.aio_write	= aufs_aio_write,
+#ifdef CONFIG_AUFS_POLL
 	.poll		= aufs_poll,
+#endif
 	.mmap		= aufs_mmap,
 	.open		= aufs_open_nondir,
 	.flush		= aufs_flush,
