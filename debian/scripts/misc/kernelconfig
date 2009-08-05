@@ -24,7 +24,7 @@ if [ "$ports" = "ports" ]; then
 	archs="sparc powerpc ia64"
 	family='ports'
 else
-	archs="amd64 armel i386 lpia"
+	archs="amd64 i386 lpia"
 	family='ubuntu'
 fi
 bindir="`pwd`/debian/scripts/misc"
@@ -43,7 +43,6 @@ for arch in $archs; do
 	# Map debian archs to kernel archs
 	case "$arch" in
 		amd64)	kernarch="x86_64"	;;
-		armel)	kernarch="arm"	;;
 		lpia)   kernarch="x86" ;;
 		sparc)	kernarch="sparc64"	;;
 		*)	kernarch="$arch"	;;
