@@ -161,7 +161,6 @@ at25
 at76c50x-usb
 at76_usb
 aten
-aten2011
 ath
 ath5k
 ath9k
@@ -259,7 +258,6 @@ c2port-duramar2150
 c4
 c67x00
 c6xdigio
-cachefiles
 cafe_ccic
 cafe_nand
 camellia
@@ -476,6 +474,7 @@ ds1682
 ds2482
 ds2490
 ds2760_battery
+ds2782_battery
 dsbr100
 dscc4
 dss1_divert
@@ -691,6 +690,7 @@ gspca_ov519
 gspca_ov534
 gspca_pac207
 gspca_pac7311
+gspca_sn9c20x
 gspca_sonixb
 gspca_sonixj
 gspca_spca500
@@ -1076,7 +1076,6 @@ legousbtower
 lgdt3305
 lgdt330x
 lgs8gl5
-lib80211
 lib80211_crypt_ccmp
 lib80211_crypt_tkip
 lib80211_crypt_wep
@@ -1101,6 +1100,7 @@ linear
 lirc_atiusb
 lirc_bt829
 lirc_dev
+lirc_i2c
 lirc_igorplugusb
 lirc_imon
 lirc_it87
@@ -2226,6 +2226,7 @@ usbnet
 usbserial
 usbsevseg
 usb-storage
+usbtest
 usbtmc
 usbtouchscreen
 usbvideo

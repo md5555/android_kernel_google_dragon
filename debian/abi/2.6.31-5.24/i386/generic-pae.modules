@@ -190,7 +190,6 @@ at25
 at76c50x-usb
 at76_usb
 aten
-aten2011
 ath
 ath5k
 ath9k
@@ -456,6 +455,7 @@ das800
 davicom
 db9
 dc395x
+dca
 dccp
 dccp_diag
 dccp_ipv4
@@ -517,6 +517,7 @@ ds1682
 ds2482
 ds2490
 ds2760_battery
+ds2782_battery
 dsbr100
 dscc4
 dss1_divert
@@ -746,6 +747,7 @@ gspca_ov519
 gspca_ov534
 gspca_pac207
 gspca_pac7311
+gspca_sn9c20x
 gspca_sonixb
 gspca_sonixj
 gspca_spca500
@@ -965,6 +967,7 @@ intel_menlow
 intel-rng
 intel_vr_nor
 interact
+ioatdma
 ioc4
 io_edgeport
 io_ti
@@ -1173,6 +1176,7 @@ linear
 lirc_atiusb
 lirc_bt829
 lirc_dev
+lirc_i2c
 lirc_igorplugusb
 lirc_imon
 lirc_it87
@@ -2418,6 +2422,7 @@ usbnet
 usbserial
 usbsevseg
 usb-storage
+usbtest
 usbtmc
 usbtouchscreen
 usbvideo
