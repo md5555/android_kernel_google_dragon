@@ -13,12 +13,4 @@ config LMPCM_USB
 	default m
 	depends on USB
 
-config TP_SMAPI
-	tristate "ThinkPad SMAPI Support"
-	default m
-
-config TP_SMAPI_EC
-	tristate "ThinkPad embedded controller LPC3 functions"
-	default m
-
 source "ubuntu/misc/media/Kconfig"
