@@ -114,11 +114,9 @@ endif
 ifeq ($(CONCURRENCY_LEVEL),)
   # Check the environment
   CONCURRENCY_LEVEL := $(shell echo $$CONCURRENCY_LEVEL)
-  # No? Check if this is on a buildd
+  # No? Then build with the number of CPUs on the host.
   ifeq ($(CONCURRENCY_LEVEL),)
-    ifeq ($(wildcard /CurrentlyBuilding),)
       CONCURRENCY_LEVEL := $(shell expr `getconf _NPROCESSORS_ONLN` \* 1)
-    endif
   endif
   # Oh hell, give 'em one
   ifeq ($(CONCURRENCY_LEVEL),)
