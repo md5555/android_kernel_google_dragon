@@ -29,14 +29,14 @@ $(stampdir)/stamp-build-%: $(stampdir)/stamp-prepare-%
 # Install the finished build
 install-%: pkgdir = $(CURDIR)/debian/$(bin_pkg_name)-$*
 install-%: dbgpkgdir = $(CURDIR)/debian/linux-image-debug-$(abi_release)-$*
-install-%: basepkg = linux-headers-$(abi_release)
+install-%: basepkg = $(hdrs_pkg_name)
 install-%: hdrdir = $(CURDIR)/debian/$(basepkg)-$*/usr/src/$(basepkg)-$*
 install-%: target_flavour = $*
 install-%: $(stampdir)/stamp-build-% checks-%
 	dh_testdir
 	dh_testroot
 	dh_clean -k -p$(bin_pkg_name)-$*
-	dh_clean -k -plinux-headers-$(abi_release)-$*
+	dh_clean -k -p$(hdrs_pkg_name)-$*
 	dh_clean -k -plinux-image-debug-$(abi_release)-$*
 
 	# The main image
@@ -222,7 +222,7 @@ binary-arch-headers: install-arch-headers
 	dh_builddeb -plinux-libc-dev
 
 binary-%: pkgimg = $(bin_pkg_name)-$*
-binary-%: pkghdr = linux-headers-$(abi_release)-$*
+binary-%: pkghdr = $(hdrs_pkg_name)-$*
 binary-%: dbgpkg = linux-image-debug-$(abi_release)-$*
 binary-%: install-%
 	dh_testdir

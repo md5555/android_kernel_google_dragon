@@ -22,7 +22,7 @@ install-doc:
 	cp -a Documentation/* $(docdir)
 	rm -rf $(docdir)/DocBook
 
-indep_hdrpkg = linux-headers-$(abi_release)
+indep_hdrpkg = $(hdrs_pkg_name)
 indep_hdrdir = $(CURDIR)/debian/$(indep_hdrpkg)/usr/src/$(indep_hdrpkg)
 install-headers:
 	dh_testdir

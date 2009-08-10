@@ -83,6 +83,7 @@ stampdir	:= $(CURDIR)/debian/stamps
 #
 bin_base_pkg_name=linux-image
 bin_pkg_name=$(bin_base_pkg_name)-$(abi_release)
+hdrs_pkg_name=$(src_pkg_name)-headers-$(abi_release)
 
 # Support parallel=<n> in DEB_BUILD_OPTIONS (see #209008)
 COMMA=,
