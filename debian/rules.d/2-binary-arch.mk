@@ -27,7 +27,7 @@ $(stampdir)/stamp-build-%: $(stampdir)/stamp-prepare-%
 	@touch $@
 
 # Install the finished build
-install-%: pkgdir = $(CURDIR)/debian/linux-image-$(abi_release)-$*
+install-%: pkgdir = $(CURDIR)/debian/$(bin_pkg_name)-$*
 install-%: dbgpkgdir = $(CURDIR)/debian/linux-image-debug-$(abi_release)-$*
 install-%: basepkg = linux-headers-$(abi_release)
 install-%: hdrdir = $(CURDIR)/debian/$(basepkg)-$*/usr/src/$(basepkg)-$*
@@ -35,7 +35,7 @@ install-%: target_flavour = $*
 install-%: $(stampdir)/stamp-build-% checks-%
 	dh_testdir
 	dh_testroot
-	dh_clean -k -plinux-image-$(abi_release)-$*
+	dh_clean -k -p$(bin_pkg_name)-$*
 	dh_clean -k -plinux-headers-$(abi_release)-$*
 	dh_clean -k -plinux-image-debug-$(abi_release)-$*
 
@@ -94,18 +94,18 @@ ifneq ($(skipsub),true)
 	@set -e; for sub in $($(*)_sub); do					\
 		TO=$$sub FROM=$* ABI_RELEASE=$(abi_release) $(SHELL)		\
 			debian/scripts/sub-flavour;				\
-		/sbin/depmod -b debian/linux-image-$(abi_release)-$$sub		\
-			-ea -F debian/linux-image-$(abi_release)-$$sub/boot/System.map-$(abi_release)-$* \
+		/sbin/depmod -b debian/$(bin_pkg_name)-$$sub		\
+			-ea -F debian/$(bin_pkg_name)-$$sub/boot/System.map-$(abi_release)-$* \
 			$(abi_release)-$*;					\
-		install -d debian/linux-image-$(abi_release)-$$sub/DEBIAN;	\
+		install -d debian/$(bin_pkg_name)-$$sub/DEBIAN;	\
 		for script in postinst postrm preinst prerm; do			\
 			sed -e 's/=V/$(abi_release)-$*/g'			\
 			    -e 's/=K/$(install_file)/g'				\
 			    -e 's/=L/$(loader)/g'				\
 			    -e 's@=B@$(build_arch)@g'				\
 				debian/control-scripts/$$script >		\
-				debian/linux-image-$(abi_release)-$$sub/DEBIAN/$$script;\
-			chmod 755  debian/linux-image-$(abi_release)-$$sub/DEBIAN/$$script;\
+				debian/$(bin_pkg_name)-$$sub/DEBIAN/$$script;\
+			chmod 755  debian/$(bin_pkg_name)-$$sub/DEBIAN/$$script;\
 		done;								\
 	done
 endif
@@ -221,7 +221,7 @@ binary-arch-headers: install-arch-headers
 	dh_md5sums -plinux-libc-dev
 	dh_builddeb -plinux-libc-dev
 
-binary-%: pkgimg = linux-image-$(abi_release)-$*
+binary-%: pkgimg = $(bin_pkg_name)-$*
 binary-%: pkghdr = linux-headers-$(abi_release)-$*
 binary-%: dbgpkg = linux-image-debug-$(abi_release)-$*
 binary-%: install-%
@@ -249,7 +249,7 @@ binary-%: install-%
 
 ifneq ($(skipsub),true)
 	@set -e; for sub in $($(*)_sub); do		\
-		pkg=linux-image-$(abi_release)-$$sub;	\
+		pkg=$(bin_pkg_name)-$$sub;	\
 		dh_installchangelogs -p$$pkg;		\
 		dh_installdocs -p$$pkg;			\
 		dh_compress -p$$pkg;			\

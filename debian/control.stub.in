@@ -8,11 +8,11 @@ Build-Depends-Indep: xmlto, docbook-utils, gs, transfig, bzip2, sharutils
 Build-Conflicts: findutils (= 4.4.1-1ubuntu1)
 Vcs-Git: http://kernel.ubuntu.com/git-repos/ubuntu/ubuntu-karmic.git
 
-Package: linux-source-PKGVER
+Package: SRCPKGNAME-source-PKGVER
 Architecture: all
 Section: devel
 Priority: optional
-Provides: linux-source, linux-source-2.6
+Provides: SRCPKGNAME-source, SRCPKGNAME-source-2.6
 Depends: binutils, bzip2, coreutils | fileutils (>= 4.0)
 Recommends: libc-dev, gcc, make
 Suggests: libncurses-dev | ncurses-dev, kernel-package, libqt3-dev
@@ -31,37 +31,37 @@ Description: Linux kernel source for version PKGVER with Ubuntu patches
  you do not want this package. Install the appropriate linux-headers
  package instead.
 
-Package: linux-doc
+Package: SRCPKGNAME-doc
 Architecture: all
 Section: doc
 Priority: optional
-Conflicts: linux-doc-2.6
-Replaces: linux-doc-2.6
+Conflicts: SRCPKGNAME-doc-2.6
+Replaces: SRCPKGNAME-doc-2.6
 Description: Linux kernel specific documentation for version PKGVER
  This package provides the various documents in the PKGVER kernel
  Documentation/ subdirectory.  These document kernel subsystems, APIs, device
  drivers, and so on.  See
- /usr/share/doc/linux-doc/00-INDEX for a list of what is
+ /usr/share/doc/SRCPKGNAME-doc/00-INDEX for a list of what is
  contained in each file.
 
-Package: linux-headers-PKGVER-ABINUM
+Package: SRCPKGNAME-headers-PKGVER-ABINUM
 Architecture: all
 Section: devel
 Priority: optional
 Depends: coreutils | fileutils (>= 4.0)
-Provides: linux-headers, linux-headers-2.6
+Provides: SRCPKGNAME-headers, SRCPKGNAME-headers-2.6
 Description: Header files related to Linux kernel version PKGVER
  This package provides kernel header files for version PKGVER, for sites
  that want the latest kernel headers. Please read
- /usr/share/doc/linux-headers-PKGVER-ABINUM/debian.README.gz for details
+ /usr/share/doc/SRCPKGNAME-headers-PKGVER-ABINUM/debian.README.gz for details
 
-Package: linux-libc-dev
+Package: SRCPKGNAME-libc-dev
 Architecture: i386 amd64 lpia ia64 powerpc sparc
-Conflicts: libc6-dev (<< 2.3.2.ds1-6), libc6.1-dev (<< 2.3.2.ds1-6), dvb-dev (<< 1.0.1-6), amd64-libs-dev (<= 1.1), linux-kernel-headers
-Replaces: libc6-dev (<< 2.3.2.ds1-6), libc6.1-dev (<< 2.3.2.ds1-6), dvb-dev (<< 1.0.1-6), linux-kernel-headers, libdrm-dev
-Provides: linux-kernel-headers
+Conflicts: libc6-dev (<< 2.3.2.ds1-6), libc6.1-dev (<< 2.3.2.ds1-6), dvb-dev (<< 1.0.1-6), amd64-libs-dev (<= 1.1), SRCPKGNAME-kernel-headers
+Replaces: libc6-dev (<< 2.3.2.ds1-6), libc6.1-dev (<< 2.3.2.ds1-6), dvb-dev (<< 1.0.1-6), SRCPKGNAME-kernel-headers, libdrm-dev
+Provides: SRCPKGNAME-kernel-headers
 Description: Linux Kernel Headers for development
  This package provides headers from the Linux kernel.  These headers
  are used by the installed headers for GNU glibc and other system
  libraries. They are NOT meant to be used to build third-party modules for
- your kernel. Use linux-headers-* packages for that.
+ your kernel. Use SRCPKGNAME-headers-* packages for that.

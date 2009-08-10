@@ -68,14 +68,18 @@ debian/control.stub: debian/d-i/kernel-versions.in	\
 		$(wildcard debian/control.d/* debian/sub-flavours/*.vars)
 	for i in debian/d-i/kernel-versions.in debian/control.stub.in; do	\
 	  new=`echo $$i | sed 's/\.in$$//'`;					\
-	  cat $$i | sed -e 's/PKGVER/$(release)/g' -e 's/ABINUM/$(abinum)/g' >	\
-		$$new;								\
+	  cat $$i | sed -e 's/PKGVER/$(release)/g'                              \
+	        -e 's/ABINUM/$(abinum)/g'                                       \
+		-e 's/SRCPKGNAME/$(src_pkg_name)/g'                             \
+	  > $$new;								\
 	done
 	flavours="$(wildcard debian/control.d/vars.* debian/sub-flavours/*.vars)";\
 	for i in $$flavours; do							\
 	  $(SHELL) debian/scripts/control-create $$i |				\
-		sed -e 's/PKGVER/$(release)/g' -e 's/ABINUM/$(abinum)/g' >>	\
-		debian/control.stub;						\
+		sed -e 's/PKGVER/$(release)/g'                                  \
+		-e 's/ABINUM/$(abinum)/g'                                       \
+		-e 's/SRCPKGNAME/$(src_pkg_name)/g'                             \
+		>> debian/control.stub;						\
 	done
 	cp debian/control.stub debian/control
 

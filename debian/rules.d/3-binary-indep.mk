@@ -43,7 +43,7 @@ install-headers:
 		xargs -n1 -i: find : -type f) | \
 		cpio -pd --preserve-modification-time $(indep_hdrdir)
 
-srcpkg = linux-source-$(release)
+srcpkg = $(src_pkg_name)-source-$(release)
 srcdir = $(CURDIR)/debian/$(srcpkg)/usr/src/$(srcpkg)
 install-source:
 	dh_testdir

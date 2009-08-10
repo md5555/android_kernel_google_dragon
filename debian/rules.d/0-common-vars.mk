@@ -1,8 +1,11 @@
-# Get some version info
-stub=linux
+#
+# The source [package name will be the first token from debian/changelog
+#
+src_pkg_name=$(shell sed -n '1s/^\(.*\) (.*).*$$/\1/p' debian/changelog)
 
-release := $(shell sed -n '1s/^.*(\(.*\)-.*).*$$/\1/p' debian/changelog)
-revisions := $(shell sed -n 's/^$(stub)\ .*($(release)-\(.*\)).*$$/\1/p' debian/changelog | tac)
+# Get some version info
+release := $(shell sed -n '1s/^$(src_pkg_name).*(\(.*\)-.*).*$$/\1/p' debian/changelog)
+revisions := $(shell sed -n 's/^$(src_pkg_name)\ .*($(release)-\(.*\)).*$$/\1/p' debian/changelog | tac)
 revision ?= $(word $(words $(revisions)),$(revisions))
 prev_revisions := $(filter-out $(revision),0.0 $(revisions))
 prev_revision := $(word $(words $(prev_revisions)),$(prev_revisions))
@@ -72,6 +75,14 @@ commonconfdir	:= $(CURDIR)/debian/config
 archconfdir	:= $(CURDIR)/debian/config/$(arch)
 builddir	:= $(CURDIR)/debian/build
 stampdir	:= $(CURDIR)/debian/stamps
+
+#
+# The binary package name always starts with linux-image-$KVER-$ABI.$UPLOAD_NUM. There
+# are places that you'll find linux-image hard coded, but I guess thats OK since the
+# assumption that the binary package always starts with linux-image will never change.
+#
+bin_base_pkg_name=linux-image
+bin_pkg_name=$(bin_base_pkg_name)-$(abi_release)
 
 # Support parallel=<n> in DEB_BUILD_OPTIONS (see #209008)
 COMMA=,
