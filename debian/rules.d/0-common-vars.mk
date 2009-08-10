@@ -96,6 +96,14 @@ do_doc_package_content=false
 endif
 doc_pkg_name=$(src_pkg_name)-doc
 
+#
+# Similarly with the linux-source package, you need not build it as a developer. Its
+# somewhat I/O intensive and utterly useless.
+#
+ifneq ($(wildcard /CurrentlyBuilding),)
+do_linux_source_content=true
+endif
+
 # Support parallel=<n> in DEB_BUILD_OPTIONS (see #209008)
 COMMA=,
 DEB_BUILD_OPTIONS_PARA = $(subst parallel=,,$(filter parallel=%,$(subst $(COMMA), ,$(DEB_BUILD_OPTIONS))))
