@@ -28,7 +28,7 @@ $(stampdir)/stamp-build-%: $(stampdir)/stamp-prepare-%
 
 # Install the finished build
 install-%: pkgdir = $(CURDIR)/debian/$(bin_pkg_name)-$*
-install-%: dbgpkgdir = $(CURDIR)/debian/linux-image-debug-$(abi_release)-$*
+install-%: dbgpkgdir = $(CURDIR)/debian/$(dbg_pkg_name)-$*
 install-%: basepkg = $(hdrs_pkg_name)
 install-%: hdrdir = $(CURDIR)/debian/$(basepkg)-$*/usr/src/$(basepkg)-$*
 install-%: target_flavour = $*
@@ -37,7 +37,7 @@ install-%: $(stampdir)/stamp-build-% checks-%
 	dh_testroot
 	dh_clean -k -p$(bin_pkg_name)-$*
 	dh_clean -k -p$(hdrs_pkg_name)-$*
-	dh_clean -k -plinux-image-debug-$(abi_release)-$*
+	dh_clean -k -p$(dbg_pkg_name)-$*
 
 	# The main image
 	# compress_file logic required because not all architectures
@@ -223,7 +223,7 @@ binary-arch-headers: install-arch-headers
 
 binary-%: pkgimg = $(bin_pkg_name)-$*
 binary-%: pkghdr = $(hdrs_pkg_name)-$*
-binary-%: dbgpkg = linux-image-debug-$(abi_release)-$*
+binary-%: dbgpkg = $(dbg_pkg_name)-$*
 binary-%: install-%
 	dh_testdir
 	dh_testroot
