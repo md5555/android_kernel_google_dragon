@@ -20,7 +20,7 @@ export SHELL=/bin/bash -e
 # Common variables for all architectures
 include debian/rules.d/0-common-vars.mk
 
-# Pill in some arch specific stuff
+# Pull in some arch specific stuff
 include debian/rules.d/$(arch).mk
 
 # Maintainer targets

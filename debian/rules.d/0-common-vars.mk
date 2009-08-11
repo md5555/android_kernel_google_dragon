@@ -1,5 +1,5 @@
 #
-# The source [package name will be the first token from debian/changelog
+# The source package name will be the first token from debian/changelog
 #
 src_pkg_name=$(shell sed -n '1s/^\(.*\) (.*).*$$/\1/p' debian/changelog)
 
@@ -13,7 +13,7 @@ prev_revision := $(word $(words $(prev_revisions)),$(prev_revisions))
 family=ubuntu
 
 # This is an internally used mechanism for the daily kernel builds. It
-# creates packages who's ABI is suffixed with a minimal representation of
+# creates packages whose ABI is suffixed with a minimal representation of
 # the current git HEAD sha. If .git/HEAD is not present, then it uses the
 # uuidgen program,
 #
@@ -49,13 +49,16 @@ ifneq ($(PRINTSHAS),)
 ubuntu_log_opts += --print-shas
 endif
 
+#
+# The debug packages are ginormous, so you probably want to skip
+# building them (as a developer).
+#
 ifeq ($(wildcard /CurrentlyBuilding),)
 skipdbg=true
 endif
 
 abinum		:= $(shell echo $(revision) | sed -e 's/\..*//')$(abi_suffix)
 prev_abinum	:= $(shell echo $(prev_revision) | sed -e 's/\..*//')$(abi_suffix)
-
 abi_release	:= $(release)-$(abinum)
 
 uploadnum	:= $(shell echo $(revision) | sed -e 's/.*\.//')
@@ -105,6 +108,14 @@ do_linux_source_content=true
 endif
 
 # Support parallel=<n> in DEB_BUILD_OPTIONS (see #209008)
+#
+# These 2 environment variables set the -j value of the kernel build. For example,
+# CONCURRENCY_LEVEL=16 fakeroot debian/rules binary-debs
+# or
+# DEB_BUILD_OPTIONS=parallel=16 fakeroot debian/rules binary-debs
+#
+# The default is to use the number of CPUs.
+#
 COMMA=,
 DEB_BUILD_OPTIONS_PARA = $(subst parallel=,,$(filter parallel=%,$(subst $(COMMA), ,$(DEB_BUILD_OPTIONS))))
 ifneq (,$(DEB_BUILD_OPTIONS_PARA))

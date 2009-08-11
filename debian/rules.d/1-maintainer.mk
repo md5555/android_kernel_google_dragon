@@ -1,4 +1,4 @@
-# The following targets are for the maintainer only! do no run if you don't
+# The following targets are for the maintainer only! do not run if you don't
 # know what they do.
 
 .PHONY: printenv updateconfigs printchanges insertchanges startnewrelease diffupstream help updateportsconfigs editportsconfigs
@@ -87,6 +87,8 @@ ifneq ($(SUBLEVEL),)
 endif
 	@echo "CONCURRENCY_LEVEL = $(CONCURRENCY_LEVEL)"
 	@echo "bin package name  = $(bin_pkg_name)"
+	@echo "hdr package name  = $(hdrs_pkg_name)"
+	@echo "doc package name  = $(doc_pkg_name)"
 
 printchanges:
 	@baseCommit=$$(git log --pretty=format:'%H %s' | \

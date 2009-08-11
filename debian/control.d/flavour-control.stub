@@ -9,6 +9,16 @@
 #
 # Items marked with =FOO= are optional
 #
+# This file describes the template for packages that are created for each flavour
+# in debian/control.d/vars.*
+#
+# This file gets edited in a couple of places. See the debian/control.stub rule in
+# debian/rules. PGGVER, ABINUM, and SRCPKGNAME are all converted in the
+# process of creating debian/control.
+#
+# The flavour specific strings (ARCH, DESC, etc) are converted using values from the various
+# flavour files in debian/control.d/vars.*
+#
 # XXX: Leave the blank line before the first package!!
 
 Package: linux-image-PKGVER-ABINUM-FLAVOUR
