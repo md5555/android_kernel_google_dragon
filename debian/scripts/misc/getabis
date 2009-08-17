@@ -81,6 +81,6 @@ getall i386 generic generic-pae 386
 # Ports arches and flavours.
 getall powerpc powerpc powerpc-smp powerpc64-smp
 getall ia64 ia64
-getall sparc sparc sparc64 sparc64-smp
+getall sparc sparc64 sparc64-smp
 
 rmdir $tmpdir
