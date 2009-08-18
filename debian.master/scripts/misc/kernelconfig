@@ -1,5 +1,7 @@
 #!/bin/bash
 
+. debian/debian.env
+
 # Script to merge all configs and run 'make silentoldconfig' on it to wade out bad juju.
 # Then split the configs into distro-commmon and flavour-specific parts
 
@@ -18,7 +20,7 @@ case "$mode" in
        exit 1 ;;
 esac
 kerneldir="`pwd`"
-confdir="$kerneldir/debian/config"
+confdir="$kerneldir/${DEBIAN}/config"
 ports=$2
 if [ "$ports" = "ports" ]; then
 	archs="sparc powerpc ia64"
@@ -27,7 +29,7 @@ else
 	archs="amd64 i386 lpia"
 	family='ubuntu'
 fi
-bindir="`pwd`/debian/scripts/misc"
+bindir="`pwd`/${DEBIAN}/scripts/misc"
 common_conf="$confdir/config.common.$family"
 tmpdir=`mktemp -d`
 

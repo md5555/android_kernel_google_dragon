@@ -1,11 +1,15 @@
 #!/usr/bin/make -f
 #
-# debian/rules for Ubuntu linux
+# $(DEBIAN)/rules for Ubuntu linux
 #
 # Use this however you want, just give credit where credit is due.
 #
 # Copyright (c) 2007 Ben Collins <bcollins@ubuntu.com>
 #
+
+ifeq ($(DEBIAN),)
+DEBIAN=debian.master
+endif
 
 # dpkg-buildpackage passes options that are incomptatible
 # with the kernel build.
@@ -18,13 +22,13 @@ export LC_ALL=C
 export SHELL=/bin/bash -e
 
 # Common variables for all architectures
-include debian/rules.d/0-common-vars.mk
+include $(DEBIAN)/rules.d/0-common-vars.mk
 
 # Pull in some arch specific stuff
-include debian/rules.d/$(arch).mk
+include $(DEBIAN)/rules.d/$(arch).mk
 
 # Maintainer targets
-include debian/rules.d/1-maintainer.mk
+include $(DEBIAN)/rules.d/1-maintainer.mk
 
 # Debian Build System targets
 binary: binary-indep binary-arch
@@ -37,90 +41,91 @@ clean: debian/control
 	dh_clean
 
 	# d-i stuff
-	rm -rf debian/d-i-$(arch)
+	rm -rf $(DEBIAN)/d-i-$(arch)
 
 	# normal build junk
-	rm -rf debian/abi/$(release)-$(revision)
+	rm -rf $(DEBIAN)/abi/$(release)-$(revision)
 	rm -rf $(builddir)
 	rm -f $(stampdir)/stamp-*
-	rm -rf debian/linux-*
+	rm -rf $(DEBIAN)/linux-*
 
 	# This gets rid of the d-i packages in control
-	cp -f debian/control.stub debian/control
+	cp -f $(DEBIAN)/control.stub $(DEBIAN)/control
+	cp $(DEBIAN)/changelog debian/changelog
 
 # Builds the image, arch headers and debug packages
-include debian/rules.d/2-binary-arch.mk
+include $(DEBIAN)/rules.d/2-binary-arch.mk
 
-# Rules for building the udebs (debian-installer)
-include debian/rules.d/5-udebs.mk
+# Rules for building the udebs ($(DEBIAN)-installer)
+include $(DEBIAN)/rules.d/5-udebs.mk
 
 # Builds the source, doc and linux-headers indep packages
-include debian/rules.d/3-binary-indep.mk
+include $(DEBIAN)/rules.d/3-binary-indep.mk
 
 # Various checks to be performed on builds
-include debian/rules.d/4-checks.mk
+include $(DEBIAN)/rules.d/4-checks.mk
 
 # Misc stuff
-debian/control.stub: debian/d-i/kernel-versions.in	\
-		debian/scripts/control-create		\
-		debian/control.stub.in			\
-		debian/changelog			\
-		$(wildcard debian/control.d/* debian/sub-flavours/*.vars)
-	for i in debian/d-i/kernel-versions.in debian/control.stub.in; do	\
+$(DEBIAN)/control.stub: $(DEBIAN)/d-i/kernel-versions.in	\
+		$(DEBIAN)/scripts/control-create		\
+		$(DEBIAN)/control.stub.in			\
+		$(DEBIAN)/changelog			\
+		$(wildcard $(DEBIAN)/control.d/* $(DEBIAN)/sub-flavours/*.vars)
+	for i in $(DEBIAN)/d-i/kernel-versions.in $(DEBIAN)/control.stub.in; do	\
 	  new=`echo $$i | sed 's/\.in$$//'`;					\
 	  cat $$i | sed -e 's/PKGVER/$(release)/g'                              \
 	        -e 's/ABINUM/$(abinum)/g'                                       \
 		-e 's/SRCPKGNAME/$(src_pkg_name)/g'                             \
 	  > $$new;								\
 	done
-	flavours="$(wildcard debian/control.d/vars.* debian/sub-flavours/*.vars)";\
+	flavours="$(wildcard $(DEBIAN)/control.d/vars.* $(DEBIAN)/sub-flavours/*.vars)";\
 	for i in $$flavours; do							\
-	  $(SHELL) debian/scripts/control-create $$i |				\
+	  $(SHELL) $(DEBIAN)/scripts/control-create $$i |				\
 		sed -e 's/PKGVER/$(release)/g'                                  \
 		-e 's/ABINUM/$(abinum)/g'                                       \
 		-e 's/SRCPKGNAME/$(src_pkg_name)/g'                             \
-		>> debian/control.stub;						\
+		>> $(DEBIAN)/control.stub;						\
 	done
-	cp debian/control.stub debian/control
+	cp $(DEBIAN)/control.stub $(DEBIAN)/control
 
 .PHONY: debian/control
-debian/control: debian/control.stub
+debian/control: $(DEBIAN)/control.stub
 	rm -rf $(builddir)/modules $(builddir)/firmware			\
 		$(builddir)/kernel-versions $(builddir)/package-list	\
-		$(builddir)/debian
+		$(builddir)/$(DEBIAN)
 	mkdir -p $(builddir)/modules/$(arch)/
-	cp debian/d-i/modules/* $(builddir)/modules/$(arch)/
+	cp $(DEBIAN)/d-i/modules/* $(builddir)/modules/$(arch)/
 	mkdir -p $(builddir)/firmware/$(arch)/
-	cp debian/d-i/firmware/* $(builddir)/firmware/$(arch)/
-	cp debian/d-i/package-list debian/d-i/kernel-versions $(builddir)/
+	cp $(DEBIAN)/d-i/firmware/* $(builddir)/firmware/$(arch)/
+	cp $(DEBIAN)/d-i/package-list $(DEBIAN)/d-i/kernel-versions $(builddir)/
 	touch $(builddir)/modules/$(arch)/kernel-image
-	# kernel-wedge needs to poke around in debian/
-	ln -nsf $(CURDIR)/debian $(builddir)/debian
+	# kernel-wedge needs to poke around in $(DEBIAN)/
+	ln -nsf $(CURDIR)/$(DEBIAN) $(builddir)/debian
 
 	# Some files may need to differ between architectures
-	if [ -d debian/d-i/modules-$(arch) ]; then			\
-	    cp debian/d-i/modules-$(arch)/* \
+	if [ -d $(DEBIAN)/d-i/modules-$(arch) ]; then			\
+	    cp $(DEBIAN)/d-i/modules-$(arch)/* \
 		$(builddir)/modules/$(arch)/;				\
 	fi
-	if [ -d debian/d-i/firmware-$(arch) ]; then			\
-	    cp debian/d-i/firmware-$(arch)/* \
+	if [ -d $(DEBIAN)/d-i/firmware-$(arch) ]; then			\
+	    cp $(DEBIAN)/d-i/firmware-$(arch)/* \
 		$(builddir)/firmware/$(arch)/;				\
 	fi
 
 	# Remove unwanted stuff for this architecture
-	if [ -r "debian/d-i/exclude-modules.$(arch)" ]; then		\
-	    (cat debian/d-i/exclude-modules.$(arch);			\
+	if [ -r "$(DEBIAN)/d-i/exclude-modules.$(arch)" ]; then		\
+	    (cat $(DEBIAN)/d-i/exclude-modules.$(arch);			\
 	     ls $(builddir)/modules/$(arch)/) | sort | uniq -d |	\
 		(cd $(builddir)/modules/$(arch)/; xargs rm -f);		\
 	fi
-	if [ -r "debian/d-i/exclude-firmware.$(arch)" ]; then		\
-	    (cat debian/d-i/exclude-firmware.$(arch);			\
+	if [ -r "$(DEBIAN)/d-i/exclude-firmware.$(arch)" ]; then		\
+	    (cat $(DEBIAN)/d-i/exclude-firmware.$(arch);			\
 	     ls $(builddir)/firmware/$(arch)/) | sort | uniq -d |	\
 		(cd $(builddir)/firmware/$(arch)/; xargs rm -f);	\
 	fi
 
 	# Per flavour module lists
-	flavour_modules=`ls debian/d-i/modules.$(arch)-* 2>/dev/null`	\
+	flavour_modules=`ls $(DEBIAN)/d-i/modules.$(arch)-* 2>/dev/null`	\
 		|| true;						\
 	if [ "$$flavour_modules" != "" ]; then				\
 	    for flav in $$flavour_modules; do				\
@@ -131,7 +136,7 @@ debian/control: debian/control.stub
 		touch $(builddir)/modules/$(arch)-$$name/kernel-image;	\
 	    done;							\
 	fi
-	flavour_firmware=`ls debian/d-i/firmware.$(arch)-* 2>/dev/null`	\
+	flavour_firmware=`ls $(DEBIAN)/d-i/firmware.$(arch)-* 2>/dev/null`	\
 		|| true;						\
 	if [ "$$flavour_firmware" != "" ]; then				\
 	    for flav in $$flavour_firmware; do				\
@@ -144,7 +149,7 @@ debian/control: debian/control.stub
 	fi
 
 	# Some files may need to differ between flavours
-	flavour_module_dirs=`ls -d debian/d-i/modules-$(arch)-* 2>/dev/null`\
+	flavour_module_dirs=`ls -d $(DEBIAN)/d-i/modules-$(arch)-* 2>/dev/null`\
 		|| true;						\
 	if [ "$$flavour_module_dirs" ]; then				\
 	    for flav in $$flavour_module_dirs; do			\
@@ -155,7 +160,7 @@ debian/control: debian/control.stub
 		cp $$flav/* $(builddir)/modules/$(arch)-$$name/;	\
 	    done;							\
 	fi
-	flavour_firmware_dirs=`ls -d debian/d-i/firmware-$(arch)-* 2>/dev/null`\
+	flavour_firmware_dirs=`ls -d $(DEBIAN)/d-i/firmware-$(arch)-* 2>/dev/null`\
 		|| true;						\
 	if [ "$$flavour_firmware_dirs" ]; then				\
 	    for flav in $$flavour_firmware_dirs; do			\
@@ -168,7 +173,7 @@ debian/control: debian/control.stub
 	fi
 
 	# Remove unwanted stuff for each flavour
-	flavour_exclude=`ls debian/d-i/exclude-modules.$(arch)-* 2>/dev/null`\
+	flavour_exclude=`ls $(DEBIAN)/d-i/exclude-modules.$(arch)-* 2>/dev/null`\
 		|| true;						\
 	if [ "$$flavour_exclude" ]; then				\
 	    for flav in $$flavour_exclude; do				\
@@ -183,7 +188,7 @@ debian/control: debian/control.stub
 		     xargs rm -f);					\
 	    done;							\
 	fi
-	flavour_exclude=`ls debian/d-i/exclude-firmware.$(arch)-* 2>/dev/null`\
+	flavour_exclude=`ls $(DEBIAN)/d-i/exclude-firmware.$(arch)-* 2>/dev/null`\
 		|| true;						\
 	if [ "$$flavour_exclude" ]; then				\
 	    for flav in $$flavour_exclude; do				\
@@ -210,4 +215,4 @@ debian/control: debian/control.stub
 			$(builddir)/firmware/$(build_arch);		\
 	fi
 
-	cd $(builddir) && kernel-wedge gen-control > debian/control
+	cd $(builddir) && kernel-wedge gen-control > $(CURDIR)/debian/control

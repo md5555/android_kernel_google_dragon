@@ -7,7 +7,7 @@ $(abidir)/%: $(stampdir)/stamp-build-%
 		$(builddir)/build-$*/Module.symvers | sort > $@
 
 abi-check-%: $(abidir)/%
-	@perl -f debian/scripts/abi-check "$*" "$(prev_abinum)" "$(abinum)" \
+	@perl -f $(DEBIAN)/scripts/abi-check "$*" "$(prev_abinum)" "$(abinum)" \
 		"$(prev_abidir)" "$(abidir)" "$(skipabi)"
 
 # Check the module list against the last release (always)
@@ -19,7 +19,7 @@ $(abidir)/%.modules: $(stampdir)/stamp-build-%
 		sed -e 's/.*\/\([^\/]*\)\.ko/\1/' | sort > $@
 
 module-check-%: $(abidir)/%.modules
-	@perl -f debian/scripts/module-check "$*" \
+	@perl -f $(DEBIAN)/scripts/module-check "$*" \
 		"$(prev_abidir)" "$(abidir)" $(skipmodule)
 
 checks-%: abi-check-% module-check-%

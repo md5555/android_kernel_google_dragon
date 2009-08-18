@@ -1,12 +1,14 @@
 #!/bin/bash -e
 
+. debian/debian.env
+
 hdrdir="$1"
 symdir="$2"
 flavour="$3"
 
 echo "Symlinking and copying headers for $flavour..."
 
-excludes='( -path ./debian -prune -o -path ./.git ) -prune -o'
+excludes='( -path ./${DEBIAN} -prune -o -path ./.git ) -prune -o'
 
 (
 find . $excludes  -type f \

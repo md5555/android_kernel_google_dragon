@@ -1,15 +1,17 @@
 #!/bin/bash
 
+. debian/debian.env
+
 vars=$1
 
 . $vars
 
 if [ "$is_sub" = "" ]; then
 	flavour=$(basename $vars | sed 's/.*\.//')
-	stub=debian/control.d/flavour-control.stub
+	stub=${DEBIAN}/control.d/flavour-control.stub
 else
 	flavour=$(basename $vars .vars)
-	stub=debian/sub-flavours/control.stub
+	stub=${DEBIAN}/sub-flavours/control.stub
 fi
 
 cat $stub | grep -v '^#' | sed			\
