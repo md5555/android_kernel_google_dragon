@@ -1,7 +1,8 @@
 # Do udebs if not disabled in the arch-specific makefile
 binary-udebs: binary-debs debian/control
 ifeq ($(disable_d_i),)
-	$(DEBIAN)/rules do-binary-udebs;
+	@$(MAKE) --no-print-directory -f $(DEBIAN)/rules DEBIAN=$(DEBIAN) \
+		do-binary-udebs
 endif
 
 do-binary-udebs:
