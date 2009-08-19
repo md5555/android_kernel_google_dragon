@@ -280,8 +280,8 @@ ifneq ($(skipdbg),true)
 	#
 	mv ../$(dbgpkg)_$(release)-$(revision)_$(arch).deb \
 		../$(dbgpkg)_$(release)-$(revision)_$(arch).ddeb
-	grep -v '^$(dbgpkg)_.*$$' $(DEBIAN)/files > $(DEBIAN)/files.new
-	mv $(DEBIAN)/files.new $(DEBIAN)/files
+	grep -v '^$(dbgpkg)_.*$$' debian/files > debian/files.new
+	mv debian/files.new debian/files
 	# Now, the package wont get into the archive, but it will get put
 	# into the debug system.
 endif
