@@ -13,6 +13,9 @@ endif
 
 DENV=debian/debian.env
 
+printdebian:
+	@echo "$(DEBIAN)"
+
 # Debian Build System targets
 %:
 	@if [ ! -f $(DENV) ] ; then echo DEBIAN=$(DEBIAN) > $(DENV); chmod +x $(DENV); fi
