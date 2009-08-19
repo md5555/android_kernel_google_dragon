@@ -1,7 +1,7 @@
 build-indep:
 
 docpkg = $(doc_pkg_name)
-docdir = $(CURDIR)/$(DEBIAN)/$(docpkg)/usr/share/doc/$(docpkg)
+docdir = $(CURDIR)/debian/$(docpkg)/usr/share/doc/$(docpkg)
 install-doc:
 	dh_testdir
 	dh_testroot
@@ -23,14 +23,15 @@ endif
 	rm -rf $(docdir)/DocBook
 
 indep_hdrpkg = $(hdrs_pkg_name)
-indep_hdrdir = $(CURDIR)/$(DEBIAN)/$(indep_hdrpkg)/usr/src/$(indep_hdrpkg)
+indep_hdrdir = $(CURDIR)/debian/$(indep_hdrpkg)/usr/src/$(indep_hdrpkg)
 install-headers:
 	dh_testdir
 	dh_testroot
 	dh_clean -k -p$(indep_hdrpkg)
 
 	install -d $(indep_hdrdir)
-	find . -path './$(DEBIAN)/*' -prune -o -path './include/*' -prune \
+	find . -path './debian/*' -prune -o -path './$(DEBIAN)/*' -prune \
+	  -o -path './include/*' -prune \
 	  -o -path './scripts/*' -prune -o -type f \
 	  \( -name 'Makefile*' -o -name 'Kconfig*' -o -name 'Kbuild*' -o \
 	     -name '*.sh' -o -name '*.pl' -o -name '*.lds' \) \
@@ -44,7 +45,7 @@ install-headers:
 		cpio -pd --preserve-modification-time $(indep_hdrdir)
 
 srcpkg = $(src_pkg_name)-source-$(release)
-srcdir = $(CURDIR)/$(DEBIAN)/$(srcpkg)/usr/src/$(srcpkg)
+srcdir = $(CURDIR)/debian/$(srcpkg)/usr/src/$(srcpkg)
 install-source:
 	dh_testdir
 	dh_testroot
@@ -52,7 +53,7 @@ install-source:
 
 	install -d $(srcdir)
 ifeq ($(do_linux_source_content),true)
-	find . -path './$(DEBIAN)/*' -prune -o \
+	find . -path './debian/*' -prune -o -path './$(DEBIAN)/*' -prune -o \
 		-path './.*' -prune -o -print | \
 		cpio -pd --preserve-modification-time $(srcdir)
 	(cd $(srcdir)/..; tar cf - $(srcpkg)) | bzip2 -9c > \
