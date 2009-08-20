@@ -8,7 +8,7 @@ flavour="$3"
 
 echo "Symlinking and copying headers for $flavour..."
 
-excludes='( -path ./${DEBIAN} -prune -o -path ./.git ) -prune -o'
+excludes="( -path ./debian -prune -o -path ./${DEBIAN} -prune -o -path ./.git ) -prune -o"
 
 (
 find . $excludes  -type f \
