@@ -372,7 +372,7 @@ sub really_reverse_link {
   else {
     symlink($Old . "$link_name", $src_dir . "$link_name") ||
       die("Failed to symbolic-link " . $dest_dir . "$link_name to " . $src_dir
-          . "$link_name .\n");
+          . "$link_name : $!\n");
     warn "ln -s " . $Old . "$link_name " . $src_dir . "$link_name" if $DEBUG;
   }
 }
@@ -519,7 +519,7 @@ sub really_move_link {
     if (! symlink("${Old}${image_name}", "$kimage")) {
       rename("$kimage.$$", "$kimage");
       die("Failed to symbolic-link ${Old}${image_name} to " .
-          "${image_dest}${kimage}.\n");
+          "${image_dest}${kimage}: $!\n");
     }
   }
 
@@ -611,7 +611,7 @@ sub handle_missing_link {
     $Old ="" if $rel_path =~ m/^\s*$/o;
 
     symlink($Old . "$Name", "$Link_Dest") ||
-      die("Failed to symbolic-link ${Old}$Name to $Link_Dest.\n");
+      die("Failed to symbolic-link ${Old}$Name to $Link_Dest: $!\n");
     warn "ln -s ${Old}$Name $Link_Dest" if $DEBUG;
 
   }
