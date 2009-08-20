@@ -100,7 +100,7 @@ debian/control: $(DEBIAN)/control.stub
 	cp $(DEBIAN)/d-i/package-list $(DEBIAN)/d-i/kernel-versions $(builddir)/
 	touch $(builddir)/modules/$(arch)/kernel-image
 	# kernel-wedge needs to poke around in $(DEBIAN)/
-	ln -nsf $(CURDIR)/$(DEBIAN) $(builddir)/debian
+	ln -nsf $(CURDIR)/debian $(builddir)/debian
 
 	# Some files may need to differ between architectures
 	if [ -d $(DEBIAN)/d-i/modules-$(arch) ]; then			\
@@ -215,4 +215,5 @@ debian/control: $(DEBIAN)/control.stub
 			$(builddir)/firmware/$(build_arch);		\
 	fi
 
+	cp $(DEBIAN)/control.stub debian/control.stub
 	cd $(builddir) && kernel-wedge gen-control > $(CURDIR)/debian/control
