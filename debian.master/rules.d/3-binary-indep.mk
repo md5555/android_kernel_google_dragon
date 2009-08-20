@@ -21,6 +21,7 @@ endif
 	# Copy the rest
 	cp -a Documentation/* $(docdir)
 	rm -rf $(docdir)/DocBook
+	find $(docdir) -name .gitignore | xargs rm -f
 
 indep_hdrpkg = $(hdrs_pkg_name)
 indep_hdrdir = $(CURDIR)/debian/$(indep_hdrpkg)/usr/src/$(indep_hdrpkg)
