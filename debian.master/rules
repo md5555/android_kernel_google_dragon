@@ -53,6 +53,9 @@ clean: debian/control
 	cp -f $(DEBIAN)/control.stub $(DEBIAN)/control
 	cp $(DEBIAN)/changelog debian/changelog
 
+	# Install the copyright information.
+	cp $(DEBIAN)/copyright debian/copyright
+
 # Builds the image, arch headers and debug packages
 include $(DEBIAN)/rules.d/2-binary-arch.mk
 
