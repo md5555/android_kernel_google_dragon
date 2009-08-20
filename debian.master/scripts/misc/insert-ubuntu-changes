@@ -1,16 +1,16 @@
 #!/usr/bin/perl
 
-if ($#ARGV != 1) {
-	die "Usage: $0 <stop at> <start at>\n";
+if ($#ARGV != 2) {
+	die "Usage: $0 <changelog> <stop at> <start at>\n";
 }
-my ($end, $start) = @ARGV;
+my ($changelog, $end, $start) = @ARGV;
 
 $end =~ s/.*\.//;
 $start =~ s/.*\.//;
 
 my @changes = ();
 my $output = 0;
-open(CHG, "<debian/changelog.ubuntu") ||
+open(CHG, "<debian.master/changelog") ||
 	open(CHG, "<debian/changelog") ||
 	die "$0: debian/changelog: open failed - $!\n";
 while (<CHG>) {
@@ -36,8 +36,8 @@ while (<CHG>) {
 }
 close(CHG);
 
-open(CHANGELOG, "< debian/changelog") or die "Cannot open changelog";
-open(NEW, "> debian/changelog.new") or die "Cannot open new changelog";
+open(CHANGELOG, "< $changelog") or die "Cannot open changelog";
+open(NEW, "> $changelog.new") or die "Cannot open new changelog";
 
 $printed = 3;
 while (<CHANGELOG>) {
@@ -55,4 +55,4 @@ while (<CHANGELOG>) {
 close(NEW);
 close(CHANGELOG);
 
-rename("debian/changelog.new", "debian/changelog");
+rename("$changelog.new", "$changelog");
