@@ -33,6 +33,7 @@ act_pedit
 act_police
 act_simple
 act_skbedit
+ad1848
 ad7414
 ad7418
 ad7877
@@ -55,16 +56,18 @@ adutux
 adv7170
 adv7175
 adv7343
+advansys
+aedsp16
 aes_generic
 af_802154
 af9013
 affs
 af_key
-af_packet
 af-rxrpc
 agpgart
 ah4
 ah6
+aha152x_cs
 ahci
 aic79xx
 aic7xxx
@@ -76,11 +79,17 @@ airo_cs
 airport
 alauda
 ali-ircc
+ambassador
 amd8111e
+ams
 analog
 ansi_cprng
+ans-lcd
 anubis
 aoe
+apm_emu
+apm-emulation
+apm_power
 appledisplay
 appletalk
 appletouch
@@ -138,6 +147,7 @@ b2c2-flexcop-usb
 b43
 b43legacy
 b44
+baycom_epp
 baycom_par
 baycom_ser_fdx
 baycom_ser_hdx
@@ -155,17 +165,20 @@ block2mtd
 blowfish
 bluecard_cs
 bluetooth
+bmac
 bnep
 bnx2
 bnx2i
 bonding
 bpa10x
 bpck
+bpck6
 bpqether
 bq24022
 bq27x00_battery
 br2684
 bridge
+briq_panel
 broadcom
 broadsheetfb
 bsd_comp
@@ -180,6 +193,7 @@ btsdio
 bttv
 btuart_cs
 btusb
+BusLogic
 bw-qcam
 c67x00
 cachefiles
@@ -245,12 +259,8 @@ cpia
 cpia2
 cpia_pp
 cpia_usb
-cpufreq_conservative
-cpufreq_ondemand
-cpufreq_powersave
-cpufreq_spudemand
+cpqarray
 cpufreq_stats
-cpufreq_userspace
 c-qcam
 cramfs
 crc16
@@ -354,6 +364,8 @@ doc2001
 doc2001plus
 docecc
 docprobe
+donauboe
+dpt_i2o
 drm
 ds1621
 ds1682
@@ -466,8 +478,6 @@ evbug
 evdev
 exofs
 exportfs
-ext2
-ext3
 ext4
 f71805f
 f71882fg
@@ -475,6 +485,7 @@ f75375s
 farsync
 fat
 faulty
+fb_sys_fops
 fcoe
 fcrypt
 fdomain
@@ -482,6 +493,7 @@ fdomain_cs
 fealnx
 ff-memless
 firedtv
+firestream
 fit2
 fit3
 floppy
@@ -563,7 +575,6 @@ gunze
 gxt4500
 g_zero
 hamachi
-hangcheck-timer
 hci_uart
 hci_vhci
 hdlc
@@ -608,6 +619,7 @@ hid-tmff
 hid-topseed
 hid-wacom
 hid-zpff
+horizon
 hostap
 hostap_cs
 hostap_pci
@@ -635,9 +647,12 @@ i2c-ali15x3
 i2c-amd756
 i2c-amd8111
 i2c-dev
+i2c-gpio
+i2c-hydra
 i2c-i801
 i2c-isch
 i2c-matroxfb
+i2c-mpc
 i2c-nforce2
 i2c-ocores
 i2c-parport
@@ -656,6 +671,7 @@ i2c-viapro
 i2c-voodoo3
 i2o_block
 i2o_bus
+i2o_config
 i2o_core
 i2o_proc
 i2o_scsi
@@ -801,7 +817,6 @@ ixgb
 ixgbe
 ixj
 ixj_pcmcia
-jbd
 jbd2
 jedec_probe
 jffs2
@@ -811,6 +826,7 @@ joydev
 joydump
 jsm
 kafs
+kahlua
 kaweth
 kbic
 kbtab
@@ -834,6 +850,7 @@ kyrofb
 l2cap
 l64781
 lanai
+lanstreamer
 lapb
 lapbether
 lcd
@@ -845,7 +862,6 @@ leds-dac124s085
 leds-lp3944
 leds-wm8350
 ledtrig-backlight
-ledtrig-default-on
 ledtrig-gpio
 legousbtower
 lgdt3305
@@ -906,6 +922,7 @@ lm90
 lm92
 lm93
 lm95241
+lmc
 lnbp21
 lockd
 loop
@@ -918,11 +935,16 @@ ltc4215
 ltc4245
 ltv350qv
 lxt
+lzo
+lzo_compress
+lzo_decompress
 m25p80
 m52790
 ma600-sir
+mac53c94
 mac80211
 mac80211_hwsim
+mace
 macvlan
 magellan
 map_absent
@@ -943,7 +965,6 @@ max6875
 max7301
 max732x
 mb862xxfb
-mbcache
 mc44s803
 mcp2120-sir
 mcp23s08
@@ -960,6 +981,7 @@ megaraid
 megaraid_mbox
 megaraid_mm
 megaraid_sas
+mesh
 metronomefb
 mfd-core
 mga
@@ -974,7 +996,6 @@ mlx4_en
 mlx4_ib
 mmc_block
 mmc_core
-mmc_spi
 mos7720
 mos7840
 moto_modem
@@ -988,6 +1009,7 @@ mptlan
 mptsas
 mptscsih
 mptspi
+mpu401
 msdos
 msp3400
 mt2060
@@ -1019,6 +1041,7 @@ mtd_subpagetest
 mtd_torturetest
 mtouch
 multipath
+mv643xx_eth
 mwl8k
 mxl5005s
 mxl5007t
@@ -1081,6 +1104,7 @@ nfsd
 nftl
 nf_tproxy_core
 n_hdlc
+nicstar
 nilfs2
 nl802154
 nls_ascii
@@ -1129,6 +1153,8 @@ n_r3964
 ns558
 ns83820
 nsc-ircc
+nsp32
+nsp_cs
 ntfs
 nvidiafb
 nxt200x
@@ -1140,7 +1166,6 @@ ocfs2_nodemanager
 ocfs2_stackglue
 ocfs2_stack_o2cb
 ocfs2_stack_user
-of_mmc_spi
 of_serial
 ohci1394
 old_belkin-sir
@@ -1151,6 +1176,7 @@ on20
 on26
 onenand
 onenand_sim
+opl3
 oprofile
 opticon
 option
@@ -1179,6 +1205,7 @@ parport_ax88796
 parport_cs
 parport_pc
 parport_serial
+pas2
 pata_amd
 pata_cs5520
 pata_efar
@@ -1253,6 +1280,7 @@ pm2fb
 pm3fb
 pmac_zilog
 pmc551
+pmu_battery
 pn_pep
 powermate
 ppa
@@ -1268,13 +1296,8 @@ pppox
 ppp_synctty
 pps_core
 prism54
-ps3disk
-ps3flash
-ps3-lpm
-ps3rom
-ps3stor_lib
-ps3vram
 psmouse
+pss
 pt
 pvrusb2
 pwc
@@ -1376,7 +1399,6 @@ rtc-max6902
 rtc-pcf50633
 rtc-pcf8563
 rtc-pcf8583
-rtc-ps3
 rtc-r9701
 rtc-rs5c348
 rtc-rs5c372
@@ -1429,6 +1451,8 @@ sata_via
 sata_vsc
 savage
 savagefb
+sb
+sb_lib
 sbp2
 sc92031
 sch_atm
@@ -1617,7 +1641,6 @@ snd-pcxhr
 snd-pdaudiocf
 snd-portman2x4
 snd-powermac
-snd_ps3
 snd-pt2258
 snd-rawmidi
 snd-riptide
@@ -1686,6 +1709,7 @@ soc_camera
 soc_camera_platform
 softdog
 solos-pci
+sound
 soundcore
 sound_firmware
 sp8870
@@ -1701,10 +1725,10 @@ spi_butterfly
 spidev
 spi_gpio
 spi_lm70llp
-spufs
 squashfs
 sr_mod
 ssb
+sscape
 ssfdc
 st
 stallion
@@ -1716,6 +1740,7 @@ stinger
 stir4200
 stowaway
 stp
+stradis
 strip
 stv0288
 stv0297
@@ -1732,6 +1757,7 @@ sunkbd
 sunrpc
 svcrdma
 svgalib
+swim3
 sx
 sx8
 sym53c500_cs
@@ -1742,6 +1768,9 @@ synclink
 synclink_cs
 synclink_gt
 synclinkmp
+syscopyarea
+sysfillrect
+sysimgblt
 sysv
 tcm825x
 tcp_bic
@@ -1782,6 +1811,8 @@ tehuti
 tekram-sir
 tg3
 tgr192
+therm_adt746x
+therm_windtunnel
 thmc50
 ths7303
 tifm_7xx1
@@ -1806,8 +1837,10 @@ touchwin
 tpm
 tpm_atmel
 tpm_nsc
+tps65010
 trancevibrator
 tridentfb
+trix
 ts_bm
 tsc2007
 ts_fsm
@@ -1839,6 +1872,9 @@ twofish
 twofish_common
 typhoon
 u132-hcd
+uart401
+uart6850
+uartlite
 ubi
 ubifs
 ucb1400_core
@@ -1872,6 +1908,7 @@ ums-usbat
 uninorth-agp
 upd64031a
 upd64083
+uPD98402
 usb8xxx
 usbatm
 usb_debug
@@ -1895,7 +1932,6 @@ uvesafb
 uwb
 v4l1-compat
 v4l2-common
-v4l2-compat-ioctl32
 v4l2-int-device
 vcan
 ves1820
@@ -1917,6 +1953,7 @@ videobuf-core
 videobuf-dma-sg
 videobuf-dvb
 videobuf-vmalloc
+videocodec
 videodev
 virtio
 virtio_balloon
@@ -1931,6 +1968,7 @@ visor
 vitesse
 vivi
 vlsi_ir
+v_midi
 vp27smpx
 vpx3220
 vstusb
@@ -2070,6 +2108,7 @@ yam
 yealink
 yellowfin
 yenta_socket
+zatm
 zc0301
 zd1201
 zd1211rw
@@ -2078,4 +2117,8 @@ zl10036
 zl10353
 zlib
 zlib_deflate
+zr36016
+zr36050
+zr36060
+zr36067
 zr364xx

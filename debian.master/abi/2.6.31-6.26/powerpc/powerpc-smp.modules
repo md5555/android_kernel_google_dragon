@@ -63,7 +63,6 @@ af_802154
 af9013
 affs
 af_key
-af_packet
 af-rxrpc
 agpgart
 ah4
@@ -261,11 +260,7 @@ cpia2
 cpia_pp
 cpia_usb
 cpqarray
-cpufreq_conservative
-cpufreq_ondemand
-cpufreq_powersave
 cpufreq_stats
-cpufreq_userspace
 c-qcam
 cramfs
 crc16
@@ -483,8 +478,6 @@ evbug
 evdev
 exofs
 exportfs
-ext2
-ext3
 ext4
 f71805f
 f71882fg
@@ -540,6 +533,7 @@ gl520sm
 gl620a
 gluebi
 g_midi
+goku_udc
 gpio_keys
 gpio_mouse
 gpio_vbus
@@ -634,7 +628,6 @@ hostap_plx
 hp100
 hp4x
 hpfs
-hpilo
 hptiop
 hso
 htc-pasic3
@@ -683,7 +676,6 @@ i2o_core
 i2o_proc
 i2o_scsi
 i5k_amb
-i8042
 i82092
 ib_addr
 ib_cm
@@ -824,7 +816,6 @@ ixgb
 ixgbe
 ixj
 ixj_pcmcia
-jbd
 jbd2
 jedec_probe
 jffs2
@@ -943,7 +934,6 @@ ltc4215
 ltc4245
 ltv350qv
 lxt
-lzo
 lzo_compress
 lzo_decompress
 m25p80
@@ -973,7 +963,6 @@ max6875
 max7301
 max732x
 mb862xxfb
-mbcache
 mc44s803
 mcp2120-sir
 mcp23s08
@@ -1067,7 +1056,6 @@ ncpfs
 ne2k-pci
 neofb
 net1080
-net2280
 netconsole
 netrom
 netwave_cs
@@ -1358,7 +1346,6 @@ rfd_ftl
 rfkill
 ricoh_mmc
 rio500
-riscom8
 rivafb
 rmd128
 rmd160
@@ -1846,7 +1833,6 @@ touchwin
 tpm
 tpm_atmel
 tpm_nsc
-tps65010
 trancevibrator
 tridentfb
 trix
@@ -1885,7 +1871,6 @@ uart401
 uart6850
 uartlite
 ubi
-ubifs
 ucb1400_core
 ucb1400_ts
 udf

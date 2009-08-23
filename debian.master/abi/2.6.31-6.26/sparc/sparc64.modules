@@ -322,8 +322,6 @@ ethoc
 evdev
 exofs
 exportfs
-ext2
-ext3
 ext4
 f71805f
 f71882fg
@@ -594,7 +592,6 @@ ixgb
 ixgbe
 ixj
 ixj_pcmcia
-jbd
 jbd2
 jedec_probe
 jffs2
@@ -699,7 +696,6 @@ max6875
 max7301
 max732x
 mb862xxfb
-mbcache
 mc44s803
 mcp23s08
 mcs7830
