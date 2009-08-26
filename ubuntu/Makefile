@@ -12,7 +12,7 @@ obj-$(CONFIG_NDISWRAPPER)	+= ndiswrapper/
 obj-$(CONFIG_BLK_DEV_COMPCACHE)	+= compcache/
 obj-$(CONFIG_LIRC_DEV)          += lirc/
 obj-$(CONFIG_TLSUP)		+= tlsup/
-#obj-$(CONFIG_LENOVO_SL_LAPTOP)	+= lenovo-sl-laptop/
+obj-$(CONFIG_LENOVO_SL_LAPTOP)	+= lenovo-sl-laptop/
 
 obj-m				+= misc/ rfkill/
 
