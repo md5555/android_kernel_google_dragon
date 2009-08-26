@@ -110,6 +110,8 @@ static inline u16 dfa_map_xindex(u16 mask)
 		index |= AA_X_UNSAFE;
 	if (mask & 0x200)
 		index |= AA_X_INHERIT;
+	if (mask & 0x80)
+		index |= AA_X_UNCONFINED;
 
 	if (old_index == 1) {
 		index |= AA_X_UNCONFINED;
