@@ -647,6 +647,7 @@ ssize_t aa_interface_add_profiles(void *data, size_t size)
 	if (__aa_find_profile(&common->profiles, profile->base.name)) {
 		/* A profile with this name exists already. */
 		sa.base.info = "profile already exists";
+		sa.base.error = -EEXIST;
 		goto fail2;
 	}
 	profile->sid = aa_alloc_sid(AA_ALLOC_SYS_SID);
@@ -662,7 +663,6 @@ ssize_t aa_interface_add_profiles(void *data, size_t size)
 
 fail2:
 	write_unlock(&ns->base.lock);
-	sa.base.error = -EEXIST;
 
 fail:
 	error = aa_audit_iface(&sa);
@@ -848,5 +848,5 @@ fail_ns_lock:
 fail_ns_list_lock:
 	write_unlock(&ns_list_lock);
 	aa_audit_iface(&sa);
-	return 0; //-ENOENT;
+	return -ENOENT;
 }
