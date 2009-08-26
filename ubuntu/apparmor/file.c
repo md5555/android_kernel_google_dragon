@@ -192,7 +192,7 @@ struct file_perms aa_compute_perms(struct aa_dfa *dfa, unsigned int state,
 		perms.allowed |= AA_LINK_SUBSET;
 
 	/* change_profile wasn't determined by ownership in old mapping */
-	if (ACCEPT_TABLE2(dfa)[state] & 0x80000000)
+	if (ACCEPT_TABLE(dfa)[state] & 0x80000000)
 		perms.allowed |= AA_MAY_CHANGE_PROFILE;
 
 	return perms;

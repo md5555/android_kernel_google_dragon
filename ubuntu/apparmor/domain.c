@@ -630,6 +630,7 @@ int aa_change_profile(const char *ns_name, const char *fqname, int onexec,
 		return -EINVAL;
 
 	memset(&sa, 0, sizeof(sa));
+	sa.request = AA_MAY_CHANGE_PROFILE;
 	sa.base.gfp_mask = GFP_KERNEL;
 	if (onexec)
 		sa.base.operation = "change_onexec";
@@ -638,11 +639,9 @@ int aa_change_profile(const char *ns_name, const char *fqname, int onexec,
 
 	cred = aa_current_policy(&profile);
 	cxt = cred->security;
-	ns = aa_get_namespace(cxt->sys.profile->ns);
 
 	if (ns_name) {
 		sa.name2 = ns_name;
-		aa_put_namespace(ns);
 		ns = aa_find_namespace(ns_name);
 		if (!ns) {
 			/* we don't create new namespace in complain mode */
@@ -650,8 +649,10 @@ int aa_change_profile(const char *ns_name, const char *fqname, int onexec,
 			sa.base.error = -ENOENT;
 			goto audit;
 		}
-	} else
+	} else {
+		ns = aa_get_namespace(cxt->sys.profile->ns);
 		sa.name2 = ns->base.name;
+	}
 
 	/* if the name was not specified, use the name of the current profile */
 	if (!fqname) {
@@ -663,7 +664,6 @@ int aa_change_profile(const char *ns_name, const char *fqname, int onexec,
 	sa.name = fqname;
 
 	sa.perms = change_profile_perms(profile, ns, fqname, NULL);
-
 	if (!(sa.perms.allowed & AA_MAY_CHANGE_PROFILE)) {
 		sa.base.error = -EACCES;
 		goto audit;
