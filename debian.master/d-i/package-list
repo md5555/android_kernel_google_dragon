@@ -65,6 +65,12 @@ Depends: kernel-image, nic-shared-modules, usb-modules
 Priority: standard
 Description: USB network interface support
 
+Package: nic-shared-modules
+Depends: kernel-image, crypto-modules
+Priority: standard
+Description: nic shared modules
+  This package contains modules which support nic modules
+
 Package: parport-modules
 Depends: kernel-image
 Priority: standard
