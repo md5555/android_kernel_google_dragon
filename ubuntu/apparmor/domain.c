@@ -157,7 +157,12 @@ static struct aa_profile *x_to_profile(struct aa_namespace *ns,
 		/* fail exec unless ix || ux fallback - handled by caller */
 		return ERR_PTR(-EACCES);
 	case AA_X_NAME:
-		break;
+		if (xindex & AA_X_CHILD)
+			new_profile = aa_sys_find_attach(&profile->base, name);
+		else
+			new_profile = aa_sys_find_attach(&ns->base, name);
+
+		goto out;
 	case AA_X_TABLE:
 		if (index > profile->file.trans.size) {
 			AA_ERROR("Invalid named transition\n");
@@ -203,6 +208,7 @@ static struct aa_profile *x_to_profile(struct aa_namespace *ns,
 		aa_put_namespace(new_ns);
 	}
 
+out:
 	if (!new_profile)
 		return ERR_PTR(-ENOENT);
 
@@ -251,7 +257,7 @@ int apparmor_bprm_set_creds(struct linux_binprm *bprm)
 
 	if (!profile) {
 		/* unconfined task - attach profile if one matches */
-		new_profile = aa_sys_find_attach(ns, sa.name);
+		new_profile = aa_sys_find_attach(&ns->base, sa.name);
 		if (!new_profile)
 			goto cleanup;
 		goto apply;

@@ -670,8 +670,9 @@ static struct aa_profile *__aa_attach_match(const char *name,
 		if (profile->xmatch && profile->xmatch_len > len) {
 			unsigned int state = aa_dfa_match(profile->xmatch,
 							  DFA_START, name);
-			/* any accepting state means a valid match */
-			if (state > DFA_START) {
+			u16 perm = dfa_user_allow(profile->xmatch, state);
+			/* any accepting state means a valid match. */
+			if (perm & MAY_EXEC) {
 				candidate = profile;
 				len = profile->xmatch_len;
 			}
@@ -685,16 +686,17 @@ static struct aa_profile *__aa_attach_match(const char *name,
 
 /**
  * aa_sys_find_attach - do attachment search for sys unconfined processes
- * @ns: the namespace to search
+ * @base: the base to search
  * name: the executable name to match against
  */
-struct aa_profile *aa_sys_find_attach(struct aa_namespace *ns, const char *name)
+struct aa_profile *aa_sys_find_attach(struct aa_policy_common *base,
+				      const char *name)
 {
 	struct aa_profile *profile;
 
-	read_lock(&ns->base.lock);
-	profile = aa_get_profile(__aa_attach_match(name, &ns->base.profiles));
-	read_unlock(&ns->base.lock);
+	read_lock(&base->lock);
+	profile = aa_get_profile(__aa_attach_match(name, &base->profiles));
+	read_unlock(&base->lock);
 
 	return profile;
 }
