@@ -94,20 +94,30 @@ static unsigned int dbg_level = LENSL_INFO;
 static int debug_ec;
 static int control_backlight;
 static int bluetooth_auto_enable = 1;
+static int wwan_auto_enable = 1;
+static int uwb_auto_enable = 1;
 module_param(debug_ec, bool, S_IRUGO);
 MODULE_PARM_DESC(debug_ec,
 	"Present EC debugging interface in procfs. WARNING: writing to the "
 	"EC can hang your system and possibly damage your hardware.");
 module_param(control_backlight, bool, S_IRUGO);
 MODULE_PARM_DESC(control_backlight,
-	"Control backlight brightness; can conflict with ACPI video driver");
+	"Control backlight brightness; can conflict with ACPI video driver.");
 module_param_named(debug, dbg_level, uint, S_IRUGO);
 MODULE_PARM_DESC(debug,
-	"Set debug verbosity level (0 = nothing, 7 = everything)");
+	"Set debug verbosity level (0 = nothing, 7 = everything).");
 module_param(bluetooth_auto_enable, bool, S_IRUGO);
 MODULE_PARM_DESC(bluetooth_auto_enable,
 	"Automatically enable bluetooth (if supported by hardware) when the "
-	"module is loaded");
+	"module is loaded.");
+module_param(wwan_auto_enable, bool, S_IRUGO);
+MODULE_PARM_DESC(wwan_auto_enable,
+	"Automatically enable WWAN (if supported by hardware) when the "
+	"module is loaded.");
+module_param(uwb_auto_enable, bool, S_IRUGO);
+MODULE_PARM_DESC(wwan_auto_enable,
+	"Automatically enable UWB (if supported by hardware) when the "
+	"module is loaded.");
 
 /* general */
 
@@ -181,24 +191,36 @@ static int lensl_acpi_int_func(acpi_handle handle, char *pathname, int *ret,
 }
 
 /*************************************************************************
-    bluetooth - copied nearly verbatim from thinkpad_acpi.c
+    Bluetooth, WWAN, UWB
  *************************************************************************/
 
 enum {
-	LENSL_RFK_BLUETOOTH_SW_ID = 0,
-	LENSL_RFK_WWAN_SW_ID,
+	/* ACPI GBDC/SBDC, GWAN/SWAN, GUWB/SUWB bits */
+	LENSL_RADIO_HWPRESENT	= 0x01, /* hardware is available */
+	LENSL_RADIO_RADIOSSW	= 0x02, /* radio is enabled */
+	LENSL_RADIO_RESUMECTRL	= 0x04, /* state at resume: off/last state */
 };
 
-enum {
-	/* ACPI GBDC/SBDC bits */
-	TP_ACPI_BLUETOOTH_HWPRESENT	= 0x01,	/* Bluetooth hw available */
-	TP_ACPI_BLUETOOTH_RADIOSSW	= 0x02,	/* Bluetooth radio enabled */
-	TP_ACPI_BLUETOOTH_UNK		= 0x04,	/* unknown function */
-};
+typedef enum {
+	LENSL_BLUETOOTH = 0,
+	LENSL_WWAN,
+	LENSL_UWB,
+} lensl_radio_type;
 
-static struct rfkill *bluetooth_rfkill;
-static int bluetooth_present;
-static int bluetooth_pretend_blocked;
+/* pretend_blocked indicates whether we pretend that the device is
+   hardware-blocked (used primarily to prevent the device from coming
+   online when the module is loaded) */
+struct lensl_radio {
+	lensl_radio_type type;
+	enum rfkill_type rfktype;
+	int present;
+	char *name;
+	char *rfkname;
+	struct rfkill *rfk;
+	int (*get_acpi)(int *);
+	int (*set_acpi)(int);
+	int *auto_enable;
+};
 
 static inline int get_wlsw(int *value)
 {
@@ -210,160 +232,148 @@ static inline int get_gbdc(int *value)
 	return lensl_acpi_int_func(hkey_handle, "GBDC", value, 0);
 }
 
+static inline int get_gwan(int *value)
+{
+	return lensl_acpi_int_func(hkey_handle, "GWAN", value, 0);
+}
+
+static inline int get_guwb(int *value)
+{
+	return lensl_acpi_int_func(hkey_handle, "GUWB", value, 0);
+}
+
 static inline int set_sbdc(int value)
 {
 	return lensl_acpi_int_func(hkey_handle, "SBDC", NULL, 1, value);
 }
 
-static int bluetooth_get_radiosw(void)
+static inline int set_swan(int value)
 {
-	int value = 0;
-
-	if (!bluetooth_present)
-		return -ENODEV;
-
-	/* WLSW overrides bluetooth in firmware/hardware, reflect that */
-	if (bluetooth_pretend_blocked || (!get_wlsw(&value) && !value))
-		return RFKILL_STATE_HARD_BLOCKED;
-
-	if (get_gbdc(&value))
-		return -EIO;
-
-	return ((value & TP_ACPI_BLUETOOTH_RADIOSSW) != 0) ?
-		RFKILL_STATE_UNBLOCKED : RFKILL_STATE_SOFT_BLOCKED;
+	return lensl_acpi_int_func(hkey_handle, "SWAN", NULL, 1, value);
 }
 
-static void bluetooth_update_rfk(void)
+static inline int set_suwb(int value)
 {
-	int result;
-
-	if (!bluetooth_rfkill)
-		return;
-
-	result = bluetooth_get_radiosw();
-	if (result < 0)
-		return;
-	rfkill_force_state(bluetooth_rfkill, result);
+	return lensl_acpi_int_func(hkey_handle, "SUWB", NULL, 1, value);
 }
 
-static int bluetooth_set_radiosw(int radio_on, int update_rfk)
+static int lensl_radio_get(struct lensl_radio *radio, int *hw_blocked,
+				int *value)
 {
-	int value;
+	int wlsw;
 
-	if (!bluetooth_present)
-		return -ENODEV;
-
-	/* WLSW overrides bluetooth in firmware/hardware, but there is no
-	 * reason to risk weird behaviour. */
-	if (get_wlsw(&value) && !value && radio_on)
-		return -EPERM;
-
-	if (get_gbdc(&value))
-		return -EIO;
-	if (radio_on)
-		value |= TP_ACPI_BLUETOOTH_RADIOSSW;
-	else
-		value &= ~TP_ACPI_BLUETOOTH_RADIOSSW;
-	if (set_sbdc(value))
-		return -EIO;
-
-	if (update_rfk)
-		bluetooth_update_rfk();
-
-	return 0;
-}
-
-/*************************************************************************
-    bluetooth sysfs - copied nearly verbatim from thinkpad_acpi.c
- *************************************************************************/
-
-static ssize_t bluetooth_enable_show(struct device *dev,
-			   struct device_attribute *attr,
-			   char *buf)
-{
-	int status;
-
-	status = bluetooth_get_radiosw();
-	if (status < 0)
-		return status;
-
-	return snprintf(buf, PAGE_SIZE, "%d\n",
-			(status == RFKILL_STATE_UNBLOCKED) ? 1 : 0);
-}
-
-static ssize_t bluetooth_enable_store(struct device *dev,
-			    struct device_attribute *attr,
-			    const char *buf, size_t count)
-{
-	unsigned long t;
-	int res;
-
-	if (parse_strtoul(buf, 1, &t))
+	*hw_blocked = 0;
+	if (!radio)
 		return -EINVAL;
-
-	res = bluetooth_set_radiosw(t, 1);
-
-	return (res) ? res : count;
-}
-
-static struct device_attribute dev_attr_bluetooth_enable =
-	__ATTR(bluetooth_enable, S_IWUSR | S_IRUGO,
-		bluetooth_enable_show, bluetooth_enable_store);
-
-static struct attribute *bluetooth_attributes[] = {
-	&dev_attr_bluetooth_enable.attr,
-	NULL
-};
-
-static const struct attribute_group bluetooth_attr_group = {
-	.attrs = bluetooth_attributes,
-};
-
-static int bluetooth_rfk_get(void *data, enum rfkill_state *state)
-{
-	int bts = bluetooth_get_radiosw();
-
-	if (bts < 0)
-		return bts;
-
-	*state = bts;
+	if (!radio->present)
+		return -ENODEV;
+	if (!get_wlsw(&wlsw) && !wlsw)
+		*hw_blocked = 1;
+	if (radio->get_acpi(value))
+		return -EIO;
 	return 0;
 }
 
-static int bluetooth_rfk_set(void *data, enum rfkill_state state)
+static int lensl_radio_set_on(struct lensl_radio *radio, int *hw_blocked,
+				bool on)
 {
-	return bluetooth_set_radiosw((state == RFKILL_STATE_UNBLOCKED), 0);
+	int value, ret;
+	if ((ret = lensl_radio_get(radio, hw_blocked, &value)) < 0)
+		return ret;
+	/* WLSW overrides radio in firmware/hardware, but there is
+	   no reason to risk weird behaviour. */
+	if (*hw_blocked)
+		return ret;
+	if (on)
+		value |= LENSL_RADIO_RADIOSSW;
+	else
+		value &= ~LENSL_RADIO_RADIOSSW;
+	if (radio->set_acpi(value))
+		return -EIO;
+	return 0;
 }
 
-static int lensl_new_rfkill(const unsigned int id,
-			struct rfkill **rfk,
-			const enum rfkill_type rfktype,
-			const char *name,
-			int (*toggle_radio)(void *, enum rfkill_state),
-			int (*get_state)(void *, enum rfkill_state *))
+/* Bluetooth/WWAN/UWB rfkill interface */
+
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,30)
+
+static int lensl_radio_rfkill_get_state(void *data, enum rfkill_state *state)
+{
+	int ret, value, hw_blocked = 0;
+	ret = lensl_radio_get((struct lensl_radio *)data,
+		&hw_blocked, &value);
+
+	if (hw_blocked) {
+		*state = RFKILL_STATE_HARD_BLOCKED;
+		return 0;
+	}
+
+	if (ret)
+		return ret;
+
+	if (value & LENSL_RADIO_RADIOSSW)
+		*state = RFKILL_STATE_UNBLOCKED;
+	else
+		*state = RFKILL_STATE_SOFT_BLOCKED;
+	return 0;
+}
+
+static int lensl_radio_rfkill_toggle_radio(void *data, enum rfkill_state state)
+{
+	int ret, value, hw_blocked = 0;
+	ret = lensl_radio_get((struct lensl_radio *)data,
+		&hw_blocked, &value);
+
+	if (state == RFKILL_STATE_UNBLOCKED) {
+		if (hw_blocked)
+			return -EPERM;
+		if (ret)
+			return ret;
+		value = 1;
+	} else {
+		if (ret && !hw_blocked)
+			return ret;
+		value = 0;
+	}
+
+	ret = lensl_radio_set_on((struct lensl_radio *)data,
+		&hw_blocked, value);
+
+	if (hw_blocked)
+		return 0;
+	return ret;
+}
+
+static int lensl_radio_new_rfkill(struct lensl_radio *radio,
+			struct rfkill **rfk, bool sw_blocked,
+			bool hw_blocked)
 {
 	int res;
-	enum rfkill_state initial_state;
 
-	*rfk = rfkill_allocate(&lensl_pdev->dev, rfktype);
+	*rfk = rfkill_allocate(&lensl_pdev->dev, radio->rfktype);
 	if (!*rfk) {
 		vdbg_printk(LENSL_ERR,
 			"Failed to allocate memory for rfkill class\n");
 		return -ENOMEM;
 	}
 
-	(*rfk)->name = name;
-	(*rfk)->get_state = get_state;
-	(*rfk)->toggle_radio = toggle_radio;
+	(*rfk)->name = radio->rfkname;
+	(*rfk)->get_state = lensl_radio_rfkill_get_state;
+	(*rfk)->toggle_radio = lensl_radio_rfkill_toggle_radio;
+	(*rfk)->data = radio;
 
-	if (!get_state(NULL, &initial_state))
-		(*rfk)->state = initial_state;
+	if (hw_blocked)
+		(*rfk)->state = RFKILL_STATE_HARD_BLOCKED;
+	else if (sw_blocked)
+		(*rfk)->state = RFKILL_STATE_SOFT_BLOCKED;
+	else
+		(*rfk)->state = RFKILL_STATE_UNBLOCKED;
 
 	res = rfkill_register(*rfk);
 	if (res < 0) {
 		vdbg_printk(LENSL_ERR,
 			"Failed to register %s rfkill switch: %d\n",
-			name, res);
+			radio->rfkname, res);
 		rfkill_free(*rfk);
 		*rfk = NULL;
 		return res;
@@ -372,48 +382,142 @@ static int lensl_new_rfkill(const unsigned int id,
 	return 0;
 }
 
-static void bluetooth_exit(void)
-{
-	if (bluetooth_rfkill)
-		rfkill_unregister(bluetooth_rfkill);
+#else
 
-	sysfs_remove_group(&lensl_pdev->dev.kobj,
-			&bluetooth_attr_group);
+static void lensl_radio_rfkill_query(struct rfkill *rfk, void *data)
+{
+	int ret, value = 0;
+	ret = get_wlsw(&value);
+	if (ret)
+		return;
+	rfkill_set_hw_state(rfk, !value);
 }
 
-static int bluetooth_init(void)
+static int lensl_radio_rfkill_set_block(void *data, bool blocked)
 {
-	int value, res;
-	bluetooth_present = 0;
+	int ret, hw_blocked = 0;
+	ret = lensl_radio_set_on((struct lensl_radio *)data,
+		&hw_blocked, !blocked);
+	/* rfkill spec: just return 0 on hard block */
+	return ret;
+}
+
+static struct rfkill_ops rfkops = {
+	NULL,
+	lensl_radio_rfkill_query,
+	lensl_radio_rfkill_set_block,
+};
+
+static int lensl_radio_new_rfkill(struct lensl_radio *radio,
+			struct rfkill **rfk, bool sw_blocked,
+			bool hw_blocked)
+{
+	int res;
+		
+	*rfk = rfkill_alloc(radio->rfkname, &lensl_pdev->dev, radio->rfktype,
+			&rfkops, radio);
+	if (!*rfk) {
+		vdbg_printk(LENSL_ERR,
+			"Failed to allocate memory for rfkill class\n");
+		return -ENOMEM;
+	}
+
+	rfkill_set_hw_state(*rfk, hw_blocked);
+	rfkill_set_sw_state(*rfk, sw_blocked);
+
+	res = rfkill_register(*rfk);
+	if (res < 0) {
+		vdbg_printk(LENSL_ERR,
+			"Failed to register %s rfkill switch: %d\n",
+			radio->rfkname, res);
+		rfkill_destroy(*rfk);
+		*rfk = NULL;
+		return res;
+	}
+
+	return 0;
+}
+
+#endif /* LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,30) */
+
+/* Bluetooth/WWAN/UWB init and exit */
+
+static struct lensl_radio lensl_radios[3] = {
+	{
+		LENSL_BLUETOOTH,
+		RFKILL_TYPE_BLUETOOTH,
+		0,
+		"bluetooth",
+		"lensl_bluetooth_sw",
+		NULL,
+		get_gbdc,
+		set_sbdc,
+		&bluetooth_auto_enable,
+	},
+	{
+		LENSL_WWAN,
+		RFKILL_TYPE_WWAN,
+		0,
+		"WWAN",
+		"lensl_wwan_sw",
+		NULL,
+		get_gwan,
+		set_swan,
+		&wwan_auto_enable,
+	},
+	{
+		LENSL_UWB,
+		RFKILL_TYPE_UWB,
+		0,
+		"UWB",
+		"lensl_uwb_sw",
+		NULL,
+		get_guwb,
+		set_suwb,
+		&uwb_auto_enable,
+	},
+};
+
+static void radio_exit(lensl_radio_type type)
+{
+	if (lensl_radios[type].rfk)
+		rfkill_unregister(lensl_radios[type].rfk);
+}
+
+static int radio_init(lensl_radio_type type)
+{
+	int value, res, hw_blocked = 0, sw_blocked;
+
 	if (!hkey_handle)
 		return -ENODEV;
-	if (get_gbdc(&value))
+	lensl_radios[type].present = 1; /* need for lensl_radio_get */
+	res = lensl_radio_get(&lensl_radios[type], &hw_blocked, &value);
+	lensl_radios[type].present = 0;
+	if (res && !hw_blocked)
 		return -EIO;
-	if (!(value & TP_ACPI_BLUETOOTH_HWPRESENT))
+	if (!(value & LENSL_RADIO_HWPRESENT))
 		return -ENODEV;
-	bluetooth_present = 1;
+	lensl_radios[type].present = 1;
 
-	res = sysfs_create_group(&lensl_pdev->dev.kobj,
-				&bluetooth_attr_group);
-	if (res) {
-		vdbg_printk(LENSL_ERR,
-			"Failed to register bluetooth sysfs group\n");
-		return res;
+	if (*lensl_radios[type].auto_enable) {
+		sw_blocked = 0;
+		value |= LENSL_RADIO_RADIOSSW;
+		lensl_radios[type].set_acpi(value);
+	} else {
+		sw_blocked = 1;
+		value &= ~LENSL_RADIO_RADIOSSW;
+		lensl_radios[type].set_acpi(value);
 	}
 
-	bluetooth_pretend_blocked = !bluetooth_auto_enable;
-	res = lensl_new_rfkill(LENSL_RFK_BLUETOOTH_SW_ID,
-				&bluetooth_rfkill,
-				RFKILL_TYPE_BLUETOOTH,
-				"lensl_bluetooth_sw",
-				bluetooth_rfk_set,
-				bluetooth_rfk_get);
-	bluetooth_pretend_blocked = 0;
+	res = lensl_radio_new_rfkill(&lensl_radios[type], &lensl_radios[type].rfk,
+					sw_blocked, hw_blocked);
+
 	if (res) {
-		bluetooth_exit();
+		radio_exit(type);
 		return res;
 	}
-	vdbg_printk(LENSL_DEBUG, "Initialized bluetooth subdriver\n");
+	vdbg_printk(LENSL_DEBUG, "Initialized %s subdriver\n",
+		lensl_radios[type].name);
 
 	return 0;
 }
@@ -1274,7 +1378,9 @@ static int __init lenovo_sl_laptop_init(void)
 	if (ret)
 		return -ENODEV;
 
-	bluetooth_init();
+	radio_init(LENSL_BLUETOOTH);
+	radio_init(LENSL_WWAN);
+	radio_init(LENSL_UWB);
 	if (control_backlight)
 		backlight_init();
 
@@ -1297,7 +1403,9 @@ static void __exit lenovo_sl_laptop_exit(void)
 	hkey_poll_stop();
 	led_exit();
 	backlight_exit();
-	bluetooth_exit();
+	radio_exit(LENSL_UWB);
+	radio_exit(LENSL_WWAN);
+	radio_exit(LENSL_BLUETOOTH);
 	hkey_inputdev_exit();
 	if (lensl_pdev)
 		platform_device_unregister(lensl_pdev);
