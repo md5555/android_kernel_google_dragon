@@ -58,6 +58,7 @@ drivers/net/virtio_net.ko
 drivers/net/xen-netfront.ko
 drivers/parport/parport.ko
 drivers/parport/parport_pc.ko
+drivers/pci/hotplug/acpiphp.ko
 drivers/net/tulip/tulip.ko
 drivers/net/virtio_net.ko
 drivers/scsi/BusLogic.ko
