@@ -10,4 +10,6 @@
 
 UBUNTU: [Config] XXXX
 
-#Ignore: yes
+# BugLink: http://bugs.launchpad.net/bugs/<enter bug# here>
+# Ignore: yes
+# Other text below here.
