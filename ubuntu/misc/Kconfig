@@ -8,4 +8,3 @@ config LMPCM_USB
 	default m
 	depends on USB
 
-source "ubuntu/misc/media/Kconfig"
