@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash
 
 . debian/debian.env
 
@@ -13,6 +13,21 @@ to_moddir="debian/$to_pkg/lib/modules/$ABI_RELEASE-$FROM"
 install -d "debian/$to_pkg/boot"
 install -m644 debian/$from_pkg/boot/{vmlinuz,System.map,config}-$ABI_RELEASE-$FROM \
 	debian/$to_pkg/boot/
+
+cat ${DEBIAN}/sub-flavours/$TO.list | while read line
+do
+(
+	cd debian/$from_pkg/lib/modules/$ABI_RELEASE-$FROM/kernel;
+	if ! find $line -name '*.ko' > /dev/null 2>&1
+	then
+		#
+		# Not being able to find $line may cause
+		# the next loop (below) to fail.
+		#
+		echo SUB_INST Warning - could not find $line
+	fi
+)
+done
 
 cat ${DEBIAN}/sub-flavours/$TO.list | while read line; do
 	(cd debian/$from_pkg/lib/modules/$ABI_RELEASE-$FROM/kernel;

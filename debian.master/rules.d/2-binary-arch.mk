@@ -91,9 +91,9 @@ endif
 	done
 
 ifneq ($(skipsub),true)
-	set -e; for sub in $($(*)_sub); do					\
-		TO=$$sub FROM=$* ABI_RELEASE=$(abi_release) $(SHELL)		\
-			$(DEBIAN)/scripts/sub-flavour;				\
+	for sub in $($(*)_sub); do					\
+		if ! (TO=$$sub FROM=$* ABI_RELEASE=$(abi_release) $(SHELL)		\
+			$(DEBIAN)/scripts/sub-flavour); then exit 1; fi;		\
 		/sbin/depmod -b debian/$(bin_pkg_name)-$$sub		\
 			-ea -F debian/$(bin_pkg_name)-$$sub/boot/System.map-$(abi_release)-$* \
 			$(abi_release)-$*;					\
