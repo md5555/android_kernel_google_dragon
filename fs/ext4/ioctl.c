@@ -249,10 +249,8 @@ setversion_out:
 		if (me.moved_len > 0)
 			file_remove_suid(donor_filp);
 
-		if (!err)
-			if (copy_to_user((struct move_extent *)arg,
-				&me, sizeof(me)))
-				err = -EFAULT;
+		if (copy_to_user((struct move_extent *)arg, &me, sizeof(me)))
+			err = -EFAULT;
 mext_out:
 		fput(donor_filp);
 		return err;
