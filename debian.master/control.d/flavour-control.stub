@@ -47,7 +47,7 @@ Description: Linux kernel image for version PKGVER on DESC
  the linux-FLAVOUR meta-package, which will ensure that upgrades work
  correctly, and that supporting packages are also installed.
 
-Package: SRCPKGNAME-headers-PKGVER-ABINUM-FLAVOUR
+Package: linux-headers-PKGVER-ABINUM-FLAVOUR
 Architecture: ARCH
 Section: devel
 Priority: optional

@@ -44,7 +44,7 @@ Description: Linux kernel specific documentation for version PKGVER
  /usr/share/doc/SRCPKGNAME-doc/00-INDEX for a list of what is
  contained in each file.
 
-Package: SRCPKGNAME-headers-PKGVER-ABINUM
+Package: linux-headers-PKGVER-ABINUM
 Architecture: all
 Section: devel
 Priority: optional
