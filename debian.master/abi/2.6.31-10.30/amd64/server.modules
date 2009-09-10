@@ -234,7 +234,6 @@ bq24022
 bq27x00_battery
 br2684
 bridge
-broadcom
 broadsheetfb
 bsd_comp
 bt3c_cs
@@ -259,7 +258,6 @@ c2port-duramar2150
 c4
 c67x00
 c6xdigio
-cachefiles
 cafe_ccic
 cafe_nand
 camellia
@@ -305,7 +303,6 @@ cfi_util
 ch
 ch341
 chipreg
-cicada
 cifs
 cirrusfb
 ck804xrom
@@ -417,7 +414,6 @@ das16m1
 das1800
 das6402
 das800
-davicom
 db9
 dc395x
 dca
@@ -594,7 +590,6 @@ esb2rom
 esi-sir
 esp4
 esp6
-et1011c
 et131x
 et61x251
 eth1394
@@ -876,7 +871,6 @@ ib_ucm
 ib_umad
 ib_uverbs
 ichxrom
-icplus
 icp_multi
 ics932s401
 idmouse
@@ -1154,7 +1148,6 @@ ltc4215
 ltc4245
 ltv350qv
 lxfb
-lxt
 lzo
 lzo_compress
 lzo_decompress
@@ -1171,7 +1164,6 @@ map_absent
 map_funcs
 map_ram
 map_rom
-marvell
 matrix_keypad
 matroxfb_accel
 matroxfb_base
@@ -1202,8 +1194,6 @@ mct_u232
 md4
 mdc800
 mdio
-mdio-bitbang
-mdio-gpio
 me0600
 me0900
 me1000
@@ -1303,7 +1293,6 @@ nand
 nand_ecc
 nand_ids
 nandsim
-national
 natsemi
 navman
 nbd
@@ -1601,7 +1590,6 @@ qlge
 qlogic_cs
 qlogicfas408
 qnx4
-qsemi
 qt1010
 quatech_daqp_cs
 quickcam_messenger
@@ -1742,6 +1730,7 @@ safe_serial
 salsa20_generic
 salsa20-x86_64
 sata_mv
+sata_via
 savage
 savagefb
 sb
@@ -1839,8 +1828,6 @@ sm501
 sm501fb
 smbfs
 smc91c92_cs
-sms1xxx
-smsc
 smsc37b787_wdt
 smsc47b397
 smsc47m1
@@ -1849,6 +1836,8 @@ smsc9420
 smsc95xx
 smsc-ircc2
 smsdvb
+smsmdtv
+smssdio
 smsusb
 sn9c102
 snd
@@ -2045,7 +2034,6 @@ starfire
 stb0899
 stb6000
 stb6100
-ste10Xp
 stex
 stinger
 stir4200
@@ -2299,7 +2287,6 @@ virtio_ring
 virtio-rng
 virtual
 visor
-vitesse
 vivi
 vlsi_ir
 v_midi
