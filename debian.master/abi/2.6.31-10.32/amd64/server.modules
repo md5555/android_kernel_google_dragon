@@ -1017,6 +1017,7 @@ ixj_pcmcia
 jedec_probe
 jffs2
 jfs
+jmb38x_ms
 jme
 joydev
 joydump
@@ -1212,6 +1213,7 @@ megaraid_mbox
 megaraid_mm
 megaraid_sas
 memain
+memstick
 metronomefb
 meye
 mfd-core
@@ -1250,6 +1252,7 @@ mpu401
 msdos
 msi-laptop
 msp3400
+mspro_block
 msr
 mt2060
 mt20xx
@@ -2118,6 +2121,7 @@ thinkpad_acpi
 thmc50
 tifm_7xx1
 tifm_core
+tifm_ms
 tifm_sd
 tileblit
 timed_gpio
