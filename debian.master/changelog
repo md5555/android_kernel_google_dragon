@@ -4,7 +4,7 @@ linux (2.6.31-10.34) karmic; urgency=low
 
   * [Upstream] ext3: Don't update superblock write time when filesystem is
     read-only
-    - LP: #427622
+    - LP: #427822
 
  --  Tim Gardner <tim.gardner@canonical.com>  Tue, 15 Sep 2009 16:00:45 -0600
 
