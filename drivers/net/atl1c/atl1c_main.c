@@ -200,7 +200,7 @@ void atl1c_reinit_locked(struct atl1c_adapter *adapter)
 {
 
 	WARN_ON(in_interrupt());
-	atl1c_down(adapter);
+	atl1c_down(adapter, 0);
 	atl1c_up(adapter);
 	clear_bit(__AT_RESETTING, &adapter->flags);
 }
@@ -214,7 +214,7 @@ static void atl1c_reset_task(struct work_struct *work)
 	netdev = adapter->netdev;
 
 	netif_device_detach(netdev);
-	atl1c_down(adapter);
+	atl1c_down(adapter, 1);
 	atl1c_up(adapter);
 	netif_device_attach(netdev);
 }
@@ -317,12 +317,6 @@ static void atl1c_link_chg_event(struct atl1c_adapter *adapter)
 static void atl1c_del_timer(struct atl1c_adapter *adapter)
 {
 	del_timer_sync(&adapter->phy_config_timer);
-}
-
-static void atl1c_cancel_work(struct atl1c_adapter *adapter)
-{
-	cancel_work_sync(&adapter->reset_task);
-	cancel_work_sync(&adapter->link_chg_task);
 }
 
 /*
@@ -474,7 +468,7 @@ static int atl1c_change_mtu(struct net_device *netdev, int new_mtu)
 		netdev->mtu = new_mtu;
 		adapter->hw.max_frame_size = new_mtu;
 		atl1c_set_rxbufsize(adapter, netdev);
-		atl1c_down(adapter);
+		atl1c_down(adapter, 0);
 		atl1c_up(adapter);
 		clear_bit(__AT_RESETTING, &adapter->flags);
 		if (adapter->hw.ctrl_flags & ATL1C_FPGA_VERSION) {
@@ -2204,12 +2198,14 @@ err_alloc_rx:
 	return err;
 }
 
-void atl1c_down(struct atl1c_adapter *adapter)
+void atl1c_down(struct atl1c_adapter *adapter, int in_reset_task)
 {
 	struct net_device *netdev = adapter->netdev;
 
 	atl1c_del_timer(adapter);
-	atl1c_cancel_work(adapter);
+	if (!in_reset_task)
+		cancel_work_sync(&adapter->reset_task);
+	cancel_work_sync(&adapter->link_chg_task);
 
 	/* signal that we're down so the interrupt handler does not
 	 * reschedule our watchdog timer */
@@ -2292,7 +2288,7 @@ static int atl1c_close(struct net_device *netdev)
 	struct atl1c_adapter *adapter = netdev_priv(netdev);
 
 	WARN_ON(test_bit(__AT_RESETTING, &adapter->flags));
-	atl1c_down(adapter);
+	atl1c_down(adapter, 0);
 	atl1c_free_ring_resources(adapter);
 	return 0;
 }
@@ -2315,7 +2311,7 @@ static int atl1c_suspend(struct pci_dev *pdev, pm_message_t state)
 
 	if (netif_running(netdev)) {
 		WARN_ON(test_bit(__AT_RESETTING, &adapter->flags));
-		atl1c_down(adapter);
+		atl1c_down(adapter, 0);
 	}
 	netif_device_detach(netdev);
 	atl1c_disable_l0s_l1(hw);
@@ -2680,7 +2676,7 @@ static pci_ers_result_t atl1c_io_error_detected(struct pci_dev *pdev,
 	netif_device_detach(netdev);
 
 	if (netif_running(netdev))
-		atl1c_down(adapter);
+		atl1c_down(adapter, 0);
 
 	pci_disable_device(pdev);
 
