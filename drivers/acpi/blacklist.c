@@ -291,22 +291,6 @@ static struct dmi_system_id acpi_osi_dmi_table[] __initdata = {
 		     DMI_MATCH(DMI_PRODUCT_VERSION, "ThinkPad X200t"),
 		},
 	},
-	{
-	.callback = dmi_enable_osi_linux,
-	.ident = "Lenovo ThinkPad X300",
-	.matches = {
-		     DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
-		     DMI_MATCH(DMI_PRODUCT_VERSION, "ThinkPad X300"),
-		},
-	},
-	{
-	.callback = dmi_enable_osi_linux,
-	.ident = "Lenovo ThinkPad X301",
-	.matches = {
-		     DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
-		     DMI_MATCH(DMI_PRODUCT_VERSION, "ThinkPad X301"),
-		},
-	},
 	{}
 };
 
