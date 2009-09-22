@@ -11,7 +11,6 @@ source "ubuntu/compcache/Kconfig"
 source "ubuntu/lirc/Kconfig"
 source "ubuntu/misc/Kconfig"
 source "ubuntu/rfkill/Kconfig"
-source "ubuntu/tlsup/Kconfig"
 source "ubuntu/lenovo-sl-laptop/Kconfig"
 
 endmenu
