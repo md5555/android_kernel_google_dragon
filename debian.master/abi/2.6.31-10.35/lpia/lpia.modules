@@ -538,6 +538,7 @@ dtc
 dtl1_cs
 dtlk
 dummy
+dummy_hcd
 dv1394
 dvb-bt8xx
 dvb-core
@@ -1396,7 +1397,6 @@ ne2k-pci
 ne3210
 neofb
 net1080
-net2280
 netconsole
 netrom
 netsc520

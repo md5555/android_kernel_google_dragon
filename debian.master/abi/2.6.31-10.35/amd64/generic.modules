@@ -494,6 +494,7 @@ dt3000
 dt9812
 dtl1_cs
 dummy
+dummy_hcd
 dv1394
 dvb-bt8xx
 dvb-core
@@ -1306,7 +1307,6 @@ ndiswrapper
 ne2k-pci
 neofb
 net1080
-net2280
 netconsole
 netrom
 netsc520

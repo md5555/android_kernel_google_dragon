@@ -2000,9 +2000,9 @@ EXPORT_SYMBOL drivers/staging/rtl8192su/ieee80211/ieee80211_crypt_wep 0x4e04ac24
 EXPORT_SYMBOL drivers/telephony/ixj 0x5974908e	ixj_pcmcia_probe
 EXPORT_SYMBOL drivers/telephony/phonedev 0x4a4eca39	phone_register_device
 EXPORT_SYMBOL drivers/telephony/phonedev 0x5ef1bf61	phone_unregister_device
-EXPORT_SYMBOL drivers/usb/gadget/net2280 0x4f657b20	usb_gadget_register_driver
-EXPORT_SYMBOL drivers/usb/gadget/net2280 0x9302961a	net2280_set_fifo_mode
-EXPORT_SYMBOL drivers/usb/gadget/net2280 0x936357a4	usb_gadget_unregister_driver
+EXPORT_SYMBOL drivers/usb/gadget/dummy_hcd 0x39f8fe55	net2280_set_fifo_mode
+EXPORT_SYMBOL drivers/usb/gadget/dummy_hcd 0x48699646	usb_gadget_register_driver
+EXPORT_SYMBOL drivers/usb/gadget/dummy_hcd 0xdbddf394	usb_gadget_unregister_driver
 EXPORT_SYMBOL drivers/usb/host/sl811-hcd 0x91cd4c48	sl811h_driver
 EXPORT_SYMBOL drivers/usb/otg/nop-usb-xceiv 0xa64a4cea	usb_nop_xceiv_unregister
 EXPORT_SYMBOL drivers/usb/otg/nop-usb-xceiv 0xd0e43207	usb_nop_xceiv_register
