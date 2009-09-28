@@ -4985,7 +4985,7 @@ static int __devinit e1000_probe(struct pci_dev *pdev,
 	/* AER (Advanced Error Reporting) hooks */
 	err = pci_enable_pcie_error_reporting(pdev);
 	if (err) {
-		dev_err(&pdev->dev, "pci_enable_pcie_error_reporting failed "
+		dev_notice(&pdev->dev, "pci_enable_pcie_error_reporting failed "
 		        "0x%x\n", err);
 		/* non-fatal, continue */
 	}
