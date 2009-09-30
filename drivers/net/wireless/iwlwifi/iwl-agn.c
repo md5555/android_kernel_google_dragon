@@ -3177,8 +3177,11 @@ static struct pci_device_id iwl_hw_card_ids[] = {
 	{IWL_PCI_DEVICE(0x0088, PCI_ANY_ID, iwl6050_3agn_cfg)},
 	{IWL_PCI_DEVICE(0x0089, PCI_ANY_ID, iwl6050_2agn_cfg)},
 /* 1000 Series WiFi */
+#if 0
+/* BugLink http://bugs.launchpad.net/bugs/439285 */
 	{IWL_PCI_DEVICE(0x0083, PCI_ANY_ID, iwl1000_bgn_cfg)},
 	{IWL_PCI_DEVICE(0x0084, PCI_ANY_ID, iwl1000_bgn_cfg)},
+#endif
 #endif /* CONFIG_IWL5000 */
 
 	{0}
