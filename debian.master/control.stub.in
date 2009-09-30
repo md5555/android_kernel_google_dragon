@@ -49,11 +49,11 @@ Architecture: all
 Section: devel
 Priority: optional
 Depends: coreutils | fileutils (>= 4.0)
-Provides: SRCPKGNAME-headers, SRCPKGNAME-headers-2.6
+Provides: linux-headers, linux-headers-2.6
 Description: Header files related to Linux kernel version PKGVER
  This package provides kernel header files for version PKGVER, for sites
  that want the latest kernel headers. Please read
- /usr/share/doc/SRCPKGNAME-headers-PKGVER-ABINUM/debian.README.gz for details
+ /usr/share/doc/linux-headers-PKGVER-ABINUM/debian.README.gz for details
 
 Package: SRCPKGNAME-libc-dev
 Architecture: i386 amd64 lpia ia64 powerpc sparc
@@ -64,4 +64,4 @@ Description: Linux Kernel Headers for development
  This package provides headers from the Linux kernel.  These headers
  are used by the installed headers for GNU glibc and other system
  libraries. They are NOT meant to be used to build third-party modules for
- your kernel. Use SRCPKGNAME-headers-* packages for that.
+ your kernel. Use linux-headers-* packages for that.
