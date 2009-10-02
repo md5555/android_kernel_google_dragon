@@ -32,7 +32,7 @@ static char cn_test_name[] = "cn_test";
 static struct sock *nls;
 static struct timer_list cn_test_timer;
 
-void cn_test_callback(void *data)
+static void cn_test_callback(struct cn_msg *msg, struct netlink_skb_parms *nsp)
 {
 	struct cn_msg *msg = (struct cn_msg *)data;
 
