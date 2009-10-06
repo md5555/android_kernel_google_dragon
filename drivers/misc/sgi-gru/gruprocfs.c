@@ -164,9 +164,9 @@ static ssize_t options_write(struct file *file, const char __user *userbuf,
 	unsigned long val;
 	char buf[80];
 
+	memset(buf, 0, sizeof(buf));
 	if (strncpy_from_user(buf, userbuf, sizeof(buf) - 1) < 0)
 		return -EFAULT;
-	buf[count - 1] = '\0';
 	if (!strict_strtoul(buf, 10, &val))
 		gru_options = val;
 
