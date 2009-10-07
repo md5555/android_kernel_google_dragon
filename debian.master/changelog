@@ -1,3 +1,28 @@
+linux (2.6.31-12.41) karmic; urgency=low
+
+  [ Tim Gardner ]
+
+  * [Config] CONFIG_GFS2_FS_LOCKING_DLM=y
+    - LP: #416325
+  * SAUCE: Fix MODULE_IMPORT/MODULE_EXPORT
+    The original patch failed to work for amd64.
+    - LP: #430694
+
+  [ Upstream Kernel Changes ]
+
+  * ALSA: hda - Add a white-list for MSI option
+    Upstream cherry-pick: Infrastructure support for #445580
+  * ALSA: hda - Add HP Pavilion dv4t-1300 to MSI whitelist
+    - LP: #445580
+  * ALSA: intel8x0 - Mute External Amplifier by default for Sony VAIO
+    VGN-T350P
+    - LP: #410933
+  * ALSA: intel8x0 - Mute External Amplifier by default for Sony VAIO
+    VGN-B1VP
+    - LP: #410933
+
+ --  Tim Gardner <tim.gardner@canonical.com>  Wed, 07 Oct 2009 11:59:35 -0600
+
 linux (2.6.31-12.40) karmic; urgency=low
 
   [ Tim Gardner ]
