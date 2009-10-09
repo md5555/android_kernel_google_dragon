@@ -1163,7 +1163,7 @@ static int __make_request(struct request_queue *q, struct bio *bio)
 	const int unplug = bio_unplug(bio);
 	int rw_flags;
 
-	if (bio_barrier(bio) && bio_has_data(bio) &&
+	if (bio_barrier(bio) &&
 	    (q->next_ordered == QUEUE_ORDERED_NONE)) {
 		bio_endio(bio, -EOPNOTSUPP);
 		return 0;
