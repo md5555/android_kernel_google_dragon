@@ -1,3 +1,33 @@
+linux (2.6.31-13.43) karmic; urgency=low
+
+  [ Andy Whitcroft ]
+
+  * Revert "[Upstream] acerhdf: Limit modalias matching to supported
+    boards"
+
+  [ Colin Watson ]
+
+  * Use section 'admin' rather than 'base'
+
+  [ John Johansen ]
+
+  * SAUCE: AppArmor: Set error code after structure initialization.
+    - LP: #427948
+  * SAUCE: AppArmor: Fix off by 2 error in getprocattr mem allocation
+    - LP: #446595
+
+  [ Luke Yelavich ]
+
+  * SAUCE: Add sr_mod to the scsi-modules udeb for powerpc
+
+  [ Stefan Bader ]
+
+  * [Upstream] acerhdf: Limit modalias matching to supported boards
+    (supersedes previous revert made by Andy Whitcroft)
+    - LP: #435958
+
+ --  Tim Gardner <tim.gardner@canonical.com>  Fri, 09 Oct 2009 10:08:16 -0600
+
 linux (2.6.31-13.42) karmic; urgency=low
 
   [ Leann Ogasawara ]
