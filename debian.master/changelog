@@ -1,3 +1,15 @@
+linux (2.6.31-13.44) karmic; urgency=low
+
+  [ Upstream Kernel Changes ]
+
+  * sgi-gru: Fix kernel stack buffer overrun, CVE-2009-2584
+  * appletalk: Fix skb leak when ipddp interface is not loaded,
+    CVE-2009-2903
+    Note - This patch causes an ABI change in the symbol aarp_send_ddp
+    which I'm ignoring.
+
+ --  Tim Gardner <tim.gardner@canonical.com>  Sat, 10 Oct 2009 08:27:46 -0600
+
 linux (2.6.31-13.43) karmic; urgency=low
 
   [ Andy Whitcroft ]
