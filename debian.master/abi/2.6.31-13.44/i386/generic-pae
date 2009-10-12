@@ -2267,7 +2267,7 @@ EXPORT_SYMBOL net/9p/9pnet 0xe6547947	p9_client_cb
 EXPORT_SYMBOL net/9p/9pnet 0xef7127b0	p9_idpool_put
 EXPORT_SYMBOL net/9p/9pnet 0xf11b003c	v9fs_register_trans
 EXPORT_SYMBOL net/appletalk/appletalk 0x35933c9a	atrtr_get_dev
-EXPORT_SYMBOL net/appletalk/appletalk 0x58c24475	aarp_send_ddp
+EXPORT_SYMBOL net/appletalk/appletalk 0x4850c49a	aarp_send_ddp
 EXPORT_SYMBOL net/appletalk/appletalk 0x8f27d074	atalk_find_dev_addr
 EXPORT_SYMBOL net/appletalk/appletalk 0xa8455b6a	alloc_ltalkdev
 EXPORT_SYMBOL net/atm/atm 0x0a9467d7	atm_dev_deregister

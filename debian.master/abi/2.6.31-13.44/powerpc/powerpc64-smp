@@ -1868,7 +1868,7 @@ EXPORT_SYMBOL net/9p/9pnet 0xe58a3360	p9_error_init
 EXPORT_SYMBOL net/9p/9pnet 0xe7cb2340	p9_client_attach
 EXPORT_SYMBOL net/9p/9pnet 0xf07eab5f	p9_client_walk
 EXPORT_SYMBOL net/9p/9pnet 0xfcf8f00b	p9_client_read
-EXPORT_SYMBOL net/appletalk/appletalk 0x0629cef1	aarp_send_ddp
+EXPORT_SYMBOL net/appletalk/appletalk 0x26079f88	aarp_send_ddp
 EXPORT_SYMBOL net/appletalk/appletalk 0x48148ae7	atalk_find_dev_addr
 EXPORT_SYMBOL net/appletalk/appletalk 0x9fffeb1c	alloc_ltalkdev
 EXPORT_SYMBOL net/appletalk/appletalk 0xcd9419b5	atrtr_get_dev
