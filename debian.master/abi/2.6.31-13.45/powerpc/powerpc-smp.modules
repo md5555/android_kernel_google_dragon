@@ -531,6 +531,7 @@ gl520sm
 gl620a
 gluebi
 g_midi
+goku_udc
 gpio_keys
 gpio_mouse
 gpio_vbus
@@ -625,7 +626,6 @@ hostap_plx
 hp100
 hp4x
 hpfs
-hpilo
 hptiop
 hso
 htc-pasic3
@@ -674,7 +674,6 @@ i2o_core
 i2o_proc
 i2o_scsi
 i5k_amb
-i8042
 i82092
 ib_addr
 ib_cm
@@ -888,13 +887,13 @@ linear
 lirc_atiusb
 lirc_bt829
 lirc_dev
+lirc_ene0100
 lirc_i2c
 lirc_igorplugusb
 lirc_imon
 lirc_it87
 lirc_ite8709
 lirc_mceusb
-lirc_mceusb2
 lirc_sasem
 lirc_serial
 lirc_sir
@@ -932,7 +931,6 @@ ltc4215
 ltc4245
 ltv350qv
 lxt
-lzo
 lzo_compress
 lzo_decompress
 m25p80
@@ -1055,7 +1053,6 @@ ncpfs
 ne2k-pci
 neofb
 net1080
-net2280
 netconsole
 netrom
 netwave_cs
@@ -1346,7 +1343,6 @@ rfd_ftl
 rfkill
 ricoh_mmc
 rio500
-riscom8
 rivafb
 rmd128
 rmd160
@@ -1835,7 +1831,6 @@ touchwin
 tpm
 tpm_atmel
 tpm_nsc
-tps65010
 trancevibrator
 tridentfb
 trix
@@ -1874,7 +1869,6 @@ uart401
 uart6850
 uartlite
 ubi
-ubifs
 ucb1400_core
 ucb1400_ts
 udf
