@@ -77,6 +77,7 @@ static void __init set_nx(void)
 #else
 static inline void set_nx(void)
 {
+	nx_enabled = ( (__supported_pte_mask & _PAGE_NX) == _PAGE_NX );
 }
 #endif
 
@@ -213,8 +214,13 @@ unsigned long __init_refok init_memory_mapping(unsigned long start,
 	if (nx_enabled)
 		printk(KERN_INFO "NX (Execute Disable) protection: active\n");
 	else
+#ifdef CONFIG_X86_32
 		printk(KERN_INFO "Using x86 segment limits to approximate "
 			"NX protection\n");
+#else
+		printk(KERN_WARNING "Warning: NX (Execute Disable) protection "
+			"missing in CPU or disabled in BIOS!\n");
+#endif
 
 	/* Enable PSE if available */
 	if (cpu_has_pse)
