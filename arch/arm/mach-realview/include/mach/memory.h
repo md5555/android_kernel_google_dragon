@@ -34,6 +34,9 @@ extern void realview_adjust_zones(int node, unsigned long *size,
 				  unsigned long *hole);
 #define arch_adjust_zones(node, size, hole) \
 	realview_adjust_zones(node, size, hole)
+
+#define ISA_DMA_THRESHOLD	(PHYS_OFFSET + SZ_256M - 1)
+#define MAX_DMA_ADDRESS		(PAGE_OFFSET + SZ_256M)
 #endif
 
 #ifdef CONFIG_SPARSEMEM
