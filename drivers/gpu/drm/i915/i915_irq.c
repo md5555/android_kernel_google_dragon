@@ -156,6 +156,20 @@ i915_disable_pipestat(drm_i915_private_t *dev_priv, int pipe, u32 mask)
 }
 
 /**
+ * intel_enable_asle - enable ASLE interrupt for OpRegion
+ */
+void intel_enable_asle (struct drm_device *dev)
+{
+	drm_i915_private_t *dev_priv = (drm_i915_private_t *) dev->dev_private;
+
+	if (IS_IGDNG(dev))
+		igdng_enable_display_irq(dev_priv, DE_GSE);
+	else
+		i915_enable_pipestat(dev_priv, 1,
+				     I915_LEGACY_BLC_EVENT_ENABLE);
+}
+
+/**
  * i915_pipe_enabled - check if a pipe is enabled
  * @dev: DRM device
  * @pipe: pipe to check
@@ -287,6 +301,9 @@ irqreturn_t igdng_irq_handler(struct drm_device *dev)
 			dev_priv->mm.irq_gem_seqno = i915_get_gem_seqno(dev);
 			DRM_WAKEUP(&dev_priv->irq_queue);
 		}
+
+		if (de_iir & DE_GSE)
+			ironlake_opregion_gse_intr(dev);
 
 		de_iir = new_de_iir;
 		gt_iir = new_gt_iir;
@@ -891,7 +908,7 @@ static int igdng_irq_postinstall(struct drm_device *dev)
 {
 	drm_i915_private_t *dev_priv = (drm_i915_private_t *) dev->dev_private;
 	/* enable kind of interrupts always enabled */
-	u32 display_mask = DE_MASTER_IRQ_CONTROL /*| DE_PCH_EVENT */;
+	u32 display_mask = DE_MASTER_IRQ_CONTROL | DE_GSE /*| DE_PCH_EVENT */;
 	u32 render_mask = GT_USER_INTERRUPT;
 
 	dev_priv->irq_mask_reg = ~display_mask;
