@@ -81,6 +81,7 @@ struct intel_output {
 	int type;
 	struct intel_i2c_chan *i2c_bus; /* for control functions */
 	struct intel_i2c_chan *ddc_bus; /* for DDC only stuff */
+	struct edid *edid;
 	bool load_detect_temp;
 	bool needs_tv_clock;
 	void *dev_priv;
