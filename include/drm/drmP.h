@@ -304,6 +304,7 @@ struct drm_vma_entry {
 	pid_t pid;
 };
 
+extern struct list_head drm_async_list;
 /**
  * DMA buffer.
  */
