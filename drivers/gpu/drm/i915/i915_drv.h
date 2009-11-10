@@ -854,7 +854,6 @@ extern int i915_wait_ring(struct drm_device * dev, int n, const char *caller);
 		       (dev)->pci_device == 0x2E12 || \
 		       (dev)->pci_device == 0x2E22 || \
 		       (dev)->pci_device == 0x2E32 || \
-		       (dev)->pci_device == 0x2E42 || \
 		       (dev)->pci_device == 0x0042 || \
 		       (dev)->pci_device == 0x0046)
 
@@ -867,7 +866,6 @@ extern int i915_wait_ring(struct drm_device * dev, int n, const char *caller);
 		     (dev)->pci_device == 0x2E12 || \
 		     (dev)->pci_device == 0x2E22 || \
 		     (dev)->pci_device == 0x2E32 || \
-		     (dev)->pci_device == 0x2E42 || \
 		     IS_GM45(dev))
 
 #define IS_IGDG(dev) ((dev)->pci_device == 0xa001)
