@@ -182,7 +182,7 @@ static struct platform_device s3c_device_bluetooth = {
 };
 
 static struct platform_device *h1940_devices[] __initdata = {
-	&s3c_device_usb,
+	&s3c_device_ohci,
 	&s3c_device_lcd,
 	&s3c_device_wdt,
 	&s3c_device_i2c0,
