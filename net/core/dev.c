@@ -3927,6 +3927,7 @@ int __dev_addr_sync(struct dev_addr_list **to, int *to_count,
 	}
 	return err;
 }
+EXPORT_SYMBOL_GPL(__dev_addr_sync);
 
 void __dev_addr_unsync(struct dev_addr_list **to, int *to_count,
 		       struct dev_addr_list **from, int *from_count)
@@ -3946,6 +3947,7 @@ void __dev_addr_unsync(struct dev_addr_list **to, int *to_count,
 		da = next;
 	}
 }
+EXPORT_SYMBOL_GPL(__dev_addr_unsync);
 
 /**
  *	dev_unicast_sync - Synchronize device's unicast list to another device

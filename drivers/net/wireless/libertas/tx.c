@@ -3,6 +3,7 @@
   */
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
+#include <linux/sched.h>
 
 #include "hostcmd.h"
 #include "radiotap.h"
@@ -64,11 +65,9 @@ int lbs_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	struct txpd *txpd;
 	char *p802x_hdr;
 	uint16_t pkt_len;
-	int ret;
+	int ret = NETDEV_TX_OK;
 
 	lbs_deb_enter(LBS_DEB_TX);
-
-	ret = NETDEV_TX_OK;
 
 	/* We need to protect against the queues being restarted before
 	   we get round to stopping them */

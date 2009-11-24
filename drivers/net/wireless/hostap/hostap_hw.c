@@ -68,7 +68,7 @@ static char essid[33] = "test";
 module_param_string(essid, essid, sizeof(essid), 0444);
 MODULE_PARM_DESC(essid, "Host AP's ESSID");
 
-static int iw_mode[MAX_PARM_DEVICES] = { IW_MODE_INFRA, DEF_INTS };
+static int iw_mode[MAX_PARM_DEVICES] = { IW_MODE_MASTER, DEF_INTS };
 module_param_array(iw_mode, int, NULL, 0444);
 MODULE_PARM_DESC(iw_mode, "Initial operation mode");
 
@@ -2618,15 +2618,6 @@ static irqreturn_t prism2_interrupt(int irq, void *dev_id)
 	int events = 0;
 	u16 ev;
 
-	/* Detect early interrupt before driver is fully configued */
-	if (!dev->base_addr) {
-		if (net_ratelimit()) {
-			printk(KERN_DEBUG "%s: Interrupt, but dev not configured\n",
-			       dev->name);
-		}
-		return IRQ_HANDLED;
-	}
-
 	iface = netdev_priv(dev);
 	local = iface->local;
 
@@ -3392,7 +3383,6 @@ static void prism2_suspend(struct net_device *dev)
 	memset(&wrqu, 0, sizeof(wrqu));
 	wrqu.ap_addr.sa_family = ARPHRD_ETHER;
 	wireless_send_event(local->dev, SIOCGIWAP, &wrqu, NULL);
-	wireless_send_event(local->ddev, SIOCGIWAP, &wrqu, NULL);
 
 	/* Disable hardware and firmware */
 	prism2_hw_shutdown(dev, 0);
