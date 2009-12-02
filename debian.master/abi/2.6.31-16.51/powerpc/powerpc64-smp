@@ -5912,7 +5912,7 @@ EXPORT_SYMBOL_GPL drivers/char/tpm/tpm 0xf480085d	tpm_gen_interrupt
 EXPORT_SYMBOL_GPL drivers/char/tpm/tpm 0xfadb8432	tpm_read
 EXPORT_SYMBOL_GPL drivers/char/tpm/tpm 0xfcbf8b4d	tpm_write
 EXPORT_SYMBOL_GPL drivers/connector/cn 0xb10d55bc	cn_netlink_send
-EXPORT_SYMBOL_GPL drivers/connector/cn 0xdf3c19ec	cn_add_callback
+EXPORT_SYMBOL_GPL drivers/connector/cn 0xcf7a962e	cn_add_callback
 EXPORT_SYMBOL_GPL drivers/connector/cn 0xff5a8cfe	cn_del_callback
 EXPORT_SYMBOL_GPL drivers/edac/edac_core 0x0192041d	edac_device_add_device
 EXPORT_SYMBOL_GPL drivers/edac/edac_core 0x0c32ff8a	edac_pci_alloc_index

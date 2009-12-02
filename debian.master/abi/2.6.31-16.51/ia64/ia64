@@ -5992,7 +5992,7 @@ EXPORT_SYMBOL_GPL drivers/char/tpm/tpm 0xfccb9f00	tpm_gen_interrupt
 EXPORT_SYMBOL_GPL drivers/char/tpm/tpm_bios 0x91ed0f3c	tpm_bios_log_teardown
 EXPORT_SYMBOL_GPL drivers/char/tpm/tpm_bios 0xfaedb98c	tpm_bios_log_setup
 EXPORT_SYMBOL_GPL drivers/connector/cn 0xb10d55bc	cn_netlink_send
-EXPORT_SYMBOL_GPL drivers/connector/cn 0xdf3c19ec	cn_add_callback
+EXPORT_SYMBOL_GPL drivers/connector/cn 0xcf7a962e	cn_add_callback
 EXPORT_SYMBOL_GPL drivers/connector/cn 0xff5a8cfe	cn_del_callback
 EXPORT_SYMBOL_GPL drivers/hid/hid 0x09c0265a	hid_destroy_device
 EXPORT_SYMBOL_GPL drivers/hid/hid 0x21b68d34	hidraw_disconnect

@@ -9745,6 +9745,7 @@ EXPORT_SYMBOL_GPL vmlinux 0xcf2d7a7a	ata_eh_qc_complete
 EXPORT_SYMBOL_GPL vmlinux 0xcf45d687	skb_morph
 EXPORT_SYMBOL_GPL vmlinux 0xcf6745af	register_ftrace_event
 EXPORT_SYMBOL_GPL vmlinux 0xcf6c171c	debugfs_create_u8
+EXPORT_SYMBOL_GPL vmlinux 0xcf7a962e	cn_add_callback
 EXPORT_SYMBOL_GPL vmlinux 0xcf8331e7	blkcipher_walk_virt
 EXPORT_SYMBOL_GPL vmlinux 0xcfa4941b	cpuidle_unregister_driver
 EXPORT_SYMBOL_GPL vmlinux 0xcfcc83ad	register_vt_notifier
@@ -9842,7 +9843,6 @@ EXPORT_SYMBOL_GPL vmlinux 0xde11b29b	tracepoint_iter_reset
 EXPORT_SYMBOL_GPL vmlinux 0xde417b81	async_schedule_domain
 EXPORT_SYMBOL_GPL vmlinux 0xde7f52d8	cpci_hp_unregister_controller
 EXPORT_SYMBOL_GPL vmlinux 0xdf0b4953	ata_sff_irq_on
-EXPORT_SYMBOL_GPL vmlinux 0xdf3c19ec	cn_add_callback
 EXPORT_SYMBOL_GPL vmlinux 0xdf3c2ca5	fsstack_copy_inode_size
 EXPORT_SYMBOL_GPL vmlinux 0xdf4d9a76	is_io_mapping_possible
 EXPORT_SYMBOL_GPL vmlinux 0xdfc8ac08	bus_rescan_devices

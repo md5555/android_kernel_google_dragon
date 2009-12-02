@@ -9753,6 +9753,7 @@ EXPORT_SYMBOL_GPL vmlinux 0xcec79bcb	ata_pci_remove_one
 EXPORT_SYMBOL_GPL vmlinux 0xcecb9a36	crypto_register_instance
 EXPORT_SYMBOL_GPL vmlinux 0xcf1f7997	ata_cable_40wire
 EXPORT_SYMBOL_GPL vmlinux 0xcf2455eb	usb_init_urb
+EXPORT_SYMBOL_GPL vmlinux 0xcf7a962e	cn_add_callback
 EXPORT_SYMBOL_GPL vmlinux 0xcfa4941b	cpuidle_unregister_driver
 EXPORT_SYMBOL_GPL vmlinux 0xcfcc83ad	register_vt_notifier
 EXPORT_SYMBOL_GPL vmlinux 0xcfd15563	setup_irq
@@ -9848,7 +9849,6 @@ EXPORT_SYMBOL_GPL vmlinux 0xde5a8f1d	xfrm_audit_state_icvfail
 EXPORT_SYMBOL_GPL vmlinux 0xde78143d	__ring_buffer_alloc
 EXPORT_SYMBOL_GPL vmlinux 0xde7bed5e	ring_buffer_alloc_read_page
 EXPORT_SYMBOL_GPL vmlinux 0xdf34d451	ring_buffer_time_stamp
-EXPORT_SYMBOL_GPL vmlinux 0xdf3c19ec	cn_add_callback
 EXPORT_SYMBOL_GPL vmlinux 0xdf3c9773	kobject_uevent_env
 EXPORT_SYMBOL_GPL vmlinux 0xdf966919	usb_driver_release_interface
 EXPORT_SYMBOL_GPL vmlinux 0xdfc8ac08	bus_rescan_devices

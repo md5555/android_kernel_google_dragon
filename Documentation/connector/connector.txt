@@ -57,10 +57,10 @@ int cn_add_callback(struct cb_id *id, char *name, void (*callback) (struct cn_ms
 
 Registers new callback with connector core.
 
-struct cb_id *id 		- unique connector's user identifier.
-			  	  It must be registered in connector.h for legal in-kernel users.
-char *name 			- connector's callback symbolic name.
-void (*callback) (struct cn..)	- connector's callback.
+ struct cb_id *id		- unique connector's user identifier.
+				  It must be registered in connector.h for legal in-kernel users.
+ char *name			- connector's callback symbolic name.
+ void (*callback) (struct cn..)	- connector's callback.
 				  cn_msg and the sender's credentials
 
 void cn_del_callback(struct cb_id *id);
