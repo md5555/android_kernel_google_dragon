@@ -1315,10 +1315,14 @@ static void ath_tx_status(void *priv, struct ieee80211_supported_band *sband,
 		goto exit;
 
 	/*
-	 * If underrun error is seen assume it as an excessive retry only
-	 * if prefetch trigger level have reached the max (0x3f for 5416)
-	 * Adjust the long retry as if the frame was tried hw->max_rate_tries
-	 * times. This affects how ratectrl updates PER for the failed rate.
+	 * If an underrun error is seen assume it as an excessive retry only
+	 * if max frame trigger level has been reached (2 KB for singel stream,
+	 * and 4 KB for dual stream). Adjust the long retry as if the frame was
+	 * tried hw->max_rate_tries times to affect how ratectrl updates PER for
+	 * the failed rate. In case of congestion on the bus penalizing these
+	 * type of underruns should help hardware actually transmit new frames
+	 * successfully by eventually preferring slower rates. This itself
+	 * should also alleviate congestion on the bus.
 	 */
 	if (tx_info_priv->tx.ts_flags &
 	    (ATH9K_TX_DATA_UNDERRUN | ATH9K_TX_DELIM_UNDERRUN) &&
