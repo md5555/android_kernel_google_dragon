@@ -1,4 +1,4 @@
-linux (2.6.31-17.52) karmic-proposed; urgency=low
+linux (2.6.31-17.53) karmic-proposed; urgency=low
 
   [ John Johansen ]
 
@@ -339,9 +339,9 @@ linux (2.6.31-17.52) karmic-proposed; urgency=low
   * Linux 2.6.31.6
     - LP: #480144
 
- -- Stefan Bader <stefan.bader@canonical.com>  Tue, 10 Nov 2009 15:29:19 +0100
+ -- Stefan Bader <stefan.bader@canonical.com>  Thu, 03 Dec 2009 22:57:36 +0100
 
-linux (2.6.31-16.51) karmic-security; urgency=low
+linux (2.6.31-16.52) karmic-security; urgency=low
 
   [ Leann Ogasawara ]
 
@@ -387,6 +387,8 @@ linux (2.6.31-16.51) karmic-security; urgency=low
   * mac80211: fix spurious delBA handling
     - LP: #491301
   * mac80211: fix two remote exploits
+    - LP: #491301
+  * ipv4: additional update of dev_net(dev) to struct *net in ip_fragment.c
     - LP: #491301
 
  -- Leann Ogasawara <leann.ogasawara@canonical.com>  Mon, 23 Nov 2009 13:57:30 -0800
