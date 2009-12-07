@@ -9687,6 +9687,7 @@ EXPORT_SYMBOL_GPL vmlinux 0xce86128d	i2c_new_probed_device
 EXPORT_SYMBOL_GPL vmlinux 0xce8c2420	ata_std_prereset
 EXPORT_SYMBOL_GPL vmlinux 0xce9f74df	dev_attr_sw_activity
 EXPORT_SYMBOL_GPL vmlinux 0xcf566d3d	inet_hashinfo_init
+EXPORT_SYMBOL_GPL vmlinux 0xcf7a962e	cn_add_callback
 EXPORT_SYMBOL_GPL vmlinux 0xcf9298fb	regulator_get_init_drvdata
 EXPORT_SYMBOL_GPL vmlinux 0xcfae6224	sysfs_remove_group
 EXPORT_SYMBOL_GPL vmlinux 0xcfb43b2d	sata_scr_valid
@@ -9776,7 +9777,6 @@ EXPORT_SYMBOL_GPL vmlinux 0xdedf0624	usb_hcd_poll_rh_status
 EXPORT_SYMBOL_GPL vmlinux 0xdedf118d	debugfs_remove_recursive
 EXPORT_SYMBOL_GPL vmlinux 0xdf1de081	tcp_reno_cong_avoid
 EXPORT_SYMBOL_GPL vmlinux 0xdf2af2cd	cpufreq_frequency_table_target
-EXPORT_SYMBOL_GPL vmlinux 0xdf3c19ec	cn_add_callback
 EXPORT_SYMBOL_GPL vmlinux 0xdf5b9119	gpiochip_remove
 EXPORT_SYMBOL_GPL vmlinux 0xdff6caa2	ata_eh_qc_retry
 EXPORT_SYMBOL_GPL vmlinux 0xe025dc89	hidinput_connect

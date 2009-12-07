@@ -9718,6 +9718,7 @@ EXPORT_SYMBOL_GPL vmlinux 0xcdca3691	nr_irqs
 EXPORT_SYMBOL_GPL vmlinux 0xcde131ab	usb_ifnum_to_if
 EXPORT_SYMBOL_GPL vmlinux 0xce033600	init_dummy_netdev
 EXPORT_SYMBOL_GPL vmlinux 0xce37f4f7	setup_irq
+EXPORT_SYMBOL_GPL vmlinux 0xcf7a962e	cn_add_callback
 EXPORT_SYMBOL_GPL vmlinux 0xcf974e83	pci_set_pcie_reset_state
 EXPORT_SYMBOL_GPL vmlinux 0xcfa37a7d	acpi_get_pci_dev
 EXPORT_SYMBOL_GPL vmlinux 0xcfa4941b	cpuidle_unregister_driver
@@ -9818,7 +9819,6 @@ EXPORT_SYMBOL_GPL vmlinux 0xde417b81	async_schedule_domain
 EXPORT_SYMBOL_GPL vmlinux 0xde431fab	usb_autopm_set_interface
 EXPORT_SYMBOL_GPL vmlinux 0xde439c67	ata_bmdma_mode_filter
 EXPORT_SYMBOL_GPL vmlinux 0xdf10c790	rdev_get_dev
-EXPORT_SYMBOL_GPL vmlinux 0xdf3c19ec	cn_add_callback
 EXPORT_SYMBOL_GPL vmlinux 0xdf3c2ca5	fsstack_copy_inode_size
 EXPORT_SYMBOL_GPL vmlinux 0xdf4d9a76	is_io_mapping_possible
 EXPORT_SYMBOL_GPL vmlinux 0xdf6078be	shmem_file_setup
