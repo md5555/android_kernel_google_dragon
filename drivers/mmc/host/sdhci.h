@@ -283,6 +283,8 @@ struct sdhci_ops {
 	/* returns card read-only status in a host-specific way if
          * SDHCI_QUIRK_BROKEN_WRITE_PROTECT is set */
 	int		(*get_ro)(struct sdhci_host *host);
+	/* returns the maximum host controller frequency, in megahertz */
+	unsigned int	(*get_maxclock)(struct sdhci_host *host);
 	/* returns internal divider (1 <= v <= 256) if the clock change request
 	 * was successful, 0 on failure. */
 	int		(*set_clock)(struct sdhci_host *host, unsigned int hz);

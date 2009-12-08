@@ -1647,8 +1647,13 @@ int sdhci_add_host(struct sdhci_host *host)
 		host->start_offset = 0;
 #endif
 
-	host->max_clk =
-		(caps & SDHCI_CLOCK_BASE_MASK) >> SDHCI_CLOCK_BASE_SHIFT;
+	host->max_clk = 0;
+	if (host->ops->get_maxclock)
+		host->max_clk = host->ops->get_maxclock(host);
+
+	if (host->max_clk == 0)
+		host->max_clk =
+			(caps & SDHCI_CLOCK_BASE_MASK) >> SDHCI_CLOCK_BASE_SHIFT;
 	if (host->max_clk == 0) {
 		printk(KERN_ERR "%s: Hardware doesn't specify base clock "
 			"frequency.\n", mmc_hostname(mmc));
