@@ -57,6 +57,15 @@
 #endif
 
 /*
+ * The highmem pkmap virtual space shares the end of the module area.
+ */
+#ifdef CONFIG_HIGHMEM
+#define MODULES_END		(PAGE_OFFSET - PMD_SIZE)
+#else
+#define MODULES_END		(PAGE_OFFSET)
+#endif
+
+/*
  * The XIP kernel gets mapped at the bottom of the module vm area.
  * Since we use sections to map it, this macro replaces the physical address
  * with its virtual address while keeping offset from the base section.
