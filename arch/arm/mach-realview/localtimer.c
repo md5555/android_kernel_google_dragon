@@ -11,10 +11,8 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/delay.h>
-#include <linux/device.h>
 #include <linux/smp.h>
 #include <linux/jiffies.h>
-#include <linux/percpu.h>
 #include <linux/clockchips.h>
 #include <linux/irq.h>
 #include <linux/io.h>
@@ -23,18 +21,6 @@
 #include <asm/hardware/gic.h>
 #include <mach/hardware.h>
 #include <asm/irq.h>
-
-static DEFINE_PER_CPU(struct clock_event_device, local_clockevent);
-
-/*
- * Used on SMP for either the local timer or IPI_TIMER
- */
-void local_timer_interrupt(void)
-{
-	struct clock_event_device *clk = &__get_cpu_var(local_clockevent);
-
-	clk->event_handler(clk);
-}
 
 #ifdef CONFIG_LOCAL_TIMERS
 
@@ -47,7 +33,7 @@ unsigned int twd_size;
 static unsigned long mpcore_timer_rate;
 
 static void local_timer_set_mode(enum clock_event_mode mode,
-				 struct clock_event_device *clk)
+				 struct clock_event_device *evt)
 {
 	void __iomem *base = TWD_BASE(smp_processor_id());
 	unsigned long ctrl;
@@ -172,7 +158,7 @@ void __cpuinit local_timer_setup(unsigned int cpu)
 	get_irq_chip(IRQ_LOCALTIMER)->unmask(IRQ_LOCALTIMER);
 	local_irq_restore(flags);
 
-	clockevents_register_device(clk);
+	clockevents_register_device(evt);
 }
 
 /*

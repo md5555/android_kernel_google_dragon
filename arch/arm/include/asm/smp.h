@@ -105,43 +105,8 @@ extern void arch_send_call_function_single_ipi(int cpu);
 extern void arch_send_call_function_ipi(cpumask_t mask);
 
 /*
- * Local timer interrupt handling function (can be IPI'ed).
- */
-extern void local_timer_interrupt(void);
-
-#ifdef CONFIG_LOCAL_TIMERS
-
-/*
- * Stop a local timer interrupt.
- */
-extern void local_timer_stop(void);
-
-/*
- * Platform provides this to acknowledge a local timer IRQ
- */
-extern int local_timer_ack(void);
-
-#else
-
-static inline void local_timer_stop(void)
-{
-}
-
-#endif
-
-/*
- * Setup a local timer interrupt for a CPU.
- */
-extern void local_timer_setup(void);
-
-/*
  * show local interrupt info
  */
 extern void show_local_irqs(struct seq_file *);
-
-/*
- * Called from assembly, this is the local timer IRQ handler
- */
-asmlinkage void do_local_timer(struct pt_regs *);
 
 #endif /* ifndef __ASM_ARM_SMP_H */

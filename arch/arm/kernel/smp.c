@@ -22,6 +22,8 @@
 #include <linux/smp.h>
 #include <linux/seq_file.h>
 #include <linux/irq.h>
+#include <linux/percpu.h>
+#include <linux/clockchips.h>
 
 #include <asm/atomic.h>
 #include <asm/cacheflush.h>
@@ -32,6 +34,7 @@
 #include <asm/processor.h>
 #include <asm/tlbflush.h>
 #include <asm/ptrace.h>
+#include <asm/localtimer.h>
 
 /*
  * as from 2.5, kernels no longer have an init_tasks structure
@@ -277,9 +280,9 @@ asmlinkage void __cpuinit secondary_start_kernel(void)
 	local_fiq_enable();
 
 	/*
-	 * Setup local timer for this CPU.
+	 * Setup the percpu timer for this CPU.
 	 */
-	local_timer_setup();
+	percpu_timer_setup();
 
 	calibrate_delay();
 
@@ -386,10 +389,16 @@ void show_local_irqs(struct seq_file *p)
 	seq_putc(p, '\n');
 }
 
+/*
+ * Timer (local or broadcast) support
+ */
+static DEFINE_PER_CPU(struct clock_event_device, percpu_clockevent);
+
 static void ipi_timer(void)
 {
+	struct clock_event_device *evt = &__get_cpu_var(percpu_clockevent);
 	irq_enter();
-	local_timer_interrupt();
+	evt->event_handler(evt);
 	irq_exit();
 }
 
@@ -407,6 +416,42 @@ asmlinkage void __exception do_local_timer(struct pt_regs *regs)
 	set_irq_regs(old_regs);
 }
 #endif
+
+#ifdef CONFIG_GENERIC_CLOCKEVENTS_BROADCAST
+static void smp_timer_broadcast(const struct cpumask *mask)
+{
+	send_ipi_message(*(cpumask_t*)mask, IPI_TIMER);
+}
+
+static void broadcast_timer_set_mode(enum clock_event_mode mode,
+	struct clock_event_device *evt)
+{
+}
+
+static void local_timer_setup(struct clock_event_device *evt)
+{
+	evt->name	= "dummy_timer";
+	evt->features	= CLOCK_EVT_FEAT_ONESHOT |
+			  CLOCK_EVT_FEAT_PERIODIC |
+			  CLOCK_EVT_FEAT_DUMMY;
+	evt->rating	= 400;
+	evt->mult	= 1;
+	evt->set_mode	= broadcast_timer_set_mode;
+	evt->broadcast	= smp_timer_broadcast;
+
+	clockevents_register_device(evt);
+}
+#endif
+
+void __cpuinit percpu_timer_setup(void)
+{
+	unsigned int cpu = smp_processor_id();
+	struct clock_event_device *evt = &per_cpu(percpu_clockevent, cpu);
+
+	evt->cpumask = cpumask_of(cpu);
+
+	local_timer_setup(evt);
+}
 
 static DEFINE_SPINLOCK(stop_lock);
 
@@ -518,11 +563,6 @@ void smp_send_timer(void)
 {
 	cpumask_t mask = cpu_online_map;
 	cpu_clear(smp_processor_id(), mask);
-	send_ipi_message(mask, IPI_TIMER);
-}
-
-void smp_timer_broadcast(cpumask_t mask)
-{
 	send_ipi_message(mask, IPI_TIMER);
 }
 
