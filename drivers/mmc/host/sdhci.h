@@ -212,6 +212,8 @@ struct sdhci_host {
 #define SDHCI_QUIRK_NO_BUSY_IRQ				(1<<14)
 /* Controller write protect bit is broken. Assume no write protection */
 #define SDHCI_QUIRK_BROKEN_WRITE_PROTECT		(1<<15)
+/* Controller needs INTERRUPT_AT_BLOCK_GAP enabled to detect card interrupts */
+#define SDHCI_QUIRK_ENABLE_INTERRUPT_AT_BLOCK_GAP	(1<<16)
 
 	int			irq;		/* Device IRQ */
 	void __iomem *		ioaddr;		/* Mapped address */

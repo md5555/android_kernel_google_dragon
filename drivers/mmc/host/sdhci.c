@@ -1130,6 +1130,15 @@ static void sdhci_enable_sdio_irq(struct mmc_host *mmc, int enable)
 	writel(ier, host->ioaddr + SDHCI_INT_ENABLE);
 	writel(ier, host->ioaddr + SDHCI_SIGNAL_ENABLE);
 
+	if (host->quirks & SDHCI_QUIRK_ENABLE_INTERRUPT_AT_BLOCK_GAP) {
+		u8 gap_ctrl = readb(host->ioaddr + SDHCI_BLOCK_GAP_CONTROL);
+		if (enable)
+			gap_ctrl |= 0x8;
+		else
+			gap_ctrl &= ~0x8;
+		writeb(gap_ctrl, host->ioaddr + SDHCI_BLOCK_GAP_CONTROL);
+	}
+
 out:
 	mmiowb();
 
