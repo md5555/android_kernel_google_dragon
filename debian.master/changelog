@@ -1,4 +1,4 @@
-linux (2.6.31-17.53) karmic-proposed; urgency=low
+linux (2.6.31-17.54) karmic-proposed; urgency=low
 
   [ John Johansen ]
 
@@ -340,6 +340,16 @@ linux (2.6.31-17.53) karmic-proposed; urgency=low
     - LP: #480144
 
  -- Stefan Bader <stefan.bader@canonical.com>  Thu, 03 Dec 2009 22:57:36 +0100
+
+linux (2.6.31-16.53) karmic-security; urgency=low
+
+  [ Upstream Kernel Changes ]
+
+  * ext4: Fix insufficient checks in EXT4_IOC_MOVE_EXT
+    - LP: #492659
+    - CVE-2009-4131
+
+ -- Leann Ogasawara <leann.ogasawara@canonical.com>  Mon, 07 Dec 2009 08:52:07 -0800
 
 linux (2.6.31-16.52) karmic-security; urgency=low
 
