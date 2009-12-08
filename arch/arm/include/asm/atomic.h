@@ -54,6 +54,8 @@ static inline int atomic_add_return(int i, atomic_t *v)
 	unsigned long tmp;
 	int result;
 
+	smp_mb();
+
 	do {
 	__asm__ __volatile__("@ atomic_add_return\n"
 "1:	ldrex	%0, [%2]\n"
@@ -64,6 +66,8 @@ static inline int atomic_add_return(int i, atomic_t *v)
 	: "cc");
 	} while (tmp && atomic_backoff_delay());
 
+	smp_mb();
+
 	return result;
 }
 
@@ -71,6 +75,8 @@ static inline int atomic_sub_return(int i, atomic_t *v)
 {
 	unsigned long tmp;
 	int result;
+
+	smp_mb();
 
 	do {
 	__asm__ __volatile__("@ atomic_sub_return\n"
@@ -82,12 +88,16 @@ static inline int atomic_sub_return(int i, atomic_t *v)
 	: "cc");
 	} while (tmp && atomic_backoff_delay());
 
+	smp_mb();
+
 	return result;
 }
 
 static inline int atomic_cmpxchg(atomic_t *ptr, int old, int new)
 {
 	unsigned long oldval, res;
+
+	smp_mb();
 
 	do {
 		__asm__ __volatile__("@ atomic_cmpxchg\n"
@@ -101,12 +111,16 @@ static inline int atomic_cmpxchg(atomic_t *ptr, int old, int new)
 		    : "cc");
 	} while (res && atomic_backoff_delay());
 
+	smp_mb();
+
 	return oldval;
 }
 
 static inline void atomic_clear_mask(unsigned long mask, unsigned long *addr)
 {
 	unsigned long tmp, tmp2;
+
+	smp_mb();
 
 	do {
 	__asm__ __volatile__("@ atomic_clear_mask\n"
@@ -117,6 +131,8 @@ static inline void atomic_clear_mask(unsigned long mask, unsigned long *addr)
 	: "r" (addr), "Ir" (mask)
 	: "cc");
 	} while (tmp && atomic_backoff_delay());
+
+	smp_mb();
 }
 
 #else /* ARM_ARCH_6 */
