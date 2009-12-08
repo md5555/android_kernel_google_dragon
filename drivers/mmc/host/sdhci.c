@@ -1063,10 +1063,15 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	else if (ios->bus_width == MMC_BUS_WIDTH_4)
 		ctrl |= SDHCI_CTRL_4BITBUS;
 
-	if (ios->timing == MMC_TIMING_SD_HS)
-		ctrl |= SDHCI_CTRL_HISPD;
-	else
-		ctrl &= ~SDHCI_CTRL_HISPD;
+	/* Tegra controllers often fail to detect high-speed cards when
+	 * CTRL_HISPD is programmed
+	 */
+	if (!(host->quirks & SDHCI_QUIRK_BROKEN_CTRL_HISPD)) {
+		if (ios->timing == MMC_TIMING_SD_HS)
+			ctrl |= SDHCI_CTRL_HISPD;
+		else
+			ctrl &= ~SDHCI_CTRL_HISPD;
+	}
 
 	writeb(ctrl, host->ioaddr + SDHCI_HOST_CONTROL);
 

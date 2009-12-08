@@ -215,6 +215,8 @@ struct sdhci_host {
 #define SDHCI_QUIRK_BROKEN_WRITE_PROTECT		(1<<15)
 /* Controller needs INTERRUPT_AT_BLOCK_GAP enabled to detect card interrupts */
 #define SDHCI_QUIRK_ENABLE_INTERRUPT_AT_BLOCK_GAP	(1<<16)
+/* Controller should not program HIGH_SPEED_EN after switching to high speed */
+#define SDHCI_QUIRK_BROKEN_CTRL_HISPD			(1<<17)
 
 	int			irq;		/* Device IRQ */
 	void __iomem *		ioaddr;		/* Mapped address */
