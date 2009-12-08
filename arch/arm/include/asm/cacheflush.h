@@ -454,6 +454,8 @@ static inline void __flush_icache_all(void)
 	asm("mcr	p15, 0, %0, c7, c5, 0	@ invalidate I-cache\n"
 	    :
 	    : "r" (0));
+	dsb();
+	isb();
 }
 
 #define ARCH_HAS_FLUSH_ANON_PAGE
@@ -470,7 +472,7 @@ static inline void flush_anon_page(struct vm_area_struct *vma,
 static inline void flush_kernel_dcache_page(struct page *page)
 {
 	/* highmem pages are always flushed upon kunmap already */
-	if ((cache_is_vivt() || cache_is_vipt_aliasing()) && !PageHighMem(page))
+	if (!PageHighMem(page))
 		__cpuc_flush_dcache_page(page_address(page));
 }
 
