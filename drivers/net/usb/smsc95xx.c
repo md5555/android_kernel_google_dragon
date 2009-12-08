@@ -1118,6 +1118,7 @@ static int smsc95xx_rx_fixup(struct usbnet *dev, struct sk_buff *skb)
 				if (pdata->use_rx_csum)
 					smsc95xx_rx_csum_offload(skb);
 
+				skb_trim(skb, skb->len - 4); /* remove fcs */
 				skb->truesize = size + sizeof(struct sk_buff);
 
 				return 1;
@@ -1136,6 +1137,7 @@ static int smsc95xx_rx_fixup(struct usbnet *dev, struct sk_buff *skb)
 			if (pdata->use_rx_csum)
 				smsc95xx_rx_csum_offload(ax_skb);
 
+			skb_trim(ax_skb, ax_skb->len - 4); /* remove fcs */
 			ax_skb->truesize = size + sizeof(struct sk_buff);
 
 			usbnet_skb_return(dev, ax_skb);
@@ -1175,7 +1177,14 @@ static struct sk_buff *smsc95xx_tx_fixup(struct usbnet *dev,
 	/* We do not advertise SG, so skbs should be already linearized */
 	BUG_ON(skb_shinfo(skb)->nr_frags);
 
-	if (skb_headroom(skb) < overhead) {
+/*
+ * This condition is commented since otherwise, it causes the driver to hang.
+ * The root cause is yet to be fixed, but if a new skb is always allocated, then
+ * the driver works fine without any problem.
+ */
+
+	// if (skb->len >= 382 || skb_headroom(skb) < overhead)
+	{
 		struct sk_buff *skb2 = skb_copy_expand(skb,
 			overhead, 0, flags);
 		dev_kfree_skb_any(skb);
@@ -1215,13 +1224,18 @@ static const struct driver_info smsc95xx_info = {
 	.rx_fixup	= smsc95xx_rx_fixup,
 	.tx_fixup	= smsc95xx_tx_fixup,
 	.status		= smsc95xx_status,
-	.flags		= FLAG_ETHER,
+	.flags		= FLAG_ETHER | FLAG_SEND_ZLP,
 };
 
 static const struct usb_device_id products[] = {
 	{
 		/* SMSC9500 USB Ethernet Device */
 		USB_DEVICE(0x0424, 0x9500),
+		.driver_info = (unsigned long) &smsc95xx_info,
+	},
+	{
+		/* SMSC9514 USB Ethernet Device */
+		USB_DEVICE(0x0424, 0xEC00),
 		.driver_info = (unsigned long) &smsc95xx_info,
 	},
 	{ },		/* END */
