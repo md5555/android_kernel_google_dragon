@@ -80,7 +80,7 @@ static inline unsigned int gic_irq(unsigned int irq)
  * our "acknowledge" routine disable the interrupt, then mark it as
  * complete.
  */
-static void gic_ack_irq(unsigned int irq)
+void gic_ack_irq(unsigned int irq)
 {
 	u32 mask = 1 << (irq % 32);
 
@@ -90,7 +90,7 @@ static void gic_ack_irq(unsigned int irq)
 	spin_unlock(&irq_controller_lock);
 }
 
-static void gic_mask_irq(unsigned int irq)
+void gic_mask_irq(unsigned int irq)
 {
 	u32 mask = 1 << (irq % 32);
 
@@ -99,7 +99,7 @@ static void gic_mask_irq(unsigned int irq)
 	spin_unlock(&irq_controller_lock);
 }
 
-static void gic_unmask_irq(unsigned int irq)
+void gic_unmask_irq(unsigned int irq)
 {
 	u32 mask = 1 << (irq % 32);
 
@@ -109,7 +109,7 @@ static void gic_unmask_irq(unsigned int irq)
 }
 
 #ifdef CONFIG_SMP
-static void gic_set_cpu(unsigned int irq, const struct cpumask *mask_val)
+void gic_set_cpu(unsigned int irq, const struct cpumask *mask_val)
 {
 	void __iomem *reg = gic_dist_base(irq) + GIC_DIST_TARGET + (gic_irq(irq) & ~3);
 	unsigned int shift = (irq % 4) * 8;
