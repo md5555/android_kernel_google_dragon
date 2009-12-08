@@ -98,6 +98,45 @@ static void l2x0_flush_range(unsigned long start, unsigned long end)
 	cache_sync();
 }
 
+void l2x0_deinit()
+{
+	/* FIXME: get num_ways from the cache config */
+	unsigned int num_ways = 8, i;
+	unsigned long flags;
+
+	/* this function can leave interrupts disabled for a very long time */
+	spin_lock_irqsave(&l2x0_lock, flags);
+	if (!(readl(l2x0_base + L2X0_CTRL) & 1)) {
+		spin_unlock_irqrestore(&l2x0_lock, flags);
+		return;
+	}
+
+	/* Lockdown all ways first */
+	for (i=0;i<num_ways;i++) {
+		writel(0xff, l2x0_base + L2X0_LOCKDOWN_WAY_I + i * 4);
+		writel(0xff, l2x0_base + L2X0_LOCKDOWN_WAY_D + i * 4);
+	}
+
+	/* flush the entire l2 cache */
+	writel(0xff, l2x0_base + L2X0_CLEAN_INV_WAY);
+	while (readl(l2x0_base + L2X0_CLEAN_INV_WAY) & 0xff)
+		;
+
+	writel(0, l2x0_base + L2X0_CACHE_SYNC);
+	while (readl(l2x0_base + L2X0_CACHE_SYNC) & 0x1)
+		;
+
+	/* Unlock all ways */
+	for (i=0;i<num_ways;i++) {
+		writel(0, l2x0_base + L2X0_LOCKDOWN_WAY_I + i * 4);
+		writel(0, l2x0_base + L2X0_LOCKDOWN_WAY_D + i * 4);
+	}
+
+	/* disable L2X0 */
+	writel(0, l2x0_base + L2X0_CTRL);
+	spin_unlock_irqrestore(&l2x0_lock, flags);
+}
+
 void __init l2x0_init(void __iomem *base, __u32 aux_val, __u32 aux_mask)
 {
 	__u32 aux;
