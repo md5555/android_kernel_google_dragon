@@ -283,8 +283,8 @@ struct sdhci_ops {
 	/* returns card read-only status in a host-specific way if
          * SDHCI_QUIRK_BROKEN_WRITE_PROTECT is set */
 	int		(*get_ro)(struct sdhci_host *host);
-	/* returns >= 0 internal divider value if the clock change request was
-	 * successful, < 0 on failure. */
+	/* returns internal divider (1 <= v <= 256) if the clock change request
+	 * was successful, 0 on failure. */
 	int		(*set_clock)(struct sdhci_host *host, unsigned int hz);
 #ifdef CONFIG_EMBEDDED_MMC_START_OFFSET
 	unsigned int	(*get_startoffset)(struct sdhci_host *host);
@@ -303,6 +303,7 @@ static inline void *sdhci_priv(struct sdhci_host *host)
 
 extern int sdhci_add_host(struct sdhci_host *host);
 extern void sdhci_remove_host(struct sdhci_host *host, int dead);
+extern void sdhci_card_detect_callback(struct sdhci_host *host);
 
 #ifdef CONFIG_PM
 extern int sdhci_suspend_host(struct sdhci_host *host, pm_message_t state);
