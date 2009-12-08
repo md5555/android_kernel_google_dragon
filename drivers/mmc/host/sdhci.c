@@ -1094,12 +1094,18 @@ static int sdhci_get_ro(struct mmc_host *mmc)
 
 	if (host->flags & SDHCI_DEVICE_DEAD)
 		present = 0;
-	else
+	else if (!(host->quirks & SDHCI_QUIRK_BROKEN_WRITE_PROTECT)) {
 		present = readl(host->ioaddr + SDHCI_PRESENT_STATE);
+		present = !(present & SDHCI_WRITE_PROTECT);
+	}
+        else if (host->ops->get_ro)
+		present = host->ops->get_ro(host);
+	else
+		present = 0;
 
 	spin_unlock_irqrestore(&host->lock, flags);
 
-	return !(present & SDHCI_WRITE_PROTECT);
+	return present;
 }
 
 static void sdhci_enable_sdio_irq(struct mmc_host *mmc, int enable)
