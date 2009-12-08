@@ -910,9 +910,15 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 	if (clock == 0)
 		goto out;
 
-	for (div = 1;div < 256;div *= 2) {
-		if ((host->max_clk / div) <= clock)
+	div = 0;
+	if (host->ops->set_clock)
+		div = host->ops->set_clock(host, clock);
+
+	if (!div) {
+		for (div = 1;div < 256;div *= 2) {
+			if ((host->max_clk / div) <= clock)
 			break;
+		}
 	}
 	div >>= 1;
 
