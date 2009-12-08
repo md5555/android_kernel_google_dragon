@@ -465,6 +465,7 @@ static void ipi_cpu_stop(unsigned int cpu)
 	dump_stack();
 	spin_unlock(&stop_lock);
 
+	cpu_relax();
 	cpu_clear(cpu, cpu_online_map);
 
 	local_fiq_disable();
