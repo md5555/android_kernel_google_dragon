@@ -2283,7 +2283,7 @@ static int __init fsl_udc_probe(struct platform_device *pdev)
 #endif
 
 	/* Initialize USB clocks */
-	ret = fsl_udc_clk_init(pdev);
+	ret = platform_udc_clk_init(pdev);
 	if (ret < 0)
 		goto err_iounmap_noclk;
 
@@ -2323,7 +2323,7 @@ static int __init fsl_udc_probe(struct platform_device *pdev)
 	 * leave usbintr reg untouched */
 	dr_controller_setup(udc_controller);
 
-	fsl_udc_clk_finalize(pdev);
+	platform_udc_clk_finalize(pdev);
 
 	/* Setup gadget structure */
 	udc_controller->gadget.ops = &fsl_gadget_ops;
@@ -2379,7 +2379,7 @@ err_unregister:
 err_free_irq:
 	free_irq(udc_controller->irq, udc_controller);
 err_iounmap:
-	fsl_udc_clk_release();
+	platform_udc_clk_release();
 err_iounmap_noclk:
 	iounmap(dr_regs);
 err_release_mem_region:
@@ -2403,7 +2403,7 @@ static int __exit fsl_udc_remove(struct platform_device *pdev)
 		return -ENODEV;
 	udc_controller->done = &done;
 
-	fsl_udc_clk_release();
+	platform_udc_clk_release();
 
 	/* DR has been stopped in usb_gadget_unregister_driver() */
 	remove_proc_file();

@@ -565,21 +565,28 @@ static void dump_msg(const char *label, const u8 * buf, unsigned int length)
 #define get_pipe_by_ep(EP)	(ep_index(EP) * 2 + ep_is_in(EP))
 
 struct platform_device;
-#ifdef CONFIG_ARCH_MXC
-int fsl_udc_clk_init(struct platform_device *pdev);
-void fsl_udc_clk_finalize(struct platform_device *pdev);
-void fsl_udc_clk_release(void);
+
+#if defined(CONFIG_ARCH_MXC)
+#define _UDC_NAME fsl
+#endif
+
+#ifdef _UDC_NAME
+#define platform_udc_clk_init		_UDC_NAME##_udc_clk_init
+#define platform_udc_clk_finalize	_UDC_NAME##_udc_clk_finalize
+#define platform_udc_clk_release	_UDC_NAME##_udc_clk_release
+
+extern int platform_udc_clk_init(struct platform_device *pdev);
+extern void platform_udc_clk_finalize(struct platform_device *pdev);
+extern void platform_udc_clk_release(void);
 #else
-static inline int fsl_udc_clk_init(struct platform_device *pdev)
+static inline int platform_udc_clk_init(struct platform_device *pdev)
 {
 	return 0;
 }
-static inline void fsl_udc_clk_finalize(struct platform_device *pdev)
-{
-}
-static inline void fsl_udc_clk_release(void)
-{
-}
+static inline void platform_udc_clk_finalize(struct platform_device *pdev)
+{ }
+static inline void platform_udc_clk_release(void)
+{ }
 #endif
 
 #endif
