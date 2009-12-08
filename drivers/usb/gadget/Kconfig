@@ -729,4 +729,15 @@ config USB_CDC_COMPOSITE
 
 endchoice
 
+config UDC_FSL_NR_ENDPOINTS
+	int "Maximum number of USB device endpoints"
+	depends on USB_FSL_USB2
+	range 6 32
+	default 6
+	help
+	  Set this to the maximum number of device endpoints you want the
+	  driver to support; this must be at least as many endpoints as
+	  will be used by registered gadgets
+
+
 endif # USB_GADGET
