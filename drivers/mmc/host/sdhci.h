@@ -262,12 +262,19 @@ struct sdhci_host {
 
 	struct timer_list	timer;		/* Timer for timeouts */
 
+#ifdef CONFIG_EMBEDDED_MMC_START_OFFSET
+	unsigned int		start_offset;	/* Zero-offset for MBR */
+#endif
+
 	unsigned long		private[0] ____cacheline_aligned;
 };
 
 
 struct sdhci_ops {
 	int		(*enable_dma)(struct sdhci_host *host);
+#ifdef CONFIG_EMBEDDED_MMC_START_OFFSET
+	unsigned int	(*get_startoffset)(struct sdhci_host *host);
+#endif
 };
 
 
