@@ -123,6 +123,16 @@
 	.long	9999b,9001f;			\
 	.previous
 
+	.macro  smp_dmb
+#ifdef CONFIG_SMP
+#if __LINUX_ARM_ARCH__ >= 7
+	dmb
+#elif __LINUX_ARM_ARCH__ == 6
+	mcr p15, 0, r0, c7, c10, 5
+#endif
+#endif
+	.endm
+
 #if defined(CONFIG_CPU_V7M)
 	.macro	setmode, mode, reg
 	.endm
