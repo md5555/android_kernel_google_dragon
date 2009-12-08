@@ -13,6 +13,8 @@
  */
 #include <linux/string.h>
 #include <linux/thread_info.h>
+#include <linux/sched.h>
+#include <asm/unified.h>
 #include <asm/errno.h>
 #include <asm/memory.h>
 #include <asm/domain.h>
@@ -69,7 +71,7 @@ static inline void set_fs(mm_segment_t fs)
 
 #define __addr_ok(addr) ({ \
 	unsigned long flag; \
-	__asm__("cmp %2, %0; movlo %0, #0" \
+	__asm__("cmp %2, %0; it lo; movlo %0, #0" \
 		: "=&r" (flag) \
 		: "0" (current_thread_info()->addr_limit), "r" (addr) \
 		: "cc"); \
@@ -79,7 +81,7 @@ static inline void set_fs(mm_segment_t fs)
 #define __range_ok(addr,size) ({ \
 	unsigned long flag, roksum; \
 	__chk_user_ptr(addr);	\
-	__asm__("adds %1, %2, %3; sbcccs %1, %1, %0; movcc %0, #0" \
+	__asm__("adds %1, %2, %3; it cc; sbcccs %1, %1, %0; it cc; movcc %0, #0" \
 		: "=&r" (flag), "=&r" (roksum) \
 		: "r" (addr), "Ir" (size), "0" (current_thread_info()->addr_limit) \
 		: "cc"); \
@@ -365,8 +367,10 @@ do {									\
 
 #define __put_user_asm_dword(x,__pu_addr,err)			\
 	__asm__ __volatile__(					\
-	"1:	strt	" __reg_oper1 ", [%1], #4\n"		\
-	"2:	strt	" __reg_oper0 ", [%1]\n"		\
+ ARM(	"1:	strt	" __reg_oper1 ", [%1], #4\n"	)	\
+ ARM(	"2:	strt	" __reg_oper0 ", [%1]\n"	)	\
+ THUMB(	"1:	strt	" __reg_oper1 ", [%1]\n"	)	\
+ THUMB(	"2:	strt	" __reg_oper0 ", [%1, #4]\n"	)	\
 	"3:\n"							\
 	"	.section .fixup,\"ax\"\n"			\
 	"	.align	2\n"					\

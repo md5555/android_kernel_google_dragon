@@ -24,6 +24,8 @@
 #define L2X0_CACHE_TYPE			0x004
 #define L2X0_CTRL			0x100
 #define L2X0_AUX_CTRL			0x104
+#define L2X0_TAG_LATENCY_CTRL		0x108
+#define L2X0_DATA_LATENCY_CTRL		0x10C
 #define L2X0_EVENT_CNT_CTRL		0x200
 #define L2X0_EVENT_CNT1_CFG		0x204
 #define L2X0_EVENT_CNT0_CFG		0x208
@@ -49,8 +51,34 @@
 #define L2X0_LINE_TAG			0xF30
 #define L2X0_DEBUG_CTRL			0xF40
 
+/* Interrupt bits */
+#define L2X0_INTR_ECNTR                 0x01
+
+/* Aux Control bits */
+#define L2X0_AUX_CTRL_EMBUS             (0x01<<20)
+
+/* Event Counter Control bits */
+#define L2X0_EVENT_CONTROL_ENABLE       0x1
+#define L2X0_EVENT_CONTROL_RESET_ALL    0x6
+
+/* Event Counter Config bits */
+#define L2X0_EVENT_CONFIG_DISABLED      0x0
+#define L2X0_EVENT_CONFIG_CO            (0x1<<2)
+#define L2X0_EVENT_CONFIG_DRHIT         (0x2<<2)
+#define L2X0_EVENT_CONFIG_DRREQ         (0x3<<2)
+#define L2X0_EVENT_CONFIG_DWHIT         (0x4<<2)
+#define L2X0_EVENT_CONFIG_DWREQ         (0x5<<2)
+#define L2X0_EVENT_CONFIG_DWTREQ        (0x6<<2)
+#define L2X0_EVENT_CONFIG_IRHIT         (0x7<<2)
+#define L2X0_EVENT_CONFIG_IRREQ         (0x8<<2)
+#define L2X0_EVENT_CONFIG_WA            (0x9<<2)
+#define L2X0_EVENT_INTERRUPT_ON_INC     0x1
+#define L2X0_EVENT_INTERRUPT_ON_OVF     0x2
+#define L2X0_EVENT_INTERRUPT_DISABLED   0x3
+
 #ifndef __ASSEMBLY__
 extern void __init l2x0_init(void __iomem *base, __u32 aux_val, __u32 aux_mask);
+extern bool l2x0_disabled;
 #endif
 
 #endif

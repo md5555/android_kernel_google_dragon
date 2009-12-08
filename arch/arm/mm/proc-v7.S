@@ -18,12 +18,24 @@
 
 #include "proc-macros.S"
 
-#define TTB_C		(1 << 0)
 #define TTB_S		(1 << 1)
 #define TTB_RGN_NC	(0 << 3)
 #define TTB_RGN_OC_WBWA	(1 << 3)
 #define TTB_RGN_OC_WT	(2 << 3)
 #define TTB_RGN_OC_WB	(3 << 3)
+#define TTB_NOS		(1 << 5)
+#define TTB_IRGN_NC	((0 << 0) | (0 << 6))
+#define TTB_IRGN_WBWA	((0 << 0) | (1 << 6))
+#define TTB_IRGN_WT	((1 << 0) | (0 << 6))
+#define TTB_IRGN_WB	((1 << 0) | (1 << 6))
+
+#ifndef CONFIG_SMP
+/* PTWs cacheable, inner WB not shareable, outer WB not shareable */
+#define TTB_FLAGS	TTB_IRGN_WB|TTB_RGN_OC_WB
+#else
+/* PTWs cacheable, inner WBWA shareable, outer WBWA not shareable */
+#define TTB_FLAGS	TTB_IRGN_WBWA|TTB_S|TTB_NOS|TTB_RGN_OC_WBWA
+#endif
 
 #ifndef CONFIG_SMP
 #define TTB_FLAGS	TTB_C|TTB_RGN_OC_WB		@ mark PTWs cacheable, outer WB
@@ -95,6 +107,9 @@ ENTRY(cpu_v7_switch_mm)
 	mov	r2, #0
 	ldr	r1, [r1, #MM_CONTEXT_ID]	@ get mm->context.id
 	orr	r0, r0, #TTB_FLAGS
+#ifdef CONFIG_ARM_ERRATA_430973
+	mcr	p15, 0, r2, c7, c5, 6		@ flush BTAC/BTB
+#endif
 	mcr	p15, 0, r2, c13, c0, 1		@ set reserved context ID
 	isb
 1:	mcr	p15, 0, r0, c2, c0, 0		@ set TTB 0
@@ -117,7 +132,9 @@ ENDPROC(cpu_v7_switch_mm)
  */
 ENTRY(cpu_v7_set_pte_ext)
 #ifdef CONFIG_MMU
-	str	r1, [r0], #-2048		@ linux version
+ ARM(	str	r1, [r0], #-2048	)	@ linux version
+ THUMB(	str	r1, [r0]		)	@ linux version
+ THUMB(	sub	r0, r0, #2048		)
 
 	bic	r3, r1, #0x000003f0
 	bic	r3, r3, #PTE_TYPE_MASK
@@ -125,21 +142,26 @@ ENTRY(cpu_v7_set_pte_ext)
 	orr	r3, r3, #PTE_EXT_AP0 | 2
 
 	tst	r1, #1 << 4
+	it	ne
 	orrne	r3, r3, #PTE_EXT_TEX(1)
 
 	tst	r1, #L_PTE_WRITE
+	ite	ne
 	tstne	r1, #L_PTE_DIRTY
 	orreq	r3, r3, #PTE_EXT_APX
 
 	tst	r1, #L_PTE_USER
+	ittt	ne
 	orrne	r3, r3, #PTE_EXT_AP1
 	tstne	r3, #PTE_EXT_APX
 	bicne	r3, r3, #PTE_EXT_APX | PTE_EXT_AP0
 
 	tst	r1, #L_PTE_EXEC
+	it	eq
 	orreq	r3, r3, #PTE_EXT_XN
 
 	tst	r1, #L_PTE_YOUNG
+	ite	ne
 	tstne	r1, #L_PTE_PRESENT
 	moveq	r3, #0
 
@@ -173,13 +195,31 @@ cpu_v7_name:
 __v7_setup:
 #ifdef CONFIG_SMP
 	mrc	p15, 0, r0, c1, c0, 1		@ Enable SMP/nAMP mode
-	orr	r0, r0, #(0x1 << 6)
-	mcr	p15, 0, r0, c1, c0, 1
+	tst	r0, #(0x1 << 6)			@ already enabled?
+	itt	eq
+	orreq	r0, r0, #(1 << 6) | (1 << 0)
+	mcreq	p15, 0, r0, c1, c0, 1
 #endif
 	adr	r12, __v7_setup_stack		@ the local stack
 	stmia	r12, {r0-r5, r7, r9, r11, lr}
 	bl	v7_flush_dcache_all
 	ldmia	r12, {r0-r5, r7, r9, r11, lr}
+#ifdef CONFIG_ARM_ERRATA_430973
+	mrc	p15, 0, r10, c1, c0, 1		@ read aux control register
+	orr	r10, r10, #(1 << 6)		@ set IBE to 1
+	mcr	p15, 0, r10, c1, c0, 1		@ write aux control register
+#endif
+#ifdef CONFIG_ARM_ERRATA_458693
+	mrc	p15, 0, r10, c1, c0, 1		@ read aux control register
+	orr	r10, r10, #(1 << 5)		@ set L1NEON to 1
+	orr	r10, r10, #(1 << 9)		@ set PLDNOP to 1
+	mcr	p15, 0, r10, c1, c0, 1		@ write aux control register
+#endif
+#ifdef CONFIG_ARM_ERRATA_460075
+	mrc	p15, 1, r10, c9, c0, 2		@ read L2 cache aux ctrl register
+	orr	r10, r10, #(1 << 22)		@ set the Write Allocate disable bit
+	mcr	p15, 1, r10, c9, c0, 2		@ write the L2 cache aux ctrl register
+#endif
 	mov	r10, #0
 #ifdef HARVARD_CACHE
 	mcr	p15, 0, r10, c7, c5, 0		@ I+BTB cache invalidate
@@ -192,13 +232,16 @@ __v7_setup:
 	mcr	p15, 0, r4, c2, c0, 1		@ load TTB1
 	mov	r10, #0x1f			@ domains 0, 1 = manager
 	mcr	p15, 0, r10, c3, c0, 0		@ load domain access register
-#endif
 	ldr	r5, =0xff0aa1a8
 	ldr	r6, =0x40e040e0
 	mcr	p15, 0, r5, c10, c2, 0		@ write PRRR
 	mcr	p15, 0, r6, c10, c2, 1		@ write NMRR
+#endif
 	adr	r5, v7_crval
 	ldmia	r5, {r5, r6}
+#ifdef CONFIG_CPU_ENDIAN_BE8
+	orr	r6, r6, #1 << 25		@ big-endian page tables
+#endif
    	mrc	p15, 0, r0, c1, c0, 0		@ read control register
 	bic	r0, r0, r5			@ clear bits them
 	orr	r0, r0, r6			@ set them
@@ -206,14 +249,15 @@ __v7_setup:
 ENDPROC(__v7_setup)
 
 	/*   AT
-	 *  TFR   EV X F   I D LR
-	 * .EEE ..EE PUI. .T.T 4RVI ZFRS BLDP WCAM
+	 *  TFR   EV X F   I D LR    S
+	 * .EEE ..EE PUI. .T.T 4RVI ZWRS BLDP WCAM
 	 * rxxx rrxx xxx0 0101 xxxx xxxx x111 xxxx < forced
-	 *    1    0 110       0011 1.00 .111 1101 < we want
+	 *    1    0 110       0011 1100 .111 1101 < we want
 	 */
 	.type	v7_crval, #object
 v7_crval:
-	crval	clear=0x0120c302, mmuset=0x10c0387d, ucset=0x00c0187c
+ ARM(	crval	clear=0x0120c302, mmuset=0x10c03c7d, ucset=0x00c01c7c	)
+ THUMB(	crval	clear=0x0120c302, mmuset=0x50c03c7d, ucset=0x40c01c7c	)
 
 __v7_setup_stack:
 	.space	4 * 11				@ 11 registers

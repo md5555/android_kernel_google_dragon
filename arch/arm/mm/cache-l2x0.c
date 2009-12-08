@@ -27,6 +27,7 @@
 
 static void __iomem *l2x0_base;
 static DEFINE_SPINLOCK(l2x0_lock);
+bool l2x0_disabled;
 
 static inline void sync_writel(unsigned long val, unsigned long reg,
 			       unsigned long complete_mask)
@@ -34,7 +35,11 @@ static inline void sync_writel(unsigned long val, unsigned long reg,
 	unsigned long flags;
 
 	spin_lock_irqsave(&l2x0_lock, flags);
+#ifdef CONFIG_ARM_ERRATA_484863
+	asm volatile("swp %0, %0, [%1]\n" : "+r" (val) : "r" (l2x0_base + reg));
+#else
 	writel(val, l2x0_base + reg);
+#endif
 	/* wait for the operation to complete */
 	while (readl(l2x0_base + reg) & complete_mask)
 		;
@@ -97,20 +102,25 @@ void __init l2x0_init(void __iomem *base, __u32 aux_val, __u32 aux_mask)
 {
 	__u32 aux;
 
+	if (l2x0_disabled) {
+		printk(KERN_INFO "L2X0 cache controller disabled\n");
+		return;
+	}
+
 	l2x0_base = base;
 
-	/* disable L2X0 */
-	writel(0, l2x0_base + L2X0_CTRL);
+	if (!(readl(l2x0_base + L2X0_CTRL) & 1)) {
+		/* L2X0 cache controller disabled */
+		aux = readl(l2x0_base + L2X0_AUX_CTRL);
+		aux &= aux_mask;
+		aux |= aux_val;
+		writel(aux, l2x0_base + L2X0_AUX_CTRL);
 
-	aux = readl(l2x0_base + L2X0_AUX_CTRL);
-	aux &= aux_mask;
-	aux |= aux_val;
-	writel(aux, l2x0_base + L2X0_AUX_CTRL);
+		l2x0_inv_all();
 
-	l2x0_inv_all();
-
-	/* enable L2X0 */
-	writel(1, l2x0_base + L2X0_CTRL);
+		/* enable L2X0 */
+		writel(1, l2x0_base + L2X0_CTRL);
+	}
 
 	outer_cache.inv_range = l2x0_inv_range;
 	outer_cache.clean_range = l2x0_clean_range;
@@ -118,3 +128,10 @@ void __init l2x0_init(void __iomem *base, __u32 aux_val, __u32 aux_mask)
 
 	printk(KERN_INFO "L2X0 cache controller enabled\n");
 }
+
+static int __init l2x0_disable(char *unused)
+{
+	l2x0_disabled = 1;
+	return 0;
+}
+early_param("nol2x0", l2x0_disable);

@@ -426,9 +426,13 @@ setup_return(struct pt_regs *regs, struct k_sigaction *ka,
 		 */
 		thumb = handler & 1;
 
-		if (thumb)
+		if (thumb) {
 			cpsr |= PSR_T_BIT;
-		else
+#if __LINUX_ARM_ARCH__ >= 7
+			/* clear the If-Then Thumb-2 execution state */
+			cpsr &= ~PSR_IT_MASK;
+#endif
+		} else
 			cpsr &= ~PSR_T_BIT;
 	}
 #endif
@@ -542,7 +546,9 @@ static inline void restart_syscall(struct pt_regs *regs)
 		regs->ARM_r0 = -EINTR;
 		return;
 	}
+#ifndef CONFIG_CPU_V7M
 	regs->ARM_r0 = regs->ARM_ORIG_r0;
+#endif
 	regs->ARM_pc -= thumb_mode(regs) ? 2 : 4;
 }
 

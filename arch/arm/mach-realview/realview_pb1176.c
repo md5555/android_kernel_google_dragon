@@ -222,6 +222,13 @@ static struct resource realview_pb1176_smsc911x_resources[] = {
 	},
 };
 
+static struct platform_device realview_pb1176_smsc911x_device = {
+	.name		= "smc911x",
+	.id		= 0,
+	.num_resources	= ARRAY_SIZE(realview_pb1176_smsc911x_resources),
+	.resource	= realview_pb1176_smsc911x_resources,
+};
+
 static void __init gic_init_irq(void)
 {
 	/* ARM1176 DevChip GIC, primary */
@@ -258,8 +265,10 @@ static void __init realview_pb1176_init(void)
 	l2x0_init(__io_address(REALVIEW_PB1176_L220_BASE), 0x00730000, 0xfe000fff);
 #endif
 
+	clk_register(&realview_clcd_clk);
+
 	realview_flash_register(&realview_pb1176_flash_resource, 1);
-	realview_eth_register(NULL, realview_pb1176_smsc911x_resources);
+	platform_device_register(&realview_pb1176_smsc911x_device);
 
 	for (i = 0; i < ARRAY_SIZE(amba_devs); i++) {
 		struct amba_device *d = amba_devs[i];
@@ -275,7 +284,7 @@ MACHINE_START(REALVIEW_PB1176, "ARM-RealView PB1176")
 	/* Maintainer: ARM Ltd/Deep Blue Solutions Ltd */
 	.phys_io	= REALVIEW_PB1176_UART0_BASE,
 	.io_pg_offst	= (IO_ADDRESS(REALVIEW_PB1176_UART0_BASE) >> 18) & 0xfffc,
-	.boot_params	= PHYS_OFFSET + 0x00000100,
+	.boot_params	= 0x00000100,
 	.map_io		= realview_pb1176_map_io,
 	.init_irq	= gic_init_irq,
 	.timer		= &realview_pb1176_timer,

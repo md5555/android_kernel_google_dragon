@@ -819,6 +819,8 @@ static void enqueue_an_ATL_packet(struct usb_hcd *hcd, struct isp1760_qh *qh,
 	u32 atl_regs, payload;
 	u32 buffstatus;
 
+	/* wait for the SKIPMAP register to be updated */
+	udelay(1);
 	skip_map = isp1760_readl(hcd->regs + HC_ATL_PTD_SKIPMAP_REG);
 
 	BUG_ON(!skip_map);
@@ -853,6 +855,8 @@ static void enqueue_an_INT_packet(struct usb_hcd *hcd, struct isp1760_qh *qh,
 	u32 int_regs, payload;
 	u32 buffstatus;
 
+	/* wait for the SKIPMAP register to be updated */
+	udelay(1);
 	skip_map = isp1760_readl(hcd->regs + HC_INT_PTD_SKIPMAP_REG);
 
 	BUG_ON(!skip_map);
@@ -2235,9 +2239,10 @@ void deinit_kmem_cache(void)
 	kmem_cache_destroy(qh_cachep);
 }
 
-struct usb_hcd *isp1760_register(u64 res_start, u64 res_len, int irq,
-		u64 irqflags, struct device *dev, const char *busname,
-		unsigned int devflags)
+struct usb_hcd *isp1760_register(phys_addr_t res_start, resource_size_t res_len,
+				 int irq, unsigned long irqflags,
+				 struct device *dev, const char *busname,
+				 unsigned int devflags)
 {
 	struct usb_hcd *hcd;
 	struct isp1760_hcd *priv;

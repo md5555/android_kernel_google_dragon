@@ -114,6 +114,14 @@
 //# endif
 #endif
 
+#if defined(CONFIG_CPU_V7M)
+# ifdef _CACHE
+#  error "Multi-cache not supported on ARMv7-M"
+# else
+#  define _CACHE v7m
+# endif
+#endif
+
 #if !defined(_CACHE) && !defined(MULTI_CACHE)
 #error Unknown cache maintainence model
 #endif
@@ -234,6 +242,22 @@ extern struct cpu_cache_fns cpu_cache;
 
 #else
 
+#ifdef CONFIG_CPU_V7M
+
+static inline void v7m_flush_kern_all(void) { }
+static inline void v7m_flush_user_all(void) { }
+static inline void v7m_flush_user_range(unsigned long a, unsigned long b, unsigned int c) { }
+
+static inline void v7m_coherent_kern_range(unsigned long a, unsigned long b) { }
+static inline void v7m_coherent_user_range(unsigned long a, unsigned long b) { }
+static inline void v7m_flush_kern_dcache_page(void *a) { }
+
+static inline void v7m_dma_inv_range(const void *a, const void *b) { }
+static inline void v7m_dma_clean_range(const void *a, const void *b) { }
+static inline void v7m_dma_flush_range(const void *a, const void *b) { }
+
+#endif
+
 #define __cpuc_flush_kern_all		__glue(_CACHE,_flush_kern_cache_all)
 #define __cpuc_flush_user_all		__glue(_CACHE,_flush_user_cache_all)
 #define __cpuc_flush_user_range		__glue(_CACHE,_flush_user_cache_range)
@@ -262,6 +286,22 @@ extern void dmac_inv_range(const void *, const void *);
 extern void dmac_clean_range(const void *, const void *);
 extern void dmac_flush_range(const void *, const void *);
 
+#endif
+
+#ifdef CONFIG_CPU_NO_CACHE_BCAST
+enum smp_dma_cache_type {
+	SMP_DMA_CACHE_INV,
+	SMP_DMA_CACHE_CLEAN,
+	SMP_DMA_CACHE_FLUSH,
+};
+extern void smp_dma_cache_op(int type, const void *start, const void *end);
+#define smp_dma_inv_range(s, e)		smp_dma_cache_op(SMP_DMA_CACHE_INV, s, e)
+#define smp_dma_clean_range(s, e)	smp_dma_cache_op(SMP_DMA_CACHE_CLEAN, s, e)
+#define smp_dma_flush_range(s, e)	smp_dma_cache_op(SMP_DMA_CACHE_FLUSH, s, e)
+#else
+#define smp_dma_inv_range		dmac_inv_range
+#define smp_dma_clean_range		dmac_clean_range
+#define smp_dma_flush_range		dmac_flush_range
 #endif
 
 #ifdef CONFIG_OUTER_CACHE

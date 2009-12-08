@@ -38,14 +38,18 @@ void local_timer_interrupt(void)
 
 #ifdef CONFIG_LOCAL_TIMERS
 
+#define TWD_BASE(cpu)	(twd_base_addr + (cpu) * twd_size)
+
 /* set up by the platform code */
-void __iomem *twd_base;
+void __iomem *twd_base_addr;
+unsigned int twd_size;
 
 static unsigned long mpcore_timer_rate;
 
 static void local_timer_set_mode(enum clock_event_mode mode,
 				 struct clock_event_device *clk)
 {
+	void __iomem *base = TWD_BASE(smp_processor_id());
 	unsigned long ctrl;
 
 	switch(mode) {
@@ -64,16 +68,17 @@ static void local_timer_set_mode(enum clock_event_mode mode,
 		ctrl = 0;
 	}
 
-	__raw_writel(ctrl, twd_base + TWD_TIMER_CONTROL);
+	__raw_writel(ctrl, base + TWD_TIMER_CONTROL);
 }
 
 static int local_timer_set_next_event(unsigned long evt,
 				      struct clock_event_device *unused)
 {
-	unsigned long ctrl = __raw_readl(twd_base + TWD_TIMER_CONTROL);
+	void __iomem *base = TWD_BASE(smp_processor_id());
+	unsigned long ctrl = __raw_readl(base + TWD_TIMER_CONTROL);
 
-	__raw_writel(evt, twd_base + TWD_TIMER_COUNTER);
-	__raw_writel(ctrl | TWD_TIMER_CONTROL_ENABLE, twd_base + TWD_TIMER_CONTROL);
+	__raw_writel(evt, base + TWD_TIMER_COUNTER);
+	__raw_writel(ctrl | TWD_TIMER_CONTROL_ENABLE, base + TWD_TIMER_CONTROL);
 
 	return 0;
 }
@@ -86,16 +91,19 @@ static int local_timer_set_next_event(unsigned long evt,
  */
 int local_timer_ack(void)
 {
-	if (__raw_readl(twd_base + TWD_TIMER_INTSTAT)) {
-		__raw_writel(1, twd_base + TWD_TIMER_INTSTAT);
+	void __iomem *base = TWD_BASE(smp_processor_id());
+
+	if (__raw_readl(base + TWD_TIMER_INTSTAT)) {
+		__raw_writel(1, base + TWD_TIMER_INTSTAT);
 		return 1;
 	}
 
 	return 0;
 }
 
-static void __cpuinit twd_calibrate_rate(void)
+static void __cpuinit twd_calibrate_rate(unsigned int cpu)
 {
+	void __iomem *base = TWD_BASE(cpu);
 	unsigned long load, count;
 	u64 waitjiffies;
 
@@ -116,15 +124,15 @@ static void __cpuinit twd_calibrate_rate(void)
 		waitjiffies += 5;
 
 				 /* enable, no interrupt or reload */
-		__raw_writel(0x1, twd_base + TWD_TIMER_CONTROL);
+		__raw_writel(0x1, base + TWD_TIMER_CONTROL);
 
 				 /* maximum value */
-		__raw_writel(0xFFFFFFFFU, twd_base + TWD_TIMER_COUNTER);
+		__raw_writel(0xFFFFFFFFU, base + TWD_TIMER_COUNTER);
 
 		while (get_jiffies_64() < waitjiffies)
 			udelay(10);
 
-		count = __raw_readl(twd_base + TWD_TIMER_COUNTER);
+		count = __raw_readl(base + TWD_TIMER_COUNTER);
 
 		mpcore_timer_rate = (0xFFFFFFFFU - count) * (HZ / 5);
 
@@ -134,19 +142,18 @@ static void __cpuinit twd_calibrate_rate(void)
 
 	load = mpcore_timer_rate / HZ;
 
-	__raw_writel(load, twd_base + TWD_TIMER_LOAD);
+	__raw_writel(load, base + TWD_TIMER_LOAD);
 }
 
 /*
  * Setup the local clock events for a CPU.
  */
-void __cpuinit local_timer_setup(void)
+void __cpuinit local_timer_setup(unsigned int cpu)
 {
-	unsigned int cpu = smp_processor_id();
 	struct clock_event_device *clk = &per_cpu(local_clockevent, cpu);
 	unsigned long flags;
 
-	twd_calibrate_rate();
+	twd_calibrate_rate(cpu);
 
 	clk->name		= "local_timer";
 	clk->features		= CLOCK_EVT_FEAT_PERIODIC | CLOCK_EVT_FEAT_ONESHOT;
@@ -154,7 +161,7 @@ void __cpuinit local_timer_setup(void)
 	clk->set_mode		= local_timer_set_mode;
 	clk->set_next_event	= local_timer_set_next_event;
 	clk->irq		= IRQ_LOCALTIMER;
-	clk->cpumask		= cpumask_of(cpu);
+	clk->cpumask		= cpumask_of_cpu(cpu);
 	clk->shift		= 20;
 	clk->mult		= div_sc(mpcore_timer_rate, NSEC_PER_SEC, clk->shift);
 	clk->max_delta_ns	= clockevent_delta2ns(0xffffffff, clk);
@@ -171,9 +178,9 @@ void __cpuinit local_timer_setup(void)
 /*
  * take a local timer down
  */
-void __cpuexit local_timer_stop(void)
+void __cpuexit local_timer_stop(unsigned int cpu)
 {
-	__raw_writel(0, twd_base + TWD_TIMER_CONTROL);
+	__raw_writel(0, TWD_BASE(cpu) + TWD_TIMER_CONTROL);
 }
 
 #else	/* CONFIG_LOCAL_TIMERS */
@@ -183,9 +190,8 @@ static void dummy_timer_set_mode(enum clock_event_mode mode,
 {
 }
 
-void __cpuinit local_timer_setup(void)
+void __cpuinit local_timer_setup(unsigned int cpu)
 {
-	unsigned int cpu = smp_processor_id();
 	struct clock_event_device *clk = &per_cpu(local_clockevent, cpu);
 
 	clk->name		= "dummy_timer";
@@ -193,7 +199,7 @@ void __cpuinit local_timer_setup(void)
 	clk->rating		= 200;
 	clk->set_mode		= dummy_timer_set_mode;
 	clk->broadcast		= smp_timer_broadcast;
-	clk->cpumask		= cpumask_of(cpu);
+	clk->cpumask		= cpumask_of_cpu(cpu);
 
 	clockevents_register_device(clk);
 }
