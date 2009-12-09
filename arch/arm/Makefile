@@ -168,6 +168,7 @@ endif
  machine-$(CONFIG_ARCH_MV78XX0)    := mv78xx0
  machine-$(CONFIG_ARCH_W90X900)    := w90x900
  machine-$(CONFIG_ARCH_MPS)	   := mps
+ machine-$(CONFIG_ARCH_TEGRA)	   := tegra
 
 ifeq ($(CONFIG_ARCH_EBSA110),y)
 # This is what happens if you forget the IOCS16 line.

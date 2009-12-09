@@ -1,0 +1,38 @@
+if ARCH_TEGRA
+
+comment "NVIDIA Tegra options"
+
+choice
+	prompt "Select Tegra processor family for target system"
+
+config ARCH_TEGRA_1x_SOC
+	bool "Tegra APX 2x00 and Tegra 6x0 family"
+	select CPU_V6
+	help
+	  Support for NVIDIA Tegra AP15 and AP16 processors, based on the
+	  ARM11 MPCore CPU and a proprietary L2 cache controller
+
+
+config ARCH_TEGRA_2x_SOC
+	bool "Tegra 2 family"
+	select CPU_V7
+	select ARM_GIC
+	help
+	  Support for NVIDIA Tegra AP20 and T20 processors, based on the
+	  ARM CortexA9MP CPU and the ARM PL310 L2 cache controller
+
+endchoice
+
+choice
+	prompt "Select Tegra-based target product"
+
+config MACH_TEGRA_GENERIC
+	bool "Tegra development system board(s)"
+	depends on (ARCH_TEGRA_1x_SOC || ARCH_TEGRA_2x_SOC)
+	help
+	  Support generic Tegra ODM-kit based development systems, including
+	  the Whistler and Harmony T20 development systems
+
+endchoice
+
+endif

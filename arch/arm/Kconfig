@@ -606,6 +606,17 @@ config ARCH_MPS
 	  This enables support for ARM Ltd. Microcontroller Prototyping
 	  System platform.
 
+config ARCH_TEGRA
+	bool "NVIDIA Tegra"
+	select GENERIC_TIME
+	select GENERIC_CLOCKEVENTS
+	select GENERIC_GPIO
+	select HAVE_CLK
+	help
+	  This enables support for NVIDIA Tegra based systems (Tegra APX,
+	  Tegra 6xx and Tegra 2 series).
+
+
 endchoice
 
 source "arch/arm/mach-clps711x/Kconfig"
@@ -641,6 +652,8 @@ source "arch/arm/plat-omap/Kconfig"
 source "arch/arm/mach-omap1/Kconfig"
 
 source "arch/arm/mach-omap2/Kconfig"
+
+source "arch/arm/mach-tegra/Kconfig"
 
 source "arch/arm/mach-orion5x/Kconfig"
 
@@ -890,7 +903,7 @@ source "kernel/time/Kconfig"
 
 config SMP
 	bool "Symmetric Multi-Processing (EXPERIMENTAL)"
-	depends on EXPERIMENTAL && (REALVIEW_EB_ARM11MP || REALVIEW_EB_A9MP || MACH_REALVIEW_PB11MP || MACH_REALVIEW_PBX)
+	depends on EXPERIMENTAL && (REALVIEW_EB_ARM11MP || REALVIEW_EB_A9MP || MACH_REALVIEW_PB11MP || MACH_REALVIEW_PBX || (ARCH_TEGRA && CPU_V7))
 	select USE_GENERIC_SMP_HELPERS
 	help
 	  This enables support for systems with more than one CPU. If you have
@@ -959,9 +972,9 @@ config HOTPLUG_CPU
 
 config LOCAL_TIMERS
 	bool "Use local timer interrupts"
-	depends on SMP && (REALVIEW_EB_ARM11MP || MACH_REALVIEW_PB11MP || REALVIEW_EB_A9MP || MACH_REALVIEW_PBX)
+	depends on SMP && (REALVIEW_EB_ARM11MP || MACH_REALVIEW_PB11MP || REALVIEW_EB_A9MP || MACH_REALVIEW_PBX || ARCH_TEGRA)
 	default y
-	select HAVE_ARM_TWD if ARCH_REALVIEW
+	select HAVE_ARM_TWD if (ARCH_REALVIEW || ARCH_TEGRA)
 	help
 	  Enable support for local timers on SMP platforms, rather then the
 	  legacy IPI broadcast method.  Local timers allows the system
@@ -1265,7 +1278,7 @@ endmenu
 
 menu "CPU Power Management"
 
-if (ARCH_SA1100 || ARCH_INTEGRATOR || ARCH_OMAP || ARCH_IMX || ARCH_PXA || ARCH_REALVIEW)
+if (ARCH_SA1100 || ARCH_INTEGRATOR || ARCH_OMAP || ARCH_IMX || ARCH_PXA || ARCH_REALVIEW || ARCH_TEGRA)
 
 source "drivers/cpufreq/Kconfig"
 
