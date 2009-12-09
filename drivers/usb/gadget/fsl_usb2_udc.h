@@ -85,6 +85,15 @@ struct usb_dr_host {
 };
 
  /* non-EHCI USB system interface registers (Big Endian) */
+#if defined(CONFIG_ARCH_TEGRA)
+struct usb_sys_interface {
+	u32 suspend_ctrl;
+	u32 vbus_sensors;
+	u32 vbus_wakeup;
+	u32 vbus_alt_status;
+	u32 legacy_ctrl;
+};
+#else
 struct usb_sys_interface {
 	u32 snoop1;
 	u32 snoop2;
@@ -94,6 +103,7 @@ struct usb_sys_interface {
 	u8 res[236];
 	u32 control;		/* General Purpose Control Register */
 };
+#endif
 
 /* ep0 transfer state */
 #define WAIT_FOR_SETUP          0
@@ -419,11 +429,20 @@ struct ep_td_struct {
                                                DTD_STATUS_DATA_BUFF_ERR | \
                                                DTD_STATUS_TRANSACTION_ERR)
 /* Alignment requirements; must be a power of two */
+#if defined(CONFIG_ARCH_TEGRA)
+#define DTD_ALIGNMENT				0x20
+#define QH_OFFSET				0x1000
+#else
 #define DTD_ALIGNMENT				0x20
 #define QH_ALIGNMENT				2048
+#endif
 
 /* Controller dma boundary */
 #define UDC_DMA_BOUNDARY			0x1000
+
+#define USB_SYS_VBUS_ASESSION_INT_EN		0x10000
+#define USB_SYS_VBUS_ASESSION_CHANGED		0x20000
+#define USB_SYS_VBUS_ASESSION			0x40000
 
 /*-------------------------------------------------------------------------*/
 
@@ -568,6 +587,10 @@ struct platform_device;
 
 #if defined(CONFIG_ARCH_MXC)
 #define _UDC_NAME fsl
+#endif
+
+#if defined(CONFIG_ARCH_TEGRA)
+#define _UDC_NAME tegra
 #endif
 
 #ifdef _UDC_NAME
