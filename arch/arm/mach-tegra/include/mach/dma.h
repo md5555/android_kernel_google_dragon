@@ -20,4 +20,54 @@
 
 #ifndef __MACH_TEGRA_DMA_H
 
+#if defined(CONFIG_TEGRA_SYSTEM_DMA)
+
+struct tegra_dma_req;
+
+enum tegra_dma_mode {
+	TEGRA_DMA_SHARED = 1,
+	TEGRA_DMA_MODE_CONTINOUS = 2,
+	TEGRA_DMA_MODE_ONESHOT = 4,
+};
+
+struct tegra_dma_req {
+	struct list_head list;
+	unsigned int modid;
+	int instace;
+
+	void (*complete)(struct tegra_dma_req *req, int bytes_trasferred,
+		int err);
+	/* 1 to copy to memory.
+	 * 0 to copy from the memory to device FIFO */
+	int to_memory;
+
+	unsigned long source_addr;
+	unsigned long dest_addr;
+	unsigned long dest_wrap;
+	unsigned long source_wrap;
+
+	unsigned int size;
+
+	/* Client specific data */
+	void *data;
+};
+
+void tegra_dma_stop(int channel);
+void tegra_dma_is_enabled(int channel);
+void tegra_dma_start(int channel);
+
+int tegra_dma_enqueue_req(int channel, struct tegra_dma_req *req);
+
+/*  Returns 1 if there are DMA is empty.
+ */
+int tegra_dma_is_empty(int channel);
+void tegra_dma_flush(int channel);
+
+int tegra_dma_allocate_channel(int mode);
+void tegra_dma_free_channel(int channel);
+
+int __init tegra_dma_init(void);
+
+#endif
+
 #endif
