@@ -27,7 +27,9 @@
 #include "nvrm_gpio.h"
 #include "nvddk_usbphy.h"
 #include "nvodm_query.h"
+#include "nvodm_query_pinmux.h"
 
+/* Platform data for EHCI HCD driver */
 struct tegra_hcd_platform_data {
 	NvU32			instance;
 	NvRmGpioPinHandle	hGpioIDpin;
@@ -40,6 +42,14 @@ struct tegra_hcd_platform_data {
 	 */
 	NvU32			phyPowerRail; 
 	NvDdkUsbPhyHandle	hUsbPhy;
+};
+
+/* Platfrom data for I2C bus driver */
+struct tegra_i2c_platform_data {
+	NvU32		IoModuleID;
+	NvU32		Instance;
+	NvU32		ClockInKHz;
+	NvOdmI2cPinMap	PinMuxConfig;
 };
 
 #endif
