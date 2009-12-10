@@ -10,7 +10,10 @@ endif
 ccflags-y += -Iarch/arm/mach-tegra/include/hwinc
 ccflags-y += -Iarch/arm/mach-tegra/nvddk/
 
-obj-y += nvddk_usbphy.o
-obj-y += nvddk_usbphy_ap16.o
-obj-y += nvddk_usbphy_ap20.o
+ifeq ($(filter y,$(CONFIG_USB_TEGRA) $(CONFIG_USB_TEGRA_HCD)))
+obj-y				+= nvddk_usbphy.o
+obj-y				+= nvddk_usbphy_ap16.o
+obj-y				+= nvddk_usbphy_ap20.o
+endif
 
+obj-$(CONFIG_KEYBOARD_TEGRA)	+= nvddk_kbc.o
