@@ -597,10 +597,15 @@ struct platform_device;
 #define platform_udc_clk_init		_UDC_NAME##_udc_clk_init
 #define platform_udc_clk_finalize	_UDC_NAME##_udc_clk_finalize
 #define platform_udc_clk_release	_UDC_NAME##_udc_clk_release
+#define platform_udc_clk_suspend	_UDC_NAME##_udc_clk_suspend
+#define platform_udc_clk_resume		_UDC_NAME##_udc_clk_resume
+
 
 extern int platform_udc_clk_init(struct platform_device *pdev);
 extern void platform_udc_clk_finalize(struct platform_device *pdev);
 extern void platform_udc_clk_release(void);
+extern void platform_udc_clk_suspend(void);
+extern void platform_udc_clk_resume(void);
 #else
 static inline int platform_udc_clk_init(struct platform_device *pdev)
 {
