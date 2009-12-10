@@ -455,6 +455,14 @@ config SERIAL_SAMSUNG
 	  provide all of these ports, depending on how the serial port
 	  pins are configured.
 
+config SERIAL_TEGRA_DDK
+	boolean "High speed serial support (DDK-based) for NVIDIA Tegra SoCs"
+	depends on ARCH_TEGRA
+	select SERIAL_CORE
+	help
+	  Support for the on-chip UARTs on NVIDIA Tegra SoC, providing
+	  /dev/ttyHSx, using driver built on the NvDDK and NvOs architecture
+
 config SERIAL_SAMSUNG_UARTS
 	int
 	depends on ARM && PLAT_S3C
