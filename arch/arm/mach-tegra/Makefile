@@ -1,3 +1,6 @@
+# Linux CPU frequency scaling interface
+obj-$(CONFIG_CPU_FREQ)			+= cpufreq.o
+
 # SMP support
 obj-$(CONFIG_SMP)			+= headsmp.o
 
