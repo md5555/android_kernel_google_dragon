@@ -7,10 +7,17 @@ obj-y					+= irq_dma.o
 # Linux CPU frequency scaling interface
 obj-$(CONFIG_CPU_FREQ)			+= cpufreq.o
 
-# SMP support
+# SMP
 obj-$(CONFIG_SMP)			+= headsmp.o
+obj-$(CONFIG_SMP)			+= platsmp.o
 
-<<<<<<< HEAD:arch/arm/mach-tegra/Makefile
+# CPU hotplug support
+ifeq ($(CONFIG_HOTPLUG_CPU),y)
+obj-y					+= hotplug.o
+obj-$(CONFIG_ARCH_TEGRA_2x_SOC)		+= power-t2.o
+obj-$(CONFIG_ARCH_TEGRA_2x_SOC)		+= power-lp.o
+endif
+
 # System DMA
 obj-$(CONFIG_TEGRA_SYSTEM_DMA)		+= dma.o
 
@@ -18,3 +25,6 @@ obj-$(CONFIG_TEGRA_SYSTEM_DMA)		+= dma.o
 obj-$(CONFIG_MACH_TEGRA_GENERIC)	+= nvddk/
 # NvOs / NvRm-based kernel implementation
 obj-$(CONFIG_MACH_TEGRA_GENERIC)	+= nvrm/
+
+# Misc drivers
+obj-$(CONFIG_TEGRA_ODM_RFKILL)		+= tegra_rfkill_odm.o

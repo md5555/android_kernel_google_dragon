@@ -48,4 +48,11 @@ config MACH_TEGRA_GENERIC_DEBUG
 	help
 	  Enables debug logging for the generic Tegra NvRm and NvOs drivers
 
+config TEGRA_ODM_RFKILL
+	bool "RF kill driver using NVIDIA Tegra ODM kit"
+	depends on MACH_TEGRA_GENERIC && RFKILL
+	help
+	  Adds support for rfkill for systems using NVIDIA's Tegra ODM kit
+
+
 endif
