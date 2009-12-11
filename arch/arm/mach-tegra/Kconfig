@@ -36,7 +36,7 @@ config MACH_TEGRA_GENERIC
 endchoice
 
 config TEGRA_SYSTEM_DMA
-	bool "System DMA driver for NVIDIA Tegra SoCs"
+	bool "Enable system DMA driver for NVIDIA Tegra SoCs"
 	default y
 	help
 	  Adds system DMA functionality for NVIDIA Tegra SoCs, used by
@@ -54,5 +54,18 @@ config TEGRA_ODM_RFKILL
 	help
 	  Adds support for rfkill for systems using NVIDIA's Tegra ODM kit
 
+config TEGRA_NVEC
+	bool "Include driver for Tegra NvEC embedded controller interface"
+	depends on MACH_TEGRA_GENERIC
+	help
+	  Adds support for the NVIDIA Tegra NvEC I2C-slave based protocol
+	  for communicating to embedded controllers.
+
+config TEGRA_NVEC_USER
+	bool "Enable user-land access to NvEc-based embedded controller"
+	depends on TEGRA_NVEC
+	help
+	  Enabling this option will expose a device node to enable user-land
+	  clients to access embedded controller features.
 
 endif

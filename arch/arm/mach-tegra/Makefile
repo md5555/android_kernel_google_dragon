@@ -28,3 +28,7 @@ obj-$(CONFIG_MACH_TEGRA_GENERIC)	+= nvrm/
 
 # Misc drivers
 obj-$(CONFIG_TEGRA_ODM_RFKILL)		+= tegra_rfkill_odm.o
+
+# NvEc
+obj-$(CONFIG_TEGRA_NVEC)		+= nvec/
+obj-$(CONFIG_TEGRA_NVEC_USER)		+= nvec_user.o
