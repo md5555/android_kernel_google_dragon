@@ -88,4 +88,11 @@ config CHARGER_PCF50633
 	help
 	 Say Y to include support for NXP PCF50633 Main Battery Charger.
 
+config BATTERY_TEGRA_ODM
+	boolean "NVIDIA Tegra ODM kit battery driver (PMU controlled)"
+	depends on ARCH_TEGRA && MACH_TEGRA_GENERIC
+	help
+	  Say Y to enable battery support for Tegra using the NVIDIA ODM kit
+	  PMU adaptation interface
+
 endif # POWER_SUPPLY
