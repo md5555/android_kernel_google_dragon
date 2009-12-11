@@ -42,4 +42,10 @@ config TEGRA_SYSTEM_DMA
 	  Adds system DMA functionality for NVIDIA Tegra SoCs, used by
 	  several Tegra device drivers
 
+config MACH_TEGRA_GENERIC_DEBUG
+	bool "Enable debug logging for Tegra generic drivers"
+	depends on MACH_TEGRA_GENERIC
+	help
+	  Enables debug logging for the generic Tegra NvRm and NvOs drivers
+
 endif
