@@ -68,4 +68,12 @@ config TEGRA_NVEC_USER
 	  Enabling this option will expose a device node to enable user-land
 	  clients to access embedded controller features.
 
+config TEGRA_ODM_VIBRATE
+	boolean "System vibrator device driver using NVIDIA Tegra ODM kit"
+	depends on ANDROID_TIMED_OUTPUT && MACH_TEGRA_GENERIC
+	default n
+	help
+	  Adds a timed output vibrator device node for an NVIDIA Tegra ODM kit
+	  vibrator driver
+
 endif
