@@ -1,3 +1,6 @@
+# Mandatory components
+obj-y					+= clock.o
+
 # Linux CPU frequency scaling interface
 obj-$(CONFIG_CPU_FREQ)			+= cpufreq.o
 
