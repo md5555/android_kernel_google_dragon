@@ -292,4 +292,12 @@ config MOUSE_PXA930_TRKBALL
 	help
 	  Say Y here to support PXA930 Trackball mouse.
 
+config MOUSE_TEGRA_NVEC
+	boolean "NVIDIA Tegra NvEc compliant mouse/touchpad device"
+	depends on TEGRA_NVEC
+	default y
+	help
+	  Say Y here to enable mouse support for mouse and touchpad devices
+	  connected to an NvEc-compliant embedded controller
+
 endif
