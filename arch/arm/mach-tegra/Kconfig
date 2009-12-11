@@ -35,4 +35,11 @@ config MACH_TEGRA_GENERIC
 
 endchoice
 
+config TEGRA_SYSTEM_DMA
+	bool "System DMA driver for NVIDIA Tegra SoCs"
+	default y
+	help
+	  Adds system DMA functionality for NVIDIA Tegra SoCs, used by
+	  several Tegra device drivers
+
 endif
