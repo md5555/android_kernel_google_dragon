@@ -7,8 +7,16 @@ obj-y					+= irq_dma.o
 # Linux CPU frequency scaling interface
 obj-$(CONFIG_CPU_FREQ)			+= cpufreq.o
 
-# SMP support
+# SMP
 obj-$(CONFIG_SMP)			+= headsmp.o
+obj-$(CONFIG_SMP)			+= platsmp.o
+
+# CPU hotplug support
+ifeq ($(CONFIG_HOTPLUG_CPU),y)
+obj-y					+= hotplug.o
+obj-$(CONFIG_ARCH_TEGRA_2x_SOC)		+= power-t2.o
+obj-$(CONFIG_ARCH_TEGRA_2x_SOC)		+= power-lp.o
+endif
 
 # System DMA
 obj-$(CONFIG_TEGRA_SYSTEM_DMA)		+= dma.o
