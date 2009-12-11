@@ -3,6 +3,7 @@ obj-y					+= clock.o
 obj-y					+= io.o
 obj-y					+= irq.o
 obj-y					+= irq_dma.o
+obj-y					+= timer.o
 
 # Linux CPU frequency scaling interface
 obj-$(CONFIG_CPU_FREQ)			+= cpufreq.o
@@ -10,6 +11,8 @@ obj-$(CONFIG_CPU_FREQ)			+= cpufreq.o
 # SMP
 obj-$(CONFIG_SMP)			+= headsmp.o
 obj-$(CONFIG_SMP)			+= platsmp.o
+
+obj-$(CONFIG_LOCAL_TIMERS)		+= localtimer.o
 
 # CPU hotplug support
 ifeq ($(CONFIG_HOTPLUG_CPU),y)
