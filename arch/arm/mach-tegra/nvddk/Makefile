@@ -17,3 +17,4 @@ obj-y				+= nvddk_usbphy_ap20.o
 endif
 
 obj-$(CONFIG_KEYBOARD_TEGRA)	+= nvddk_kbc.o
+obj-$(CONFIG_MTD_NAND_TEGRA)	+= nvddk_nand.o
