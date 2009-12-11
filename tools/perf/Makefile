@@ -241,8 +241,8 @@ lib = lib
 
 export prefix bindir sharedir sysconfdir
 
-CC = gcc
-AR = ar
+CC = $(CROSS_COMPILE)gcc
+AR = $(CROSS_COMPILE)ar
 RM = rm -f
 TAR = tar
 FIND = find
