@@ -8,6 +8,9 @@ obj-y					+= timer.o
 # Linux CPU frequency scaling interface
 obj-$(CONFIG_CPU_FREQ)			+= cpufreq.o
 
+# Dynamic voltage and frequency scaling support
+obj-$(CONFIG_ARCH_TEGRA_2x_SOC)		+= idle-t2.o
+
 # SMP
 obj-$(CONFIG_SMP)			+= headsmp.o
 obj-$(CONFIG_SMP)			+= platsmp.o
