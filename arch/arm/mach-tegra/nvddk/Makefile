@@ -18,3 +18,6 @@ endif
 
 obj-$(CONFIG_KEYBOARD_TEGRA)	+= nvddk_kbc.o
 obj-$(CONFIG_MTD_NAND_TEGRA)	+= nvddk_nand.o
+
+obj-$(CONFIG_SERIAL_TEGRA)	+= nvddk_uart.o
+obj-$(CONFIG_SERIAL_TEGRA)	+= ap15ddk_uart_hw_private.o
