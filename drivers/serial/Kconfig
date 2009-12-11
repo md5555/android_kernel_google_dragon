@@ -463,6 +463,15 @@ config SERIAL_TEGRA_DDK
 	  Support for the on-chip UARTs on NVIDIA Tegra SoC, providing
 	  /dev/ttyHSx, using driver built on the NvDDK and NvOs architecture
 
+config SERIAL_TEGRA
+	boolean "High speed serial support for NVIDIA Tegra SoCs"
+	depends on ARCH_TEGRA && TEGRA_SYSTEM_DMA
+	select SERIAL_CORE
+	help
+	  Support for the on-chip UARTs on NVIDIA Tegra SoC, providing
+	  /dev/ttyHSx, where x is determined by the number of UARTs on the
+	  platform
+
 config SERIAL_SAMSUNG_UARTS
 	int
 	depends on ARM && PLAT_S3C
