@@ -76,4 +76,6 @@ config TEGRA_ODM_VIBRATE
 	  Adds a timed output vibrator device node for an NVIDIA Tegra ODM kit
 	  vibrator driver
 
+source "arch/arm/mach-tegra/odm_kit/Kconfig"
+
 endif
