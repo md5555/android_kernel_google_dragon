@@ -38,7 +38,6 @@
 #include "nvrm_module.h"
 #include "nvrm_memmgr.h"
 #include "nvrm_ioctls.h"
-#include "nvrm_linux_shim.h"
 #include "nvrm_power.h"
 
 static struct fb_info tegra_fb_info = {
@@ -85,6 +84,8 @@ int s_fb_Bpp;
 unsigned long *s_fb_regs;
 NvRmMemHandle s_fb_hMem;
 NvU32 s_power_id = ((NvU32)-1);
+
+int tegra_fb_control(void *in, void *out);
 
 static NvBool tegrafb_power_register(void)
 {
