@@ -110,6 +110,16 @@ config DEVKMEM
 	  kind of kernel debugging operations.
 	  When in doubt, say "N".
 
+config DEVNVMAP
+	bool "/dev/nvmap device support"
+	depends on ARCH_TEGRA && MACH_TEGRA_GENERIC
+	default y
+	help
+	  Say Y here if you want to support the /dev/nvmap device. This device
+	  is used by NVIDIA Tegra graphics and multimedia drivers for managing
+	  graphics memory.
+
+
 config SERIAL_NONSTANDARD
 	bool "Non-standard serial port support"
 	depends on HAS_IOMEM
