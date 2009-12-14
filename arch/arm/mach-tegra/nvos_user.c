@@ -1,7 +1,7 @@
 /*
  * arch/arm/mach-tegra/nvos_user.c
  *
- * User-land access to NvOs features
+ * User-land access to NvOs APIs
  *
  * Copyright (c) 2008-2009, NVIDIA Corporation.
  *
@@ -73,19 +73,12 @@ typedef struct NvOsInstanceRec
     spinlock_t             Lock;
     struct list_head       IrqHandles;
     int                    pid;
-    NvBool                 HasGlobalLock;
 } NvOsInstance;
-
-/* a global kernel lock! needed to serialize the user-to-user process
- * communication over pipes.
- */
-static struct mutex s_GlobalMutex;
 
 static int __init nvos_init( void )
 {
     int retVal = 0;
 
-    mutex_init(&s_GlobalMutex);
     retVal = misc_register(&nvosDevice);
 
     if (retVal < 0)
@@ -117,7 +110,6 @@ int nvos_open(struct inode *inode, struct file *filp)
     Instance->tsk = current;
     Instance->pid = current->group_leader->pid;
     Instance->MemRange = NULL;
-    Instance->HasGlobalLock = NV_FALSE;
     spin_lock_init(&Instance->Lock);
     INIT_LIST_HEAD(&Instance->IrqHandles);
     filp->private_data = (void*)Instance;
@@ -133,12 +125,6 @@ int nvos_close(struct inode *inode, struct file *filp)
     {
         NvOsInstance *Instance = (NvOsInstance *)filp->private_data;
         filp->private_data = NULL;
-        if (Instance->HasGlobalLock)
-        {
-            printk(__FILE__ ": process %d closed while holding lock\n",
-                Instance->pid);
-            mutex_unlock( &s_GlobalMutex );
-        }
         while (!list_empty(&Instance->IrqHandles))
         {
             LeakedIrq = list_first_entry(&Instance->IrqHandles, 
@@ -446,29 +432,6 @@ static long nvos_ioctl(struct file *filp,
         e = interrupt_op(Instance, cmd, arg);
         unlock_kernel();
         return (e) ? -EINVAL : 0;
-
-    case NV_IOCTL_GLOBAL_LOCK:
-        do
-        {
-            e = mutex_lock_interruptible(&s_GlobalMutex);
-            if (e)
-                schedule();
-        } while (e);
-        if (Instance)
-        {
-            BUG_ON(Instance->HasGlobalLock);
-            Instance->HasGlobalLock = NV_TRUE;
-        }
-        break;
-
-    case NV_IOCTL_GLOBAL_UNLOCK:
-        if (Instance)
-        {
-            BUG_ON(!Instance->HasGlobalLock);
-            Instance->HasGlobalLock = NV_FALSE;
-        }
-        mutex_unlock( &s_GlobalMutex );
-        break;
 
     case NV_IOCTL_MEMORY_RANGE:
     {
