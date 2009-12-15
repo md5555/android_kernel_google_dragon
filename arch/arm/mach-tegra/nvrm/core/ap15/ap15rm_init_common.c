@@ -43,7 +43,6 @@
 #include "nvrm_pmu_private.h"
 #include "nvrm_processor.h"
 #include "nvrm_structure.h"
-#include "nvrm_xpc.h"
 #include "ap15rm_private.h"
 #include "ap15rm_private.h"
 #include "ap15rm_clocks.h"

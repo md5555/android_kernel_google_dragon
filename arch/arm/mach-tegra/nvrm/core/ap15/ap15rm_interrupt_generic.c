@@ -33,10 +33,6 @@
 #include "nvos.h"
 #include "ap15rm_private.h"
 #include "nvrm_interrupt.h"
-#include "nvrm_chiplib.h"
-#include "nvintr.h"
-
-void NvRmPrivChiplibInterruptHandler( void );
 
 NvError NvRmInterruptRegister(
     NvRmDeviceHandle hRmDevice,
@@ -76,12 +72,6 @@ NvError NvRmInterruptEnable(
 void NvRmInterruptDone( NvOsInterruptHandle handle )
 {
     NvOsInterruptDone( handle );
-}
-
-/* There is no chiplib interrupt handler for wince */
-void NvRmPrivChiplibInterruptHandler( void )
-{
-    return;
 }
 
 void NvRmPrivInterruptStart(NvRmDeviceHandle hRmDevice)
