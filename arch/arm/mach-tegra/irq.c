@@ -39,6 +39,10 @@
 #include "ap20/arfic_dist.h"
 #include "mach/board.h"
 
+#ifdef CONFIG_TEGRA_SYSTEM_DMA
+extern void __init tegra_init_dma(void);  /* irq_dma.c */
+#endif
+extern void __init tegra_init_gpio(void); /* irq_gpio.c */
 
 /* Exported symbol shared with NvOs defining the number of non-GPIO interrupts
  * present on the system */
@@ -307,7 +311,7 @@ void __init tegra_init_irq(void)
 			continue;
 		}
 
-                tegra_irq_register_module()
+                tegra_irq_register_module(Module, pIrq);
 	}
  
 	tegra_init_gpio();
