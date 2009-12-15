@@ -31,7 +31,9 @@ obj-$(CONFIG_TEGRA_SYSTEM_DMA)		+= dma.o
 obj-$(CONFIG_MACH_TEGRA_GENERIC)	+= nvddk/
 # NvOs / NvRm-based kernel implementation
 obj-$(CONFIG_MACH_TEGRA_GENERIC)	+= nvrm/
+obj-$(CONFIG_MACH_TEGRA_GENERIC)	+= nvreftrack/
 obj-$(CONFIG_MACH_TEGRA_GENERIC)	+= nvos/
+obj-$(CONFIG_MACH_TEGRA_GENERIC)	+= nvodm/
 obj-$(CONFIG_MACH_TEGRA_GENERIC)	+= nvos_user.o
 
 # Misc drivers
