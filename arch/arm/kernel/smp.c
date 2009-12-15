@@ -35,6 +35,7 @@
 #include <asm/tlbflush.h>
 #include <asm/ptrace.h>
 #include <asm/localtimer.h>
+#include <asm/smp_plat.h>
 
 /*
  * as from 2.5, kernels no longer have an init_tasks structure
@@ -649,59 +650,77 @@ static inline void ipi_flush_tlb_kernel_range(void *arg)
 	local_flush_tlb_kernel_range(ta->ta_start, ta->ta_end);
 }
 
-void smp_flush_tlb_all(void)
+void flush_tlb_all(void)
 {
-	on_each_cpu(ipi_flush_tlb_all, NULL, 1);
+	if (tlb_ops_need_broadcast())
+		on_each_cpu(ipi_flush_tlb_all, NULL, 1);
+	else
+		local_flush_tlb_all();
 }
 
-void smp_flush_tlb_mm(struct mm_struct *mm)
+void flush_tlb_mm(struct mm_struct *mm)
 {
 	cpumask_t mask = mm->cpu_vm_mask;
 
-	on_each_cpu_mask(ipi_flush_tlb_mm, mm, 1, mask);
+	if (tlb_ops_need_broadcast())
+		on_each_cpu_mask(ipi_flush_tlb_mm, mm, 1, mask);
+	else
+		local_flush_tlb_mm(mm);
 }
 
-void smp_flush_tlb_page(struct vm_area_struct *vma, unsigned long uaddr)
+void flush_tlb_page(struct vm_area_struct *vma, unsigned long uaddr)
 {
-	cpumask_t mask = vma->vm_mm->cpu_vm_mask;
-	struct tlb_args ta;
+	if (tlb_ops_need_broadcast()) {
+		cpumask_t mask = vma->vm_mm->cpu_vm_mask;
+		struct tlb_args ta;
 
-	ta.ta_vma = vma;
-	ta.ta_start = uaddr;
+		ta.ta_vma = vma;
+		ta.ta_start = uaddr;
 
-	on_each_cpu_mask(ipi_flush_tlb_page, &ta, 1, mask);
+		on_each_cpu_mask(ipi_flush_tlb_page, &ta, 1, mask);
+	} else
+		local_flush_tlb_page(vma, uaddr);
 }
 
-void smp_flush_tlb_kernel_page(unsigned long kaddr)
+void flush_tlb_kernel_page(unsigned long kaddr)
 {
-	struct tlb_args ta;
+	if (tlb_ops_need_broadcast()) {
+		struct tlb_args ta;
 
-	ta.ta_start = kaddr;
+		ta.ta_start = kaddr;
 
-	on_each_cpu(ipi_flush_tlb_kernel_page, &ta, 1);
+		on_each_cpu(ipi_flush_tlb_kernel_page, &ta, 1);
+	} else
+		local_flush_tlb_kernel_page(kaddr);
 }
 
-void smp_flush_tlb_range(struct vm_area_struct *vma,
-                     unsigned long start, unsigned long end)
+void flush_tlb_range(struct vm_area_struct *vma,
+	unsigned long start, unsigned long end)
 {
-	cpumask_t mask = vma->vm_mm->cpu_vm_mask;
-	struct tlb_args ta;
+	if (tlb_ops_need_broadcast()) {
+		cpumask_t mask = vma->vm_mm->cpu_vm_mask;
+		struct tlb_args ta;
 
-	ta.ta_vma = vma;
-	ta.ta_start = start;
-	ta.ta_end = end;
+		ta.ta_vma = vma;
+		ta.ta_start = start;
+		ta.ta_end = end;
 
-	on_each_cpu_mask(ipi_flush_tlb_range, &ta, 1, mask);
+		on_each_cpu_mask(ipi_flush_tlb_range, &ta, 1, mask);
+	} else
+		local_flush_tlb_range(vma, start, end);
 }
 
-void smp_flush_tlb_kernel_range(unsigned long start, unsigned long end)
+void flush_tlb_kernel_range(unsigned long start, unsigned long end)
 {
-	struct tlb_args ta;
+	if (tlb_ops_need_broadcast()) {
+		struct tlb_args ta;
 
-	ta.ta_start = start;
-	ta.ta_end = end;
+		ta.ta_start = start;
+		ta.ta_end = end;
 
-	on_each_cpu(ipi_flush_tlb_kernel_range, &ta, 1);
+		on_each_cpu(ipi_flush_tlb_kernel_range, &ta, 1);
+	} else
+		local_flush_tlb_kernel_range(start, end);
 }
 
 #ifdef CONFIG_CPU_NO_CACHE_BCAST

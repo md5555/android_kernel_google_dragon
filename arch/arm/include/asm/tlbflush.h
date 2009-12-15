@@ -520,75 +520,22 @@ static inline void clean_pmd_entry(pmd_t *pmd)
 #define local_flush_tlb_kernel_range(s,e)	__cpu_flush_kern_tlb_range(s,e)
 
 #ifndef CONFIG_SMP
-#define tlb_ops_need_broadcast()	0
+#define flush_tlb_all		local_flush_tlb_all
+#define flush_tlb_mm		local_flush_tlb_mm
+#define flush_tlb_page		local_flush_tlb_page
+#define flush_tlb_kernel_page	local_flush_tlb_kernel_page
+#define flush_tlb_range		local_flush_tlb_range
+#define flush_tlb_kernel_range	local_flush_tlb_kernel_range
 #else
-/* all SMP configurations have the extended CPUID registers */
-static inline int tlb_ops_need_broadcast(void)
-{
-	return ((read_cpuid_ext(CPUID_EXT_MMFR3) >> 12) & 0xf) < 2;
-}
+extern void flush_tlb_all(void);
+extern void flush_tlb_mm(struct mm_struct *mm);
+extern void flush_tlb_page(struct vm_area_struct *vma, unsigned long uaddr);
+extern void flush_tlb_kernel_page(unsigned long kaddr);
+extern void flush_tlb_range(struct vm_area_struct *vma,
+	unsigned long start, unsigned long end);
+extern void flush_tlb_kernel_range(unsigned long start, unsigned long end);
 #endif
 
-extern void smp_flush_tlb_all(void);
-extern void smp_flush_tlb_mm(struct mm_struct *mm);
-extern void smp_flush_tlb_page(struct vm_area_struct *vma, unsigned long uaddr);
-extern void smp_flush_tlb_kernel_page(unsigned long kaddr);
-extern void smp_flush_tlb_range(struct vm_area_struct *vma, unsigned long start, unsigned long end);
-extern void smp_flush_tlb_kernel_range(unsigned long start, unsigned long end);
-
-static inline void flush_tlb_all(void)
-{
-	if (tlb_ops_need_broadcast())
-		smp_flush_tlb_all();
-	else
-		local_flush_tlb_all();
-}
-
-static inline void flush_tlb_mm(struct mm_struct *mm)
-{
-	if (tlb_ops_need_broadcast())
-		smp_flush_tlb_mm(mm);
-	else
-		local_flush_tlb_mm(mm);
-}
-
-static inline void flush_tlb_page(struct vm_area_struct *vma, unsigned long uaddr)
-{
-	if (tlb_ops_need_broadcast())
-		smp_flush_tlb_page(vma, uaddr);
-	else
-		local_flush_tlb_page(vma, uaddr);
-}
-
-static inline void flush_tlb_kernel_page(unsigned long kaddr)
-{
-	if (tlb_ops_need_broadcast())
-		smp_flush_tlb_kernel_page(kaddr);
-	else
-		local_flush_tlb_kernel_page(kaddr);
-}
-
-static inline void flush_tlb_range(struct vm_area_struct *vma, unsigned long start, unsigned long end)
-{
-	if (tlb_ops_need_broadcast())
-		smp_flush_tlb_range(vma, start, end);
-	else
-		local_flush_tlb_range(vma, start, end);
-}
-
-static inline void flush_tlb_kernel_range(unsigned long start, unsigned long end)
-{
-	if (tlb_ops_need_broadcast())
-		smp_flush_tlb_kernel_range(start, end);
-	else
-		local_flush_tlb_kernel_range(start, end);
-}
-
-/*
- * if PG_dcache_dirty is set for the page, we need to ensure that any
- * cache entries for the kernels virtual memory range are written
- * back to the page.
- */
 extern void update_mmu_cache(struct vm_area_struct *vma, unsigned long addr, pte_t pte);
 
 #endif
