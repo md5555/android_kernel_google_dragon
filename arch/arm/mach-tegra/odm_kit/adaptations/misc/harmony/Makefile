@@ -7,7 +7,8 @@ else
 ccflags-y += -DNV_DEBUG=0
 endif
 
-obj-y += nvodm_kbc.o
-obj-y += nvodm_sdio.o
-obj-y += nvodm_uart.o
-obj-y += nvodm_usbulpi.o
+obj-$(CONFIG_KEYBOARD_TEGRA)	+= nvodm_kbc.o
+obj-$(CONFIG_KEYBOARD_TEGRA)	+= nvodm_kbc_keymapping.o
+obj-y				+= nvodm_sdio.o
+obj-y				+= nvodm_uart.o
+obj-y				+= nvodm_usbulpi.o
