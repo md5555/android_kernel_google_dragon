@@ -173,6 +173,11 @@ struct tag {
 		 * DC21285 specific
 		 */
 		struct tag_memclk	memclk;
+
+		/*
+		 * DC21285 specific
+		 */
+		struct tag_nvidia_tegra	tegra;
 	} u;
 };
 
