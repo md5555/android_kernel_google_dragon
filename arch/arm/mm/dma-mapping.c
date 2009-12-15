@@ -326,7 +326,6 @@ static int dma_mmap(struct device *dev, struct vm_area_struct *vma,
 #ifdef CONFIG_MMU
 	unsigned long flags, user_size, kern_size;
 	struct arm_vm_region *c;
-	int ret = -ENXIO;
 
 	user_size = (vma->vm_end - vma->vm_start) >> PAGE_SHIFT;
 
