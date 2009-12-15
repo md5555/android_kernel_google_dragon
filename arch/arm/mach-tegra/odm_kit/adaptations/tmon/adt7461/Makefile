@@ -7,4 +7,7 @@ else
 ccflags-y += -DNV_DEBUG=0
 endif
 
+ccflags-y += -Iarch/arm/mach-tegra/odm_kit/adaptations/tmon
+ccflags-y += -Iarch/arm/mach-tegra/odm_kit/adaptations/tmon/adt7461
+
 obj-y += nvodm_tmon_adt7461.o
