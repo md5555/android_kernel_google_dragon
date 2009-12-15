@@ -463,7 +463,7 @@ config USB_GOKU
 config USB_GADGET_TEGRA
 	boolean "NVIDIA Tegra USB Device Port"
 	depends on ARCH_TEGRA
-	select USB_GADGET_TEGRA
+	select USB_GADGET_DUALSPEED
 	help
 	   Enables USB device functionality using the internal USB controller
 	   on NVIDIA Tegra SoCs
@@ -474,7 +474,7 @@ config USB_GADGET_TEGRA
 
 config USB_TEGRA
 	tristate
-	depends on USB_GADGET_TAGRA
+	depends on USB_GADGET_TEGRA
 	default USB_GADGET
 	select USB_GADGET_SELECTED
 
