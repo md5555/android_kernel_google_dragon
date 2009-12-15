@@ -38,6 +38,8 @@ obj-$(CONFIG_MACH_TEGRA_GENERIC)	+= nvodm/
 obj-$(CONFIG_MACH_TEGRA_GENERIC)	+= odm_kit/
 obj-$(CONFIG_MACH_TEGRA_GENERIC)	+= nvos_user.o
 obj-$(CONFIG_MACH_TEGRA_GENERIC)	+= nvrm_user.o
+obj-$(CONFIG_MACH_TEGRA_GENERIC)	+= init_common.o
+obj-$(CONFIG_MACH_TEGRA_GENERIC)	+= board_nvodm.o
 
 # Misc drivers
 obj-$(CONFIG_TEGRA_ODM_RFKILL)		+= tegra_rfkill_odm.o
