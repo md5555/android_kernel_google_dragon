@@ -15,4 +15,6 @@ config TEGRA_ODM_CONCORDE
 	bool "NVIDIA Concorde development system"
 	depends on ARCH_TEGRA_1x_SOC
 
+endchoice
+
 endif
