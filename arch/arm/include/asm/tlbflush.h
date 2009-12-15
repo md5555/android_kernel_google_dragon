@@ -327,11 +327,14 @@ static inline void local_flush_tlb_mm(struct mm_struct *mm)
 	const int zero = 0;
 	const int asid = ASID(mm);
 	const unsigned int __tlb_flag = __cpu_tlb_flags;
+	unsigned int cpu_id;
 
 	if (tlb_flag(TLB_WB))
 		dsb();
 
-	if (cpu_isset(smp_processor_id(), mm->cpu_vm_mask)) {
+	/* get_cpu disables preemption and returns the CPU ID */
+	cpu_id = get_cpu();
+	if (cpu_isset(cpu_id, mm->cpu_vm_mask)) {
 		if (tlb_flag(TLB_V3_FULL))
 			asm("mcr p15, 0, %0, c6, c0, 0" : : "r" (zero) : "cc");
 		if (tlb_flag(TLB_V4_U_FULL))
@@ -341,6 +344,7 @@ static inline void local_flush_tlb_mm(struct mm_struct *mm)
 		if (tlb_flag(TLB_V4_I_FULL))
 			asm("mcr p15, 0, %0, c8, c5, 0" : : "r" (zero) : "cc");
 	}
+	put_cpu();
 
 	if (tlb_flag(TLB_V6_U_ASID))
 		asm("mcr p15, 0, %0, c8, c7, 2" : : "r" (asid) : "cc");
