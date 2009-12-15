@@ -752,6 +752,14 @@ config CACHE_FEROCEON_L2_WRITETHROUGH
 	  Say Y here to use the Feroceon L2 cache in writethrough mode.
 	  Unless you specifically require this, say N for writeback mode.
 
+config CACHE_TEGRA_CMC
+	bool "Enable the Tegra L2 cache controller"
+	depends on ARCH_TEGRA_1x_SOC
+	help
+	  Say Y here to enable the Tegra L2 cache controller and L2 cacheable
+	  pagetable walks
+
+
 config CACHE_L2X0
 	bool "Enable the L2x0 outer cache controller"
 	depends on REALVIEW_EB_ARM11MP || MACH_REALVIEW_PB11MP || MACH_REALVIEW_PB1176 || REALVIEW_EB_A9MP || MACH_REALVIEW_PBX
