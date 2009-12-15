@@ -40,7 +40,6 @@
 #include "nvodm_query_pinmux.h"
 #include "nvassert.h"
 #include "nvodm_query.h"
-#include "nvodm_disp.h"
 #include "nvodm_services.h"
 
 #define NVODM_PINMUX_ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
