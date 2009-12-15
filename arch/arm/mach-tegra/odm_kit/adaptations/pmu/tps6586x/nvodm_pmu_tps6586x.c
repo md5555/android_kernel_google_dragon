@@ -1205,7 +1205,7 @@ Tps6586xWriteVoltageReg(
                 data |= (((1<<pSupplyInfo->ctrlRegInfo.bits)-1)<<pSupplyInfo->ctrlRegInfo.start);
             }
             else
-#else
+#endif
             {
                 data &= ~(((1<<pSupplyInfo->ctrlRegInfo.bits)-1)<<pSupplyInfo->ctrlRegInfo.start);
             }
@@ -1265,6 +1265,7 @@ Tps6586xWriteVoltageReg(
                 if (pSettleMicroSeconds)
                     *pSettleMicroSeconds = 0;
                 return NV_TRUE;
+            }
         }
 
 #if !defined(CONFIG_TEGRA_ODM_HARMONY)        
@@ -1347,7 +1348,7 @@ Tps6586xWriteVoltageReg(
 #if defined(CONFIG_TEGRA_ODM_HARMONY)
         status = Tps6586xI2cRead8(hDevice, pSupplyInfo->supplyRegInfo.addr, &data);
         if (NV_FALSE == status)
-            NVODMPMU_PRINTF(("TPS:Writing to PMU I2C fails 1... supplyaddress: %d\n", pSupplyInfo->supplyRegInfo
+            NVODMPMU_PRINTF(("TPS:Writing to PMU I2C fails 1... supplyaddress: %d\n", pSupplyInfo->supplyRegInfo));
 #else
         if ((vddRail == TPS6586xPmuSupply_DCD0) ||
             (vddRail == TPS6586xPmuSupply_DCD1) ||
@@ -1456,7 +1457,7 @@ Tps6586xWriteVoltageReg(
 #else
         *pSettleMicroSeconds = 0;
 #endif
-
+ 
     return NV_TRUE;
 }
 

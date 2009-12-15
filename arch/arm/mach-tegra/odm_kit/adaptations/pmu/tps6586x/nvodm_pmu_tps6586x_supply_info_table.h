@@ -40,6 +40,21 @@ extern "C"
 
 #define PMUGUID NV_ODM_GUID('t','p','s','6','5','8','6','x')
 
+#if defined(CONFIG_TEGRA_ODM_HARMONY)
+
+/// The total number of external supplies (which use both AP and PMU GPIOs)
+#define TPS6586x_EXTERNAL_SUPPLY_NUM \
+    (NvU32)(TPS6586xPmuSupply_Num - Ext_TPS62290PmuSupply_BUCK)
+
+/// Macro for converting a vddRail to AP GPIO pin index.
+#define NVODM_EXT_AP_GPIO_RAIL(x) ((x) - Ext_TPS2051BPmuSupply_VDDIO_VID)
+
+/// The total number of external supplies which use AP GPIO pins for enable
+#define TPS6586x_EXTERNAL_SUPPLY_AP_GPIO_NUM \
+    (NvU32)NVODM_EXT_AP_GPIO_RAIL(TPS6586xPmuSupply_Num)
+
+#else
+
 /* FIXME: modify this table according to your schematics */
 #define V_CORE      TPS6586xPmuSupply_DCD0      
 #define V_1V8       TPS6586xPmuSupply_DCD1      
@@ -59,6 +74,7 @@ extern "C"
 #define V_GND       TPS6586xPmuSupply_Invalid
 #define V_INVALID   TPS6586xPmuSupply_Invalid
 #define VRAILCOUNT  TPS6586xPmuSupply_Num
+#endif
 
 typedef enum
 {
@@ -133,6 +149,38 @@ typedef enum
 
     //White LED(SW3)
     TPS6586xPmuSupply_WHITE_LED,
+#if defined(CONFIG_TEGRA_ODM_HARMONY)
+    //SOC
+    TPS6586xPmuSupply_SoC,
+
+    /*--- Secondary/External PMU Rails ---*/
+
+    // PMU GPIO-3: VDD_1V05
+    Ext_TPS62290PmuSupply_BUCK,
+
+    // PMU GPIO-2: VDD_1V2
+    Ext_TPS72012PmuSupply_LDO,
+
+    // PMU GPIO-1: VDD_1V5
+    Ext_TPS74201PmuSupply_LDO,
+
+    // AP GPIO(T,2): VDDIO_HDMI, VDDIO_VGA (5V @ 500ma)
+    Ext_TPS2051BPmuSupply_VDDIO_VID,
+
+    // AP GPIO(T,3): VDDIO_SD
+    Ext_SWITCHPmuSupply_VDDIO_SD,
+
+    // AP GPIO(I,6): VDDIO_SDMMC
+    Ext_SWITCHPmuSupply_VDDIO_SDMMC,
+
+    // AP GPIO(W,0): VDD_BL
+    // FIXME: This is already supplied by nvodm_query_gpio in the display GPIO settings.
+    Ext_SWITCHPmuSupply_VDD_BL,
+
+    // AP GPIO(C,6): VDD_PNL
+    // FIXME: This is already supplied by nvodm_query_gpio in the display GPIO settings.
+    Ext_SWITCHPmuSupply_VDD_PNL,
+#endif
 
     TPS6586xPmuSupply_Num,
     TPS6586xPmuSupply_Force32 = 0x7FFFFFFF

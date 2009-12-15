@@ -7,6 +7,9 @@ else
 ccflags-y += -DNV_DEBUG=0
 endif
 
+ccflags-y += -Iarch/arm/mach-tegra/odm_kit/adaptations/pmu
+ccflags-y += -Iarch/arm/mach-tegra/odm_kit/adaptations/pmu/tps6586x
+
 obj-y += nvodm_pmu_tps6586x.o
 obj-y += nvodm_pmu_tps6586x_adc.o
 obj-y += nvodm_pmu_tps6586x_batterycharger.o

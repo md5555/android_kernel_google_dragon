@@ -7,6 +7,9 @@ else
 ccflags-y += -DNV_DEBUG=0
 endif
 
+ccflags-y += -Iarch/arm/mach-tegra/odm_kit/adaptations/pmu
+ccflags-y += -Iarch/arm/mach-tegra/odm_kit/adaptations/pmu/max8907b
+
 obj-y += ad5258_dpm.o
 obj-y += fan5355_buck_i2c.o
 obj-y += max8907b_adc.o

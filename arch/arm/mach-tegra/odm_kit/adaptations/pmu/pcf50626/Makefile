@@ -7,6 +7,9 @@ else
 ccflags-y += -DNV_DEBUG=0
 endif
 
+ccflags-y += -Iarch/arm/mach-tegra/odm_kit/adaptations/pmu
+ccflags-y += -Iarch/arm/mach-tegra/odm_kit/adaptations/pmu/pcf50626
+
 obj-y += ds2482_bridge.o
 obj-y += ds2482_i2c.o
 obj-y += pcf50626_adc.o
