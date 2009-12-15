@@ -23,6 +23,14 @@
 #ifndef _LINUX_DEVICE_TEGRA_H
 #define _LINUX_DEVICE_TEGRA_H
 
+#ifndef NV_DEBUG
+#if defined(CONFIG_MACH_TEGRA_GENERIC_DEBUG)
+#define NV_DEBUG 1
+#else
+#define NV_DEBUG 0
+#endif
+#endif
+
 #include "nvcommon.h"
 #include "nvrm_gpio.h"
 #include "nvddk_usbphy.h"
@@ -54,9 +62,13 @@ struct tegra_i2c_platform_data {
 
 /* Platfrom data for SPI bus driver */
 struct tegra_spi_platform_data {
-    NvU32 IoModuleID;  // IO Module
-    NvU32 Instance;     // Instance
-    NvU32 PinMuxConfig;
+	NvU32 IoModuleID;
+	NvU32 Instance;
+	NvU32 PinMuxConfig;
+};
+
+struct tegra_sdio_platform_data {
+	NvU32 StartOffset; /* start sector offset to MBR for the card */
 };
 
 

@@ -603,7 +603,7 @@ void __init tegra_register_usb(void)
         for (i=0; i<(_cnt); i++) {                                      \
             const NvOdmQuerySdioInterfaceProperty *prop;                \
             struct platform_device *platdev;                            \
-            struct tegra_sdio_pdata pdata;                              \
+            struct tegra_sdio_platform_data pdata;                      \
             if (i==(_boot))                                             \
                 continue;                                               \
             prop = NvOdmQueryGetSdioInterfaceProperty(i);               \
@@ -647,7 +647,7 @@ static void __init tegra_register_sdio_int(const char *driver_name)
      */
     if (tegra_boot_device && !memcmp(tegra_boot_device, "sdmmc", 5)) {
         struct platform_device *platdev;
-        struct tegra_sdio_pdata pdata;
+        struct tegra_sdio_platform_data pdata;
         NvU64 start, length;
         NvU32 sector_size;
         boot_id = 3;

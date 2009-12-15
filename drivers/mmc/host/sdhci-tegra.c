@@ -22,6 +22,8 @@
 
 #include <linux/mmc/host.h>
 #include <linux/platform_device.h>
+#include <linux/irq.h>
+#include <linux/tegra_devices.h>
 
 #include "sdhci.h"
 #include "mach/nvrm_linux.h"
@@ -30,7 +32,6 @@
 #include "nvrm_module.h"
 #include "nvrm_power.h"
 #include "nvrm_interrupt.h"
-#include <linux/irq.h>
 #include "nvrm_pmu.h"
 #include "nvos.h"
 #include "nvodm_query_gpio.h"
@@ -183,7 +184,7 @@ int __init tegra_sdhci_probe(struct platform_device *pdev)
 	NvU32 ModId;
 	int ret = -ENODEV;
 #ifdef CONFIG_EMBEDDED_MMC_START_OFFSET
-	struct tegra_sdio_pdata *pdata = pdev->dev.platform_data;
+	struct tegra_sdio_platform_data *pdata = pdev->dev.platform_data;
 #endif
 	NvRmModuleSdmmcInterfaceCaps SdioInterfaceCaps;
 
