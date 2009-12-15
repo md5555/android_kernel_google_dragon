@@ -54,7 +54,6 @@
 #include "nvcolor.h"
 #include "nvodm_query_pinmux.h"
 #include "nvodm_query.h"
-#include "nvodm_audiocodec.h"
 
 #if defined(__cplusplus)
 extern "C"
@@ -367,11 +366,6 @@ typedef struct NvOdmServicesPwmRec *NvOdmServicesPwmHandle;
  * Defines an opaque handle to the ODM Services key list interface.
  */
 typedef struct NvOdmServicesKeyList *NvOdmServicesKeyListHandle;
-
-/**
- * Defines an opaque handle to the ODM Services audio connection interface.
- */
-typedef struct NvOdmAudioConnectionRec *NvOdmAudioConnectionHandle;
 
 /**
  * Defines an interrupt handler.
@@ -1658,176 +1652,6 @@ NvOdmOsFread(NvOdmOsFileHandle stream, void *ptr, size_t size, size_t *bytes);
  */
 NvBool
 NvOdmOsStat(const char *filename, NvOdmOsStatType *stat);
-
-/**
- * Defines a half buffer playback function callback.
- */
-typedef void (*NvOdmWaveHalfBufferCompleteFxn)(NvBool IsFirstHalf, void *pContext);
-
-/**
- * The property of the wave data which needs to be played.
- */
-typedef struct
-{
-    /// Indicates that the wave data is single channel data or stereo data.
-    NvBool IsMonoDataFormat;
-
-    /// Indicates that the wave data is placed in the packed format like left
-    /// and right channel data are in the same word (32 bits) or in different
-    /// words.
-    NvBool IsPackedFormat;
-
-    /// The sampling rate of the wave data in Hz, i.e., for 8 kHz it is 8000.
-    NvU32 SamplingRateInHz;
-
-    /// The PCM size of the wave data in bits like 16 for the 16-bit PCM data or
-    /// 24 for the 24-bit PCM data.
-    NvU32 PcmSampleSizeInBits;
-
-    /// The total size of the wave data in bytes including both channels that
-    /// need to be played.
-    NvU32 TotalWaveDataSizeInBytes;
-} NvOdmWaveDataProp;
-
-/**
- * Plays the wave data. This API is available for the boot loader only. This is
- * not supported in the main image.
- *
- * The wave data will be played through the I2S channel in double buffering
- * continuous type. This means the same buffer will be transferred continuously and
- * there will be notification after every half transfer completes, and after
- * every half of the buffer playback it will call the callback function
- * HalfBuffCompleteCallback() to inform the client that buffer playback is
- * complete and he can copy the new wave data into the played buffer.
- * The client will copy the new chunk of the wave data into the played buffer.
- * The data will be played till the complete transfer is over indicated by the
- * ::TotalWaveDataSizeInBytes.
- * The client is advised to set the BufferSizeInBytes such a way that
- * TotalWaveDataSizeInBytes = n x BufferSizeInBytes where n is integer.
- * Also the size of the buffer, i.e., BufferSizeInBytes should be sifficient so that
- * during the playback, client can copy the new chunk of the data into the played
- * buffer. The datacopy should be done in the callback function.
- *
- *
- * @param pWaveDataBuffer A pointer to the buffer where the wave data will be
- * copied.
- * @param BufferSizeInBytes The size of the buffer in bytes.
- * @param HalfBuffCompleteCallback The callback function pointer that will be
- * called after completion of the half of the buffer transfer is over. It will
- * be also called after the second half of the buffer transfer is complete.
- * @param pWaveDataProp A pointer to the structure contains the property of
- * the data to be played.
- * @param pContext A pointer to the context.
- *
- * @return NV_TRUE if successful, or NV_FALSE otherwise.
- */
-NvBool
-NvOdmPlayWave(
-    NvU32 *pWaveDataBuffer,
-    NvU32 BufferSizeInBytes,
-    NvOdmWaveHalfBufferCompleteFxn HalfBuffCompleteCallback,
-    NvOdmWaveDataProp *pWaveDataProp,
-    void *pContext);
-
-/**
- * Creates and opens an audio connection from a diffenet device to the codec. 
- * This API is only available in the bootloader (OAL) level.
- *
- * @see NvOdmAudioConnectionClose
- *
- * @param hAudioCodec The audio codec handle.
- * @param ConnectionType The type of required connection based on the use 
- * case, or specify ::NvOdmDapConnectionIndex_Unknown if connection index is
- *      used.
- * @param SignalType The source type used for recording or any 
- * special case.
- * @param PortIndex The port index of the source used in the \a Signaltype.
- * @param IsEnable Specifies to enable or disable the connection line.
- *
- * @return The handle to the audio connection, or NULL if an error occurred.
- */
-NvOdmAudioConnectionHandle 
-NvOdmAudioConnectionOpen(
-    NvOdmAudioCodecHandle hAudioCodec,
-    NvOdmDapConnectionIndex ConnectionType,
-    NvOdmAudioSignalType SignalType,
-    NvU32 PortIndex,
-    NvBool IsEnable);
-
-/**
- * Closes the audio connection.
- * This API is only available in the bootloader (OAL) level.
- *
- * @see NvOdmAudioConnectionOpen
- *
- * @param hAudioConnection The handle of the audio connection.
- */
-void 
-NvOdmAudioConnectionClose(
-    NvOdmAudioConnectionHandle hAudioConnection);
-
-/**
- * Pixel color format of the display buffer.
- *
- * NVIDIA Note: when adding new formats always append to bottom of the
- * list. This format identifier is usually read directly from the bitmap 
- * data header and therefore backwards compatibility is important!
- */
-typedef enum
-{
-    // Color channels: R5G6B5 (packed in short)
-    NvOdmDispBufferFormat_16Bit = 1,
-    // Color channels: A8R8G8B8 (packed in int)
-    NvOdmDispBufferFormat_32Bit,
-    NvOdmDispBufferFormat_Force32 = 0x7FFFFFFF
-} NvOdmDispBufferFormat;
-
-/** Attributes of a display buffer. */
-typedef struct
-{
-    NvU32 StartX;
-    NvU32 StartY;
-    NvU32 Width;
-    NvU32 Height;
-    NvU32 Pitch;
-    NvOdmDispBufferFormat PixelFormat;
-} NvOdmDispBufferAttributes;
-
-typedef NvU32 *NvOdmServicesDispHandle;
-
-/**
- * Opens the display driver.
- *
- * @param hDisplay A pointer to the returned display driver handle.
- * @param bufAttributes A pointer to information about the buffer to be sent
- *      to the display.
- * @param pBuffer A pointer to the buffer to be sent to the display.
- */
-void
-NvOdmDispOpen(NvOdmServicesDispHandle *hDisplay,
-              const NvOdmDispBufferAttributes *bufAttributes,
-              const NvU8 *pBuffer);
-
-/**
- * Closes the display driver.
- *
- * @param hDisplay The display driver handle.
- */
-void
-NvOdmDispClose(NvOdmServicesDispHandle hDisplay);
-
-/**
- * Sends a buffer to the display driver.
- *
- * @param hDisplay The display driver handle.
- * @param bufAttributes A pointer to information about the buffer to be sent
- *      to the display.
- * @param pBuffer A pointer to the buffer to be sent to the display.
- */
-void
-NvOdmDispSendBuffer(const NvOdmServicesDispHandle hDisplay,
-                    const NvOdmDispBufferAttributes *bufAttributes,
-                    const NvU8 *pBuffer);
 
 /**
  * Enables or disables USB OTG circuitry.

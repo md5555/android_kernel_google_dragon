@@ -929,57 +929,6 @@ NvOdmPwmConfig(NvOdmServicesPwmHandle hOdmPwm,
         pCurrentFreqHzOrPeriod);
 }
 
-NvBool 
-NvOdmPlayWave(
-    NvU32 *pWaveDataBuffer, 
-    NvU32 BufferSizeInBytes, 
-    NvOdmWaveHalfBufferCompleteFxn HalfBuffCompleteCallback,
-    NvOdmWaveDataProp *pWaveDataProp,
-    void *pContext)
-{
-    NV_ASSERT(!"Not Supported ");
-    return NV_FALSE;
-}
-
-NvOdmAudioConnectionHandle 
-NvOdmAudioConnectionOpen(
-    NvOdmAudioCodecHandle hAudioCodec,
-    NvOdmDapConnectionIndex ConnectionType,
-    NvOdmAudioSignalType SignalType,
-    NvU32 PortIndex,
-    NvBool IsEnable)
-{
-    NV_ASSERT(!"Not Supported ");
-    return NULL;
-}
-
-void 
-NvOdmAudioConnectionClose(
-    NvOdmAudioConnectionHandle hAudioConnection)
-{
-}
-
-void NvOdmDispOpen(
-    NvOdmServicesDispHandle *hDisplay,
-    const NvOdmDispBufferAttributes *bufAttributes,
-    const NvU8 *pBuffer)
-{
-    NV_ASSERT("Not Supported ");
-}
-
-void NvOdmDispClose(NvOdmServicesDispHandle hDisplay)
-{
-    NV_ASSERT("Not Supported ");
-}
-
-void NvOdmDispSendBuffer(
-    const NvOdmServicesDispHandle hDisplay,
-    const NvOdmDispBufferAttributes *bufAttributes,
-    const NvU8 *pBuffer)
-{
-    NV_ASSERT("Not Supported ");
-}
-
 void NvOdmEnableOtgCircuitry(NvBool Enable)
 {
     NvRmDeviceHandle hRmDevice;
