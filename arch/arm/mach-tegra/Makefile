@@ -34,6 +34,7 @@ obj-$(CONFIG_MACH_TEGRA_GENERIC)	+= nvrm/
 obj-$(CONFIG_MACH_TEGRA_GENERIC)	+= nvreftrack/
 obj-$(CONFIG_MACH_TEGRA_GENERIC)	+= nvos/
 obj-$(CONFIG_MACH_TEGRA_GENERIC)	+= nvodm/
+obj-$(CONFIG_MACH_TEGRA_GENERIC)	+= odm_kit/
 obj-$(CONFIG_MACH_TEGRA_GENERIC)	+= nvos_user.o
 
 # Misc drivers
