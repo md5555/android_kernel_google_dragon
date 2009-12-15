@@ -60,6 +60,7 @@ void mach_tegra_reset(void);
 void mach_tegra_idle(void);
 extern void enter_lp2(NvU32, NvU32);
 extern void exit_power_state(void);
+extern void NvSpareTimerTrigger(unsigned long); /* timer.c */
 
 NvU32 lp2count = 0, lp3count = 0, lp2safe = 0;
 

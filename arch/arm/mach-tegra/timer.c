@@ -143,6 +143,8 @@ static struct clocksource s_NvClockUs =
     .flags  = CLOCK_SOURCE_IS_CONTINUOUS,
 };
 
+static void NvSpareTimerInit(void);
+
 static void __init tegra_timer_init(void)
 {
     NvRmPhysAddr Phys;
@@ -221,17 +223,13 @@ static void __init tegra_timer_init(void)
     s_NvTimer.irq = s_NvTimerIrq.irq;
     clockevents_register_device(&s_NvTimer);
 
-#ifdef CONFIG_NV_SPARE_TIMER
     NvSpareTimerInit();
-#endif
 }
 
 struct sys_timer tegra_timer = 
 {
     .init = tegra_timer_init,
 };
-
-#ifdef CONFIG_NV_SPARE_TIMER
 
 static volatile NvU8 *s_NvSpareTimerTick;
 
@@ -260,7 +258,7 @@ void NvSpareTimerTrigger(unsigned long cycles)
     NV_WRITE32(s_NvSpareTimerTick + TIMER_TMR_PTV_0, v);
 }
 
-void NvSpareTimerInit()
+static void NvSpareTimerInit(void)
 {
     int irq;
     NvRmPhysAddr Phys;
@@ -282,6 +280,4 @@ void NvSpareTimerInit()
         NV_ASSERT(!"ERROR: Could not configure timer IRQ\n");
     }
 }
-
-#endif
 
