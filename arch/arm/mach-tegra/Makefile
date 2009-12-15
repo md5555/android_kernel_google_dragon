@@ -10,6 +10,7 @@ obj-$(CONFIG_CPU_FREQ)			+= cpufreq.o
 
 # Dynamic voltage and frequency scaling support
 obj-$(CONFIG_ARCH_TEGRA_2x_SOC)		+= idle-t2.o
+obj-$(CONFIG_ARCH_TEGRA_1x_SOC)		+= idle-t1.o
 
 # SMP
 obj-$(CONFIG_SMP)			+= headsmp.o
