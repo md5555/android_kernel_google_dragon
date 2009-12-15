@@ -48,6 +48,55 @@ ENTRY(cpu_v7_proc_init)
 ENDPROC(cpu_v7_proc_init)
 
 ENTRY(cpu_v7_proc_fin)
+	stmfd	sp!, {r1-r4, lr}
+	cpsid	if
+
+#ifdef CONFIG_SMP
+	bl	smp_send_stop
+
+wait_for_other_cpus_to_halt:
+	ldr	r1, =cpu_online_mask
+	dmb
+	ldr	r1, [r1]
+	ldr	r1, [r1]
+	and	r1, r1, #0xff
+	sub	r2, r1, #1
+	and	r1, r1, r2
+	cmp	r1, #0
+	bne	wait_for_other_cpus_to_halt
+#endif
+
+#ifdef CONFIG_CACHE_L2X0
+	bl	l2x0_deinit	@ clean/invalidate L2 cache before L1
+#endif
+
+	/* Flush and disable the L1-caches.  Cache maintenance ops are
+	 * broadcast, so they should apply to the L1 caches of all cpus
+	 */
+	bl	v7_flush_kern_cache_all
+	mrc	p15, 0, r4, c1, c0, 0
+	bic	r4, r4, #(1<<2)
+	bic	r4, r4, #(1<<11)
+	bic	r4, r4, #(1<<12)
+	bic	r4, r4, #(1<<29)
+	bic	r4, r4, #(1<<23)
+	mcr	p15, 0, r4, c1, c0, 0
+	dsb
+
+	mcr	p15, 0, r4, c7, c5, 0	@ instruction cache invalidate
+	mcr	p15, 0, r4, c7, c5, 4	@ flush prefetch buffer
+	mcr	p15, 0, r4, c8, c7, 0	@ invalidate TLB
+	mcr	p15, 0, r4, c7, c10, 4
+	dsb
+
+#ifdef CONFIG_SMP
+	//Finally, turn off SMP
+	mrc	p15, 0, r4, c1, c0, 1
+	bic	r4, r4, #(1<<6)
+	bic	r4, r4, #(1<<0)
+	mcr	p15, 0, r4, c1, c0, 1
+#endif
+	ldmfd	sp!, {r1-r4, lr}
 	mov	pc, lr
 ENDPROC(cpu_v7_proc_fin)
 
