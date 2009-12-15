@@ -25,6 +25,7 @@
 #include <linux/platform_device.h>
 #include <linux/fsl_devices.h>
 #include <linux/dma-mapping.h>
+#include <linux/tegra_devices.h>
 #include "nvcommon.h"
 #include "nvrm_init.h"
 #include "nvrm_drf.h"
@@ -200,7 +201,7 @@ static void __init tegra_register_spi(void)
         { NvOdmIoModule_Spi, NvOdmIoModule_Sflash };
     const NvOdmQuerySpiDeviceInfo *pSpiDeviceInfo;
     unsigned int i, j, k, ToAdd;
-    struct tegra_spi_pdata SpiData;
+    struct tegra_spi_platform_data SpiData;
 
     for (i=0, Cnt=0; i<NV_ARRAY_SIZE(Modules); i++)
     {
@@ -326,7 +327,7 @@ static void __init tegra_register_i2c(void)
     const NvOdmIoModule OdmModules[] = { NvOdmIoModule_I2c_Pmu,
                                          NvOdmIoModule_I2c };
     unsigned int i, j, k, ToAdd;
-    struct tegra_i2c_pdata I2cData;
+    struct tegra_i2c_platform_data I2cData;
     
 
     for (i=0, Cnt=0; i<NV_ARRAY_SIZE(Modules); i++)
