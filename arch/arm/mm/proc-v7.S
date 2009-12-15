@@ -164,6 +164,7 @@ ENTRY(cpu_v7_switch_mm)
 1:	mcr	p15, 0, r0, c2, c0, 0		@ set TTB 0
 	isb
 	mcr	p15, 0, r1, c13, c0, 1		@ set context ID
+	clrex
 	isb
 #endif
 	mov	pc, lr
