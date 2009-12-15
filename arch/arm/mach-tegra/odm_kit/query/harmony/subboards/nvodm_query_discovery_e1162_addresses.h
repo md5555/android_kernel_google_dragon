@@ -39,7 +39,7 @@
  *                 for the peripherals on E1162 module.
  */
 
-#include "../../adaptations/pmu/nvodm_pmu_tps6586x_supply_info_table.h"
+#include "pmu/tps6586x/nvodm_pmu_tps6586x_supply_info_table.h"
 #include "tmon/adt7461/nvodm_tmon_adt7461_channel.h"
 #include "nvodm_tmon.h"
 #include "../nvodm_query_kbc_gpio_def.h"
