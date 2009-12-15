@@ -27,6 +27,7 @@
 #include <linux/platform_device.h>
 #include <linux/spi/spi.h>
 #include <linux/workqueue.h>
+#include <linux/tegra_devices.h>
 
 
 #include "mach/nvrm_linux.h"
@@ -214,7 +215,7 @@ static int __init tegra_spi_probe(struct platform_device *pdev)
 {
 	struct spi_master	*pSpi;
 	struct NvSpiShim	*pShimSpi;
-	struct tegra_spi_pdata	*pdata = pdev->dev.platform_data;
+	struct tegra_spi_platform_data *pdata = pdev->dev.platform_data;
 	int			status= 0;
 	NvError			err;
 	char			name[64];

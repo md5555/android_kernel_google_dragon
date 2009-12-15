@@ -52,4 +52,12 @@ struct tegra_i2c_platform_data {
 	NvOdmI2cPinMap	PinMuxConfig;
 };
 
+/* Platfrom data for SPI bus driver */
+struct tegra_spi_platform_data {
+    NvU32 IoModuleID;  // IO Module
+    NvU32 Instance;     // Instance
+    NvU32 PinMuxConfig;
+};
+
+
 #endif
