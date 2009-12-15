@@ -634,3 +634,81 @@ const NvOdmGpioWakeupSource *NvOdmQueryGetWakeupSources(NvU32 *pCount)
     *pCount = 0;
     return NULL;
 }
+
+/**
+ * This function is called from early boot process.
+ * Therefore, it cannot use global variables.
+ */
+NvU32 NvOdmQueryMemSize(NvOdmMemoryType MemType)
+{
+    NvOdmOsOsInfo Info;
+    NvU32 MemBctCustOpt = GetBctKeyValue();
+
+    switch (MemType)
+    {
+        // NOTE:
+        // For Windows CE/WM operating systems the total size of SDRAM may
+        // need to be reduced due to limitations in the virtual address map.
+        // Under the legacy physical memory manager, Windows OSs have a
+        // maximum 512MB statically mapped virtual address space. Under the
+        // new physical memory manager, Windows OSs have a maximum 1GB
+        // statically mapped virtual address space. Out of that virtual
+        // address space, the upper 32 or 36 MB (depending upon the SOC)
+        // of the virtual address space is reserved for SOC register
+        // apertures.
+        //
+        // Refer to virtual_tables_apxx.arm for the reserved aperture list.
+        // If the cumulative size of the reserved apertures changes, the
+        // maximum size of SDRAM will also change.
+        case NvOdmMemoryType_Sdram:
+            switch (NV_DRF_VAL(TEGRA_DEVKIT, BCT_SYSTEM, MEMORY, MemBctCustOpt))
+            {
+                case TEGRA_DEVKIT_BCT_SYSTEM_0_MEMORY_256:
+                    if ( NvOdmOsGetOsInformation(&Info) &&
+                         ((Info.OsType!=NvOdmOsOs_Windows) ||
+                          (Info.OsType==NvOdmOsOs_Windows && Info.MajorVersion>=7)) )
+                        return 0x10000000;
+                    else
+                        return 0x0DD00000;  // Legacy Physical Memory Manager: 256 MB - 35 MB
+    
+                case TEGRA_DEVKIT_BCT_SYSTEM_0_MEMORY_1024:
+                    if ( NvOdmOsGetOsInformation(&Info) &&
+                         ((Info.OsType!=NvOdmOsOs_Windows) ||
+                          (Info.OsType==NvOdmOsOs_Windows && Info.MajorVersion>=7)) )
+                        return 0x40000000;
+                    else
+                        // Earlier versions of WinCE only support 512MB max memory size
+                        return 0x1E000000;  // Legacy Physical Memory Manager: 512 MB - 32 MB
+
+                case TEGRA_DEVKIT_BCT_SYSTEM_0_MEMORY_512:
+                case TEGRA_DEVKIT_BCT_SYSTEM_0_MEMORY_DEFAULT:
+                default:
+                    if ( NvOdmOsGetOsInformation(&Info) &&
+                         ((Info.OsType!=NvOdmOsOs_Windows) ||
+                          (Info.OsType==NvOdmOsOs_Windows && Info.MajorVersion>=7)) )
+                        return 0x20000000;
+                    else
+                        return 0x1E000000;  // Legacy Physical Memory Manager: 512 MB - 32 MB
+            }
+
+        case NvOdmMemoryType_Nor:
+            return 0x00400000;  // 4 MB
+
+        case NvOdmMemoryType_Nand:
+        case NvOdmMemoryType_I2CEeprom:
+        case NvOdmMemoryType_Hsmmc:
+        case NvOdmMemoryType_Mio:
+        default:
+            return 0;
+    }
+}
+
+NvU32 NvOdmQueryCarveoutSize(void)
+{
+    return 0x04000000;  // 64 MB
+}
+
+NvU32 NvOdmQuerySecureRegionSize(void)
+{
+    return 0x00800000;// 8 MB
+}
