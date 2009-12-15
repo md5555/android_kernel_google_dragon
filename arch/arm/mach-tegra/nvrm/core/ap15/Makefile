@@ -7,6 +7,9 @@ else
 ccflags-y += -DNV_DEBUG=0
 endif
 
+ccflags-y += -Iarch/arm/mach-tegra/nvrm/core/common
+ccflags-y += -Iarch/arm/mach-tegra/nvrm/core
+
 obj-y += ap15rm_interrupt_generic.o
 obj-y += ap15rm_hwmap.o
 obj-y += ap15rm_gart.o

@@ -7,6 +7,9 @@ else
 ccflags-y += -DNV_DEBUG=0
 endif
 
+ccflags-y += -Iarch/arm/mach-tegra/nvrm/core/common
+ccflags-y += -Iarch/arm/mach-tegra/nvrm/core
+
 obj-y += ap20rm_reloctable.o
 obj-y += ap20rm_clocks.o
 obj-y += ap20rm_clock_config.o

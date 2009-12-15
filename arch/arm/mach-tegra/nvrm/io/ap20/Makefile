@@ -7,6 +7,11 @@ else
 ccflags-y += -DNV_DEBUG=0
 endif
 
+ccflags-y += -Iarch/arm/mach-tegra/nvrm/core/common
+ccflags-y += -Iarch/arm/mach-tegra/nvrm/io/common
+ccflags-y += -Iarch/arm/mach-tegra/nvrm/io
+ccflags-y += -Iarch/arm/mach-tegra/nvrm/core
+
 obj-y += ap20rm_i2c.o
 obj-y += ap20rm_pcie.o
 obj-y += ap20rm_slink_hw_private.o

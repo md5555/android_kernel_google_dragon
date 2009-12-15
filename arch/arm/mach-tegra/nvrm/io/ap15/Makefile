@@ -7,6 +7,11 @@ else
 ccflags-y += -DNV_DEBUG=0
 endif
 
+ccflags-y += -Iarch/arm/mach-tegra/nvrm/core/common
+ccflags-y += -Iarch/arm/mach-tegra/nvrm/io/common
+ccflags-y += -Iarch/arm/mach-tegra/nvrm/io
+ccflags-y += -Iarch/arm/mach-tegra/nvrm/core
+
 obj-y += ap15rm_analog.o
 obj-y += rm_dma_hw_private.o
 obj-y += ap15rm_dma_hw_private.o
