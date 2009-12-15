@@ -577,16 +577,14 @@ NvError NvOsPhysicalMemMap(
      *  registered with NvOs when mapped, since they could be
      *  chip-dependent
      */
-#define NV_APERTURE(NAME, PA, LEN)                                 \
-    if ((phys>=(NvOsPhysAddr)(PA)) &&                              \
-        ((NvOsPhysAddr)(phys+size)<=(NvOsPhysAddr)((PA)+(LEN))))   \
-    {                                                              \
-        *ptr = (void *)NV_PA_TO_KVA(phys);                         \
-        return NvSuccess;                                          \
+#define aperture_comp_map(_name, _pa, _len)                             \
+    if ((phys >= (NvOsPhysAddr)(_pa)) &&                                \
+        ((NvOsPhysAddr)(phys+size)<=(NvOsPhysAddr)((_pa)+(_len)))) {    \
+            *ptr = (void *)tegra_munge_pa(_pa);                         \
+            return NvSuccess;                                           \
     }
 
-    NV_APERTURES()
-#undef NV_APERTURE
+    tegra_apertures(aperture_comp_map);
 
     if (attrib == NvOsMemAttribute_WriteCombined)
     {
@@ -622,15 +620,13 @@ void NvOsPhysicalMemUnmap(void *ptr, size_t size)
     NvUPtr va = (NvUPtr)ptr;
 
     /*  No unmapping required for statically mapped I/O space */
-#define NV_APERTURE(NAME, PA, LEN)              \
-    if ((NV_PA_TO_KVA((PA))<=va) &&             \
-        ((NV_PA_TO_KVA(PA)+(LEN))>=(va+size)))  \
+#define aperture_comp_unmap(_name, _pa, _len)                           \
+    if ((tegra_munge_pa((_pa)) <= va) &&                                \
+        (tegra_munge_pa((_pa))+(_len) >= (va+size)))                    \
         return;
 
-    NV_APERTURES()
 
-#undef NV_APERTURE
-
+    tegra_apertures(aperture_comp_unmap);
     iounmap(ptr);
 }
 
