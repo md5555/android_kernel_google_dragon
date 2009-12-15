@@ -37,5 +37,3 @@
 #define VMALLOC_END        ((PAGE_OFFSET) + 512*1024*1024 + 384*1024*1024)
 
 #endif
-
-#endif

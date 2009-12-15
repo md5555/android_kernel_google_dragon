@@ -23,9 +23,12 @@
 
 #include <mach/hardware.h>
 
+extern void mach_tegra_idle(void);
+extern void mach_tegra_reset(void);
+
 static inline void arch_idle(void)
 {
-	mach_tegra_do_idle();
+	mach_tegra_idle();
 }
 
 static inline void arch_reset(char mode)
