@@ -145,10 +145,17 @@
 # define v4wb_always_flags	(-1UL)
 #endif
 
+#ifdef CONFIG_ARCH_TEGRA_1x_SOC
+#define v6wbi_tlb_flags (TLB_WB | \
+			 TLB_V6_I_FULL | TLB_V6_D_FULL | \
+			 TLB_V6_I_PAGE | TLB_V6_D_PAGE | \
+			 TLB_V6_I_ASID | TLB_V6_D_ASID)
+#else
 #define v6wbi_tlb_flags (TLB_WB | TLB_DCLEAN | \
 			 TLB_V6_I_FULL | TLB_V6_D_FULL | \
 			 TLB_V6_I_PAGE | TLB_V6_D_PAGE | \
 			 TLB_V6_I_ASID | TLB_V6_D_ASID)
+#endif
 
 #ifdef CONFIG_CPU_TLB_V6
 # define v6wbi_possible_flags	v6wbi_tlb_flags
@@ -186,6 +193,15 @@
 
 #ifndef _TLB
 #error Unknown TLB model
+#endif
+
+#ifdef CONFIG_ARCH_TEGRA_1x_SOC
+#define TLB_CLEAN_OP tegra_cmc_clean_pmd
+#endif
+
+#ifdef TLB_CLEAN_OP
+extern void TLB_CLEAN_OP(pmd_t *pmd);
+#define tlb_clean_op TLB_CLEAN_OP
 #endif
 
 #ifndef __ASSEMBLY__
@@ -470,6 +486,10 @@ static inline void flush_pmd_entry(pmd_t *pmd)
 
 	if (tlb_flag(TLB_WB))
 		dsb();
+
+#if defined(TLB_CLEAN_OP)
+	tlb_clean_op(pmd);
+#endif
 }
 
 static inline void clean_pmd_entry(pmd_t *pmd)
@@ -483,6 +503,10 @@ static inline void clean_pmd_entry(pmd_t *pmd)
 	if (tlb_flag(TLB_L2CLEAN_FR))
 		asm("mcr	p15, 1, %0, c15, c9, 1  @ L2 flush_pmd"
 			: : "r" (pmd) : "cc");
+
+#if defined(TLB_CLEAN_OP)
+	tlb_clean_op(pmd);
+#endif
 }
 
 #undef tlb_flag
