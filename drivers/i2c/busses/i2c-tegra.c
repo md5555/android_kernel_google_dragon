@@ -176,7 +176,6 @@ static int tegra_i2c_probe(struct platform_device *pdev)
 	int ret;
 	NvError err;
 	const NvOdmPeripheralConnectivity *pConn = NULL;
-	const NvOdmIoAddress *addr_list;
 	int i = 0;
 
 	printk(KERN_INFO "tegra_i2c_probe\n");
@@ -190,8 +189,8 @@ static int tegra_i2c_probe(struct platform_device *pdev)
 	if (pConn) {
 		const NvOdmIoAddress *addr_list = pConn->AddressList;
 		for (i = 0; i < pConn->NumAddress; i++, addr_list++) {
-			if (addr_list->Interface == NvOdmIoModule_I2c) &&
-				addr_list->Instance == pData->Instance) {
+			if (addr_list->Interface == NvOdmIoModule_I2c &&
+				addr_list->Instance == pdata->Instance) {
 				return -ENODEV;
 			}
 		}
