@@ -20,7 +20,6 @@ obj-y += nvrm_keylist.o
 obj-y += nvrm_configuration.o
 obj-y += nvrm_pmu.o
 obj-y += nvrm_module.o
-obj-y += nvrm_module_common.o
 obj-y += nvrm_hwintf.o
 obj-y += nvrm_chiplib.o
 obj-y += nvrm_clocks_limits.o

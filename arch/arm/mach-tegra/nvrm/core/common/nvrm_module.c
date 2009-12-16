@@ -277,3 +277,210 @@ NvError NvRmGetRandomBytes(
 
     return NvSuccess;
 }
+
+NvError
+NvRmPrivModuleInit( NvRmModuleTable *mod_table, NvU32 *reloc_table )
+{
+    NvError err;
+    NvU32 i;
+
+    /* invalidate the module table */
+    for( i = 0; i < NvRmPrivModuleID_Num; i++ )
+    {
+        mod_table->Modules[i].Index = NVRM_MODULE_INVALID;
+    }
+
+    /* clear the irq map */
+    NvOsMemset( &mod_table->IrqMap, 0, sizeof(mod_table->IrqMap) );
+
+    err = NvRmPrivRelocationTableParse( reloc_table,
+        &mod_table->ModInst, &mod_table->LastModInst,
+        mod_table->Modules, &mod_table->IrqMap );
+    if( err != NvSuccess )
+    {
+        NV_ASSERT( !"NvRmPrivModuleInit failed" );
+        return err;
+    }
+
+    NV_ASSERT( mod_table->LastModInst);
+    NV_ASSERT( mod_table->ModInst );
+
+    mod_table->NumModuleInstances = mod_table->LastModInst -
+        mod_table->ModInst;
+
+    return NvSuccess;
+}
+
+void
+NvRmPrivModuleDeinit( NvRmModuleTable *mod_table )
+{
+}
+
+NvError
+NvRmPrivGetModuleInstance( NvRmDeviceHandle hDevice, NvRmModuleID ModuleId,
+    NvRmModuleInstance **out )
+{
+    NvRmModuleTable *tbl;
+    NvRmModule *module;             // Pointer to module table
+    NvRmModuleInstance *inst;       // Pointer to device instance
+    NvU32 DeviceId;                 // Hardware device id
+    NvU32 Module;
+    NvU32 Instance;
+    NvU32 Bar;
+    NvU32 idx;
+
+    *out = NULL;
+
+    NV_ASSERT( hDevice );
+
+    tbl = NvRmPrivGetModuleTable( hDevice );
+
+    Module   = NVRM_MODULE_ID_MODULE( ModuleId );
+    Instance = NVRM_MODULE_ID_INSTANCE( ModuleId );
+    Bar      = NVRM_MODULE_ID_BAR( ModuleId );
+    NV_ASSERT( (NvU32)Module < (NvU32)NvRmPrivModuleID_Num );
+
+    // Get a pointer to the first instance of this module id type.
+    module = tbl->Modules;
+
+    // Check whether the index is valid or not.
+    if (module[Module].Index == NVRM_MODULE_INVALID)
+    {
+        return NvError_NotSupported;
+    }
+
+    inst = tbl->ModInst + module[Module].Index;
+
+    // Get its device id.
+    DeviceId = inst->DeviceId;
+
+    // find the right instance and bar
+    idx = 0;
+    while( inst->DeviceId == DeviceId )
+    {
+        if( idx == Instance && inst->Bar == Bar )
+        {
+            break;
+        }
+        if( inst->Bar == 0 )
+        {
+            idx++;
+        }
+
+        inst++;
+    }
+
+    // Is this a valid instance and is it of the same hardware type?
+    if( (inst >= tbl->LastModInst) || (DeviceId != inst->DeviceId) )
+    {
+        // Invalid instance.
+        return NvError_BadValue;
+    }
+
+    *out = inst;
+
+    // Check if instance is still valid and not bonded out.
+    // Still returning inst structure.
+    if ( (NvU8)-1 == inst->DevIdx )
+        return NvError_NotSupported;
+
+    return NvSuccess;
+}
+
+void
+NvRmModuleGetBaseAddress( NvRmDeviceHandle hDevice,
+    NvRmModuleID ModuleId, NvRmPhysAddr* pBaseAddress,
+    NvU32* pSize )
+{
+    NvRmModuleInstance *inst;
+
+    NV_ASSERT_SUCCESS(
+        NvRmPrivGetModuleInstance(hDevice, ModuleId, &inst)
+    );
+
+    if (pBaseAddress)
+        *pBaseAddress = inst->PhysAddr;
+    if (pSize)
+        *pSize = inst->Length;
+}
+
+NvU32
+NvRmModuleGetNumInstances(
+    NvRmDeviceHandle hDevice,
+    NvRmModuleID Module)
+{
+    NvError e;
+    NvRmModuleInstance *inst;
+    NvU32 n;
+    NvU32 id;
+
+    e = NvRmPrivGetModuleInstance( hDevice, NVRM_MODULE_ID(Module, 0), &inst);
+    if( e != NvSuccess )
+    {
+        return 0;
+    }
+
+    n = 0;
+    id = inst->DeviceId;
+    while( inst->DeviceId == id )
+    {
+        if( inst->Bar == 0 )
+        {
+            n++;
+        }
+
+        inst++;
+    }
+
+    return n;
+}
+
+NvError
+NvRmModuleGetModuleInfo(
+    NvRmDeviceHandle    hDevice,
+    NvRmModuleID        module,
+    NvU32 *             pNum,
+    NvRmModuleInfo      *pModuleInfo )
+{
+    NvU32   instance = 0;
+    NvU32   i = 0;
+
+    if ( NULL == pNum )
+        return NvError_BadParameter;
+
+    // if !pModuleInfo, returns total number of entries
+    while ( (NULL == pModuleInfo) || (i < *pNum) )
+    {
+        NvRmModuleInstance *inst;
+        NvError e = NvRmPrivGetModuleInstance(
+            hDevice, NVRM_MODULE_ID(module, instance), &inst);
+        if (e != NvSuccess)
+        {
+            if ( !(inst && ((NvU8)-1 == inst->DevIdx)) )
+                break;
+
+             /* else if a module instance not avail (bonded out), continue
+              *  looking for next instance
+              */
+        }
+        else
+        {
+            if ( pModuleInfo )
+            {
+                pModuleInfo->Instance = instance;
+                pModuleInfo->Bar = inst->Bar;
+                pModuleInfo->BaseAddress = inst->PhysAddr;
+                pModuleInfo->Length = inst->Length;
+                pModuleInfo++;
+            }
+
+            i++;
+        }
+
+        instance++;
+    }
+
+    *pNum = i;
+
+    return NvSuccess;
+}
