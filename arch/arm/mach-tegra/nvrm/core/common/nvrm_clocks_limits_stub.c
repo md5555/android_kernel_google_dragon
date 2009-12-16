@@ -33,7 +33,12 @@
 #include "nvcommon.h"
 #include "nvrm_clocks.h"
 
-NV_WEAK NvError
+#if !defined(NV_SHMOO_DATA_INIT)
+#define NV_SHMOO_DATA_INIT (0)
+#endif
+
+#if !NV_SHMOO_DATA_INIT
+NvError
 NvRmPrivChipShmooDataInit(
     NvRmDeviceHandle hRmDevice,
     NvRmChipFlavor* pChipFlavor)
@@ -41,4 +46,4 @@ NvRmPrivChipShmooDataInit(
     return NvError_NotSupported;
 }
 
-
+#endif
