@@ -594,11 +594,20 @@ struct platform_device;
 #endif
 
 #ifdef _UDC_NAME
-#define platform_udc_clk_init		_UDC_NAME##_udc_clk_init
-#define platform_udc_clk_finalize	_UDC_NAME##_udc_clk_finalize
-#define platform_udc_clk_release	_UDC_NAME##_udc_clk_release
-#define platform_udc_clk_suspend	_UDC_NAME##_udc_clk_suspend
-#define platform_udc_clk_resume		_UDC_NAME##_udc_clk_resume
+#ifndef __glue
+#ifdef __STDC__
+#define ___glue(prefix,fn) prefix##fn
+#else
+#define ___glue(prefix,fn) prefix/**/fn
+#endif
+#define __glue(prefix,fn) ___glue(prefix,fn)
+#endif
+
+#define platform_udc_clk_init		__glue(_UDC_NAME,_udc_clk_init)
+#define platform_udc_clk_finalize	__glue(_UDC_NAME,_udc_clk_finalize)
+#define platform_udc_clk_release	__glue(_UDC_NAME,_udc_clk_release)
+#define platform_udc_clk_suspend	__glue(_UDC_NAME,_udc_clk_suspend)
+#define platform_udc_clk_resume		__glue(_UDC_NAME,_udc_clk_resume)
 
 
 extern int platform_udc_clk_init(struct platform_device *pdev);
