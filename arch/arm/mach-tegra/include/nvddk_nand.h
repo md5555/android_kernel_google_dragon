@@ -60,7 +60,6 @@
 #include "nvos.h"
 #include "nvrm_init.h"
 #include "nvodm_query_nand.h"
-#include "nvddk_blockdev.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -559,36 +558,6 @@ NvDdkNandWriteSpare(
     NvU8* const pSpareBuffer,
     NvU8 OffsetInSpareAreaInBytes,
     NvU8 NumSpareAreaBytes);
-
-/**
- * It allocates the required resources, powers on the device, and
- * prepares the device for I/O operations.
- * Client gets a valid handle only if the device is found.
- * The same handle must be used for further operations.
- * The device can be opened by only one client at a time.
- *
- * @warning This method must be called once before using other 
- *           NvDdkBlockDev APIs.
- *
- * @param Instance Instance of specific device.
- * @param MinorInstance Minor instance of specific device.
- * @param phBlockDev Returns a pointer to device handle.
- *
- * @retval NvSuccess Device is present and ready for I/O operations.
- * @retval NvError_DeviceNotFound Device is neither present nor responding 
- *                                   nor supported.
- * @retval NvError_DeviceInUse The requested device is already in use.
- * @retval NvError_InsufficientMemory Cannot allocate memory.
- */
-NvError 
-NvDdkNandBlockDevOpen(
-    NvU32 Instance, 
-    NvU32 MinorInstance,
-    NvDdkBlockDevHandle *phBlockDev);
-
-NvError NvDdkNandBlockDevInit(NvRmDeviceHandle hDevice);
-
-void NvDdkNandBlockDevDeinit(void);
 
 /*
  * Functions shared between Ddk Nand, block driver and FTL code
