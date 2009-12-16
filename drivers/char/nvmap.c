@@ -33,7 +33,7 @@
 #include <linux/pagemap.h>
 #include <linux/sched.h>
 #include <linux/io.h>
-#include "../nvrm/nvrmkernel/core/ap15/ap15rm_private.h"
+#include <linux/tegra_devices.h>
 #include "linux/nvmem_ioctl.h"
 #include "nvcommon.h"
 #include "nvrm_memmgr.h"
@@ -62,6 +62,8 @@ static int nvmap_map_into_caller_ptr(struct file *filp, void __user *arg);
 
 static int nvmap_rw_handle(struct file *filp, int is_read,
     void __user* arg);
+
+extern void NvRmPrivMemIncrRef(NvRmMemHandle hmem);
 
 static struct backing_dev_info nvmap_bdi = {
     .ra_pages     = 0,
