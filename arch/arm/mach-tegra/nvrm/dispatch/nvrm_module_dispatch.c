@@ -48,7 +48,6 @@ typedef struct NvRegw08_in_t
     NvU32 function_;
     NvRmDeviceHandle rm;
     NvRmModuleID aperture;
-    NvU32 instance;
     NvU32 offset;
     NvU8 data;
 } NV_ALIGN(4) NvRegw08_in;
@@ -76,7 +75,6 @@ typedef struct NvRegr08_in_t
     NvU32 function_;
     NvRmDeviceHandle hDeviceHandle;
     NvRmModuleID aperture;
-    NvU32 instance;
     NvU32 offset;
 } NV_ALIGN(4) NvRegr08_in;
 
@@ -103,7 +101,6 @@ typedef struct NvRegrb_in_t
     NvU32 function_;
     NvRmDeviceHandle hRmDeviceHandle;
     NvRmModuleID aperture;
-    NvU32 instance;
     NvU32 num;
     NvU32 offset;
     NvU32  * values;
@@ -132,7 +129,6 @@ typedef struct NvRegwb_in_t
     NvU32 function_;
     NvRmDeviceHandle hRmDeviceHandle;
     NvRmModuleID aperture;
-    NvU32 instance;
     NvU32 num;
     NvU32 offset;
     NvU32  * values;
@@ -161,7 +157,6 @@ typedef struct NvRegwm_in_t
     NvU32 function_;
     NvRmDeviceHandle hRmDeviceHandle;
     NvRmModuleID aperture;
-    NvU32 instance;
     NvU32 num;
     NvU32  * offsets;
     NvU32  * values;
@@ -190,7 +185,6 @@ typedef struct NvRegrm_in_t
     NvU32 function_;
     NvRmDeviceHandle hRmDeviceHandle;
     NvRmModuleID aperture;
-    NvU32 instance;
     NvU32 num;
     NvU32  * offsets;
     NvU32  * values;
@@ -219,7 +213,6 @@ typedef struct NvRegw_in_t
     NvU32 function_;
     NvRmDeviceHandle hDeviceHandle;
     NvRmModuleID aperture;
-    NvU32 instance;
     NvU32 offset;
     NvU32 data;
 } NV_ALIGN(4) NvRegw_in;
@@ -247,7 +240,6 @@ typedef struct NvRegr_in_t
     NvU32 function_;
     NvRmDeviceHandle hDeviceHandle;
     NvRmModuleID aperture;
-    NvU32 instance;
     NvU32 offset;
 } NV_ALIGN(4) NvRegr_in;
 
@@ -484,7 +476,7 @@ static NvError NvRegw08_dispatch_( void *InBuffer, NvU32 InSize, void *OutBuffer
     p_in = (NvRegw08_in *)InBuffer;
 
 
-    NvRegw08( p_in->rm, p_in->aperture, p_in->instance, p_in->offset, p_in->data );
+    NvRegw08( p_in->rm, p_in->aperture, p_in->offset, p_in->data );
 
     return err_;
 }
@@ -499,7 +491,7 @@ static NvError NvRegr08_dispatch_( void *InBuffer, NvU32 InSize, void *OutBuffer
     p_out = (NvRegr08_out *)((NvU8 *)OutBuffer + OFFSET(NvRegr08_params, out) - OFFSET(NvRegr08_params, inout));
 
 
-    p_out->ret_ = NvRegr08( p_in->hDeviceHandle, p_in->aperture, p_in->instance, p_in->offset );
+    p_out->ret_ = NvRegr08( p_in->hDeviceHandle, p_in->aperture, p_in->offset );
 
     return err_;
 }
@@ -522,7 +514,7 @@ static NvError NvRegrb_dispatch_( void *InBuffer, NvU32 InSize, void *OutBuffer,
         }
     }
 
-    NvRegrb( p_in->hRmDeviceHandle, p_in->aperture, p_in->instance, p_in->num, p_in->offset, values );
+    NvRegrb( p_in->hRmDeviceHandle, p_in->aperture, p_in->num, p_in->offset, values );
 
     if(p_in->values && values)
     {
@@ -564,7 +556,7 @@ static NvError NvRegwb_dispatch_( void *InBuffer, NvU32 InSize, void *OutBuffer,
         }
     }
 
-    NvRegwb( p_in->hRmDeviceHandle, p_in->aperture, p_in->instance, p_in->num, p_in->offset, values );
+    NvRegwb( p_in->hRmDeviceHandle, p_in->aperture, p_in->num, p_in->offset, values );
 
 clean:
     NvOsFree( values );
@@ -617,7 +609,7 @@ static NvError NvRegwm_dispatch_( void *InBuffer, NvU32 InSize, void *OutBuffer,
         }
     }
 
-    NvRegwm( p_in->hRmDeviceHandle, p_in->aperture, p_in->instance, p_in->num, offsets, values );
+    NvRegwm( p_in->hRmDeviceHandle, p_in->aperture, p_in->num, offsets, values );
 
 clean:
     NvOsFree( offsets );
@@ -662,7 +654,7 @@ static NvError NvRegrm_dispatch_( void *InBuffer, NvU32 InSize, void *OutBuffer,
         }
     }
 
-    NvRegrm( p_in->hRmDeviceHandle, p_in->aperture, p_in->instance, p_in->num, offsets, values );
+    NvRegrm( p_in->hRmDeviceHandle, p_in->aperture, p_in->num, offsets, values );
 
     if(p_in->values && values)
     {
@@ -686,7 +678,7 @@ static NvError NvRegw_dispatch_( void *InBuffer, NvU32 InSize, void *OutBuffer, 
     p_in = (NvRegw_in *)InBuffer;
 
 
-    NvRegw( p_in->hDeviceHandle, p_in->aperture, p_in->instance, p_in->offset, p_in->data );
+    NvRegw( p_in->hDeviceHandle, p_in->aperture, p_in->offset, p_in->data );
 
     return err_;
 }
@@ -701,7 +693,7 @@ static NvError NvRegr_dispatch_( void *InBuffer, NvU32 InSize, void *OutBuffer, 
     p_out = (NvRegr_out *)((NvU8 *)OutBuffer + OFFSET(NvRegr_params, out) - OFFSET(NvRegr_params, inout));
 
 
-    p_out->ret_ = NvRegr( p_in->hDeviceHandle, p_in->aperture, p_in->instance, p_in->offset );
+    p_out->ret_ = NvRegr( p_in->hDeviceHandle, p_in->aperture, p_in->offset );
 
     return err_;
 }

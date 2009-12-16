@@ -49,70 +49,88 @@
 //         NvRmPhysicalMemMap/NvRmPhysicalMemUnmap need to be in user space.
 //
 
-NvU32 NvRegr( NvRmDeviceHandle rm, NvRmModuleID aperture, NvU32 instance,
-    NvU32 offset )
+static NvRmModuleInstance *
+get_instance( NvRmDeviceHandle rm, NvRmModuleID aperture )
 {
-    void *addr;
     NvRmModuleTable *tbl;
     NvRmModuleInstance *inst;
+    NvU32 Module   = NVRM_MODULE_ID_MODULE( aperture );
+    NvU32 Instance = NVRM_MODULE_ID_INSTANCE( aperture );
+    NvU32 Bar      = NVRM_MODULE_ID_BAR( aperture );
+    NvU32 DeviceId;
+    NvU32 idx = 0;
 
     tbl = NvRmPrivGetModuleTable( rm );
 
-    NV_ASSERT( tbl->Modules[aperture].Index != NVRM_MODULE_INVALID );
+    inst = tbl->ModInst + tbl->Modules[Module].Index;
+    NV_ASSERT( inst );
+    NV_ASSERT( inst < tbl->LastModInst );
 
-    inst = tbl->ModInst + tbl->Modules[aperture].Index + instance;
+    DeviceId = inst->DeviceId;
+
+    // find the right instance and bar
+    while( inst->DeviceId == DeviceId )
+    {
+        if( idx == Instance && inst->Bar == Bar )
+        {
+            break;
+        }
+        if( inst->Bar == 0 )
+        {
+            idx++;
+        }
+
+        inst++;
+    }
+
+    NV_ASSERT( inst->DeviceId == DeviceId );
+    NV_ASSERT( inst->VirtAddr );
+
+    return inst;
+}
+
+NvU32 NvRegr( NvRmDeviceHandle rm, NvRmModuleID aperture, NvU32 offset )
+{
+    void *addr;
+    NvRmModuleInstance *inst;
+
+    inst = get_instance(rm, aperture);
     addr = (void *)((NvUPtr)inst->VirtAddr + offset);
 
     return NV_READ32( addr );
 }
 
-void NvRegw( NvRmDeviceHandle rm, NvRmModuleID aperture, NvU32 instance,
-    NvU32 offset, NvU32 data )
+void NvRegw( NvRmDeviceHandle rm, NvRmModuleID aperture, NvU32 offset,
+    NvU32 data )
 {
     void *addr;
-    NvRmModuleTable *tbl;
     NvRmModuleInstance *inst;
 
-    tbl = NvRmPrivGetModuleTable( rm );
-
-    NV_ASSERT( tbl->Modules[aperture].Index != NVRM_MODULE_INVALID );
-
-    inst = tbl->ModInst + tbl->Modules[aperture].Index + instance;
+    inst = get_instance(rm, aperture);
     addr = (void *)((NvUPtr)inst->VirtAddr + offset);
 
     NV_WRITE32( addr, data );
 }
 
-NvU8 NvRegr08( NvRmDeviceHandle rm, NvRmModuleID aperture, NvU32 instance,
-    NvU32 offset )
+NvU8 NvRegr08( NvRmDeviceHandle rm, NvRmModuleID aperture, NvU32 offset )
 {
     void *addr;
-    NvRmModuleTable *tbl;
     NvRmModuleInstance *inst;
 
-    tbl = NvRmPrivGetModuleTable( rm );
-
-    NV_ASSERT( tbl->Modules[aperture].Index != NVRM_MODULE_INVALID );
-
-    inst = tbl->ModInst + tbl->Modules[aperture].Index + instance;
+    inst = get_instance(rm, aperture);
     addr = (void *)((NvUPtr)inst->VirtAddr + offset);
 
     return NV_READ8( addr );
 }
 
 
-void NvRegw08( NvRmDeviceHandle rm, NvRmModuleID aperture, NvU32 instance,
-    NvU32 offset, NvU8 data )
+void NvRegw08( NvRmDeviceHandle rm, NvRmModuleID aperture, NvU32 offset,
+    NvU8 data )
 {
     void *addr;
-    NvRmModuleTable *tbl;
     NvRmModuleInstance *inst;
 
-    tbl = NvRmPrivGetModuleTable( rm );
-
-    NV_ASSERT( tbl->Modules[aperture].Index != NVRM_MODULE_INVALID );
-
-    inst = tbl->ModInst + tbl->Modules[aperture].Index + instance;
+    inst = get_instance(rm, aperture);
     addr = (void *)((NvUPtr)inst->VirtAddr + offset);
 
     NV_WRITE08( addr, data );
@@ -120,19 +138,14 @@ void NvRegw08( NvRmDeviceHandle rm, NvRmModuleID aperture, NvU32 instance,
 
 
 
-void NvRegrm( NvRmDeviceHandle rm, NvRmModuleID aperture, NvU32 instance,
-    NvU32 num, const NvU32 *offsets, NvU32 *values )
+void NvRegrm( NvRmDeviceHandle rm, NvRmModuleID aperture, NvU32 num,
+    const NvU32 *offsets, NvU32 *values )
 {
     void *addr;
-    NvRmModuleTable *tbl;
     NvRmModuleInstance *inst;
     NvU32 i;
 
-    tbl = NvRmPrivGetModuleTable( rm );
-
-    NV_ASSERT( tbl->Modules[aperture].Index != NVRM_MODULE_INVALID );
-
-    inst = tbl->ModInst + tbl->Modules[aperture].Index + instance;
+    inst = get_instance(rm, aperture);
 
     for( i = 0; i < num; i++ )
     {
@@ -142,19 +155,14 @@ void NvRegrm( NvRmDeviceHandle rm, NvRmModuleID aperture, NvU32 instance,
     }
 }
 
-void NvRegwm( NvRmDeviceHandle rm, NvRmModuleID aperture, NvU32 instance,
-    NvU32 num, const NvU32 *offsets, const NvU32 *values )
+void NvRegwm( NvRmDeviceHandle rm, NvRmModuleID aperture, NvU32 num,
+    const NvU32 *offsets, const NvU32 *values )
 {
     void *addr;
-    NvRmModuleTable *tbl;
     NvRmModuleInstance *inst;
     NvU32 i;
 
-    tbl = NvRmPrivGetModuleTable( rm );
-
-    NV_ASSERT( tbl->Modules[aperture].Index != NVRM_MODULE_INVALID );
-
-    inst = tbl->ModInst + tbl->Modules[aperture].Index + instance;
+    inst = get_instance(rm, aperture);
 
     for( i = 0; i < num; i++ )
     {
@@ -164,35 +172,25 @@ void NvRegwm( NvRmDeviceHandle rm, NvRmModuleID aperture, NvU32 instance,
     }
 }
 
-void NvRegwb( NvRmDeviceHandle rm, NvRmModuleID aperture, NvU32 instance,
-    NvU32 num, NvU32 offset, const NvU32 *values )
+void NvRegwb( NvRmDeviceHandle rm, NvRmModuleID aperture, NvU32 num,
+    NvU32 offset, const NvU32 *values )
 {
     void *addr;
-    NvRmModuleTable *tbl;
     NvRmModuleInstance *inst;
 
-    tbl = NvRmPrivGetModuleTable( rm );
-
-    NV_ASSERT( tbl->Modules[aperture].Index != NVRM_MODULE_INVALID );
-
-    inst = tbl->ModInst + tbl->Modules[aperture].Index + instance;
+    inst = get_instance(rm, aperture);
 
     addr = (void *)((NvUPtr)inst->VirtAddr + offset);
     NV_WRITE( addr, values, (num << 2) );
 }
 
-void NvRegrb( NvRmDeviceHandle rm, NvRmModuleID aperture, NvU32 instance,
-    NvU32 num, NvU32 offset, NvU32 *values )
+void NvRegrb( NvRmDeviceHandle rm, NvRmModuleID aperture, NvU32 num,
+    NvU32 offset, NvU32 *values )
 {
     void *addr;
-    NvRmModuleTable *tbl;
     NvRmModuleInstance *inst;
 
-    tbl = NvRmPrivGetModuleTable( rm );
-
-    NV_ASSERT( tbl->Modules[aperture].Index != NVRM_MODULE_INVALID );
-
-    inst = tbl->ModInst + tbl->Modules[aperture].Index + instance;
+    inst = get_instance(rm, aperture);
 
     addr = (void *)((NvUPtr)inst->VirtAddr + offset);
     NV_READ( values, addr, (num << 2 ) );

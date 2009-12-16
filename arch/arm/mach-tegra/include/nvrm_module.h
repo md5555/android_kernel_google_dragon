@@ -41,6 +41,8 @@ extern "C"
 
 #include "nvrm_init.h"
 
+#include "nvrm_drf.h"
+
 /**
  * SOC hardware controller class identifiers.
  */
@@ -356,20 +358,38 @@ typedef enum
  */
 
 /**
+ * Module bitfields that are compatible with the NV_DRF macros.
+ */
+#define NVRM_MODULE_0                   (0x0)
+#define NVRM_MODULE_0_ID_RANGE          15:0
+#define NVRM_MODULE_0_INSTANCE_RANGE    19:16
+#define NVRM_MODULE_0_BAR_RANGE         23:20
+
+/**
  * Create a module id with a given instance.
  */
 #define NVRM_MODULE_ID( id, instance ) \
-    ((NvRmModuleID)( (instance) << 16 | id ) )
+    (NvRmModuleID)( \
+          NV_DRF_NUM( NVRM, MODULE, ID, (id) ) \
+        | NV_DRF_NUM( NVRM, MODULE, INSTANCE, (instance) ) )
 
 /**
  * Get the actual module id.
  */
-#define NVRM_MODULE_ID_MODULE( id ) ((id) & 0xFFFF)
+#define NVRM_MODULE_ID_MODULE( id ) \
+    NV_DRF_VAL( NVRM, MODULE, ID, (id) )
 
 /**
  * Get the instance number of the module id.
  */
-#define NVRM_MODULE_ID_INSTANCE( id ) (((id) >> 16) & 0xFFFF)
+#define NVRM_MODULE_ID_INSTANCE( id ) \
+    NV_DRF_VAL( NVRM, MODULE, INSTANCE, (id) )
+
+/**
+ * Get the bar number for the module.
+ */
+#define NVRM_MODULE_ID_BAR( id ) \
+    NV_DRF_VAL( NVRM, MODULE, BAR, (id) )
 
 /**
  * Module Information structure
@@ -378,6 +398,7 @@ typedef enum
 typedef struct NvRmModuleInfoRec
 {
     NvU32 Instance;
+    NvU32 Bar;
     NvRmPhysAddr BaseAddress;
     NvU32 Length;
 } NvRmModuleInfo;
@@ -597,22 +618,20 @@ typedef struct NvRmModuleCapabilityRec
  * see the note regarding apertures for NV_REGR.
  */
 #define NV_REGR(rm, aperture, instance, offset) \
-    NvRegr((rm),(NvRmModuleID)(aperture),(instance),(offset))
+    NvRegr((rm),(NvRmModuleID)NVRM_MODULE_ID((aperture),(instance)),(offset))
 
 #define NV_REGW(rm, aperture, instance, offset, data) \
-    NvRegw((rm),(NvRmModuleID)(aperture),(instance),(offset),(data))
+    NvRegw((rm),(NvRmModuleID)NVRM_MODULE_ID((aperture),(instance)),(offset),(data))
 
 
  NvU32 NvRegr( 
     NvRmDeviceHandle hDeviceHandle,
     NvRmModuleID aperture,
-    NvU32 instance,
     NvU32 offset );
 
  void NvRegw( 
     NvRmDeviceHandle hDeviceHandle,
     NvRmModuleID aperture,
-    NvU32 instance,
     NvU32 offset,
     NvU32 data );
 
@@ -661,21 +680,20 @@ typedef struct NvRmModuleCapabilityRec
  */
 
 #define NV_REGR_MULT(rm, aperture, instance, num, offsets, values) \
-    NvRegrm((rm),(NvRmModuleID)(aperture),(instance),(num),(offsets),(values))
+    NvRegrm((rm),(NvRmModuleID)NVRM_MODULE_ID((aperture),(instance)),(num),(offsets),(values))
 
 #define NV_REGW_MULT(rm, aperture, instance, num, offsets, values) \
-    NvRegwm((rm),(NvRmModuleID)(aperture),(instance),(num),(offsets),(values))
+    NvRegwm((rm),(NvRmModuleID)NVRM_MODULE_ID((aperture),(instance)),(num),(offsets),(values))
 
 #define NV_REGW_BLOCK(rm, aperture, instance, num, offset, values) \
-    NvRegwb((rm),(NvRmModuleID)(aperture),(instance),(num),(offset),(values))
+    NvRegwb((rm),(NvRmModuleID)NVRM_MODULE_ID((aperture),(instance)),(num),(offset),(values))
 
 #define NV_REGR_BLOCK(rm, aperture, instance, num, offset, values) \
-    NvRegrb((rm),(NvRmModuleID)(aperture),(instance),(num),(offset),(values))
+    NvRegrb((rm),(NvRmModuleID)NVRM_MODULE_ID((aperture),(instance)),(num),(offset),(values))
 
  void NvRegrm( 
     NvRmDeviceHandle hRmDeviceHandle,
     NvRmModuleID aperture,
-    NvU32 instance,
     NvU32 num,
     const NvU32 * offsets,
     NvU32 * values );
@@ -683,7 +701,6 @@ typedef struct NvRmModuleCapabilityRec
  void NvRegwm( 
     NvRmDeviceHandle hRmDeviceHandle,
     NvRmModuleID aperture,
-    NvU32 instance,
     NvU32 num,
     const NvU32 * offsets,
     const NvU32 * values );
@@ -691,7 +708,6 @@ typedef struct NvRmModuleCapabilityRec
  void NvRegwb( 
     NvRmDeviceHandle hRmDeviceHandle,
     NvRmModuleID aperture,
-    NvU32 instance,
     NvU32 num,
     NvU32 offset,
     const NvU32 * values );
@@ -699,27 +715,24 @@ typedef struct NvRmModuleCapabilityRec
  void NvRegrb( 
     NvRmDeviceHandle hRmDeviceHandle,
     NvRmModuleID aperture,
-    NvU32 instance,
     NvU32 num,
     NvU32 offset,
     NvU32 * values );
 
 #define NV_REGR08(rm, aperture, instance, offset) \
-    NvRegr08((rm),(NvRmModuleID)(aperture),(instance),(offset))
+    NvRegr08((rm),(NvRmModuleID)NVRM_MODULE_ID((aperture),(instance)),(offset))
 
 #define NV_REGW08(rm, aperture, instance, offset, data) \
-    NvRegw08((rm),(NvRmModuleID)(aperture),(instance),(offset),(data))
+    NvRegw08((rm),(NvRmModuleID)NVRM_MODULE_ID((aperture),(instance)),(offset),(data))
 
  NvU8 NvRegr08( 
     NvRmDeviceHandle hDeviceHandle,
     NvRmModuleID aperture,
-    NvU32 instance,
     NvU32 offset );
 
  void NvRegw08( 
     NvRmDeviceHandle rm,
     NvRmModuleID aperture,
-    NvU32 instance,
     NvU32 offset,
     NvU8 data );
 

@@ -186,6 +186,11 @@ typedef struct NvRmModuleInstanceRec
     /* length of the aperture */
     NvU32 Length;
 
+    /* bar number */
+    // FIXME: not supported properly - each bar is reported as a different
+    // hardware module instance.
+    NvU8 Bar;
+
     /* hardware version */
     NvU8 MajorVersion;
     NvU8 MinorVersion;

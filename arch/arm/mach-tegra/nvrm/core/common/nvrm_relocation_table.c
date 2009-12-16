@@ -52,6 +52,7 @@
 #define DEVICE_MAJOR_REV( i )   ( ( (i) & ( 0xFUL    << 12 ) ) >> 12 )
 #define DEVICE_MINOR_REV( i )   ( ( (i) & ( 0xFUL    << 8  ) ) >> 8  )
 #define DEVICE_POWER_GROUP( i ) ( ( (i) & ( 0xFUL    << 4  ) ) >> 4  )
+#define DEVICE_BAR( i )         ( ( (i) & ( 0xFUL          ) ) )
 #define IRQ_VALID( i )          ( (i) >> 31 )
 #define IRQ_TARGET( i )         ( ( (i) & ( 0x3UL    << 29 ) ) >> 29 )
 #define IRQ_INT_DEV_INDEX( i )  ( ( (i) & ( 0x1FFUL  << 20 ) ) >> 20 )
@@ -394,6 +395,7 @@ NvRmPrivParseDevices( const NvU32 *table,
                 inst->MajorVersion = (NvU8)DEVICE_MAJOR_REV(info);
                 inst->MinorVersion = (NvU8)DEVICE_MINOR_REV(info);
                 inst->DevPowerGroup = (NvU8)DEVICE_POWER_GROUP(info);
+                inst->Bar = (NvU8)DEVICE_BAR(info);
                 inst->VirtAddr = 0;
                 inst->DeviceId = devid;
                 inst->DevIdx = tmp_devidx;
