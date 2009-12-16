@@ -29,6 +29,7 @@
 #include <linux/rtc.h>
 #include <linux/bcd.h>
 #include <linux/platform_device.h>
+#include <linux/tegra_devices.h>
 
 #include <nvodm_pmu.h>
 
