@@ -380,6 +380,9 @@ static void __init tegra_register_i2c(void)
 #if !defined(CONFIG_SERIAL_TEGRA_DDK)
 #define tegra_register_uart() do {} while (0)
 #else
+
+static u64 tegra_uart_dma_mask = DMA_32BIT_MASK;
+
 void __init tegra_register_uart(void)
 {
     struct platform_device *pDev = NULL;
@@ -409,6 +412,9 @@ void __init tegra_register_uart(void)
             goto fail;
         if (platform_device_add(pDev))
             goto fail;
+
+        pDev->dev.coherent_dma_mask = ~0;
+        pDev->dev.dma_mask = &tegra_uart_dma_mask;
     }
 fail:
     if (pDev)
@@ -780,12 +786,19 @@ static void __init tegra_init_cpu(void)
 #error "Unrecognized Tegra SoC family"
 #endif
 
+#ifdef CONFIG_TEGRA_SYSTEM_DMA
+extern int __init tegra_dma_init(void);
+#else
+#define tegra_dma_init() do {} while (0)
+#endif
+
 void __init tegra_common_init(void)
 {
     NV_ASSERT_SUCCESS(NvRmOpen(&s_hRmGlobal,0));
     NV_ASSERT_SUCCESS(NvRmGpioOpen(s_hRmGlobal, &s_hGpioGlobal));
 
     tegra_init_cpu();
+    tegra_dma_init();
     tegra_register_i2c();
     tegra_register_spi();
     tegra_register_uart();

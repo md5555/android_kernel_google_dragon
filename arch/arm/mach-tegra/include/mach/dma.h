@@ -30,13 +30,16 @@ enum tegra_dma_mode {
 	TEGRA_DMA_MODE_ONESHOT = 4,
 };
 
+enum tegra_dma_req_error {
+	TEGRA_DMA_REQ_ERROR_ABOTRED,
+};
+
 struct tegra_dma_req {
 	struct list_head list;
 	unsigned int modid;
-	int instace;
+	int instance;
 
-	void (*complete)(struct tegra_dma_req *req, int bytes_trasferred,
-		int err);
+	void (*complete)(struct tegra_dma_req *req, int err);
 	/* 1 to copy to memory.
 	 * 0 to copy from the memory to device FIFO */
 	int to_memory;
@@ -48,15 +51,17 @@ struct tegra_dma_req {
 
 	unsigned int size;
 
+	/* Updated by the DMA driver on the conpletion of the request. */
+	int bytes_transferred;
+	int status;
+
 	/* Client specific data */
 	void *data;
 };
 
-void tegra_dma_stop(int channel);
-void tegra_dma_is_enabled(int channel);
-void tegra_dma_start(int channel);
-
 int tegra_dma_enqueue_req(int channel, struct tegra_dma_req *req);
+int tegra_dma_dequeue_req(int channel, struct tegra_dma_req *req);
+void tegra_dma_dequeue(int channel);
 
 /*  Returns 1 if there are DMA is empty.
  */
