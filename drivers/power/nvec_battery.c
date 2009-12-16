@@ -38,7 +38,7 @@
 /* This defines the manufacturer name and model name length */
 #define BATTERY_INFO_NAME_LEN 30
 
-#define GET_CHARGER_STATUS 0
+#define GET_CHARGER_STATUS 1
 
 typedef enum
 {
@@ -291,13 +291,17 @@ static int tegra_battery_get_property(struct power_supply *psy,
 			val->intval = POWER_SUPPLY_STATUS_UNKNOWN;
 		} else if (state == NVODM_BATTERY_STATUS_NO_BATTERY) {
 			batt_dev->present = NV_FALSE;
-			val->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
+			val->intval = POWER_SUPPLY_STATUS_UNKNOWN;
 		} else if (state & NVODM_BATTERY_STATUS_CHARGING) {
 			batt_dev->present = NV_TRUE;
 			val->intval = POWER_SUPPLY_STATUS_CHARGING;
 			/* TODO:Get Charger status here */
+		} else if (state & NVODM_BATTERY_STATUS_HIGH) {
+			batt_dev->present = NV_TRUE;
+			val->intval = POWER_SUPPLY_STATUS_FULL;
+			/* TODO:Get Charger status here */
 		} else
-			val->intval = POWER_SUPPLY_STATUS_DISCHARGING;
+			val->intval = POWER_SUPPLY_STATUS_UNKNOWN;
 #endif
 		/* Getting the battery info once here so for the other property
 		 * requests there will not be lot of ec req */
