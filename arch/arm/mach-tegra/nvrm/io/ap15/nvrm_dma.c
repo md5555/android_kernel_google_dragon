@@ -141,6 +141,7 @@ NvError NvRmPrivDmaSuspend(void);
 NvError NvRmPrivDmaResume(void);
 
 #define MAX_AVP_DMA_CHANNELS 3
+#define MAX_RESERVED_DMA_CHANNELS 3
 
 // DMA capabilities -- these currently do not vary between chips
 
@@ -974,7 +975,7 @@ static NvError RegisterAllDmaInterrupt(NvRmDeviceHandle hDevice)
 
 #if NVOS_IS_LINUX
     /* Register same interrupt hanlder for all APB DMA channels. */
-    for (i=0; i < s_DmaInfo.NumApbDmaChannels; i++)
+    for (i=0; i < s_DmaInfo.NumApbDmaChannels - MAX_RESERVED_DMA_CHANNELS - MAX_AVP_DMA_CHANNELS; i++)
     {     
         Irq = NvRmGetIrqForLogicalInterrupt(hDevice, ModuleId, i);
         Error = NvRmInterruptRegister(hDevice, 1, &Irq,
@@ -1374,7 +1375,7 @@ NvRmDmaAllocate(
 
     // For high priority dma channel request, use the free channel. And for low
     // priority channel use the used channel low priority channels.
-    MaxChannel = s_DmaInfo.NumApbDmaChannels - MAX_AVP_DMA_CHANNELS;
+    MaxChannel = s_DmaInfo.NumApbDmaChannels - MAX_AVP_DMA_CHANNELS - MAX_RESERVED_DMA_CHANNELS;
     pChannelList = s_DmaInfo.pListApbDmaChannel;
 
     // Going to access the data which is shared across the different thread.
