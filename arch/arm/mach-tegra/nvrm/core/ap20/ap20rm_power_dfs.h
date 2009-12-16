@@ -210,13 +210,18 @@ extern "C"
 
 /**
  * Defines CPU frequency threshold for slave CPU1 power management:
- * - CPU1 is turned Off when cpu clock is below ON_MIN
- * - CPU1 is turned On when cpu clock is above OFF_MAX
- * If set to 0, the threshold value is derived at run time from the
+ * - CPU1 is turned Off when cpu clock is below ON_MIN for
+ *   ON_PENDING DFS ticks (10ms) in a row
+ * - CPU1 is turned On when cpu clock is above OFF_MAX for
+ *   OFF_PENDING DFS ticks (10ms) in a row
+ * If thresholds are set to 0, the values are derived at run time from the
  * characterization data
  */
 #define NVRM_CPU1_ON_MIN_KHZ (0)
 #define NVRM_CPU1_OFF_MAX_KHZ (0)
+
+#define NVRM_CPU1_ON_PENDING_CNT (250)
+#define NVRM_CPU1_OFF_PENDING_CNT (100)
 
 /// Default low corners for core and dedicated CPU voltages
 #define NVRM_AP20_LOW_CORE_MV (1200)
@@ -287,41 +292,37 @@ NvRmPrivAp20DvsChangeCoreVoltage(
     NvRmMilliVolts TargetMv);
 
 /**
- * Determines temperature monitoring policy.
+ * Updates thermal policy according to current temperature.
  * 
+ * @param hRmDevice The RM device handle.
  * @param TemperatureC Current core temperature in degrees C.
  * @param pDtt A pointer to dynamic thermal throttling structure.
- * @param pLowLimit A pointer to the returned variable with low boundary for
- *  temperature out-of-limit interrupt.
- * @param pHighLimit A pointer to the returned variable with high boundary for
- *  temperature out-of-limit interrupt.
- * @param pPollMs A pointer to the returned variable with temperature polling
- *  interval in milliseconds.
  */
 
 void
-NvRmPrivAp20DttGetTcorePolicy(
+NvRmPrivAp20DttPolicyUpdate(
+    NvRmDeviceHandle hRmDevice,
     NvS32 TemperatureC,
-    const NvRmDtt* pDtt,
-    NvS32* pLowLimit,
-    NvS32* pHighLimit,
-    NvU32* pPollMs);
+    NvRmDtt* pDt);
 
 /**
  * Throttles DFS target clocks.
  * 
  * @param hRmDevice The RM device handle.
  * @param TemperatureC Current core temperature in degrees C.
+ * @param pPolicy A pointer to current throttling policy.
  * @param pCurrentKHz A pointer to current DFS clock frequencies structure.
  * @param pDfsKHz A pointer to DFS clock structure with target frequencies
  *  on entry, and throttled frequencies on exit.
  * 
- * @return NV_TRUE if target clocks were throttled, and NV_FALSE otherwise.
+ * @return NV_TRUE if throttling requires additional DVFS scaling steps,
+ *  and NV_FALSE otherwise.
  */
 NvBool
 NvRmPrivAp20DttClockUpdate(
     NvRmDeviceHandle hRmDevice,
     NvS32 TemperatureC,
+    const NvRmTzonePolicy* pDttPolicy,
     const NvRmDfsFrequencies* pCurrentKHz,
     NvRmDfsFrequencies* pDfsKHz);
 

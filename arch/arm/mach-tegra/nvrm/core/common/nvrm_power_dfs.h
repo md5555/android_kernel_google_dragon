@@ -408,6 +408,28 @@ typedef struct NvRmDvsRec
 } NvRmDvs;
 
 /**
+ * RM thermal zone policy
+ */
+typedef struct NvRmTzonePolicyRec
+{
+    // Request policy update
+    volatile NvBool UpdateFlag;
+
+    // Last policy update request time stamp
+    NvU32 TimeUs;
+
+    // Update period (NV_WAIT_INFINITE is allowed in interrupt mode) 
+    NvU32 UpdateIntervalUs;
+
+    // Out of limit interrupt boundaries
+    NvS32 LowLimit;
+    NvS32 HighLimit;
+
+    // Policy range
+    NvU32 PolicyRange;
+} NvRmTzonePolicy;
+
+/**
  * Combines status and control information for dynamic thermal throttling
  */
 typedef struct NvRmDttRec
@@ -427,17 +449,11 @@ typedef struct NvRmDttRec
     // Out-of-limit interrupt cpabilities for high limit
     NvOdmTmonParameterCaps TcoreHighLimitCaps;
 
-    // Last TMON reading time stamp
-    NvU32 RdTimeUs;
-
-    // TMON reading period
-    NvU32 RdIntervalUs;
+    // Core zone policy
+    NvRmTzonePolicy TcorePolicy;
 
     // Core temperature
     NvS32 CoreTemperatureC;
-
-    // Request core temperature update
-    volatile NvBool UpdateFlag;
 
     // Specifies if out-of-limit interrupt is used for temperature update
     volatile NvBool UseIntr;

@@ -485,15 +485,29 @@ NvBool Adt7461Init(NvOdmTmonDeviceHandle hTmon)
     }
 
     /*
-     * Initialize device info and set default configuration (out of limit
-     * interrupt will be masked)
+     * Initialize device info and configuration. Force standby mode to avoid
+     * glitch on shutdown comparator output when temperature range and/or
+     * comparator limit is changing during initialization. The Adt7461Run()
+     * call from the hal that follows initialization will switch device to
+     * run mode and re-start temperature monitoring (note that out of limit
+     * interrupt is always masked during and after initialization)
      */
     pPrivData->pDeviceInfo = &s_Adt7461Info;
     pPrivData->ShadowRegPtr = ADT7461_INVALID_ADDR;
 
-    // Set default configuration
-    Data = ADT7461_DEFAULT_CONFIG;  
     pReg = &pPrivData->pDeviceInfo->Config;
+    if (!Adt7461ReadReg(pPrivData, pReg, &Data))
+        goto fail;
+    if ((Data & ADT7461ConfigBits_ExtendedRange) !=
+        (ADT7461_INITIAL_CONFIG & ADT7461ConfigBits_ExtendedRange))
+    {
+        // Only switch from standard to extended range is supported
+        NV_ASSERT((Data & ADT7461ConfigBits_ExtendedRange) == 0);
+        Data |= ADT7461ConfigBits_Standby;
+        if(!Adt7461WriteReg(pPrivData, pReg, Data))
+            goto fail;
+    }
+    Data = ADT7461_INITIAL_CONFIG | ADT7461ConfigBits_Standby;
     if(!Adt7461WriteReg(pPrivData, pReg, Data))
         goto fail;
     pPrivData->ShadowConfig = Data;
@@ -538,8 +552,8 @@ NvBool Adt7461Init(NvOdmTmonDeviceHandle hTmon)
     if(!Adt7461WriteReg(pPrivData, pReg, Data))
         goto fail;
 
-    // Set default rate
-    Data = ADT7461_DEFAULT_RATE_SETTING;  
+    // Set initial rate
+    Data = ADT7461_INITIAL_RATE_SETTING;  
     pReg = &pPrivData->pDeviceInfo->Rate;
     if(!Adt7461WriteReg(pPrivData, pReg, Data))
         goto fail;
@@ -554,7 +568,7 @@ NvBool Adt7461Init(NvOdmTmonDeviceHandle hTmon)
     // Read ADT7461 status and ARA (clear pending Alert interrupt, if any)
     pReg = &pPrivData->pDeviceInfo->Status;
     if (!Adt7461ReadReg(pPrivData, pReg, &Data))
-                goto fail;
+        goto fail;
     // TODO: check open remote circuit error
 
     Adt7461ReadAra(pPrivData);
@@ -572,7 +586,7 @@ void Adt7461Deinit(NvOdmTmonDeviceHandle hTmon)
     {
         ADT7461PrivData* pPrivData = hTmon->pPrivate;
         (void)Adt7461WriteReg(pPrivData, &pPrivData->pDeviceInfo->Config,
-            ADT7461_DEFAULT_CONFIG);    //leave device in default configuration
+            ADT7461_INITIAL_CONFIG);    //leave device in default configuration
                                         // with power rail ON (forever)
         Adt7461FreePrivData(pPrivData);
         hTmon->pPrivate = NULL;

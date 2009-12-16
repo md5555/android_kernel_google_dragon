@@ -41,7 +41,7 @@ extern "C"
 #endif
 
 // ODM policy: use ADT7461 extended=1 (standard=0) range
-#define ADT7461_ODM_EXTENDED_RANGE (0)
+#define ADT7461_ODM_EXTENDED_RANGE (1)
 
 // ODM policy: enable=1 (disable=0) ADT7461 standby mode
 #define ADT7461_ODM_STANDBY_ENABLED (0)
@@ -132,9 +132,9 @@ extern "C"
 
 // ADT7461 conversion range (signed values)
 #define ADT7461_RANGE_STANDARD_LIMIT_HIGH               (127L)
-#define ADT7461_RANGE_STANDARD_LIMIT_LOW                (-1L)
+#define ADT7461_RANGE_STANDARD_LIMIT_LOW                (0L)
 #define ADT7461_RANGE_EXTENDED_LIMIT_HIGH               (150L)
-#define ADT7461_RANGE_EXTENDED_LIMIT_LOW                (-55L)
+#define ADT7461_RANGE_EXTENDED_LIMIT_LOW                (-64L)
 
 // ADT7461 data reading offsets (unsigned data)
 #define ADT7461_RANGE_STANDARD_DATA_OFFSET              (0UL)
@@ -162,11 +162,11 @@ typedef enum
     ADT7461ConfigBits_IntrDisabled =    (0x1 << 7),
 } ADT7461ConfigBits;
 
-// ADT7461 default configuration set by adaptation:
+// ADT7461 initial configuration set by adaptation:
 // ADT7461 THERM1 output is dedicated for critical h/w shutdown, and ADT7461
 // ALERT/THERM2 output is always configured as out of limit ALERT interrupt.
 // Range and standby onfiguration options are selected per ODM policy macros.
-#define ADT7461_DEFAULT_CONFIG \
+#define ADT7461_INITIAL_CONFIG \
         ((ADT7461ConfigBits_IntrDisabled) | \
          (ADT7461_ODM_STANDBY_ENABLED ? ADT7461ConfigBits_Standby : 0) | \
          (ADT7461_ODM_EXTENDED_RANGE  ? ADT7461ConfigBits_ExtendedRange : 0))
@@ -182,7 +182,7 @@ typedef enum
 #define ADT7461_CONVERSION_TIME_MS \
           115,  115,  115,  115,  115,  115,  115,  115,   13,   13,   13
 
-#define ADT7461_DEFAULT_RATE_SETTING        (0x0A)
+#define ADT7461_INITIAL_RATE_SETTING        (0x0A)
 
 
 // ADT7461 I2C (SMBus) clock speed, bus timeout, retries, and fixed

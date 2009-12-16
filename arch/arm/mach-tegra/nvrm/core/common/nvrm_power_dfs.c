@@ -73,10 +73,10 @@
 // An option to stall average accumulation during busy pulse
 #define NVRM_DFS_STALL_AVERAGE_IN_BUSY_PULSE (0)
 
-// TODO: keep disabled until AP20 bring-up
-// Options for temperature monitoring interrupt
-#define NVRM_DTT_DISABLED (1)
-#define NVRM_DTT_USE_INTERRUPT (0)
+// Options for temperature monitoring
+#define NVRM_DTT_DISABLED (0)
+#define NVRM_DTT_USE_INTERRUPT (1)
+#define NVRM_DTT_RANGE_CHANGE_PRINTF (1)
 
 /*****************************************************************************/
 
@@ -450,16 +450,14 @@ static void NvRmPrivDvsRun(void);
 static void NvRmPrivDvsStopAtNominal(void);
 
 /*
- * Gets core temperature monitoring limits and polling time according
- * to chip specific policy.
+ * Updates thermal state and temperature monitoring policies according
+ * to the new sampled temperature.
  */
 static void
-DttGetTcorePolicy(
+DttPolicyUpdate(
+    NvRmDeviceHandle hRm,
     NvS32 TemperatureC,
-    const NvRmDfs* pDfs,
-    NvS32* pLowLimit,
-    NvS32* pHighLimit,
-    NvU32* pPollMs);
+    NvRmDtt* pDtt);
 
 /*
  * Updates (throttles) target DFS frequencies based on SoC temperature.
@@ -1007,11 +1005,11 @@ DfsGetTargetFrequencies(
     // Update thermal throttling polling control
     if (!NVRM_DTT_DISABLED && pDfs->ThermalThrottler.hOdmTcore)
     {
-        if (pDfs->ThermalThrottler.RdIntervalUs <
-            (usec - pDfs->ThermalThrottler.RdTimeUs))
+        if (pDfs->ThermalThrottler.TcorePolicy.UpdateIntervalUs <
+            (usec - pDfs->ThermalThrottler.TcorePolicy.TimeUs))
         {
-            pDfs->ThermalThrottler.RdTimeUs = usec;
-            pDfs->ThermalThrottler.UpdateFlag = NV_TRUE;
+            pDfs->ThermalThrottler.TcorePolicy.TimeUs = usec;
+            pDfs->ThermalThrottler.TcorePolicy.UpdateFlag = NV_TRUE;
         }
     }
 
@@ -1321,7 +1319,7 @@ static void DfsIsr(void* args)
         ClockChange = DfsGetTargetFrequencies(&IdleData, pDfs, &DfsKHz);
         pDfs->TargetKHz = DfsKHz;
         ClockChange = ClockChange || pDfs->VoltageScaler.UpdateFlag ||
-            pDfs->ThermalThrottler.UpdateFlag;
+            pDfs->ThermalThrottler.TcorePolicy.UpdateFlag;
     }
     DfsProfileSample(pDfs, NvRmDfsProfileId_Algorithm);
     DfsLogEnter(pDfs, IdleData.Lp2TimeMs);
@@ -1515,13 +1513,13 @@ static NvRmPmRequest DfsThread(NvRmDfs* pDfs)
         // Configure DFS clocks and update current frequencies if necessary
         // (do not touch clocks and voltage if DVS is stopped)
         if (NeedClockUpdate || pDfs->VoltageScaler.UpdateFlag ||
-            pDfs->ThermalThrottler.UpdateFlag)
+            pDfs->ThermalThrottler.TcorePolicy.UpdateFlag)
         {
             NvRmPrivLockSharedPll();
             if (!pDfs->VoltageScaler.StopFlag)
             {
                 // Check temperature and throttle DFS clocks if necessry. Make
-                // sure V/F scaling is running while throotling is in progress.
+                // sure V/F scaling is running while throttling is in progress.
                 pDfs->VoltageScaler.UpdateFlag =
                     DttClockUpdate(pDfs, &pDfs->ThermalThrottler, &DfsKHz);
                 LastKHz = DfsKHz;
@@ -1692,25 +1690,37 @@ DfsClipCpuEmcHighLimits(
 /*****************************************************************************/
 
 static void
-DttGetTcorePolicy(
+DttPolicyUpdate(
+    NvRmDeviceHandle hRm,
     NvS32 TemperatureC,
-    const NvRmDfs* pDfs,
-    NvS32* pLowLimit,
-    NvS32* pHighLimit,
-    NvU32* pPollMs)
+    NvRmDtt* pDtt)
 {
-    if (pDfs->hRm->ChipId.Id == 0x20)
+    NvU32 Range = pDtt->TcorePolicy.PolicyRange;
+
+    if (hRm->ChipId.Id == 0x20)
     {
-        NvRmPrivAp20DttGetTcorePolicy(TemperatureC, &pDfs->ThermalThrottler,
-                                      pLowLimit, pHighLimit, pPollMs);
-        NV_ASSERT(*pLowLimit != ODM_TMON_PARAMETER_UNSPECIFIED);
-        NV_ASSERT(*pHighLimit != ODM_TMON_PARAMETER_UNSPECIFIED);
-        return;
+        NvRmPrivAp20DttPolicyUpdate(hRm, TemperatureC, pDtt);
+        NV_ASSERT(pDtt->TcorePolicy.LowLimit !=
+                  ODM_TMON_PARAMETER_UNSPECIFIED);
+        NV_ASSERT(pDtt->TcorePolicy.HighLimit !=
+                  ODM_TMON_PARAMETER_UNSPECIFIED);
     }
-    // Default 1-second polling policy
-    *pLowLimit = ODM_TMON_PARAMETER_UNSPECIFIED;
-    *pHighLimit = ODM_TMON_PARAMETER_UNSPECIFIED;
-    *pPollMs = 1000;
+    else
+    {
+        // No thermal policy (= do nothing) for this SoC
+        pDtt->TcorePolicy.LowLimit = ODM_TMON_PARAMETER_UNSPECIFIED;
+        pDtt->TcorePolicy.HighLimit = ODM_TMON_PARAMETER_UNSPECIFIED;
+        pDtt->TcorePolicy.UpdateIntervalUs = NV_WAIT_INFINITE;
+        pDtt->TcorePolicy.PolicyRange = 0;
+    }
+    if (pDtt->UseIntr || (pDtt->TcorePolicy.PolicyRange != Range))
+    {
+#if NVRM_DTT_RANGE_CHANGE_PRINTF
+        NvOsDebugPrintf("DTT: T = %d, Range = %d (%d : %d)\n", 
+            TemperatureC, pDtt->TcorePolicy.PolicyRange,
+            pDtt->TcorePolicy.LowLimit, pDtt->TcorePolicy.HighLimit);
+#endif
+    }
 }
 
 static NvBool
@@ -1719,24 +1729,27 @@ DttClockUpdate(
     NvRmDtt* pDtt,
     NvRmDfsFrequencies* pDfsKHz)
 {
-    NvU32 msec;
     NvS32 TemperatureC;
     NvS32 LowLimit, HighLimit;
+    NvRmTzonePolicy Policy;
 
     // Check if thermal throttling is supported
     if (NVRM_DTT_DISABLED || (!pDtt->hOdmTcore))
         return NV_FALSE; 
 
     // Update temperature
-    if (pDtt->UpdateFlag &&
+    if (pDtt->TcorePolicy.UpdateFlag &&
         NvOdmTmonTemperatureGet(pDtt->hOdmTcore, &TemperatureC))
     {
         // Register TMON interrupt, if it is supported by device, and chip
         // policy, but has not been registered yet. Set initial temperature
         // limits according to chip specific policy.
-        if (pDtt->UseIntr && !pDtt->hOdmTcoreIntr)
+        if (pDtt->UseIntr && !pDtt->hOdmTcoreIntr &&
+            NvOdmTmonTemperatureGet(pDtt->hOdmTcore, &TemperatureC))
         {
-            DttGetTcorePolicy(TemperatureC, pDfs, &LowLimit, &HighLimit, &msec);
+            DttPolicyUpdate(pDfs->hRm, TemperatureC, pDtt);
+            LowLimit = pDtt->TcorePolicy.LowLimit;
+            HighLimit = pDtt->TcorePolicy.HighLimit;
             if ((LowLimit != ODM_TMON_PARAMETER_UNSPECIFIED) &&
                 (HighLimit != ODM_TMON_PARAMETER_UNSPECIFIED))
             {
@@ -1754,28 +1767,43 @@ DttClockUpdate(
         }
 
         // Update temperature monitoring policy
-        DttGetTcorePolicy(TemperatureC, pDfs, &LowLimit, &HighLimit, &msec);
-        NvOsIntrMutexLock(pDfs->hIntrMutex);
-        pDtt->CoreTemperatureC = TemperatureC;
-        pDtt->RdIntervalUs = msec * 1000;
+        if (!pDtt->UseIntr &&
+            NvOdmTmonTemperatureGet(pDtt->hOdmTcore, &TemperatureC))
+        {
+            NvOsIntrMutexLock(pDfs->hIntrMutex);
+            DttPolicyUpdate(pDfs->hRm, TemperatureC, pDtt);
+            Policy = pDtt->TcorePolicy;
+        }
+        else
+        {
+            NvOsIntrMutexLock(pDfs->hIntrMutex);
+            Policy = pDtt->TcorePolicy;
+            TemperatureC = pDtt->CoreTemperatureC;
+        }
         if (pDfs->DfsRunState > NvRmDfsRunState_Stopped)
         {
-            pDtt->UpdateFlag = NV_FALSE;
+            pDtt->TcorePolicy.UpdateFlag = NV_FALSE;
         }
+        NvOsIntrMutexUnlock(pDfs->hIntrMutex);
+    }
+    else
+    {
+        NvOsIntrMutexLock(pDfs->hIntrMutex);
+        Policy = pDtt->TcorePolicy;
+        TemperatureC = pDtt->CoreTemperatureC;
         NvOsIntrMutexUnlock(pDfs->hIntrMutex);
     }
 
     // Throttle clock frequencies, if necessary
     if (pDfs->hRm->ChipId.Id == 0x20)
         return NvRmPrivAp20DttClockUpdate(
-                pDfs->hRm, pDtt->CoreTemperatureC, &pDfs->CurrentKHz, pDfsKHz);
+            pDfs->hRm, TemperatureC, &Policy, &pDfs->CurrentKHz, pDfsKHz);
     else
         return NV_FALSE;    // No throttling policy for this chip ID
 }
 
 static void DttIntrCallback(void* args)
 {
-    NvU32 msec;
     NvS32 TemperatureC = 0;
     NvS32 LowLimit = ODM_TMON_PARAMETER_UNSPECIFIED;
     NvS32 HighLimit = ODM_TMON_PARAMETER_UNSPECIFIED;
@@ -1784,19 +1812,21 @@ static void DttIntrCallback(void* args)
 
     if (NvOdmTmonTemperatureGet(pDtt->hOdmTcore, &TemperatureC))
     {
-        DttGetTcorePolicy(TemperatureC, pDfs, &LowLimit, &HighLimit, &msec);
-        NV_ASSERT(LowLimit != ODM_TMON_PARAMETER_UNSPECIFIED);
-        NV_ASSERT(HighLimit != ODM_TMON_PARAMETER_UNSPECIFIED);
+        NvOsIntrMutexLock(pDfs->hIntrMutex);
+        DttPolicyUpdate(pDfs->hRm, TemperatureC, pDtt);
+        LowLimit = pDtt->TcorePolicy.LowLimit;
+        HighLimit = pDtt->TcorePolicy.HighLimit;
+        pDtt->TcorePolicy.UpdateFlag = NV_TRUE;
+        NvOsIntrMutexUnlock(pDfs->hIntrMutex);
 
         // Clear interrupt condition by setting new limits "around" temperature
+        NV_ASSERT(LowLimit != ODM_TMON_PARAMETER_UNSPECIFIED);
+        NV_ASSERT(HighLimit != ODM_TMON_PARAMETER_UNSPECIFIED);
         (void)NvOdmTmonParameterConfig(pDtt->hOdmTcore,
             NvOdmTmonConfigParam_IntrLimitLow, &LowLimit);
-         (void)NvOdmTmonParameterConfig(pDtt->hOdmTcore,
+        (void)NvOdmTmonParameterConfig(pDtt->hOdmTcore,
             NvOdmTmonConfigParam_IntrLimitHigh, &HighLimit);
     }
-    NvOsIntrMutexLock(pDfs->hIntrMutex);
-    pDtt->UpdateFlag = NV_TRUE;
-    NvOsIntrMutexUnlock(pDfs->hIntrMutex);
 
     NVRM_DFS_PRINTF(("Dtt Intr: T = %d, LowLimit = %d, HighLimit = %d\n",
                      TemperatureC, LowLimit, HighLimit));
@@ -2529,10 +2559,10 @@ void NvRmPrivDttInit(NvRmDeviceHandle hRmDeviceHandle)
 
     if (!pDtt->hOdmTcore)
     {
-        // TODO: uncomment after AP20 bring-up
         if (pDfs->hRm->ChipId.Id == 0x20)
         {
-            // NV_ASSERT(!"TMON is a must on AP20 platform");
+            // TODO: assert?
+            NvOsDebugPrintf("DTT: TMON initialization failed\n");
         }
         return;
     }
@@ -2541,6 +2571,12 @@ void NvRmPrivDttInit(NvRmDeviceHandle hRmDeviceHandle)
         NvOdmTmonConfigParam_IntrLimitLow, &pDtt->TcoreLowLimitCaps);
     NvOdmTmonParameterCapsGet(pDtt->hOdmTcore,
         NvOdmTmonConfigParam_IntrLimitHigh, &pDtt->TcoreHighLimitCaps);
+
+#if !NVRM_DTT_DISABLED
+    // Default policy for room temperature
+    DttPolicyUpdate(hRmDeviceHandle, 25, pDtt);
+    pDtt->TcorePolicy.TimeUs = NvRmPrivGetUs();
+#endif
 
     if (pDtt->TcoreCaps.IntrSupported &&
         !pDtt->TcoreLowLimitCaps.OdmProtected &&
@@ -2556,9 +2592,6 @@ void NvRmPrivDttInit(NvRmDeviceHandle hRmDeviceHandle)
         pDtt->UseIntr = NV_TRUE;
 #endif
     }
-#if !NVRM_DTT_DISABLED
-    pDtt->UpdateFlag = NV_TRUE;
-#endif
 }
 
 void NvRmPrivDttDeinit()

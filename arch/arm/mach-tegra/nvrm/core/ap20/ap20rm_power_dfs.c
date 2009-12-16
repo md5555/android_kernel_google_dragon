@@ -167,134 +167,179 @@ NvRmPrivAp20EmcMonitorsRead(
 
 // AP20 Thermal policy definitions
 
-#define NVRM_THERMAL_DEGREES_HIGH           (85L)
-#define NVRM_THERMAL_DEGREES_LOW            (50L)
-#define NVRM_THERMAL_DEGREES_HYSTERESIS     (5L)
+#define NVRM_DTT_DEGREES_HIGH           (85L)
+#define NVRM_DTT_DEGREES_LOW            (60L)
+#define NVRM_DTT_DEGREES_HYSTERESIS     (5L)
 
-#define NVRM_THERMAL_POLL_MS_SLOW           (200UL)
-#define NVRM_THERMAL_POLL_MS_FAST           (100UL)
-#define NVRM_THERMAL_POLL_MS_CRITICAL       (50UL)
-#define NVRM_THERMAL_POLL_INTR_FACTOR       (10UL)
+#define NVRM_DTT_VOLTAGE_THROTTLE_MV    (900UL)
+#define NVRM_DTT_CPU_DELTA_KHZ          (100000UL)
 
-#define NVRM_THERMAL_CPU_KHZ_LOW            (500000UL)
+#define NVRM_DTT_POLL_MS_SLOW           (2000UL)
+#define NVRM_DTT_POLL_MS_FAST           (1000UL)
+#define NVRM_DTT_POLL_MS_CRITICAL       (500UL)
 
-#define NVRM_THERMAL_CPU_DELTA_KHZ_LOW      (200000L)
-#define NVRM_THERMAL_CPU_DELTA_KHZ_HIGH     (100000L)
-#define NVRM_THERMAL_CPU_DELTA_KHZ_CRITICAL (-100000L)
+typedef enum
+{
+    NvRmDttAp20PolicyRange_Unknown = 0,
+
+    // No throttling
+    NvRmDttAp20PolicyRange_FreeRunning,
+
+    // Keep CPU frequency below low voltage threshold
+    NvRmDttAp20PolicyRange_LimitVoltage,
+
+    // Decrease CPU frequency in steps over time
+    NvRmDttAp20PolicyRange_ThrottleDown,
+
+    NvRmDttAp20PolicyRange_Num,
+    NvRmDttAp20PolicyRange_Force32 = 0x7FFFFFFFUL
+} NvRmDttAp20PolicyRange;
+
+static NvRmFreqKHz s_CpuThrottleMaxKHz = 0;
+static NvRmFreqKHz s_CpuThrottleMinKHz = 0;
+static NvRmFreqKHz s_CpuThrottleKHz = 0;
 
 void
-NvRmPrivAp20DttGetTcorePolicy(
+NvRmPrivAp20DttPolicyUpdate(
+    NvRmDeviceHandle hRmDevice,
     NvS32 TemperatureC,
-    const NvRmDtt* pDtt,
-    NvS32* pLowLimit,
-    NvS32* pHighLimit,
-    NvU32* pPollMs)
+    NvRmDtt* pDtt)
 {
-    NvU32 msec;
-    NvS32 LowLimit, HighLimit;
+    NvRmDttAp20PolicyRange Range;
 
-    NV_ASSERT(pDtt->TcoreCaps.Tmin <
-              (NVRM_THERMAL_DEGREES_LOW - NVRM_THERMAL_DEGREES_HYSTERESIS));
-    NV_ASSERT(pDtt->TcoreCaps.Tmax > NVRM_THERMAL_DEGREES_HIGH);
+    // CPU throttling limits are set at 50% of CPU frequency range (no
+    // throttling below this value), and at CPU frequency boundary that
+    // matches specified voltage throttling limit.
+    if ((!s_CpuThrottleMaxKHz) || (!s_CpuThrottleMinKHz))
+    {
+        NvU32 steps;
+        const NvRmFreqKHz* p = NvRmPrivModuleVscaleGetMaxKHzList(
+            hRmDevice, NvRmModuleID_Cpu, &steps);
+        NV_ASSERT(p && steps);
+        for (; steps != 0 ; steps--)
+        {
+            if (NVRM_DTT_VOLTAGE_THROTTLE_MV >= NvRmPrivModuleVscaleGetMV(
+                hRmDevice, NvRmModuleID_Cpu, p[steps-1]))
+                break;
+        }
+        NV_ASSERT(steps);
+        s_CpuThrottleMaxKHz = p[steps-1];
+        s_CpuThrottleMinKHz =
+            NvRmPrivGetSocClockLimits(NvRmModuleID_Cpu)->MaxKHz / 2;
+        NV_ASSERT(s_CpuThrottleMaxKHz > s_CpuThrottleMinKHz); 
+        NV_ASSERT(s_CpuThrottleMinKHz > NVRM_DTT_CPU_DELTA_KHZ); 
+
+        s_CpuThrottleKHz = s_CpuThrottleMaxKHz;
+
+        NV_ASSERT(pDtt->TcoreCaps.Tmin <
+                  (NVRM_DTT_DEGREES_LOW - NVRM_DTT_DEGREES_HYSTERESIS));
+        NV_ASSERT(pDtt->TcoreCaps.Tmax > NVRM_DTT_DEGREES_HIGH);
+    }
+
+    // Advanced policy range state machine (one step at a time)
+    Range = (NvRmDttAp20PolicyRange)pDtt->TcorePolicy.PolicyRange;
+    switch (Range)
+    {
+        case NvRmDttAp20PolicyRange_Unknown:
+            Range = NvRmDttAp20PolicyRange_FreeRunning;
+            // fall through
+        case NvRmDttAp20PolicyRange_FreeRunning:
+            if (TemperatureC >= NVRM_DTT_DEGREES_LOW)
+                Range = NvRmDttAp20PolicyRange_LimitVoltage;
+            break;
+
+        case NvRmDttAp20PolicyRange_LimitVoltage:
+            if (TemperatureC <=
+                (NVRM_DTT_DEGREES_LOW - NVRM_DTT_DEGREES_HYSTERESIS))
+                Range = NvRmDttAp20PolicyRange_FreeRunning;
+            else if (TemperatureC >= NVRM_DTT_DEGREES_HIGH)
+                Range = NvRmDttAp20PolicyRange_ThrottleDown;
+            break;
+
+        case NvRmDttAp20PolicyRange_ThrottleDown:
+            if (TemperatureC <=
+                (NVRM_DTT_DEGREES_HIGH - NVRM_DTT_DEGREES_HYSTERESIS))
+                Range = NvRmDttAp20PolicyRange_LimitVoltage;
+            break;
+
+        default:
+            break;
+    }
 
     /*
-     * Temperature limits policy: limits are laways set "around" current
-     * temperature for the next out-of-limit interrupt; range boundaries
-     * are used for low and critical temperature.
+     * Fill in new policy. Temperature limits are set around current
+     * temperature for the next out-of-limit interrupt (possible exception
+     * - temperature "jump" over two ranges would result in two interrupts
+     * in a row before limits cover the temperature). Polling time is set
+     * always in ThrottleDown range, and only for poll mode in other ranges.
      */
-    if (TemperatureC <= NVRM_THERMAL_DEGREES_LOW)
+    pDtt->CoreTemperatureC = TemperatureC;
+    switch (Range)
     {
-        LowLimit = pDtt->TcoreLowLimitCaps.MinValue;
-        HighLimit = NVRM_THERMAL_DEGREES_LOW;
-    }
-    else if (TemperatureC <= NVRM_THERMAL_DEGREES_HIGH)
-    {
-        LowLimit = NVRM_THERMAL_DEGREES_LOW - NVRM_THERMAL_DEGREES_HYSTERESIS;
-        HighLimit = NVRM_THERMAL_DEGREES_HIGH;
+        case NvRmDttAp20PolicyRange_FreeRunning:
+            pDtt->TcorePolicy.LowLimit = pDtt->TcoreLowLimitCaps.MinValue;
+            pDtt->TcorePolicy.HighLimit = NVRM_DTT_DEGREES_LOW;
+            pDtt->TcorePolicy.UpdateIntervalUs = pDtt->UseIntr ?
+                NV_WAIT_INFINITE : (NVRM_DTT_POLL_MS_SLOW * 1000);
+            break;
 
-    }
-    else
-    {
-        LowLimit = NVRM_THERMAL_DEGREES_HIGH - NVRM_THERMAL_DEGREES_HYSTERESIS;
-        HighLimit = pDtt->TcoreHighLimitCaps.MaxValue;
-    }
+        case NvRmDttAp20PolicyRange_LimitVoltage:
+            pDtt->TcorePolicy.LowLimit =
+                NVRM_DTT_DEGREES_LOW - NVRM_DTT_DEGREES_HYSTERESIS;
+            pDtt->TcorePolicy.HighLimit = NVRM_DTT_DEGREES_HIGH;
+            pDtt->TcorePolicy.UpdateIntervalUs = pDtt->UseIntr ?
+                NV_WAIT_INFINITE : (NVRM_DTT_POLL_MS_FAST * 1000);
+            break;
 
-    /*
-     * Polling time policy:
-     * - low/high temperature in polling mode: return policy value
-     * - low/high temperature in interrupt mode: policy value increased by intr
-     *   factor (do not need polling at all in this mode, but just in case ...)
-     * - critical temperature and any mode: return policy value (we do need
-     *   polling even in interrupt mode for active throttling)
-     * Keep higher polling rate inside hysteresis range.
-     */
-    if (TemperatureC <= 
-        (NVRM_THERMAL_DEGREES_LOW - NVRM_THERMAL_DEGREES_HYSTERESIS))
-    {
-        if (pDtt->UseIntr)
-            msec = NVRM_THERMAL_POLL_MS_SLOW * NVRM_THERMAL_POLL_INTR_FACTOR;
-        else
-            msec = NVRM_THERMAL_POLL_MS_SLOW;
-    }
-    else if (TemperatureC <= 
-             (NVRM_THERMAL_DEGREES_HIGH - NVRM_THERMAL_DEGREES_HYSTERESIS))
-    {
-        if (pDtt->UseIntr)
-            msec = NVRM_THERMAL_POLL_MS_FAST * NVRM_THERMAL_POLL_INTR_FACTOR;
-        else
-            msec = NVRM_THERMAL_POLL_MS_FAST;
+        case NvRmDttAp20PolicyRange_ThrottleDown:
+            pDtt->TcorePolicy.LowLimit =
+                NVRM_DTT_DEGREES_HIGH - NVRM_DTT_DEGREES_HYSTERESIS;
+            pDtt->TcorePolicy.HighLimit = pDtt->TcoreHighLimitCaps.MaxValue;
+            pDtt->TcorePolicy.UpdateIntervalUs = NVRM_DTT_POLL_MS_CRITICAL * 1000;
+            break;
 
+        default:
+            NV_ASSERT(!"Invalid DTT policy range");
+            NvOsDebugPrintf("DTT: Invalid Range = %d\n", Range);
+            pDtt->TcorePolicy.HighLimit = ODM_TMON_PARAMETER_UNSPECIFIED;
+            pDtt->TcorePolicy.LowLimit = ODM_TMON_PARAMETER_UNSPECIFIED;
+            pDtt->TcorePolicy.PolicyRange = NvRmDttAp20PolicyRange_Unknown;
+            return;
     }
-    else
-    {
-        msec = NVRM_THERMAL_POLL_MS_CRITICAL;
-    }
-
-    // Fill in return values
-    *pLowLimit = LowLimit;
-    *pHighLimit = HighLimit;
-    *pPollMs = msec;  
+    pDtt->TcorePolicy.PolicyRange = (NvU32)Range;
 }
+
 
 NvBool
 NvRmPrivAp20DttClockUpdate(
     NvRmDeviceHandle hRmDevice,
     NvS32 TemperatureC,
+    const NvRmTzonePolicy* pDttPolicy,
     const NvRmDfsFrequencies* pCurrentKHz,
     NvRmDfsFrequencies* pDfsKHz)
 {
-    // Only CPU throttling for now
-    NvRmFreqKHz DeltaKHz;
-    NvRmFreqKHz CpuTargetKHz = pDfsKHz->Domains[NvRmDfsClockId_Cpu];
-    NvRmFreqKHz CpuThrottledKHz = pCurrentKHz->Domains[NvRmDfsClockId_Cpu];
-    NvBool Throttled = NV_FALSE;
-
-    // If CPU target is already low, no throttling
-    if (CpuTargetKHz <= NVRM_THERMAL_CPU_KHZ_LOW)
-        return Throttled;
-
-    // Determine max frequency delta based on temperature
-    if (TemperatureC <= NVRM_THERMAL_DEGREES_LOW)
-        DeltaKHz = NVRM_THERMAL_CPU_DELTA_KHZ_LOW;
-    else if (TemperatureC <= NVRM_THERMAL_DEGREES_HIGH)
-        DeltaKHz = NVRM_THERMAL_CPU_DELTA_KHZ_HIGH;
-    else
-        DeltaKHz = NVRM_THERMAL_CPU_DELTA_KHZ_CRITICAL;
-
-    // Find throttled limit
-    CpuThrottledKHz += DeltaKHz;
-    if (((NvS32)CpuThrottledKHz) < 0)
-        CpuThrottledKHz = 0;
-
-    // Find and set new target
-    CpuTargetKHz = NV_MIN(CpuTargetKHz, CpuThrottledKHz);
-    CpuTargetKHz = NV_MAX(CpuTargetKHz, NVRM_THERMAL_CPU_KHZ_LOW); 
-    if (CpuTargetKHz < pDfsKHz->Domains[NvRmDfsClockId_Cpu])
+    switch ((NvRmDttAp20PolicyRange)pDttPolicy->PolicyRange)
     {
-        Throttled = NV_TRUE;
+        case NvRmDttAp20PolicyRange_LimitVoltage:
+            s_CpuThrottleKHz = s_CpuThrottleMaxKHz;
+            break;
+
+        case NvRmDttAp20PolicyRange_ThrottleDown:
+            if (pDttPolicy->UpdateFlag)
+                s_CpuThrottleKHz -= NVRM_DTT_CPU_DELTA_KHZ;
+            s_CpuThrottleKHz = NV_MAX(s_CpuThrottleKHz, s_CpuThrottleMinKHz); 
+            break;
+
+        // No throttling by default (just reset throttling limit to max)
+        default:
+            s_CpuThrottleKHz = s_CpuThrottleMaxKHz;
+            return NV_FALSE;
     }
-    pDfsKHz->Domains[NvRmDfsClockId_Cpu] = CpuTargetKHz;
-    return Throttled;
+    pDfsKHz->Domains[NvRmDfsClockId_Cpu] =
+        NV_MIN(pDfsKHz->Domains[NvRmDfsClockId_Cpu], s_CpuThrottleKHz);
+
+    // Throttling step is completed - no need to force extra DVFS update
+    return NV_FALSE;
 }
 
 /*****************************************************************************/
@@ -308,13 +353,14 @@ NvRmPrivAp20GetPmRequest(
     // Assume initial slave CPU1 On request
     static NvRmPmRequest s_LastPmRequest = (NvRmPmRequest_CpuOnFlag | 0x1);
     static NvRmFreqKHz s_Cpu1OnMinKHz = 0, s_Cpu1OffMaxKHz = 0;
+    static NvU32 s_Cpu1OnPendingCnt = 0, s_Cpu1OffPendingCnt = 0;
 
     NvRmPmRequest PmRequest = NvRmPmRequest_None;
     NvBool Cpu1Off =
         (0 != NV_DRF_VAL(CLK_RST_CONTROLLER, RST_CPU_CMPLX_SET, SET_CPURESET1,
                          NV_REGR(hRmDevice, NvRmPrivModuleID_ClockAndReset, 0,
                                  CLK_RST_CONTROLLER_RST_CPU_CMPLX_SET_0)));
-    NvRmFreqKHz CpuLoadGaugeKHz = pCpuSampler->BumpedAverageKHz;
+    NvRmFreqKHz CpuLoadGaugeKHz = CpuKHz;
 
     // Slave CPU1 power management policy thresholds:
     // - use fixed values if they are defined explicitly, otherwise
@@ -347,6 +393,12 @@ NvRmPrivAp20GetPmRequest(
      */
     if (CpuLoadGaugeKHz < s_Cpu1OnMinKHz)
     {
+        s_Cpu1OnPendingCnt = 0;
+        if (s_Cpu1OffPendingCnt < NVRM_CPU1_OFF_PENDING_CNT)
+        {
+            s_Cpu1OffPendingCnt++;
+            return PmRequest;
+        }
         if ((s_LastPmRequest & NvRmPmRequest_CpuOnFlag) && (!Cpu1Off))
             s_LastPmRequest = PmRequest = (NvRmPmRequest_CpuOffFlag | 0x1);
 #if NVRM_TEST_PMREQUEST_UP_MODE
@@ -357,6 +409,12 @@ NvRmPrivAp20GetPmRequest(
     }
     else if (CpuLoadGaugeKHz > s_Cpu1OffMaxKHz)
     {
+        s_Cpu1OffPendingCnt = 0;
+        if (s_Cpu1OnPendingCnt < NVRM_CPU1_ON_PENDING_CNT)
+        {
+            s_Cpu1OnPendingCnt++;
+            return PmRequest;
+        }
         if ((s_LastPmRequest & NvRmPmRequest_CpuOffFlag) && Cpu1Off)
             s_LastPmRequest = PmRequest = (NvRmPmRequest_CpuOnFlag | 0x1);
 #if NVRM_TEST_PMREQUEST_UP_MODE
