@@ -25,6 +25,7 @@
 #include <linux/input.h>
 #include <linux/platform_device.h>
 #include <linux/kthread.h>
+#include <linux/tegra_devices.h>
 
 #include "nvos.h"
 #include "nvec.h"
