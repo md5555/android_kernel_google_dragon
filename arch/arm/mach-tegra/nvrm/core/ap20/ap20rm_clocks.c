@@ -575,11 +575,12 @@ NvRmPrivAp20SetPmuIrqPolarity(
 // issued - h/w would auto-clear it and restart SoC
 #define RESET_SOC( rm ) \
     do { \
+        volatile NvBool b = NV_TRUE; \
         NvU32 reg; \
         reg = NV_REGR((rm), NvRmModuleID_Pmif, 0, APBDEV_PMC_CNTRL_0); \
         reg = NV_FLD_SET_DRF_DEF(APBDEV_PMC, CNTRL, MAIN_RST, ENABLE, reg); \
         NV_REGW((rm), NvRmModuleID_Pmif, 0, APBDEV_PMC_CNTRL_0, reg); \
-        for (;;) ; \
+        while (b) { ; } \
     } while( 0 )
 
 void AP20ModuleReset(NvRmDeviceHandle hDevice, NvRmModuleID ModuleId, NvBool hold)

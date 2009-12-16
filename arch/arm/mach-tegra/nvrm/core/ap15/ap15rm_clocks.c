@@ -405,35 +405,42 @@ Ap15EnableTvDacClock(
         } while( 0 )
 
 // KBC reset is available in the pmc control register.
-#define RESET_KBC( rm, delay ) \
-        do { \
-             regaddr = (APBDEV_PMC_CNTRL_0); \
-            NvOsMutexLock((rm)->CarMutex); \
-            reg = NV_REGR((rm), NvRmModuleID_Pmif, 0, regaddr); \
-            reg = NV_FLD_SET_DRF_DEF(APBDEV_PMC, CNTRL, KBC_RST, ENABLE, reg); \
-            NV_REGW((rm), NvRmModuleID_Pmif, 0, regaddr, reg); \
-            if (Hold) \
-            {\
-                NvOsMutexUnlock((rm)->CarMutex); \
-                break; \
-            }\
-            NvRmPrivWaitUS( (rm), (delay) ); \
-            reg = NV_FLD_SET_DRF_DEF(APBDEV_PMC, CNTRL, KBC_RST, DISABLE, reg); \
-            NV_REGW((rm), NvRmModuleID_Pmif, 0, regaddr, reg); \
-            NvOsMutexUnlock((rm)->CarMutex); \
-        } while( 0 )
+static void RESET_KBC(NvRmDeviceHandle rm, NvU32 delay, NvBool Hold)
+{
+    NvU32 reg;
+    NvU32 regaddr;
+
+    regaddr = (APBDEV_PMC_CNTRL_0);
+    NvOsMutexLock((rm)->CarMutex);
+    reg = NV_REGR((rm), NvRmModuleID_Pmif, 0, regaddr);
+    reg = NV_FLD_SET_DRF_DEF(APBDEV_PMC, CNTRL, KBC_RST, ENABLE, reg);
+    NV_REGW((rm), NvRmModuleID_Pmif, 0, regaddr, reg);
+    if (Hold)
+    {
+        NvOsMutexUnlock((rm)->CarMutex);
+        return;
+    }
+    NvRmPrivWaitUS( (rm), (delay) );
+    reg = NV_FLD_SET_DRF_DEF(APBDEV_PMC, CNTRL, KBC_RST, DISABLE, reg);
+    NV_REGW((rm), NvRmModuleID_Pmif, 0, regaddr, reg);
+    NvOsMutexUnlock((rm)->CarMutex);
+}
         
 
 // Use PMC control to reset the entire SoC. Just wait forever after reset is
 // issued - h/w would auto-clear it and restart SoC
-#define RESET_SOC( rm ) \
-    do { \
-        regaddr = (APBDEV_PMC_CNTRL_0); \
-        reg = NV_REGR((rm), NvRmModuleID_Pmif, 0, regaddr); \
-        reg = NV_FLD_SET_DRF_DEF(APBDEV_PMC, CNTRL, MAIN_RST, ENABLE, reg); \
-        NV_REGW((rm), NvRmModuleID_Pmif, 0, regaddr, reg); \
-        for (;;) ; \
-    } while( 0 )
+static void RESET_SOC(NvRmDeviceHandle rm)
+{
+    NvU32 reg;
+    NvU32 regaddr;
+
+    volatile NvBool b = NV_TRUE;
+    regaddr = (APBDEV_PMC_CNTRL_0);
+    reg = NV_REGR((rm), NvRmModuleID_Pmif, 0, regaddr);
+    reg = NV_FLD_SET_DRF_DEF(APBDEV_PMC, CNTRL, MAIN_RST, ENABLE, reg);
+    NV_REGW((rm), NvRmModuleID_Pmif, 0, regaddr, reg);
+    while (b) { ; }
+}
 
 
 void AP15ModuleReset(
@@ -455,7 +462,7 @@ void AP15ModuleReset(
         break;
     case NvRmModuleID_Kbc:
         NV_ASSERT( Instance == 0 );
-        RESET_KBC(hDevice, NVRM_RESET_DELAY );
+        RESET_KBC(hDevice, NVRM_RESET_DELAY, Hold);
         break;
     case NvRmModuleID_SysStatMonitor:
         NV_ASSERT( Instance == 0 );
