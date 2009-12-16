@@ -25,6 +25,7 @@
 #include <linux/input.h>
 #include <linux/platform_device.h>
 #include <linux/kthread.h>
+#include <linux/tegra_devices.h>
 
 #include "nvos.h"
 #include "nvec.h"
@@ -133,7 +134,7 @@ NvU8 code_tab_102us[EC_TOTAL_CODES] = {
 	KEY_KP2,	// 0x50
 	KEY_KP3,
 	KEY_KP0,
-	KEY_KPDOT
+	KEY_KPDOT,
 	0,		//VK_SNAPSHOT
 	0,
 	0,		//VK_OEM_102
