@@ -36,7 +36,7 @@
 #include "nvodm_query.h"
 
 /* FIXME, don't include the Rm private API  */
-#include "io/ap15/rm_spi_slink.h"
+#include "rm_spi_slink.h"
 
 /* Cannot use spinlocks as the NvRm SPI apis uses mutextes and one cannot use
  * mutextes inside a spinlock.
