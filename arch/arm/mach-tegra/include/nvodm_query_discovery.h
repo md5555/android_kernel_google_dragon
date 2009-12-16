@@ -137,6 +137,9 @@ extern "C"
 #define NV_VDD_PEX_ODM_ID       (NV_ODM_GUID('N','V','D','D','_','P','E','X'))
 #define NV_VDD_PEX_CLK_ODM_ID   (NV_ODM_GUID('N','V','D','D','P','E','X','C'))
 #define NV_VDD_SoC_ODM_ID       (NV_ODM_GUID('N','V','D','D','_','S','O','C'))
+
+#define NV_PMU_TRANSPORT_ODM_ID (NV_ODM_GUID('N','V','P','M','U','T','R','N'))
+
 /**
  * Some of the NVIDIA driver libraries enumerate peripherals based on the
  * logical functionality that the peripheral performs, rather than by the

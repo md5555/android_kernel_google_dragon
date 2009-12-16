@@ -42,9 +42,11 @@
 
 #include "nvrm_spi.h"
 #include "nvrm_power.h"
+#include "nvrm_interrupt.h"
 #include "nvrm_memmgr.h"
 #include "nvrm_dma.h"
 #include "nvodm_query.h"
+#include "nvodm_query_discovery.h"
 #include "rm_spi_slink_hw_private.h"
 #include "nvrm_hardware_access.h"
 #include "nvassert.h"
@@ -54,6 +56,7 @@
 #include "nvodm_modules.h"
 #include "rm_spi_slink.h"
 #include "nvrm_priv_ap_general.h"
+#include "ap15/ap15rm_private.h"
 
 
 // Combined maximum spi/slink controllers
@@ -233,6 +236,12 @@ typedef struct NvRmSpiRec
     // Frequency requiremets
     NvRmDfsBusyHint BusyHints[4];
 
+    // Is this interface used for the pmu programmings
+    NvBool IsPmuInterface;
+
+    // If pmu interface then the CS Id for the interfacing.
+    NvU32 PmuChipSelectId;
+
 } NvRmSpi;
 
 /**
@@ -287,6 +296,44 @@ SpiSlinkGetDeviceInfo(
     pDeviceInfo->ChipSelectActiveLow = pSpiDevInfo->ChipSelectActiveLow;
     return NV_TRUE;
 }
+
+/**
+ * Find whether this interface is the pmu interface or not.
+ * Returns TRUE if the given spi channel is the pmu interface else return 
+ * FALSE.
+ */
+static NvBool
+SpiSlinkIsPmuInterface(
+    NvBool IsSpiChannel,
+    NvU32 InstanceId,
+    NvU32 *pChipSelectId)
+{
+    NvOdmIoModule OdmModuleName;
+    NvU64 Guid = NV_PMU_TRANSPORT_ODM_ID;
+    NvOdmPeripheralConnectivity const *pConnectivity;
+    NvU32 Index;
+
+    OdmModuleName = (IsSpiChannel)?  NvOdmIoModule_Sflash: NvOdmIoModule_Spi;
+    *pChipSelectId = 0xFF;
+
+     /* get the connectivity info */
+    pConnectivity = NvOdmPeripheralGetGuid(Guid);
+    if (!pConnectivity)
+         return NV_FALSE;
+
+    // Search for the Vdd rail and set the proper volage to the rail.
+    for (Index = 0; Index < pConnectivity->NumAddress; ++Index)
+    {
+        if ((pConnectivity->AddressList[Index].Interface == OdmModuleName) &&
+             (pConnectivity->AddressList[Index].Instance == InstanceId))
+        {
+            *pChipSelectId = pConnectivity->AddressList[Index].Address;
+            return NV_TRUE;
+        }
+    }
+    return NV_FALSE;
+}
+
 
 /**
  * Create the dma buffer memory handle.
@@ -748,13 +795,17 @@ static NvError SetPowerControl(NvRmSpiHandle hRmSpiSlink, NvBool IsEnable)
     ModuleId = NVRM_MODULE_ID(hRmSpiSlink->RmModuleId, hRmSpiSlink->InstanceId);
     if (IsEnable)
     {
-        hRmSpiSlink->BusyHints[0].BoostKHz = 80000; // Emc
-        hRmSpiSlink->BusyHints[1].BoostKHz = 80000; // Ahb
-        hRmSpiSlink->BusyHints[2].BoostKHz = 80000; // Apb
-        hRmSpiSlink->BusyHints[3].BoostKHz = 240000; // Cpu
-        NvRmPowerBusyHintMulti(hRmSpiSlink->hDevice, hRmSpiSlink->RmPowerClientId,
-                               hRmSpiSlink->BusyHints, 4,
-                               NvRmDfsBusyHintSyncMode_Async);
+        if (!((hRmSpiSlink->IsPmuInterface) && 
+              (hRmSpiSlink->PmuChipSelectId == hRmSpiSlink->CurrTransferChipSelId)))
+        {
+            hRmSpiSlink->BusyHints[0].BoostKHz = 80000; // Emc
+            hRmSpiSlink->BusyHints[1].BoostKHz = 80000; // Ahb
+            hRmSpiSlink->BusyHints[2].BoostKHz = 80000; // Apb
+            hRmSpiSlink->BusyHints[3].BoostKHz = 240000; // Cpu
+            NvRmPowerBusyHintMulti(hRmSpiSlink->hDevice, hRmSpiSlink->RmPowerClientId,
+                                   hRmSpiSlink->BusyHints, 4,
+                                   NvRmDfsBusyHintSyncMode_Async);
+        }
 
         // Enable power for spi/slink module
         Error = NvRmPowerVoltageControl(hRmSpiSlink->hDevice, ModuleId,
@@ -771,14 +822,19 @@ static NvError SetPowerControl(NvRmSpiHandle hRmSpiSlink, NvBool IsEnable)
         // Disable the clocks.
         (void)NvRmPowerModuleClockControl(hRmSpiSlink->hDevice, ModuleId,
                         hRmSpiSlink->RmPowerClientId, NV_FALSE);
-        hRmSpiSlink->BusyHints[0].BoostKHz = 0; // Emc
-        hRmSpiSlink->BusyHints[1].BoostKHz = 0; // Ahb
-        hRmSpiSlink->BusyHints[2].BoostKHz = 0; // Apb
-        hRmSpiSlink->BusyHints[3].BoostKHz = 0; // Cpu
 
-        NvRmPowerBusyHintMulti(hRmSpiSlink->hDevice, hRmSpiSlink->RmPowerClientId,
-                               hRmSpiSlink->BusyHints, 4,
-                               NvRmDfsBusyHintSyncMode_Async);
+        if (!((hRmSpiSlink->IsPmuInterface) && 
+              (hRmSpiSlink->PmuChipSelectId == hRmSpiSlink->CurrTransferChipSelId)))
+        {
+            hRmSpiSlink->BusyHints[0].BoostKHz = 0; // Emc
+            hRmSpiSlink->BusyHints[1].BoostKHz = 0; // Ahb
+            hRmSpiSlink->BusyHints[2].BoostKHz = 0; // Apb
+            hRmSpiSlink->BusyHints[3].BoostKHz = 0; // Cpu
+
+            NvRmPowerBusyHintMulti(hRmSpiSlink->hDevice, hRmSpiSlink->RmPowerClientId,
+                                   hRmSpiSlink->BusyHints, 4,
+                                   NvRmDfsBusyHintSyncMode_Async);
+        }
 
         // Disable the power to the controller.
         (void)NvRmPowerVoltageControl(hRmSpiSlink->hDevice, ModuleId,
@@ -908,6 +964,7 @@ static NvError CreateSpiSlinkChannelHandle(
     hRmSpiSlink->hHwInterface = NULL;
     hRmSpiSlink->RmPowerClientId = 0;
     hRmSpiSlink->SpiPinMap = 0;
+    hRmSpiSlink->CurrTransferChipSelId = 0;
 
     // Initialize the frequncy requirements array
     hRmSpiSlink->BusyHints[0].ClockId = NvRmDfsClockId_Emc;
@@ -926,6 +983,9 @@ static NvError CreateSpiSlinkChannelHandle(
     hRmSpiSlink->BusyHints[3].BoostDurationMs = NV_WAIT_INFINITE;
     hRmSpiSlink->BusyHints[3].BusyAttribute = NV_TRUE;
 
+    hRmSpiSlink->IsPmuInterface = NV_FALSE;
+    hRmSpiSlink->PmuChipSelectId = 0xFF;
+
     ModuleId = NVRM_MODULE_ID(hRmSpiSlink->RmModuleId, InstanceId);
 
     if (IsSpiChannel)
@@ -937,6 +997,12 @@ static NvError CreateSpiSlinkChannelHandle(
         hRmSpiSlink->IsChipSelSupported[ChipSelIndex] =
                 SpiSlinkGetDeviceInfo(IsSpiChannel, InstanceId, ChipSelIndex,
                                     &hRmSpiSlink->DeviceInfo[ChipSelIndex]);
+
+    // Findout whether this spi instance is used for the pmu interface or not.
+    hRmSpiSlink->IsPmuInterface = SpiSlinkIsPmuInterface(IsSpiChannel, 
+                                                InstanceId,
+                                                &hRmSpiSlink->PmuChipSelectId);
+
     // Get the odm pin map
     NvOdmQueryPinMux(hRmSpiSlink->RmIoModuleId, &pOdmConfigs, &NumOdmConfigs);
     NV_ASSERT((InstanceId < NumOdmConfigs) && (pOdmConfigs[InstanceId]));
@@ -1206,7 +1272,6 @@ SetChipSelectSignalLevel(
 
         IsHigh = (pDevInfo->ChipSelectActiveLow)? NV_FALSE: NV_TRUE;
         hHwIntf->HwSetChipSelectLevelFxn(&hRmSpiSlink->HwRegs, ChipSelectId, IsHigh);
-        hRmSpiSlink->CurrTransferChipSelId = ChipSelectId;
     }
     else
     {
@@ -2290,6 +2355,9 @@ void NvRmSpiMultipleTransactions(
 
     // Lock the channel access by other client till this client finishes the ops
     NvOsMutexLock(hRmSpi->hChannelAccessMutex);
+
+    hRmSpi->CurrTransferChipSelId = ChipSelectId;
+    
     // Enable Power/Clock.
     Error = SetPowerControl(hRmSpi, NV_TRUE);
     if (Error != NvSuccess)
@@ -2472,6 +2540,8 @@ void NvRmSpiOptimizedMultipleTransactions(
     // Lock the channel access by other client till this client finishes the ops
     NvOsMutexLock(hRmSpi->hChannelAccessMutex);
 
+    hRmSpi->CurrTransferChipSelId = ChipSelectId;
+
     // Enable Power/Clock.
     Error = SetPowerControl(hRmSpi, NV_TRUE);
     if (Error != NvSuccess)
@@ -2615,10 +2685,14 @@ void NvRmSpiTransaction(
 #if !NV_OAL
     // Lock the channel access by other client till this client finishes the ops
     NvOsMutexLock(hRmSpi->hChannelAccessMutex);
+
+    hRmSpi->CurrTransferChipSelId = ChipSelectId;
     // Enable Power/Clock.
     Error = SetPowerControl(hRmSpi, NV_TRUE);
     if (Error != NvSuccess)
         goto cleanup;
+#else
+    hRmSpi->CurrTransferChipSelId = ChipSelectId;
 #endif
     hRmSpi->CurrTransInfo.PacketsPerWord = PacketsPerWord;
 
@@ -2820,6 +2894,8 @@ NvError NvRmSpiStartTransaction(
 
     // Lock the channel access.
     NvOsMutexLock(hRmSpi->hChannelAccessMutex);
+
+    hRmSpi->CurrTransferChipSelId = ChipSelectId;
 
     if (hRmSpi->IsIdleSignalTristate)
         NvRmPinMuxConfigSetTristate(hRmSpi->hDevice,hRmSpi->RmIoModuleId,
