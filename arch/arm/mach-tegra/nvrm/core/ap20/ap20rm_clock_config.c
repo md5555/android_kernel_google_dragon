@@ -42,8 +42,8 @@
 #include "ap15/ap15rm_private.h"
 #include "nvodm_query.h"
 
-// TODO: do we need CPU/EMC ratio policy?
-#define NVRM_CPU_EMC_SW_RATIO (0)
+// Enable CPU/EMC ratio policy
+#define NVRM_LIMIT_CPU_EMC_RATIO (1)
 
 // Default CPU power good delay
 #define NVRM_DEFAULT_CPU_PWRGOOD_US (2000) 
@@ -271,6 +271,36 @@ Ap20EmcClkChangeConfig(
     return NV_TRUE;
 }
 
+static NvRmFreqKHz Ap20CpuToEmcRatio(NvRmFreqKHz Emc2xKHz)
+{
+#if NVRM_LIMIT_CPU_EMC_RATIO
+    /*
+     * CPU/EMC ratio is limited by the policy curve tabulated below: when cpu
+     * frequency is reduced by 25%, emc frequency along the curve is reduced
+     * by 50%.
+     */
+    static const NvU32 CpuToEmc[] = { 0,
+        7,  10, 11, 13, 14, 15, 17, 18, 18, 19, 20, 21, 22, 22, 23, 24,
+        24, 25, 25, 26, 26, 27, 27, 28, 28, 29, 29, 30, 30, 31, 31, 32
+    };
+    #define CPU_TO_EMC_MAX_RATIO (10)
+    
+    NvRmFreqKHz CpuKHz;
+    NvRmFreqKHz CpuMaxKHz = NvRmPrivGetSocClockLimits(NvRmModuleID_Cpu)->MaxKHz;
+    NvRmFreqKHz Emc2xMaxKHz = NvRmPrivGetClockSourceFreq(NvRmClockSource_PllM0);
+
+    NvU32 M = NV_ARRAY_SIZE(CpuToEmc) - 1;
+    NvU32 x = (Emc2xKHz * M + Emc2xMaxKHz - 1) / Emc2xMaxKHz;
+    NV_ASSERT((x >= 1) && (x <= M));
+    CpuKHz = (CpuMaxKHz * CpuToEmc[x] + M - 1) / M;
+    CpuKHz = NV_MIN(CpuKHz, (Emc2xKHz * (CPU_TO_EMC_MAX_RATIO / 2)));
+
+    return CpuKHz;
+#else
+    return NvRmFreqMaximum;
+#endif
+}
+
 static void Ap20EmcConfigInit(NvRmDeviceHandle hRmDevice)
 {
     NvRmFreqKHz Emc2xKHz, SourceKHz;
@@ -396,7 +426,7 @@ static void Ap20EmcConfigInit(NvRmDeviceHandle hRmDevice)
                              s_Ap20EmcConfig.Index = i;
                      }
                      s_Ap20EmcConfigSortedTable[i].CpuLimitKHz =
-                         NvRmFreqMaximum;
+                         Ap20CpuToEmcRatio(Emc2xKHz);
                      break;
                  }
              }
@@ -423,43 +453,6 @@ static void Ap20EmcConfigInit(NvRmDeviceHandle hRmDevice)
          else
              break;     // Finish sorting
      }
-}
-
-NvRmFreqKHz
-NvRmPrivAp20GetEmcSyncFreq(
-    NvRmDeviceHandle hRmDevice,
-    NvRmModuleID Module)
-{
-    NvRmFreqKHz FreqKHz;
-
-    switch (Module)
-    {
-        case NvRmModuleID_2D:
-        case NvRmModuleID_Epp:
-            // TODO: establish scales after Ap20 bring-up
-            FreqKHz = NvRmPrivGetSocClockLimits(Module)->MaxKHz;
-            break;
-
-        case NvRmModuleID_GraphicsHost:
-            // TODO: establish level after Ap20 bring-up
-            FreqKHz = NvRmPrivGetSocClockLimits(Module)->MaxKHz;
-            break;
-
-        default:
-            NV_ASSERT(!"Invalid module for EMC synchronization");
-            FreqKHz = NvRmPrivGetSocClockLimits(Module)->MaxKHz;
-            break;
-    }
-    return FreqKHz;
-}
-
-void
-NvRmPrivAp20ClipCpuEmcHighLimits(
-    NvRmDeviceHandle hRmDevice,
-    NvRmFreqKHz* pCpuHighKHz,
-    NvRmFreqKHz* pEmcHighKHz)
-{
-    // leave requested limits as is - TODO: implement policy?
 }
 
 static void
@@ -749,6 +742,78 @@ Ap20Emc2xClockConfigure(
 }
 
 /*****************************************************************************/
+
+NvRmFreqKHz
+NvRmPrivAp20GetEmcSyncFreq(
+    NvRmDeviceHandle hRmDevice,
+    NvRmModuleID Module)
+{
+    NvRmFreqKHz FreqKHz;
+
+    switch (Module)
+    {
+        case NvRmModuleID_2D:
+        case NvRmModuleID_Epp:
+            // TODO: establish scales after Ap20 bring-up
+            FreqKHz = NvRmPrivGetSocClockLimits(Module)->MaxKHz;
+            break;
+
+        case NvRmModuleID_GraphicsHost:
+            // TODO: establish level after Ap20 bring-up
+            FreqKHz = NvRmPrivGetSocClockLimits(Module)->MaxKHz;
+            break;
+
+        default:
+            NV_ASSERT(!"Invalid module for EMC synchronization");
+            FreqKHz = NvRmPrivGetSocClockLimits(Module)->MaxKHz;
+            break;
+    }
+    return FreqKHz;
+}
+
+void
+NvRmPrivAp20ClipCpuEmcHighLimits(
+    NvRmDeviceHandle hRmDevice,
+    NvRmFreqKHz* pCpuHighKHz,
+    NvRmFreqKHz* pEmcHighKHz)
+{
+#if !NV_OAL
+    NvU32 i;
+    NvRmFreqKHz EmcKHz;
+    NvRmFreqKHz MinKHz = NvRmPrivDfsGetMinKHz(NvRmDfsClockId_Emc);
+    NV_ASSERT(pEmcHighKHz && pCpuHighKHz);
+
+    // Nothing to do if no EMC scaling.
+    if (s_Ap20EmcConfigSortedTable[0].Emc2xKHz == 0)
+        return;
+
+    // Clip strategy: "throttling" - find the floor for EMC high limit
+    // (above domain minimum, of course)
+    if ((*pEmcHighKHz) < MinKHz)
+        *pEmcHighKHz = MinKHz;
+    for (i = 0; i < NVRM_AP20_DFS_EMC_FREQ_STEPS; i++)
+    {
+        EmcKHz = s_Ap20EmcConfigSortedTable[i].Emc2xKHz >> 1;
+        if (EmcKHz <= (*pEmcHighKHz))
+            break;
+    }
+    if ((i == NVRM_AP20_DFS_EMC_FREQ_STEPS) || (EmcKHz < MinKHz))
+    {
+        i--;
+        EmcKHz = s_Ap20EmcConfigSortedTable[i].Emc2xKHz >> 1;
+    }
+    *pEmcHighKHz = EmcKHz;
+
+#if NVRM_LIMIT_CPU_EMC_RATIO
+    // Clip strategy: "throttling" - restrict CPU high limit by EMC
+    // configuration ((above domain minimum, of course)
+    if ((*pCpuHighKHz) > s_Ap20EmcConfigSortedTable[i].CpuLimitKHz)
+        (*pCpuHighKHz) = s_Ap20EmcConfigSortedTable[i].CpuLimitKHz;
+    if ((*pCpuHighKHz) < NvRmPrivDfsGetMinKHz(NvRmDfsClockId_Cpu))
+        *pCpuHighKHz = NvRmPrivDfsGetMinKHz(NvRmDfsClockId_Cpu);
+#endif
+#endif
+}
 
 static void
 Ap20VdeClockStateUpdate(
