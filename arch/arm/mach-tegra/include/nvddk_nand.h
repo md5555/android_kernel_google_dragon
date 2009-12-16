@@ -535,6 +535,28 @@ NvError NvDdkNandSuspend(NvDdkNandHandle hNand);
 NvError NvDdkNandResume(NvDdkNandHandle hNand);
 
 /**
+ * Part of local power management of the driver. Call this API to turn off the 
+ * clocks required for NAND controller operation.
+ *
+ * @param hNand Handle to the NAND, which is returned by NvDdkNandOpen().
+ *
+ * @retval NvSuccess Success
+ * @retval NvError_BadParameter Invalid input parameter value
+ */
+NvError NvDdkNandSuspendClocks(NvDdkNandHandle hNand);
+
+/**
+ * Part of local power management of the driver. Call this API to turn on the 
+ * clocks required for NAND controller operation.
+ *
+ * @param hNand Handle to the NAND, which is returned by NvDdkNandOpen().
+ *
+ * @retval NvSuccess Success
+ * @retval NvError_BadParameter Invalid input parameter value
+ */
+NvError NvDdkNandResumeClocks(NvDdkNandHandle hNand);
+
+/**
  *  API to read to the spare area.
  */
 NvError

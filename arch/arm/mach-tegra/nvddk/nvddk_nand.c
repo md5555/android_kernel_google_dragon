@@ -364,6 +364,8 @@ typedef struct NvDdkNandRec
     NvOsMutexHandle hMutex;
     // Reference count to keep track of number of open calls made.
     NvU32 RefCount;
+    // Profiling command issue count
+    NvU32 StartCommandCount;
     // To hold the spare area size per each page of the flash
     NvU16 SpareAreaSize;
 }NvDdkNand;
@@ -702,6 +704,35 @@ NandUtilGetLog2(NvU32 Val)
 static void DumpRegData(NvDdkNandHandle hNand)
 {
     PRINT_REG(("====== Register Dump Start =========\n"));
+    PRINT_REG((" Start command count=0x%x\n", hNand->StartCommandCount));
+#if NV_OAL
+    // bootloader version of print does not support %8.8x
+    PRINT_REG((" NAND_COMMAND = 0x%x\n", Nand_REGR(hNand, COMMAND)));
+    PRINT_REG((" NAND_STATUS = 0x%x\n", Nand_REGR(hNand, STATUS)));
+    PRINT_REG((" NAND_ISR = 0x%x\n", Nand_REGR(hNand, ISR)));
+    PRINT_REG((" NAND_IER = 0x%x\n", Nand_REGR(hNand, IER)));
+    PRINT_REG((" NAND_CONFIG = 0x%x\n", Nand_REGR(hNand, CONFIG)));
+    PRINT_REG((" NAND_TIMING = 0x%x\n", Nand_REGR(hNand, TIMING)));
+    PRINT_REG((" NAND_RESP = 0x%x\n", Nand_REGR(hNand, RESP)));
+    PRINT_REG((" NAND_TIMING2 = 0x%x\n", Nand_REGR(hNand, TIMING2)));
+    PRINT_REG((" NAND_CMD_REG1 = 0x%x\n", Nand_REGR(hNand, CMD_REG1)));
+    PRINT_REG((" NAND_CMD_REG2 = 0x%x\n", Nand_REGR(hNand, CMD_REG2)));
+    PRINT_REG((" NAND_ADDR_REG1 = 0x%x\n", Nand_REGR(hNand, ADDR_REG1)));
+    PRINT_REG((" NAND_ADDR_REG2 = 0x%x\n", Nand_REGR(hNand, ADDR_REG2)));
+    PRINT_REG((" NAND_DMA_MST_CTRL = 0x%x\n", Nand_REGR(hNand, DMA_MST_CTRL)));
+    PRINT_REG((" NAND_DMA_CFG.A = 0x%x\n", Nand_REGR(hNand, DMA_CFG_A)));
+    PRINT_REG((" NAND_DMA_CFG.B = 0x%x\n", Nand_REGR(hNand, DMA_CFG_B)));
+    PRINT_REG((" NAND_FIFO_CTRL = 0x%x\n", Nand_REGR(hNand, FIFO_CTRL)));
+    PRINT_REG((" NAND_DATA_BLOCK_PTR = 0x%x\n", Nand_REGR(hNand, DATA_BLOCK_PTR)));
+    PRINT_REG((" NAND_TAG_PTR = 0x%x\n", Nand_REGR(hNand, TAG_PTR)));
+    PRINT_REG((" NAND_ECC_PTR = 0x%x\n", Nand_REGR(hNand, ECC_PTR)));
+    PRINT_REG((" NAND_DEC_STATUS = 0x%x\n", Nand_REGR(hNand, DEC_STATUS)));
+    PRINT_REG((" NAND_HWSTATUS_CMD = 0x%x\n", Nand_REGR(hNand, HWSTATUS_CMD)));
+    PRINT_REG((" NAND_HWSTATUS_MASK = 0x%x\n", Nand_REGR(hNand, HWSTATUS_MASK)));
+    PRINT_REG((" NAND_LL_CONFIG = 0x%x\n", Nand_REGR(hNand, LL_CONFIG)));
+    PRINT_REG((" NAND_LL_PTR = 0x%x\n", Nand_REGR(hNand, LL_PTR)));
+    PRINT_REG((" NAND_LL_STATUS = 0x%x\n", Nand_REGR(hNand, LL_STATUS)));
+#else
     PRINT_REG((" NAND_COMMAND = 0x%8.8x\n", Nand_REGR(hNand, COMMAND)));
     PRINT_REG((" NAND_STATUS = 0x%8.8x\n", Nand_REGR(hNand, STATUS)));
     PRINT_REG((" NAND_ISR = 0x%8.8x\n", Nand_REGR(hNand, ISR)));
@@ -727,6 +758,7 @@ static void DumpRegData(NvDdkNandHandle hNand)
     PRINT_REG((" NAND_LL_CONFIG = 0x%8.8x\n", Nand_REGR(hNand, LL_CONFIG)));
     PRINT_REG((" NAND_LL_PTR = 0x%8.8x\n", Nand_REGR(hNand, LL_PTR)));
     PRINT_REG((" NAND_LL_STATUS = 0x%8.8x\n", Nand_REGR(hNand, LL_STATUS)));
+#endif
     PRINT_REG(("====== Register Dump End ===========\n"));
 }
 
@@ -1023,10 +1055,16 @@ static void StartCqOperation(NvDdkNandHandle hNand)
 static void StartNandOperation(NvDdkNandHandle hNand)
 {
     NvU32 RegVal = 0;
+    // increment command issue count
+    hNand->StartCommandCount++;
     SetCombRbsyAndEdoModes(hNand);
     // Signal nand controller start operation.
     RegVal = Nand_REGR(hNand, COMMAND);
-    NV_ASSERT(!(RegVal & NV_DRF_DEF(NAND, COMMAND, GO, ENABLE)));
+    if (RegVal & NV_DRF_DEF(NAND, COMMAND, GO, ENABLE))
+    {
+        DumpRegData(hNand);
+        NV_ASSERT(NV_FALSE);
+    }
     RegVal |= NV_DRF_DEF(NAND, COMMAND, GO, ENABLE);
     Nand_REGW(hNand, COMMAND, RegVal);
 }
@@ -1078,6 +1116,17 @@ static void SetupInterrupt(NvDdkNandHandle hNand, NandOperation Op)
 }
 #endif
 
+static NvError EnableNandPower(NvDdkNandHandle hNand)
+{
+    NvError e = NvSuccess;
+    /* Enable power for Nand module */
+    NV_CHECK_ERROR(NvRmPowerVoltageControl(hNand->RmDevHandle,
+        NvRmModuleID_Nand, hNand->RmPowerClientId, NvRmVoltsUnspecified,
+        NvRmVoltsUnspecified, NULL, 0, NULL));
+    NandPowerRailEnable(hNand, NV_TRUE);
+    return e;
+}
+
 static NvError EnableNandClock(NvDdkNandHandle hNand)
 {
     NvError e;
@@ -1086,11 +1135,6 @@ static NvError EnableNandClock(NvDdkNandHandle hNand)
         24000, 12000, 8300, NvRmFreqUnspecified};
     NvU32 ListCount = NV_ARRAY_SIZE(PrefFreqList);
     NvRmFreqKHz CurrentFreq = 0;
-    /* Enable power for Nand module */
-    NV_CHECK_ERROR(NvRmPowerVoltageControl(hNand->RmDevHandle,
-        NvRmModuleID_Nand, hNand->RmPowerClientId, NvRmVoltsUnspecified,
-        NvRmVoltsUnspecified, NULL, 0, NULL));
-    NandPowerRailEnable(hNand, NV_TRUE);
 
     // Enable clock to Nand controller
     NV_CHECK_ERROR(NvRmPowerModuleClockControl(hNand->RmDevHandle,
@@ -4781,6 +4825,89 @@ void NvDdkNandReleaseFlashLock(NvDdkNandHandle hNand)
     NvOsMutexUnlock(hNand->hMutex);
 }
 
+NvError NvDdkNandSuspendClocks(NvDdkNandHandle hNand)
+{
+    NvError e = NvSuccess;
+    NvRmDfsBusyHint BusyHints[3];
+    NvBool BusyAttribute = NV_TRUE;
+    
+    NvOsMutexLock(hNand->hMutex);
+    if (!hNand->IsNandClkEnabled)
+    {
+        e = NvSuccess;
+        goto fail;
+    }
+    if (hNand->IsLockStatusAvailable)
+        NandLoadLockCfg(hNand);
+    BusyHints[0].ClockId = NvRmDfsClockId_Emc;
+    BusyHints[0].BoostDurationMs = NV_WAIT_INFINITE;
+    BusyHints[0].BoostKHz = 0;
+    BusyHints[0].BusyAttribute = BusyAttribute;
+
+    BusyHints[1].ClockId = NvRmDfsClockId_Ahb;
+    BusyHints[1].BoostDurationMs = NV_WAIT_INFINITE;
+    BusyHints[1].BoostKHz = 0;
+    BusyHints[1].BusyAttribute = BusyAttribute;
+
+    BusyHints[2].ClockId = NvRmDfsClockId_Cpu;
+    BusyHints[2].BoostDurationMs = NV_WAIT_INFINITE;
+    BusyHints[2].BoostKHz = 0;
+    BusyHints[2].BusyAttribute = BusyAttribute;
+
+    NvRmPowerBusyHintMulti(hNand->RmDevHandle,
+                           hNand->RmPowerClientId,
+                           BusyHints,
+                           3,
+                           NvRmDfsBusyHintSyncMode_Async);
+    /* Disable the clock */
+    NV_CHECK_ERROR_CLEANUP(NvRmPowerModuleClockControl(hNand->RmDevHandle,
+        NvRmModuleID_Nand, hNand->RmPowerClientId, NV_FALSE));
+    hNand->IsNandClkEnabled = NV_FALSE;
+fail:
+    NvOsMutexUnlock(hNand->hMutex);
+    return e;
+}
+
+NvError NvDdkNandResumeClocks(NvDdkNandHandle hNand)
+{
+    NvError e = NvSuccess;
+    NvRmDfsBusyHint BusyHints[3];
+    NvBool BusyAttribute = NV_TRUE;
+    
+    NvOsMutexLock(hNand->hMutex);
+    if (hNand->IsNandClkEnabled)
+    {
+        e = NvSuccess;
+        goto fail;
+    }
+    BusyHints[0].ClockId = NvRmDfsClockId_Emc;
+    BusyHints[0].BoostDurationMs = NV_WAIT_INFINITE;
+    BusyHints[0].BoostKHz = 80000;
+    BusyHints[0].BusyAttribute = BusyAttribute;
+
+    BusyHints[1].ClockId = NvRmDfsClockId_Ahb;
+    BusyHints[1].BoostDurationMs = NV_WAIT_INFINITE;
+    BusyHints[1].BoostKHz = 80000;
+    BusyHints[1].BusyAttribute = BusyAttribute;
+
+    BusyHints[2].ClockId = NvRmDfsClockId_Cpu;
+    BusyHints[2].BoostDurationMs = NV_WAIT_INFINITE;
+    BusyHints[2].BoostKHz = 240000;
+    BusyHints[2].BusyAttribute = BusyAttribute;
+
+    NvRmPowerBusyHintMulti(hNand->RmDevHandle,
+                           hNand->RmPowerClientId,
+                           BusyHints,
+                           3,
+                           NvRmDfsBusyHintSyncMode_Async);
+    /* Enable the power & clk to Nand controller */
+    NV_CHECK_ERROR_CLEANUP(EnableNandClock(hNand));
+    SetTimingRegVal(hNand, NV_FALSE);
+fail:
+    NvOsMutexUnlock(hNand->hMutex);
+    return e;
+}
+
 NvError NvDdkNandSuspend(NvDdkNandHandle hNand)
 {
     NvError e = NvSuccess;
@@ -4861,7 +4988,9 @@ NvError NvDdkNandResume(NvDdkNandHandle hNand)
                            BusyHints,
                            3,
                            NvRmDfsBusyHintSyncMode_Async);
-    /* Enable the power & clk to Nand controller */
+    /* Enable power to the Nand controller */
+    NV_CHECK_ERROR_CLEANUP(EnableNandPower(hNand));
+    /* Enable clk to the Nand controller */
     NV_CHECK_ERROR_CLEANUP(EnableNandClock(hNand));
     SetTimingRegVal(hNand, NV_FALSE);
     hNand->IsNandClkEnabled = NV_TRUE;

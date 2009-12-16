@@ -101,6 +101,7 @@ static int check_block_isbad(struct mtd_info *mtd, loff_t offs,
 	NvU32 i;
 	NvU32 blockIdx;
 
+	NvDdkNandResumeClocks(s_hNand);
 	if (info->bb_bitmap[BIT_WORD(block)] & BIT_MASK(block))
 		return 0;
 
@@ -144,6 +145,7 @@ static int check_block_isbad(struct mtd_info *mtd, loff_t offs,
 	}
 
 fail:
+	NvDdkNandSuspendClocks(s_hNand);
 	/* update the bitmap if the block is good */
 	if (ret == 0)
 		set_bit(block, info->bb_bitmap);
@@ -262,15 +264,18 @@ static int tegra_nand_block_markbad(struct mtd_info *mtd, loff_t offs)
 	NV_ASSERT(deviceNum < NDFLASH_CS_MAX);
 	pageNumbers[deviceNum] = blockIdx * info->chip.pagesPerBlock;
 
+	NvDdkNandResumeClocks(s_hNand);
 	NV_CHECK_ERROR_CLEANUP(
 		NvDdkNandWriteSpare(s_hNand, deviceNum, pageNumbers,
 			TagBuff, BadBlockMarkerOffset, 1)
 	);
 
+	NvDdkNandSuspendClocks(s_hNand);
 	mutex_unlock(&info->lock);
 	wake_unlock(&nand_wake_lock);
 	return 0;
 fail:
+	NvDdkNandSuspendClocks(s_hNand);
 	mutex_unlock(&info->lock);
 	wake_unlock(&nand_wake_lock);
 	return -ENXIO;
@@ -318,6 +323,7 @@ static int tegra_nand_erase(struct mtd_info *mtd, struct erase_info *instr)
 	instr->state = MTD_ERASING;
 	num_blocks = instr->len >> info->chip.block_shift;
 
+	NvDdkNandResumeClocks(s_hNand);
 	while(num_blocks) {
 		if (check_block_isbad(mtd, curAddr, TagArea)) {
 			pr_info("Skipping bad block at %llx\n", instr->addr);
@@ -349,6 +355,7 @@ next_block:
 	}
 
 	instr->state = MTD_ERASE_DONE;
+	NvDdkNandSuspendClocks(s_hNand);
 	mutex_unlock(&info->lock);
 	mtd_erase_callback(instr);
 	return 0;
@@ -358,6 +365,7 @@ fail:
 		(NvU32)(curAddr >> info->chip.block_shift));
 	instr->state = MTD_ERASE_FAILED;
 	instr->fail_addr = curAddr;
+	NvDdkNandSuspendClocks(s_hNand);
 	mutex_unlock(&info->lock);
 	return -EIO;
 }
@@ -381,6 +389,7 @@ static int tegra_nand_read(struct mtd_info *mtd, loff_t from, size_t len,
 	for (i=0;i<NDFLASH_CS_MAX;i++)
 		pageNumbers[i] = -1;
 
+	NvDdkNandResumeClocks(s_hNand);
 	do {
 		pageNumbers[ChipNumber] = -1;
 
@@ -411,6 +420,7 @@ static int tegra_nand_read(struct mtd_info *mtd, loff_t from, size_t len,
 
 	} while (bytesLeft > 0);
 
+	NvDdkNandSuspendClocks(s_hNand);
 	*retlen = len;
 	mutex_unlock(&info->lock);
 	wake_unlock(&nand_wake_lock);
@@ -418,6 +428,7 @@ static int tegra_nand_read(struct mtd_info *mtd, loff_t from, size_t len,
 
 fail:
 	pr_info("%s: ReadError: NvDdkNandRead failed at %llx!", __func__, curAddr);
+	NvDdkNandSuspendClocks(s_hNand);
 	*retlen = len - bytesLeft;
 	mutex_unlock(&info->lock);
 	wake_unlock(&nand_wake_lock);
@@ -464,10 +475,12 @@ static int do_read_oob(struct mtd_info *mtd, loff_t from,
 	NV_ASSERT(ChipNumber < NDFLASH_CS_MAX);
 	pageNumbers[ChipNumber] = PageNumber;
 
+	NvDdkNandResumeClocks(s_hNand);
 	NV_CHECK_ERROR_CLEANUP(
 		NvDdkNandRead(s_hNand, ChipNumber, pageNumbers,
 			datbuf, tempSpareBuffer, &pageCount, NV_FALSE)
 	);
+	NvDdkNandSuspendClocks(s_hNand);
 
 	NV_ASSERT(pageCount == 1);
 
@@ -484,6 +497,7 @@ fail:
 	pr_err("%s: Failed reading OOB addr(%llx)\n", __func__, curAddr);
 	ops->retlen = 0;
 	ops->oobretlen = 0;
+	NvDdkNandSuspendClocks(s_hNand);
 
 	mutex_unlock(&info->lock);
 	wake_unlock(&nand_wake_lock);
@@ -544,6 +558,7 @@ static int tegra_nand_write(struct mtd_info *mtd, loff_t to, size_t len,
 	for (i=0;i<NDFLASH_CS_MAX;i++)
 		pageNumbers[i] = -1;
 
+	NvDdkNandResumeClocks(s_hNand);
 	do {
 		pageNumbers[ChipNumber] = -1;
 
@@ -575,11 +590,13 @@ static int tegra_nand_write(struct mtd_info *mtd, loff_t to, size_t len,
 	} while (bytesLeft > 0);
 
 	*retlen = len;
+	NvDdkNandSuspendClocks(s_hNand);
 	mutex_unlock(&info->lock);
 	wake_unlock(&nand_wake_lock);
 	return 0;
 
 fail:
+	NvDdkNandSuspendClocks(s_hNand);
 	pr_info("WriteError: NvDdkNandWrite failed error(0x%x)", e);
 	*retlen = len - bytesLeft;
 	mutex_unlock(&info->lock);
@@ -622,6 +639,7 @@ static int do_write_oob(struct mtd_info *mtd, loff_t to,
 	NV_ASSERT(ChipNumber < NDFLASH_CS_MAX);
 	pageNumbers[ChipNumber] = PageNumber;
 
+	NvDdkNandResumeClocks(s_hNand);
 	NV_CHECK_ERROR_CLEANUP(
 		NvDdkNandWrite(s_hNand, ChipNumber, pageNumbers,
 			datbuf, tempSpareBuffer, &pageCount)
@@ -632,11 +650,13 @@ static int do_write_oob(struct mtd_info *mtd, loff_t to,
 	ops->retlen = 0;
 	ops->oobretlen = 0;
 
+	NvDdkNandSuspendClocks(s_hNand);
 	mutex_unlock(&info->lock);
 	wake_unlock(&nand_wake_lock);
 	return 0;
 
 fail:
+	NvDdkNandSuspendClocks(s_hNand);
 	pr_info("%s: NvDdkNandWrite failed error(0x%x)", __func__ , e);
 	ops->retlen = 0;
 	ops->oobretlen = 0;
@@ -799,11 +819,13 @@ static int tegra_nand_scan(struct mtd_info *mtd)
 	mtd->suspend = tegra_nand_suspend;
 	mtd->block_isbad = tegra_nand_block_isbad;
 	mtd->block_markbad = tegra_nand_block_markbad;
+	NvDdkNandSuspendClocks(s_hNand);
 
 	return 0;
 
 fail:
 out_error:
+	NvDdkNandSuspendClocks(s_hNand);
 	pr_err("%s: NAND device scan aborted due to error(s).\n", __func__);
 	return err;
 }
@@ -896,6 +918,7 @@ static int __devexit tegra_nand_remove(struct platform_device *pdev)
 	if (info) {
 		kfree(info->bb_bitmap);
 		kfree(info);
+		NvDdkNandSuspendClocks(s_hNand);
 		NvDdkNandClose(s_hNand);
 		s_hNand = NULL;
 	}
