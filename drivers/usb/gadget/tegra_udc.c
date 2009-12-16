@@ -22,6 +22,7 @@
 
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
+#include <linux/tegra_devices.h>
 
 #include "nvddk_usbphy.h"
 #include "mach/nvrm_linux.h"
