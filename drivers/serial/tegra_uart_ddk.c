@@ -26,6 +26,7 @@
 #include <linux/platform_device.h>
 #include <linux/workqueue.h>
 #include <linux/kthread.h>
+#include <linux/tegra_devices.h>
 
 #include "nvos.h"
 #include "mach/nvrm_linux.h"
