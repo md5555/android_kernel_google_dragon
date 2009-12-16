@@ -38,15 +38,14 @@
 #include "nvrm_module.h"
 #include "nvrm_memmgr.h"
 #include "nvrm_ioctls.h"
-#include "nvrm_power.h"
 
 static struct fb_info tegra_fb_info = {
 	.fix = {
 		.id		= "nvtegrafb",
 		.type		= FB_TYPE_PACKED_PIXELS,
 		.visual		= FB_VISUAL_TRUECOLOR,
-		.xpanstep	= 1,
-		.ypanstep	= 1,
+		.xpanstep	= 0,
+		.ypanstep	= 0,
 		.accel		= FB_ACCEL_NONE,
 		.line_length	= 800 * 2,
 	},
@@ -81,41 +80,9 @@ unsigned long s_fb_size;
 unsigned long s_fb_width;
 unsigned long s_fb_height;
 int s_fb_Bpp;
-unsigned long *s_fb_regs;
 NvRmMemHandle s_fb_hMem;
-NvU32 s_power_id = ((NvU32)-1);
 
 int tegra_fb_control(void *in, void *out);
-
-static NvBool tegrafb_power_register(void)
-{
-	if (s_power_id != ((NvU32)-1)) {
-		return NV_TRUE;
-	}
-
-	if (NvRmPowerRegister(s_hRmGlobal, 0, &s_power_id) != NvSuccess) {
-		printk( "tegrafb: Unable to register with power manager.\n");
-		return NV_FALSE;
-	}
-
-	if (NvRmPowerVoltageControl(s_hRmGlobal,
-		NVRM_MODULE_ID(NvRmModuleID_GraphicsHost, 0),
-		s_power_id, NvRmVoltsUnspecified, NvRmVoltsUnspecified,
-		NULL, 0, NULL) != NvSuccess) {
-		printk( "tegrafb: Unable to enable graphics host power\n" );
-		return NV_FALSE;
-	}
-
-	if (NvRmPowerVoltageControl(s_hRmGlobal,
-		NVRM_MODULE_ID(NvRmModuleID_Display, 0),
-		s_power_id, NvRmVoltsUnspecified, NvRmVoltsUnspecified,
-		NULL, 0, NULL) != NvSuccess) {
-		printk( "tegrafb: Unable to enable display power\n" );
-		return NV_FALSE;
-	}
-
-	return NV_TRUE;
-}
 
 #define DISPLAY_BASE (0x54200000)
 #define REGW( reg, val ) \
@@ -133,7 +100,6 @@ int tegra_fb_set_par(struct fb_info *info);
 int tegra_fb_setcolreg(unsigned regno, unsigned red, unsigned green,
 	unsigned blue, unsigned transp, struct fb_info *info);
 int tegra_fb_blank(int blank, struct fb_info *info);
-int tegra_fb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info);
 void tegra_fb_fillrect(struct fb_info *info, const struct fb_fillrect *rect);
 void tegra_fb_copyarea(struct fb_info *info, const struct fb_copyarea *region);
 void tegra_fb_imageblit(struct fb_info *info, const struct fb_image *image);
@@ -147,7 +113,6 @@ static struct fb_ops tegra_fb_ops = {
 	.fb_check_var	= tegra_fb_check_var,
 	.fb_set_par	= tegra_fb_set_par,
 	.fb_setcolreg	= tegra_fb_setcolreg,
-	.fb_pan_display	= tegra_fb_pan_display,
 	.fb_blank	= tegra_fb_blank,
 	.fb_fillrect	= tegra_fb_fillrect,
 	.fb_copyarea	= tegra_fb_copyarea,
@@ -203,41 +168,6 @@ int tegra_fb_setcolreg(unsigned regno, unsigned red, unsigned green,
 
 int tegra_fb_blank(int blank, struct fb_info *info)
 {
-	return 0;
-}
-
-int tegra_fb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
-{
-	NvU8 *pFlushStart;
-	NvU8 *pFlushEnd;
-	u32 addr;
-
-	if (s_fb_disable) {
-		return -1;
-	}
-
-	pFlushStart = info->screen_base +
-		(var->yoffset * info->fix.line_length);
-	pFlushEnd = pFlushStart + (var->yres * info->fix.line_length);
-	dmac_clean_range(pFlushStart, pFlushEnd);
-
-	info->var.xoffset = var->xoffset;
-	info->var.yoffset = var->yoffset;
-
-	addr = s_fb_addr + (var->yoffset * s_fb_width * s_fb_Bpp) +
-		(var->xoffset * s_fb_Bpp);
-
-	NvRmPowerModuleClockControl(s_hRmGlobal, NvRmModuleID_GraphicsHost,
-		s_power_id, NV_TRUE);
-
-	REGW( 0x42, (1 << 4) );
-	REGW( 0x800, addr );
-	REGW( 0x41, (1 << 8) | (1 << 9) );
-	REGW( 0x41, (1 << 0) | (1 << 1) );
-
-	NvRmPowerModuleClockControl( s_hRmGlobal, NvRmModuleID_GraphicsHost,
-		s_power_id, NV_FALSE );
-
 	return 0;
 }
 
@@ -321,13 +251,6 @@ static int tegra_plat_probe( struct platform_device *d )
 	printk("nvtegrafb: base address: %x\n",
 		(unsigned int)tegra_fb_info.screen_base );
 
-	/* map the display registers for panning */
-	s_fb_regs = ioremap_nocache(DISPLAY_BASE, 256 * 1024);
-	if (!s_fb_regs) {
-		printk("display reg map failure\n");
-		return -1;
-	}
-
 	register_framebuffer(&tegra_fb_info);
 	return 0;
 }
@@ -366,24 +289,11 @@ static int __init tegra_fb_init(void)
 		printk("nvtegrafb: platform_device_register failed\n");
 	}
 
-	if (!tegrafb_power_register()) {
-		return -1;
-	}
-
 	return e;
 }
 
 static void __exit tegra_exit( void )
 {
-	NvRmPowerVoltageControl(s_hRmGlobal,
-		NVRM_MODULE_ID(NvRmModuleID_GraphicsHost, 0),
-		s_power_id, NvRmVoltsOff, NvRmVoltsOff, NULL, 0, NULL);
-
-	 NvRmPowerVoltageControl(s_hRmGlobal,
-		NVRM_MODULE_ID(NvRmModuleID_Display, 0),
-		s_power_id, NvRmVoltsOff, NvRmVoltsOff, NULL, 0, NULL);
-
-	NvRmPowerUnRegister(s_hRmGlobal, s_power_id);
 	unregister_framebuffer(&tegra_fb_info);
 }
 module_exit(tegra_exit);
