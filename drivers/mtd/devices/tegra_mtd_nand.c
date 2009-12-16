@@ -33,6 +33,7 @@
 #include <linux/platform_device.h>
 #include <linux/types.h>
 #include <linux/wakelock.h>
+#include <linux/tegra_devices.h>
 
 #include <asm/dma-mapping.h>
 
