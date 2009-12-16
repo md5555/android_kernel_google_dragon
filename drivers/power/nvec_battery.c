@@ -20,10 +20,6 @@
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
-/*
- * Copyright (c) 2009 NVIDIA Corporation.  All rights reserved.
- *
- */
 
 #include <linux/init.h>
 #include <linux/module.h>
@@ -33,6 +29,7 @@
 #include <linux/debugfs.h>
 #include <linux/power_supply.h>
 #include <linux/wakelock.h>
+#include <linux/tegra_devices.h>
 
 #include "nvcommon.h"
 #include "nvos.h"
@@ -126,7 +123,7 @@ struct tegra_battery_dev {
 	NvU32	batt_id;
 	NvU32	voltage;		/* voltage */
 	NvU32	temp;			/* Temperature */
-	NvU32	current;		/* Battery current */
+	NvU32	current_ma;		/* Battery current */
 	NvU32	current_avg;		/* average current */
 	NvU32	charging_source;	/* 0: no cable, 1:usb, 2:AC */
 	NvU32	charging_enabled;	/* 0: Disable, 1: Enable */
@@ -219,7 +216,7 @@ static NvBool tegra_battery_data(NvOdmBatteryInstance NvBatteryInst)
 
 	if (NvBatteryInst == NvOdmBatteryInst_Main) {
 		batt_dev->voltage = data.BatteryVoltage;
-		batt_dev->current = data.BatteryCurrent;
+		batt_dev->current_ma = data.BatteryCurrent;
 		batt_dev->current_avg  = data.BatteryAverageCurrent;
 		batt_dev->temp = data.BatteryTemperature;
 		batt_dev->percent_remain = data.BatteryLifePercent;
@@ -354,7 +351,7 @@ static int tegra_battery_get_property(struct power_supply *psy,
 		break;
 
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
-		val->intval = batt_dev->current;
+		val->intval = batt_dev->current_ma;
 		break;
 
 	case POWER_SUPPLY_PROP_CURRENT_AVG:
@@ -403,7 +400,7 @@ static int tegra_battery_get_property(struct power_supply *psy,
 
 static int tegra_battery_probe(struct platform_device *pdev)
 {
-	int i, rc;
+	int i;
 	NvBool result = NV_FALSE;
 
 	batt_dev = kzalloc(sizeof(struct tegra_battery_dev), GFP_KERNEL);
