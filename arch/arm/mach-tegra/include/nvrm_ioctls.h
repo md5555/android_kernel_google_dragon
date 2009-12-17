@@ -68,6 +68,9 @@ typedef enum
     NvRmIoctls_NvRmClientAttach,
     NvRmIoctls_NvRmClientDetach,
 
+    // This ioctl is for the nvrm_gpu module
+    NvRmIoctls_NvRmGpu,
+
     NvRmIoctls_ForceWord = 0x7FFFFFFF,
 } NvRmKernelIoctls;
 
