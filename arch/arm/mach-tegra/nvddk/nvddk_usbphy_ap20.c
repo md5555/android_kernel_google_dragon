@@ -460,7 +460,7 @@ Ap20UsbPhyUtmiPowerControl(
             USB1_IF_REG_UPDATE_DEF(USB_SUSP_CTRL, USB_SUSP_SET, UNSET);
             //NvOsDebugPrintf("Waiting for Phy Clock to stop \n");
             // check for phy in suspend..
-    	    do {
+            do {
                 NvOsWaitUS(1);
             } while (USB_IF_REG_READ_VAL(SUSP_CTRL, USB_PHY_CLK_VALID));
             //NvOsDebugPrintf("Phy Clock stopped successfully \n");
@@ -486,14 +486,8 @@ Ap20UsbPhyUtmiPowerControl(
         {
             /* since there is no reference to the pads turn off */
             RegVal = NV_READ32(pUsbPhy->pUtmiPadConfig->pVirAdr + ((USB1_UTMIP_BIAS_CFG0_0)/4));
-            // Check if Internal Phy is going to wake up the usb controller 
-            if (!pUsbPhy->pProperty->UseInternalPhyWakeup)
-            {
-                /// If not internal Phy then Use PMU interrupt for VBUS detection.
-                /// Disable the OTG bias circuitry.
-                RegVal = USB_UTMIP_FLD_SET_DRF_DEF(BIAS_CFG0, UTMIP_OTGPD, 1, RegVal);
-            }
             // Power down OTG and Bias circuitry
+            RegVal = USB_UTMIP_FLD_SET_DRF_DEF(BIAS_CFG0, UTMIP_OTGPD, 1, RegVal);
             RegVal = USB_UTMIP_FLD_SET_DRF_DEF(BIAS_CFG0, UTMIP_BIASPD, 1, RegVal);
             NV_WRITE32(pUsbPhy->pUtmiPadConfig->pVirAdr + ((USB1_UTMIP_BIAS_CFG0_0)/4), 
                        RegVal);
@@ -519,6 +513,11 @@ Ap20UsbPhyUtmiPowerControl(
         RegVal = USB_UTMIP_FLD_SET_DRF_DEF(
                     XCVR_CFG1, UTMIP_FORCE_PDDR_POWERDOWN, 1, RegVal);
         USB_UTMIP_REG_WR(XCVR_CFG1, RegVal);
+
+        // Hold UTMIP in reset 
+        RegVal =USB_IF_REG_RD(SUSP_CTRL);
+        RegVal = USB3_IF_FLD_SET_DRF_DEF(SUSP_CTRL, UTMIP_RESET, ENABLE, RegVal);
+        USB_IF_REG_WR(SUSP_CTRL, RegVal);
     }
 }
 
@@ -799,22 +798,26 @@ Ap20UsbPhyIoctlVbusInterrupt(
 
     if (pUsbPhy->pProperty->UsbInterfaceType == NvOdmUsbInterfaceType_Utmi)
     {
-        RegVal = USB1_IF_REG_RD(USB_PHY_VBUS_SENSORS);
+        RegVal = USB1_IF_REG_RD(USB_PHY_VBUS_WAKEUP_ID);
 
         if (pVbusIntr->EnableVBusInterrupt)
         {
-            RegVal = NV_FLD_SET_DRF_DEF(USB1_IF, USB_PHY_VBUS_SENSORS, 
-                                        A_SESS_VLD_INT_EN, ENABLE, RegVal);
+            RegVal = NV_FLD_SET_DRF_DEF(USB1_IF, USB_PHY_VBUS_WAKEUP_ID, 
+                                        VBUS_WAKEUP_WAKEUP_EN, ENABLE, RegVal);
+            RegVal = NV_FLD_SET_DRF_DEF(USB1_IF, USB_PHY_VBUS_WAKEUP_ID, 
+                                        VBUS_WAKEUP_INT_EN, ENABLE, RegVal);
         }
         else
         {
-            RegVal = NV_FLD_SET_DRF_DEF(USB1_IF, USB_PHY_VBUS_SENSORS,
-                                        A_SESS_VLD_INT_EN, DISABLE, RegVal);
-            RegVal = NV_FLD_SET_DRF_DEF(USB1_IF, USB_PHY_VBUS_SENSORS,
-                                        A_SESS_VLD_CHG_DET, SET, RegVal);
+            RegVal = NV_FLD_SET_DRF_DEF(USB1_IF, USB_PHY_VBUS_WAKEUP_ID, 
+                                        VBUS_WAKEUP_WAKEUP_EN, DISABLE, RegVal);
+            RegVal = NV_FLD_SET_DRF_DEF(USB1_IF, USB_PHY_VBUS_WAKEUP_ID,
+                                        VBUS_WAKEUP_INT_EN, DISABLE, RegVal);
+            RegVal = NV_FLD_SET_DRF_DEF(USB1_IF, USB_PHY_VBUS_WAKEUP_ID,
+                                        VBUS_WAKEUP_CHG_DET, SET, RegVal);
         }
 
-        USB1_IF_REG_WR(USB_PHY_VBUS_SENSORS, RegVal);
+        USB1_IF_REG_WR(USB_PHY_VBUS_WAKEUP_ID, RegVal);
     }
     else if (pUsbPhy->pProperty->UsbInterfaceType == NvOdmUsbInterfaceType_UlpiExternalPhy)
     {
@@ -857,8 +860,8 @@ Ap20UsbPhyIoctlVBusStatus(
 
     if (pUsbPhy->pProperty->UsbInterfaceType == NvOdmUsbInterfaceType_Utmi)
     {
-        RegVal = USB1_IF_REG_RD(USB_PHY_VBUS_SENSORS);
-        if (NV_DRF_VAL(USB1_IF, USB_PHY_VBUS_SENSORS, A_SESS_VLD_STS, RegVal))
+        RegVal = USB1_IF_REG_RD(USB_PHY_VBUS_WAKEUP_ID);
+        if (NV_DRF_VAL(USB1_IF, USB_PHY_VBUS_WAKEUP_ID, VBUS_WAKEUP_STS, RegVal))
         {
             pVBusStatus->VBusDetected = NV_TRUE;
         }
@@ -907,10 +910,14 @@ Ap20UsbPhyIoctlIdPinInterrupt(
         if (pIdPinIntr->EnableIdPinInterrupt)
         {
             RegVal = NV_FLD_SET_DRF_DEF(USB1_IF, USB_PHY_VBUS_WAKEUP_ID, 
+                                        ID_PU, ENABLE, RegVal);
+            RegVal = NV_FLD_SET_DRF_DEF(USB1_IF, USB_PHY_VBUS_WAKEUP_ID, 
                                         ID_INT_EN, ENABLE, RegVal);
         }
         else
         {
+            RegVal = NV_FLD_SET_DRF_DEF(USB1_IF, USB_PHY_VBUS_WAKEUP_ID,
+                                        ID_PU, DISABLE, RegVal);
             RegVal = NV_FLD_SET_DRF_DEF(USB1_IF, USB_PHY_VBUS_WAKEUP_ID,
                                         ID_INT_EN, DISABLE, RegVal);
             RegVal = NV_FLD_SET_DRF_DEF(USB1_IF, USB_PHY_VBUS_WAKEUP_ID,

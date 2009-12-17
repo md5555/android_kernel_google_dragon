@@ -40,10 +40,12 @@
 /* FIXME: Power Management is un-ported so temporarily disable it */
 #undef CONFIG_PM
 
-#define TEGRA_USB_ID_INT_ENABLE		(1 << 24)
-#define TEGRA_USB_ID_INT_STATUS		(1 << 16)
-#define TEGRA_USB_ID_PIN_STATUS		(1 << 8)
-#define TEGRA_USB_OTG_REG_OFFSET	(0x1a4)
+#define TEGRA_USB_ID_INT_ENABLE		(1 << 0)
+#define TEGRA_USB_ID_INT_STATUS		(1 << 1)
+#define TEGRA_USB_ID_PIN_STATUS		(1 << 2)
+#define TEGRA_USB_ID_PIN_WAKEUP_ENABLE	(1 << 6)
+#define TEGRA_USB_PHY_WAKEUP_REG_OFFSET	(0x408)
+
 
 static irqreturn_t tegra_ehci_irq (struct usb_hcd *hcd)
 {
@@ -58,8 +60,8 @@ static irqreturn_t tegra_ehci_irq (struct usb_hcd *hcd)
 	if (pdata->pUsbProperty->IdPinDetectionType ==
 		NvOdmUsbIdPinType_CableId) {
 		/* read otgsc register for ID pin status change */
-		status = readl(hcd->regs + TEGRA_USB_OTG_REG_OFFSET);
-		writel(status, (hcd->regs + TEGRA_USB_OTG_REG_OFFSET));
+		status = readl(hcd->regs + TEGRA_USB_PHY_WAKEUP_REG_OFFSET);
+		writel(status, (hcd->regs + TEGRA_USB_PHY_WAKEUP_REG_OFFSET));
 
 		/* Check if there is any ID pin interrupt */
 		if (status & TEGRA_USB_ID_INT_STATUS) {
@@ -260,9 +262,10 @@ static int tegra_ehci_probe(struct platform_device *pdev)
 	if (pdata->pUsbProperty->IdPinDetectionType ==
 		NvOdmUsbIdPinType_CableId) {
 		/* enable the cable ID interrupt */
-		temp = readl(hcd->regs + TEGRA_USB_OTG_REG_OFFSET);
-		writel((temp | TEGRA_USB_ID_INT_ENABLE),
-			(hcd->regs + TEGRA_USB_OTG_REG_OFFSET));
+		temp = readl(hcd->regs + TEGRA_USB_PHY_WAKEUP_REG_OFFSET);
+		temp |= TEGRA_USB_ID_INT_ENABLE;
+		temp |= TEGRA_USB_ID_PIN_WAKEUP_ENABLE;
+		writel(temp, (hcd->regs + TEGRA_USB_PHY_WAKEUP_REG_OFFSET));
 
 		/* Check if we detect any device connected */
 		if (temp & TEGRA_USB_ID_PIN_STATUS) {

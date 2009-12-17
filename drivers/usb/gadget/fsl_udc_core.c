@@ -293,12 +293,12 @@ static void dr_controller_run(struct fsl_udc *udc)
 #define FSL_UDC_RUN_TIMEOUT 1000
 
 	/* Enable cable detection interrupt, without setting the
-	 * USB_SYS_VBUS_ASESSION_CHANGED bit. USB_SYS_VBUS_ASESSION_CHANGED
-	 * bit is clear on write */
-	temp = fsl_readl(&usb_sys_regs->vbus_sensors);
-	temp |= USB_SYS_VBUS_ASESSION_INT_EN;
-	temp &= ~USB_SYS_VBUS_ASESSION_CHANGED;
-	fsl_writel(temp, &usb_sys_regs->vbus_sensors);
+	 * USB_SYS_VBUS_WAKEUP_INT bit. USB_SYS_VBUS_WAKEUP_INT is
+	 * clear on write */
+	temp = fsl_readl(&usb_sys_regs->vbus_wakeup);
+	temp |= (USB_SYS_VBUS_WAKEUP_INT_ENABLE | USB_SYS_VBUS_WAKEUP_ENABLE);
+	temp &= ~USB_SYS_VBUS_WAKEUP_INT_STATUS;
+	fsl_writel(temp, &usb_sys_regs->vbus_wakeup);
 #endif
 
 
@@ -596,14 +596,20 @@ static int fsl_ep_disable(struct usb_ep *_ep)
 		return -EINVAL;
 	}
 
-	/* disable ep on controller */
-	ep_num = ep_index(ep);
-	epctrl = fsl_readl(&dr_regs->endptctrl[ep_num]);
-	if (ep_is_in(ep))
-		epctrl &= ~EPCTRL_TX_ENABLE;
-	else
-		epctrl &= ~EPCTRL_RX_ENABLE;
-	fsl_writel(epctrl, &dr_regs->endptctrl[ep_num]);
+#if defined(CONFIG_ARCH_TEGRA)
+	/* Touch the registers if cable is connected and phy is on */
+	if (fsl_readl(&usb_sys_regs->vbus_wakeup) & USB_SYS_VBUS_STATUS)
+#endif
+	{
+		/* disable ep on controller */
+		ep_num = ep_index(ep);
+		epctrl = fsl_readl(&dr_regs->endptctrl[ep_num]);
+		if (ep_is_in(ep))
+			epctrl &= ~EPCTRL_TX_ENABLE;
+		else
+			epctrl &= ~EPCTRL_RX_ENABLE;
+		fsl_writel(epctrl, &dr_regs->endptctrl[ep_num]);
+	}
 
 	udc = (struct fsl_udc *)ep->udc;
 	spin_lock_irqsave(&udc->lock, flags);
@@ -1024,6 +1030,12 @@ static void fsl_ep_fifo_flush(struct usb_ep *_ep)
 	u32 bits;
 	unsigned long timeout;
 #define FSL_UDC_FLUSH_TIMEOUT 1000
+
+#if defined(CONFIG_ARCH_TEGRA)
+	/* Touch the registers if cable is connected and phy is on */
+	if (!(fsl_readl(&usb_sys_regs->vbus_wakeup) & USB_SYS_VBUS_STATUS))
+		return;
+#endif
 
 	if (!_ep) {
 		return;
@@ -1771,9 +1783,9 @@ static irqreturn_t fsl_udc_irq(int irq, void *_udc)
 	/* VBUS A session detection interrupts. When the interrupt is received,
 	 * the mark the vbus active shadow.
 	 */
-	temp = fsl_readl(&usb_sys_regs->vbus_sensors);
-	if (temp & USB_SYS_VBUS_ASESSION_CHANGED) {
-		if (temp & USB_SYS_VBUS_ASESSION) {
+	temp = fsl_readl(&usb_sys_regs->vbus_wakeup);
+	if (temp & USB_SYS_VBUS_WAKEUP_INT_STATUS) {
+		if (temp & USB_SYS_VBUS_STATUS) {
 			udc->vbus_active = 1;
 			//printk(KERN_INFO "USB cable connected\n");
 		} else {
@@ -1783,7 +1795,7 @@ static irqreturn_t fsl_udc_irq(int irq, void *_udc)
 			//printk("USB cable dis-connected\n");
 		}
 		/* write back the register to clear the interrupt */
-		fsl_writel(temp, &usb_sys_regs->vbus_sensors);
+		fsl_writel(temp, &usb_sys_regs->vbus_wakeup);
 
 		if (udc->vbus_active) {
 			platform_udc_clk_resume();
@@ -2490,6 +2502,12 @@ static int __init fsl_udc_probe(struct platform_device *pdev)
 		goto err_unregister;
 	}
 	create_proc_file();
+
+#if defined(CONFIG_ARCH_TEGRA)
+	/* Power down the phy if cable is not connected */
+	if (!(fsl_readl(&usb_sys_regs->vbus_wakeup) & USB_SYS_VBUS_STATUS))
+		platform_udc_clk_suspend();
+#endif
 	return 0;
 
 err_unregister:

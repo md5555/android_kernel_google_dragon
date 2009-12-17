@@ -33,22 +33,11 @@ NvDdkUsbPhyHandle s_hUsbPhy;
 int tegra_udc_clk_init(struct platform_device *pdev)
 {
 	NvError nverr;
-	NvDdkUsbPhyIoctl_VBusStatusOutputArgs Status;
 
 	nverr = NvDdkUsbPhyOpen(s_hRmGlobal, pdev->id, &s_hUsbPhy);
 	if (nverr != NvSuccess)
 		return -ENODEV;
 
-	NV_ASSERT_SUCCESS(
-		NvDdkUsbPhyIoctl(s_hUsbPhy,
-			NvDdkUsbPhyIoctlType_VBusStatus,
-			NULL, &Status));
-
-	if (Status.VBusDetected) {
-		NV_ASSERT_SUCCESS(NvDdkUsbPhyPowerUp(s_hUsbPhy, 0));
-	} else {
-		NV_ASSERT_SUCCESS(NvDdkUsbPhyPowerDown(s_hUsbPhy, 0));
-	}
 	printk("tegra_udc_clk_init called\n");
 
 	return 0;

@@ -443,6 +443,10 @@ struct ep_td_struct {
 #define USB_SYS_VBUS_ASESSION_INT_EN		0x10000
 #define USB_SYS_VBUS_ASESSION_CHANGED		0x20000
 #define USB_SYS_VBUS_ASESSION			0x40000
+#define USB_SYS_VBUS_WAKEUP_ENABLE		0x40000000
+#define USB_SYS_VBUS_WAKEUP_INT_ENABLE		0x100
+#define USB_SYS_VBUS_WAKEUP_INT_STATUS		0x200
+#define USB_SYS_VBUS_STATUS			0x400
 
 /*-------------------------------------------------------------------------*/
 
