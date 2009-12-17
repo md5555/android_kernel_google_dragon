@@ -182,13 +182,17 @@ void mach_tegra_idle(void)
                 if (num_online_cpus() > 1)
                     lp2safe = 1;
 
-                if (num_online_cpus() == 1 && lp2safe)
-                {
-                    lp2count++;
-                    NvSpareTimerTrigger(lp2_time);
-                    cpu_ap20_do_lp2();
-                    NvRmPrivSetLp2TimeUS(s_hRmGlobal, MAX_LP2_TIME_US);
-                    return;
+                if (num_online_cpus() == 1 && lp2safe) {
+                    NvU32 dfs_low_corner = (NvRmPrivGetDfsFlags(s_hRmGlobal) &
+                                            NvRmDfsStatusFlags_Pause);
+
+                    if (dfs_low_corner) {
+                        lp2count++;
+                        NvSpareTimerTrigger(lp2_time);
+                        cpu_ap20_do_lp2();
+                        NvRmPrivSetLp2TimeUS(s_hRmGlobal, MAX_LP2_TIME_US);
+                        return;
+                    }
                 }
             }
 #endif
