@@ -28,6 +28,7 @@
 #include <linux/device.h>
 #include <asm/uaccess.h>
 #include <linux/kernel.h>
+#include <linux/tegra_devices.h>
 
 #include <nvodm_services.h>
 #include <nvodm_accelerometer.h>
@@ -291,12 +292,11 @@ err_0:
  * write functions
  */
 
-DEVICE_ATTR(tegra_accelerometer, 0777, read_sysfs_accel,
-			write_sysfs_accel);
+DEVICE_ATTR(tegra_accelerometer, 0777, read_sysfs_accel, write_sysfs_accel);
 NvS32 add_sysfs_entry(void)
 {
 	return device_create_file(&accel_dev->input_dev->dev,
-		&dev_attr_tegra_acc);
+		&dev_attr_tegra_accelerometer);
 }
 
 /** 
@@ -306,7 +306,7 @@ NvS32 add_sysfs_entry(void)
 NvS32 remove_sysfs_entry(void)
 {
 	device_remove_file(&accel_dev->input_dev->dev, 
-		&dev_attr_tegra_acc);
+		&dev_attr_tegra_accelerometer);
 	return 0;
 }
 

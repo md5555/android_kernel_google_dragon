@@ -62,6 +62,8 @@ static NvU32 tegra_kbc_handle_keyev(struct tegra_kbc_driver_data *kbc)
 	NvU32 EventCount;
 	NvU32 WaitTime;
 	NvU32 i;
+	NvU32 value;
+	NvU32 key;
 
 	WaitTime = NvDdkKbcGetKeyEvents(kbc->ddkHandle,
 		&EventCount, codes, key_ev);

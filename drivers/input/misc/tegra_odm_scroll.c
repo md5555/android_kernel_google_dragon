@@ -95,7 +95,7 @@ static int __init tegra_scroll_probe(struct platform_device *pdev)
 
 	scroll = kzalloc(sizeof(struct tegra_scroll_dev), GFP_KERNEL);
 	input_dev = input_allocate_device();
-	if (input_dev == NULL || ScrollWheel == NULL) {
+	if (input_dev == NULL || scroll == NULL) {
 		err = -ENOMEM;
 		pr_err("tegra_scroll_probe: Failed to allocate input device\n");
 		goto err_alloc_failed;
@@ -146,7 +146,7 @@ static int tegra_scroll_remove(struct platform_device *pdev)
 	input_unregister_device(scroll->input_dev);
 	NvOdmScrollWheelClose(scroll->odm_dev);
 	NvOdmOsSemaphoreDestroy(scroll->sem);
-	kfree(ScrollWheel);
+	kfree(scroll);
 	return 0;
 }
 
