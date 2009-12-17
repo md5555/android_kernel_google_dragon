@@ -9,3 +9,4 @@ endif
 
 obj-y += nvos.o
 obj-y += nvustring.o
+obj-y += nvos_exports.o

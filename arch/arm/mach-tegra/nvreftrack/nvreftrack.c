@@ -629,3 +629,10 @@ void* NvRtFreeObjRef(
 
     return RetVal;
 }
+
+#include <linux/module.h>
+
+EXPORT_SYMBOL(NvRtAllocObjRef);
+EXPORT_SYMBOL(NvRtDiscardObjRef);
+EXPORT_SYMBOL(NvRtFreeObjRef);
+EXPORT_SYMBOL(NvRtStoreObjRef);
