@@ -27,7 +27,7 @@
 #include <linux/hrtimer.h>
 #include <linux/delay.h>
 
-#include <../staging/android/timed_output.h>
+#include <../drivers/staging/android/timed_output.h>
 
 #include "mach/nvrm_linux.h"
 #include "nvos.h"
