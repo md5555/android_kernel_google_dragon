@@ -73,7 +73,8 @@ static NvOdmPeripheralConnectivity s_Peripherals_Default[] =
 };
 
 // Function to auto-detect boards with external CPU power supply
-NvBool NvOdmIsCpuExtSupply(void);
+// defined in nvodm_query.c
+extern NvBool NvOdmIsCpuExtSupply(void);
 
 #define NVODM_QUERY_BOARD_ID_UNKNOWN    0xFFFF
 
@@ -953,32 +954,3 @@ NvOdmPeripheralEnumerate(
     return Matches;
 }
 
-NvBool NvOdmIsCpuExtSupply(void)
-{
-    // A list of Whistler processor boards that use external DCDC as CPU
-    // power supply (fill in ID/SKU/FAB fields, revision fields are ignored)
-    static NvOdmBoardInfo s_WhistlerCpuExtSupplyBoards[] =
-    {
-        // ID             SKU     FAB  
-        { BOARD_ID_E1108, 0x0A14, 0x01 },
-        { BOARD_ID_E1108, 0x0A00, 0x02 }
-    };
-
-    NvU32 i;
-    NvOdmBoardInfo BoardInfo;
-
-    // Scan for processor boards with external DCDC
-    for (i=0; i < NV_ARRAY_SIZE(s_WhistlerCpuExtSupplyBoards); i++)
-    {
-        if (NvOdmPeripheralGetBoardInfo(
-            s_WhistlerCpuExtSupplyBoards[i].BoardID, &BoardInfo))
-        {
-            if ((BoardInfo.Fab == s_WhistlerCpuExtSupplyBoards[i].Fab) &&
-                (BoardInfo.SKU == s_WhistlerCpuExtSupplyBoards[i].SKU))
-            {
-                return NV_TRUE; // Board found
-            }
-        }
-    }
-    return NV_FALSE;
-}

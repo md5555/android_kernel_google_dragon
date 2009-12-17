@@ -53,7 +53,8 @@ static const NvOdmIoAddress s_SdioAddresses[] =
     { NvOdmIoModule_Sdio, 0x0, 0x0 },
     { NvOdmIoModule_Sdio, 0x2, 0x0 },
     { NvOdmIoModule_Sdio, 0x3, 0x0 },
-    { NvOdmIoModule_Vdd, 0x00, Max8907bPmuSupply_LDO12 } /* VDDIO_SDIO -> VOUT12 */
+    { NvOdmIoModule_Vdd, 0x00, Max8907bPmuSupply_LDO12 }, /* VDDIO_SDIO -> VOUT12 */
+    { NvOdmIoModule_Vdd, 0x00, Max8907bPmuSupply_LDO5 } /* VCORE_MMC -> VOUT05 */
 };
 
 static const NvOdmIoAddress s_VibAddresses[] =

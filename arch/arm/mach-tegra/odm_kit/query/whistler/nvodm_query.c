@@ -53,12 +53,12 @@
 #define BOARD_ID_WHISTLER_E1109 0x0B09
 #define BOARD_ID_WHISTLER_MOTHERBOARD_E1120 0xB14
 #define BOARD_ID_VOYAGER_MAINBOARD_E1215    0xC0F
+#define BOARD_REV_ALL ((NvU8)0xFF)
 
 #define NVODM_ENABLE_EMC_DVFS (0)
 
 // Function to auto-detect boards with external CPU power supply
-// defined in nvodm_query_discovery_board.c
-extern NvBool NvOdmIsCpuExtSupply(void);
+NvBool NvOdmIsCpuExtSupply(void);
 
 static const NvU8
 s_NvOdmQueryDeviceNamePrefixValue[] = { 'T','e','g','r','a',0};
@@ -231,7 +231,7 @@ static const NvOdmSdramControllerConfigAdv s_NvOdmE1109EmcConfigTable[] =
     }
 };
 
-static const NvOdmSdramControllerConfigAdv s_NvOdmE1108EmcConfigTable[] =
+static const NvOdmSdramControllerConfigAdv s_NvOdmE1108HynixEmcConfigTable[] =
 {
     {
                   0x20,   /* Rev 2.0 */
@@ -597,6 +597,70 @@ static NvOdmWakeupPadInfo s_NvOdmWakeupPadInfo[] =
 };
 
 /* --- Function Implementations ---*/
+
+static NvBool
+NvOdmIsBoardPresent(
+    const NvOdmBoardInfo* pBoardList,
+    NvU32 ListSize)
+{
+    NvU32 i;
+    NvOdmBoardInfo BoardInfo;
+
+    // Scan for presence of any board in the list
+    // ID/SKU/FAB fields must match, revision may be masked
+    if (pBoardList)
+    {
+        for (i=0; i < ListSize; i++)
+        {
+            if (NvOdmPeripheralGetBoardInfo(
+                pBoardList[i].BoardID, &BoardInfo))
+            {
+                if ((pBoardList[i].Fab == BoardInfo.Fab) &&
+                    (pBoardList[i].SKU == BoardInfo.SKU) &&
+                    ((pBoardList[i].Revision == BOARD_REV_ALL) ||
+                     (pBoardList[i].Revision == BoardInfo.Revision)) &&
+                    ((pBoardList[i].MinorRevision == BOARD_REV_ALL) ||
+                     (pBoardList[i].MinorRevision == BoardInfo.MinorRevision)))
+                {
+                    return NV_TRUE; // Board found
+                }
+            }
+        }
+    }
+    return NV_FALSE;
+}
+
+#if NVODM_ENABLE_EMC_DVFS
+static NvBool NvOdmIsE1108Hynix(void)
+{
+    // A list of Whistler E1108 processor boards with Hynix LPDDR2
+    // charcterized by s_NvOdmE1108HynixEmcConfigTable (fill in
+    // ID/SKU/FAB fields, revision fields are ignored)
+    static const NvOdmBoardInfo s_WhistlerE1108Hynix[] =
+    {
+        // ID                      SKU     FAB   Rev            Minor Rev  
+        { BOARD_ID_WHISTLER_E1108, 0x0A14, 0x01, BOARD_REV_ALL, BOARD_REV_ALL},
+        { BOARD_ID_WHISTLER_E1108, 0x0A00, 0x02, BOARD_REV_ALL, BOARD_REV_ALL}
+    };
+    return NvOdmIsBoardPresent(s_WhistlerE1108Hynix,
+                               NV_ARRAY_SIZE(s_WhistlerE1108Hynix));
+}
+#endif
+
+NvBool NvOdmIsCpuExtSupply(void)
+{
+    // A list of Whistler processor boards that use external DCDC as CPU
+    // power supply (fill in ID/SKU/FAB fields, revision fields are ignored)
+    static const NvOdmBoardInfo s_WhistlerCpuExtSupplyBoards[] =
+    {
+        // ID                      SKU     FAB   Rev            Minor Rev  
+        { BOARD_ID_WHISTLER_E1108, 0x0A14, 0x01, BOARD_REV_ALL, BOARD_REV_ALL},
+        { BOARD_ID_WHISTLER_E1108, 0x0A00, 0x02, BOARD_REV_ALL, BOARD_REV_ALL}
+    };
+    return NvOdmIsBoardPresent(s_WhistlerCpuExtSupplyBoards,
+                               NV_ARRAY_SIZE(s_WhistlerCpuExtSupplyBoards));
+}
+
 static NvU32
 GetBctKeyValue(void)
 {
@@ -768,6 +832,9 @@ NvOdmQueryDapPortGetProperty(
         // I2S1 (DAC1) <-> DAP1 <-> HIFICODEC
         { NvOdmDapPort_I2s1, NvOdmDapPort_HifiCodecType,
           { 2, 16, 44100, NvOdmQueryI2sDataCommFormat_I2S } }, // Dap1
+          // I2S2 (DAC2) <-> DAP2 <-> VOICECODEC
+        {NvOdmDapPort_I2s2, NvOdmDapPort_VoiceCodecType,
+          {2, 16, 8000, NvOdmQueryI2sDataCommFormat_I2S } },   // Dap2
     };
     static const NvOdmQueryDapPortProperty s_Property_Ril_Emp_Rainbow[] =
     {
@@ -912,13 +979,13 @@ NvOdmQuerySdramControllerConfigGet(NvU32 *pEntries, NvU32 *pRevision)
             *pEntries = NV_ARRAY_SIZE(s_NvOdmE1109EmcConfigTable);
         return (const void*)s_NvOdmE1109EmcConfigTable;
     }
-    else if (NvOdmPeripheralGetBoardInfo(BOARD_ID_WHISTLER_E1108, &BoardInfo))
+    else if (NvOdmIsE1108Hynix())
     {
         if (pRevision)
-            *pRevision = s_NvOdmE1108EmcConfigTable[0].Revision;
+            *pRevision = s_NvOdmE1108HynixEmcConfigTable[0].Revision;
         if (pEntries)
-            *pEntries = NV_ARRAY_SIZE(s_NvOdmE1108EmcConfigTable);
-        return (const void*)s_NvOdmE1108EmcConfigTable;
+            *pEntries = NV_ARRAY_SIZE(s_NvOdmE1108HynixEmcConfigTable);
+        return (const void*)s_NvOdmE1108HynixEmcConfigTable;
     }
 #endif
     if (pEntries)
@@ -1027,7 +1094,19 @@ const NvU8* NvOdmQueryProjectName(void)
     { NvOdmPinRegister_Ap20_PadCtrl_DDCCFGPADCTRL,
       NVODM_QUERY_PIN_AP20_PADCTRL_AOCFG1PADCTRL(!HIGHSPEED, SCHMITT, OHM_50, 31, 31, 3, 3) },
 
-};
+    // Set pad control for Dap pins 1 - 4
+    { NvOdmPinRegister_Ap20_PadCtrl_DAP1CFGPADCTRL,
+      NVODM_QUERY_PIN_AP20_PADCTRL_AOCFG1PADCTRL(!HIGHSPEED, SCHMITT, OHM_400, 0, 0, 0, 0) },
+
+    { NvOdmPinRegister_Ap20_PadCtrl_DAP2CFGPADCTRL,
+      NVODM_QUERY_PIN_AP20_PADCTRL_AOCFG1PADCTRL(!HIGHSPEED, SCHMITT, OHM_400, 0, 0, 0, 0) },
+
+    { NvOdmPinRegister_Ap20_PadCtrl_DAP3CFGPADCTRL,
+      NVODM_QUERY_PIN_AP20_PADCTRL_AOCFG1PADCTRL(!HIGHSPEED, SCHMITT, OHM_400, 0, 0, 0, 0) },
+
+    { NvOdmPinRegister_Ap20_PadCtrl_DAP3CFGPADCTRL,
+      NVODM_QUERY_PIN_AP20_PADCTRL_AOCFG1PADCTRL(!HIGHSPEED, SCHMITT, OHM_400, 0, 0, 0, 0) },
+ };
 
 
 NvU32
@@ -1214,3 +1293,102 @@ const NvOdmGpioWakeupSource *NvOdmQueryGetWakeupSources(NvU32 *pCount)
     *pCount = 0;
     return NULL;
 }
+
+/**
+ * This function is called from early boot process.
+ * Therefore, it cannot use global variables.
+ */
+NvU32 NvOdmQueryMemSize(NvOdmMemoryType MemType)
+{
+    NvOdmOsOsInfo Info;
+    NvU32 SdramSize;
+    NvU32 SdramBctCustOpt;
+    
+    switch (MemType)
+    {
+        // NOTE:
+        // For Windows CE/WM operating systems the total size of SDRAM may
+        // need to be reduced due to limitations in the virtual address map.
+        // Under the legacy physical memory manager, Windows OSs have a
+        // maximum 512MB statically mapped virtual address space. Under the
+        // new physical memory manager, Windows OSs have a maximum 1GB
+        // statically mapped virtual address space. Out of that virtual
+        // address space, the upper 32 or 36 MB (depending upon the SOC)
+        // of the virtual address space is reserved for SOC register
+        // apertures.
+        //
+        // Refer to virtual_tables_apxx.arm for the reserved aperture list.
+        // If the cumulative size of the reserved apertures changes, the
+        // maximum size of SDRAM will also change.
+        case NvOdmMemoryType_Sdram:
+        {
+            SdramBctCustOpt = GetBctKeyValue();
+            switch (NV_DRF_VAL(TEGRA_DEVKIT, BCT_SYSTEM, MEMORY, SdramBctCustOpt))
+            {
+                case TEGRA_DEVKIT_BCT_SYSTEM_0_MEMORY_1:
+                    SdramSize = 0x10000000; //256 MB
+                    break;
+                case TEGRA_DEVKIT_BCT_SYSTEM_0_MEMORY_3:
+                    SdramSize = 0x40000000; //1GB
+                    break;
+                case TEGRA_DEVKIT_BCT_SYSTEM_0_MEMORY_2:
+                case TEGRA_DEVKIT_BCT_SYSTEM_0_MEMORY_DEFAULT:
+                default:
+                    SdramSize = 0x20000000; //512 MB
+                    break;
+            }
+            
+            if ( NvOdmOsGetOsInformation(&Info) &&
+                 ((Info.OsType!=NvOdmOsOs_Windows) ||
+                  (Info.OsType==NvOdmOsOs_Windows && Info.MajorVersion>=7)) )
+                return SdramSize;
+
+            // Legacy Physical Memory Manager: SdramSize MB - Carveout MB
+            return (SdramSize - NvOdmQueryCarveoutSize());
+        }
+        
+        case NvOdmMemoryType_Nor:
+            return 0x00400000;  // 4 MB
+
+        case NvOdmMemoryType_Nand:
+        case NvOdmMemoryType_I2CEeprom:
+        case NvOdmMemoryType_Hsmmc:
+        case NvOdmMemoryType_Mio:
+        default:
+            return 0;
+    }
+}
+
+NvU32 NvOdmQueryCarveoutSize(void)
+{
+    NvU32 CarveBctCustOpt = GetBctKeyValue();
+
+    switch (NV_DRF_VAL(TEGRA_DEVKIT, BCT_CARVEOUT, MEMORY, CarveBctCustOpt))
+    {
+        case TEGRA_DEVKIT_BCT_CARVEOUT_0_MEMORY_1:
+            return 0x00400000;// 4MB
+        case TEGRA_DEVKIT_BCT_CARVEOUT_0_MEMORY_2:
+            return 0x00800000;// 8MB
+        case TEGRA_DEVKIT_BCT_CARVEOUT_0_MEMORY_3:
+            return 0x00C00000;// 12MB
+        case TEGRA_DEVKIT_BCT_CARVEOUT_0_MEMORY_4:
+            return 0x01000000;// 16MB
+        case TEGRA_DEVKIT_BCT_CARVEOUT_0_MEMORY_5:
+            return 0x01400000;// 20MB
+        case TEGRA_DEVKIT_BCT_CARVEOUT_0_MEMORY_6:
+            return 0x01800000;// 24MB
+        case TEGRA_DEVKIT_BCT_CARVEOUT_0_MEMORY_7:
+            return 0x01C00000;// 28MB
+        case TEGRA_DEVKIT_BCT_CARVEOUT_0_MEMORY_8:
+            return 0x02000000; // 32 MB
+        case TEGRA_DEVKIT_BCT_CARVEOUT_0_MEMORY_DEFAULT:
+        default:
+            return 0x04000000; // 64 MB
+    }
+}
+
+NvU32 NvOdmQuerySecureRegionSize(void)
+{
+    return 0x00800000;// 8 MB
+}
+

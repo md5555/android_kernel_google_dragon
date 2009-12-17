@@ -52,6 +52,21 @@ static const NvOdmIoAddress s_ffaMainDisplayAddresses[] =
     { NvOdmIoModule_Vdd, 0x00, Max8907bPmuSupply_LDO19  },  /* AVDD_LCD_2 -> VOUT19 */
 };
 
+// DSI LCD
+// WARNING: Whistler's board personality needs to be set to 077 for the
+// reset gpio pin to work
+static const NvOdmIoAddress s_DsiAddresses[] = 
+{
+    { NvOdmIoModule_Display, 0, 0 },
+
+    { NvOdmIoModule_Gpio, (NvU32)('c' - 'a'), 1 },
+
+    { NvOdmIoModule_Vdd, 0x00, Max8907bPmuSupply_LX_V3 },   /* VDDIO_LCD -> V3 */
+    { NvOdmIoModule_Vdd, 0x00, Max8907bPmuSupply_LDO5 },    /* AVDD_LCD_1 -> VOUT5 */
+    { NvOdmIoModule_Vdd, 0x00, Max8907bPmuSupply_LDO19  },  /* AVDD_LCD_2 -> VOUT19 */
+    { NvOdmIoModule_Vdd, 0x00, Max8907bPmuSupply_LDO17  },  /* MIPI DSI 1.2V */
+};
+
 // TouchPanel
 static const NvOdmIoAddress s_ffaTouchPanelAddresses[] = 
 {
@@ -59,4 +74,3 @@ static const NvOdmIoAddress s_ffaTouchPanelAddresses[] =
     { NvOdmIoModule_Gpio, 'c' - 'a', 6}, /* GPIO Port V and Pin 3 */
     { NvOdmIoModule_Vdd, 0x00, Max8907bPmuSupply_LDO19 }
 };
-

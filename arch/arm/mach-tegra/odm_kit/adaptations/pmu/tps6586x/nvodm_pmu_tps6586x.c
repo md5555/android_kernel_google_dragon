@@ -816,6 +816,7 @@ Tps6586xGetCapabilities(
     *pCapabilities = tps6586xSupplyInfoTable[vddRail].cap;
 }
 
+#if defined(CONFIG_TEGRA_ODM_HARMONY)
 static NvBool g_ExternalSupplyEnabled[TPS6586x_EXTERNAL_SUPPLY_NUM] = { 0 };
 
 static NvBool
@@ -831,6 +832,7 @@ Tps6586xGetExternalSupply(
 
     return NV_TRUE;
 }
+#endif
 
 static NvBool
 Tps6586xReadVoltageReg(

@@ -7,10 +7,12 @@ else
 ccflags-y += -DNV_DEBUG=0
 endif
 
+ccflags-y += -Iarch/arm/mach-tegra/odm_kit/adaptations
+
 obj-y += nvodm_query.o
 obj-y += nvodm_query_discovery.o
 obj-y += nvodm_query_nand.o
 obj-y += nvodm_query_gpio.o
 obj-y += nvodm_query_pinmux.o
 obj-y += nvodm_query_kbc.o
-obj-y += nvodm_query_common.o
+

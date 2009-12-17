@@ -48,6 +48,14 @@
     NvOdmPeripheralClass_Display,
 },
 
+// DSI module
+{
+    NV_ODM_GUID('s','h','a','r','p','d','s','i'),
+    s_DsiAddresses,
+    NV_ARRAY_SIZE(s_DsiAddresses),
+    NvOdmPeripheralClass_Display,
+},
+
 //  Touch Panel
 {
     NV_ODM_GUID('t','p','k','t','o','u','c','h'),
