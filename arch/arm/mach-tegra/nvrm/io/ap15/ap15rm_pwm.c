@@ -430,7 +430,7 @@ NvError NvRmPwmConfig(
                 if ((*pCurrentFreqHzOrPeriod%RequestedFreqHzOrPeriod)*2>RequestedFreqHzOrPeriod)
                     divider +=1;
                 *pCurrentFreqHzOrPeriod = *pCurrentFreqHzOrPeriod / divider;
-                RegValue |= PWM_SETNUM(CSR_0, N_A_2, divider);
+                RegValue |= PWM_SETNUM(CSR_0, PFM_0, divider);
             }
         }
 
