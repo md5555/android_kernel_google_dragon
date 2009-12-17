@@ -76,7 +76,7 @@ static NvRmMemHandle idtomem(NvRmMemHandle hMem)
 /* GART related */
 NvBool              gs_GartInited = NV_FALSE;
 NvRmHeapSimple      gs_GartAllocator;
-NvU32               *gs_GartSave = NULL;
+NvU32               *gs_GartSave = NULL; 
 static NvRmPrivHeap gs_GartHeap;
 static NvUPtr       gs_GartBaseAddr;
 
@@ -149,6 +149,28 @@ void NvRmPrivMemIncrRef(NvRmMemHandle hMem)
     NvOsAtomicExchangeAdd32(&hMem->refcount, 1);
 }
 
+/* Attempt to use the pre-mapped carveout or iram aperture on Windows CE */
+#if !(NVOS_IS_LINUX && !NVCPU_IS_X86)
+static void *NvRmMemMapGlobalHeap(
+    NvRmPhysAddr base,
+    NvU32 len,
+    NvRmHeap heap,
+    NvOsMemAttribute coherency)
+{
+    if (coherency == NvOsMemAttribute_WriteBack)
+        return NULL;
+
+    if (heap == NvRmHeap_ExternalCarveOut)
+        return NvRmPrivHeapCarveoutMemMap(base, len, coherency);
+    else if (heap == NvRmHeap_IRam)
+        return NvRmPrivHeapIramMemMap(base, len, coherency);
+
+    return NULL;
+}
+#else
+#define NvRmMemMapGlobalHeap(base,len,heap,coherency) NULL
+#endif
+
 static void NvRmPrivMemFree(NvRmMemHandle hMem)
 {
     if (!hMem)
@@ -165,6 +187,12 @@ static void NvRmPrivMemFree(NvRmMemHandle hMem)
         hMem->VirtualAddress = NULL;
     }
 
+    if (!NvRmMemMapGlobalHeap(hMem->PhysicalAddress, 4, hMem->heap,
+        hMem->coherency) && hMem->VirtualAddress) {
+        NvRmMemUnmap(hMem, hMem->VirtualAddress, hMem->size);
+        hMem->VirtualAddress = NULL;
+    }
+
     switch (hMem->heap)
     {
     case  NvRmHeap_ExternalCarveOut:
@@ -174,13 +202,11 @@ static void NvRmPrivMemFree(NvRmMemHandle hMem)
         NvRmPrivHeapIramFree(hMem->PhysicalAddress);
         break;
     case NvRmHeap_GART:
-        NvRmPhysicalMemUnmap(hMem->VirtualAddress, hMem->size);
         (*s_HeapGartFree)(hMem->hRmDevice, hMem->PhysicalAddress,
             hMem->Pages);
         NvOsPageFree(hMem->hPageHandle);
         break;
     case NvRmHeap_External:
-        NvOsPageUnmap(hMem->hPageHandle, hMem->VirtualAddress, hMem->size);
         NvOsPageFree(hMem->hPageHandle);
         break;
     default:
@@ -473,27 +499,6 @@ NvU32 NvRmMemGetAddress(NvRmMemHandle hMem, NvU32 Offset)
     return (NvU32)-1;
 }
 
-/* Attempt to use the pre-mapped carveout or iram aperture on Windows CE */
-#if !(NVOS_IS_LINUX && !NVCPU_IS_X86)
-static void *NvRmMemMapGlobalHeap(
-    NvRmPhysAddr base,
-    NvU32 len,
-    NvRmHeap heap,
-    NvOsMemAttribute coherency)
-{
-    if (coherency == NvOsMemAttribute_WriteBack)
-        return NULL;
-
-    if (heap == NvRmHeap_ExternalCarveOut)
-        return NvRmPrivHeapCarveoutMemMap(base, len, coherency);
-    else if (heap == NvRmHeap_IRam)
-        return NvRmPrivHeapIramMemMap(base, len, coherency);
-
-    return NULL;
-}
-#else
-#define NvRmMemMapGlobalHeap(base,len,heap,coherency) NULL
-#endif
 
 
 
@@ -540,8 +545,7 @@ NvError NvRmMemMap(
 
 void NvRmMemUnmap(NvRmMemHandle hMem, void *pVirtAddr, NvU32 length)
 {
-    if (!hMem || !pVirtAddr || !length)
-    {
+    if (!hMem || !pVirtAddr || !length) {
         return;
     }
 
@@ -551,10 +555,21 @@ void NvRmMemUnmap(NvRmMemHandle hMem, void *pVirtAddr, NvU32 length)
     if (NvRmIsSimulation() || NVCPU_IS_X86)
         return;
 
-    if (hMem->VirtualAddress <= pVirtAddr &&
-        ((NvU8*)hMem->VirtualAddress + hMem->size) >= (NvU8*)pVirtAddr)
+    /* Don't unmap from the global heap on CE */
+    if (hMem->VirtualAddress &&
+        NvRmMemMapGlobalHeap(hMem->PhysicalAddress, 4, hMem->heap,
+                             hMem->coherency))
+    {
+        return;
+    }
+
+    /* Only unmap entire allocations; leaked mappings will be cleaned up
+     * when the handle is freed
+     */
+    if (pVirtAddr != hMem->VirtualAddress || length != hMem->size)
         return;
 
+    hMem->VirtualAddress = NULL;
 
     switch (hMem->heap)
     {
