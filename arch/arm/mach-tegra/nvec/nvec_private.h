@@ -203,6 +203,7 @@ typedef struct NvEcPrivStateRec
     /* thread handle which sends "pings" to the EC */
     NvOsThreadHandle    hPingThread;
     NvOsSemaphoreHandle hPingSema;
+    NvBool              exitPingThread;
 } NvEcPrivState;
 
 

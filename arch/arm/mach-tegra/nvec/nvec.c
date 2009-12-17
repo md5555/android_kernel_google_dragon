@@ -235,10 +235,8 @@ NvEcPrivPingThread(void *args)
     NvEcResponse resp;
     NvEcPrivState *ec = (NvEcPrivState *)args;
 
-    while (!ec->exitThread)
+    while (!ec->exitPingThread)
     {
-        NvStatus = NvOsSemaphoreWaitTimeout(ec->hPingSema, NVEC_PING_TIMEOUT);
-
         if (NvStatus == NvError_Timeout)
         {
             // send no-op commands
@@ -264,6 +262,7 @@ NvEcPrivPingThread(void *args)
 
             DISP_MESSAGE(("NvEcPrivPingThread: no-op command sent\n"));
         }
+        NvStatus = NvOsSemaphoreWaitTimeout(ec->hPingSema, NVEC_PING_TIMEOUT);
     }
 }
 
@@ -272,7 +271,7 @@ NvEcOpen(NvEcHandle *phEc,
          NvU32 InstanceId)
 {
     NvEc            *hEc = NULL;
-    int             i;
+    NvU32           i;
     NvEcPrivState   *ec = &g_ec;
     NvOsMutexHandle mutex = NULL;
     NvError         e = NvSuccess;
@@ -333,7 +332,8 @@ NvEcOpen(NvEcHandle *phEc,
         NV_CHECK_ERROR_CLEANUP( NvEcPrivInitHook(ec->hEc) );
 
         // start thread to send "pings" - no-op commands to keep EC "alive"
-        NV_CHECK_ERROR_CLEANUP(NvOsThreadCreate((NvOsThreadFunction)NvEcPrivPingThread, ec, &ec->hPingThread));
+        NV_CHECK_ERROR_CLEANUP(NvOsThreadCreate(
+            (NvOsThreadFunction)NvEcPrivPingThread, ec, &ec->hPingThread));
     }
 
     hEc = NvOsAlloc( sizeof(NvEc) );
@@ -373,15 +373,15 @@ clean:
 fail:
     if (!s_refcount)
     {
-        ec->exitThread = NV_TRUE;
-        NvOsSemaphoreSignal( ec->sema );
-        NvOsThreadJoin( ec->thread );
+        ec->exitPingThread = NV_TRUE;
         if (ec->hPingSema)
             NvOsSemaphoreSignal( ec->hPingSema );
         NvOsThreadJoin( ec->hPingThread );
-        ec->hPingThread = NULL;
         NvOsSemaphoreDestroy(ec->hPingSema);
-        ec->hPingSema = NULL;
+        ec->exitThread = NV_TRUE;
+        if (ec->sema)
+            NvOsSemaphoreSignal( ec->sema );
+        NvOsThreadJoin( ec->thread );
         NvOsFree( ec->hEc );
         if ( ec->transport )
             NvEcTransportClose( ec->transport );
@@ -429,12 +429,12 @@ NvEcClose(NvEcHandle hEc)
         NV_ASSERT( NULL == ec->requestBegin && NULL == ec->requestEnd );
         NV_ASSERT( NULL == ec->responseBegin && NULL == ec->responseEnd );
 
+        ec->exitPingThread = NV_TRUE;
+        NvOsSemaphoreSignal( ec->hPingSema );
+        NvOsThreadJoin( ec->hPingThread );
         ec->exitThread = NV_TRUE;
         NvOsSemaphoreSignal( ec->sema );
         NvOsThreadJoin( ec->thread );
-        NvOsSemaphoreSignal( ec->hPingSema );
-        NvOsThreadJoin( ec->hPingThread );
-        ec->hPingThread = NULL;
 
         NvEcTransportClose( ec->transport );
         NvOsMutexDestroy( ec->requestMutex );
@@ -442,7 +442,6 @@ NvEcClose(NvEcHandle hEc)
         NvOsMutexDestroy( ec->eventMutex );
         NvOsSemaphoreDestroy( ec->sema );
         NvOsSemaphoreDestroy( ec->hPingSema );
-        ec->hPingSema = NULL;
         NvOsSemaphoreDestroy( ec->LowPowerEntrySema );
         NvOsSemaphoreDestroy( ec->LowPowerExitSema );
         destroy = NV_TRUE;

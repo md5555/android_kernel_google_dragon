@@ -53,7 +53,9 @@
 #include "nvrm_hardware_access.h"
 #include "nvodm_query_discovery.h"
 
-#define ENABLE_NEW_SLAVE 0
+#define ENABLE_NEW_SLAVE 1
+#define ADD_5US_DELAY 1
+#define DELAY_COUNT 0x1E
 
 #ifndef __KERNEL__
 #define __KERNEL__ 0
@@ -103,6 +105,7 @@ typedef struct
 {
     NvU8 Buffer[CAPTURE_DATA_BUFFER_SIZE];
     NvU32 sts[CAPTURE_DATA_BUFFER_SIZE];
+    NvBool PktStatus[CAPTURE_DATA_BUFFER_SIZE];
     NvU32 Index;
 } I2cSlaveData;
 volatile I2cSlaveData g_I2cSlaveRxData;
@@ -292,7 +295,8 @@ static void
 HwI2cHandleVariableRead(
     NvEcTransportHandle t, 
     NvU32 SlaveStatus, 
-    NvBool IsPECSupported)
+    NvBool IsPECSupported,
+    NvU64 IsrStartTime)
 {
     NvU8 DataToSend = 0xFD;
     NvBool ValidProtocol = NV_FALSE;
@@ -309,6 +313,11 @@ HwI2cHandleVariableRead(
 
     if (NV_DRF_VAL(I2C, I2C_SL_STATUS, RCVD, SlaveStatus))
     {
+        #if ADD_5US_DELAY
+        // Work around for AP20 New Slave Hw Bug. Give 1us extra.
+        while( (NvOsGetTimeUS() - IsrStartTime) < (5 + 1) );
+        #endif
+
         /* 
          * Write the 1st data byte to the master provided the slave read 
          * transaction has re-started immediately after the master wrote 
@@ -381,28 +390,36 @@ exit:
     if (g_I2cSlaveTxData.Index >= CAPTURE_DATA_BUFFER_SIZE)
         g_I2cSlaveTxData.Index = 0;
     g_I2cSlaveTxData.sts[g_I2cSlaveTxData.Index] = SlaveStatus;
+    g_I2cSlaveTxData.PktStatus[g_I2cSlaveTxData.Index] = t->SendPending;
     g_I2cSlaveTxData.Buffer[g_I2cSlaveTxData.Index++] = DataToSend;
     #endif
 }
 
-static NvU32 ReadSlaveRcvdRegister(NvRmI2cSlaveController* t)
+static NvU32 ReadSlaveRcvdRegister(NvRmI2cSlaveController* t, NvU32 SlaveStatus)
 {
     NvU32 Data;
+    NvU32 ClearReg;
 
-    #if (__KERNEL__) && (NVOS_IS_LINUX)
-    unsigned long flags;
-    local_irq_save(flags);
-    #endif
-
-    // Read data byte to release the bus.
-    Data = (NvU8)I2C_REGR(t, I2C_SL_RCVD);
-    // Workaround for AP20 New I2C Slave Controller bug #626607.
-    if (t->I2cSocCaps.IsNewSlaveAvailable)
+    ClearReg = NV_DRF_VAL(I2C, I2C_SL_STATUS, RCVD, SlaveStatus);
+    if (t->I2cSocCaps.IsNewSlaveAvailable && ClearReg)
+    {
+        #if (__KERNEL__) && (NVOS_IS_LINUX)
+        unsigned long flags;
+        local_irq_save(flags);
+        #endif
+        // Read data byte to release the bus.
+        Data = (NvU8)I2C_REGR(t, I2C_SL_RCVD);
+        // Workaround for AP20 New I2C Slave Controller bug #626607.
         I2C_REGW(t, I2C_SL_RCVD, 0);
-
-    #if (__KERNEL__) && (NVOS_IS_LINUX)
-    local_irq_restore(flags);
-    #endif
+        #if (__KERNEL__) && (NVOS_IS_LINUX)
+        local_irq_restore(flags);
+        #endif
+    }
+    else
+    {
+        // Read data byte to release the bus.
+        Data = (NvU8)I2C_REGR(t, I2C_SL_RCVD);
+    }
     return Data;
 }
 
@@ -425,6 +442,7 @@ static void Isr(void* args)
     // FIXME: Get it from ODM?
     NvBool IsPECSupported = NV_FALSE;
     NvRmI2cSlaveController* t = args;
+    NvU64 IsrStartTime = NvOsGetTimeUS();
     NvU8 PECBytes = IsPECSupported ? 1 : 0;
     NvU32 ExpectedInterruptMask = 
         NV_DRF_DEF(I2C, I2C_SL_STATUS, END_TRANS, DEFAULT_MASK) | 
@@ -456,13 +474,13 @@ static void Isr(void* args)
     // Check if Master is requesting data from Slave. i.e Read from Slave.
     if (NV_DRF_VAL(I2C, I2C_SL_STATUS, RNW, SlaveStatus))
     {
-        HwI2cHandleVariableRead(t, SlaveStatus, IsPECSupported);
+        HwI2cHandleVariableRead(t, SlaveStatus, IsPECSupported, IsrStartTime);
     }
     // Data is sent to Slave by Master. i.e Write to Slave.
     else if (t->PacketBuffer != NULL)
     {
         // Read data byte to release the bus.
-        Data = ReadSlaveRcvdRegister(t);
+        Data = ReadSlaveRcvdRegister(t, SlaveStatus);
         /*
          * If the 1st Command byte of the new transaction is received, reset the
          * packet counter regardless of the previous count, and store the 
@@ -519,6 +537,7 @@ static void Isr(void* args)
         if (g_I2cSlaveRxData.Index >= CAPTURE_DATA_BUFFER_SIZE)
             g_I2cSlaveRxData.Index = 0;
         g_I2cSlaveRxData.sts[g_I2cSlaveRxData.Index] = SlaveStatus;
+        g_I2cSlaveRxData.PktStatus[g_I2cSlaveRxData.Index] = PktRcvd;
         g_I2cSlaveRxData.Buffer[g_I2cSlaveRxData.Index++] = Data;
         #endif
     }
@@ -528,7 +547,7 @@ static void Isr(void* args)
         SlaveConfig = DISABLE_I2C_SLAVE(t);
         I2C_REGW(t, I2C_SL_CNFG, SlaveConfig);
         // Read data byte to release bus.
-        Data = ReadSlaveRcvdRegister(t);
+        Data = ReadSlaveRcvdRegister(t, SlaveStatus);
         PRINT_I2C_MESSAGES(("DR=0x%x ", Data));
         #if CAPTURE_TX_RX_DATA
         if (g_I2cSlaveRxData.Index >= CAPTURE_DATA_BUFFER_SIZE)
@@ -628,6 +647,8 @@ static NvError HwI2cInitController(NvRmI2cSlaveController* t)
     // Set the slave address and 7-bit address mode.
     I2C_REGW(t, I2C_SL_ADDR1, (t->SlaveAddress >> 1));
     I2C_REGW(t, I2C_SL_ADDR2, 0);
+    // Set Delay count register
+    I2C_REGW(t, I2C_SL_DELAY_COUNT, DELAY_COUNT);
     // Enable Ack and disable response to general call.
     SlaveConfig = ENABLE_I2C_SLAVE(t);
     //NvOsDebugPrintf("\n***SlaveConfig=0x%x", SlaveConfig);
