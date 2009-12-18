@@ -580,7 +580,7 @@ NvError NvOsPhysicalMemMap(
 #define aperture_comp_map(_name, _pa, _len)                             \
     if ((phys >= (NvOsPhysAddr)(_pa)) &&                                \
         ((NvOsPhysAddr)(phys+size)<=(NvOsPhysAddr)((_pa)+(_len)))) {    \
-            *ptr = (void *)tegra_munge_pa(_pa);                         \
+            *ptr = (void *)tegra_munge_pa(phys);                        \
             return NvSuccess;                                           \
     }
 
