@@ -37,7 +37,7 @@
 
 NvError NvRmRmcOpen( const char *name, NvRmRmcFile *rmc )
 {
-    return NvError_NotSupported;
+    return NvSuccess;
 }
 
 void NvRmRmcClose( NvRmRmcFile *rmc )
