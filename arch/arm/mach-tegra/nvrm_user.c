@@ -56,7 +56,11 @@ static NvRtHandle s_RtHandle = NULL;
 
 #define DEVICE_NAME "nvrm"
 
+#ifdef CONFIG_FB_TEGRA
 extern int tegra_fb_control(void *in, void *out);
+#else
+#define tegra_fb_control(_i, _o) do {} while (0)
+#endif
 
 static const struct file_operations nvrm_fops =
 {
