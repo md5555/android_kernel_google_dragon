@@ -47,6 +47,22 @@
 #define TEGRA_USB_PHY_WAKEUP_REG_OFFSET	(0x408)
 
 
+static void tegra_ehci_shutdown (struct usb_hcd *hcd)
+{
+	struct tegra_hcd_platform_data *pdata;
+	pdata = hcd->self.controller->platform_data;
+
+	/* ehci_shutdown touches the USB controller registers, make sure
+	 * controller has clocks to it, if controller is already in power up
+	 * status, calling the NvDdkUsbPhyPowerUp will just return  */
+	NV_ASSERT_SUCCESS(NvDdkUsbPhyPowerUp(pdata->hUsbPhy, 0));
+	/* call ehci shut down */
+	ehci_shutdown(hcd);
+	/* we are ready to shut down, powerdown the phy */
+	NV_ASSERT_SUCCESS(NvDdkUsbPhyPowerDown(pdata->hUsbPhy, 0));
+}
+
+
 static irqreturn_t tegra_ehci_irq (struct usb_hcd *hcd)
 {
 	struct ehci_hcd *ehci = hcd_to_ehci (hcd);
@@ -150,7 +166,7 @@ static const struct hc_driver tegra_ehci_hc_driver = {
 
 	.start			= ehci_run,
 	.stop			= ehci_stop,
-	.shutdown		= ehci_shutdown,
+	.shutdown		= tegra_ehci_shutdown,
 	.urb_enqueue		= ehci_urb_enqueue,
 	.urb_dequeue		= ehci_urb_dequeue,
 	.endpoint_disable	= ehci_endpoint_disable,
@@ -206,7 +222,7 @@ static int tegra_ehci_probe(struct platform_device *pdev)
 		pGpioPinInfo = NvOdmQueryGpioPinMap(NvOdmGpioPinGroup_Usb, 
 			instance, &GpioPinCount);
 		/* If the ODM says ID type is GPIO, they better provide the
-                 * GPIO port and pin for that */
+		 * GPIO port and pin for that */
 		BUG_ON(GpioPinCount == 0);
 
 		NV_ASSERT_SUCCESS(NvRmGpioAcquirePinHandle(s_hGpioGlobal, 
