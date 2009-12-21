@@ -136,7 +136,6 @@ static unsigned int tegra_sdhci_set_clock(struct sdhci_host *host,
 	struct tegra_sdhci *t_sdhci;
 
 	t_sdhci = sdhci_priv(host);
-	printk("Requeesting freq of %d, modid 0x%x\n", clock, t_sdhci->ModId);
 	if (clock) {
 		NvError err;
 		NvU32 min, max, target, actual_freq;

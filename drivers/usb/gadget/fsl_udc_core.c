@@ -49,7 +49,7 @@
 #include "fsl_usb2_udc.h"
 
 #if defined(CONFIG_ARCH_TEGRA)
-#define DRIVER_DESC	"Tegra High-Spped USB SOC Device Controller driver"
+#define DRIVER_DESC	"Tegra High-Speed USB SOC Device Controller driver"
 #else
 #define	DRIVER_DESC	"Freescale High-Speed USB SOC Device Controller driver"
 #endif

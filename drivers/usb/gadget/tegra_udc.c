@@ -38,19 +38,15 @@ int tegra_udc_clk_init(struct platform_device *pdev)
 	if (nverr != NvSuccess)
 		return -ENODEV;
 
-	printk("tegra_udc_clk_init called\n");
-
 	return 0;
 }
 
 void tegra_udc_clk_finalize(struct platform_device *pdev)
 {
-	printk("tegra_udc_clk_finalize called\n");
 }
 
 void tegra_udc_clk_release(void)
 {
-	printk("tegra_udc_clk_release called\n");
 }
 
 void tegra_udc_clk_suspend(void)
