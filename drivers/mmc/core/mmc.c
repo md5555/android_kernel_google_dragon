@@ -143,7 +143,7 @@ static int mmc_decode_csd(struct mmc_card *card)
 	m = UNSTUFF_BITS(resp, 62, 12);
 	csd->capacity	  = (1 + m) << (e + 2);
 #ifdef CONFIG_EMBEDDED_MMC_START_OFFSET
-	BUG_ON(card->host->ops->get_host_offset(card->host) >= csd->capacity);
+	/* for sector-addressed cards, this will cause csd->capacity to wrap */
 	csd->capacity -= card->host->ops->get_host_offset(card->host);
 #endif
 
