@@ -1474,16 +1474,16 @@ NvError NvOsInterruptRegisterInternal(
         {
             struct sched_param p;
             p.sched_priority = KTHREAD_IRQ_PRIO;
+            sema_init(&(pNewBlock->IrqList[i].sem), 0);
             pNewBlock->IrqList[i].task = 
                 kthread_create(NvOsInterruptThreadWrapper,
                     (void *)((pIrqList[i]&0xffff) | ((i&0xffff)<<16)), 
-                    "NvOsIntrThread/%d", pIrqList[i]);
+                    pNewBlock->IrqList[i].IrqName);
             if (sched_setscheduler(pNewBlock->IrqList[i].task,
                     SCHED_FIFO, &p)<0)
                 NvOsDebugPrintf("Failed to elevate priority for IRQ %u\n",
                     pIrqList[i]);
             wake_up_process( pNewBlock->IrqList[i].task );
-            sema_init( &(pNewBlock->IrqList[i].sem), 0);
         }
 
         if ((pNewBlock->Flags & NVOS_IRQ_TYPE_MASK)==NVOS_IRQ_IS_TASKLET)
@@ -1506,6 +1506,7 @@ NvError NvOsInterruptRegisterInternal(
             goto clean_fail;
         }
     }
+    *handle = (NvOsInterruptHandle)pNewBlock;
     if (InterruptEnable)
     {
         pNewBlock->Flags |= NVOS_IRQ_IS_ENABLED;
@@ -1514,7 +1515,6 @@ NvError NvOsInterruptRegisterInternal(
     for ( ; i<IrqListSize; i++)
         enable_irq(pIrqList[i]);
 
-    *handle = (NvOsInterruptHandle)pNewBlock;
     return NvSuccess;
 
  clean_fail:
