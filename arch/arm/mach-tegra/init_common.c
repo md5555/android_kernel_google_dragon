@@ -443,6 +443,7 @@ static inline unsigned long tegra_get_phy_base(void)
 #endif
 
 static u64 tegra_udc_dma_mask = DMA_32BIT_MASK;
+static NvU32 tegra_udc_module_id = 0;
 
 static void __init tegra_register_usb_gadget(void)
 {
@@ -506,6 +507,7 @@ static void __init tegra_register_usb_gadget(void)
             goto fail;
         }
 
+        tegra_udc_module_id = mod;
         platdev->dev.coherent_dma_mask = ~0;
         platdev->dev.dma_mask = &tegra_udc_dma_mask;
     }
@@ -516,14 +518,9 @@ fail:
  * with device capabilities is registered as tegra-udc, the rest (if Host is also'
  * specified for the ports) are registered as tegra-ehci
  */
-static inline int tegra_is_udc(const NvOdmUsbProperty *p)
+static inline int tegra_is_udc(NvU32 mod)
 {
-    static int dev_found = 0;
-    int prev = dev_found;
-
-    dev_found |= (p->UsbMode & NvOdmUsbModeType_Device);
-
-    return (p->UsbMode & NvOdmUsbModeType_Device) && !prev;
+    return (mod==tegra_udc_module_id);
 }
 #endif  /* CONFIG_USB_TEGRA */
 
@@ -548,7 +545,12 @@ static void __init tegra_register_usb_host(void)
 
         /* fixme: add ulpi here? */
         p = NvOdmQueryGetUsbProperty(NvOdmIoModule_Usb, i);
-        if (!p || !(p->UsbMode & NvOdmUsbModeType_Host) || tegra_is_udc(p))
+        if (!p || !(p->UsbMode & NvOdmUsbModeType_Host) || tegra_is_udc(mod))
+            continue;
+
+        irq = NvRmGetIrqForLogicalInterrupt(s_hRmGlobal, mod, 0);
+        NvRmModuleGetBaseAddress(s_hRmGlobal, mod, &cont_addr, &len);
+        if (irq==0xffff || !(~cont_addr) || !len)
             continue;
 
         platdev = platform_device_alloc("tegra-ehci", i);
@@ -557,16 +559,6 @@ static void __init tegra_register_usb_host(void)
             goto fail;
         }
 
-        irq = NvRmGetIrqForLogicalInterrupt(s_hRmGlobal, mod, 0);
-        NvRmModuleGetBaseAddress(s_hRmGlobal, mod, &cont_addr, &len);
-        if (irq==0xffff || !(~cont_addr) || !len)
-            continue;
-
-        platdev = platform_device_alloc("tegra-udc", i);
-        if (!platdev) {
-            pr_err("unable to allocate platform device for tegra-udc\n");
-            goto fail;
-        }
 
         memset(&pdata, 0, sizeof(pdata));
         pdata.instance = i;
