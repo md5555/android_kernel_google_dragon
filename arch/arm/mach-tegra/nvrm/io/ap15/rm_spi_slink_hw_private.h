@@ -128,11 +128,14 @@ typedef struct
     NvU32 MaxWordTransfer;
     NvBool IsMasterMode;
 
-    // Tells whethe the non word aligned packet size is supported  or not.
+    // Tells whether the non word aligned packet size is supported or not.
     // If it is supported then we need not to do any sw workaround otherwise
     // Transfer the nearest word aligned packet using the packed mode and 
     // remaining as non-packed format.
     NvBool IsNonWordAlignedPackModeSupported;
+
+    /// Flag to tell whether the Hw based chipselect is supported or not.
+    NvBool IsHwChipSelectSupported;
 } SerialHwRegisters;
 
 /**
@@ -256,7 +259,7 @@ typedef struct
         NvU32 ChipSelectId,
         NvBool IsHigh);
 
-    /**
+   /**
      * Set the chip select signal level.
      */
     void
@@ -265,8 +268,25 @@ typedef struct
         NvU32 ChipSelectId,
         NvBool IsHigh);
         
-
     /**
+     * Set the chip select signal level based on the transfer size.
+     * it can use the hw based CS or SW based CS based on transfer size and
+     * cpu/apb dma based transfer.
+     * Return NV_TRUE if the SW based chipselection is used otherwise return
+     * NV_FALSE;
+     */
+    NvBool
+    (* HwSetChipSelectLevelBasedOnPacketFxn)(
+        SerialHwRegisters *pHwRegs, 
+        NvU32 ChipSelectId,
+        NvBool IsHigh,
+        NvU32 PacketRequested,
+        NvU32 PacketPerWord,
+        NvBool IsApbDmaBasedTransfer,
+        NvBool IsOnlyUseSWCS);
+
+
+     /**
      * Set the packet length.
      */
     void
@@ -342,16 +362,6 @@ typedef struct
     (* HwClearTransferStatusFxn)(
         SerialHwRegisters *pHwRegs,
         SerialHwDataFlow DataDirection);
-
-    /**
-     * Set the number of transfers the CS should stay low for transfer sizes more 
-     * than 32.words This will enable to do the trasnfer of word sizes > 32 without 
-     * using apb-dma
-     */
-    void 
-    (* HwSetCSActiveForTotalWordsFxn)(
-        SerialHwRegisters *pHwRegs, 
-        NvU32 TotalWords);
 
     /**
      * Check whether transfer is completed or not. 

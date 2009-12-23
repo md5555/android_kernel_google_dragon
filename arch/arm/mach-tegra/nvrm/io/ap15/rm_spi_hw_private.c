@@ -93,6 +93,7 @@ SpiHwRegisterInitialize(
     pSpiHwRegs->IsLsbFirst = NV_FALSE;
     pSpiHwRegs->IsMasterMode = NV_TRUE;
     pSpiHwRegs->IsNonWordAlignedPackModeSupported = NV_TRUE;
+    pSpiHwRegs->IsHwChipSelectSupported = NV_FALSE;
 
     CommandReg = NV_RESETVAL(SPI, COMMAND);
     // Initialize the chip select bits to select the s/w only
@@ -339,6 +340,27 @@ SpiHwSetChipSelectLevel(
     }     
     pSpiHwRegs->HwRegs.SpiRegs.Command = CommandReg;
     SPI_REG_WRITE32(pSpiHwRegs->pRegsBaseAdd, COMMAND, CommandReg);
+}
+
+/**
+ * Set the chip select signal level based on the transfer size.
+ * it can use the hw based CS or SW based CS based on transfer size and
+ * cpu/apb dma based transfer.
+ * Return NV_TRUE if the SW based chipselection is used otherwise return
+ * NV_FALSE;
+ */
+static NvBool
+SpiHwSetChipSelectLevelBasedOnPacket(
+    SerialHwRegisters *pSpiHwRegs, 
+    NvU32 ChipSelectId,
+    NvBool IsHigh,
+    NvU32 PacketRequested,
+    NvU32 PacketPerWord,
+    NvBool IsApbDmaBasedTransfer,
+    NvBool IsOnlyUseSWCS)
+{
+    SpiHwSetChipSelectLevel(pSpiHwRegs, ChipSelectId, IsHigh);
+    return NV_TRUE;
 }
 
 /**
@@ -599,6 +621,7 @@ void NvRmPrivSpiSlinkInitSpiInterface(HwInterface *pSpiInterface)
     pSpiInterface->HwSetDataFlowFxn = SpiHwSetDataFlow;
     pSpiInterface->HwSetChipSelectDefaultLevelFxn = SpiHwSetChipSelectDefaultLevelFxn;
     pSpiInterface->HwSetChipSelectLevelFxn = SpiHwSetChipSelectLevel;
+    pSpiInterface->HwSetChipSelectLevelBasedOnPacketFxn = SpiHwSetChipSelectLevelBasedOnPacket;
     pSpiInterface->HwSetPacketLengthFxn = SpiHwSetPacketLength;
     pSpiInterface->HwSetDmaTransferSizeFxn = SpiHwSetDmaTransferSize;
     pSpiInterface->HwGetTransferdCountFxn = SpiHwGetTransferdCount;

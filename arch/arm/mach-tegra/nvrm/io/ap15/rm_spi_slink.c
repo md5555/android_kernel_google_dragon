@@ -221,6 +221,10 @@ typedef struct NvRmSpiRec
 
     NvBool IsChipSelSupported[MAX_CHIPSELECT_PER_INSTANCE];
 
+    NvBool IsChipSelConfigured;
+
+    NvBool IsCurrentlySwBasedChipSel;
+    
     HwInterfaceHandle hHwInterface;
 
     NvU32 RmPowerClientId;
@@ -965,6 +969,8 @@ static NvError CreateSpiSlinkChannelHandle(
     hRmSpiSlink->RmPowerClientId = 0;
     hRmSpiSlink->SpiPinMap = 0;
     hRmSpiSlink->CurrTransferChipSelId = 0;
+    hRmSpiSlink->IsChipSelConfigured = NV_FALSE;
+    hRmSpiSlink->IsCurrentlySwBasedChipSel = NV_TRUE;
 
     // Initialize the frequncy requirements array
     hRmSpiSlink->BusyHints[0].ClockId = NvRmDfsClockId_Emc;
@@ -1236,7 +1242,8 @@ SetChipSelectSignalLevel(
     NvRmSpiHandle hRmSpiSlink,
     NvU32 ChipSelectId,
     NvU32 ClockSpeedInKHz,
-    NvBool IsActive)
+    NvBool IsActive,
+    NvBool IsOnlyUseSWCS)
 {
     NvError Error = NvSuccess;
     NvBool IsHigh;
@@ -1270,17 +1277,33 @@ SetChipSelectSignalLevel(
         if (hRmSpiSlink->IsMasterMode != hRmSpiSlink->HwRegs.IsMasterMode)
             hHwIntf->HwSetFunctionalModeFxn(&hRmSpiSlink->HwRegs, hRmSpiSlink->IsMasterMode);
 
-        IsHigh = (pDevInfo->ChipSelectActiveLow)? NV_FALSE: NV_TRUE;
-        hHwIntf->HwSetChipSelectLevelFxn(&hRmSpiSlink->HwRegs, ChipSelectId, IsHigh);
+        if (IsOnlyUseSWCS || (!hRmSpiSlink->HwRegs.IsHwChipSelectSupported))
+        {
+            IsHigh = (pDevInfo->ChipSelectActiveLow)? NV_FALSE: NV_TRUE;
+            hHwIntf->HwSetChipSelectLevelFxn(&hRmSpiSlink->HwRegs, ChipSelectId, IsHigh);
+            hRmSpiSlink->IsChipSelConfigured = NV_TRUE;
+            hRmSpiSlink->IsCurrentlySwBasedChipSel = NV_TRUE;
+            hRmSpiSlink->IsCurrentChipSelStateHigh[ChipSelectId] = IsHigh;
+        }
+        else
+        {
+            hRmSpiSlink->IsChipSelConfigured = NV_FALSE;
+        }
     }
     else
     {
-        IsHigh = (pDevInfo->ChipSelectActiveLow)? NV_TRUE: NV_FALSE;
-        hHwIntf->HwSetChipSelectLevelFxn(&hRmSpiSlink->HwRegs, ChipSelectId, IsHigh);
-        if (hRmSpiSlink->HwRegs.IdleSignalMode != hRmSpiSlink->HwRegs.CurrSignalMode)
-            hHwIntf->HwSetSignalModeFxn(&hRmSpiSlink->HwRegs, hRmSpiSlink->HwRegs.IdleSignalMode);
+        if (IsOnlyUseSWCS || hRmSpiSlink->IsCurrentlySwBasedChipSel)
+        {
+            IsHigh = (pDevInfo->ChipSelectActiveLow)? NV_TRUE: NV_FALSE;
+            hHwIntf->HwSetChipSelectLevelFxn(&hRmSpiSlink->HwRegs, ChipSelectId, IsHigh);
+            if (hRmSpiSlink->HwRegs.IdleSignalMode != hRmSpiSlink->HwRegs.CurrSignalMode)
+                hHwIntf->HwSetSignalModeFxn(&hRmSpiSlink->HwRegs, hRmSpiSlink->HwRegs.IdleSignalMode);
+
+            hRmSpiSlink->IsCurrentChipSelStateHigh[ChipSelectId] = IsHigh;
+        }
+        hRmSpiSlink->IsChipSelConfigured = NV_FALSE;
+
     }
-    hRmSpiSlink->IsCurrentChipSelStateHigh[ChipSelectId] = IsHigh;
     return NvSuccess;
 }
 
@@ -1722,6 +1745,16 @@ MasterModeReadWriteCpu(
                     NV_MIN(hRmSpiSlink->HwRegs.MaxWordTransfer*PacketsPerWord,
                                         CurrentTransPacket);
         }
+        if (!hRmSpiSlink->IsChipSelConfigured)
+        {
+            hRmSpiSlink->IsCurrentlySwBasedChipSel = 
+                hRmSpiSlink->hHwInterface->HwSetChipSelectLevelBasedOnPacketFxn(
+                    &hRmSpiSlink->HwRegs, hRmSpiSlink->CurrTransferChipSelId,
+                    !hRmSpiSlink->DeviceInfo[hRmSpiSlink->CurrTransferChipSelId].ChipSelectActiveLow,
+                    PacketsRequested, PacketsPerWord, NV_FALSE, NV_FALSE);
+            hRmSpiSlink->IsChipSelConfigured = NV_TRUE;
+        }
+        
         hRmSpiSlink->hHwInterface->HwSetDmaTransferSizeFxn(&hRmSpiSlink->HwRegs,
                                     hRmSpiSlink->CurrTransInfo.CurrPacketCount);
         hRmSpiSlink->hHwInterface->HwStartTransferFxn(&hRmSpiSlink->HwRegs, NV_TRUE);
@@ -1773,6 +1806,7 @@ static NvError MasterModeReadWriteDma(
     NvU8 *pReadReqCpuBuffer = NULL;
     NvU8 *pWriteReqCpuBuffer = NULL;
     NvU32 WrittenWord;
+    NvBool IsOnlyUseSWCS;
 
     hRmSpiSlink->IsUsingApbDma = NV_TRUE;
     hRmSpiSlink->hHwInterface->HwSetInterruptSourceFxn(&hRmSpiSlink->HwRegs,
@@ -1824,6 +1858,17 @@ static NvError MasterModeReadWriteDma(
 
         if (pClientRxBuffer)
             hRmSpiSlink->CurrTransInfo.RxPacketsRemaining = CurrentTransPacket;
+
+        if (!hRmSpiSlink->IsChipSelConfigured)
+        {
+            IsOnlyUseSWCS = (CurrentTransPacket == PacketsRequested)? NV_FALSE: NV_TRUE;
+            hRmSpiSlink->IsCurrentlySwBasedChipSel = 
+                hRmSpiSlink->hHwInterface->HwSetChipSelectLevelBasedOnPacketFxn(
+                    &hRmSpiSlink->HwRegs, hRmSpiSlink->CurrTransferChipSelId,
+                    !hRmSpiSlink->DeviceInfo[hRmSpiSlink->CurrTransferChipSelId].ChipSelectActiveLow,
+                    PacketsRequested, PacketsPerWord, NV_TRUE, IsOnlyUseSWCS);
+            hRmSpiSlink->IsChipSelConfigured = NV_TRUE;
+        }
 
         hRmSpiSlink->hHwInterface->HwSetDmaTransferSizeFxn(&hRmSpiSlink->HwRegs,
                                             CurrentTransPacket);
@@ -2379,7 +2424,8 @@ void NvRmSpiMultipleTransactions(
     }
 
     if (!Error)
-        Error = SetChipSelectSignalLevel(hRmSpi, ChipSelectId, ClockSpeedInKHz, NV_TRUE);
+        Error = SetChipSelectSignalLevel(hRmSpi, ChipSelectId, ClockSpeedInKHz,
+                       NV_TRUE, NV_TRUE);
     if (Error)
         goto cleanup;
 
@@ -2458,7 +2504,8 @@ void NvRmSpiMultipleTransactions(
             hRmSpi->CurrentDirection, NV_FALSE);
     }
     hRmSpi->CurrentDirection = SerialHwDataFlow_None;
-    (void)SetChipSelectSignalLevel(hRmSpi, ChipSelectId, ClockSpeedInKHz, NV_FALSE);
+    (void)SetChipSelectSignalLevel(hRmSpi, ChipSelectId, ClockSpeedInKHz,
+                NV_FALSE, NV_TRUE);
 
 cleanup:
 
@@ -2563,7 +2610,8 @@ void NvRmSpiOptimizedMultipleTransactions(
 
     hRmSpi->CurrTransInfo.PacketsPerWord = PacketsPerWord;
     if (!Error)
-        Error = SetChipSelectSignalLevel(hRmSpi, ChipSelectId, ClockSpeedInKHz, NV_TRUE);
+        Error = SetChipSelectSignalLevel(hRmSpi, ChipSelectId, ClockSpeedInKHz,
+                                        NV_TRUE, NV_TRUE);
     if (Error)
         goto cleanup;
 
@@ -2612,7 +2660,7 @@ void NvRmSpiOptimizedMultipleTransactions(
             hRmSpi->CurrentDirection, NV_FALSE);
     }
     hRmSpi->CurrentDirection = SerialHwDataFlow_None;
-    (void)SetChipSelectSignalLevel(hRmSpi, ChipSelectId, ClockSpeedInKHz, NV_FALSE);
+    (void)SetChipSelectSignalLevel(hRmSpi, ChipSelectId, ClockSpeedInKHz, NV_FALSE, NV_TRUE);
 
 cleanup:
     //  Re-tristate multi-plexed controllers, and re-multiplex the controller.
@@ -2754,7 +2802,8 @@ void NvRmSpiTransaction(
             Error = NvSuccess;
         }
     }
-    Error = SetChipSelectSignalLevel(hRmSpi, ChipSelectId, ClockSpeedInKHz, NV_TRUE);
+    Error = SetChipSelectSignalLevel(hRmSpi, ChipSelectId, ClockSpeedInKHz,
+                                        NV_TRUE, NV_FALSE);
     if (Error)
         goto cleanup;
 
@@ -2784,7 +2833,8 @@ void NvRmSpiTransaction(
     hRmSpi->hHwInterface->HwSetDataFlowFxn(&hRmSpi->HwRegs,
                                             hRmSpi->CurrentDirection, NV_FALSE);
     hRmSpi->CurrentDirection = SerialHwDataFlow_None;
-    (void)SetChipSelectSignalLevel(hRmSpi, ChipSelectId, ClockSpeedInKHz, NV_FALSE);
+    (void)SetChipSelectSignalLevel(hRmSpi, ChipSelectId, ClockSpeedInKHz,
+                                   NV_FALSE, NV_FALSE);
 
 cleanup:
 
@@ -2905,7 +2955,8 @@ NvError NvRmSpiStartTransaction(
     Error = SetPowerControl(hRmSpi, NV_TRUE);
 
     if (!Error)
-        Error = SetChipSelectSignalLevel(hRmSpi, ChipSelectId, ClockSpeedInKHz, NV_TRUE);
+        Error = SetChipSelectSignalLevel(hRmSpi, ChipSelectId, ClockSpeedInKHz,
+                                                    NV_TRUE, NV_FALSE);
 
     if (Error)
         goto cleanup;
@@ -2948,7 +2999,7 @@ NvError NvRmSpiStartTransaction(
         return Error;
 cleanup:
 
-    (void)SetChipSelectSignalLevel(hRmSpi, ChipSelectId, ClockSpeedInKHz, NV_FALSE);
+    (void)SetChipSelectSignalLevel(hRmSpi, ChipSelectId, ClockSpeedInKHz, NV_FALSE, NV_TRUE);
 
     if (hRmSpi->IsIdleSignalTristate)
         NvRmPinMuxConfigSetTristate(hRmSpi->hDevice,hRmSpi->RmIoModuleId,
@@ -2979,7 +3030,7 @@ NvRmSpiGetTransactionData(
                                             pBytesTransfererd, WaitTimeout);
 
     (void)SetChipSelectSignalLevel(hRmSpiSlink, hRmSpiSlink->CurrTransferChipSelId,
-                                                0, NV_FALSE);
+                                                0, NV_FALSE, NV_TRUE);
 
     if (hRmSpiSlink->IsIdleSignalTristate)
         NvRmPinMuxConfigSetTristate(hRmSpiSlink->hDevice,hRmSpiSlink->RmIoModuleId,

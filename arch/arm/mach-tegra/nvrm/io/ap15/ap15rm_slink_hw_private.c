@@ -90,6 +90,7 @@ SlinkHwRegisterInitialize(
     pSlinkHwRegs->IsLsbFirst = NV_FALSE;
     pSlinkHwRegs->IsMasterMode = NV_TRUE;
     pSlinkHwRegs->IsNonWordAlignedPackModeSupported = NV_FALSE;
+    pSlinkHwRegs->IsHwChipSelectSupported = NV_FALSE;
 
     CommandReg1 = NV_RESETVAL(SLINK, COMMAND);
     
@@ -184,15 +185,6 @@ SlinkHwSetChipSelectDefaultLevelFxn(
     // No control over the individual cs lines.
 }
 
-static void
-SlinkHwSetCSActiveForTotalWordsFxn(
-    SerialHwRegisters *pSlinkHwRegs, 
-    NvU32 TotalWords)
-{
-    // This is AP20 specific feature, so do nothing
-}
-
-
 /**
  * Set the chip select signal level.
  */
@@ -239,6 +231,27 @@ SlinkHwSetChipSelectLevel(
                             pSlinkHwRegs->HwRegs.SlinkRegs.Command2);
     SLINK_REG_WRITE32(pSlinkHwRegs->pRegsBaseAdd, COMMAND, 
                             pSlinkHwRegs->HwRegs.SlinkRegs.Command1);
+}
+
+/**
+ * Set the chip select signal level based on the transfer size.
+ * it can use the hw based CS or SW based CS based on transfer size and
+ * cpu/apb dma based transfer.
+ * Return NV_TRUE if the SW based chipselection is used otherwise return
+ * NV_FALSE;
+ */
+static NvBool
+SlinkHwSetChipSelectLevelBasedOnPacket(
+    SerialHwRegisters *pSlinkHwRegs, 
+    NvU32 ChipSelectId,
+    NvBool IsHigh,
+    NvU32 PacketRequested,
+    NvU32 PacketPerWord,
+    NvBool IsApbDmaBasedTransfer,
+    NvBool IsOnlyUseSWCS)
+{
+    SlinkHwSetChipSelectLevel(pSlinkHwRegs, ChipSelectId, IsHigh);
+    return NV_TRUE;
 }
 
 /**
@@ -293,8 +306,8 @@ void NvRmPrivSpiSlinkInitSlinkInterface_v1_0(HwInterface *pSlinkInterface)
     pSlinkInterface->HwSetSignalModeFxn = SlinkHwSetSignalMode;
     pSlinkInterface->HwSetChipSelectDefaultLevelFxn = SlinkHwSetChipSelectDefaultLevelFxn;
     pSlinkInterface->HwSetChipSelectLevelFxn = SlinkHwSetChipSelectLevel;
+    pSlinkInterface->HwSetChipSelectLevelBasedOnPacketFxn = SlinkHwSetChipSelectLevelBasedOnPacket;
     pSlinkInterface->HwWriteInTransmitFifoFxn = SlinkHwWriteInTransmitFifo;
     pSlinkInterface->HwReadFromReceiveFifoFxn =  SlinkHwReadFromReceiveFifo;
-    pSlinkInterface->HwSetCSActiveForTotalWordsFxn = SlinkHwSetCSActiveForTotalWordsFxn;
 }
 
