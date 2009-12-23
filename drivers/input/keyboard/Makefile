@@ -30,3 +30,4 @@ obj-$(CONFIG_KEYBOARD_BFIN)		+= bf54x-keys.o
 obj-$(CONFIG_KEYBOARD_SH_KEYSC)		+= sh_keysc.o
 obj-$(CONFIG_KEYBOARD_TEGRA)		+= tegra-kbc.o
 obj-$(CONFIG_KEYBOARD_TEGRA_NVEC)	+= tegra-nvec.o
+obj-$(CONFIG_KEYBOARD_TEGRA_GPIO)	+= tegra-gpio.o
