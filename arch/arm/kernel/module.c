@@ -169,6 +169,8 @@ apply_relocate(Elf32_Shdr *sechdrs, const char *strtab, unsigned int symindex,
 			*(u32 *)loc &= 0xfff0f000;
 			*(u32 *)loc |= ((offset & 0xf000) << 4) |
 					(offset & 0x0fff);
+			break;
+
 		case R_ARM_PREL31:
 			offset = *(u32 *)loc + sym->st_value - loc;
 			*(u32 *)loc = offset & 0x7fffffff;
