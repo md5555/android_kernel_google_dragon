@@ -138,7 +138,7 @@ NvRmGpioOpen(
     gpioShadowSize = sizeof(NvU32) * (NvU8)s_hGpio->caps->PortsPerInstances * (NvU8)s_hGpio->caps->Instances;
     gpioShadowPhysical = NV_REGR(hRm, NvRmModuleID_Pmif, 0, APBDEV_PMC_SCRATCH19_0);
     /* Hack. There is no need for shadow on AP20 */
-    if (hRm->ChipId.Id == 0x20 || !gpioShadowPhysical)
+    if (hRm->ChipId.Id >= 0x20 || !gpioShadowPhysical)
     {
         s_hGpio->pIvlReg = NvOsAlloc(gpioShadowSize);
         NvOsMemset(s_hGpio->pIvlReg, 0, gpioShadowSize);
@@ -181,10 +181,11 @@ void NvRmGpioClose(NvRmGpioHandle hGpio)
         NvOsFree(s_hGpio->pPinInfo);
         gpioShadowSize = sizeof(NvU32) * s_hGpio->caps->PortsPerInstances * s_hGpio->caps->Instances;
         gpioShadowPhysical = NV_REGR(hGpio->hRm, NvRmModuleID_Pmif, 0, APBDEV_PMC_SCRATCH19_0);
-        if (hGpio->hRm->ChipId.Id == 0x20 || !gpioShadowPhysical)
+        if (hGpio->hRm->ChipId.Id >= 0x20 || !gpioShadowPhysical)
         {
             NvOsFree(s_hGpio->pIvlReg);
-        } else
+        }
+        else
         {
             NvOsPhysicalMemUnmap(s_hGpio->pIvlReg, gpioShadowSize);
         }
