@@ -55,7 +55,7 @@
 #define BOARD_ID_VOYAGER_MAINBOARD_E1215    0xC0F
 #define BOARD_REV_ALL ((NvU8)0xFF)
 
-#define NVODM_ENABLE_EMC_DVFS (0)
+#define NVODM_ENABLE_EMC_DVFS (1)
 
 // Function to auto-detect boards with external CPU power supply
 NvBool NvOdmIsCpuExtSupply(void);

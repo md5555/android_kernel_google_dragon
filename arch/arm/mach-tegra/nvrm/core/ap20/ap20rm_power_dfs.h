@@ -190,7 +190,7 @@ extern "C"
  */
 #define NVRM_DFS_PARAM_EMC_AP20 \
     NvRmFreqMaximum, /* Maximum domain frequency set to h/w limit */ \
-    16000,  /* Minimum domain frequency 16 MHz */ \
+    50000,  /* Minimum domain frequency 50 MHz */ \
     1000,   /* Frequency change upper band 1 MHz */ \
     1000,   /* Frequency change lower band 1 MHz */ \
     {          /* RT starvation control parameters */ \
