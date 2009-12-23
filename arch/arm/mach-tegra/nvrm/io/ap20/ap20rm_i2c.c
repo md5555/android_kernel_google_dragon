@@ -669,6 +669,8 @@ DoOneReceiveTransaction(
     NvU32 PacketHeader3;
     NvU32 IntMaskReg;
     NvRmDmaModuleID DmaModuleId = NvRmDmaModuleID_I2c;
+    NvU32 BytesRead;
+
 
     hRmI2cCont->WordTransferred = 0;
     hRmI2cCont->WordRemaining = 0;
@@ -802,15 +804,29 @@ WaitForCompletion:
                     hRmI2cCont->I2cTransferStatus = NvError_I2cDeviceNotFound;
                     goto ReadExitWithReset;
                 }
-            }   
-            if (pBytesTransferred != NULL)
-                *pBytesTransferred = pTransaction->NumBytes;
-                
+            }
             // Memcopy fifo back to actual buffer given by client
             if (hRmI2cCont->IsUsingApbDma)
-                NvOsMemcpy(pBuffer, (NvU8* )hRmI2cCont->pDmaBuffer, *pBytesTransferred);
+            {
+                BytesRead = NV_MIN(pTransaction->NumBytes, 
+                                        hRmI2cCont->RxDmaReq.TransferSize);
+                NvOsMemcpy(pBuffer, (NvU8* )hRmI2cCont->pDmaBuffer, BytesRead);
+            }
             else
-                NvOsMemcpy(pBuffer, (NvU8* )hRmI2cCont->pDataBuffer, *pBytesTransferred);
+            {
+                BytesRead = NV_MIN(pTransaction->NumBytes, 
+                                        (4*hRmI2cCont->WordTransferred));
+                if (BytesRead != pTransaction->NumBytes)
+                {
+                    hRmI2cCont->I2cTransferStatus = NvError_I2cReadFailed;
+                    goto ReadExitWithReset;
+                }
+                NvOsMemcpy(pBuffer, (NvU8* )hRmI2cCont->pDataBuffer, BytesRead);
+            }
+
+            if (pBytesTransferred != NULL)
+                *pBytesTransferred = BytesRead;
+
             
             hRmI2cCont->I2cTransferStatus = NvSuccess;
             goto ReadExit;
@@ -1096,7 +1112,7 @@ DoMultiReceiveTransaction(
         I2C_REGW(hRmI2cCont, INTERRUPT_MASK_REGISTER, 0);
     }
     *pPacketId = PacketId;
-    *pBytesTransferred = BytesTransferred;
+    *pBytesTransferred = BytesTransferredYet;
     return Error;
 }
 

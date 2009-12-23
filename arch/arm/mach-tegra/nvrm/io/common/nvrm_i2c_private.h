@@ -74,32 +74,6 @@ typedef struct SocI2cCapabilityRec
     NvBool IsNewMasterAvailable;
 } SocI2cCapability;
 
-typedef enum
-{
-    /** No Error  */
-    I2cControllerStatus_None = 0,
-    /** Receive Fifo Data Request  */
-    I2cControllerStatus_RFifo_data_Request = 0x1,
-    /** Transmit Fifo Data Request */
-    I2cControllerStatus_TFifo_data_Request = 0x2,
-    /** Arbitration Lost */
-    I2cControllerStatus_Arb_Lost = 0x4,
-    /** No Acknowledge error */
-    I2cControllerStatus_NoAck = 0x8,
-    /** Receive Fifo Underflow */
-    I2cControllerStatus_RFifo_UFlow = 0x10,
-    /** Transmit Fifo Overflow */
-    I2cControllerStatus_TFifo_OFlow = 0x20,
-    /** All Packets Transfer Complete  */
-    I2cControllerStatus_All_Packets_Xfer_Complete = 0x40,
-    /** Packet Transfer Complete */
-    I2cControllerStatus_Packet_Xfer_Complete = 0x80,
-    /** Force to 32 bit */
-    I2cControllerStatus_Force32 = 0x7FFFFFFF
-}I2cControllerStatus;
-
-struct NvRmI2cControllerRec;
-
 /* I2C controller state. There are will one instance of this structure for each
  * I2C controller instance */
 typedef struct NvRmI2cControllerRec
@@ -184,28 +158,14 @@ typedef struct NvRmI2cControllerRec
     //  I2C capabiity for this SOC only.
     SocI2cCapability SocI2cCaps;
 
-    /* Flag to hold int for tfifoReq */
-    volatile NvBool IntForTFIFOReq;
-    /* Flag to hold int for rifoReq */
-    volatile NvBool IntForRFIFOReq;
-    /* Flag to hold all packet complete */
-    volatile NvBool AllPktComplete;
-    /* Flag to hold packet complete */
-    volatile NvBool PktXferComplte;
     /* Repeat start transfer */
     volatile NvBool RsTransfer;
-    /* Holds no. of Repeat start transations */
-    volatile NvU32 NoOfRSTransactions;
-    /* pointer to transfer buffer */
-    NvU8 * pTransferBuffer;
-    /* repeat start transations */
-    NvRmI2cTransactionInfo * RSTransactions;
-    volatile NvU32 CurrentReadPktId;
-    volatile NvU32 BytesAlreadyRead;
+
     /* Clock period in micro-seconds */
     NvU32 I2cClockPeriod;
     /* I2c Controller Status variable */
-    I2cControllerStatus ControllerStatus;
+    NvU32 ControllerStatus;
+
     /* indicates whether to enable new master or not */
     NvBool EnableNewMaster;
 
@@ -229,7 +189,7 @@ typedef struct NvRmI2cControllerRec
     // Tells whether the current transfer is with NO STOP
     NvBool IsCurrentTransferNoStop;
 
-    // TElls whether the current transfer is with ack or not
+    // Tells whether the current transfer is with ack or not
     NvBool IsCurrentTransferNoAck;
 
     // Tells whether current transfer is a read or write type.
@@ -301,5 +261,3 @@ NvError AP15RmI2cOpen(NvRmI2cController *c);
 NvError AP20RmI2cOpen(NvRmI2cController *c);
 
 #endif  // INCLUDED_NVRM_I2C_PRIVATE_H
-
-
