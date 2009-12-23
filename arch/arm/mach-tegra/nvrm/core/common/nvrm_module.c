@@ -164,6 +164,7 @@ NvRmModuleGetCapabilities(
     {
         NV_ASSERT(!"Could not find matching version of module in table");
         *Capability = 0;
+        return NvError_NotSupported;
     }
 
     *Capability = ret;
