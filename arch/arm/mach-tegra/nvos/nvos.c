@@ -161,7 +161,7 @@ typedef struct NvOsInterruptBlockRec
 
 static NvOsInterruptBlock *s_pIrqList[NVOS_MAX_SYSTEM_IRQS] = { NULL };
 
-static NvBootArgs s_BootArgs = { {0}, {0}, {0}, {{0}} };
+static NvBootArgs s_BootArgs = { {0}, {0}, {0}, {0}, {0}, {{0}} };
 
 /* Defined in mach-tegra/irq.c.  Stores the number of native (non-GPIO) SoC
  * IRQs. */
@@ -1692,6 +1692,10 @@ NvError NvOsBootArgGet(NvU32 key, void *arg, NvU32 size)
             src = &s_BootArgs.RmArgs;
             size_src = sizeof(NvBootArgsRm);
             break;
+        case NvBootArgKey_ChipShmooPhys:
+            src = &s_BootArgs.ChipShmooPhysArgs;
+            size_src = sizeof(NvBootArgsChipShmooPhys);
+            break;
         default:
             src = NULL;
             size_src = 0;
@@ -1829,6 +1833,22 @@ static int __init parse_tegra_tag(const struct tag *tag)
             printk("Unexpected RM tag length!\n");
         else
             *dst = *src;
+        return 0;
+    }
+    case NvBootArgKey_ChipShmooPhys:
+    {
+        NvBootArgsChipShmooPhys *dst = &s_BootArgs.ChipShmooPhysArgs;
+        const NvBootArgsChipShmooPhys *src =
+            (const NvBootArgsChipShmooPhys *)nvtag->bootarg;
+
+        if (nvtag->bootarg_len != sizeof(NvBootArgsChipShmooPhys))
+            printk("Unexpected phys shmoo tag length!\n");
+        else
+        {
+            printk("Phys shmoo tag with pointer 0x%X and length %u\n",
+                   src->PhysShmooPtr, src->Size);
+            *dst = *src;
+        }
         return 0;
     }
     default:

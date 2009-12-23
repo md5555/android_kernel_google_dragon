@@ -27,7 +27,7 @@
  * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
- * *
+ *
  */
 
 #include "nvcommon.h"
@@ -95,6 +95,7 @@ NvRmBootArgChipShmooGet(
     NvRmDeviceHandle hRmDevice,
     NvRmChipFlavor* pChipFlavor);
 
+static void NvRmPrivChipFlavorInit(NvRmDeviceHandle hRmDevice);
 static void NvRmPrivChipFlavorInit(NvRmDeviceHandle hRmDevice)
 {
     NvOsMemset((void*)&s_ChipFlavor, 0, sizeof(s_ChipFlavor));
@@ -431,7 +432,7 @@ NvRmPrivModuleVscaleAttach(
     // enabled || if clock still enabled => if enabled)
     NV_ASSERT(pCinfo->ClkEnableOffset);
     reg = NV_REGR(hRmDevice, NvRmPrivModuleID_ClockAndReset, 0,
-                  pCinfo->ClkEnableOffset);
+        pCinfo->ClkEnableOffset);
     Enabled = ((reg & pCinfo->ClkEnableField) == pCinfo->ClkEnableField);
     if (Enabled)
         return VoltageRequirement;
@@ -540,7 +541,7 @@ NvRmPrivModuleVscaleReAttach(
     {
         NV_ASSERT(pCinfo->ClkEnableOffset);
         reg = NV_REGR(hRmDevice, NvRmPrivModuleID_ClockAndReset, 0,
-                      pCinfo->ClkEnableOffset);
+            pCinfo->ClkEnableOffset);
         if ((reg & pCinfo->ClkEnableField) == pCinfo->ClkEnableField)
         {
             NV_ASSERT(s_VoltageStepRefCounts[pCstate->Vstep]);
@@ -582,7 +583,8 @@ NvRmPrivModuleSetScalingAttribute(
     }
 
     // Memory controller scale is specified separately on ODM layer, as
-    // it is board dependent; PMU transport must work at any volatge - no
+    // it is board dependent; TVDAC scaling always follow CVE (TV) or
+    // display (CRT); PMU transport must work at any volatge - no
     // v-scale attribute for these modules
     switch (pCinfo->Module)
     {
@@ -591,6 +593,13 @@ NvRmPrivModuleSetScalingAttribute(
         case NvRmPrivModuleID_ExternalMemoryController:
             pCstate->Vscale = NV_FALSE;
             return;
+        case NvRmModuleID_Tvo:
+            if (pCinfo->SubClockId == 2)
+            {   // TVDAC is TVO subclock 2
+                pCstate->Vscale = NV_FALSE;
+                return;
+            }
+            break;
         default:
             break;
     }
@@ -668,42 +677,88 @@ static NvError NvRmBootArgChipShmooGet(
 
     NvU32 offset, size, TotalSize = 0;
     NvBootArgsChipShmoo BootArgSh;
+    NvBootArgsChipShmooPhys BootArgShPhys;
     void* pBootShmooData = NULL;
     NvRmMemHandle hMem = NULL;
     NvError err = NvSuccess;
+    ExecPlatform env;
 
     // Retrieve shmoo data
     err = NvOsBootArgGet(NvBootArgKey_ChipShmoo, &BootArgSh, sizeof(BootArgSh));
-    if ((err != NvSuccess) || (BootArgSh.MemHandleKey == 0))
+    if (err != NvSuccess)
     {
         err = NvError_BadParameter;
         goto fail;
     }
-    err = NvRmMemHandleClaimPreservedHandle(
-        hRmDevice, BootArgSh.MemHandleKey, &hMem);
-    if (err != NvSuccess) 
-    {
-        goto fail;
-    }
 
-    TotalSize = NvRmMemGetSize(hMem);
-    NV_ASSERT(TotalSize);
-    err = NvRmMemMap(hMem, 0, TotalSize, NVOS_MEM_READ, &pBootShmooData);
-    if( err != NvSuccess )
+    if (BootArgSh.MemHandleKey != 0)
     {
-        goto fail;
-    }
+        err = NvRmMemHandleClaimPreservedHandle(
+            hRmDevice, BootArgSh.MemHandleKey, &hMem);
+        if (err != NvSuccess) 
+        {
+            goto fail;
+        }
 
-    // Use OS memory to keep shmoo data, and release carveout buffer
-    s_pShmooData = NvOsAlloc(TotalSize);
-    if (!s_pShmooData)
-    {
-        err = NvError_InsufficientMemory;
-        goto fail;
+        TotalSize = NvRmMemGetSize(hMem);
+        NV_ASSERT(TotalSize);
+        err = NvRmMemMap(hMem, 0, TotalSize, NVOS_MEM_READ, &pBootShmooData);
+        if( err != NvSuccess )
+        {
+            goto fail;
+        }
+
+        // Use OS memory to keep shmoo data, and release carveout buffer
+        s_pShmooData = NvOsAlloc(TotalSize);
+        if (!s_pShmooData)
+        {
+            err = NvError_InsufficientMemory;
+            goto fail;
+        }
+        NvOsMemcpy(s_pShmooData, pBootShmooData, TotalSize);
+        NvRmMemUnmap(hMem, pBootShmooData, TotalSize);
+        NvRmMemHandleFree(hMem);
     }
-    NvOsMemcpy(s_pShmooData, pBootShmooData, TotalSize);
-    NvRmMemUnmap(hMem, pBootShmooData, TotalSize);
-    NvRmMemHandleFree(hMem);
+    else
+    {
+        env = NvRmPrivGetExecPlatform(hRmDevice);
+        if (env != ExecPlatform_Fpga)
+        {
+            err = NvError_BadParameter;
+            goto fail;
+        }
+
+        err = NvOsBootArgGet(NvBootArgKey_ChipShmooPhys, &BootArgShPhys, sizeof(BootArgShPhys));
+        if ((err != NvSuccess) || (BootArgShPhys.PhysShmooPtr == 0))
+        {
+            err = NvError_BadParameter;
+            goto fail;
+        }
+
+        TotalSize = BootArgShPhys.Size;
+        NV_ASSERT(TotalSize);
+
+        // Use OS memory to keep shmoo data
+        s_pShmooData = NvOsAlloc(TotalSize);
+        if (!s_pShmooData)
+        {
+            err = NvError_InsufficientMemory;
+            goto fail;
+        }
+        
+        // Map the physical shmoo address passed by the backdoor loader
+        err = NvOsPhysicalMemMap(BootArgShPhys.PhysShmooPtr, TotalSize,
+            NvOsMemAttribute_WriteBack, 0, &pBootShmooData);
+        if (err != NvSuccess)
+        {
+            goto fail;
+        }
+
+        // Copy the shmoo data and unmap the backdoor shmoo pointer.
+        NvOsMemcpy(s_pShmooData, pBootShmooData, TotalSize);
+        NvOsPhysicalMemUnmap(pBootShmooData, TotalSize);
+        pBootShmooData = NULL;
+    }
 
     // Fill in shmoo data records
     pChipFlavor->sku = hRmDevice->ChipId.SKU;

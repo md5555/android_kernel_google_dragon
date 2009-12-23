@@ -374,6 +374,7 @@ typedef struct NvRmModuleClockStateRec
     NvU32 refCount;
     NvU32 Vstep;
     NvBool Vscale;
+    NvBool FirstReference;
 #if NVRM_DIAG_LOCK_SUPPORTED
     NvBool DiagLock;    // once locked, can not be changed
 #endif

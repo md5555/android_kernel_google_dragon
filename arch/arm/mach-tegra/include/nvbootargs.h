@@ -58,6 +58,7 @@ typedef enum
     NvBootArgKey_Display,
     NvBootArgKey_Framebuffer,
     NvBootArgKey_ChipShmoo,
+    NvBootArgKey_ChipShmooPhys,
     NvBootArgKey_PreservedMemHandle_0 = 0x10000,
     NvBootArgKey_PreservedMemHandle_Num = (NvBootArgKey_PreservedMemHandle_0 +
                                          NV_BOOTARGS_MAX_PRESERVED_MEMHANDLES),
@@ -178,6 +179,15 @@ typedef struct NvBootArgsChipShmooRec
     NvU32 SvopHighSetting;
 } NvBootArgsChipShmoo;
 
+/**
+ * Chip chatcterization shmoo data indexed by NvBootArgKey_ChipShmooPhys
+ */
+typedef struct NvBootArgsChipShmooPhysRec
+{
+    NvU32 PhysShmooPtr;
+    NvU32 Size;
+} NvBootArgsChipShmooPhys;
+
 #define NVBOOTARG_NUM_PRESERVED_HANDLES (NvBootArgKey_PreservedMemHandle_Num - \
                                          NvBootArgKey_PreservedMemHandle_0)
 
@@ -190,6 +200,7 @@ typedef struct NvBootArgsRec
     NvBootArgsDisplay DisplayArgs;
     NvBootArgsFramebuffer FramebufferArgs;
     NvBootArgsChipShmoo ChipShmooArgs;
+    NvBootArgsChipShmooPhys ChipShmooPhysArgs;
     NvBootArgsPreservedMemHandle MemHandleArgs[NVBOOTARG_NUM_PRESERVED_HANDLES];
 } NvBootArgs;
 

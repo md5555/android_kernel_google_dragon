@@ -359,9 +359,9 @@ NvRmPrivMemoryClockReAttach(
     NvU32 i;
     NvRmClockSource SourceId = cinfo->Sources[state->SourceClock];
 
-    // MC clock on AP20 is always the same as EMC1x domain clock - no need for
-    // source reference double-counting.
-    if ((hDevice->ChipId.Id == 0x20) &&
+    // MC clock on AP20 and newer chips is always the same as EMC1x domain clock
+    // So there is no need for source reference double-counting.
+    if ((hDevice->ChipId.Id >= 0x20) &&
         (cinfo->Module == NvRmPrivModuleID_MemoryController))
         return;
 
@@ -486,6 +486,13 @@ NvError NvRmPowerModuleClockControl(
         }
     }
     NvOsMutexLock(s_hClockMutex);
+
+    // Restart reference counting if it is the 1st clock control call
+    if (!state->FirstReference)
+    {
+        state->FirstReference = NV_TRUE;
+        state->refCount = 0;
+    }
 
     // Update reference count, and exit if
     // - clock enable requested and module clock is already enabled
@@ -855,7 +862,10 @@ static void ModuleClockStateInit(NvRmDeviceHandle hRmDevice)
         else
         {
             // Check implicit attachment to PLLs for main clocks only
-            ImplicitPll = NvRmPrivGetImplicitPllSource(hRmDevice, cinfo->Module);
+            ImplicitPll =
+                NvRmPrivGetImplicitPllSource(hRmDevice, cinfo->Module);
+            NV_ASSERT((ImplicitPll == NvRmClockSource_Invalid) ||
+                      (cinfo->ClkEnableOffset));
         }
 
         // Fill in module clock state, attach explicit PLL sources for clocks
@@ -884,12 +894,15 @@ static void ModuleClockStateInit(NvRmDeviceHandle hRmDevice)
             NvRmPrivCoreClockReAttach(hRmDevice, pCore->SourceId, SourceId);
         }
 
-        // Attach implicit PLL sources
-        if (ImplicitPll != NvRmClockSource_Invalid)
+        // Attach implicit PLL sources and update reference count
+        // for enabled main clocks
+        if (flags == NvRmClockConfig_SubConfig)
+            continue;
+
+        if (cinfo->ClkEnableOffset)
         {
-            NV_ASSERT(cinfo->ClkEnableOffset);
-            reg = NV_REGR(hRmDevice, NvRmPrivModuleID_ClockAndReset, 0, 
-                          cinfo->ClkEnableOffset);
+            reg = NV_REGR(hRmDevice, NvRmPrivModuleID_ClockAndReset, 0,
+                cinfo->ClkEnableOffset);
             if ((reg & cinfo->ClkEnableField) == cinfo->ClkEnableField)
             {
                 for (j = 0; j < s_PllReferencesTableSize; j++)
@@ -898,8 +911,11 @@ static void ModuleClockStateInit(NvRmDeviceHandle hRmDevice)
                         NvRmPrivPllRefUpdate(
                             hRmDevice, &s_PllReferencesTable[j], NV_TRUE);
                 }
+                state->refCount = 1;
             }
         }
+        else
+            state->refCount = 1;    // free running clock
     }
 }
 
@@ -1280,10 +1296,11 @@ NvRmPrivClocksResume(NvRmDeviceHandle hRmDevice)
 {
     // Sync clock sources after LP0
     NvRmPrivClockSourceFreqInit(hRmDevice, s_ClockSourceFreq);
+    ScaledClockConfigInit(hRmDevice);
     if ((hRmDevice->ChipId.Id == 0x15) || (hRmDevice->ChipId.Id == 0x16))
         NvRmPrivAp15FastClockConfig(hRmDevice);
-    // else if (hRmDevice->ChipId.Id == 0x20)
-        // TODO: NvRmPrivAp20FastClockConfig(hRmDevice);
+    else if (hRmDevice->ChipId.Id == 0x20)
+        NvRmPrivAp20FastClockConfig(hRmDevice);
 
 }
 
