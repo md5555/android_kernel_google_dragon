@@ -46,6 +46,7 @@ struct tegra_kbc_driver_data {
 	struct task_struct	*task;
 	NvOsSemaphoreHandle	semaphore;
 	NvDdkKbcHandle		ddkHandle;
+	int			done;
 };
 
 #define in_table(_code, _tabl) \
@@ -100,16 +101,41 @@ static int tegra_kbc_thread(void *pdata)
 	struct tegra_kbc_driver_data *kbc = pdata;
 	NvU32 loop;
 
-	for (;;)
-	{
+	for (;;) {
 		/* FIXME should we use a NvOsSemaphoreWaitTimeout instead? */
 		NvOsSemaphoreWait(kbc->semaphore);
+		if (kbc->done)
+			break;
 		do {
 			loop = tegra_kbc_handle_keyev(kbc);
 		} while (loop);
 	}
 
 	return 0;
+}
+
+static void tegra_kbc_cleanup(struct tegra_kbc_driver_data *kbc)
+{
+	if (!kbc)
+		return;
+
+	if (kbc->task) {
+		kbc->done = 1;
+		NvOsSemaphoreSignal(kbc->semaphore);
+		kthread_stop(kbc->task);
+	}
+	if (kbc->ddkHandle) {
+		NvDdkKbcStop(kbc->ddkHandle);
+		NvDdkKbcClose(kbc->ddkHandle);
+	}
+
+	if (kbc->semaphore)
+		NvOsSemaphoreDestroy(kbc->semaphore);
+
+	if (kbc->input_dev)
+		input_free_device(kbc->input_dev);
+
+	kfree(kbc);
 }
 
 static int __init tegra_kbc_probe(struct platform_device *pdev)
@@ -136,28 +162,29 @@ static int __init tegra_kbc_probe(struct platform_device *pdev)
 	if (nverr != NvSuccess)	{
 		err = -1;
 		pr_err("tegra_kbc_probe: Semaphore creation failed\n");
-		goto err_semaphore_create_failed;
+		goto fail;
 	}
-
-	kbc->task = kthread_create(tegra_kbc_thread, kbc, "tegra_kbc_thread");
-	if(kbc->task == NULL) {
-		err = -1;
-		goto err_kthread_create_failed;
-	}
-	wake_up_process( kbc->task );
 
 	nverr = NvDdkKbcOpen (s_hRmGlobal, &kbc->ddkHandle);
 	if (nverr != NvSuccess) {
 		err = -1;
 		pr_err("tegra_kbc_probe: NvDdkKbcOpen failed\n");
-		goto err_ddk_open_failed;
+		goto fail;
 	}
+
 	nverr = NvDdkKbcStart(kbc->ddkHandle, kbc->semaphore);
 	if (nverr != NvSuccess) {
 		err = -1;
 		pr_err("tegra_kbc_probe: NvDdkKbcStart failed\n");
-		goto err_ddk_start_failed;
+		goto fail;
 	}
+
+	kbc->task = kthread_create(tegra_kbc_thread, kbc, "tegra_kbc_thread");
+	if(kbc->task == NULL) {
+		err = -1;
+		goto fail;
+	}
+	wake_up_process( kbc->task );
 
 	kbc->input_dev = input_dev;
 	input_dev->event = tegra_kbc_event;
@@ -180,32 +207,20 @@ static int __init tegra_kbc_probe(struct platform_device *pdev)
 	if (err) {
 		pr_err("tegra_kbc_probe: Unable to register %s input device\n",
 			input_dev->name);
-		goto err_input_register_device_failed;
+		goto fail;
 	}
 
 	return 0;
 
-err_input_register_device_failed:
-err_ddk_start_failed:
-	NvDdkKbcClose(kbc->ddkHandle);
-err_ddk_open_failed:
-	/* FIXME How to destroy the thread? Maybe we should use workqueues? */
-err_kthread_create_failed:
-	NvOsSemaphoreDestroy(kbc->semaphore);
-err_semaphore_create_failed:
-	kfree(kbc);
-	input_free_device(input_dev);
+fail:
+	tegra_kbc_cleanup(kbc);	  
 	return err;
 }
 
 static int tegra_kbc_remove(struct platform_device *pdev)
 {
 	struct tegra_kbc_driver_data *kbc = platform_get_drvdata(pdev);
-
-	/* FIXME How to destroy the thread? Maybe we should use workqueues? */
-	input_unregister_device(kbc->input_dev);
-	/* NvOsSemaphoreDestroy(kbc->semaphore); */
-	kfree(kbc);
+	tegra_kbc_cleanup(kbc);
 	return 0;
 }
 
