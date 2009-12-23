@@ -852,6 +852,9 @@ OnDmaCompleteInContinuousMode(
         else
         {
             pDmaChannel->pHwInterface->DmaHwStopTransferFxn(&pCurrReq->DmaChanRegs);
+
+            pDmaChannel->pTransReqList[pDmaChannel->HeadReqIndex].NextIndex = pDmaChannel->HeadFreeIndex;
+            pDmaChannel->HeadFreeIndex = pDmaChannel->HeadReqIndex;
             pDmaChannel->HeadReqIndex = DMA_NULL_INDEX;
             pDmaChannel->TailReqIndex = DMA_NULL_INDEX;
 
@@ -966,6 +969,7 @@ static NvError RegisterAllDmaInterrupt(NvRmDeviceHandle hDevice)
     NvOsInterruptHandler DmaIntHandler = ApbDmaIsr;
     NvU32 Irq = 0;
     NvU32 i;
+    NvU32 n;
 
     /* Disable interrupts for all channels */
     for (i=0; i < s_DmaInfo.NumApbDmaChannels; i++)
@@ -975,8 +979,10 @@ static NvError RegisterAllDmaInterrupt(NvRmDeviceHandle hDevice)
 
 #if NVOS_IS_LINUX
     /* Register same interrupt hanlder for all APB DMA channels. */
-    for (i=0; i < s_DmaInfo.NumApbDmaChannels - MAX_RESERVED_DMA_CHANNELS - MAX_AVP_DMA_CHANNELS; i++)
-    {     
+    n = s_DmaInfo.NumApbDmaChannels - MAX_RESERVED_DMA_CHANNELS -
+        MAX_AVP_DMA_CHANNELS;
+    for (i=0; i < n; i++)
+    {
         Irq = NvRmGetIrqForLogicalInterrupt(hDevice, ModuleId, i);
         Error = NvRmInterruptRegister(hDevice, 1, &Irq,
             &DmaIntHandler, &s_DmaInfo.pListApbDmaChannel[i], 
@@ -1008,11 +1014,15 @@ static NvError RegisterAllDmaInterrupt(NvRmDeviceHandle hDevice)
 static void UnregisterAllDmaInterrupt(NvRmDeviceHandle hDevice)
 {
 #if NVOS_IS_LINUX
-    int i;
+    NvU32 i;
+    NvU32 n;
 
-    for (i=0; i < s_DmaInfo.NumApbDmaChannels; i++)
+    n = s_DmaInfo.NumApbDmaChannels - MAX_RESERVED_DMA_CHANNELS -
+        MAX_AVP_DMA_CHANNELS;
+    for (i=0; i < n; i++)
     {
-        NvRmInterruptUnregister(hDevice, s_DmaInfo.pListApbDmaChannel[i].hIntrHandle);
+        NvRmInterruptUnregister(hDevice,
+            s_DmaInfo.pListApbDmaChannel[i].hIntrHandle);
     }
 #else
     NvRmInterruptUnregister(hDevice, s_ApbDmaInterruptHandle);
