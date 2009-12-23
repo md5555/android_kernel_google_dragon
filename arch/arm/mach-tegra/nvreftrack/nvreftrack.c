@@ -636,3 +636,8 @@ EXPORT_SYMBOL(NvRtAllocObjRef);
 EXPORT_SYMBOL(NvRtDiscardObjRef);
 EXPORT_SYMBOL(NvRtFreeObjRef);
 EXPORT_SYMBOL(NvRtStoreObjRef);
+
+EXPORT_SYMBOL(NvRtCreate);
+EXPORT_SYMBOL(NvRtDestroy);
+EXPORT_SYMBOL(NvRtRegisterClient);
+EXPORT_SYMBOL(NvRtUnregisterClient);
