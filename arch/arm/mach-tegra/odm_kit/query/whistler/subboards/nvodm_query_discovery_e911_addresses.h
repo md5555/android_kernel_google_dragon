@@ -49,14 +49,13 @@
  * If you find other boards for which it needs to be inverted, please
  * add your information to this comment.
  */
-#define OV5630_PINS (NVODM_CAMERA_VGP5_RESET_AL | \
-                     NVODM_CAMERA_VD11_POWERDOWN | \
+#define OV5630_PINS (NVODM_CAMERA_SERIAL_CSI_D1A | \
                      NVODM_CAMERA_DEVICE_IS_DEFAULT)
 static const NvOdmIoAddress s_ffaImagerOV5630Addresses[] =
 {
     { NvOdmIoModule_I2c,  0x02, 0x6C }, 
-    { NvOdmIoModule_Gpio, NVODM_GPIO_CAMERA_PORT, 5 },  // Reset
-    { NvOdmIoModule_Gpio, NVODM_PORT('t'), 3 },  // Power Down
+    { NvOdmIoModule_Gpio, NVODM_GPIO_CAMERA_PORT, 5 | NVODM_IMAGER_RESET_AL },
+    { NvOdmIoModule_Gpio, NVODM_PORT('t'), 3 | NVODM_IMAGER_POWERDOWN },
     { NvOdmIoModule_Vdd,  0x00, Max8907bPmuSupply_LDO18 }, //VDDIO_VI
     { NvOdmIoModule_Vdd,  0x00, Max8907bPmuSupply_LDO9 }, //AVDD_CAM1
     { NvOdmIoModule_Vdd,  0x00, Max8907bPmuSupply_LDO13 }, //VDDIO_AF
@@ -71,15 +70,20 @@ static const NvOdmIoAddress s_ffaImagerAD5820Addresses[] =
     { NvOdmIoModule_I2c,  0x02, 0x18 },  // focuser i2c
 };
 
+// OV5630 flash
+static const NvOdmIoAddress s_ffaFlashLTC3216Addresses[] =
+{
+    { NvOdmIoModule_Gpio, NVODM_GPIO_CAMERA_PORT, 3 | NVODM_IMAGER_FLASH0 },  // Flash 200mA
+    { NvOdmIoModule_Gpio, NVODM_GPIO_CAMERA_PORT, 6 | NVODM_IMAGER_FLASH1 }   // Flash 600mA
+};
+
 // For SEMCO VGA
-#define SOC380_PINS (NVODM_CAMERA_VGP0_RESET_AL | \
-                     NVODM_CAMERA_VGP4_POWERDOWN_AL | \
-                     NVODM_CAMERA_PARALLEL_VD0_TO_VD7)
+#define SOC380_PINS (NVODM_CAMERA_PARALLEL_VD0_TO_VD7)
 static const NvOdmIoAddress s_ffaImagerSOC380Addresses[] =
 {
     { NvOdmIoModule_I2c,  0x02, 0x78 },
-    { NvOdmIoModule_Gpio, NVODM_GPIO_CAMERA_PORT, 4 },  // Powerdown
-    { NvOdmIoModule_Gpio, NVODM_GPIO_CAMERA_PORT, 0 },  // Reset
+    { NvOdmIoModule_Gpio, NVODM_GPIO_CAMERA_PORT, 4 | NVODM_IMAGER_POWERDOWN_AL },
+    { NvOdmIoModule_Gpio, NVODM_GPIO_CAMERA_PORT, 0 | NVODM_IMAGER_RESET_AL },
     { NvOdmIoModule_Vdd,  0x00, Max8907bPmuSupply_LDO18}, //VDDIO_VI
     { NvOdmIoModule_Vdd,  0x00, Max8907bPmuSupply_LDO9 }, //AVDD_CAM2
     { NvOdmIoModule_Vdd,  0x00, Max8907bPmuSupply_LDO13}, //VDDIO_AF

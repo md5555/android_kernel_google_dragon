@@ -80,6 +80,14 @@
     NvOdmPeripheralClass_Other
 },
 
+// flash device 
+{
+    LTC3216_GUID,
+    s_ffaFlashLTC3216Addresses,
+    NV_ARRAY_SIZE(s_ffaFlashLTC3216Addresses),
+    NvOdmPeripheralClass_Other
+},
+
 {
     COMMONIMAGER_GUID,
     s_CommonImagerAddresses,

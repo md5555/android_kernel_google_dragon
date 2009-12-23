@@ -36,40 +36,20 @@
 
 // E912-A02 and Concorde2 Sensors
 #define OV5630_GUID NV_ODM_GUID('s','_','O','V','5','6','3','0')
-/// focuser?
-
-// 3MP Sensor
-#define MI3130_GUID NV_ODM_GUID('s','_','M','I','3','1','3','0')
-#define AD5398_GUID NV_ODM_GUID('f','_','A','D','5','3','9','8')
 
 // E911 Sensors
 #define MI5130_GUID NV_ODM_GUID('s','_','M','I','5','1','3','0')
 #define SEMCOVGA_GUID NV_ODM_GUID('S','E','M','C','O','V','G','A')
 
 // E911 Focusers
+// focuser for MI5130
 #define DW9710_GUID NV_ODM_GUID('f','_','D','W','9','7','1','0')
 
+/// focuser for OV5630
 #define AD5820_GUID NV_ODM_GUID('f','_','A','D','5','8','2','0')
 
 // E911 Flash
 #define LTC3216_GUID NV_ODM_GUID('l','_','L','T','3','2','1','6')
-
-
-// E912 Sensors
-#define OV3640Y_GUID NV_ODM_GUID('s','O','V','3','6','4','0','Y')
-#define OV3640B_GUID NV_ODM_GUID('s','O','V','3','6','4','0','B')
-
-// sharp  RJ54P1BA0C
-#define RJ54_GUID NV_ODM_GUID('s','_','R','J','5','4','0','0')
-
-// ROME BH6459 Focusers
-#define BH6459_GUID NV_ODM_GUID('f','_','B','H','6','4','5','9')
-
-// ROME BH6472 Focusers
-#define BH6472_GUID NV_ODM_GUID('f','_','B','H','6','4','7','2')
-
-// sharp  AD5821 module
-#define AD5821_GUID NV_ODM_GUID('f','_','A','D','5','8','2','1')
 
 // io addresses common to all imagers (clock)
 #define COMMONIMAGER_GUID NV_ODM_GUID('s', '_', 'c', 'o', 'm', 'm', 'o', 'n')
@@ -92,6 +72,37 @@
 #define NVODM_CAMERA_SERIAL_CSI_D1A_D2A  (6 << NVODM_CAMERA_DATA_PIN_SHIFT)
 #define NVODM_CAMERA_SERIAL_CSI_D1B      (7 << NVODM_CAMERA_DATA_PIN_SHIFT)
 
+// Switching the encoding from the VideoInput module address to use with
+// each GPIO module address.
+// NVODM_IMAGER_GPIO will tell the nvodm imager how to use each gpio
+// A gpio can be used for powerdown (lo, hi) or !powerdown (hi, lo)
+// used for reset (hi, lo, hi) or for !reset (lo, hi, lo)
+// Or, for mclk or pwm (unimplemented yet)
+// We have moved the flash to its own, so it is not needed here
+#define NVODM_IMAGER_GPIO_PIN_SHIFT    (24)
+#define NVODM_IMAGER_UNUSED            (0x0)
+#define NVODM_IMAGER_RESET             (0x1 << NVODM_IMAGER_GPIO_PIN_SHIFT)
+#define NVODM_IMAGER_RESET_AL          (0x2 << NVODM_IMAGER_GPIO_PIN_SHIFT)
+#define NVODM_IMAGER_POWERDOWN         (0x3 << NVODM_IMAGER_GPIO_PIN_SHIFT)
+#define NVODM_IMAGER_POWERDOWN_AL      (0x4 << NVODM_IMAGER_GPIO_PIN_SHIFT)
+// only on VGP0
+#define NVODM_IMAGER_MCLK              (0x8 << NVODM_IMAGER_GPIO_PIN_SHIFT)
+// only on VGP6
+#define NVODM_IMAGER_PWM               (0x9 << NVODM_IMAGER_GPIO_PIN_SHIFT)
+// If flash code wants the gpio's labelled
+// use for any purpose, or not at all
+#define NVODM_IMAGER_FLASH0           (0x5 << NVODM_IMAGER_GPIO_PIN_SHIFT)
+#define NVODM_IMAGER_FLASH1           (0x6 << NVODM_IMAGER_GPIO_PIN_SHIFT)
+#define NVODM_IMAGER_FLASH2           (0x7 << NVODM_IMAGER_GPIO_PIN_SHIFT)
+// Shutter control
+#define NVOSM_IMAGER_SHUTTER          (0xA << NVODM_IMAGER_GPIO_PIN_SHIFT)
+// 
+
+#define NVODM_IMAGER_MASK              (0xF << NVODM_IMAGER_GPIO_PIN_SHIFT)
+#define NVODM_IMAGER_CLEAR(_s)         ((_s) & ~(NVODM_IMAGER_MASK))
+#define NVODM_IMAGER_IS_SET(_s)        (((_s) & (NVODM_IMAGER_MASK)) != 0)
+#define NVODM_IMAGER_FIELD(_s)         ((_s) >> NVODM_IMAGER_GPIO_PIN_SHIFT)
+
 // The imager devices can connect to the vi gpio (VGP) pins
 // for various reasons: flash, powerdown, reset, pwm, mclk.
 // Only certain pins can be used for certain activities.
@@ -99,6 +110,7 @@
 // in the NvOdmIoAddress for VideoInput.
 // VGP1 & VGP2 are used for i2c
 // _AL means 'active low', otherwise active high is assumed
+
 #define NVODM_CAMERA_GPIO_PIN_SHIFT        (8)
 #define NVODM_CAMERA_GPIO_PIN_MASK         (0x7)
 #define NVODM_CAMERA_GPIO_PIN_WIDTH         3
