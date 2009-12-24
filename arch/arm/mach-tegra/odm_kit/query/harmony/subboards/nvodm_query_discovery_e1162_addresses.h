@@ -296,10 +296,11 @@ static const NvOdmIoAddress s_CrtAddresses[] =
     { NvOdmIoModule_I2c, 0x01, 0xA0 },
 
     /* tvdac rail */
-    { NvOdmIoModule_Vdd, 0x00, TPS6586xPmuSupply_LDO6 },    // VDDIO_VGA
+    { NvOdmIoModule_Vdd, 0x00, TPS6586xPmuSupply_LDO6 },    // VDDIO_VDAC
 
     /* lcd rail (required for crt out) */
     { NvOdmIoModule_Vdd, 0x00, TPS6586xPmuSupply_LDO4 },    // VDDIO_LCD (VDD_1V8)
+    { NvOdmIoModule_Vdd, 0x00, Ext_TPS2051BPmuSupply_VDDIO_VID },   // VDDIO_VGA
 };
 
 static const NvOdmIoAddress s_ffaVideoDacAddresses[] =

@@ -1101,24 +1101,35 @@ Tps6586xSetExternalSupply(
 
         if (Enable)
         {
-            // Set GPIO
-            NvOdmGpioSetState(hPmu->hGpio,
-                              hPmu->hPin[NVODM_EXT_AP_GPIO_RAIL(vddRail)],
-                              NvOdmGpioPinActiveState_High);
+            if (vddRail == Ext_TPS2051BPmuSupply_VDDIO_VID)
+            {
+                NvOdmGpioConfig(hPmu->hGpio,
+                                hPmu->hPin[NVODM_EXT_AP_GPIO_RAIL(vddRail)],
+                                NvOdmGpioPinMode_Tristate);
+            }
+            else
+            {
+                NvOdmGpioSetState(hPmu->hGpio,
+                                  hPmu->hPin[NVODM_EXT_AP_GPIO_RAIL(vddRail)],
+                                  NvOdmGpioPinActiveState_High);
+
+                NvOdmGpioConfig(hPmu->hGpio,
+                                hPmu->hPin[NVODM_EXT_AP_GPIO_RAIL(vddRail)],
+                                NvOdmGpioPinMode_Output);
+            }
         }
         else
         {
-            // Reset GPIO
-            NvOdmGpioSetState(hPmu->hGpio,
+            if (vddRail != Ext_TPS2051BPmuSupply_VDDIO_VID)
+            {
+                NvOdmGpioSetState(hPmu->hGpio,
                               hPmu->hPin[NVODM_EXT_AP_GPIO_RAIL(vddRail)],
                               NvOdmGpioPinActiveState_Low);
+                NvOdmGpioConfig(hPmu->hGpio,
+                            hPmu->hPin[NVODM_EXT_AP_GPIO_RAIL(vddRail)],
+                            NvOdmGpioPinMode_Output);
+            }
         }
-
-        // Configure GPIO pin
-        NvOdmGpioConfig(hPmu->hGpio,
-                        hPmu->hPin[NVODM_EXT_AP_GPIO_RAIL(vddRail)],
-                        NvOdmGpioPinMode_Output);
-
     }
 
     // This isn't thread safe, but it's highly unlikely that will be an issue for these rails.
@@ -1145,7 +1156,9 @@ Tps6586xWriteVoltageReg(
     //const TPS6586xPmuSupplyInfo* pSupplyInputInfo = &tps6586xSupplyInfoTable[pSupplyInfo->supplyInput];
     NvBool status = NV_FALSE;
     NvU32  settleTime = 0;
+#if !defined(CONFIG_TEGRA_ODM_HARMONY)
     NvU32  volChange = 0;
+#endif
 
     NV_ASSERT(pSupplyInfo->supply == (TPS6586xPmuSupply)vddRail);
 
@@ -1164,10 +1177,10 @@ Tps6586xWriteVoltageReg(
         {
             NVODMPMU_PRINTF(("TPS:The required ctrl register address is INVALID...\n"));
 #if defined(CONFIG_TEGRA_ODM_HARMONY)
-            return NV_FALSE;
-#else
             return NV_TRUE;
             //return NV_FALSE;
+#else
+            return NV_FALSE;
 #endif
         }
     }
@@ -1262,12 +1275,16 @@ Tps6586xWriteVoltageReg(
 
         if (((NvOdmPmuDeviceTPS *)(hDevice->pPrivate))->supplyRefCntTable[vddRail] != 0)
         {
+#if defined(CONFIG_TEGRA_ODM_HARMONY)
             if(--((NvOdmPmuDeviceTPS *)(hDevice->pPrivate))->supplyRefCntTable[vddRail] != 0)
             {
                 if (pSettleMicroSeconds)
                     *pSettleMicroSeconds = 0;
                 return NV_TRUE;
             }
+#else
+            --((NvOdmPmuDeviceTPS *)(hDevice->pPrivate))->supplyRefCntTable[vddRail];
+#endif
         }
 
 #if !defined(CONFIG_TEGRA_ODM_HARMONY)        
@@ -1340,7 +1357,11 @@ Tps6586xWriteVoltageReg(
 
     if (pSupplyInfo->supplyRegInfo.addr == TPS6586x_RFF_INVALID) 
     {
+#if defined(CONFIG_TEGRA_ODM_HARMONY)
+        return NV_TRUE;
+#else
         return NV_FALSE;
+#endif
     }
     else
     {
@@ -1350,7 +1371,7 @@ Tps6586xWriteVoltageReg(
 #if defined(CONFIG_TEGRA_ODM_HARMONY)
         status = Tps6586xI2cRead8(hDevice, pSupplyInfo->supplyRegInfo.addr, &data);
         if (NV_FALSE == status)
-            NVODMPMU_PRINTF(("TPS:Writing to PMU I2C fails 1... supplyaddress: %d\n", pSupplyInfo->supplyRegInfo));
+            NVODMPMU_PRINTF(("TPS:Writing to PMU I2C fails 1... supplyaddress: %d\n", pSupplyInfo->supplyRegInfo.addr));
 #else
         if ((vddRail == TPS6586xPmuSupply_DCD0) ||
             (vddRail == TPS6586xPmuSupply_DCD1) ||
@@ -1448,7 +1469,11 @@ Tps6586xWriteVoltageReg(
 
     if (pSupplyInfo->supplyRegInfo.addr == TPS6586x_RFF_INVALID) 
     {
+#if defined(CONFIG_TEGRA_ODM_HARMONY)
+        return NV_TRUE;
+#else
         return NV_FALSE;
+#endif
     }
 
     if (pSettleMicroSeconds)
