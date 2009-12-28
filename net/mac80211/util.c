@@ -520,9 +520,9 @@ EXPORT_SYMBOL_GPL(ieee80211_iterate_active_interfaces_atomic);
  */
 static bool ieee80211_can_queue_work(struct ieee80211_local *local)
 {
-        if (WARN(local->suspended, "queueing ieee80211 work while "
-		 "going to suspend\n"))
-                return false;
+	if (WARN(local->suspended && !local->resuming,
+		 "queueing ieee80211 work while going to suspend\n"))
+		return false;
 
 	return true;
 }
@@ -1025,17 +1025,19 @@ int ieee80211_reconfig(struct ieee80211_local *local)
 	struct sta_info *sta;
 	unsigned long flags;
 	int res;
-	bool from_suspend = local->suspended;
 
-	/*
-	 * We're going to start the hardware, at that point
-	 * we are no longer suspended and can RX frames.
-	 */
-	local->suspended = false;
+	if (local->suspended)
+		local->resuming = true;
 
 	/* restart hardware */
 	if (local->open_count) {
 		res = drv_start(local);
+		if (res) {
+			WARN(local->suspended, "Harware became unavailable "
+			     "upon resume likely due to a bug on mac80211, "
+			     "your driver or a bus issue\n");
+			return res;
+		}
 
 		ieee80211_led_radio(local, true);
 	}
@@ -1129,11 +1131,14 @@ int ieee80211_reconfig(struct ieee80211_local *local)
 	 * If this is for hw restart things are still running.
 	 * We may want to change that later, however.
 	 */
-	if (!from_suspend)
+	if (!local->suspended)
 		return 0;
 
 #ifdef CONFIG_PM
+	/* first set suspended false, then resuming */
 	local->suspended = false;
+	mb();
+	local->resuming = false;
 
 	list_for_each_entry(sdata, &local->interfaces, list) {
 		switch(sdata->vif.type) {
