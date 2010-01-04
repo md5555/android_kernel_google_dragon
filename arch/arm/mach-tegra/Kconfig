@@ -76,6 +76,14 @@ config TEGRA_ODM_VIBRATE
 	  Adds a timed output vibrator device node for an NVIDIA Tegra ODM kit
 	  vibrator driver
 
+config TEGRA_PCI
+	boolean "PCIe host controller driver"
+	depends on !ARCH_TEGRA_1x_SOC
+	select PCI
+	default n
+	help
+		Adds PCIe Host controller driver for tegra2 based systems
+
 config TEGRA_SNOR
 	boolean
 

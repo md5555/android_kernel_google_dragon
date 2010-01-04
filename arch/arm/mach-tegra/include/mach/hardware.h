@@ -20,4 +20,11 @@
 
 #ifndef __MACH_TEGRA_HARDWARE_H
 
+#define pcibios_assign_all_busses()         1
+
+extern unsigned long pci_tegra_get_base(char *aperture);
+
+#define PCIBIOS_MIN_IO          pci_tegra_get_base("io")
+#define PCIBIOS_MIN_MEM         pci_tegra_get_base("mem")
+
 #endif

@@ -60,5 +60,9 @@ obj-$(CONFIG_TEGRA_ODM_RFKILL)		+= tegra_rfkill_odm.o
 obj-$(CONFIG_TEGRA_ODM_VIBRATE)		+= tegra_vibrate.o
 
 # NvEc
-obj-$(CONFIG_TEGRA_NVEC)		+= nvec/
+obj-$(CONFIG_TEGRA_NVEC)			+= nvec/
 obj-$(CONFIG_TEGRA_NVEC_USER)		+= nvec_user.o
+
+# PCIe support
+obj-$(CONFIG_TEGRA_PCI)				+= pci.o
+
