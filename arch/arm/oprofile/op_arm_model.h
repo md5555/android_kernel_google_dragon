@@ -63,6 +63,10 @@ extern void op_arm_exit(void);
 #define cpu_is_a9() core_tile_pbxa9mp()
 #endif
 
+#ifdef CONFIG_ARCH_TEGRA
+#include <mach/platform.h>
+#endif
+
 /*
  * ARM11MPCore SCU event monitor support
  */
@@ -73,6 +77,9 @@ extern void op_arm_exit(void);
 #define SCU_EVENTMONITORS_VA_BASE __io_address(REALVIEW_TC11MP_SCU_BASE + 0x10)
 #elif defined(CONFIG_MACH_REALVIEW_PBX)
 #define SCU_EVENTMONITORS_VA_BASE __io_address(REALVIEW_PBX_TILE_SCU_BASE + 0x10)
+#elif defined(CONFIG_ARCH_TEGRA)
+#define SCU_EVENTMONITORS_VA_BASE IO_ADDRESS(TEGRA_SCU_BASE + 0x10)
+
 #else
 #error Cannot determine the base address of the SCU
 #endif
@@ -109,6 +116,22 @@ extern void op_arm_exit(void);
 #define IRQ_PMU_SCU7	IRQ_PBX_PMU_SCU7
 #elif defined(CONFIG_ARCH_OMAP2)
 #define IRQ_PMU_CPU0   3
+
+#elif defined(CONFIG_ARCH_TEGRA)
+#define IRQ_PMU_CPU0	TEGRA_CPU0_PERFMON_IRQ
+#define IRQ_PMU_CPU1	TEGRA_CPU1_PERFMON_IRQ
+#define IRQ_PMU_CPU2	TEGRA_CPU2_PERFMON_IRQ
+#define IRQ_PMU_CPU3	TEGRA_CPU3_PERFMON_IRQ
+
+#define IRQ_PMU_SCU0	TEGRA_SCU0_IRQ
+#define IRQ_PMU_SCU1	TEGRA_SCU1_IRQ
+#define IRQ_PMU_SCU2	TEGRA_SCU2_IRQ
+#define IRQ_PMU_SCU3	TEGRA_SCU3_IRQ
+#define IRQ_PMU_SCU4	TEGRA_SCU4_IRQ
+#define IRQ_PMU_SCU5	TEGRA_SCU5_IRQ
+#define IRQ_PMU_SCU6	TEGRA_SCU6_IRQ
+#define IRQ_PMU_SCU7	TEGRA_SCU7_IRQ
+
 #else
 #define IRQ_PMU_CPU0	NO_IRQ
 #endif

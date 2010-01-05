@@ -36,6 +36,9 @@ void l2x0_ec_setup(void)
 #elif defined(CONFIG_MACH_REALVIEW_PBX)
 	l2x0_base = IO_ADDRESS(REALVIEW_PBX_TILE_L220_BASE);
 	l2x0_irq = IRQ_PBX_L220_EVENT;
+#elif defined(CONFIG_ARCH_TEGRA)
+	l2x0_base = IO_ADDRESS(TEGRA_PL310_BASE);
+	l2x0_irq = TEGRA_PL310_IRQ;
 #else
 #error l2x0_base and l2x0_irq not set!
 #endif
@@ -139,14 +142,12 @@ static inline void l2x0_ec_system_setup(unsigned enable)
 static inline void l2x0_ec_rotate_irq(int irq)
 {
 	static unsigned cpu = 0;
-	cpumask_t mask;
 
 	if (is_smp()) {
 		cpu = next_cpu(cpu, cpu_online_map);
 		if (cpu >= NR_CPUS)
 			cpu = first_cpu(cpu_online_map);
-		mask = cpumask_of_cpu(cpu);
-		irq_set_affinity(irq, mask);
+		irq_set_affinity(irq, get_cpu_mask(cpu));
 	}
 }
 #endif

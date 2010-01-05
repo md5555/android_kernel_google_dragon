@@ -38,18 +38,30 @@
 static int arm11_irqs[] = {
 	[0]	= IRQ_PMU_CPU0,
 #ifdef CONFIG_SMP
+#if CONFIG_NR_CPUS>=2
 	[1]	= IRQ_PMU_CPU1,
+#endif
+#if CONFIG_NR_CPUS>=3
 	[2]	= IRQ_PMU_CPU2,
+#endif
+#if CONFIG_NR_CPUS>=4
 	[3]	= IRQ_PMU_CPU3
+#endif
 #endif
 };
 
 static int v7_irqs[] = {
 	[0]	= IRQ_PMU_CPU0,
 #ifdef CONFIG_SMP
+#if CONFIG_NR_CPUS>=2
 	[1]	= IRQ_PMU_CPU1,
+#endif
+#if CONFIG_NR_CPUS>=3
 	[2]	= IRQ_PMU_CPU2,
+#endif
+#if CONFIG_NR_CPUS>=4
 	[3]	= IRQ_PMU_CPU3
+#endif
 #endif
 };
 
@@ -95,7 +107,7 @@ static int em_call_function(int (*fn)(void))
 #ifdef CONFIG_SMP
 void em_route_irq(int irq, unsigned int cpu)
 {
-	irq_set_affinity(irq, *(get_cpu_mask(cpu)));
+	irq_set_affinity(irq, get_cpu_mask(cpu));
 }
 #endif
 
