@@ -14,6 +14,7 @@ obj-y					+= irq.o
 obj-y					+= irq_dma.o
 obj-y					+= irq_gpio.o
 obj-y					+= timer.o
+obj-y					+= tegra_sysmap.o
 
 # Linux CPU frequency scaling interface
 obj-$(CONFIG_CPU_FREQ)			+= cpufreq.o
