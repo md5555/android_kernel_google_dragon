@@ -60,6 +60,7 @@
 
 #if defined(CONFIG_USB_ANDROID) || defined(CONFIG_USB_ANDROID_MODULE)
 #include <linux/usb/android.h>
+#define SERIAL_NUMBER_STRING_LEN 16
 #endif
 
 extern struct sys_timer tegra_timer;
@@ -82,6 +83,7 @@ static struct android_usb_platform_data android_usb_plat =
     .adb_product_id = 0x7100,
     .product_name = "ADB Composite Device",
     .manufacturer_name = "NVIDIA Corporation",
+    .serial_number = "0000000000000000",
     .nluns = 1,
 };
 
@@ -348,6 +350,10 @@ static void __init register_enc28j60(void)
 
 static void __init tegra_machine_init(void)
 {
+#if defined(CONFIG_USB_ANDROID) || defined(CONFIG_USB_ANDROID_MODULE)
+    NvU32 serial_number[2] = {0};
+#endif
+
     tegra_common_init();
     tegra_clk_init();
     NvConfigDebugConsole(s_hRmGlobal);
@@ -393,6 +399,18 @@ static void __init tegra_machine_init(void)
 #endif
 
 #if defined(CONFIG_USB_ANDROID) || defined(CONFIG_USB_ANDROID_MODULE)
+    // get the board specific unique ID
+    (void) NvRmQueryChipUniqueId(
+                s_hRmGlobal,
+                sizeof(NvU32) * 2,
+                (void *)serial_number);
+
+    snprintf(android_usb_plat.serial_number,
+             SERIAL_NUMBER_STRING_LEN,
+             "%08X%08X",
+             serial_number[1],
+             serial_number[0]);
+    android_usb_device.dev.platform_data = &android_usb_plat;
     (void) platform_device_register(&android_usb_device);
 #endif
 #if defined(CONFIG_USB_GADGETFS) || defined(CONFIG_USB_GADGETFS_MODULE)
