@@ -8,7 +8,7 @@
 #
 
 ifeq ($(DEBIAN),)
-DEBIAN=debian.master
+DEBIAN=debian.chrome
 endif
 
 DENV=debian/debian.env
