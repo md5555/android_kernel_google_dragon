@@ -74,16 +74,19 @@ NvU32 g_coreSightClock, g_currentCcbp;
 
 void cpu_ap20_do_lp2(void)
 {
-    NvU32 irq, moduleId, reg;
+    NvU32 irq, moduleId;
     unsigned int proc_id = smp_processor_id();
-    
+
     moduleId = NVRM_MODULE_ID(NvRmModuleID_SysStatMonitor, 0);
     irq = NvRmGetIrqForLogicalInterrupt(s_hRmGlobal, moduleId, 0);
 
     //Save our context ptrs to scratch regs
-    NV_REGW(s_hRmGlobal, NvRmModuleID_Pmif, 0, 
+    NV_REGW(s_hRmGlobal, NvRmModuleID_Pmif, 0,
             APBDEV_PMC_SCRATCH1_0, g_resume);
-    NV_REGW(s_hRmGlobal, NvRmModuleID_Pmif, 0, 
+    //LP0 needs the resume address in SCRATCH41
+    NV_REGW(s_hRmGlobal, NvRmModuleID_Pmif, 0,
+            APBDEV_PMC_SCRATCH41_0, g_resume);
+    NV_REGW(s_hRmGlobal, NvRmModuleID_Pmif, 0,
             APBDEV_PMC_SCRATCH37_0, g_contextSavePA);
 
     //Only CPU0 must execute the actual suspend operations
