@@ -34,6 +34,8 @@ static NvRmModuleID tegra_map_name_to_mod(const char *name, int inst)
 		return NVRM_MODULE_ID(NvRmPrivModuleID_Pl310, inst);
 	else if (!strcmp(name, "scu"))
 		return NVRM_MODULE_ID(NvRmPrivModuleID_ArmPerif, inst);
+	else if (!strcmp(name, "pcie"))
+		return NVRM_MODULE_ID(NvRmPrivModuleID_Pcie, inst);
 
 	return (NvRmModuleID) 0;
 }
