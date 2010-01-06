@@ -38,7 +38,7 @@
 #include "ap15rm_private.h"
 #include "ap15/arapb_misc.h"
 #include "ap15/arclk_rst.h"
-#include "nvrm_pinmux_utils.h"
+#include "ap15rm_pinmux_utils.h"
 #include "nvodm_query_pinmux.h"
 #include "nvrm_clocks.h"
 
@@ -85,7 +85,7 @@
  *  multiple pad groups.
  */
 
- const NvU32 g_Ap15MuxI2c1[] = {
+const NvU32 g_Ap15MuxI2c1[] = {
     //  Reset config -- disown GEN1_I2C pads
     UNCONFIG(A, RM,I2C, RSVD1), CONFIGEND(),
     //  I2C1, Config 1 (GEN1_I2C pads)
@@ -118,34 +118,38 @@ const NvU32 g_Ap15MuxI2c2[] = {
     MODULEDONE()
 };
 
- const NvU32* g_Ap15MuxI2c[] = {
+const NvU32* g_Ap15MuxI2c[] = {
     &g_Ap15MuxI2c1[0],
     &g_Ap15MuxI2c2[0],
     NULL
 };
- const NvU32 g_Ap15MuxI2c_Pmu[] = {
+
+const NvU32 g_Ap15MuxI2c_Pmu[] = {
     //  Reset config -- disown I2CP pads
     UNCONFIG(C,I2CP,I2C, RSVD2), CONFIGEND(),
     //  I2CP pads
     CONFIG(A,C,I2CP,I2C), CONFIGEND(),
     MODULEDONE()
 };
- const NvU32* g_Ap15MuxI2cPmu[] = {
+
+const NvU32* g_Ap15MuxI2cPmu[] = {
     &g_Ap15MuxI2c_Pmu[0],
     NULL
 };
 
- const NvU32 g_Ap15Mux_Mmc[] = { 
-    CONFIGEND(), // no pad groups reset to MMC, so nothing to disown for reset config 
+const NvU32 g_Ap15Mux_Mmc[] = {
+    CONFIGEND(), // no pad groups reset to MMC, so nothing to disown for reset config
     CONFIG(A,A,ATB,HSMMC), CONFIG(A,A,ATD,HSMMC), CONFIG(B,A,ATE,HSMMC), CONFIGEND(),
-    CONFIG(A,A,ATB,HSMMC),CONFIG(A,A,ATD,HSMMC),CONFIGEND(), 
+    CONFIG(A,A,ATB,HSMMC),CONFIG(A,A,ATD,HSMMC),CONFIGEND(),
     MODULEDONE()
 };
- const NvU32* g_Ap15MuxMmc[] = {
+
+const NvU32* g_Ap15MuxMmc[] = {
     &g_Ap15Mux_Mmc[0],
     NULL
 };
- const NvU32 g_Ap15MuxSdio2[] = {
+
+const NvU32 g_Ap15MuxSdio2[] = {
     //  Reset config - abandon SDB, SLXK,SLXA,SLXB,SLXC,SLXD .chosen RSVD,SLINK4B
     UNCONFIG(D,SDB,SDIO2,RSVD), UNCONFIG(B,SLXK,SDIO1,SLINK4B), UNCONFIG(B,SLXB,SDIO1,SLINK4B),
     UNCONFIG(B,SLXC,SDIO1,SLINK4B),UNCONFIG(B,SLXD,SDIO1,SLINK4B),UNCONFIG(B,SLXA,SDIO1,SLINK4B),
@@ -165,8 +169,8 @@ const NvU32 g_Ap15MuxI2c2[] = {
     MODULEDONE()
 };
 
- const NvU32 g_Ap15MuxSdio3[] = {
-    // no pad groups reset to SDIO3, so nothing to disown for reset config 
+const NvU32 g_Ap15MuxSdio3[] = {
+    // no pad groups reset to SDIO3, so nothing to disown for reset config
     CONFIGEND(),
     //  config1  SDD + SDC+SLXK+SLXA+SLXB pads
     CONFIG(B,D,SDD,SDIO2), CONFIG(B,D,SDC,SDIO2), CONFIG(B,D,SDB,SDIO2_ALT),
@@ -176,13 +180,13 @@ const NvU32 g_Ap15MuxI2c2[] = {
     MODULEDONE()
 };
 
- const NvU32* g_Ap15MuxSdio[] = {
+const NvU32* g_Ap15MuxSdio[] = {
     &g_Ap15MuxSdio2[0],
     &g_Ap15MuxSdio3[0],
     NULL
 };
 
- const NvU32 g_Ap15Mux_Spdif[] = {
+const NvU32 g_Ap15Mux_Spdif[] = {
     //  Reset config - abandon SPDO, SPDI .chosen RSVD.
     UNCONFIG(D,SPDO,SPDIF,RSVD), UNCONFIG(D,SPDI,SPDIF,RSVD),CONFIGEND(),
     //  config1  SPDO+ SPDI pads
@@ -194,10 +198,11 @@ const NvU32 g_Ap15MuxI2c2[] = {
     MODULEDONE()
 };
 
- const NvU32* g_Ap15MuxSpdif[] = {
+const NvU32* g_Ap15MuxSpdif[] = {
     &g_Ap15Mux_Spdif[0],
     NULL
 };
+
 static const NvU32 g_Ap15MuxUart1[] = {
     //  Reset config - abandon IRRX, IRTX &amp; SDD
     UNCONFIG(C,IRRX,UARTA,RSVD2), UNCONFIG(C,IRTX,UARTA,RSVD2), UNCONFIG(D,SDD,UARTA,PWM), CONFIGEND(),
@@ -215,6 +220,7 @@ static const NvU32 g_Ap15MuxUart1[] = {
     CONFIG(B,D,SDD,UARTA), CONFIGEND(),
     MODULEDONE()
 };
+
 static const NvU32 g_Ap15MuxUart2[] = {
 //  Reset config - abandon UAD. pads.chosen SFLASH pads
     UNCONFIG(A,UAD,IRDA,SFLASH), CONFIGEND(),
@@ -243,9 +249,10 @@ static const NvU32* g_Ap15MuxUart[] = {
     &g_Ap15MuxUart3[0],
     NULL
 };
- const NvU32 g_Ap15MuxSpi1[] = {
+
+const NvU32 g_Ap15MuxSpi1[] = {
     //  Reset config - abandon SPIC, SPIB, SPIA, pads.
-    UNCONFIG(D,SPIC,SPI1,RSVD), UNCONFIG(D,SPIB,SPI1,RSVD), 
+    UNCONFIG(D,SPIC,SPI1,RSVD), UNCONFIG(D,SPIB,SPI1,RSVD),
     UNCONFIG(D,SPIA,SPI1,RSVD), CONFIGEND(),
     //  SPIE,SPIF,SPID pads
     CONFIG(B,D,SPIE,SPI1),CONFIG(B,D,SPIF,SPI1),CONFIG(B,D,SPID,SPI1), CONFIGEND(),
@@ -259,7 +266,7 @@ static const NvU32* g_Ap15MuxUart[] = {
     MODULEDONE()
 };
 
- const NvU32 g_Ap15MuxSpi2[] = {
+const NvU32 g_Ap15MuxSpi2[] = {
     //  Reset config - abandon UAB, pads.  MIPI_HS chosen
     UNCONFIG(A,UAB,SPI2,MIPI_HS), UNCONFIG(D,SPID,SPI2,RSVD),
     UNCONFIG(D,SPIE,SPI2,RSVD), CONFIGEND(),
@@ -282,12 +289,12 @@ static const NvU32* g_Ap15MuxUart[] = {
  *  state, so it is implemented at the end of the list using UNCONFIG
  *  options, so that no pad groups are trying to use SPI3.
  */
- const NvU32 g_Ap15MuxSpi3[] = {
+const NvU32 g_Ap15MuxSpi3[] = {
 /*  Reset config - abandon UAA, SPIF, SPIG, SPIH pads.  SPI2_ALT chosen
  *  as the reset state for SPIG/SPIH, since this will either be clobbered
  *  by Spi2 SpiPinMap_Config1, I2c1 I2cPinMap_Config3, correct (for Spi2
  *  SpiPinMap_Config3), or irrelevant */
-    UNCONFIG(A,UAA,SPI3,MIPI_HS), UNCONFIG(D,SPIF,SPI3,RSVD), 
+    UNCONFIG(A,UAA,SPI3,MIPI_HS), UNCONFIG(D,SPIF,SPI3,RSVD),
     UNCONFIG(D,SPIG,SPI3,SPI2_ALT), UNCONFIG(D,SPIH,SPI3,SPI2_ALT),
     //  multiplex unconfiguration
     UNCONFIG(C,XM2A,SPI3,SPROM), // multiplex config 1 to SPROM
@@ -313,7 +320,7 @@ static const NvU32* g_Ap15MuxUart[] = {
     MODULEDONE()
 };
 
- const NvU32* g_Ap15MuxSpi[] = {
+const NvU32* g_Ap15MuxSpi[] = {
     &g_Ap15MuxSpi1[0],
     &g_Ap15MuxSpi2[0],
     &g_Ap15MuxSpi3[0],
@@ -347,14 +354,14 @@ const NvU32 g_Ap15Mux_Sflash[] = {
     MODULEDONE()
 };
 
- const NvU32* g_Ap15MuxSflash[] = {
+const NvU32* g_Ap15MuxSflash[] = {
     &g_Ap15Mux_Sflash[0],
     NULL
 };
 
 
- const NvU32 g_Ap15Mux_Twc[] = {
-    // no pad groups reset to TWC, so nothing to disown for reset config 
+const NvU32 g_Ap15Mux_Twc[] = {
+    // no pad groups reset to TWC, so nothing to disown for reset config
      CONFIGEND(),
     //  DAP2 pads
     CONFIG(A,C,DAP2,TWC), CONFIGEND(),
@@ -362,12 +369,13 @@ const NvU32 g_Ap15Mux_Sflash[] = {
     CONFIG(B,D,SDC,TWC), CONFIGEND(),
     MODULEDONE()
 };
- const NvU32* g_Ap15MuxTwc[] = {
+
+const NvU32* g_Ap15MuxTwc[] = {
     &g_Ap15Mux_Twc[0],
     NULL
 };
 
- const NvU32 g_Ap15Mux_Ata[] = {
+const NvU32 g_Ap15Mux_Ata[] = {
     // Reset config --  abandon ATA, ATC, ATB, ATD, ATE pads. NAND RSVD as chosenpads
     UNCONFIG(A,ATC,IDE,RSVD), UNCONFIG(A,ATD,IDE,NAND), UNCONFIG(A,ATE,IDE,NAND),
     UNCONFIG(A,ATA,IDE,RSVD), UNCONFIG(A,ATB,IDE,NAND), CONFIGEND(),
@@ -376,41 +384,43 @@ const NvU32 g_Ap15Mux_Sflash[] = {
     CONFIG(A,A,ATB,IDE), CONFIGEND(),
     MODULEDONE()
 };
- const NvU32* g_Ap15MuxAta[] = {
+
+const NvU32* g_Ap15MuxAta[] = {
     &g_Ap15Mux_Ata[0],
     NULL
 };
 
- const NvU32 g_Ap15Mux_Pwm[] = {
+const NvU32 g_Ap15Mux_Pwm[] = {
     // Reset config -- disown SDC,UCB pads SDIO2, RSVD2 as chosen pads
     UNCONFIG(D,SDC,PWM,SDIO2), UNCONFIG(B,UCB,PWM0,RSVD2), CONFIGEND(),
     // PWM, Config 1 (SDC pads)
     CONFIG(B,D,SDC,PWM), CONFIGEND(),
     // PWM, Config 2 (UCB ,SDDpads)
     CONFIG(B,B,UCB,PWM0), CONFIG(B,D,SDD,PWM), CONFIGEND(),
-    // PWM, Config 2 (UCB ,SDDpads) 
+    // PWM, Config 2 (UCB ,SDDpads)
     CONFIG(B,B,UCB,PWM0), CONFIGEND(),
     CONFIG(B,D,SDD,PWM), CONFIGEND(),
     MODULEDONE()
 };
- const NvU32* g_Ap15MuxPwm[] = {
+
+const NvU32* g_Ap15MuxPwm[] = {
     &g_Ap15Mux_Pwm[0],
     NULL
 };
 
- const NvU32 g_Ap15Mux_Hsi[] = { 
-    CONFIGEND(), // no pad groups reset to HSI, so nothing to disown for reset config 
-    CONFIG(B,A,UAA,MIPI_HS), CONFIG(B,A,UAB,MIPI_HS), CONFIGEND(), 
+const NvU32 g_Ap15Mux_Hsi[] = {
+    CONFIGEND(), // no pad groups reset to HSI, so nothing to disown for reset config
+    CONFIG(B,A,UAA,MIPI_HS), CONFIG(B,A,UAB,MIPI_HS), CONFIGEND(),
     MODULEDONE()
 };
 
- const NvU32 *g_Ap15MuxHsi[] = { 
+const NvU32 *g_Ap15MuxHsi[] = {
     &g_Ap15Mux_Hsi[0],
     NULL
 };
 
- const NvU32 g_Ap15Mux_Nand[] = {
-    CONFIGEND(), // no pad groups reset to NAND, so nothing to disown for reset config 
+const NvU32 g_Ap15Mux_Nand[] = {
+    CONFIGEND(), // no pad groups reset to NAND, so nothing to disown for reset config
     //  config 1 ATA,ATB,ATC,ATD,ATE pads
     CONFIG(A,A,ATA,NAND_ALT), CONFIG(A,A,ATB,NAND_ALT), CONFIG(A,A,ATC,NAND),
     CONFIG(A,A,ATD,NAND), CONFIG(B,A,ATE,NAND), CONFIGEND(),
@@ -430,19 +440,21 @@ const NvU32 g_Ap15Mux_Sflash[] = {
     CONFIG(A,A,ATC,NAND), CONFIGEND(),
     MODULEDONE()
 };
- const NvU32* g_Ap15MuxNand[] = {
+
+const NvU32* g_Ap15MuxNand[] = {
     &g_Ap15Mux_Nand[0],
     NULL
 };
 
- const NvU32 g_Ap15MuxDap1[] = {
+const NvU32 g_Ap15MuxDap1[] = {
     //  Reset config - abandon ,DAP1.. RSVD2 chosen
     UNCONFIG(C,DAP1,DAP1,RSVD2), CONFIGEND(),
     //  config1  DAP1 pads
     CONFIG(A,C,DAP1,DAP1), CONFIGEND(),
     MODULEDONE()
 };
- const NvU32 g_Ap15MuxDap2[] = {
+
+const NvU32 g_Ap15MuxDap2[] = {
     //  Reset config - abandon ,DAP2... RSVD3 chosen
     UNCONFIG(C,DAP2,DAP2,RSVD3), CONFIGEND(),
     //  config1  DAP2 pads
@@ -450,21 +462,24 @@ const NvU32 g_Ap15Mux_Sflash[] = {
     //  congig 2 SLXD, SLXC  pads
     MODULEDONE()
 };
- const NvU32 g_Ap15MuxDap3[] = {
+
+const NvU32 g_Ap15MuxDap3[] = {
     //  Reset config - abandon ,DAP3... RSVD2 chosen
     UNCONFIG(C,DAP3,DAP3,RSVD2), CONFIGEND(),
     //  config1  DAP3 pads
     CONFIG(A,C,DAP3,DAP3), CONFIGEND(),
     MODULEDONE()
 };
- const NvU32 g_Ap15MuxDap4[] = {
+
+const NvU32 g_Ap15MuxDap4[] = {
     //  Reset config - abandon ,DAP4...RSVD2 chosen
     UNCONFIG(C,DAP4,DAP4,RSVD2), CONFIGEND(),
     //  config1  DAP4 pads
     CONFIG(A,C,DAP4,DAP4), CONFIGEND(),
     MODULEDONE()
 };
- const NvU32* g_Ap15MuxDap[] = {
+
+const NvU32* g_Ap15MuxDap[] = {
     &g_Ap15MuxDap1[0],
     &g_Ap15MuxDap2[0],
     &g_Ap15MuxDap3[0],
@@ -472,15 +487,15 @@ const NvU32 g_Ap15Mux_Sflash[] = {
     NULL
 };
 
- const NvU32 g_Ap15Mux_Kbc[] = {
+const NvU32 g_Ap15Mux_Kbc[] = {
     //  Reset config - abandon ,RSVD2, RSVD1 chosen
-    UNCONFIG(C,KBCA,KBC,RSVD2), UNCONFIG(C,KBCB,KBC,RSVD2), UNCONFIG(A,KBCE,KBC,RSVD1), 
+    UNCONFIG(C,KBCA,KBC,RSVD2), UNCONFIG(C,KBCB,KBC,RSVD2), UNCONFIG(A,KBCE,KBC,RSVD1),
     UNCONFIG(C,KBCC,KBC,RSVD2), UNCONFIG(G,KBCD,KBC,RSVD2), UNCONFIG(A,KBCF,KBC,RSVD1), CONFIGEND(),
     //  KBCA,KBCB,KBCC,KBCD,KBCE,KBCF  pads
-    CONFIG(A,C,KBCA,KBC), CONFIG(A,C,KBCB,KBC), CONFIG(A,A,KBCE,KBC), 
+    CONFIG(A,C,KBCA,KBC), CONFIG(A,C,KBCB,KBC), CONFIG(A,A,KBCE,KBC),
     CONFIG(B,C,KBCC,KBC), CONFIG(D,G,KBCD,KBC), CONFIG(A,A,KBCF,KBC), CONFIGEND(),
     //  KBCA,KBCC,KBCD,KBCE,KBCF  pads
-    CONFIG(A,C,KBCA,KBC), CONFIG(A,A,KBCE,KBC), 
+    CONFIG(A,C,KBCA,KBC), CONFIG(A,A,KBCE,KBC),
     CONFIG(B,C,KBCC,KBC), CONFIG(D,G,KBCD,KBC), CONFIG(A,A,KBCF,KBC), CONFIGEND(),
     //  KBCA,KBCC,KBCF,  pads
     CONFIG(A,C,KBCA,KBC), CONFIG(B,C,KBCC,KBC), CONFIG(A,A,KBCF,KBC), CONFIGEND(),
@@ -488,75 +503,80 @@ const NvU32 g_Ap15Mux_Sflash[] = {
     CONFIG(A,C,KBCA,KBC), CONFIG(B,C,KBCC,KBC), CONFIGEND(),
     MODULEDONE()
 };
- const NvU32* g_Ap15MuxKbc[] = {
+
+const NvU32* g_Ap15MuxKbc[] = {
     &g_Ap15Mux_Kbc[0],
     NULL
 };
-  NvU32 g_Ap15Mux_Hdcp[] = { 
-    CONFIGEND(), // no pad groups reset to HDCP, so nothing to disown for reset config 
-    CONFIG(A,G,PTA,HDMI), CONFIGEND(), 
+
+NvU32 g_Ap15Mux_Hdcp[] = {
+    CONFIGEND(), // no pad groups reset to HDCP, so nothing to disown for reset config
+    CONFIG(A,G,PTA,HDMI), CONFIGEND(),
     CONFIG(C,E,LSCK,HDMI), CONFIG(D,E,LSDA,HDMI), CONFIGEND(),
     CONFIG(D,E,LPW2,HDMI), CONFIG(D,E,LPW0,HDMI), CONFIGEND(),
     CONFIG(C,E,LSC1,HDMI), CONFIG(D,E,LPW0,HDMI), CONFIGEND(),
     MODULEDONE()
 };
- const NvU32* g_Ap15MuxHdcp[] = {
+
+const NvU32* g_Ap15MuxHdcp[] = {
     &g_Ap15Mux_Hdcp[0],
     NULL
 };
 
- const NvU32 g_Ap15Mux_Hdmi[] = {
+const NvU32 g_Ap15Mux_Hdmi[] = {
     //  HDINT resets to HDINT, so move it to a reserved pin
     UNCONFIG(B,HDINT,RSVD1,RSVD2), CONFIGEND(),
     CONFIG(C,B,HDINT,RSVD1), CONFIGEND(),
     MODULEDONE()
 };
 
- const NvU32* g_Ap15MuxHdmi[] = {
+const NvU32* g_Ap15MuxHdmi[] = {
     &g_Ap15Mux_Hdmi[0],
     NULL
 };
 
- const NvU32 g_Ap15Mux_Mio[] = { 
-    CONFIGEND(), // no pad groups reset to MIO, so nothing to disown for reset config 
+const NvU32 g_Ap15Mux_Mio[] = {
+    CONFIGEND(), // no pad groups reset to MIO, so nothing to disown for reset config
     CONFIG(A,A,KBCF,MIO), CONFIG(D,G,KBCD,MIO), CONFIG(A,C,KBCB,MIO), CONFIGEND(),
     MODULEDONE()
 };
- const NvU32* g_Ap15MuxMio[] = {
+
+const NvU32* g_Ap15MuxMio[] = {
     &g_Ap15Mux_Mio[0],
     NULL
 };
 
- const NvU32 g_Ap15Mux_Slink[] = { 
-    CONFIGEND(), // no pad groups reset to SLINK, so nothing to disown for reset config 
+const NvU32 g_Ap15Mux_Slink[] = {
+    CONFIGEND(), // no pad groups reset to SLINK, so nothing to disown for reset config
     CONFIG(B,B,SLXK,SLINK4B), CONFIG(B,B,SLXA,SLINK4B), CONFIG(B,B,SLXB,SLINK4B),
-    CONFIG(B,B,SLXC,SLINK4B), CONFIG(B,B,SLXD,SLINK4B), CONFIGEND(), 
+    CONFIG(B,B,SLXC,SLINK4B), CONFIG(B,B,SLXD,SLINK4B), CONFIGEND(),
     MODULEDONE()
 };
- const NvU32* g_Ap15MuxSlink[] = {
+
+const NvU32* g_Ap15MuxSlink[] = {
     &g_Ap15Mux_Slink[0],
     NULL
 };
 
- const NvU32 g_Ap15Mux_Vi[] = { 
-    CONFIGEND(), // no pad groups reset to VI so nothing to disown for reset config 
+const NvU32 g_Ap15Mux_Vi[] = {
+    CONFIGEND(), // no pad groups reset to VI so nothing to disown for reset config
     //  config 1 DTA - DTF pads
     BRANCH(NvOdmVideoInputPinMap_Config2), CONFIG(D,G,DTF,VI), CONFIGEND(),
     //  config 2 DTA - DTE and CSUS pads
     CONFIG(A,B,DTA,VI), CONFIG(A,B,DTB,VI), CONFIG(A,B,DTC,VI),
-    CONFIG(A,B,DTD,VI), CONFIG(A,B,DTE,VI), CONFIGEND(), 
+    CONFIG(A,B,DTD,VI), CONFIG(A,B,DTE,VI), CONFIGEND(),
     MODULEDONE(),
     SUBROUTINESDONE(),
 };
 
- const NvU32* g_Ap15MuxVi[] = {
+const NvU32* g_Ap15MuxVi[] = {
     &g_Ap15Mux_Vi[0],
     NULL
 };
 
- const NvU32 g_Ap15Mux_Crt[] = { 
+const NvU32 g_Ap15Mux_Crt[] = {
     //  Need  to confirm and fix it ,but none of docs specifies about tv pad group
-    CONFIGEND(), // no pad groups reset to CRT so nothing to disown for reset config 
+    CONFIGEND(), // no pad groups reset to CRT so nothing to disown for reset config
     //  config 1 LHS, LVS,  pads
     CONFIG(D,E,LHS,CRT), CONFIG(C,E,LVS,CRT), CONFIGEND(),
     //  config 2 LHP2,LPW1  pads
@@ -674,7 +694,7 @@ const NvU32 g_Ap15Mux_Display1[] = {
     CONFIG(C,E,LCSN,DISPLAYA), CONFIG(C,E,LM1,DISPLAYA),CONFIG(C,E,LM0,DISPLAYA),
     CONFIG(D,E,LPW0,DISPLAYA),CONFIG(D,E,LPW2,DISPLAYA), CONFIG(D,E,LPW1,DISPLAYA),
     CONFIG(C,E,LVP0,DISPLAYA), CONFIG(C,E,LDC,DISPLAYA), CONFIG(C,E,LSC1,DISPLAYA),
-    CONFIG(D,E,LSDI,DISPLAYA), 
+    CONFIG(D,E,LSDI,DISPLAYA),
     */
 };
 
@@ -714,13 +734,13 @@ const NvU32 g_Ap15Mux_Display2[] = {
     SUBROUTINESDONE(),
 };
 
- const NvU32* g_Ap15MuxDisplay[] = {
+const NvU32* g_Ap15MuxDisplay[] = {
     &g_Ap15Mux_Display1[0],
     &g_Ap15Mux_Display2[0],
     NULL
 };
 
- const NvU32 g_Ap15Mux_Cdev1[] = {
+const NvU32 g_Ap15Mux_Cdev1[] = {
     //  reset config - no-op
     CONFIGEND(),
     CONFIG(A,C,CDEV1,PLLA_OUT), CONFIGEND(),
@@ -728,20 +748,20 @@ const NvU32 g_Ap15Mux_Display2[] = {
     MODULEDONE()
 };
 
- const NvU32 g_Ap15Mux_Cdev2[] = {
+const NvU32 g_Ap15Mux_Cdev2[] = {
     CONFIGEND(),
     CONFIG(A,C,CDEV2,AHB_CLK), CONFIGEND(),
     CONFIG(A,C,CDEV2,OSC), CONFIGEND(),
     MODULEDONE()
 };
 
- const NvU32 g_Ap15Mux_Csus[] = {
+const NvU32 g_Ap15Mux_Csus[] = {
     CONFIGEND(),
     CONFIG(A,C,CSUS,VI_SENSOR_CLK),  CONFIGEND(),
     MODULEDONE()
 };
 
- const NvU32* g_Ap15MuxCdev[] =
+const NvU32* g_Ap15MuxCdev[] =
 {
     &g_Ap15Mux_Cdev1[0],
     &g_Ap15Mux_Cdev2[0],
@@ -801,7 +821,6 @@ NvRmAp15GetPinMuxConfigs(NvRmDeviceHandle hDevice)
     NV_ASSERT(hDevice);
     return (const NvU32***) g_Ap15MuxControllers;
 }
-
 
 /* Define the GPIO port/pin to tristate mappings */
 
@@ -956,7 +975,7 @@ NvRmPrivAp15GetExternalClockSourceFreq(
     {
         if (MuxCtlSet == APB_MISC_PP_PIN_MUX_CTL_C_0_CDEV1_SEL_PLLA_OUT)
             ClockFreqInKHz = NvRmPrivGetClockSourceFreq(NvRmClockSource_PllA0);
-    
+
         else if (MuxCtlSet == APB_MISC_PP_PIN_MUX_CTL_C_0_CDEV1_SEL_OSC)
             ClockFreqInKHz = NvRmPrivGetClockSourceFreq(NvRmClockSource_ClkM);
     }
@@ -964,7 +983,7 @@ NvRmPrivAp15GetExternalClockSourceFreq(
     {
         if (MuxCtlSet == APB_MISC_PP_PIN_MUX_CTL_C_0_CDEV2_SEL_AHB_CLK)
             ClockFreqInKHz = NvRmPrivGetClockSourceFreq(NvRmClockSource_Ahb);
-    
+
         else if (MuxCtlSet == APB_MISC_PP_PIN_MUX_CTL_C_0_CDEV2_SEL_OSC)
             ClockFreqInKHz = NvRmPrivGetClockSourceFreq(NvRmClockSource_ClkM);
     }
@@ -999,7 +1018,7 @@ NvBool NvRmPrivAp15RmModuleToOdmModule(
     {
     case NvRmPrivModuleID_Mio_Exio:
         *OdmModule = NvOdmIoModule_Mio;
-        *OdmInstance = 0; // since there is only one MIO bus on AP15/AP16. 
+        *OdmInstance = 0; // since there is only one MIO bus on AP15/AP16.
         *pCnt = 1;
         return NV_TRUE;
     default:
@@ -1020,129 +1039,128 @@ NvRmPrivAp15GetModuleInterfaceCaps(
 
     switch (Module)
     {
-    case NvOdmIoModule_Sdio:
-    {
-        NvRmModuleSdmmcInterfaceCaps *pSdmmcCaps =
-            (NvRmModuleSdmmcInterfaceCaps *)pCaps;
-        if (Instance==0 && 
-            (PinMap == NvOdmSdioPinMap_Config2 ||
-             PinMap == NvOdmSdioPinMap_Config5))
-            pSdmmcCaps->MmcInterfaceWidth = 8;
-        else if (Instance==1 && PinMap==NvOdmSdioPinMap_Config1)
-            pSdmmcCaps->MmcInterfaceWidth = 8;
-        else
-            pSdmmcCaps->MmcInterfaceWidth = 4;
-        err = NvSuccess;
-        break;
-    }
-    case NvOdmIoModule_Hsmmc:
-    {
-        NvRmModuleSdmmcInterfaceCaps *pSdmmcCaps =
-            (NvRmModuleSdmmcInterfaceCaps *)pCaps;
-        if (Instance==0 && PinMap==NvOdmHsmmcPinMap_Config2)
-            pSdmmcCaps->MmcInterfaceWidth = 4;
-        else
-            pSdmmcCaps->MmcInterfaceWidth = 8;
-        err = NvSuccess;
-        break;
-    }
-    case NvOdmIoModule_Pwm:
-    {
-        NvRmModulePwmInterfaceCaps *pPwmCaps =
-            (NvRmModulePwmInterfaceCaps *)pCaps;
-        err = NvSuccess;
-        if (Instance == 0 && (PinMap == NvOdmPwmPinMap_Config1))
-            pPwmCaps->PwmOutputIdSupported = 15;
-        else if (Instance == 0 && (PinMap == NvOdmPwmPinMap_Config2))
-            pPwmCaps->PwmOutputIdSupported = 13;
-        else if (Instance == 0 && (PinMap == NvOdmPwmPinMap_Config3))
-            pPwmCaps->PwmOutputIdSupported = 1;
-        else if (Instance == 0 && (PinMap == NvOdmPwmPinMap_Config4))
-            pPwmCaps->PwmOutputIdSupported = 12;
-        else
+        case NvOdmIoModule_Sdio:
         {
-            pPwmCaps->PwmOutputIdSupported = 0;
-            err = NvError_NotSupported;
+            NvRmModuleSdmmcInterfaceCaps *pSdmmcCaps =
+                (NvRmModuleSdmmcInterfaceCaps *)pCaps;
+            if (Instance==0 &&
+                (PinMap == NvOdmSdioPinMap_Config2 ||
+                 PinMap == NvOdmSdioPinMap_Config5))
+                pSdmmcCaps->MmcInterfaceWidth = 8;
+            else if (Instance==1 && PinMap==NvOdmSdioPinMap_Config1)
+                pSdmmcCaps->MmcInterfaceWidth = 8;
+            else
+                pSdmmcCaps->MmcInterfaceWidth = 4;
+            err = NvSuccess;
+            break;
         }
-        break;
-    }
-    case NvOdmIoModule_Nand:
-    {
-        NvRmModuleNandInterfaceCaps *pNandCaps =
-            (NvRmModuleNandInterfaceCaps *)pCaps;
-        if (Instance == 0)
+        case NvOdmIoModule_Hsmmc:
         {
-            pNandCaps->IsCombRbsyMode = NV_TRUE;
-            pNandCaps->NandInterfaceWidth = 8;
-            
-            if (PinMap == NvOdmNandPinMap_Config4)
-                pNandCaps->IsCombRbsyMode = NV_FALSE;
+            NvRmModuleSdmmcInterfaceCaps *pSdmmcCaps =
+                (NvRmModuleSdmmcInterfaceCaps *)pCaps;
+            if (Instance==0 && PinMap==NvOdmHsmmcPinMap_Config2)
+                pSdmmcCaps->MmcInterfaceWidth = 4;
+            else
+                pSdmmcCaps->MmcInterfaceWidth = 8;
+            err = NvSuccess;
+            break;
+        }
+        case NvOdmIoModule_Pwm:
+        {
+            NvRmModulePwmInterfaceCaps *pPwmCaps =
+                (NvRmModulePwmInterfaceCaps *)pCaps;
+            err = NvSuccess;
+            if (Instance == 0 && (PinMap == NvOdmPwmPinMap_Config1))
+                pPwmCaps->PwmOutputIdSupported = 15;
+            else if (Instance == 0 && (PinMap == NvOdmPwmPinMap_Config2))
+                pPwmCaps->PwmOutputIdSupported = 13;
+            else if (Instance == 0 && (PinMap == NvOdmPwmPinMap_Config3))
+                pPwmCaps->PwmOutputIdSupported = 1;
+            else if (Instance == 0 && (PinMap == NvOdmPwmPinMap_Config4))
+                pPwmCaps->PwmOutputIdSupported = 12;
+            else
+            {
+                pPwmCaps->PwmOutputIdSupported = 0;
+                err = NvError_NotSupported;
+            }
+            break;
+        }
+        case NvOdmIoModule_Nand:
+        {
+            NvRmModuleNandInterfaceCaps *pNandCaps =
+                (NvRmModuleNandInterfaceCaps *)pCaps;
+            if (Instance == 0)
+            {
+                pNandCaps->IsCombRbsyMode = NV_TRUE;
+                pNandCaps->NandInterfaceWidth = 8;
 
-            if ((PinMap == NvOdmNandPinMap_Config1) || 
-                (PinMap == NvOdmNandPinMap_Config2))
-                pNandCaps->NandInterfaceWidth = 16;
+                if (PinMap == NvOdmNandPinMap_Config4)
+                    pNandCaps->IsCombRbsyMode = NV_FALSE;
 
+                if ((PinMap == NvOdmNandPinMap_Config1) ||
+                    (PinMap == NvOdmNandPinMap_Config2))
+                    pNandCaps->NandInterfaceWidth = 16;
+
+                err =  NvSuccess;
+            }
+            else
+            {
+                NV_ASSERT(NV_FALSE);
+                err = NvError_NotSupported;
+            }
+            break;
+        }
+        case NvOdmIoModule_Uart:
+        {
+            NvRmModuleUartInterfaceCaps *pUartCaps =
+                (NvRmModuleUartInterfaceCaps *)pCaps;
             err =  NvSuccess;
-        }
-        else
-        {
-            NV_ASSERT(NV_FALSE);
-            err = NvError_NotSupported;
-        }
-        break;
-    }
-    case NvOdmIoModule_Uart:
-    {
-        NvRmModuleUartInterfaceCaps *pUartCaps =
-            (NvRmModuleUartInterfaceCaps *)pCaps;
-        err =  NvSuccess;
-        if (Instance == 0)
-        {
-            if (PinMap == NvOdmUartPinMap_Config1)
-                pUartCaps->NumberOfInterfaceLines = 8;
-            else if (PinMap == NvOdmUartPinMap_Config3)
-                pUartCaps->NumberOfInterfaceLines = 7;
-            else if ((PinMap == NvOdmUartPinMap_Config2) ||
-                     (PinMap == NvOdmUartPinMap_Config4))
-                pUartCaps->NumberOfInterfaceLines = 4;
-            else if ((PinMap == NvOdmUartPinMap_Config5) ||
-                     (PinMap == NvOdmUartPinMap_Config6))
-                pUartCaps->NumberOfInterfaceLines = 2;
+            if (Instance == 0)
+            {
+                if (PinMap == NvOdmUartPinMap_Config1)
+                    pUartCaps->NumberOfInterfaceLines = 8;
+                else if (PinMap == NvOdmUartPinMap_Config3)
+                    pUartCaps->NumberOfInterfaceLines = 7;
+                else if ((PinMap == NvOdmUartPinMap_Config2) ||
+                         (PinMap == NvOdmUartPinMap_Config4))
+                    pUartCaps->NumberOfInterfaceLines = 4;
+                else if ((PinMap == NvOdmUartPinMap_Config5) ||
+                         (PinMap == NvOdmUartPinMap_Config6))
+                    pUartCaps->NumberOfInterfaceLines = 2;
+                else
+                    pUartCaps->NumberOfInterfaceLines = 0;
+            }
+            else if (Instance == 1)
+            {
+                if ((PinMap == NvOdmUartPinMap_Config1) ||
+                    (PinMap == NvOdmUartPinMap_Config2))
+                    pUartCaps->NumberOfInterfaceLines = 4;
+                else if (PinMap == NvOdmUartPinMap_Config3)
+                    pUartCaps->NumberOfInterfaceLines = 2;
+                else
+                    pUartCaps->NumberOfInterfaceLines = 0;
+            }
+            else if (Instance == 2)
+            {
+                if (PinMap == NvOdmUartPinMap_Config1)
+                    pUartCaps->NumberOfInterfaceLines = 4;
+                else if (PinMap == NvOdmUartPinMap_Config2)
+                    pUartCaps->NumberOfInterfaceLines = 2;
+                else
+                    pUartCaps->NumberOfInterfaceLines = 0;
+            }
             else
-                pUartCaps->NumberOfInterfaceLines = 0;
+            {
+                NV_ASSERT(NV_FALSE);
+                err = NvError_NotSupported;
+            }
+            break;
         }
-        else if (Instance == 1)
-        {
-            if ((PinMap == NvOdmUartPinMap_Config1) ||
-                (PinMap == NvOdmUartPinMap_Config2))
-                pUartCaps->NumberOfInterfaceLines = 4;
-            else if (PinMap == NvOdmUartPinMap_Config3)
-                pUartCaps->NumberOfInterfaceLines = 2;
-            else
-                pUartCaps->NumberOfInterfaceLines = 0;
-        }
-        else if (Instance == 2)
-        {
-            if (PinMap == NvOdmUartPinMap_Config1)
-                pUartCaps->NumberOfInterfaceLines = 4;
-            else if (PinMap == NvOdmUartPinMap_Config2)
-                pUartCaps->NumberOfInterfaceLines = 2;
-            else
-                pUartCaps->NumberOfInterfaceLines = 0;
-        }
-        else
-        {
-            NV_ASSERT(NV_FALSE);
-            err = NvError_NotSupported;
-        }
-        break;
-    }
-    default:
-        break;
+        default:
+            break;
     }
     return err;
 }
-
 
 NvError
 NvRmAp15GetStraps(
@@ -1164,3 +1182,4 @@ NvRmAp15GetStraps(
     *pStrapValue = reg;
     return NvSuccess;
 }
+

@@ -37,7 +37,7 @@
 #include "nvrm_hwintf.h"
 #include "ap20/arapb_misc.h"
 #include "ap20/arclk_rst.h"
-#include "nvrm_pinmux_utils.h"
+#include "ap15/ap15rm_pinmux_utils.h"
 #include "nvrm_clocks.h"
 #include "nvodm_query_pinmux.h"
 
@@ -97,7 +97,6 @@ static const NvU32* g_Ap20MuxUart[] = {
     NULL,
 };
 
-
 static const NvU32 g_Ap20Mux_Spi1[] = {
     /*  Disown UDA,SPIA,SPIB and SPIC  RSVD and GMI chosen*/
     UNCONFIG(A, UDA, SPI1, RSVD),UNCONFIG(D, SPIA, SPI1, GMI),
@@ -153,14 +152,13 @@ static const NvU32 g_Ap20Mux_Spi3[] = {
     CONFIG(B,D,SDC,SPI3),CONFIG(B,D,SDD,SPI3), CONFIGEND(),
 
     // config 7
-    /* -spif,spig,and spih are added as config 7 on mux: 0 
-     * -spia of SPI2_MOSI as spi3_dout on mux: 2 under config 7.  
+    /* -spif,spig,and spih are added as config 7 on mux: 0
+     * -spia of SPI2_MOSI as spi3_dout on mux: 2 under config 7.
     */
     CONFIG(B,D,SPIA,SPI3),CONFIG(B,D,SPIF,SPI3),
     CONFIG(B,D,SPIG,SPI3),CONFIG(B,D,SPIG,SPI3), CONFIGEND(),
     MODULEDONE(),
 };
-
 
 static const NvU32 g_Ap20Mux_Spi4[] = {
     CONFIGEND(),
@@ -628,7 +626,6 @@ const NvU32* g_Ap20MuxBacklight[] = {
     NULL,
 };
 
-
 static const NvU32 g_Ap20Mux_Display1[] = {
     CONFIGEND(),
     //  config 1, 24b RGB.  Pure superset of Config2 (18b RGB)
@@ -644,7 +641,7 @@ static const NvU32 g_Ap20Mux_Display1[] = {
     CONFIG(C,G,LHP1,DISPLAYA), CONFIG(C,G,LHP2,DISPLAYA), CONFIG(C,G,LVP1,DISPLAYA),
     CONFIG(C,G,LHP0,DISPLAYA), CONFIG(D,G,LDI,DISPLAYA), CONFIG(D,G,LPP,DISPLAYA),
     CONFIG(D,E,LPW0,DISPLAYA), CONFIG(D,E,LPW1,DISPLAYA), CONFIG(D,E,LPW2,DISPLAYA),
-    CONFIG(C,E,LSC1,DISPLAYA), CONFIG(C,E,LM1,DISPLAYA), CONFIG(C,E,LVP0,DISPLAYA), 
+    CONFIG(C,E,LSC1,DISPLAYA), CONFIG(C,E,LM1,DISPLAYA), CONFIG(C,E,LVP0,DISPLAYA),
     CONFIGEND(),
     // config 4.  SPI
     CONFIG(D,E,LPW0,DISPLAYA), CONFIG(D,E,LPW2,DISPLAYA), CONFIG(C,E,LSC1,DISPLAYA),
@@ -678,7 +675,7 @@ static const NvU32 g_Ap20Mux_Display1[] = {
     CONFIG(C,E,LCSN,DISPLAYA), CONFIG(C,E,LM1,DISPLAYA),CONFIG(C,E,LM0,DISPLAYA),
     CONFIG(D,E,LPW0,DISPLAYA),CONFIG(D,E,LPW2,DISPLAYA), CONFIG(D,E,LPW1,DISPLAYA),
     CONFIG(C,E,LVP0,DISPLAYA), CONFIG(C,E,LDC,DISPLAYA), CONFIG(C,E,LSC1,DISPLAYA),
-    CONFIG(D,E,LSDI,DISPLAYA), 
+    CONFIG(D,E,LSDI,DISPLAYA),
     */
 };
 
@@ -697,7 +694,7 @@ static const NvU32 g_Ap20Mux_Display2[] = {
     CONFIG(C,G,LHP1,DISPLAYB), CONFIG(C,G,LHP2,DISPLAYB), CONFIG(C,G,LVP1,DISPLAYB),
     CONFIG(C,G,LHP0,DISPLAYB), CONFIG(D,G,LDI,DISPLAYB), CONFIG(D,G,LPP,DISPLAYB),
     CONFIG(D,E,LPW0,DISPLAYB), CONFIG(D,E,LPW1,DISPLAYB), CONFIG(D,E,LPW2,DISPLAYB),
-    CONFIG(C,E,LSC1,DISPLAYB), CONFIG(C,E,LM1,DISPLAYB), CONFIG(C,E,LVP0,DISPLAYB), 
+    CONFIG(C,E,LSC1,DISPLAYB), CONFIG(C,E,LM1,DISPLAYB), CONFIG(C,E,LVP0,DISPLAYB),
     CONFIGEND(),
     // config 4.  SPI
     CONFIG(D,E,LPW0,DISPLAYB), CONFIG(D,E,LPW2,DISPLAYB), CONFIG(C,E,LSC1,DISPLAYB),
@@ -715,7 +712,7 @@ static const NvU32 g_Ap20Mux_Display2[] = {
     CONFIG(C,F,LD12,DISPLAYB), CONFIG(C,F,LD13,DISPLAYB), CONFIG(C,F,LD14,DISPLAYB),
     CONFIG(C,F,LD15,DISPLAYB), CONFIG(C,G,LD16,DISPLAYB), CONFIG(C,G,LD17,DISPLAYB),
     CONFIG(C,E,LSC0,DISPLAYB), CONFIGEND(),
-    SUBROUTINESDONE(), 
+    SUBROUTINESDONE(),
 };
 
 static const NvU32* g_Ap20MuxDisplay[] = {
@@ -1089,7 +1086,7 @@ NvRmPrivAp20GetModuleInterfaceCaps(
         {
             if (PinMap == NvOdmSdioPinMap_Config2 || PinMap == NvOdmSdioPinMap_Config4)
                 ((NvRmModuleSdmmcInterfaceCaps *)pCaps)->MmcInterfaceWidth = 8;
-            else if (PinMap == NvOdmSdioPinMap_Config1 || 
+            else if (PinMap == NvOdmSdioPinMap_Config1 ||
             PinMap == NvOdmSdioPinMap_Config3 || PinMap == NvOdmSdioPinMap_Config5)
                 ((NvRmModuleSdmmcInterfaceCaps *)pCaps)->MmcInterfaceWidth = 4;
             else
@@ -1126,13 +1123,13 @@ NvRmPrivAp20GetModuleInterfaceCaps(
         }
         return NvError_Success;
     case NvOdmIoModule_Nand:
-        if (Instance == 0 && (PinMap == NvOdmNandPinMap_Config1 || PinMap == 
+        if (Instance == 0 && (PinMap == NvOdmNandPinMap_Config1 || PinMap ==
         NvOdmNandPinMap_Config3))
         {
             ((NvRmModuleNandInterfaceCaps*)pCaps)->IsCombRbsyMode = NV_TRUE;
             ((NvRmModuleNandInterfaceCaps*)pCaps)->NandInterfaceWidth = 16;
         }
-        else if (Instance == 0 && (PinMap == NvOdmNandPinMap_Config2 || 
+        else if (Instance == 0 && (PinMap == NvOdmNandPinMap_Config2 ||
             PinMap == NvOdmNandPinMap_Config4))
         {
             ((NvRmModuleNandInterfaceCaps*)pCaps)->IsCombRbsyMode = NV_TRUE;

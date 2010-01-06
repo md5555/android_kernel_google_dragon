@@ -38,7 +38,7 @@
 #include "ap15rm_private.h"
 #include "ap16/arapb_misc.h"
 #include "ap15/arclk_rst.h"
-#include "nvrm_pinmux_utils.h"
+#include "ap15rm_pinmux_utils.h"
 #include "nvodm_query_pinmux.h"
 #include "nvrm_clocks.h"
 
@@ -169,7 +169,7 @@ extern const NvU32 g_Ap15Mux_BacklightDisplay2Pwm1[];
 extern const NvU32* g_Ap15MuxBacklight[];
 
 static const NvU32 g_Ap16Mux_Ulpi[] = {
-    CONFIGEND(), // no pad groups reset to ULPI, so nothing to disown for reset config 
+    CONFIGEND(), // no pad groups reset to ULPI, so nothing to disown for reset config
     CONFIG(B,A,UAA,ULPI), CONFIG(B,A,UAB,ULPI), CONFIG(B,A,UAC,ULPI), CONFIGEND(),
     MODULEDONE()
 };
@@ -314,12 +314,10 @@ NvRmPrivAp16GetModuleInterfaceCaps(
                 return NvError_NotSupported;
             }
             return NvSuccess;
-            
+
         default:
             break;
     }
     return NvRmPrivAp15GetModuleInterfaceCaps(Module, Instance, PinMap, pCaps);
 }
-
-
 

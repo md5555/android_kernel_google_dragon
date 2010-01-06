@@ -17,6 +17,7 @@ obj-y += ap15rm_clocks.o
 obj-y += ap15rm_clock_config.o
 obj-y += ap15rm_clocks_info.o
 obj-y += nvrm_clocks.o
+obj-y += ap15rm_pinmux.o
 obj-y += ap15rm_pinmux_tables.o
 obj-y += ap16rm_pinmux_tables.o
 obj-y += ap15rm_power.o
