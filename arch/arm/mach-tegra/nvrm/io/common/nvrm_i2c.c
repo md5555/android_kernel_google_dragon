@@ -78,7 +78,7 @@ I2cGetSocCapabilities(
     SocI2cCapability *pI2cSocCaps)
 {
     static SocI2cCapability s_SocI2cCapsList[2];
-    NvRmModuleCapability I2cCapsList[2];
+    NvRmModuleCapability I2cCapsList[3];
     SocI2cCapability *pI2cCaps = NULL;
 
     if (ModuleId == NvRmModuleID_I2c)
