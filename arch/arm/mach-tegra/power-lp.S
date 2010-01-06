@@ -52,7 +52,7 @@ ENTRY(enter_power_state)
 	//with IRQs turned off
 	mrs	r2, CPSR
 	stmfd	sp!, {r0-r12, lr}
-	
+
 	cmp	r1, #0
 	bne	save_arm_state
 
@@ -76,10 +76,10 @@ save_arm_state:
 	mov	r2, #0x800
 	//r0 = r0 + r1 * r2
 	smlabb	r0, r1, r2, r0
-	
+
 	ldr	r1, =g_ArmPerif
 	ldr	r1, [r1]
-	
+
 	//We need r0 = virtual context save
 	//We need R1 = SCU VA
 	b	ArmCortexA9Save
@@ -89,11 +89,11 @@ ArmCortexA9Saved:
 	mrc	p15, 0, r2, c0, c0, 5
 	ands	r2, r2, #0x3	
 	bne	reset_slave
-	
+
 	//We are the master. We should
 	//turn of MMUs and caches.
 	//Write a value to unblock the slaves
-	
+
 	//Turn off caches and MMU
 	mrc	p15, 0, r3, c1, c0, 0
 	bic	r3, r3, #(1<<12) //I-Cache
@@ -105,14 +105,14 @@ ArmCortexA9Saved:
 	ldr	r0, [r0]
 	ldr	r1, =g_wakeupCcbp
 	ldr	r1, [r1] 
-	
+
 	ldr	r2, =g_enterLP2PA
 	ldr	r2, [r2]
-	
+
 	mov	r10, #0	
 	mcr	p15, 0, r10, c8, c7, 0	// invalidate TLB
 	dsb
-	
+
 	.align 5
 	//Disable L1 caches and MMU
 	mcr	p15, 0, r3, c1, c0, 0
@@ -120,7 +120,7 @@ ArmCortexA9Saved:
 	//Finish up LP2 by entering flow control state
 	//bl enter_lp2
 	bx	r2
-	
+
 	ldr	r2, =g_Sync
 	mov	r3, #1
 	str	r3, [r2]
@@ -133,18 +133,18 @@ reset_slave:
 	mov r1, #1
 	bl	reset_cpu
 	b .
-	
+
  	ldr	r2, =g_Sync
 wait_for_master: 	
  	ldr	r3, [r2]
  	cmp	r3, #1
  	bne	wait_for_master
- 	
+
 	//Reset the sync variable
 	//and increment g_ActiveCpus.
  	mov	r3, #0
  	str	r3, [r2]
- 	
+
 finish_power_state:
 	ldmfd	sp!, {r0-r12, lr}
 	bx	lr
@@ -156,8 +156,7 @@ ENTRY(enter_lp2)
 	ldr	r7, =TIMERUS_PA_BASE //R7 = TIMERUS PA base address
 	ldr	r8, =CLK_RST_PA_BASE //R8 = CLK PA base address
 	ldr	r9, =EVP_PA_BASE	//R9 = EVP PA base address
-	
-	
+
 	//This funny little instruction obtains a piece of memory
 	//that is relative to the PC. We can't use literals
 	//as the MMU has been turned off.	
@@ -183,7 +182,7 @@ ENTRY(enter_lp2)
 	//Unset the SIDE_EFFECT bit
 	bic	r2, r2, #(1<<14)
 	str	r2, [r5, #APBDEV_PMC_CNTRL_0]
-	
+
 	//Powergate the cpu by setting the ENABLE bit
 	ldr	r2, [r6, #FLOW_CTLR_CPU_CSR_0]
 	orr	r2, r2, #(1<<0)
@@ -213,17 +212,17 @@ ENTRY(exit_lp2)
 	ldr	r8, =CLK_RST_PA_BASE //R8 = CLK PA base address
 	ldr	r9, =EVP_PA_BASE	//R9 = EVP PA base address
 	ldr	r10, =CSITE_PA_BASE  //R10 = CSITE PA base address
-	
+
 	//Check which core we are by checking the MPIDR
 	mrc	p15, 0, r2, c0, c0, 5
 	ands	r2, r2, #0x3
 	bne	skip_cpu0_restore
-	
+
 	//This funny little instruction obtains a piece of memory
 	//that is relative to the PC. We can't use literals
 	//as the MMU has been turned off.
 	add	r12, pc, #TempStoreArea-(.+8)
-	
+
 	//Get the current microsecond count
 	ldr	r11, [r7, #0]
 
@@ -242,7 +241,7 @@ ENTRY(exit_lp2)
 	//reset CoreSight here. Be aware than any on-chip breakpoint
 	//set before the CPU island was powered down will not be
 	//functional until after CPU state restoration.
-	
+
 	//Assert CoreSight reset.
 	ldr	r0, [r8, #CLK_RST_CONTROLLER_RST_DEVICES_U_0]
 	orr	r0, r0, #(1<<9)
@@ -258,14 +257,14 @@ reset_poll:
 	//De-assert CoreSight reset.
 	bic	r0, r0, #(1<<9)
 	str	r0, [r8, #CLK_RST_CONTROLLER_RST_DEVICES_U_0]
-	
+
 	//Unlock debugger access by writing special "CSACCESS"
 	ldr	r0, =0xC5ACCE55
 	ldr	r1, =CSITE_CPUDBG0_LAR_0  //R1 = CPU0 lock offset
 	ldr	r2, =CSITE_CPUDBG1_LAR_0  //R2 = CPU1 lock offset
 	str	r0, [r10, r1]		//Unlock CPU0
 	str	r0, [r10, r2]		//Unlock CPU1
-	
+
 	//Make sure we no longer powergate the CPU island when halting.
 	ldr	r1, [r6, #FLOW_CTLR_CPU_CSR_0]
 	bic	r1, r1, #(1<<0)
@@ -328,7 +327,7 @@ skip_cpu0_restore:
 	ands	r2, r2, #0x3
 	//Write to reset vector to allow platsmp to continue
 	str	r2, [r9, #EVP_CPU_RESET_VECTOR_0]
-	
+
 	//Set lr to the resume function
 	ldr	lr, [r5, #APBDEV_PMC_SCRATCH1_0]
 	bx	lr
@@ -340,6 +339,69 @@ TempStoreArea:
 	.space TEMP_AREA_SIZE
 
 ENDPROC(exit_lp2)
+
+ENTRY(enter_lp0)
+	ldr		r4, [pc, #0x84] //EMC base
+	ldr		r5, [pc, #0x84] //PMC base
+	ldr		r6, [pc, #0x84] //FLOW base
+	ldr		r7, [pc, #0x84] //TIMERUS base
+
+	//Flush the write buffer
+	dmb
+
+	//Stall incoming EMC read/write transactions
+	mov		r2, #3
+	str		r2, [r4, #0x2B0]
+
+	//Poll till EMC is idle
+is_idle:
+	ldr		r2, [r4, #0x2B4]
+	tst		r2, #4
+	beq		is_idle
+
+	//Put SDRAM into self refresh
+	mov		r2, #1
+	str		r2, [r4, #0xE0]
+	ldr		r2, [r4, #0x10]
+	ands	r2, r2, #3, 8
+	moveq	r0, #1, 24
+	movne	r0, #3, 24
+
+	//Poll until all devices are in self refresh
+is_self:
+	ldr		r2, [r4, #0x2B4]
+	and		r2, r2, r0
+	teq		r0, r2
+	bne		is_self
+	mov		r2, #1
+	str		r2, [r5, #0x20]
+
+	//Set SIDE_EFFECT_LP0
+	ldr		r2, [r5]
+	orr		r2, r2, #1, 18
+	str		r2, [r5]
+
+	//Set CPU island to power gate when halted
+	ldr		r2, [r6, #8]
+	orr		r2, r2, #1
+	str		r2, [r6, #8]
+
+	//Save the microsecond count before LP0
+	ldr		r2, [r7]
+	str		r2, [r5, #0x134]
+
+	//Halt the CPU without any wakeup events
+	mov		r2, #1, 2
+	str		r2, [r6]
+do_wfi:
+	dsb
+	wfi
+	b		do_wfi
+	andvc	pc, r0, r0, lsl #8
+	andvc	lr, r0, r0, lsl #8
+	andvs	r7, r0, r0
+	andvs	r5, r0, r0, lsl r0
+ENDPROC(enter_lp0)
 
 ENTRY(exit_power_state)
 	//Switch to SVC state
@@ -366,7 +428,7 @@ restore_slave:
 	mov	r3, #0x800
 	//r0 = r0 + r2 * r3
 	smlabb	r0, r2, r3, r0
-	
+
 	//Perform ARM restore (r0 = context save ptr)	
 	b	ArmCortexA9PhysicalRestore
 
@@ -375,7 +437,27 @@ ArmCortexA9PhysicalRestored:
 	//After PhysicalRestore, we are now back in virtual space
 	//r0  = power state
 	//r11 = pointer to CPU-specific context save area VA
-	
+
+	//Check if power state is POWER_STATE_LP0
+	cmp		r0, #2
+	bne		skip_pll
+	ldr		r0, =PMC_PA_BASE
+	ldr		r1, =TIMERUS_PA_BASE
+
+	//Read from LP0 exit time from SCRATCH1
+	ldr		r2, [r0, #0x54]
+	add		r2, r2, #300
+pll_wait:
+	ldr		r3, [r1]
+	cmp		r3, r2
+	blt		pll_wait
+
+	//Put CPU clock source on PLLX
+	ldr		r0, =CLK_RST_PA_BASE
+	ldr		r1, =0x20008888
+	str		r1, [r0, #0x20]
+
+skip_pll:
 	//Restore the cpu virtual context
 	b	ArmCortexA9VirtualRestore
 
@@ -387,7 +469,7 @@ ArmCortexA9VirtualRestored:
 	adds	r2, r2, #1
 	str	r2, [r1]
 	dmb
-	
+
 	//Check which core we are by checking the MPIDR
 	mrc	p15, 0, r2, c0, c0, 5
 	ands	r2, r2, #0x3
