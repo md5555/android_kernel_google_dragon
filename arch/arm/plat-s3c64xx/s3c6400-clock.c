@@ -46,6 +46,7 @@ static struct clk clk_ext_xtal_mux = {
 #define clk_fin_epll clk_ext_xtal_mux
 
 #define clk_fout_mpll	clk_mpll
+#define clk_fout_epll	clk_epll
 
 struct clk_sources {
 	unsigned int	nr_sources;
@@ -86,11 +87,6 @@ static struct clksrc_clk clk_mout_apll = {
 	.shift		= S3C6400_CLKSRC_APLL_MOUT_SHIFT,
 	.mask		= S3C6400_CLKSRC_APLL_MOUT,
 	.sources	= &clk_src_apll,
-};
-
-static struct clk clk_fout_epll = {
-	.name		= "fout_epll",
-	.id		= -1,
 };
 
 static struct clk *clk_src_epll_list[] = {
@@ -645,7 +641,6 @@ static struct clk *clks[] __initdata = {
 	&clk_iis_cd1,
 	&clk_pcm_cd,
 	&clk_mout_epll.clk,
-	&clk_fout_epll,
 	&clk_mout_mpll.clk,
 	&clk_dout_mpll,
 	&clk_arm,
@@ -673,22 +668,6 @@ void __init s3c6400_register_clocks(unsigned armclk_divlimit)
 
 	for (ptr = 0; ptr < ARRAY_SIZE(clks); ptr++) {
 		clkp = clks[ptr];
-		ret = s3c24xx_register_clock(clkp);
-		if (ret < 0) {
-			printk(KERN_ERR "Failed to register clock %s (%d)\n",
-			       clkp->name, ret);
-		}
-	}
-
-	for (ptr = 0; ptr < ARRAY_SIZE(clksrcs); ptr++) {
-		clkp = &clksrcs[ptr].clk;
-
-		/* all clksrc clocks have these */
-		clkp->get_rate = s3c64xx_getrate_clksrc;
-		clkp->set_rate = s3c64xx_setrate_clksrc;
-		clkp->set_parent = s3c64xx_setparent_clksrc;
-		clkp->round_rate = s3c64xx_roundrate_clksrc;
-
 		ret = s3c24xx_register_clock(clkp);
 		if (ret < 0) {
 			printk(KERN_ERR "Failed to register clock %s (%d)\n",
