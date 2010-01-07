@@ -62,7 +62,7 @@
             NV_REGW((c)->hRmDevice, (c)->ModuleId, (c)->Instance, \
                 ((c)->I2cRegisterOffset + (((c)->ModuleId == NvRmModuleID_Dvc) ? DVC_##reg##_0 : \
                                             I2C_##reg##_0)), (val)); \
-        } while(0)                                            
+        } while(0)
 
 #define DVC_REGR(c, reg)    NV_REGR((c)->hRmDevice, NvRmModuleID_Dvc, (c)->Instance, \
                     DVC_##reg##_0)
@@ -70,7 +70,7 @@
         do {    \
             NV_REGW((c)->hRmDevice, NvRmModuleID_Dvc, (c)->Instance, \
                     DVC_##reg##_0, val); \
-        } while(0)                    
+        } while(0)
 
 
 /* Register access Macros */
@@ -81,7 +81,7 @@
         do {    \
                 NV_REGW((c)->hRmDevice, (c)->ModuleId, (c)->Instance, \
                     ((c)->I2cRegisterOffset + I2C_##reg##_0), (val) ); \
-        }while(0);                    
+        } while(0);
                     
 
 #define DEBUG_SEND_PROCESS 0
@@ -118,7 +118,7 @@
                         if (Expr) \
                         {   \
                             NvOsDebugPrintf Format; \
-                        }   \
+                        } \
                     } while(0)
 #else
 #define DEBUG_I2C_TRACE(Expr, Format)
@@ -135,7 +135,7 @@ enum {DEFAULT_I2C_DMA_BUFFER_SIZE = (MAX_I2C_ONE_TRANSACTION_SIZE + 0x40)}; // 4
 enum {DEFAULT_I2C_CPU_BUFFER_SIZE = MAX_I2C_ONE_TRANSACTION_SIZE};
 
 // Wait time to poll the status for completion.
-enum { I2C_POLLING_TIMEOUT_STEP_USEC = 50};
+enum { I2C_POLLING_TIMEOUT_STEP_USEC = 1000};
 
 // I2C fifo depth.
 enum { I2C_FIFO_DEPTH = 8};
@@ -145,10 +145,26 @@ enum { I2C_MAX_WORD_TO_USE_CPU = 16};
 
 // Holding the apb dma for the continuous non dma transaction count
 enum {HOLDING_DMA_TRANSACTION_COUNT = 15};
-#define I2C_FIFO_ERROR_INTERRUPTS (NV_DRF_DEF(I2C, INTERRUPT_STATUS_REGISTER, TFIFO_OVF, SET) | \
-                              NV_DRF_DEF(I2C, INTERRUPT_STATUS_REGISTER, RFIFO_UNF, SET))
+#define I2C_TRANSACTION_STATUS_ERRORS \
+    (NV_DRF_DEF(I2C, INTERRUPT_STATUS_REGISTER, TFIFO_OVF, SET) | \
+     NV_DRF_DEF(I2C, INTERRUPT_STATUS_REGISTER, RFIFO_UNF, SET) | \
+     NV_DRF_DEF(I2C, INTERRUPT_STATUS_REGISTER, ARB_LOST, SET))
+
+#define I2C_ARBITRATION_LOST_ERRORS \
+         (NV_DRF_DEF(I2C, INTERRUPT_STATUS_REGISTER, ARB_LOST, SET))
+
+#define I2C_ERRORS_INTERRUPT_MASK \
+    (NV_DRF_DEF(I2C, INTERRUPT_MASK_REGISTER, TFIFO_OVF_INT_EN, ENABLE) | \
+     NV_DRF_DEF(I2C, INTERRUPT_MASK_REGISTER, RFIFO_UNF_INT_EN, ENABLE) | \
+     NV_DRF_DEF(I2C, INTERRUPT_MASK_REGISTER, ARB_LOST_INT_EN, ENABLE))
 
 #if NV_OAL
+#define USE_POLLING_METHOD 1
+#else
+#define USE_POLLING_METHOD 0
+#endif
+
+#if USE_POLLING_METHOD
 #define RESET_SEMA_COUNT(hSema) 
 #else
 #define RESET_SEMA_COUNT(hSema) \
@@ -450,7 +466,7 @@ DoTxFifoEmpty(
 
 static void WriteIntMaksReg(NvRmI2cControllerHandle hRmI2cCont)
 {
-#if !NV_OAL    
+#if !USE_POLLING_METHOD
     I2C_REGW (hRmI2cCont, INTERRUPT_MASK_REGISTER, hRmI2cCont->IntMaskReg);
 #endif
 }
@@ -476,6 +492,15 @@ static void I2cIsr(void* args)
 
     if (hRmI2cCont->ControllerStatus & hRmI2cCont->FinalInterrupt)
         IsFinalIntGot = NV_TRUE;
+
+    // If any error then stop transfer.
+    if (hRmI2cCont->ControllerStatus & I2C_TRANSACTION_STATUS_ERRORS)
+    {
+        NvOsDebugPrintf("Err in I2c transfer: Controller Status 0x%08x \n",
+                                hRmI2cCont->ControllerStatus);
+        IsFinalIntGot = NV_TRUE;
+        goto FinalIntDone;
+    }
 
     if (hRmI2cCont->IsCurrentTransferRead)
     {
@@ -604,13 +629,16 @@ Done:
     NvRmInterruptDone(hRmI2cCont->I2CInterruptHandle);
 }
 
-#if NV_OAL    
+#if USE_POLLING_METHOD
 static NvError WaitForTransactionCompletesPolling(
     NvRmI2cControllerHandle hRmI2cCont, 
     NvU32 Timeout)
 {
-    NvU32 RemainingTime = Timeout;
+    NvU32 RemainingTime;
+    RemainingTime = (Timeout == NV_WAIT_INFINITE)?Timeout:Timeout*1000;
     do {
+        NvOsWaitUS(I2C_POLLING_TIMEOUT_STEP_USEC);
+
         // Read the Interrupt status register & PKT_STATUS
         hRmI2cCont->ControllerStatus = I2C_REGR(hRmI2cCont, INTERRUPT_STATUS_REGISTER);
         if (hRmI2cCont->ControllerStatus & hRmI2cCont->IntMaskReg)
@@ -619,14 +647,11 @@ static NvError WaitForTransactionCompletesPolling(
             if (hRmI2cCont->IsTransferCompleted)
                 break;
         }
-        
-        NvOsWaitUS(I2C_POLLING_TIMEOUT_STEP_USEC);
-        RemainingTime = (RemainingTime > I2C_POLLING_TIMEOUT_STEP_USEC)? 
-                                (RemainingTime - I2C_POLLING_TIMEOUT_STEP_USEC): 0;
-    } while(RemainingTime);
 
-    if (RemainingTime && (hRmI2cCont->ModuleId == NvRmModuleID_Dvc))
-        DVC_REGW(hRmI2cCont, STATUS_REG, NV_DRF_NUM(DVC, STATUS_REG, I2C_DONE_INTR, 1));
+        if (Timeout != NV_WAIT_INFINITE)
+            RemainingTime = (RemainingTime > I2C_POLLING_TIMEOUT_STEP_USEC)? 
+                                    (RemainingTime - I2C_POLLING_TIMEOUT_STEP_USEC): 0;
+    } while(RemainingTime);
 
     if (!RemainingTime)
         return NvError_Timeout;
@@ -640,14 +665,13 @@ static NvError WaitForTransactionCompletes(
     NvU32 Timeout)
 {
     NvError Error;
-    
-    hRmI2cCont->IsTransferCompleted = NV_FALSE;
 
-#if NV_OAL    
+#if USE_POLLING_METHOD
+    hRmI2cCont->IsTransferCompleted = NV_FALSE;
     Error = WaitForTransactionCompletesPolling(hRmI2cCont, hRmI2cCont->timeout);
 #else
     // Wait for the  Transfer completes
-    Error = NvOsSemaphoreWaitTimeout(hRmI2cCont->I2cSyncSemaphore, hRmI2cCont->timeout);
+    Error = NvOsSemaphoreWaitTimeout(hRmI2cCont->I2cSyncSemaphore, Timeout);
 #endif
     return Error;
 }
@@ -681,8 +705,9 @@ DoOneReceiveTransaction(
     
     DoTxFifoEmpty(hRmI2cCont, &TFifoEmptyCount);
     
-    
-    IntMaskReg  = 0;
+    // Enable all possible i2c controller error.
+    IntMaskReg  = I2C_ERRORS_INTERRUPT_MASK;
+
     if (!hRmI2cCont->IsCurrentTransferNoAck)
         IntMaskReg = NV_FLD_SET_DRF_DEF(I2C, INTERRUPT_MASK_REGISTER, 
                                     NOACK_INT_EN, ENABLE, IntMaskReg);
@@ -693,6 +718,8 @@ DoOneReceiveTransaction(
     WordsToRead = BYTES_TO_WORD(pTransaction->NumBytes);
     hRmI2cCont->WordTransferred = 0;
     hRmI2cCont->WordRemaining = WordsToRead;
+
+    hRmI2cCont->IsTransferCompleted = NV_FALSE;
 
     // If requested size is more than cpu transaction thresold then use dma.
     if ((hRmI2cCont->DmaBufferSize) && 
@@ -719,7 +746,7 @@ DoOneReceiveTransaction(
         SetRxFifoTriggerLevel(hRmI2cCont, 1);
         if (hRmI2cCont->IsCurrentTransferNoStop)
         {
-#if NV_OAL
+#if USE_POLLING_METHOD
             goto CpuBasedReading;
 #else
             Error = NvRmDmaStartDmaTransfer(hRmI2cCont->hRmDma, &hRmI2cCont->RxDmaReq,
@@ -751,7 +778,6 @@ DoOneReceiveTransaction(
             goto WaitForCompletion;
         }
         Error = NvSuccess;
-//        NvOsDebugPrintf("Read Using Dma\n");
     }
 
 CpuBasedReading:    
@@ -789,9 +815,13 @@ WaitForCompletion:
     if (Error == NvSuccess)
     {
         hRmI2cCont->I2cTransferStatus = NvError_I2cReadFailed;
-        if (hRmI2cCont->ControllerStatus & I2C_FIFO_ERROR_INTERRUPTS)
+        if (hRmI2cCont->ControllerStatus & I2C_TRANSACTION_STATUS_ERRORS)
         {
-            hRmI2cCont->I2cTransferStatus = NvError_I2cReadFailed;
+            if (hRmI2cCont->ControllerStatus & I2C_ARBITRATION_LOST_ERRORS)
+                hRmI2cCont->I2cTransferStatus = NvError_I2cArbitrationFailed;
+            else
+                hRmI2cCont->I2cTransferStatus = NvError_I2cInternalError;
+
             goto ReadExitWithReset;
         }
         else
@@ -893,7 +923,9 @@ DoOneSendTransaction(
                                             &PacketHeader2, &PacketHeader3);
     DoTxFifoEmpty(hRmI2cCont, &TFifoEmptyCount);
     
-    IntMaskReg  = 0;
+    // Enable all possible i2c controller error.
+    IntMaskReg  = I2C_ERRORS_INTERRUPT_MASK;
+
     if (!hRmI2cCont->IsCurrentTransferNoAck)
         IntMaskReg = NV_FLD_SET_DRF_DEF(I2C, INTERRUPT_MASK_REGISTER, 
                                     NOACK_INT_EN, ENABLE, IntMaskReg);
@@ -904,6 +936,7 @@ DoOneSendTransaction(
     WordsToSend = BYTES_TO_WORD(pTransaction->NumBytes);
     hRmI2cCont->WordTransferred = 0;
     hRmI2cCont->WordRemaining = WordsToSend;
+    hRmI2cCont->IsTransferCompleted = NV_FALSE;
 
     if ((hRmI2cCont->DmaBufferSize) && 
             (hRmI2cCont->WordRemaining > I2C_MAX_WORD_TO_USE_CPU))
@@ -1012,9 +1045,12 @@ WaitForCompletion:
     if (Error == NvSuccess)
     {
         hRmI2cCont->I2cTransferStatus = NvError_I2cWriteFailed;
-        if (hRmI2cCont->ControllerStatus & I2C_FIFO_ERROR_INTERRUPTS)
+        if (hRmI2cCont->ControllerStatus & I2C_TRANSACTION_STATUS_ERRORS)
         {
-            hRmI2cCont->I2cTransferStatus = NvError_I2cWriteFailed;
+            if (hRmI2cCont->ControllerStatus & I2C_ARBITRATION_LOST_ERRORS)
+                hRmI2cCont->I2cTransferStatus = NvError_I2cArbitrationFailed;
+            else
+                hRmI2cCont->I2cTransferStatus = NvError_I2cInternalError;
             goto WriteExitWithReset;
         }   
         else
@@ -1362,7 +1398,9 @@ static void AP20RmI2cClose(NvRmI2cControllerHandle hRmI2cCont)
 
     if (hRmI2cCont->I2cSyncSemaphore)
     {
+#if !USE_POLLING_METHOD
         NvRmInterruptUnregister(hRmI2cCont->hRmDevice, hRmI2cCont->I2CInterruptHandle);
+#endif
         NvOsSemaphoreDestroy(hRmI2cCont->I2cSyncSemaphore);
         hRmI2cCont->I2cSyncSemaphore = NULL;
         hRmI2cCont->I2CInterruptHandle = NULL;
@@ -1399,8 +1437,10 @@ static void AP20RmI2cClose(NvRmI2cControllerHandle hRmI2cCont)
 NvError AP20RmI2cOpen(NvRmI2cControllerHandle hRmI2cCont)
 {
     NvError Error = NvSuccess;
+#if !USE_POLLING_METHOD
     NvU32 IrqList;
     NvOsInterruptHandler IntHandlers = I2cIsr;
+#endif
     NvU32 RxFifoPhyAddress;
     NvU32 TxFifoPhyAddress;
     
@@ -1482,6 +1522,7 @@ NvError AP20RmI2cOpen(NvRmI2cControllerHandle hRmI2cCont)
     if (!Error)
         Error = NvOsSemaphoreCreate( &hRmI2cCont->I2cSyncSemaphore, 0);
 
+#if !USE_POLLING_METHOD
     if (!Error)
     {
         IrqList = NvRmGetIrqForLogicalInterrupt(
@@ -1490,7 +1531,7 @@ NvError AP20RmI2cOpen(NvRmI2cControllerHandle hRmI2cCont)
         Error = NvRmInterruptRegister(hRmI2cCont->hRmDevice, 1, &IrqList, &IntHandlers, 
                 hRmI2cCont, &hRmI2cCont->I2CInterruptHandle, NV_TRUE);
     }
-
+#endif
     // Packet mode initialization
     hRmI2cCont->RsTransfer =  NV_FALSE;
 

@@ -943,6 +943,7 @@ typedef enum
     NvOdmI2cStatus_ReadFailed,
     NvOdmI2cStatus_WriteFailed,
     NvOdmI2cStatus_InternalError,
+    NvOdmI2cStatus_ArbitrationFailed,
     NvOdmI2cStatus_Force32 = 0x7FFFFFFF
 } NvOdmI2cStatus;
 

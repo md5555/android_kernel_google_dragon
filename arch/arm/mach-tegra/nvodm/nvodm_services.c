@@ -525,6 +525,12 @@ NvOdmI2cTransaction(
             case NvError_I2cWriteFailed:
                 status = NvOdmI2cStatus_WriteFailed;
                 break;
+            case NvError_I2cArbitrationFailed:
+                status = NvOdmI2cStatus_ArbitrationFailed;
+                break;
+            case NvError_I2cInternalError:
+                status = NvOdmI2cStatus_InternalError;
+                break;
             case NvError_Timeout:
             default:
                 status = NvOdmI2cStatus_Timeout;
