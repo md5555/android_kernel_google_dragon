@@ -33,7 +33,7 @@
 
 #include <mach/board.h>
 
-#include <linux/mtd/mtd.h> 
+#include <linux/mtd/mtd.h>
 #include <linux/mtd/partitions.h>
 
 #include <linux/io.h>
@@ -97,6 +97,14 @@ static struct platform_device android_usb_device =
 };
 #endif
 
+#ifdef CONFIG_TEGRA_NVEC_USER
+static struct platform_device tegra_nvec =
+{
+    .name = "nvec",
+    .id   = -1,
+};
+#endif
+
 #if defined(CONFIG_USB_GADGETFS) || defined(CONFIG_USB_GADGETFS_MODULE)
 static struct platform_device android_gadgetfs_device =
 {
@@ -123,7 +131,7 @@ static struct platform_device tegra_nand_device =
 
 
 #ifdef CONFIG_RTC_DRV_TEGRA_ODM
-static struct platform_device tegra_rtc_device = 
+static struct platform_device tegra_rtc_device =
 {
     .name = "tegra_rtc",
     .id   = -1,
@@ -131,7 +139,7 @@ static struct platform_device tegra_rtc_device =
 #endif
 
 #ifdef CONFIG_TOUCHSCREEN_TEGRA_ODM
-static struct platform_device tegra_touch_device = 
+static struct platform_device tegra_touch_device =
 {
     .name = "tegra_touch",
     .id   = -1,
@@ -139,7 +147,7 @@ static struct platform_device tegra_touch_device =
 #endif
 
 #ifdef CONFIG_INPUT_TEGRA_ODM_ACCEL
-static struct platform_device tegra_accelerometer_device = 
+static struct platform_device tegra_accelerometer_device =
 {
     .name = "tegra_accelerometer",
     .id   = -1,
@@ -147,7 +155,7 @@ static struct platform_device tegra_accelerometer_device =
 #endif
 
 #ifdef CONFIG_KEYBOARD_TEGRA
-static struct platform_device tegra_kbc_device = 
+static struct platform_device tegra_kbc_device =
 {
     .name = "tegra_kbc",
     .id   = -1,
@@ -155,7 +163,7 @@ static struct platform_device tegra_kbc_device =
 #endif
 
 #ifdef CONFIG_INPUT_TEGRA_ODM_SCROLL
-static struct platform_device tegra_scrollwheel_device = 
+static struct platform_device tegra_scrollwheel_device =
 {
     .name = "tegra_scrollwheel",
     .id   = -1,
@@ -169,7 +177,7 @@ static struct timed_output_dev tegra_vibrator_device = {
 #endif
 
 #ifdef CONFIG_TEGRA_ODM_RFKILL
-static struct platform_device tegra_rfkill = 
+static struct platform_device tegra_rfkill =
 {
     .name = "tegra_rfkill",
     .id   = -1,
@@ -296,7 +304,7 @@ static void __init register_enc28j60(void)
     int i;
     const NvOdmQuerySpiDeviceInfo *pSpiDeviceInfo;
 
-    pConnectivity = 
+    pConnectivity =
         NvOdmPeripheralGetGuid(NV_ODM_GUID('e','n','c','2','8','j','6','0'));
     if (!pConnectivity)
         return;
@@ -360,6 +368,10 @@ static void __init tegra_machine_init(void)
 
 #ifdef CONFIG_TEGRA_DPRAM
     tegra_init_snor_controller();
+#endif
+
+#ifdef CONFIG_TEGRA_NVEC_USER
+    (void) platform_device_register(&tegra_nvec);
 #endif
 
 #ifdef CONFIG_TOUCHSCREEN_TEGRA_ODM
