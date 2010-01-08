@@ -133,6 +133,7 @@
 #include "rm_dma_hw_private.h"
 #include "nvassert.h"
 #include "nvrm_priv_ap_general.h"
+#include "mach/nvrm_linux.h"
 
 /* FIXME move these to some header file */
 NvError NvRmPrivDmaInit(NvRmDeviceHandle hDevice);
@@ -141,7 +142,6 @@ NvError NvRmPrivDmaSuspend(void);
 NvError NvRmPrivDmaResume(void);
 
 #define MAX_AVP_DMA_CHANNELS 3
-#define MAX_RESERVED_DMA_CHANNELS 3
 
 // DMA capabilities -- these currently do not vary between chips
 
@@ -393,6 +393,13 @@ static DmaHwInterface s_ApbDmaInterface;
 #if !NVOS_IS_LINUX
 static NvOsInterruptHandle s_ApbDmaInterruptHandle = NULL;
 #endif
+
+NvU32 NvRmDmaUnreservedChannels(void)
+{
+    return s_DmaInfo.NumApbDmaChannels - MAX_AVP_DMA_CHANNELS -
+        TEGRA_SYSTEM_DMA_CH_NUM;
+}
+
 
 /**
  * Deinitialize the apb dma physical/virtual addresses. This function will
@@ -969,7 +976,6 @@ static NvError RegisterAllDmaInterrupt(NvRmDeviceHandle hDevice)
     NvOsInterruptHandler DmaIntHandler = ApbDmaIsr;
     NvU32 Irq = 0;
     NvU32 i;
-    NvU32 n;
 
     /* Disable interrupts for all channels */
     for (i=0; i < s_DmaInfo.NumApbDmaChannels; i++)
@@ -979,9 +985,7 @@ static NvError RegisterAllDmaInterrupt(NvRmDeviceHandle hDevice)
 
 #if NVOS_IS_LINUX
     /* Register same interrupt hanlder for all APB DMA channels. */
-    n = s_DmaInfo.NumApbDmaChannels - MAX_RESERVED_DMA_CHANNELS -
-        MAX_AVP_DMA_CHANNELS;
-    for (i=0; i < n; i++)
+    for (i=0; i < NvRmDmaUnreservedChannels(); i++)
     {
         Irq = NvRmGetIrqForLogicalInterrupt(hDevice, ModuleId, i);
         Error = NvRmInterruptRegister(hDevice, 1, &Irq,
@@ -1015,11 +1019,8 @@ static void UnregisterAllDmaInterrupt(NvRmDeviceHandle hDevice)
 {
 #if NVOS_IS_LINUX
     NvU32 i;
-    NvU32 n;
 
-    n = s_DmaInfo.NumApbDmaChannels - MAX_RESERVED_DMA_CHANNELS -
-        MAX_AVP_DMA_CHANNELS;
-    for (i=0; i < n; i++)
+    for (i=0; i < NvRmDmaUnreservedChannels(); i++)
     {
         NvRmInterruptUnregister(hDevice,
             s_DmaInfo.pListApbDmaChannel[i].hIntrHandle);
@@ -1326,7 +1327,6 @@ NvRmDmaAllocate(
     NvU32 UniqueId;
     RmDmaChannel *pDmaChannel = NULL;
     NvRmDmaHandle hNewDma = NULL;
-    NvU32 MaxChannel;
     RmDmaChannel *pChannelList = NULL;
     NvU32 ChanIndex;
 
@@ -1385,13 +1385,12 @@ NvRmDmaAllocate(
 
     // For high priority dma channel request, use the free channel. And for low
     // priority channel use the used channel low priority channels.
-    MaxChannel = s_DmaInfo.NumApbDmaChannels - MAX_AVP_DMA_CHANNELS - MAX_RESERVED_DMA_CHANNELS;
     pChannelList = s_DmaInfo.pListApbDmaChannel;
 
     // Going to access the data which is shared across the different thread.
     NvOsMutexLock(s_DmaInfo.hDmaAllocMutex);
 
-    for (ChanIndex = 0; ChanIndex < MaxChannel; ++ChanIndex)
+    for (ChanIndex = 0; ChanIndex < NvRmDmaUnreservedChannels(); ++ChanIndex)
     {
         pDmaChannel = &pChannelList[ChanIndex];
         if ((Priority == pDmaChannel->Priority) && (pDmaChannel->ChannelState == RmDmaChannelState_Free))

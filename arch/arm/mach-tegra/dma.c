@@ -90,11 +90,6 @@ struct tegra_dma_channel {
 
 #define  NV_DMA_MAX_CHANNELS  32
 
-/* We are only allowed to use the channels in the following range, others are
- * used by different code base */
-#define  NV_DMA_CHANNEL_MIN  12
-#define  NV_DMA_CHANNEL_MAX  12
-
 static DECLARE_BITMAP(channel_usage, NV_DMA_MAX_CHANNELS);
 static struct tegra_dma_channel dma_channels[NV_DMA_MAX_CHANNELS];
 
@@ -263,14 +258,14 @@ int tegra_dma_allocate_channel(int mode)
 	int channel;
 	struct tegra_dma_channel *ch;
 
-	/* NV_DMA_CHANNEL_MIN in the shared channel */
+	/* first channel is the shared channel */
 	if (mode & TEGRA_DMA_SHARED) {
-		channel = NV_DMA_CHANNEL_MIN;
+		channel = TEGRA_SYSTEM_DMA_CH_MIN;
 	}
 	else {
 		channel = find_first_zero_bit(channel_usage,
-			NV_DMA_MAX_CHANNELS);
-		if (channel > NV_DMA_MAX_CHANNELS)
+			ARRAY_SIZE(dma_channels));
+		if (channel >= ARRAY_SIZE(dma_channels))
 			return -ENODEV;
 	}
 	__set_bit(channel, channel_usage);
@@ -284,7 +279,8 @@ void tegra_dma_free_channel(int channel)
 {
 	struct tegra_dma_channel *ch;
 
-	if (channel < NV_DMA_CHANNEL_MIN && channel >= NV_DMA_CHANNEL_MAX)
+	if (channel < TEGRA_SYSTEM_DMA_CH_MIN ||
+	    channel >= TEGRA_SYSTEM_DMA_CH_MAX)
 		return;
 
 	ch = &dma_channels[channel];
@@ -565,12 +561,13 @@ int __init tegra_dma_init(void)
 	BUG_ON(max_channels > NV_DMA_MAX_CHANNELS);
 
 	/* Reserve all the channels we are not supposed to touch */
-	for (i=0; i< NV_DMA_MAX_CHANNELS; i++) {
-		if ((i <  NV_DMA_CHANNEL_MIN) || (i >= NV_DMA_CHANNEL_MAX))
-			__set_bit(i, channel_usage);
-	}
+	for (i=0; i<TEGRA_SYSTEM_DMA_CH_MIN; i++)
+		__set_bit(i, channel_usage);
 
-	for (i = NV_DMA_CHANNEL_MIN; i < NV_DMA_CHANNEL_MAX; i++) {
+	for (i=TEGRA_SYSTEM_DMA_CH_MAX; i<ARRAY_SIZE(dma_channels); i++)
+		__set_bit(i, channel_usage);
+
+	for (i=TEGRA_SYSTEM_DMA_CH_MIN; i<TEGRA_SYSTEM_DMA_CH_MAX; i++) {
 		struct tegra_dma_channel *ch = &dma_channels[i];
 
 		ch->id = i;
@@ -591,7 +588,7 @@ int __init tegra_dma_init(void)
 		tegra_dma_init_hw(ch);
 	}
 
-	for (i = NV_DMA_CHANNEL_MIN; i < NV_DMA_CHANNEL_MAX; i++) {
+	for (i=TEGRA_SYSTEM_DMA_CH_MIN; i<TEGRA_SYSTEM_DMA_CH_MAX; i++) {
 		irq = NvRmGetIrqForLogicalInterrupt(s_hRmGlobal,
 			NvRmPrivModuleID_ApbDma, i);
 		printk("Irq value = %d\n", irq);

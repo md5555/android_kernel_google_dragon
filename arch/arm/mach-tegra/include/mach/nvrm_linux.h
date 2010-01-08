@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2009 NVIDIA Corporation.
+ * Copyright (c) 2008-2010 NVIDIA Corporation.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -56,20 +56,31 @@
 extern NvRmDeviceHandle s_hRmGlobal;
 extern NvRmGpioHandle s_hGpioGlobal;
 
-int tegra_get_partition_info_by_name(
-    const char *PartName,
-    NvU64      *pSectorStart,
-    NvU64      *pSectorLength,
-    NvU32      *pSectorSize);
+int tegra_get_partition_info_by_name(const char *PartName,
+	NvU64 *pSectorStart, NvU64 *pSectorLength, NvU32 *pSectorSize);
 
-int tegra_get_partition_info_by_num(
-    int    PartitionNum,
-    char **pName,
-    NvU64 *pSectorStart,
-    NvU64 *pSectorEnd,
-    NvU32 *pSectorSize);
+int tegra_get_partition_info_by_num(int PartitionNum, char **pName,
+	NvU64 *pSectorStart, NvU64 *pSectorEnd, NvU32 *pSectorSize);
 
 int tegra_was_boot_device(const char *pBootDev);
 
+NvU32 NvRmDmaUnreservedChannels(void);
+
+#ifndef CONFIG_SERIAL_TEGRA_UARTS
+#define TEGRA_SYSTEM_DMA_CH_UART 0
+#else
+#define TEGRA_SYSTEM_DMA_CH_UART (2*CONFIG_SERIAL_TEGRA_UARTS)
+#endif
+
+#ifdef CONFIG_TEGRA_SYSTEM_DMA
+#define TEGRA_SYSTEM_DMA_CH_NUM (1 + TEGRA_SYSTEM_DMA_CH_UART)
+#else
+#define TEGRA_SYSTEM_DMA_CH_NUM (0)
+#endif
+
+/* DMA channels available to system DMA driver */
+#define TEGRA_SYSTEM_DMA_CH_MIN NvRmDmaUnreservedChannels()
+#define TEGRA_SYSTEM_DMA_CH_MAX \
+	(TEGRA_SYSTEM_DMA_CH_MIN+TEGRA_SYSTEM_DMA_CH_NUM)
 
 #endif
