@@ -377,7 +377,7 @@ static void __init tegra_register_i2c(void)
 }
 #endif
 
-#if !defined(CONFIG_SERIAL_TEGRA_DDK)
+#if !(defined(CONFIG_SERIAL_TEGRA_DDK) || defined(CONFIG_SERIAL_TEGRA))
 #define tegra_register_uart() do {} while (0)
 #else
 
@@ -390,10 +390,15 @@ void __init tegra_register_uart(void)
     NvU32 i;
     NvOdmDebugConsole Console;
     NvU32 Port = ~0;
+    const NvU32 *pPinMuxes;
+    NvU32 NumPinMuxes;
+    NvU32 Cnt = 0;
     
     Console = NvOdmQueryDebugConsole();
     NumberOfUarts = NvRmModuleGetNumInstances(s_hRmGlobal, 
         NvRmModuleID_Uart);
+
+    NvOdmQueryPinMux(NvOdmIoModule_Uart, &pPinMuxes, &NumPinMuxes);
 
     /* Skip the UART port used as a debug console */
     if (((NvU32)Console >= (NvU32)NvOdmDebugConsole_UartA) &&
@@ -402,12 +407,12 @@ void __init tegra_register_uart(void)
         Port = (NvU32)(Console - NvOdmDebugConsole_UartA);
     }
 
-    for (i=0; i< NumberOfUarts ; i++)
+    for (i=0; i<NumberOfUarts && i<NumPinMuxes; i++)
     {
-        if (i == Port)
+        if (i==Port || !pPinMuxes[i])
             continue;
 
-        pDev = platform_device_alloc("tegra_uart", i);
+        pDev = platform_device_alloc("tegra_uart", Cnt++);
         if (!pDev)
             goto fail;
         if (platform_device_add(pDev))
