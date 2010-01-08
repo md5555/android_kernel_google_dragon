@@ -44,6 +44,8 @@ struct tegra_dma_req {
 	 * 0 to copy from the memory to device FIFO */
 	int to_memory;
 
+	void *virt_addr;
+
 	unsigned long source_addr;
 	unsigned long dest_addr;
 	unsigned long dest_wrap;

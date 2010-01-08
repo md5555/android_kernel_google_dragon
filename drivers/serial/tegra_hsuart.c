@@ -33,6 +33,7 @@
 #include <linux/clk.h>
 #include <linux/string.h>
 #include <linux/pagemap.h>
+#include <linux/tegra_devices.h>
 
 #include "nvos.h"
 #include "mach/nvrm_linux.h"
@@ -106,8 +107,9 @@ static void tegra_set_baudrate(struct tegra_uart_port *t, unsigned int baud);
 static inline int tegra_uart_isbreak(struct uart_port *u)
 {
 	struct tegra_uart_port *t;
-	t = container_of(u, struct tegra_uart_port, uport);
 	unsigned char lsr;
+
+	t = container_of(u, struct tegra_uart_port, uport);
 	lsr = readb(t->regs + UART_LSR_0);
 	if (lsr & NV_DRF_DEF(UART, LSR, BRK, BREAK)) {
 		/* If FIFO read error without any data, reset the Rx FIFO */
@@ -143,8 +145,9 @@ static inline void tegra_uart_set_rts(struct tegra_uart_port *t,
 static void do_handle_rx_pio(struct uart_port *u)
 {
 	struct tegra_uart_port *t;
-	t = container_of(u, struct tegra_uart_port, uport);
 	struct tty_struct *tty = u->info->port.tty;
+
+	t = container_of(u, struct tegra_uart_port, uport);
 
 	do {
 		char flag = TTY_NORMAL;
@@ -387,7 +390,7 @@ static irqreturn_t tegra_uart_isr(int irq, void *data)
 		case 3: /* Receive error */
 		case 6: /* Rx timeout */
 			if (likely(use_rx_dma))
-				do_handle_rx_dma(u);
+				do_handle_rx_dma(u, 0);
 			else
 				do_handle_rx_pio(u);
 			tty_flip_buffer_push(u->info->port.tty);
@@ -505,14 +508,14 @@ fail:
 	return -ENODEV;
 }
 
-static void tegra_uart_init_rx_dma(struct tegra_uart_port *t)
+static int tegra_uart_init_rx_dma(struct tegra_uart_port *t)
 {
 	int i;
 
 	/* Rx uses 1 DMA channel and 2 chained buffers */
 	t->rx_dma = tegra_dma_allocate_channel(TEGRA_DMA_MODE_CONTINOUS);
 	if (t->rx_dma < 0)
-		goto fail;
+		return -ENODEV;
 
 	for (i=0; i<2; i++) {
 		dma_addr_t rx_dma_phys;
@@ -522,10 +525,12 @@ static void tegra_uart_init_rx_dma(struct tegra_uart_port *t)
 		/* Allocate receive DMA buffer
 		 * This buffer can hold data for 50 ms with 4.5 Mbps data rate.
 		 */
-		rx_dma_virt = dma_alloc_coherent(u->dev, 
+		rx_dma_virt = dma_alloc_coherent(t->uport.dev,
 			t->rx_dma_req[i].size, &rx_dma_phys, GFP_KERNEL);
-		if (!rx_dma_virt)
-			dev_err(u->dev, "Could not allocate the dma buffers\n");
+		if (!rx_dma_virt) {
+			dev_err(t->uport.dev, "Could not allocate dma buffers\n");
+			return -ENODEV;
+		}
 
 		/* Polulate Rx DMA buffer */
 		t->rx_dma_req[i].source_addr = t->phys;
@@ -534,17 +539,18 @@ static void tegra_uart_init_rx_dma(struct tegra_uart_port *t)
 		t->rx_dma_req[i].dest_wrap = 0;
 		t->rx_dma_req[i].to_memory = 1;
 		t->rx_dma_req[i].modid =  NvRmModuleID_Uart;
-		t->rx_dma_req[i].instance = u->line;
+		t->rx_dma_req[i].instance = t->uport.line;
 		t->rx_dma_req[i].complete = tegra_rx_dma_complete_callback;
 		t->rx_dma_req[i].size = t->rx_dma_req[i].size;
-		t->rx_dma_req[i].data = u;
+		t->rx_dma_req[i].data = &t->uport;
 		t->rx_dma_req[i].virt_addr = rx_dma_virt;
 		INIT_LIST_HEAD(&(t->rx_dma_req[i].list));
 		if (tegra_dma_enqueue_req(t->rx_dma, &t->rx_dma_req[i])) {
-			dev_err(u->dev, "Could not enqueue Rx DMA request\n");
+			dev_err(t->uport.dev, "Could not enqueue Rx DMA req\n");
+			return -ENODEV;
 		}
 	}
-
+	return 0;
 }
 
 static int tegra_startup(struct uart_port *u)
@@ -552,7 +558,6 @@ static int tegra_startup(struct uart_port *u)
 	struct tegra_uart_port *t;
 	int ret = 0;
 	unsigned char ier;
-	int i;
 
 	t = container_of(u, struct tegra_uart_port, uport);
 	sprintf(t->port_name, "tegra_uart_%d", u->line);
@@ -605,8 +610,8 @@ static int tegra_startup(struct uart_port *u)
 		t->tx_dma_req.source_wrap = 0;
 		t->tx_dma_req.data = &t->tasklet;
 	}
-	if (use_rx_dma)
-		tegra_uart_init_rx_dma(t);
+	if (use_rx_dma && tegra_uart_init_rx_dma(t))
+		goto fail;
 	/* 
 	 *  Enable IE_RXS for the receive status interrupts like line errros.
 	 *  Enable IE_RX_TIMEOUT to get the bytes which cannot be DMA'd.
@@ -861,7 +866,6 @@ void tegra_set_termios(struct uart_port *u, struct ktermios *termios,
 	struct tegra_uart_port *t;
 	unsigned int baud;
 	unsigned long flags;
-	unsigned int mcr;
 	unsigned int lcr;
 	unsigned int c_cflag = termios->c_cflag;
 	char debug_string[50];
