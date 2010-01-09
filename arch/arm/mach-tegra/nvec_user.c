@@ -22,6 +22,7 @@
 
 #include <linux/module.h>
 #include <linux/proc_fs.h>
+#include <linux/platform_device.h>
 #include <linux/miscdevice.h>
 #include "linux/nvos_ioctl.h"
 #include "nvec.h"
@@ -49,7 +50,7 @@ int nvec_open(struct inode *inode, struct file *file)
 	file->private_data = (void*)Client;
 	return 0;
 }
- 
+
 int nvec_close(struct inode *inode, struct file *file)
 {
 	NvRtClientHandle client = (NvRtClientHandle)file->private_data;
@@ -77,7 +78,7 @@ int nvec_close(struct inode *inode, struct file *file)
 	}
 	return 0;
 }
- 
+
 long nvec_unlocked_ioctl(struct file *file,
 	unsigned int cmd, unsigned long arg)
 {
@@ -183,7 +184,7 @@ static struct miscdevice nvec_dev =
 
 static NvEcHandle s_NvEcHandle = NULL;
 
-static int __init nvec_init( void )
+static int __init nvec_probe(struct platform_device *pdev)
 {
 	int e = 0;
 	NvError status;
@@ -213,14 +214,58 @@ static int __init nvec_init( void )
 	return e;
 }
 
+static int nvec_remove(struct platform_device *pdev)
+{
+    NvEcClose(s_NvEcHandle);
+    misc_deregister( &nvec_dev );
+    NvRtDestroy(s_RtHandle);
+    s_RtHandle = NULL;
+    return 0;
+}
+
+static int nvec_suspend(struct platform_device *pdev, pm_message_t state)
+{
+    NvError e = NvEcPowerSuspend(NvEcPowerState_Suspend);
+    if (e != NvSuccess)
+        return -1;
+
+    return 0;
+}
+
+static int nvec_resume(struct platform_device *pdev)
+{
+    NvError e = NvEcPowerResume();
+    if (e != NvSuccess)
+        return -1;
+
+    return 0;
+}
+
+static void nvec_shutdown(struct platform_device *pdev)
+{
+    NvEcPowerSuspend(NvEcPowerState_PowerDown);
+}
+
+static struct platform_driver tegra_nvec_driver = {
+    .probe      = nvec_probe,
+    .remove     = nvec_remove,
+    .suspend    = nvec_suspend,
+    .resume     = nvec_resume,
+    .shutdown   = nvec_shutdown,
+    .driver     = {
+        .name   = "nvec",
+    },
+};
+
+static int __devinit nvec_init( void )
+{
+    return platform_driver_register(&tegra_nvec_driver);
+}
+
 static void __exit nvec_deinit( void )
 {
-	NvEcClose(s_NvEcHandle);
-	misc_deregister(&nvec_dev);
-	NvRtDestroy(s_RtHandle);
-	s_RtHandle = NULL;
+    return platform_driver_unregister(&tegra_nvec_driver);
 }
 
 module_init(nvec_init);
 module_exit(nvec_deinit);
-
