@@ -55,7 +55,6 @@ static const char *part_probes[] = { "cmdlinepart", NULL,  };
 #endif
 
 static NvDdkNandHandle s_hNand;
-static struct wake_lock nand_wake_lock;
 
 struct tegra_nand_chip {
 	spinlock_t	lock;
@@ -219,11 +218,9 @@ static int tegra_nand_block_isbad(struct mtd_info *mtd, loff_t offs)
 	if (offs >= mtd->size)
 		return -EINVAL;
 
-	wake_lock(&nand_wake_lock);
 	mutex_lock(&info->lock);
 	ret = check_block_isbad(mtd, offs, TagArea);
 	mutex_unlock(&info->lock);
-	wake_unlock(&nand_wake_lock);
 
 	return ret;
 }
@@ -246,7 +243,6 @@ static int tegra_nand_block_markbad(struct mtd_info *mtd, loff_t offs)
 
 	pr_info("tegra_nand: setting block %d bad\n", block);
 
-	wake_lock(&nand_wake_lock);
 	mutex_lock(&info->lock);
 	offs &= ~(mtd->erasesize - 1);
 
@@ -272,12 +268,10 @@ static int tegra_nand_block_markbad(struct mtd_info *mtd, loff_t offs)
 
 	NvDdkNandSuspendClocks(s_hNand);
 	mutex_unlock(&info->lock);
-	wake_unlock(&nand_wake_lock);
 	return 0;
 fail:
 	NvDdkNandSuspendClocks(s_hNand);
 	mutex_unlock(&info->lock);
-	wake_unlock(&nand_wake_lock);
 	return -ENXIO;
 }
 
@@ -383,7 +377,6 @@ static int tegra_nand_read(struct mtd_info *mtd, loff_t from, size_t len,
 	NvU32 PageNumber = 0, ChipNumber = 0;
 	NvU64 curAddr = from;
 
-	wake_lock(&nand_wake_lock);
 	mutex_lock(&info->lock);
 
 	for (i=0;i<NDFLASH_CS_MAX;i++)
@@ -423,7 +416,6 @@ static int tegra_nand_read(struct mtd_info *mtd, loff_t from, size_t len,
 	NvDdkNandSuspendClocks(s_hNand);
 	*retlen = len;
 	mutex_unlock(&info->lock);
-	wake_unlock(&nand_wake_lock);
 	return 0;
 
 fail:
@@ -431,7 +423,6 @@ fail:
 	NvDdkNandSuspendClocks(s_hNand);
 	*retlen = len - bytesLeft;
 	mutex_unlock(&info->lock);
-	wake_unlock(&nand_wake_lock);
 	return -EINVAL;
 }
 
@@ -449,7 +440,6 @@ static int do_read_oob(struct mtd_info *mtd, loff_t from,
 	NvU32 PageNumber = 0, ChipNumber = 0;
 	NvU64 curAddr = from;
 
-	wake_lock(&nand_wake_lock);
 	mutex_lock(&info->lock);
 
 	if (check_block_isbad(mtd, curAddr, tempSpareBuffer)) {
@@ -490,7 +480,6 @@ static int do_read_oob(struct mtd_info *mtd, loff_t from,
 	ops->oobretlen = 0;
 
 	mutex_unlock(&info->lock);
-	wake_unlock(&nand_wake_lock);
 	return 0;
 
 fail:
@@ -500,7 +489,6 @@ fail:
 	NvDdkNandSuspendClocks(s_hNand);
 
 	mutex_unlock(&info->lock);
-	wake_unlock(&nand_wake_lock);
 	return -EINVAL;
 }
 
@@ -552,7 +540,6 @@ static int tegra_nand_write(struct mtd_info *mtd, loff_t to, size_t len,
 
 	pr_info("%s: write: to=0x%llx len=0x%x\n", __func__, to, len);
 
-	wake_lock(&nand_wake_lock);
 	mutex_lock(&info->lock);
 
 	for (i=0;i<NDFLASH_CS_MAX;i++)
@@ -592,7 +579,6 @@ static int tegra_nand_write(struct mtd_info *mtd, loff_t to, size_t len,
 	*retlen = len;
 	NvDdkNandSuspendClocks(s_hNand);
 	mutex_unlock(&info->lock);
-	wake_unlock(&nand_wake_lock);
 	return 0;
 
 fail:
@@ -600,7 +586,6 @@ fail:
 	pr_info("WriteError: NvDdkNandWrite failed error(0x%x)", e);
 	*retlen = len - bytesLeft;
 	mutex_unlock(&info->lock);
-	wake_unlock(&nand_wake_lock);
 	return -EINVAL;
 }
 
@@ -617,7 +602,6 @@ static int do_write_oob(struct mtd_info *mtd, loff_t to,
 	NvU8 tempSpareBuffer[NAND_SPARE_SIZE];
 	NvU32 PageNumber = 0, ChipNumber = 0;
 
-	wake_lock(&nand_wake_lock);
 	mutex_lock(&info->lock);
 
 	if (ooblen > info->chip.tagSize)
@@ -652,7 +636,6 @@ static int do_write_oob(struct mtd_info *mtd, loff_t to,
 
 	NvDdkNandSuspendClocks(s_hNand);
 	mutex_unlock(&info->lock);
-	wake_unlock(&nand_wake_lock);
 	return 0;
 
 fail:
@@ -662,7 +645,6 @@ fail:
 	ops->oobretlen = 0;
 
 	mutex_unlock(&info->lock);
-	wake_unlock(&nand_wake_lock);
 	return -EINVAL;
 }
 
@@ -939,13 +921,11 @@ static struct platform_driver tegra_nand_driver = {
 
 static int __init tegra_nand_init(void)
 {
-	wake_lock_init(&nand_wake_lock, WAKE_LOCK_IDLE, "tegra_nand");
 	return platform_driver_register(&tegra_nand_driver);
 }
 
 static void __exit tegra_nand_exit(void)
 {
-	wake_lock_destroy(&nand_wake_lock);
 	platform_driver_unregister(&tegra_nand_driver);
 }
 
