@@ -42,6 +42,7 @@
 #include "nvrm_heap.h"
 #include "nvrm_pmu_private.h"
 #include "nvrm_processor.h"
+#include "nvrm_xpc.h"
 #include "ap15rm_private.h"
 #include "nvrm_structure.h"
 #include "ap15rm_private.h"
@@ -428,6 +429,11 @@ NvRmOpenNew(NvRmDeviceHandle *pHandle)
             }
         }
     }
+    err = NvRmXpcInitArbSemaSystem(rm);
+    if( err != NvSuccess )
+    {
+        goto fail;
+    }
 
     /* assign the handle pointer */
     *pHandle = rm;
@@ -729,4 +735,5 @@ void NvRmPrivMcErrorMonitorStop( NvRmDeviceHandle rm )
         break;
     }
 }
+
 

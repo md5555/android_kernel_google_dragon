@@ -26,3 +26,5 @@ obj-y += nvrm_pmu_dispatch.o
 obj-y += nvrm_keylist_dispatch.o
 obj-y += nvrm_pcie_dispatch.o
 obj-y += nvrm_memctrl_dispatch.o
+obj-y += nvrm_transport_dispatch.o
+obj-y += nvrm_xpc_dispatch.o
