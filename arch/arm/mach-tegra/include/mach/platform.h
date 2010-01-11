@@ -27,6 +27,7 @@ extern unsigned int	tegra_get_module_inst_irq(const char *, int, int);
 #define TEGRA_PL310_IRQ		(tegra_get_module_inst_irq("pl310", 0, 0))
 
 #define TEGRA_SCU_BASE		(tegra_get_module_inst_base("scu", 0))
+#define TEGRA_PCIE_BASE		(tegra_get_module_inst_base("pcie", 0))
 
 #define TEGRA_SCU0_IRQ	NO_IRQ
 #define TEGRA_SCU1_IRQ	NO_IRQ

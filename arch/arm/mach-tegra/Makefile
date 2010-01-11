@@ -65,4 +65,5 @@ obj-$(CONFIG_TEGRA_NVEC_USER)		+= nvec_user.o
 
 # PCIe support
 obj-$(CONFIG_TEGRA_PCI)				+= pci.o
+obj-$(CONFIG_TEGRA_PCI)				+= pci-enum.o
 
