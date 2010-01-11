@@ -937,24 +937,9 @@ NvOdmPwmConfig(NvOdmServicesPwmHandle hOdmPwm,
 
 void NvOdmEnableOtgCircuitry(NvBool Enable)
 {
-    NvRmDeviceHandle hRmDevice;
-    NvRmAnalogUsbConfig UsbConfig;
-    NvError e;
-
-    // Open RM device handle
-    NV_CHECK_ERROR_CLEANUP(NvRmOpen(&hRmDevice, 0));
-
-    UsbConfig.InParam = NvRmAnalogUsbInputParam_ConfigureUsbPhy;
-    NV_CHECK_ERROR_CLEANUP(
-        NvRmAnalogInterfaceControl(hRmDevice, NvRmAnalogInterface_Usb, 
-            NV_TRUE, &UsbConfig, sizeof(NvRmAnalogUsbConfig))
-    );
-
- fail:
-    if (hRmDevice)
-    {
-        NvRmClose(hRmDevice);
-    }
+    // Rm analog interface calls related to usb are deleted. This API does nothing.
+    // This API should not be called for usb phy related operations
+    return;
 }
 
 NvBool NvOdmUsbIsConnected(void)
