@@ -20,8 +20,8 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#define DEBUG
-#define VERBOSE_DEBUG
+//#define DEBUG
+//#define VERBOSE_DEBUG
 
 
 #include <linux/kernel.h>
@@ -116,8 +116,11 @@ static int pci_tegra_read_conf(struct pci_bus *bus, u32 devfn,
 		if (where & 2) v >>= 16;
 		v &= 0xffff;
 		break;
-	default:
+	case 4:
 		break;
+	default:
+		/* If the PCI stack is sane, we should not get here */
+		BUG();
 	}
 	*val = v;
 
@@ -176,9 +179,12 @@ static int pci_tegra_write_conf(struct pci_bus *bus, u32 devfn,
 		temp |= val << ((where & 0x3) * 8);
 		writel(temp, (u32)addr & ~0x3);
 		break;
-	default:
+	case 4:
 		writel(val, addr);
 		break;
+	default:
+		/* If the PCI stack is sane, we should not get here */
+		BUG();
 	}
 fail:
 	return PCIBIOS_SUCCESSFUL;

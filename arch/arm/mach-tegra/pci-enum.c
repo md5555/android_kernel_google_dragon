@@ -434,8 +434,8 @@ static void pci_tegra_setup_pci_bridge(struct pci_tegra_device *dev)
 	reg |= PCI_COMMAND_SERR;
 	pci_conf_write16(dev->bus, dev->devfn, PCI_COMMAND, reg);
 
-	/* FIXME how to handle interrutps */
-	pci_conf_write8(dev->bus, dev->devfn, PCI_INTERRUPT_LINE, 0x82);
+	pci_conf_write8(dev->bus, dev->devfn, PCI_INTERRUPT_LINE,
+		tegra_get_module_inst_irq("pcie", 0, 0));
 	pci_conf_write8(dev->bus, dev->devfn, PCI_INTERRUPT_PIN, 0xa);
 }
 
@@ -535,8 +535,9 @@ static void pci_tegra_setup_pci_device(struct pci_tegra_device *dev)
 	reg |= PCI_COMMAND_SERR;
 	pci_conf_write16(dev->bus, dev->devfn, PCI_COMMAND, reg);
 
-	/* FIXME how to handle interrutps */
-
+	pci_conf_write8(dev->bus, dev->devfn, PCI_INTERRUPT_LINE,
+		tegra_get_module_inst_irq("pcie", 0, 0));
+	pci_conf_write8(dev->bus, dev->devfn, PCI_INTERRUPT_PIN, 0xa);
 }
 
 static void pci_tegra_print_device_tree(struct pci_tegra_device *dev)
@@ -612,8 +613,12 @@ void pci_tegra_enumerate(void)
 	/* Disable all execptions */
 	pci_tegra_afi_writel(0, AFI_FPCI_ERROR_MASKS_0);
 
-	/* Set the base and limits of the resources */
-	pci_tegra_io_base = TEGRA_PCIE_BASE + PCIE_DOWNSTREAM_IO_OFFSET;
+	/* Set the base and limits for the resources */
+
+	/* Starting the IO offset from non-zero value as linux equating a value
+	 * of 0 as unallocated resoruce and bailing out!
+	 */
+	pci_tegra_io_base = TEGRA_PCIE_BASE + PCIE_DOWNSTREAM_IO_OFFSET + 16;
 	pci_tegra_io_limt = pci_tegra_io_base + PCIE_DOWNSTREAM_IO_SIZE;
 
 	pci_tegra_mem_base = FPCI_NON_PREFETCH_MEMORY_OFFSET;
