@@ -39,6 +39,7 @@ obj-$(CONFIG_LOCAL_TIMERS)		+= localtimer.o
 ifeq ($(CONFIG_HOTPLUG_CPU),y)
 obj-y					+= hotplug.o
 obj-$(CONFIG_ARCH_TEGRA_2x_SOC)		+= power-t2.o
+obj-$(CONFIG_ARCH_TEGRA_2x_SOC)		+= power-context-t2.o
 obj-$(CONFIG_ARCH_TEGRA_2x_SOC)		+= power-lp.o
 endif
 
