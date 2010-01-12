@@ -193,9 +193,11 @@ int tegra_dma_dequeue_req(int channel, struct tegra_dma_req *_req)
 			tegra_dma_update_hw(ch, next_req);
 		}
 		req->status = -TEGRA_DMA_REQ_ERROR_ABOTRED;
-		spin_unlock_irqrestore(&ch->lock, irq_flags);
 
+		spin_unlock_irqrestore(&ch->lock, irq_flags);
 		req->complete(req, req->status);
+		spin_lock_irqsave(&ch->lock, irq_flags);
+
 	}
 	spin_unlock_irqrestore(&ch->lock, irq_flags);
 
