@@ -45,6 +45,9 @@
 // Enable CPU/EMC ratio policy
 #define NVRM_LIMIT_CPU_EMC_RATIO (1)
 
+// Use DRAM power down mode with EMC clock change
+#define NVRM_EMC_CLKCHANGE_PD (1)
+
 // Default CPU power good delay
 #define NVRM_DEFAULT_CPU_PWRGOOD_US (2000) 
 
@@ -238,6 +241,9 @@ static NvBool
 Ap20EmcClkChangeConfig(
     NvRmDeviceHandle hRmDevice)
 {
+// NO-DEVICE for dummy MRW/MRS commands
+#define NULL_DEV_SELECTN (3)
+
     NvU32 cfg2, cfg5;
 
     cfg2 = NV_REGR(hRmDevice, NvRmPrivModuleID_ExternalMemoryController, 0,
@@ -247,14 +253,28 @@ Ap20EmcClkChangeConfig(
 
     switch (NV_DRF_VAL(EMC, FBIO_CFG5, DRAM_TYPE, cfg5))
     {
-        case EMC_FBIO_CFG5_0_DRAM_TYPE_DDR1:
         case EMC_FBIO_CFG5_0_DRAM_TYPE_LPDDR2:
+#if NVRM_EMC_CLKCHANGE_PD
+            // Dummy mode control command to activate PD state machine
+            NV_REGW(hRmDevice,
+                    NvRmPrivModuleID_ExternalMemoryController, 0, EMC_MRW_0,
+                    NV_DRF_NUM(EMC, MRW, MRW_DEV_SELECTN, NULL_DEV_SELECTN));
+            NvOsWaitUS(NVRM_CLOCK_CHANGE_DELAY);
+
             cfg2 = NV_FLD_SET_DRF_DEF(
                 EMC, CFG_2, CLKCHANGE_PD_ENABLE, ENABLED, cfg2);
             cfg2 = NV_FLD_SET_DRF_DEF(
                 EMC, CFG_2, CLKCHANGE_SR_ENABLE, DISABLED, cfg2);
             break;
+#endif
         case EMC_FBIO_CFG5_0_DRAM_TYPE_DDR2:
+#if NVRM_EMC_CLKCHANGE_PD
+            // Dummy mode control command to activate PD state machine
+            NV_REGW(hRmDevice,
+                    NvRmPrivModuleID_ExternalMemoryController, 0, EMC_MRS_0,
+                    NV_DRF_NUM(EMC, MRS, MRS_DEV_SELECTN, NULL_DEV_SELECTN));
+            NvOsWaitUS(NVRM_CLOCK_CHANGE_DELAY);
+#endif
             cfg2 = NV_FLD_SET_DRF_DEF(
                 EMC, CFG_2, CLKCHANGE_PD_ENABLE, DISABLED, cfg2);
             cfg2 = NV_FLD_SET_DRF_DEF(
