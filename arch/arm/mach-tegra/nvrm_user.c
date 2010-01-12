@@ -27,6 +27,7 @@
 #include <linux/cpumask.h>
 #include <linux/sched.h>
 #include <linux/cpu.h>
+#include <linux/platform_device.h>
 #include "nvcommon.h"
 #include "nvassert.h"
 #include "nvos.h"
@@ -164,18 +165,19 @@ static void NvRmDfsThread(void *args)
             }
             if (Request & NvRmPmRequest_CpuOnFlag)
             {
-#ifdef CONFIG_HOTPLUG_CPU                
+#ifdef CONFIG_HOTPLUG_CPU
                 printk("DFS requested CPU ON\n");
                 cpu_up(1);
-#endif                
+#endif
             }
+
             if (Request & NvRmPmRequest_CpuOffFlag)
             {
-#ifdef CONFIG_HOTPLUG_CPU                
+#ifdef CONFIG_HOTPLUG_CPU
                 printk("DFS requested CPU OFF\n");
                 cpu_down(1);
-#endif                
-            }                                    
+#endif
+            }
         }
     }
 }
@@ -202,46 +204,6 @@ static void client_detach(NvRtClientHandle client)
 
         NvRtUnregisterClient(s_RtHandle, client);
     }    
-}
-
-static int __init nvrm_init( void )
-{
-    int e = 0;
-    NvU32 NumTypes = NvRtObjType_NvRm_Num;
-    
-    printk("nvrm init\n");
-
-    NV_ASSERT(s_RtHandle == NULL);
-    
-    if (NvRtCreate(1, &NumTypes, &s_RtHandle) != NvSuccess)
-    {
-        e = -ENOMEM;
-    }
-
-    if (e == 0)
-    {
-        e = misc_register( &nvrm_dev );
-    }
-
-    if( e < 0 )
-    {
-        if (s_RtHandle)
-        {
-            NvRtDestroy(s_RtHandle);
-            s_RtHandle = NULL;
-        }
-        
-        printk("nvrm failed to open\n");
-    }
-
-    return e;
-}
-
-static void __exit nvrm_deinit( void )
-{
-    misc_deregister( &nvrm_dev );
-    NvRtDestroy(s_RtHandle);
-    s_RtHandle = NULL;
 }
 
 int nvrm_open(struct inode *inode, struct file *file)
@@ -522,7 +484,7 @@ long nvrm_unlocked_ioctl(struct file *file,
                 goto fail;
             }
         }
-        break;        
+        break;
     case NvRmIoctls_NvRmGetClientId:
         err = NvOsCopyIn(&p, (void*)arg, sizeof(p));
         if (err != NvSuccess)
@@ -534,7 +496,7 @@ long nvrm_unlocked_ioctl(struct file *file,
         NV_ASSERT(p.InBufferSize == 0);
         NV_ASSERT(p.OutBufferSize == sizeof(NvRtClientHandle));
         NV_ASSERT(p.InOutBufferSize == 0);
-        
+
         if (NvOsCopyOut(p.pBuffer,
                         &file->private_data,
                         sizeof(NvRtClientHandle)) != NvSuccess)
@@ -553,7 +515,7 @@ long nvrm_unlocked_ioctl(struct file *file,
             NvOsDebugPrintf("NvRmIoctls_NvRmClientAttach: copy in failed\n");
             goto fail;
         }
-        
+
         NV_ASSERT(p.InBufferSize == sizeof(NvRtClientHandle));
         NV_ASSERT(p.OutBufferSize == 0);
         NV_ASSERT(p.InOutBufferSize == 0);
@@ -590,11 +552,11 @@ long nvrm_unlocked_ioctl(struct file *file,
             NvOsDebugPrintf("NvRmIoctls_NvRmClientAttach: copy in failed\n");
             goto fail;
         }
-        
+
         NV_ASSERT(p.InBufferSize == sizeof(NvRtClientHandle));
         NV_ASSERT(p.OutBufferSize == 0);
         NV_ASSERT(p.InOutBufferSize == 0);
-        
+
         if (NvOsCopyIn((void*)&Client,
                        p.pBuffer,
                        sizeof(NvRtClientHandle)) != NvSuccess)
@@ -610,10 +572,10 @@ long nvrm_unlocked_ioctl(struct file *file,
             // The daemon is detaching from itself, no need to dec refcount
             break;
         }
-        
-        client_detach(Client);        
+
+        client_detach(Client);
         break;
-    }        
+    }
     // FIXME: power ioctls?
     default:
         printk( "unknown ioctl code\n" );
@@ -638,6 +600,83 @@ clean:
 int nvrm_mmap(struct file *file, struct vm_area_struct *vma)
 {
     return 0;
+}
+
+static int nvrm_probe(struct platform_device *pdev)
+{
+    int e = 0;
+    NvU32 NumTypes = NvRtObjType_NvRm_Num;
+
+    printk("nvrm probe\n");
+
+    NV_ASSERT(s_RtHandle == NULL);
+
+    if (NvRtCreate(1, &NumTypes, &s_RtHandle) != NvSuccess)
+    {
+        e = -ENOMEM;
+    }
+
+    if (e == 0)
+    {
+        e = misc_register( &nvrm_dev );
+    }
+
+    if( e < 0 )
+    {
+        if (s_RtHandle)
+        {
+            NvRtDestroy(s_RtHandle);
+            s_RtHandle = NULL;
+        }
+
+        printk("nvrm probe failed to open\n");
+    }
+    return e;
+}
+
+static int nvrm_remove(struct platform_device *pdev)
+{
+    misc_deregister( &nvrm_dev );
+    NvRtDestroy(s_RtHandle);
+    s_RtHandle = NULL;
+    return 0;
+}
+
+static int nvrm_suspend(struct platform_device *pdev)
+{
+    NvError Err = NvSuccess;
+    printk(KERN_INFO "%s called\n", __func__);
+    return Err;
+}
+
+static int nvrm_resume(struct platform_device *pdev)
+{
+    NvError Err = NvSuccess;
+    printk(KERN_INFO "%s called\n", __func__);
+    return Err;
+}
+
+static struct platform_driver nvrm_driver =
+{
+    .probe = nvrm_probe,
+    .remove = nvrm_remove,
+    .suspend = nvrm_suspend,
+    .resume = nvrm_resume,
+    .driver = { .name = "nvrm" }
+};
+
+static int __init nvrm_init(void)
+{
+    int ret = 0;
+    printk(KERN_INFO "%s called\n", __func__);
+    ret= platform_driver_register(&nvrm_driver);
+    return ret;
+}
+
+static void __exit nvrm_deinit(void)
+{
+    printk(KERN_INFO "%s called\n", __func__);
+    platform_driver_unregister(&nvrm_driver);
 }
 
 module_init(nvrm_init);

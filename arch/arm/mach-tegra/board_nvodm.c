@@ -68,6 +68,10 @@ extern const char* tegra_boot_device;
 extern void __init tegra_init_irq(void);
 extern void __init tegra_map_common_io(void);
 
+static struct platform_device nvrm_device =
+{
+    .name = "nvrm"
+};
 
 #ifdef CONFIG_DEVNVMAP
 static struct platform_device nvmap_device = {
@@ -361,6 +365,8 @@ static void __init tegra_machine_init(void)
 #if defined(CONFIG_USB_ANDROID) || defined(CONFIG_USB_ANDROID_MODULE)
     NvU32 serial_number[2] = {0};
 #endif
+
+    (void) platform_device_register(&nvrm_device);
 
     tegra_common_init();
     tegra_clk_init();
