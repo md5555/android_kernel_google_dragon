@@ -58,8 +58,6 @@ static int pci_tegra_read_conf(struct pci_bus *bus, u32 devfn,
 
 static int __init pcie_tegra_init(void);
 
-
-static void pci_tegra_power(int on);
 static void pci_tegra_setup_translations(void);
 static irqreturn_t pci_tegra_isr(int irq, void *arg);
 static bool pci_tegra_check_rp(int rp);
@@ -207,7 +205,6 @@ static int __init pci_tegra_setup(int nr, struct pci_sys_data *data)
 
 	if (nr != 0) return 0;
 
-	pci_tegra_power(1);
 	if (NvRmSetModuleTristate(s_hRmGlobal,
 		NVRM_MODULE_ID(NvRmPrivModuleID_Pcie, 0), NV_FALSE)
 		!= NvSuccess) {
@@ -224,6 +221,7 @@ static int __init pci_tegra_setup(int nr, struct pci_sys_data *data)
 
 	if (NvRmPowerRegister(s_hRmGlobal, 0, &pci_tegra_powerid) != NvSuccess)
 		goto fail;
+
 	if (NvRmPowerModuleClockControl(s_hRmGlobal, NvRmPrivModuleID_Pcie,
 		pci_tegra_powerid, NV_TRUE) != NvSuccess)
 		goto fail;
@@ -412,34 +410,6 @@ static int __init pcie_tegra_init(void)
 /*
  *  PCIe support functions
  */
-
-static void pci_tegra_power(int on)
-{
-	u32 settling_time;
-	const NvOdmPeripheralConnectivity *con = NULL;
-	int i;
-
-	con = NvOdmPeripheralGetGuid(NV_VDD_PEX_CLK_ODM_ID);
-	if (con == NULL)
-		return;
-
-	for (i = 0; i < con->NumAddress; i++) {
-		if (con->AddressList[i].Interface != NvOdmIoModule_Vdd)
-			continue;
-		if (on) {
-			NvRmPmuVddRailCapabilities rail;
-			NvRmPmuGetCapabilities(s_hRmGlobal,
-				con->AddressList[i].Address, &rail);
-			NvRmPmuSetVoltage(s_hRmGlobal,
-				con->AddressList[i].Address,
-				rail.requestMilliVolts, &settling_time);
-		} else
-			NvRmPmuSetVoltage(s_hRmGlobal,
-				con->AddressList[i].Address, NVODM_VOLTAGE_OFF,
-				&settling_time);
-		udelay(settling_time);
-	}
-}
 
 static void pci_tegra_setup_translations(void)
 {
