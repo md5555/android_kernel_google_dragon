@@ -218,15 +218,9 @@ ENDPROC(v7_flush_kern_dcache_page)
 ENTRY(v7_dma_inv_range)
 	dcache_line_size r2, r3
 	sub	r3, r2, #1
-	tst	r0, r3
 	bic	r0, r0, r3
 	it	ne
-	mcrne	p15, 0, r0, c7, c14, 1		@ clean & invalidate D / U line
 
-	tst	r1, r3
-	bic	r1, r1, r3
-	it	ne
-	mcrne	p15, 0, r1, c7, c14, 1		@ clean & invalidate D / U line
 1:
 	mcr	p15, 0, r0, c7, c6, 1		@ invalidate D / U line
 	add	r0, r0, r2
