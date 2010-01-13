@@ -203,20 +203,7 @@ ENTRY(v6_flush_kern_dcache_page)
  *	- end     - virtual end address of region
  */
 ENTRY(v6_dma_inv_range)
-	tst	r0, #D_CACHE_LINE_SIZE - 1
 	bic	r0, r0, #D_CACHE_LINE_SIZE - 1
-#ifdef HARVARD_CACHE
-	mcrne	p15, 0, r0, c7, c10, 1		@ clean D line
-#else
-	mcrne	p15, 0, r0, c7, c11, 1		@ clean unified line
-#endif
-	tst	r1, #D_CACHE_LINE_SIZE - 1
-	bic	r1, r1, #D_CACHE_LINE_SIZE - 1
-#ifdef HARVARD_CACHE
-	mcrne	p15, 0, r1, c7, c14, 1		@ clean & invalidate D line
-#else
-	mcrne	p15, 0, r1, c7, c15, 1		@ clean & invalidate unified line
-#endif
 1:
 #ifdef HARVARD_CACHE
 	mcr	p15, 0, r0, c7, c6, 1		@ invalidate D line

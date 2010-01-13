@@ -36,9 +36,14 @@
 #define NET_IP_ALIGN	0
 #define NET_SKB_PAD	L1_CACHE_BYTES
 
-/* bus address and physical addresses are identical */
-#define __virt_to_bus(x)	__virt_to_phys(x)
-#define __bus_to_virt(x)	__phys_to_virt(x)
+
+#define __arch_page_to_dma(dev, page)	((dma_addr_t)__virt_to_phys(page_address(page)))
+
+#define __arch_dma_to_virt(dev, addr)	((void *) __phys_to_virt(addr))
+
+#define __arch_virt_to_dma(dev, addr)	((dma_addr_t) __virt_to_phys((unsigned long)(addr)))
+
+#define __arch_dma_to_page(dev, addr)	(phys_to_page(addr))
 
 #endif
 

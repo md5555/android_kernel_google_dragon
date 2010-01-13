@@ -61,9 +61,9 @@ static inline dma_addr_t virt_to_dma(struct device *dev, void *addr)
  * platforms with CONFIG_DMABOUNCE.
  * Use the driver DMA support - see dma-mapping.h (dma_sync_*)
  */
-extern void dma_cache_maint(const void *kaddr, size_t size, int rw);
-extern void dma_cache_maint_page(struct page *page, unsigned long offset,
-				 size_t size, int rw);
+extern void __dma_cache_maint(const void *kaddr, size_t size, int map);
+extern void __dma_cache_maint_page(struct page *page, unsigned long offset,
+				 size_t size, int map);
 
 /*
  * Return whether the given device DMA address mask can be supported
@@ -300,7 +300,7 @@ static inline dma_addr_t dma_map_single(struct device *dev, void *cpu_addr,
 	BUG_ON(!valid_dma_direction(dir));
 
 	if (!arch_is_coherent())
-		dma_cache_maint(cpu_addr, size, dir);
+		__dma_cache_maint(cpu_addr, size, 1);
 
 	return virt_to_dma(dev, cpu_addr);
 }
@@ -325,7 +325,7 @@ static inline dma_addr_t dma_map_page(struct device *dev, struct page *page,
 	BUG_ON(!valid_dma_direction(dir));
 
 	if (!arch_is_coherent())
-		dma_cache_maint_page(page, offset, size, dir);
+		__dma_cache_maint_page(page, offset, size, 1);
 
 	return page_to_dma(dev, page) + offset;
 }
@@ -347,7 +347,8 @@ static inline dma_addr_t dma_map_page(struct device *dev, struct page *page,
 static inline void dma_unmap_single(struct device *dev, dma_addr_t handle,
 		size_t size, enum dma_data_direction dir)
 {
-	/* nothing to do */
+	if (dir != DMA_TO_DEVICE)
+		__dma_cache_maint(dma_to_virt(dev, handle), size, 0);
 }
 
 /**
@@ -367,7 +368,9 @@ static inline void dma_unmap_single(struct device *dev, dma_addr_t handle,
 static inline void dma_unmap_page(struct device *dev, dma_addr_t handle,
 		size_t size, enum dma_data_direction dir)
 {
-	/* nothing to do */
+	if (dir != DMA_TO_DEVICE)
+		__dma_cache_maint_page(dma_to_page(dev, handle),
+			handle & ~PAGE_MASK, size, 0);
 }
 #endif /* CONFIG_DMABOUNCE */
 
@@ -395,7 +398,11 @@ static inline void dma_sync_single_range_for_cpu(struct device *dev,
 {
 	BUG_ON(!valid_dma_direction(dir));
 
-	dmabounce_sync_for_cpu(dev, handle, offset, size, dir);
+	if (!dmabounce_sync_for_cpu(dev, handle, offset, size, dir))
+		return;
+	
+	if (dir != DMA_TO_DEVICE)
+		__dma_cache_maint(dma_to_virt(dev, handle) + offset, size, 0);
 }
 
 static inline void dma_sync_single_range_for_device(struct device *dev,
@@ -408,7 +415,7 @@ static inline void dma_sync_single_range_for_device(struct device *dev,
 		return;
 
 	if (!arch_is_coherent())
-		dma_cache_maint(dma_to_virt(dev, handle) + offset, size, dir);
+		__dma_cache_maint(dma_to_virt(dev, handle) + offset, size, 1);
 }
 
 static inline void dma_sync_single_for_cpu(struct device *dev,
