@@ -548,15 +548,15 @@ static void dma_cache_maint_contiguous(struct page *page, unsigned long offset,
 
 	switch (direction) {
 	case DMA_FROM_DEVICE:		/* invalidate only */
-		inner_op = smp_dma_inv_range;
+		inner_op = dmac_inv_range;
 		outer_op = outer_inv_range;
 		break;
 	case DMA_TO_DEVICE:		/* writeback only */
-		inner_op = smp_dma_clean_range;
+		inner_op = dmac_clean_range;
 		outer_op = outer_clean_range;
 		break;
 	case DMA_BIDIRECTIONAL:		/* writeback and invalidate */
-		inner_op = smp_dma_flush_range;
+		inner_op = dmac_flush_range;
 		outer_op = outer_flush_range;
 		break;
 	default:
