@@ -37,15 +37,11 @@
 #include "nvrm_hardware_access.h"
 #include "nvddk_usbphy.h"
 
-/* FIXME: Power Management is un-ported so temporarily disable it */
-#undef CONFIG_PM
-
 #define TEGRA_USB_ID_INT_ENABLE		(1 << 0)
 #define TEGRA_USB_ID_INT_STATUS		(1 << 1)
 #define TEGRA_USB_ID_PIN_STATUS		(1 << 2)
 #define TEGRA_USB_ID_PIN_WAKEUP_ENABLE	(1 << 6)
 #define TEGRA_USB_PHY_WAKEUP_REG_OFFSET	(0x408)
-
 
 static void tegra_ehci_shutdown (struct usb_hcd *hcd)
 {
@@ -61,7 +57,6 @@ static void tegra_ehci_shutdown (struct usb_hcd *hcd)
 	/* we are ready to shut down, powerdown the phy */
 	NV_ASSERT_SUCCESS(NvDdkUsbPhyPowerDown(pdata->hUsbPhy, 0));
 }
-
 
 static irqreturn_t tegra_ehci_irq (struct usb_hcd *hcd)
 {
@@ -94,7 +89,6 @@ static irqreturn_t tegra_ehci_irq (struct usb_hcd *hcd)
 
 	return ehci_irq(hcd);
 }
-
 
 static int tegra_ehci_reinit(struct usb_hcd *hcd)
 {
@@ -154,6 +148,18 @@ static int tegra_ehci_setup(struct usb_hcd *hcd)
 	return retval;
 }
 
+static int tegra_ehci_bus_suspend(struct usb_hcd *hcd)
+{
+	printk("%s called\n", __func__);
+	return 0;
+}
+
+static int tegra_ehci_bus_resume(struct usb_hcd *hcd)
+{
+	printk("%s called\n", __func__);
+	return 0;
+}
+
 static const struct hc_driver tegra_ehci_hc_driver = {
 	.description		= hcd_name,
 	.product_desc		= "Tegra Ehci host controller",
@@ -173,12 +179,11 @@ static const struct hc_driver tegra_ehci_hc_driver = {
 	.get_frame_number	= ehci_get_frame,
 	.hub_status_data	= ehci_hub_status_data,
 	.hub_control		= ehci_hub_control,
-	.bus_suspend		= ehci_bus_suspend,
-	.bus_resume		= ehci_bus_resume,
+	.bus_suspend		= tegra_ehci_bus_suspend,
+	.bus_resume 		= tegra_ehci_bus_resume,
 	.relinquish_port	= ehci_relinquish_port,
 	.port_handed_over	= ehci_port_handed_over,
 };
-
 
 static int tegra_ehci_probe(struct platform_device *pdev)
 {
@@ -317,20 +322,17 @@ static int tegra_ehci_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#ifdef CONFIG_PM
 static int tegra_ehci_suspend(struct platform_device *pdev,
 	pm_message_t message)
 {
-	return -ENXIO;
+	printk("%s called\n", __func__);
+	return 0;
 }
 static int tegra_ehci_resume(struct platform_device *pdev)
 {
-	return -ENXIO;
+	printk("%s called\n", __func__);
+	return 0;
 }
-#else
-#define tegra_ehci_resume NULL
-#define tegra_ehci_suspend NULL
-#endif
 
 static struct platform_driver tegra_ehci_driver =
 {
@@ -343,5 +345,3 @@ static struct platform_driver tegra_ehci_driver =
 		.name	= "tegra-ehci",
 	}
 };
-
-
