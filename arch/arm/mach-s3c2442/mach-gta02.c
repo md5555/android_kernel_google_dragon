@@ -268,6 +268,9 @@ struct pcf50633_platform_data gta02_pcf_pdata = {
 
 	.batteries = gta02_batteries,
 	.num_batteries = ARRAY_SIZE(gta02_batteries),
+
+	.charger_reference_current_ma = 1000,
+
 	.reg_init_data = {
 		[PCF50633_REGULATOR_AUTO] = {
 			.constraints = {
@@ -423,7 +426,7 @@ static struct i2c_board_info gta02_i2c_devs[] __initdata = {
 	},
 };
 
-static struct s3c2410_nand_set gta02_nand_sets[] = {
+static struct s3c2410_nand_set __initdata gta02_nand_sets[] = {
 	[0] = {
 		/*
 		 * This name is also hard-coded in the boot loaders, so
@@ -442,7 +445,7 @@ static struct s3c2410_nand_set gta02_nand_sets[] = {
  * data sheet (K5D2G13ACM-D075 MCP Memory).
  */
 
-static struct s3c2410_platform_nand gta02_nand_info = {
+static struct s3c2410_platform_nand __initdata gta02_nand_info = {
 	.tacls		= 0,
 	.twrph0		= 25,
 	.twrph1		= 15,
@@ -541,7 +544,7 @@ static struct platform_device gta02_bl_dev = {
 
 
 /* USB */
-static struct s3c2410_hcd_info gta02_usb_info = {
+static struct s3c2410_hcd_info gta02_usb_info __initdata = {
 	.port[0]	= {
 		.flags	= S3C_HCDFLG_USED,
 	},
@@ -620,10 +623,9 @@ static void __init gta02_machine_init(void)
 	INIT_DELAYED_WORK(&gta02_charger_work, gta02_charger_worker);
 #endif
 
-	s3c_device_ohci.dev.platform_data = &gta02_usb_info;
-	s3c_device_nand.dev.platform_data = &gta02_nand_info;
-
 	s3c24xx_udc_set_platdata(&gta02_udc_cfg);
+	s3c_ohci_set_platdata(&gta02_usb_info);
+	s3c_nand_set_platdata(&gta02_nand_info);
 	s3c_i2c0_set_platdata(NULL);
 
 	i2c_register_board_info(0, gta02_i2c_devs, ARRAY_SIZE(gta02_i2c_devs));
