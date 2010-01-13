@@ -55,10 +55,17 @@ extern "C"
 /* Battery Slot Status and Capacity Gauge Report */
 /* Data Byte 3 : Battery Slot Status */
 #define NVODM_BATTERY_SLOT_STATUS_DATA  0
-/* Data Byte 4 : Battery Capacity Gauge : Battery's relative remaining capacity in % */
+/*
+ * Data Byte 4 : Battery Capacity Gauge :
+ * Battery's relative remaining capacity in %
+ */
 #define NVODM_BATTERY_CAPACITY_GUAGE_DATA  1
 
-/* Battery Slot Status : Bit 0 = Present State: 1 = Battery is present in the respective slot */
+/*
+ * Battery Slot Status :
+ * Bit 0 = Present State:
+ * 1 = Battery is present in the respective slot
+ */
 #define NVODM_BATTERY_PRESENT_IN_SLOT  0x01
 
 #define NVODM_BATTERY_CHARGING_STATE_SHIFT  1
@@ -104,8 +111,7 @@ typedef struct NvOdmBatteryDeviceRec
     NvOdmOsThreadHandle    hBattEventThread;
     NvU8           BatteryEvent;
     NvU8           NumBatterySlots;
-    NvBool         bBattPresent;
-    NvBool         bBattFull;
+    NvBool         FirmwareVersionR01;
 } NvOdmBatteryDevice;
 
 #if defined(__cplusplus)
@@ -115,4 +121,3 @@ typedef struct NvOdmBatteryDeviceRec
 /** @} */
 
 #endif /* INCLUDED_NVODM_BATTERY_INT_H */
-
