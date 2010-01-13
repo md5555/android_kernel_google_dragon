@@ -16,6 +16,9 @@ obj-y					+= irq_gpio.o
 obj-y					+= timer.o
 obj-y					+= tegra_sysmap.o
 
+# Tegra suspend operation
+obj-$(CONFIG_PM)		+= suspend_ops.o
+
 # Export symbols used by loadable modules
 obj-y					+= tegra_exports.o
 
