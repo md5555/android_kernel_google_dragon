@@ -52,15 +52,5 @@ void NvRmSpiMultipleTransactions(
     NvRmSpiTransactionInfo *t,
     NvU32 NumOfTransactions);
 
-void NvRmSpiOptimizedMultipleTransactions(
-    NvRmSpiHandle hRmSpi,
-    NvU32 SpiPinMap,
-    NvU32 ChipSelectId,
-    NvU32 ClockSpeedInKHz,
-    NvU32 PacketSizeInBits,
-    NvRmSpiTransactionInfo *t,
-    NvU32 NumOfTransactions);
-
-
 #endif // INCLUDED_RM_SPI_SLINK_H
 

@@ -194,7 +194,7 @@ static void tegra_spi_workerthread(struct work_struct *w)
 		}
 
 		if (!status && i) {
-			NvRmSpiOptimizedMultipleTransactions(pShimSpi->hSpi,
+			NvRmSpiMultipleTransactions(pShimSpi->hSpi,
 				pShimSpi->PinMuxConfig, pShimSpi->ChipSelect,
 				pShimSpi->ClockInKHz, pShimSpi->BitsPerWord,
 				trans, i);
