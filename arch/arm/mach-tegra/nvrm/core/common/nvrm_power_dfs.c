@@ -1737,9 +1737,7 @@ DttClockUpdate(
     if (NVRM_DTT_DISABLED || (!pDtt->hOdmTcore))
         return NV_FALSE; 
 
-    // Update temperature
-    if (pDtt->TcorePolicy.UpdateFlag &&
-        NvOdmTmonTemperatureGet(pDtt->hOdmTcore, &TemperatureC))
+    if (pDtt->TcorePolicy.UpdateFlag)
     {
         // Register TMON interrupt, if it is supported by device, and chip
         // policy, but has not been registered yet. Set initial temperature
@@ -1750,6 +1748,7 @@ DttClockUpdate(
             DttPolicyUpdate(pDfs->hRm, TemperatureC, pDtt);
             LowLimit = pDtt->TcorePolicy.LowLimit;
             HighLimit = pDtt->TcorePolicy.HighLimit;
+
             if ((LowLimit != ODM_TMON_PARAMETER_UNSPECIFIED) &&
                 (HighLimit != ODM_TMON_PARAMETER_UNSPECIFIED))
             {
@@ -2448,6 +2447,42 @@ void NvRmPrivDvsRequest(NvRmMilliVolts TargetMv)
     else if (TargetMv < pDvs->CurrentCoreMv)
     {
         pDvs->UpdateFlag = NV_TRUE;
+    }
+}
+
+void
+NvRmPrivGetLowVoltageThreshold(
+    NvRmDfsVoltageRailId RailId,
+    NvRmMilliVolts* pLowMv,
+    NvRmMilliVolts* pPresentMv)
+{
+    NvRmDfs* pDfs = &s_Dfs;
+    NvRmDvs* pDvs = &s_Dfs.VoltageScaler;
+    NV_ASSERT(pLowMv);
+
+    switch (RailId)
+    {
+        case NvRmDfsVoltageRailId_Core:
+            *pLowMv = pDvs->LowCornerCoreMv;
+            if(pPresentMv)
+                *pPresentMv = pDvs->CurrentCoreMv;
+            break;
+
+        case NvRmDfsVoltageRailId_Cpu:
+            if (NvRmPrivIsCpuRailDedicated(pDfs->hRm))
+            {
+                *pLowMv = pDvs->LowCornerCpuMv;
+                if(pPresentMv)
+                    *pPresentMv = pDvs->CurrentCpuMv;
+                break;
+            }
+            // fall through
+
+        default:
+            *pLowMv = NvRmVoltsUnspecified;
+            if(pPresentMv)
+                *pPresentMv = NvRmVoltsUnspecified;
+            break;
     }
 }
 
@@ -3446,32 +3481,10 @@ NvRmDfsGetLowVoltageThreshold(
     NvRmMilliVolts* pLowMv,
     NvRmMilliVolts* pPresentMv)
 {
-    NvRmDvs* pDvs = &s_Dfs.VoltageScaler;
-
     NV_ASSERT(hRmDeviceHandle);
 
     NvRmPrivLockSharedPll();
-    switch (RailId)
-    {
-        case NvRmDfsVoltageRailId_Core:
-            *pLowMv = pDvs->LowCornerCoreMv;
-            *pPresentMv = pDvs->CurrentCoreMv;
-            break;
-
-        case NvRmDfsVoltageRailId_Cpu:
-            if (NvRmPrivIsCpuRailDedicated(hRmDeviceHandle))
-            {
-                *pLowMv = pDvs->LowCornerCpuMv;
-                *pPresentMv = pDvs->CurrentCpuMv;
-                break;
-            }
-            // fall through
-
-        default:
-            *pLowMv = NvRmVoltsUnspecified;
-            *pPresentMv = NvRmVoltsUnspecified;
-            break;
-    }
+    NvRmPrivGetLowVoltageThreshold(RailId, pLowMv, pPresentMv);
     NvRmPrivUnlockSharedPll();
 }
 

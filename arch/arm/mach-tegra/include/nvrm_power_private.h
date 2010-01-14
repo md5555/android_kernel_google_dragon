@@ -513,6 +513,24 @@ void NvRmPrivVoltageScale(
 void NvRmPrivDvsRequest(NvRmMilliVolts TargetMv);
 
 /**
+ * Gets low threshold and present voltage on the given rail.
+ *
+ * @param RailId The targeted voltage rail ID.
+ * @param pLowMv Output storage pointer for low voltage threshold (in
+ *  millivolt).
+ * @param pPresentMv Output storage pointer for present rail voltage (in
+ *  millivolt). This parameter is optional, set to NULL if only low
+ *  threshold is to be retrieved.
+ *
+ *  NvRmVoltsUnspecified is returned if targeted rail does not exist on SoC.
+ */
+void
+NvRmPrivGetLowVoltageThreshold(
+    NvRmDfsVoltageRailId RailId,
+    NvRmMilliVolts* pLowMv,
+    NvRmMilliVolts* pPresentMv);
+
+/**
  * Outputs debug messages for starvation hints sent by the specified client.
  *
  * @param ClientId The client ID assigned by the RM power manager.
