@@ -1215,12 +1215,13 @@ Ap20CpuClockSourceFind(
     NvRmMilliVolts* pSystemMv)
 {
     NvU32 i;
-    NvRmMilliVolts DivMv;
+    NvRmMilliVolts DivMv = 0;
+    NvRmMilliVolts CpuMv = 0;
     NvRmFreqKHz SourceKHz;
 
     NV_ASSERT(DomainKHz <= MaxKHz);
     NV_ASSERT(s_Ap20CpuConfig.pPllXStepsKHz);
-    DivMv = pDfsSource->DividerSetting = 0; // no 2ndary divider by default
+    pDfsSource->DividerSetting = 0; // no 2ndary divider by default
 
     // 1st try oscillator
     SourceKHz = NvRmPrivGetClockSourceFreq(NvRmClockSource_ClkM);
@@ -1279,7 +1280,11 @@ get_mv:
     // Finally get operational voltage for found source
     pDfsSource->MinMv = NvRmPrivModuleVscaleGetMV(
         hRmDevice, NvRmModuleID_Cpu, pDfsSource->SourceKHz);
-    *pSystemMv = ((pDfsSource->MinMv * s_Ap20CpuConfig.CoreOverCpuSlope) >>
+#if !NV_OAL
+    NvRmPrivGetLowVoltageThreshold(NvRmDfsVoltageRailId_Cpu, &CpuMv, NULL);
+#endif
+    CpuMv = NV_MAX(CpuMv, pDfsSource->MinMv);
+    *pSystemMv = ((CpuMv * s_Ap20CpuConfig.CoreOverCpuSlope) >>
                   FIXED_POINT_BITS) + s_Ap20CpuConfig.CoreOverCpuOffset;
     *pSystemMv = NV_MAX(DivMv, (*pSystemMv));
 }
