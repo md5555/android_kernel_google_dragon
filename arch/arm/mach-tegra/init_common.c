@@ -46,6 +46,11 @@ const char *tegra_partition_list = NULL;
 char *tegra_boot_device = NULL;
 NvRmGpioHandle s_hGpioGlobal = NULL;
 
+#ifdef CONFIG_PM
+/* FIXME : Uncomment this for actual suspend/resume
+extern void tegra_set_suspend_ops(void); */
+#endif
+
 /*
  * The format for the partition list command line parameter is
  * tagrapart=<linux_name>:<start_sector>:<length_in_sectors>:<sector_size>,...
@@ -801,5 +806,9 @@ void __init tegra_common_init(void)
     tegra_register_uart();
     tegra_register_sdio();
     tegra_register_usb();
+#ifdef CONFIG_PM
+	/* FIXME : Uncomment this for actual suspend/resume
+	tegra_set_suspend_ops(); */
+#endif
 }
 
