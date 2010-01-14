@@ -316,7 +316,7 @@ void NvRmPwmClose(NvRmPwmHandle hPwm)
     NvOsMutexUnlock(s_hPwmMutex);
 }
 
-#define MAX_DUTY_CYCLE 256
+#define MAX_DUTY_CYCLE 255
 
 NvError NvRmPwmConfig(
     NvRmPwmHandle hPwm,
@@ -416,7 +416,9 @@ NvError NvRmPwmConfig(
          * Convert from percentage unsigned 15.16 fixed point
          * format to actual register value
          */
-        DCycle = (NvU8)((DutyCycle * MAX_DUTY_CYCLE/100)>>16);
+        DCycle = (DutyCycle * MAX_DUTY_CYCLE/100)>>16;
+        if (DCycle > MAX_DUTY_CYCLE)
+            DCycle = MAX_DUTY_CYCLE;
 
         RegValue = PWM_SETNUM(CSR_0, ENB, PwmMode) |
            PWM_SETNUM(CSR_0, PWM_0, DCycle);
