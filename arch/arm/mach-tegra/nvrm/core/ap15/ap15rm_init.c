@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2009 NVIDIA Corporation.
+ * Copyright (c) 2007-2010 NVIDIA Corporation.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -56,6 +56,7 @@
 #include "ap15/arapbpm.h"
 #include "nvrm_pinmux_utils.h"
 #include "ap15/arfuse.h"
+#include "nvbootargs.h"
 
 static NvRmDevice gs_Rm;
 
@@ -276,9 +277,22 @@ NvRmOpenNew(NvRmDeviceHandle *pHandle)
     rm->bBasicInit = NV_TRUE;
     rm->bPreInit = NV_TRUE;
 
-    CarveoutSize     = NvOdmQueryCarveoutSize();
-    CarveoutBaseAddr = rm->ExtMemoryInfo.base +
-            NvOdmQueryMemSize(NvOdmMemoryType_Sdram) - CarveoutSize;
+
+    {
+        NvBootArgsCarveout Carveout;
+        if (NvOsBootArgGet(NvBootArgKey_Carveout, &Carveout,
+            sizeof(Carveout)) == NvSuccess)
+        {
+            CarveoutSize = Carveout.size;
+            CarveoutBaseAddr = (NvU32) Carveout.base;
+        }
+        else
+        {
+            CarveoutSize = NvOdmQueryCarveoutSize();
+            CarveoutBaseAddr = rm->ExtMemoryInfo.base +
+                NvOdmQueryMemSize(NvOdmMemoryType_Sdram) - CarveoutSize;
+        }
+    }
 
     NvRmPrivHeapCarveoutInit(CarveoutSize, CarveoutBaseAddr);
     NvRmPrivHeapIramInit(rm->IramMemoryInfo.size, rm->IramMemoryInfo.base);
