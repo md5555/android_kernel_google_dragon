@@ -59,6 +59,7 @@ typedef enum
     NvBootArgKey_Framebuffer,
     NvBootArgKey_ChipShmoo,
     NvBootArgKey_ChipShmooPhys,
+    NvBootArgKey_Carveout,
     NvBootArgKey_PreservedMemHandle_0 = 0x10000,
     NvBootArgKey_PreservedMemHandle_Num = (NvBootArgKey_PreservedMemHandle_0 +
                                          NV_BOOTARGS_MAX_PRESERVED_MEMHANDLES),
@@ -74,6 +75,16 @@ typedef struct NvBootArgsRmRec
 {
     NvU32 reserved;
 } NvBootArgsRm;
+
+/**
+ * Carveout boot args, which define the physical memory location of the GPU
+ * carved-out memory region(s).
+ */
+typedef struct NvBootArgsCarveoutRec
+{
+    NvUPtr base;
+    NvU32 size;
+} NvBootArgsCarveout;
 
 /**
  * PreservedMemHandle boot args, indexed by PreservedMemHandle_0 + n.
