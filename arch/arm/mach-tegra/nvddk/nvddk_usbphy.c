@@ -134,7 +134,7 @@ UsbPhyPowerRailEnable(
     if( !UsbPhyDiscover( pUsbPhy ) )
     {
         // Do nothing if no power rail info is discovered
-	return;
+        return;
     }
 
     /* enable the power rail */
@@ -336,6 +336,39 @@ UsbPhyIoctlUsbBisuHintsOnOff(
     return UsbPhyDfsBusyHint(pUsbPhy, pOnOff->OnOff, pOnOff->BoostDurationMs);
 }
 
+/*
+ * NvDdkUsbPhyHelperThread() - Thread to control the Busy hints and Vbus.
+ *
+ * Busy hints and Vbus are controlled based on the USB cable connection status.
+ * USB cable status change(connect/disconnect) is identified in the ISR.
+ * Busy hints function cannot be called from ISR as NvRmPowerBusyHintMulti()
+ * uses vfree and vmalloc functions which are not supposed to call from the
+ * ISR context. This helper thread is signaled from the ISR by calling Phy
+ * suspend/resume APIs to control the busy hints and VBUS.
+ */
+static void
+NvDdkUsbPhyHelperThread(
+    void* pArgs)
+{
+    NvDdkUsbPhyHandle hUsbPhy = (NvDdkUsbPhyHandle)pArgs;
+
+    hUsbPhy->Stopped = NV_FALSE;
+
+    while (!hUsbPhy->Stopped)
+    {
+        /* wait for the signal to turn on/off the busy hints and vbus */
+        NvOsSemaphoreWaitTimeout(hUsbPhy->HelperThreadSema, NV_WAIT_INFINITE);
+
+        /* Turn on/off the USB busy hints */
+        UsbPhyDfsBusyHint(hUsbPhy, hUsbPhy->IsPhyPoweredUp, NV_WAIT_INFINITE);
+        /* Turn on/off the vbus for host mode */
+        if (hUsbPhy->IsHostMode)
+        {
+            UsbPrivEnableVbus(hUsbPhy, hUsbPhy->IsPhyPoweredUp);
+        }
+    }
+}
+
 NvError
 NvDdkUsbPhyOpen(
     NvRmDeviceHandle hRm,
@@ -459,7 +492,15 @@ NvDdkUsbPhyOpen(
             NvRmPowerRegister(pUsbPhy->hRmDevice,
             pUsbPhy->hPwrEventSem, &pUsbPhy->RmPowerClientId));
 
-        if (pUsbPhy->pProperty->UsbMode == NvOdmUsbModeType_Host)
+        NV_CHECK_ERROR_CLEANUP(
+            NvOsSemaphoreCreate(&pUsbPhy->HelperThreadSema, 0));
+
+        NV_CHECK_ERROR_CLEANUP(
+            NvOsThreadCreate(&NvDdkUsbPhyHelperThread,
+            (void*)pUsbPhy, &pUsbPhy->hThreadId));
+
+        if ((pUsbPhy->pProperty->UsbMode == NvOdmUsbModeType_Host) ||
+            (pUsbPhy->pProperty->UsbMode == NvOdmUsbModeType_OTG))
         {
             UsbPrivEnableVbus(pUsbPhy, NV_TRUE);
         }
@@ -470,6 +511,9 @@ NvDdkUsbPhyOpen(
 
         // Open the H/W interface
         UsbPhyOpenHwInterface(pUsbPhy);
+
+        /* enable the busy hints for USB */
+        UsbPhyDfsBusyHint(pUsbPhy, NV_TRUE, NV_WAIT_INFINITE);
 
         // Initialize the USB Phy
         NV_CHECK_ERROR_CLEANUP(UsbPhyInitialize(pUsbPhy));
@@ -542,12 +586,17 @@ NvDdkUsbPhyClose(
         hUsbPhy->CloseHwInterface(hUsbPhy);
     }
 
-    if (hUsbPhy->pProperty->UsbMode == NvOdmUsbModeType_Host)
+    if ((hUsbPhy->pProperty->UsbMode == NvOdmUsbModeType_Host) ||
+        (hUsbPhy->pProperty->UsbMode == NvOdmUsbModeType_OTG))
     {
         UsbPrivEnableVbus(hUsbPhy, NV_FALSE);
     }
 
     UsbPhyPowerRailEnable(hUsbPhy, NV_FALSE);
+
+    hUsbPhy->Stopped = NV_TRUE;
+    NvOsThreadJoin(hUsbPhy->hThreadId);
+    NvOsSemaphoreDestroy(hUsbPhy->HelperThreadSema);
 
     NvRmPhysicalMemUnmap(
         (void*)hUsbPhy->UsbVirAdr, hUsbPhy->UsbBankSize);
@@ -562,6 +611,7 @@ NvDdkUsbPhyClose(
 NvError
 NvDdkUsbPhyPowerUp(
     NvDdkUsbPhyHandle hUsbPhy,
+    NvBool IsHostMode,
     NvBool IsDpd)
 {
     NvError e = NvSuccess;
@@ -593,10 +643,12 @@ NvDdkUsbPhyPowerUp(
               NVRM_MODULE_ID(NvRmModuleID_Usb2Otg, hUsbPhy->Instance),
               hUsbPhy->RmPowerClientId, NV_TRUE));
     }
-
+    // Power up the Phy
     NV_CHECK_ERROR_CLEANUP(hUsbPhy->PowerUp(hUsbPhy));
-
     hUsbPhy->IsPhyPoweredUp = NV_TRUE;
+    hUsbPhy->IsHostMode = IsHostMode;
+    // signal to set the busy hints and vbus
+    NvOsSemaphoreSignal(hUsbPhy->HelperThreadSema);
 
     //NvOsDebugPrintf("NvDdkUsbPhyPowerUp::VOLTAGE ON\n");
 
@@ -609,6 +661,7 @@ fail:
 NvError
 NvDdkUsbPhyPowerDown(
     NvDdkUsbPhyHandle hUsbPhy,
+    NvBool IsHostMode,
     NvBool IsDpd)
 {
     NvError e = NvSuccess;
@@ -648,6 +701,8 @@ NvDdkUsbPhyPowerDown(
     }
 
     hUsbPhy->IsPhyPoweredUp = NV_FALSE;
+    hUsbPhy->IsHostMode = IsHostMode;
+    NvOsSemaphoreSignal(hUsbPhy->HelperThreadSema);
 
     //NvOsDebugPrintf("NvDdkUsbPhyPowerDown::VOLTAGE OFF\n");
 

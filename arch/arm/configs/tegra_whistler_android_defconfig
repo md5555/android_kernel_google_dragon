@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.29
-# Wed Jan 13 20:07:37 2010
+# Mon Jan 18 12:46:38 2010
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -1175,6 +1175,8 @@ CONFIG_UDC_FSL_NR_ENDPOINTS=32
 #
 # OTG and related infrastructure
 #
+CONFIG_USB_OTG_UTILS=y
+CONFIG_USB_TEGRA_OTG=y
 # CONFIG_USB_GPIO_VBUS is not set
 CONFIG_MMC=y
 CONFIG_EMBEDDED_MMC_START_OFFSET=y

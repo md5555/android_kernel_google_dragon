@@ -48,8 +48,14 @@ struct tegra_hcd_platform_data {
 	 * macrocell interface) PHY on USB controllers 0 and 2. These 2 PHYs
 	 * have its own rails.
 	 */
-	NvU32			phyPowerRail; 
+	NvU32			phyPowerRail;
 	NvDdkUsbPhyHandle	hUsbPhy;
+};
+
+/* Platform data for USB OTG driver */
+struct tegra_otg_platform_data {
+	NvU32			instance;
+	const NvOdmUsbProperty	*usb_property;
 };
 
 /* Platfrom data for I2C bus driver */
