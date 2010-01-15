@@ -132,6 +132,9 @@ static void  exit_driverfs(void)
 
 int __init oprofile_arch_init(struct oprofile_operations *ops)
 {
+#if defined(CONFIG_ANDROID) && defined(CONFIG_CPU_V7)
+	return -ENODEV;
+#else
 	struct op_arm_model_spec *spec = NULL;
 	int ret = -ENODEV;
 	int cpu_arch = cpu_architecture();
@@ -188,6 +191,7 @@ int __init oprofile_arch_init(struct oprofile_operations *ops)
 	}
 
 	return ret;
+#endif
 }
 
 void oprofile_arch_exit(void)
