@@ -317,6 +317,7 @@ void NvRmPwmClose(NvRmPwmHandle hPwm)
 }
 
 #define MAX_DUTY_CYCLE 255
+#define PWM_FREQ_FACTOR 256
 
 NvError NvRmPwmConfig(
     NvRmPwmHandle hPwm,
@@ -386,7 +387,7 @@ NvError NvRmPwmConfig(
         if (status != NvSuccess)
             goto fail;
 
-        ClockFreqKHz = (RequestedFreqHzOrPeriod * MAX_DUTY_CYCLE) / 1000;
+        ClockFreqKHz = (RequestedFreqHzOrPeriod * PWM_FREQ_FACTOR) / 1000;
         if (ClockFreqKHz == 0)
             ClockFreqKHz = 1;
 
@@ -405,7 +406,7 @@ NvError NvRmPwmConfig(
         if (status != NvSuccess)
             goto fail;
 
-        *pCurrentFreqHzOrPeriod = (ResultFreqKHz * 1000) / MAX_DUTY_CYCLE;
+        *pCurrentFreqHzOrPeriod = (ResultFreqKHz * 1000) / PWM_FREQ_FACTOR;
 
         if (Mode == NvRmPwmMode_Disable)
             PwmMode = 0;
