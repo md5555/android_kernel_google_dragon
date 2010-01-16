@@ -47,6 +47,7 @@
 #include "nvrm_interrupt.h"
 #include "nvrm_pinmux.h"
 #include "nvrm_power.h"
+#include "nvrm_pmu.h"
 #include "nvodm_query.h"
 #include "nvodm_services.h"
 #include "nvodm_sdio.h"
@@ -275,6 +276,34 @@ static void __init NvConfigDebugConsole(
     return;
 }
 
+static void __init pci_tegra_power(int on)
+{
+	u32 settling_time;
+	const NvOdmPeripheralConnectivity *con = NULL;
+	int i;
+
+	con = NvOdmPeripheralGetGuid(NV_VDD_PEX_CLK_ODM_ID);
+	if (con == NULL)
+		return;
+
+	for (i = 0; i < con->NumAddress; i++) {
+		if (con->AddressList[i].Interface != NvOdmIoModule_Vdd)
+			continue;
+		if (on) {
+			NvRmPmuVddRailCapabilities rail;
+			NvRmPmuGetCapabilities(s_hRmGlobal,
+				con->AddressList[i].Address, &rail);
+			NvRmPmuSetVoltage(s_hRmGlobal,
+				con->AddressList[i].Address,
+				rail.requestMilliVolts, &settling_time);
+		} else
+			NvRmPmuSetVoltage(s_hRmGlobal,
+				con->AddressList[i].Address, NVODM_VOLTAGE_OFF,
+				&settling_time);
+		udelay(settling_time);
+	}
+}
+
 extern void __init tegra_common_init(void);
 extern void __init tegra_clk_init(void);
 #ifdef CONFIG_TEGRA_DPRAM
@@ -337,7 +366,8 @@ static void __init register_enc28j60(void)
     /* Check if the SPI is configured as a master for this instance
      * If it it not, don't register the device.
      * */
-    pSpiDeviceInfo = NvOdmQuerySpiGetDeviceInfo(NvOdmIoModule_Spi, instance, cs);
+    pSpiDeviceInfo = NvOdmQuerySpiGetDeviceInfo(NvOdmIoModule_Spi, instance,
+	cs);
     if (pSpiDeviceInfo && pSpiDeviceInfo->IsSlave)
         return;
 
@@ -443,6 +473,13 @@ static void __init tegra_machine_init(void)
 #ifdef CONFIG_TEGRA_ODM_RFKILL
     (void) platform_device_register(&tegra_rfkill);
 #endif
+
+#ifdef CONFIG_TEGRA_PCI
+	pci_tegra_power(1);
+#else
+	pci_tegra_power(0);
+#endif
+
 }
 
 MACHINE_START(TEGRA_GENERIC, "Tegra generic")
