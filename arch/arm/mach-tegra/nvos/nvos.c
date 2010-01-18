@@ -1105,6 +1105,14 @@ NvError NvOsSemaphoreUnmarshal(
     return NvSuccess;
 }
 
+int NvOsSemaphoreWaitInterruptible(NvOsSemaphoreHandle semaphore);
+int NvOsSemaphoreWaitInterruptible(NvOsSemaphoreHandle semaphore)
+{
+    NV_ASSERT( semaphore );
+
+    return down_interruptible( &semaphore->sem );
+}
+
 void NvOsSemaphoreWait(NvOsSemaphoreHandle semaphore)
 {
     int ret;
