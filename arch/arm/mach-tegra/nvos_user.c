@@ -39,6 +39,7 @@ int nvos_open(struct inode *inode, struct file *file);
 int nvos_close(struct inode *inode, struct file *file);
 static long nvos_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
 int nvos_mmap(struct file *file, struct vm_area_struct *vma);
+int NvOsSemaphoreWaitInterruptible(NvOsSemaphoreHandle semaphore);
 
 #define DEVICE_NAME "nvos"
 
@@ -398,8 +399,7 @@ static long nvos_ioctl(struct file *filp,
         DO_CLEANUP(
             NvOsCopyIn( &kernelSem, (void *)arg, sizeof(kernelSem) )
         );
-
-        NvOsSemaphoreWait(kernelSem);
+        e = NvOsSemaphoreWaitInterruptible(kernelSem);
         break;
     case NV_IOCTL_SEMAPHORE_WAIT_TIMEOUT:
     {
@@ -410,7 +410,15 @@ static long nvos_ioctl(struct file *filp,
             NvOsCopyIn( &k, p, sizeof(k) )
         );
 
-        k.error = NvOsSemaphoreWaitTimeout( k.sem, k.value );
+        if (k.value == NV_WAIT_INFINITE)
+        {
+            k.error = NvSuccess;
+            e = NvOsSemaphoreWaitInterruptible(kernelSem);
+        }
+        else
+        {
+            k.error = NvOsSemaphoreWaitTimeout(k.sem, k.value);
+        }
 
         DO_CLEANUP(
             NvOsCopyOut( &p->error, &k.error, sizeof(k.error) )
@@ -460,7 +468,7 @@ static long nvos_ioctl(struct file *filp,
         return 0;
     }
     default:
-        printk("Unknown IOCTL: %x\n", _IOC_NR(cmd));
+        pr_err("Unknown IOCTL: %x\n", _IOC_NR(cmd));
         e = -1;
     }
 
