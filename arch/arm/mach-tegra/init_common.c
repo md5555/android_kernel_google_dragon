@@ -360,7 +360,7 @@ static void __init tegra_register_i2c(void)
                 I2cData.IoModuleID = OdmModules[i];
                 I2cData.Instance = j;
                 I2cData.PinMuxConfig = 
-                    (ToAdd==1) ? pPinMuxes[j] : (NvOdmI2cPinMap_Config1 + k);
+                    (ToAdd==1) ? 0 : (NvOdmI2cPinMap_Config1 + k);
                 //  FIXME:  Always defaulting to 100KHz for now.
                 I2cData.ClockInKHz = 100;
                 if (platform_device_add_data(pDev, &I2cData, sizeof(I2cData)))
