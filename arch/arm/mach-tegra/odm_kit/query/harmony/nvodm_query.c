@@ -53,6 +53,11 @@
 #define NV_OAL (0)
 #endif
 
+#define BOARD_ID_HARMONY 0x0B3E
+#define HARMONY_HYS5C1GB_SKU 0x3829
+
+#define NVODM_ENABLE_EMC_DVFS (1)
+
 // Although AP16 Concorde2 and AP16 Vail boards can support PMU
 // interrupt, keep it disabled for now because of PMU VBUS input
 // latch problem
@@ -172,6 +177,118 @@ static const NvOdmQueryDapPortProperty s_NvOdmQueryDapPortInfoTable[] =
     // I2S2 (DAC2) <-> DAP4 <-> BLUETOOTH
     {NvOdmDapPort_I2s2, NvOdmDapPort_BlueTooth,
         {2, 16, 8000, NvOdmQueryI2sDataCommFormat_I2S}}     // Dap4
+};
+
+static const NvOdmSdramControllerConfigAdv s_NvOdmHyS5c1GbEmcConfigTable[] =
+{
+    {
+                  0x20,   /* Rev 2.0 */
+                166500,   /* SDRAM frquency */
+                   950,   /* EMC core voltage */
+                    46,   /* Number of EMC parameters below */
+        {
+            0x0000000A,   /* RC */
+            0x00000016,   /* RFC */
+            0x00000008,   /* RAS */
+            0x00000003,   /* RP */
+            0x00000004,   /* R2W */
+            0x00000004,   /* W2R */
+            0x00000002,   /* R2P */
+            0x0000000C,   /* W2P */
+            0x00000003,   /* RD_RCD */
+            0x00000003,   /* WR_RCD */
+            0x00000002,   /* RRD */
+            0x00000001,   /* REXT */
+            0x00000004,   /* WDV */
+            0x00000005,   /* QUSE */
+            0x00000004,   /* QRST */
+            0x00000009,   /* QSAFE */
+            0x0000000D,   /* RDV */
+            0x000004DF,   /* REFRESH */
+            0x00000000,   /* BURST_REFRESH_NUM */
+            0x00000003,   /* PDEX2WR */
+            0x00000003,   /* PDEX2RD */
+            0x00000003,   /* PCHG2PDEN */
+            0x00000003,   /* ACT2PDEN */
+            0x00000001,   /* AR2PDEN */
+            0x0000000A,   /* RW2PDEN */
+            0x000000C8,   /* TXSR */
+            0x00000003,   /* TCKE */
+            0x00000006,   /* TFAW */
+            0x00000004,   /* TRPAB */
+            0x00000008,   /* TCLKSTABLE */
+            0x00000002,   /* TCLKSTOP */
+            0x00000000,   /* TREFBW */
+            0x00000000,   /* QUSE_EXTRA */
+            0x00000002,   /* FBIO_CFG6 */
+            0x00000000,   /* ODT_WRITE */
+            0x00000000,   /* ODT_READ */
+            0x00000083,   /* FBIO_CFG5 */
+            0xE03B0323,   /* CFG_DIG_DLL */
+            0x007FC010,   /* DLL_XFORM_DQS */
+            0x00008010,   /* DLL_XFORM_QUSE */
+            0x00000000,   /* ZCAL_REF_CNT */
+            0x00000000,   /* ZCAL_WAIT_CNT */
+            0x00000000,   /* AUTO_CAL_INTERVAL */
+            0x00000000,   /* CFG_CLKTRIM_0 */
+            0x00000000,   /* CFG_CLKTRIM_1 */
+            0x00000000,   /* CFG_CLKTRIM_2 */
+        }
+    },
+    {
+                  0x20,   /* Rev 2.0 */
+                333000,   /* SDRAM frquency */
+                  1200,   /* EMC core voltage */
+                    46,   /* Number of EMC parameters below */
+        {
+            0x00000014,   /* RC */
+            0x0000002B,   /* RFC */
+            0x0000000F,   /* RAS */
+            0x00000005,   /* RP */
+            0x00000004,   /* R2W */
+            0x00000005,   /* W2R */
+            0x00000003,   /* R2P */
+            0x0000000C,   /* W2P */
+            0x00000005,   /* RD_RCD */
+            0x00000005,   /* WR_RCD */
+            0x00000003,   /* RRD */
+            0x00000001,   /* REXT */
+            0x00000004,   /* WDV */
+            0x00000005,   /* QUSE */
+            0x00000004,   /* QRST */
+            0x00000009,   /* QSAFE */
+            0x0000000D,   /* RDV */
+            0x000009FF,   /* REFRESH */
+            0x00000000,   /* BURST_REFRESH_NUM */
+            0x00000003,   /* PDEX2WR */
+            0x00000003,   /* PDEX2RD */
+            0x00000005,   /* PCHG2PDEN */
+            0x00000005,   /* ACT2PDEN */
+            0x00000001,   /* AR2PDEN */
+            0x0000000F,   /* RW2PDEN */
+            0x000000C8,   /* TXSR */
+            0x00000003,   /* TCKE */
+            0x0000000C,   /* TFAW */
+            0x00000006,   /* TRPAB */
+            0x00000008,   /* TCLKSTABLE */
+            0x00000002,   /* TCLKSTOP */
+            0x00000000,   /* TREFBW */
+            0x00000000,   /* QUSE_EXTRA */
+            0x00000002,   /* FBIO_CFG6 */
+            0x00000000,   /* ODT_WRITE */
+            0x00000000,   /* ODT_READ */
+            0x00000083,   /* FBIO_CFG5 */
+            0xF0320303,   /* CFG_DIG_DLL */
+            0x007FC010,   /* DLL_XFORM_DQS */
+            0x00008010,   /* DLL_XFORM_QUSE */
+            0x00000000,   /* ZCAL_REF_CNT */
+            0x00000000,   /* ZCAL_WAIT_CNT */
+            0x00000000,   /* AUTO_CAL_INTERVAL */
+            0x00000000,   /* CFG_CLKTRIM_0 */
+            0x00000000,   /* CFG_CLKTRIM_1 */
+            0x00000000,   /* CFG_CLKTRIM_2 */
+        }
+    }
 };
 
 // Wake Events
@@ -409,6 +526,21 @@ NvBool NvOdmQueryAsynchMemConfig(
 const void*
 NvOdmQuerySdramControllerConfigGet(NvU32 *pEntries, NvU32 *pRevision)
 {
+#if NVODM_ENABLE_EMC_DVFS
+    NvOdmBoardInfo BoardInfo;
+
+    if (NvOdmPeripheralGetBoardInfo(BOARD_ID_HARMONY, &BoardInfo))
+    {
+        if (BoardInfo.SKU == HARMONY_HYS5C1GB_SKU)
+        {
+            if (pRevision)
+                *pRevision = s_NvOdmHyS5c1GbEmcConfigTable[0].Revision;
+            if (pEntries)
+                *pEntries = NV_ARRAY_SIZE(s_NvOdmHyS5c1GbEmcConfigTable);
+            return (const void*)s_NvOdmHyS5c1GbEmcConfigTable;
+        }
+    }
+#endif
     if (pEntries)
         *pEntries = 0;
     return NULL;
