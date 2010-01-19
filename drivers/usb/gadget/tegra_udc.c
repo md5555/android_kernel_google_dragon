@@ -38,6 +38,9 @@ int tegra_udc_clk_init(struct platform_device *pdev)
 	if (nverr != NvSuccess)
 		return -ENODEV;
 
+	/* Power up the USB phy */
+	NV_ASSERT_SUCCESS(NvDdkUsbPhyPowerUp(s_hUsbPhy, NV_FALSE, 0));
+
 	return 0;
 }
 
@@ -51,10 +54,10 @@ void tegra_udc_clk_release(void)
 
 void tegra_udc_clk_suspend(void)
 {
-	NV_ASSERT_SUCCESS(NvDdkUsbPhyPowerDown(s_hUsbPhy, 0));
+	NV_ASSERT_SUCCESS(NvDdkUsbPhyPowerDown(s_hUsbPhy, NV_FALSE, 0));
 }
 
 void tegra_udc_clk_resume(void)
 {
-	NV_ASSERT_SUCCESS(NvDdkUsbPhyPowerUp(s_hUsbPhy, 0));
+	NV_ASSERT_SUCCESS(NvDdkUsbPhyPowerUp(s_hUsbPhy, NV_FALSE, 0));
 }

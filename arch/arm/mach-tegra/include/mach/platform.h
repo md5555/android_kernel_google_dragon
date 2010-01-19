@@ -21,6 +21,7 @@
 #ifndef __MACH_TEGRA_PLATFORM_H
 
 extern unsigned long	tegra_get_module_inst_base(const char *, int);
+extern unsigned long	tegra_get_module_inst_size(const char *, int);
 extern unsigned int	tegra_get_module_inst_irq(const char *, int, int);
 
 #define TEGRA_PL310_BASE	(tegra_get_module_inst_base("pl310", 0))

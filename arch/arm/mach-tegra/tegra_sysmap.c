@@ -36,6 +36,8 @@ static NvRmModuleID tegra_map_name_to_mod(const char *name, int inst)
 		return NVRM_MODULE_ID(NvRmPrivModuleID_ArmPerif, inst);
 	else if (!strcmp(name, "pcie"))
 		return NVRM_MODULE_ID(NvRmPrivModuleID_Pcie, inst);
+	else if (!strcmp(name, "usbotg"))
+		return NVRM_MODULE_ID(NvRmModuleID_Usb2Otg, inst);
 
 	return (NvRmModuleID) 0;
 }
@@ -53,6 +55,18 @@ unsigned long tegra_get_module_inst_base(const char *name, int inst)
 		phys = 0xffffffffUL;
 
 	return (unsigned long)phys;
+}
+
+unsigned long tegra_get_module_inst_size(const char *name, int inst)
+{
+	NvRmModuleID mod_id = tegra_map_name_to_mod(name, inst);
+	NvRmPhysAddr phys = 0xffffffffUL;
+	NvU32 len = 0;
+
+	if (mod_id)
+		NvRmModuleGetBaseAddress(s_hRmGlobal, mod_id, &phys, &len);
+
+	return (unsigned long)len;
 }
 
 unsigned int tegra_get_module_inst_irq(const char *name, int inst,

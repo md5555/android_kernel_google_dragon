@@ -126,6 +126,14 @@ typedef struct NvDdkUsbPhyRec
     NvBool IsPhyPoweredUp;
     // Utmpi Pad Config control structure
     NvDdkUsbPhyUtmiPadConfig *pUtmiPadConfig;
+    // Thread ID for the helper thread
+    NvOsThreadHandle hThreadId;
+    // semphore for signaling the thread
+    NvOsSemaphoreHandle HelperThreadSema;
+    // variable to control the thread loop
+    NvBool Stopped;
+    // Indicates phy powered up for the host mode
+    NvBool IsHostMode;
     // Set of function pointers to access the usb phy hardware interface.
     // Pointer to the h/w specific PowerUp function.
     NvError (*PowerUp)(NvDdkUsbPhyHandle hUsbPhy);

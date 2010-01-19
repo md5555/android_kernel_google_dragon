@@ -30,6 +30,7 @@
 #include "nvrm_init.h"
 #include "nvrm_drf.h"
 #include "mach/nvrm_linux.h"
+#include "mach/platform.h"
 #include "nvos.h"
 #include "nvutil.h"
 #include "nvassert.h"
@@ -474,7 +475,8 @@ static void __init tegra_register_usb_gadget(void)
 
         /* fixme: add ulpi here? */
         p = NvOdmQueryGetUsbProperty(NvOdmIoModule_Usb, i);
-        if (!p || !(p->UsbMode & NvOdmUsbModeType_Device))
+        if (!p || !((p->UsbMode & NvOdmUsbModeType_Device) ||
+            (p->UsbMode & NvOdmUsbModeType_OTG)))
             continue;
 
         irq = NvRmGetIrqForLogicalInterrupt(s_hRmGlobal, mod, 0);
@@ -555,7 +557,9 @@ static void __init tegra_register_usb_host(void)
 
         /* fixme: add ulpi here? */
         p = NvOdmQueryGetUsbProperty(NvOdmIoModule_Usb, i);
-        if (!p || !(p->UsbMode & NvOdmUsbModeType_Host) || tegra_is_udc(mod))
+        if (!p || !((p->UsbMode & NvOdmUsbModeType_Host) ||
+			(p->UsbMode & NvOdmUsbModeType_OTG) ) ||
+           (tegra_is_udc(mod) && !(p->UsbMode & NvOdmUsbModeType_OTG)))
             continue;
 
         irq = NvRmGetIrqForLogicalInterrupt(s_hRmGlobal, mod, 0);
@@ -588,8 +592,71 @@ fail:
 }
 #endif
 
+#if !defined(CONFIG_USB_TEGRA_OTG)
+#define tegra_register_usb_otg() do {} while (0)
+#else
+
+static void __init tegra_register_usb_otg(void)
+{
+    NvU32 port_count, i;
+
+    port_count = NvRmModuleGetNumInstances(s_hRmGlobal, NvRmModuleID_Usb2Otg);
+
+    for (i=0; i<port_count; i++) {
+        const NvOdmUsbProperty *p;
+        struct platform_device *platdev = NULL;
+        struct resource *res;
+        struct tegra_otg_platform_data pdata;
+
+        p = NvOdmQueryGetUsbProperty(NvOdmIoModule_Usb, i);
+        if (!p || !(p->UsbMode & NvOdmUsbModeType_OTG))
+            continue;
+
+        platdev = platform_device_alloc("tegra-otg", i);
+        if (!platdev) {
+            pr_err("unable to allocate device for tegra-otg\n");
+            goto fail;
+        }
+
+        res = kzalloc(sizeof(struct resource)*2, GFP_KERNEL);
+        if (!res) {
+            pr_err("unable to allocate resource for tegra-otg\n");
+            goto fail;
+        }
+
+        res[0].flags = IORESOURCE_MEM;
+        res[0].start = tegra_get_module_inst_base("usbotg", i);
+        res[0].end = res[0].start + tegra_get_module_inst_size("usbotg", i) - 1;
+        res[1].flags = IORESOURCE_IRQ;
+        res[1].start = res[1].end = tegra_get_module_inst_irq("usbotg", i, 0);
+
+        if (platform_device_add_resources(platdev, res, 2)) {
+            pr_err("unable to add resources to tegra-otg device\n");
+            goto fail;
+        }
+
+        memset(&pdata, 0, sizeof(pdata));
+        pdata.instance = i;
+        pdata.usb_property = p;
+
+        if (platform_device_add_data(platdev, &pdata, sizeof(pdata))) {
+            pr_err("unable to add platform data to tegra-otg device\n");
+            goto fail;
+        }
+
+        if (platform_device_add(platdev)) {
+            pr_err("unable to add tegra-otg device\n");
+            goto fail;
+        }
+    }
+fail:
+    ;
+}
+#endif
+
 void __init tegra_register_usb(void)
 {
+    tegra_register_usb_otg();
     tegra_register_usb_gadget();
     tegra_register_usb_host();
 }

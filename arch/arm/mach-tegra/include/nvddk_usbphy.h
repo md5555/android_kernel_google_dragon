@@ -272,22 +272,24 @@ void NvDdkUsbPhyClose(NvDdkUsbPhyHandle hUsbPhy);
  * reinitializing.
  *
  * @param hUsbPhy Handle acquired during the NvDdkUsbPhyOpen() call.
+ * @param IsHostMode indicates the host mode or not.
  * @param IsDpd  Deep sleep power up or not .
  *
  * @retval NvSuccess
  * @retval NvError_Timeout If phy clock is not stable in expected time.
  */
-NvError NvDdkUsbPhyPowerUp(NvDdkUsbPhyHandle hUsbPhy, NvBool IsDpd);
+NvError NvDdkUsbPhyPowerUp(NvDdkUsbPhyHandle hUsbPhy, NvBool IsHostMode, NvBool IsDpd);
 
 /**
  * Powers down the PHY. It could be low power mode or shutdown.
  *
  * @param hUsbPhy Handle acquired during the NvDdkUsbPhyOpen() call.
+ * @param IsHostMode indicates the host mode or not.
  * @param IsDpd Handle Deep sleep power down or not .
  *
  * @retval NvSuccess
  */
-NvError NvDdkUsbPhyPowerDown(NvDdkUsbPhyHandle hUsbPhy, NvBool IsDpd);
+NvError NvDdkUsbPhyPowerDown(NvDdkUsbPhyHandle hUsbPhy, NvBool IsHostMode, NvBool IsDpd);
 
 /**
  * Perform an I/O control operation on the device.
