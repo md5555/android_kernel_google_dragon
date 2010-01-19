@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.29
-# Wed Jan 13 19:46:13 2010
+# Mon Jan 18 18:07:35 2010
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -94,6 +94,7 @@ CONFIG_SHMEM=y
 CONFIG_AIO=y
 CONFIG_ASHMEM=y
 CONFIG_VM_EVENT_COUNTERS=y
+CONFIG_PCI_QUIRKS=y
 CONFIG_SLUB_DEBUG=y
 # CONFIG_COMPAT_BRK is not set
 # CONFIG_SLAB is not set
@@ -196,7 +197,7 @@ CONFIG_TEGRA_ODM_RFKILL=y
 CONFIG_TEGRA_NVEC=y
 CONFIG_TEGRA_NVEC_USER=y
 # CONFIG_TEGRA_ODM_VIBRATE is not set
-# CONFIG_TEGRA_PCI is not set
+CONFIG_TEGRA_PCI=y
 CONFIG_TEGRA_ODM_HARMONY=y
 # CONFIG_TEGRA_ODM_WHISTLER is not set
 # CONFIG_TEGRA_ODM_CONCORDE is not set
@@ -240,8 +241,12 @@ CONFIG_ARM_GIC=y
 #
 # Bus support
 #
-# CONFIG_PCI_SYSCALL is not set
+CONFIG_PCI=y
+CONFIG_PCI_SYSCALL=y
 # CONFIG_ARCH_SUPPORTS_MSI is not set
+CONFIG_PCI_LEGACY=y
+# CONFIG_PCI_DEBUG is not set
+# CONFIG_PCI_STUB is not set
 # CONFIG_PCCARD is not set
 
 #
@@ -518,11 +523,13 @@ CONFIG_MTD_CFI_I2=y
 # Mapping drivers for chip access
 #
 # CONFIG_MTD_COMPLEX_MAPPINGS is not set
+# CONFIG_MTD_INTEL_VR_NOR is not set
 # CONFIG_MTD_PLATRAM is not set
 
 #
 # Self-contained MTD device drivers
 #
+# CONFIG_MTD_PMC551 is not set
 # CONFIG_MTD_DATAFLASH is not set
 CONFIG_MTD_NAND_TEGRA=y
 # CONFIG_MTD_M25P80 is not set
@@ -544,6 +551,7 @@ CONFIG_MTD_NAND=y
 # CONFIG_MTD_NAND_GPIO is not set
 CONFIG_MTD_NAND_IDS=y
 # CONFIG_MTD_NAND_DISKONCHIP is not set
+# CONFIG_MTD_NAND_CAFE is not set
 # CONFIG_MTD_NAND_NANDSIM is not set
 # CONFIG_MTD_NAND_PLATFORM is not set
 # CONFIG_MTD_ALAUDA is not set
@@ -562,9 +570,13 @@ CONFIG_MTD_NAND_IDS=y
 # CONFIG_BLK_DEV is not set
 CONFIG_MISC_DEVICES=y
 # CONFIG_ANDROID_PMEM is not set
+# CONFIG_PHANTOM is not set
+# CONFIG_SGI_IOC4 is not set
+# CONFIG_TIFM_CORE is not set
 # CONFIG_ICS932S401 is not set
 # CONFIG_ENCLOSURE_SERVICES is not set
 # CONFIG_KERNEL_DEBUGGER_CORE is not set
+# CONFIG_HP_ILO is not set
 # CONFIG_UID_STAT is not set
 # CONFIG_WL127X_RFKILL is not set
 # CONFIG_APANIC is not set
@@ -621,11 +633,115 @@ CONFIG_SCSI_WAIT_SCAN=m
 # CONFIG_SCSI_SRP_ATTRS is not set
 CONFIG_SCSI_LOWLEVEL=y
 # CONFIG_ISCSI_TCP is not set
+# CONFIG_BLK_DEV_3W_XXXX_RAID is not set
+# CONFIG_SCSI_3W_9XXX is not set
+# CONFIG_SCSI_ACARD is not set
+# CONFIG_SCSI_AACRAID is not set
+# CONFIG_SCSI_AIC7XXX is not set
+# CONFIG_SCSI_AIC7XXX_OLD is not set
+# CONFIG_SCSI_AIC79XX is not set
+# CONFIG_SCSI_AIC94XX is not set
+# CONFIG_SCSI_DPT_I2O is not set
+# CONFIG_SCSI_ADVANSYS is not set
+# CONFIG_SCSI_ARCMSR is not set
+# CONFIG_MEGARAID_NEWGEN is not set
+# CONFIG_MEGARAID_LEGACY is not set
+# CONFIG_MEGARAID_SAS is not set
+# CONFIG_SCSI_HPTIOP is not set
 # CONFIG_LIBFC is not set
+# CONFIG_FCOE is not set
+# CONFIG_SCSI_DMX3191D is not set
+# CONFIG_SCSI_FUTURE_DOMAIN is not set
+# CONFIG_SCSI_IPS is not set
+# CONFIG_SCSI_INITIO is not set
+# CONFIG_SCSI_INIA100 is not set
+# CONFIG_SCSI_MVSAS is not set
+# CONFIG_SCSI_STEX is not set
+# CONFIG_SCSI_SYM53C8XX_2 is not set
+# CONFIG_SCSI_IPR is not set
+# CONFIG_SCSI_QLOGIC_1280 is not set
+# CONFIG_SCSI_QLA_FC is not set
+# CONFIG_SCSI_QLA_ISCSI is not set
+# CONFIG_SCSI_LPFC is not set
+# CONFIG_SCSI_DC395x is not set
+# CONFIG_SCSI_DC390T is not set
+# CONFIG_SCSI_NSP32 is not set
 # CONFIG_SCSI_DEBUG is not set
+# CONFIG_SCSI_SRP is not set
 # CONFIG_SCSI_DH is not set
-# CONFIG_ATA is not set
+CONFIG_ATA=y
+# CONFIG_ATA_NONSTANDARD is not set
+CONFIG_SATA_PMP=y
+CONFIG_SATA_AHCI=y
+# CONFIG_SATA_SIL24 is not set
+CONFIG_ATA_SFF=y
+# CONFIG_SATA_SVW is not set
+# CONFIG_ATA_PIIX is not set
+# CONFIG_SATA_MV is not set
+# CONFIG_SATA_NV is not set
+# CONFIG_PDC_ADMA is not set
+# CONFIG_SATA_QSTOR is not set
+# CONFIG_SATA_PROMISE is not set
+# CONFIG_SATA_SX4 is not set
+# CONFIG_SATA_SIL is not set
+# CONFIG_SATA_SIS is not set
+# CONFIG_SATA_ULI is not set
+# CONFIG_SATA_VIA is not set
+# CONFIG_SATA_VITESSE is not set
+# CONFIG_SATA_INIC162X is not set
+# CONFIG_PATA_ALI is not set
+# CONFIG_PATA_AMD is not set
+# CONFIG_PATA_ARTOP is not set
+# CONFIG_PATA_ATIIXP is not set
+# CONFIG_PATA_CMD640_PCI is not set
+# CONFIG_PATA_CMD64X is not set
+# CONFIG_PATA_CS5520 is not set
+# CONFIG_PATA_CS5530 is not set
+# CONFIG_PATA_CYPRESS is not set
+# CONFIG_PATA_EFAR is not set
+# CONFIG_ATA_GENERIC is not set
+# CONFIG_PATA_HPT366 is not set
+# CONFIG_PATA_HPT37X is not set
+# CONFIG_PATA_HPT3X2N is not set
+# CONFIG_PATA_HPT3X3 is not set
+# CONFIG_PATA_IT821X is not set
+# CONFIG_PATA_IT8213 is not set
+# CONFIG_PATA_JMICRON is not set
+# CONFIG_PATA_TRIFLEX is not set
+# CONFIG_PATA_MARVELL is not set
+# CONFIG_PATA_MPIIX is not set
+# CONFIG_PATA_OLDPIIX is not set
+# CONFIG_PATA_NETCELL is not set
+# CONFIG_PATA_NINJA32 is not set
+# CONFIG_PATA_NS87410 is not set
+# CONFIG_PATA_NS87415 is not set
+# CONFIG_PATA_OPTI is not set
+# CONFIG_PATA_OPTIDMA is not set
+# CONFIG_PATA_PDC_OLD is not set
+# CONFIG_PATA_RADISYS is not set
+# CONFIG_PATA_RZ1000 is not set
+# CONFIG_PATA_SC1200 is not set
+# CONFIG_PATA_SERVERWORKS is not set
+# CONFIG_PATA_PDC2027X is not set
+# CONFIG_PATA_SIL680 is not set
+# CONFIG_PATA_SIS is not set
+# CONFIG_PATA_VIA is not set
+# CONFIG_PATA_WINBOND is not set
+# CONFIG_PATA_PLATFORM is not set
+# CONFIG_PATA_SCH is not set
 # CONFIG_MD is not set
+# CONFIG_FUSION is not set
+
+#
+# IEEE 1394 (FireWire) support
+#
+
+#
+# Enable only one of the two stacks, unless you know what you are doing
+#
+# CONFIG_FIREWIRE is not set
+# CONFIG_IEEE1394 is not set
+# CONFIG_I2O is not set
 CONFIG_NETDEVICES=y
 # CONFIG_DUMMY is not set
 # CONFIG_BONDING is not set
@@ -633,16 +749,23 @@ CONFIG_NETDEVICES=y
 # CONFIG_EQUALIZER is not set
 # CONFIG_TUN is not set
 # CONFIG_VETH is not set
+# CONFIG_ARCNET is not set
 # CONFIG_PHYLIB is not set
 CONFIG_NET_ETHERNET=y
 CONFIG_MII=y
 # CONFIG_AX88796 is not set
+# CONFIG_HAPPYMEAL is not set
+# CONFIG_SUNGEM is not set
+# CONFIG_CASSINI is not set
+# CONFIG_NET_VENDOR_3COM is not set
 # CONFIG_SMC91X is not set
 # CONFIG_DM9000 is not set
 # CONFIG_ENC28J60 is not set
 # CONFIG_SMC911X is not set
 # CONFIG_SMSC911X is not set
 # CONFIG_DNET is not set
+# CONFIG_NET_TULIP is not set
+# CONFIG_HP100 is not set
 # CONFIG_IBM_NEW_EMAC_ZMII is not set
 # CONFIG_IBM_NEW_EMAC_RGMII is not set
 # CONFIG_IBM_NEW_EMAC_TAH is not set
@@ -650,9 +773,12 @@ CONFIG_MII=y
 # CONFIG_IBM_NEW_EMAC_NO_FLOW_CTRL is not set
 # CONFIG_IBM_NEW_EMAC_MAL_CLR_ICINTSTAT is not set
 # CONFIG_IBM_NEW_EMAC_MAL_COMMON_ERR is not set
+# CONFIG_NET_PCI is not set
 # CONFIG_B44 is not set
+# CONFIG_ATL2 is not set
 # CONFIG_NETDEV_1000 is not set
 # CONFIG_NETDEV_10000 is not set
+# CONFIG_TR is not set
 
 #
 # Wireless LAN
@@ -692,8 +818,11 @@ CONFIG_USB_ARMLINUX=y
 # CONFIG_USB_NET_ZAURUS is not set
 # CONFIG_USB_HSO is not set
 # CONFIG_WAN is not set
+# CONFIG_FDDI is not set
+# CONFIG_HIPPI is not set
 # CONFIG_PPP is not set
 # CONFIG_SLIP is not set
+# CONFIG_NET_FC is not set
 # CONFIG_NETCONSOLE is not set
 # CONFIG_NETPOLL is not set
 # CONFIG_NET_POLL_CONTROLLER is not set
@@ -777,6 +906,7 @@ CONFIG_TOUCHSCREEN_USB_PANJIT=y
 #
 CONFIG_SERIO=y
 CONFIG_SERIO_SERPORT=y
+# CONFIG_SERIO_PCIPS2 is not set
 CONFIG_SERIO_LIBPS2=y
 CONFIG_SERIO_RAW=y
 # CONFIG_GAMEPORT is not set
@@ -794,12 +924,14 @@ CONFIG_DEVMEM=y
 # CONFIG_DEVKMEM is not set
 CONFIG_DEVNVMAP=y
 # CONFIG_SERIAL_NONSTANDARD is not set
+# CONFIG_NOZOMI is not set
 
 #
 # Serial drivers
 #
 CONFIG_SERIAL_8250=y
 CONFIG_SERIAL_8250_CONSOLE=y
+CONFIG_SERIAL_8250_PCI=y
 CONFIG_SERIAL_8250_NR_UARTS=1
 CONFIG_SERIAL_8250_RUNTIME_UARTS=1
 # CONFIG_SERIAL_8250_EXTENDED is not set
@@ -810,14 +942,17 @@ CONFIG_SERIAL_8250_RUNTIME_UARTS=1
 CONFIG_SERIAL_TEGRA_DDK=y
 CONFIG_SERIAL_CORE=y
 CONFIG_SERIAL_CORE_CONSOLE=y
+# CONFIG_SERIAL_JSM is not set
 CONFIG_UNIX98_PTYS=y
 # CONFIG_DEVPTS_MULTIPLE_INSTANCES is not set
 # CONFIG_LEGACY_PTYS is not set
 # CONFIG_IPMI_HANDLER is not set
 # CONFIG_HW_RANDOM is not set
 # CONFIG_R3964 is not set
+# CONFIG_APPLICOM is not set
 # CONFIG_RAW_DRIVER is not set
 # CONFIG_TCG_TPM is not set
+CONFIG_DEVPORT=y
 # CONFIG_DCC_TTY is not set
 CONFIG_I2C=y
 CONFIG_I2C_BOARDINFO=y
@@ -827,7 +962,25 @@ CONFIG_I2C_HELPER_AUTO=y
 #
 # I2C Hardware Bus support
 #
+
+#
+# PC SMBus host controller drivers
+#
+# CONFIG_I2C_ALI1535 is not set
+# CONFIG_I2C_ALI1563 is not set
+# CONFIG_I2C_ALI15X3 is not set
+# CONFIG_I2C_AMD756 is not set
+# CONFIG_I2C_AMD8111 is not set
+# CONFIG_I2C_I801 is not set
+# CONFIG_I2C_ISCH is not set
+# CONFIG_I2C_PIIX4 is not set
+# CONFIG_I2C_NFORCE2 is not set
+# CONFIG_I2C_SIS5595 is not set
+# CONFIG_I2C_SIS630 is not set
 CONFIG_I2C_TEGRA=y
+# CONFIG_I2C_SIS96X is not set
+# CONFIG_I2C_VIA is not set
+# CONFIG_I2C_VIAPRO is not set
 
 #
 # I2C system bus drivers (mostly embedded / system-on-chip)
@@ -842,6 +995,11 @@ CONFIG_I2C_TEGRA=y
 # CONFIG_I2C_PARPORT_LIGHT is not set
 # CONFIG_I2C_TAOS_EVM is not set
 # CONFIG_I2C_TINY_USB is not set
+
+#
+# Graphics adapter I2C/DDC channel drivers
+#
+# CONFIG_I2C_VOODOO3 is not set
 
 #
 # Other I2C/SMBus bus drivers
@@ -949,10 +1107,19 @@ CONFIG_VIDEO_CAPTURE_DRIVERS=y
 # CONFIG_VIDEO_FIXED_MINOR_RANGES is not set
 CONFIG_VIDEO_HELPER_CHIPS_AUTO=y
 # CONFIG_VIDEO_VIVI is not set
+# CONFIG_VIDEO_BT848 is not set
 # CONFIG_VIDEO_CPIA is not set
 # CONFIG_VIDEO_CPIA2 is not set
 # CONFIG_VIDEO_SAA5246A is not set
 # CONFIG_VIDEO_SAA5249 is not set
+# CONFIG_VIDEO_STRADIS is not set
+# CONFIG_VIDEO_SAA7134 is not set
+# CONFIG_VIDEO_MXB is not set
+# CONFIG_VIDEO_HEXIUM_ORION is not set
+# CONFIG_VIDEO_HEXIUM_GEMINI is not set
+# CONFIG_VIDEO_CX88 is not set
+# CONFIG_VIDEO_IVTV is not set
+# CONFIG_VIDEO_CAFE_CCIC is not set
 # CONFIG_SOC_CAMERA is not set
 CONFIG_V4L_USB_DRIVERS=y
 CONFIG_USB_VIDEO_CLASS=y
@@ -1001,6 +1168,9 @@ CONFIG_USB_GSPCA=m
 # CONFIG_USB_STKWEBCAM is not set
 # CONFIG_USB_S2255 is not set
 CONFIG_RADIO_ADAPTERS=y
+# CONFIG_RADIO_GEMTEK_PCI is not set
+# CONFIG_RADIO_MAXIRADIO is not set
+# CONFIG_RADIO_MAESTRO is not set
 # CONFIG_USB_DSBR is not set
 # CONFIG_USB_SI470X is not set
 # CONFIG_USB_MR800 is not set
@@ -1010,6 +1180,7 @@ CONFIG_RADIO_ADAPTERS=y
 #
 # Graphics support
 #
+# CONFIG_DRM is not set
 # CONFIG_VGASTATE is not set
 # CONFIG_VIDEO_OUTPUT_CONTROL is not set
 CONFIG_FB=y
@@ -1034,8 +1205,32 @@ CONFIG_FB_TILEBLITTING=y
 #
 # Frame buffer hardware drivers
 #
+# CONFIG_FB_CIRRUS is not set
+# CONFIG_FB_PM2 is not set
+# CONFIG_FB_CYBER2000 is not set
+# CONFIG_FB_ASILIANT is not set
+# CONFIG_FB_IMSTT is not set
 # CONFIG_FB_S1D13XXX is not set
 CONFIG_FB_TEGRA=y
+# CONFIG_FB_NVIDIA is not set
+# CONFIG_FB_RIVA is not set
+# CONFIG_FB_MATROX is not set
+# CONFIG_FB_RADEON is not set
+# CONFIG_FB_ATY128 is not set
+# CONFIG_FB_ATY is not set
+# CONFIG_FB_S3 is not set
+# CONFIG_FB_SAVAGE is not set
+# CONFIG_FB_SIS is not set
+# CONFIG_FB_VIA is not set
+# CONFIG_FB_NEOMAGIC is not set
+# CONFIG_FB_KYRO is not set
+# CONFIG_FB_3DFX is not set
+# CONFIG_FB_VOODOO1 is not set
+# CONFIG_FB_VT8623 is not set
+# CONFIG_FB_TRIDENT is not set
+# CONFIG_FB_ARK is not set
+# CONFIG_FB_PM3 is not set
+# CONFIG_FB_CARMINE is not set
 # CONFIG_FB_VIRTUAL is not set
 # CONFIG_FB_METRONOME is not set
 # CONFIG_FB_MB862XX is not set
@@ -1120,7 +1315,7 @@ CONFIG_HID_COMPAT=y
 # CONFIG_ZEROPLUS_FF is not set
 CONFIG_USB_SUPPORT=y
 CONFIG_USB_ARCH_HAS_HCD=y
-# CONFIG_USB_ARCH_HAS_OHCI is not set
+CONFIG_USB_ARCH_HAS_OHCI=y
 CONFIG_USB_ARCH_HAS_EHCI=y
 CONFIG_USB=y
 # CONFIG_USB_DEBUG is not set
@@ -1150,8 +1345,11 @@ CONFIG_USB_EHCI_ROOT_HUB_TT=y
 # CONFIG_USB_OXU210HP_HCD is not set
 # CONFIG_USB_ISP116X_HCD is not set
 # CONFIG_USB_ISP1760_HCD is not set
+# CONFIG_USB_OHCI_HCD is not set
+# CONFIG_USB_UHCI_HCD is not set
 # CONFIG_USB_SL811_HCD is not set
 # CONFIG_USB_R8A66597_HCD is not set
+# CONFIG_USB_WHCI_HCD is not set
 # CONFIG_USB_HWA_HCD is not set
 CONFIG_USB_TEGRA_HCD=y
 # CONFIG_USB_MUSB_HDRC is not set
@@ -1263,6 +1461,7 @@ CONFIG_UDC_FSL_NR_ENDPOINTS=32
 # OTG and related infrastructure
 #
 # CONFIG_USB_GPIO_VBUS is not set
+# CONFIG_UWB is not set
 CONFIG_MMC=y
 CONFIG_EMBEDDED_MMC_START_OFFSET=y
 # CONFIG_MMC_DEBUG is not set
@@ -1283,7 +1482,9 @@ CONFIG_MMC_BLOCK_BOUNCE=y
 # MMC/SD/SDIO Host Controller Drivers
 #
 CONFIG_MMC_SDHCI=y
+# CONFIG_MMC_SDHCI_PCI is not set
 CONFIG_MMC_SDHCI_TEGRA=y
+# CONFIG_MMC_TIFM_SD is not set
 # CONFIG_MMC_SPI is not set
 # CONFIG_MEMSTICK is not set
 # CONFIG_ACCESSIBILITY is not set
@@ -1358,11 +1559,14 @@ CONFIG_RTC_DRV_TEGRA_ODM=y
 # CONFIG_UIO is not set
 CONFIG_STAGING=y
 # CONFIG_STAGING_EXCLUDE_BUILD is not set
+# CONFIG_ME4000 is not set
 # CONFIG_MEILHAUS is not set
 # CONFIG_USB_IP_COMMON is not set
 # CONFIG_ECHO is not set
 # CONFIG_COMEDI is not set
 # CONFIG_ASUS_OLED is not set
+# CONFIG_ALTERA_PCIE_CHDMA is not set
+# CONFIG_RTL8187SE is not set
 # CONFIG_INPUT_MIMIO is not set
 # CONFIG_TRANZPORT is not set
 

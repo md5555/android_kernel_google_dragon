@@ -352,6 +352,7 @@ static int __init pci_tegra_setup(int nr, struct pci_sys_data *data)
 
 	if (!pci_tegra_check_rp(0) && !pci_tegra_check_rp(1)) {
 		pci_tegra_device_attached = false;
+		pci_tegra_power(0);
 		return 0;
 	}
 	pci_tegra_device_attached = true;
@@ -554,7 +555,7 @@ static bool pci_tegra_check_rp(int rp)
 
 	BUG_ON(rp != 0 && rp != 1);
 retry:
-	if (retry_count > 2 ) {
+	if (retry_count > 1 ) {
 		pr_err("pci_tegra_check_rp: RP %d Failed\n", rp);
 		return false;
 	}
