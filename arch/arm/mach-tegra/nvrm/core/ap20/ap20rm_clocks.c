@@ -1263,6 +1263,12 @@ void NvRmPrivAp20PllEControl(NvRmDeviceHandle hRmDevice, NvBool Enable)
     if (s_Started || !Enable)
         return;
 
+    // Do not start PLLE while it is clamped
+    offset = APBDEV_PMC_SCRATCH42_0;
+    reg = NV_REGR(hRmDevice, NvRmModuleID_Pmif, 0, offset);
+    if (NV_DRF_VAL(APBDEV_PMC, SCRATCH42, PCX_CLAMP, reg) && Enable)
+        return;
+
     s_Started = NV_TRUE;
 
     // Set PLLE base = 0x0D18C801 (configured, but disabled)
@@ -1275,7 +1281,7 @@ void NvRmPrivAp20PllEControl(NvRmDeviceHandle hRmDevice, NvBool Enable)
           NV_DRF_NUM(CLK_RST_CONTROLLER, PLLE_BASE, PLLE_MDIV,       0x01);
     NV_REGW(hRmDevice, NvRmPrivModuleID_ClockAndReset, 0, offset, base);
 
-    // Remove clamping
+    // Pulse IDDQ/clamp signal to start training
     offset = APBDEV_PMC_SCRATCH42_0;
     reg = NV_REGR(hRmDevice, NvRmModuleID_Pmif, 0, offset);
     reg = NV_FLD_SET_DRF_NUM(APBDEV_PMC, SCRATCH42, PCX_CLAMP, 0x1, reg);
@@ -1306,4 +1312,17 @@ void NvRmPrivAp20PllEControl(NvRmDeviceHandle hRmDevice, NvBool Enable)
     NvOsWaitUS(NVRM_PLL_MIPI_STABLE_DELAY_US);
 }
 
+void
+NvRmPrivAp20PowerPcieXclkControl(
+    NvRmDeviceHandle hRmDevice,
+    NvBool Enable)
+{
+    NvU32 reg, offset;
+
+    offset = APBDEV_PMC_SCRATCH42_0;
+    reg = NV_REGR(hRmDevice, NvRmModuleID_Pmif, 0, offset);
+    reg = NV_FLD_SET_DRF_NUM(
+        APBDEV_PMC, SCRATCH42, PCX_CLAMP, Enable ? 0x0 : 0x1, reg);
+    NV_REGW(hRmDevice, NvRmModuleID_Pmif, 0, offset, reg);
+}
 

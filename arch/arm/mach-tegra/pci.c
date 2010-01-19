@@ -222,6 +222,11 @@ static int __init pci_tegra_setup(int nr, struct pci_sys_data *data)
 	if (NvRmPowerRegister(s_hRmGlobal, 0, &pci_tegra_powerid) != NvSuccess)
 		goto fail;
 
+	if (NvRmPowerVoltageControl(s_hRmGlobal, NvRmPrivModuleID_Pcie,
+		pci_tegra_powerid, NvRmVoltsUnspecified, NvRmVoltsUnspecified,
+		NULL, 0, NULL) != NvSuccess)
+		goto fail;
+
 	if (NvRmPowerModuleClockControl(s_hRmGlobal, NvRmPrivModuleID_Pcie,
 		pci_tegra_powerid, NV_TRUE) != NvSuccess)
 		goto fail;
@@ -352,6 +357,11 @@ static int __init pci_tegra_setup(int nr, struct pci_sys_data *data)
 
 	if (!pci_tegra_check_rp(0) && !pci_tegra_check_rp(1)) {
 		pci_tegra_device_attached = false;
+		NvRmPowerVoltageControl(s_hRmGlobal, NvRmPrivModuleID_Pcie,
+			pci_tegra_powerid, NvRmVoltsOff, NvRmVoltsOff, NULL,
+			0, NULL);
+		NvRmPowerModuleClockControl(s_hRmGlobal, NvRmPrivModuleID_Pcie,
+			pci_tegra_powerid, NV_FALSE);
 		pci_tegra_power(0);
 		return 0;
 	}

@@ -67,8 +67,7 @@
 /*****************************************************************************/
 
 #define NV_POWER_GATE_TD    (1)
-// TODO: check PCIE voltage control calls before enabling
-#define NV_POWER_GATE_PCIE  (0)
+#define NV_POWER_GATE_PCIE  (1)
 //  TODO: check VDE/BSEV/NSEA voltage control calls before enabling
 #define NV_POWER_GATE_VDE   (0)
 //  TODO: check MPE voltage control calls before enabling
@@ -113,13 +112,16 @@ static void PowerGroupResetControl(
             NvRmModuleResetWithHold(hRmDeviceHandle, NvRmModuleID_3D, Assert);
             break;
         case NV_POWERGROUP_PCIE:
-            if (Assert)     // Keep PHY in reset - let driver to take it out
-                NvRmModuleResetWithHold(
-                    hRmDeviceHandle, NvRmPrivModuleID_PcieXclk, Assert);
             NvRmModuleResetWithHold(
                 hRmDeviceHandle, NvRmPrivModuleID_Pcie, Assert);
             NvRmModuleResetWithHold(
                 hRmDeviceHandle, NvRmPrivModuleID_Afi, Assert);
+            if (Assert)     // Keep PCIEXCLK in reset - let driver to take it out
+            {
+                NvRmModuleResetWithHold(
+                    hRmDeviceHandle, NvRmPrivModuleID_PcieXclk, Assert);
+            }
+            NvRmPrivAp20PowerPcieXclkControl(hRmDeviceHandle, !Assert);
             break;
         case NV_POWERGROUP_VDE:
             NvRmModuleResetWithHold(hRmDeviceHandle, NvRmModuleID_Vde, Assert);

@@ -408,6 +408,18 @@ NvRmPrivPowerGroupGetVoltage(
     NvU32 PowerGroup);
 
 /**
+ * Controls power state and clamping for PCIEXCLK/PLLE (chip-specific).
+ *
+ * @param hRmDevice The RM device handle.
+ * @param Enable If NV_TRUE, power up PCIEXCLK and remove clamps,
+ *  if NV_FALSE, power down PCIEXCLK  and set clamps.
+ */
+void
+NvRmPrivAp20PowerPcieXclkControl(
+    NvRmDeviceHandle hRmDevice,
+    NvBool Enable);
+
+/**
  * Verifies if the specified DFS clock domain is starving.
  *
  * @param ClockId The DFS ID of the clock domain to be checked.
