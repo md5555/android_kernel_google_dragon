@@ -44,7 +44,7 @@
  * The maximum number of memory handles that may be preserved across the
  * bootloader-to-OS transition.  @see NvRmBootArg_PreservedMemHandle.
  */
-#define NV_BOOTARGS_MAX_PRESERVED_MEMHANDLES 2
+#define NV_BOOTARGS_MAX_PRESERVED_MEMHANDLES 3
 
 #if defined(__cplusplus)
 extern "C"
@@ -60,6 +60,7 @@ typedef enum
     NvBootArgKey_ChipShmoo,
     NvBootArgKey_ChipShmooPhys,
     NvBootArgKey_Carveout,
+    NvBootArgKey_WarmBoot,
     NvBootArgKey_PreservedMemHandle_0 = 0x10000,
     NvBootArgKey_PreservedMemHandle_Num = (NvBootArgKey_PreservedMemHandle_0 +
                                          NV_BOOTARGS_MAX_PRESERVED_MEMHANDLES),
@@ -85,6 +86,16 @@ typedef struct NvBootArgsCarveoutRec
     NvUPtr base;
     NvU32 size;
 } NvBootArgsCarveout;
+
+/**
+ * Warmbootloader boot args. This structure only contains
+ * a mem handle key to preserve the warm bootloader
+ * across the bootloader->os transition
+ */
+typedef struct NvBootArgsWarmbootRec
+{
+    NvU32 MemHandleKey;
+} NvBootArgsWarmboot;
 
 /**
  * PreservedMemHandle boot args, indexed by PreservedMemHandle_0 + n.
@@ -212,6 +223,7 @@ typedef struct NvBootArgsRec
     NvBootArgsFramebuffer FramebufferArgs;
     NvBootArgsChipShmoo ChipShmooArgs;
     NvBootArgsChipShmooPhys ChipShmooPhysArgs;
+    NvBootArgsWarmboot WarmbootArgs;
     NvBootArgsPreservedMemHandle MemHandleArgs[NVBOOTARG_NUM_PRESERVED_HANDLES];
 } NvBootArgs;
 
