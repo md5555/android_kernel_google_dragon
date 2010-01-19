@@ -58,7 +58,7 @@
 #define  SDHCI_CARD_PRESENT	0x00010000
 #define  SDHCI_WRITE_PROTECT	0x00080000
 
-#define SDHCI_HOST_CONTROL 	0x28
+#define SDHCI_HOST_CONTROL	0x28
 #define  SDHCI_CTRL_LED		0x01
 #define  SDHCI_CTRL_4BITBUS	0x02
 #define  SDHCI_CTRL_8BITBUS	0x20
@@ -246,6 +246,9 @@ struct sdhci_host {
 	unsigned int		timeout_clk;	/* Timeout freq (KHz) */
 
 	unsigned int		clock;		/* Current clock (MHz) */
+#ifdef CONFIG_MMC_SDHCI_DYNAMIC_SDMEM_CLOCK
+	unsigned int		last_clock;	/* Last used clock (MHz) */
+#endif
 	unsigned short		power;		/* Current voltage */
 
 	struct mmc_request	*mrq;		/* Current request */

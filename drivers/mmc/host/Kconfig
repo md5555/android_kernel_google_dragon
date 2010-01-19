@@ -37,6 +37,18 @@ config MMC_SDHCI
 
 	  If unsure, say N.
 
+config MMC_SDHCI_DYNAMIC_SDMEM_CLOCK
+	depends on MMC_SDHCI
+	bool "Dynamically control the card clock for SD memory devices"
+	default y
+	help
+	  On certain embedded devices, leaving the card clock enabled to
+	  SD memory devices with no active transactions can increase power
+	  consumption. Enable this option to automatically disable the card
+	  clock after transfers complete.
+
+	  If unsure, say N here.
+
 config MMC_SDHCI_PCI
 	tristate "SDHCI support on PCI bus"
 	depends on MMC_SDHCI && PCI
