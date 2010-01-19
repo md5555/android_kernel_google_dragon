@@ -56,6 +56,7 @@
 #include "mach/nvrm_linux.h"
 #include "nvassert.h"
 #include "nvodm_query_discovery.h"
+#include "mach/pci.h"
 
 #include <../../../drivers/staging/android/timed_output.h>
 
@@ -276,7 +277,7 @@ static void __init NvConfigDebugConsole(
     return;
 }
 
-static void __init pci_tegra_power(int on)
+void __init pci_tegra_power(int on)
 {
 	u32 settling_time;
 	const NvOdmPeripheralConnectivity *con = NULL;
