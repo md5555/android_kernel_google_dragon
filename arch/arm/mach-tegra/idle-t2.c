@@ -28,6 +28,8 @@
 #include "ap20/arflow_ctlr.h"
 #include "nvrm_hardware_access.h"
 #include "nvrm_power_private.h"
+#include "nvbootargs.h"
+#include "nvrm_memmgr.h"
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
 #include <linux/wakelock.h>
@@ -38,7 +40,8 @@ extern void resume(unsigned int state);
 extern uintptr_t g_resume, g_contextSavePA, g_contextSaveVA;
 extern NvU32 g_NumActiveCPUs, g_ArmPerif;
 extern NvU32 g_enterLP2PA;
-
+extern volatile void *g_pPMC, *g_pAHB, *g_pCLK_RST_CONTROLLER;
+extern volatile void *g_pEMC, *g_pMC, *g_pAPB_MISC;
 #ifdef CONFIG_WAKELOCK
 extern struct wake_lock main_wake_lock;
 #endif
@@ -62,7 +65,10 @@ void mach_tegra_idle(void);
 extern void enter_lp2(NvU32, NvU32);
 extern void exit_power_state(void);
 extern void module_context_init(void);
+extern void power_lp0_init(void);
 extern void NvSpareTimerTrigger(unsigned long); /* timer.c */
+NvRmMemHandle s_hWarmboot = NULL;
+NvU32 g_AvpWarmbootEntry;
 
 NvU32 lp2count = 0, lp3count = 0, lp2safe = 0;
 
@@ -73,15 +79,16 @@ void __init NvAp20InitFlowController(void)
     NvU32 len;
     NvRmPhysAddr pa;
     volatile NvU8 *pTempFc, *pTempArmPerif;
-    
+    NvBootArgsWarmboot WarmbootArgs;
+
     NvRmModuleGetBaseAddress(s_hRmGlobal,
         NVRM_MODULE_ID(NvRmModuleID_FlowCtrl, 0), &pa, &len);
             
     if (NvRmPhysicalMemMap(pa, len, NVOS_MEM_READ_WRITE,
             NvOsMemAttribute_Uncached, (void**)&pTempFc)!=NvSuccess)
     {
-        printk(KERN_INFO "failed to map flow controller; DVFS will not function"
-               " correctly as a result\n");
+        printk(KERN_INFO "failed to map flow controller; "
+               " DVFS will not function correctly as a result\n");
         return;
     }
 
@@ -92,6 +99,77 @@ void __init NvAp20InitFlowController(void)
             NvOsMemAttribute_Uncached, (void**)&pTempArmPerif)!=NvSuccess)
     {
         printk(KERN_INFO "failed to map Arm Perif; DVFS will not function"
+               " correctly as a result\n");
+        return;
+    }
+
+    NvRmModuleGetBaseAddress(s_hRmGlobal,
+        NVRM_MODULE_ID(NvRmModuleID_Pmif, 0), &pa, &len);
+
+    if (NvRmPhysicalMemMap(pa, len, NVOS_MEM_READ_WRITE,
+            NvOsMemAttribute_Uncached, (void**)&g_pPMC)!=NvSuccess)
+    {
+        printk(KERN_INFO "failed to map pmif; DVFS will not function"
+               " correctly as a result\n");
+        return;
+    }
+
+    NvRmModuleGetBaseAddress(s_hRmGlobal,
+        NVRM_MODULE_ID(NvRmPrivModuleID_Ahb_Arb_Ctrl, 0), &pa, &len);
+
+    if (NvRmPhysicalMemMap(pa, len, NVOS_MEM_READ_WRITE,
+            NvOsMemAttribute_Uncached, (void**)&g_pAHB)!=NvSuccess)
+    {
+        printk(KERN_INFO "failed to map ahb; DVFS will not function"
+               " correctly as a result\n");
+        return;
+    }
+
+    NvRmModuleGetBaseAddress(s_hRmGlobal,
+        NVRM_MODULE_ID(NvRmPrivModuleID_ClockAndReset, 0), &pa, &len);
+
+    if (NvRmPhysicalMemMap(pa, len, NVOS_MEM_READ_WRITE,
+            NvOsMemAttribute_Uncached,
+            (void**)&g_pCLK_RST_CONTROLLER)!=NvSuccess)
+    {
+        printk(KERN_INFO "failed to map car; DVFS will not function"
+               " correctly as a result\n");
+        return;
+    }
+
+    NvRmModuleGetBaseAddress(s_hRmGlobal,
+        NVRM_MODULE_ID(NvRmPrivModuleID_ExternalMemoryController, 0),
+            &pa, &len);
+
+    if (NvRmPhysicalMemMap(pa, len, NVOS_MEM_READ_WRITE,
+            NvOsMemAttribute_Uncached,
+            (void**)&g_pEMC)!=NvSuccess)
+    {
+        printk(KERN_INFO "failed to map emc; DVFS will not function"
+               " correctly as a result\n");
+        return;
+    }
+
+    NvRmModuleGetBaseAddress(s_hRmGlobal,
+        NVRM_MODULE_ID(NvRmPrivModuleID_MemoryController, 0), &pa, &len);
+
+    if (NvRmPhysicalMemMap(pa, len, NVOS_MEM_READ_WRITE,
+            NvOsMemAttribute_Uncached,
+            (void**)&g_pMC)!=NvSuccess)
+    {
+        printk(KERN_INFO "failed to map mc; DVFS will not function"
+               " correctly as a result\n");
+        return;
+    }
+
+    NvRmModuleGetBaseAddress(s_hRmGlobal,
+        NVRM_MODULE_ID(NvRmModuleID_Misc, 0), &pa, &len);
+
+    if (NvRmPhysicalMemMap(pa, len, NVOS_MEM_READ_WRITE,
+            NvOsMemAttribute_Uncached,
+            (void**)&g_pAPB_MISC)!=NvSuccess)
+    {
+        printk(KERN_INFO "failed to map misc; DVFS will not function"
                " correctly as a result\n");
         return;
     }
@@ -110,8 +188,22 @@ void __init NvAp20InitFlowController(void)
     g_contextSavePA = virt_to_phys((void*)g_contextSaveVA);
     g_NumActiveCPUs = num_online_cpus();
     g_enterLP2PA = virt_to_phys((void*)enter_lp2);
+
+    NvOsBootArgGet(NvBootArgKey_WarmBoot,
+        &WarmbootArgs, sizeof(NvBootArgsWarmboot));
+    if (NvRmMemHandleClaimPreservedHandle(s_hRmGlobal,
+        WarmbootArgs.MemHandleKey, &s_hWarmboot))
+    {
+        printk("Could not locate Warm booloader!\n");
+    }
+    else
+    {
+        g_AvpWarmbootEntry = NvRmMemPin(s_hWarmboot);
+    }
+
 #if ENABLE_LP0
-	module_context_init();
+    module_context_init();
+    power_lp0_init();
 #endif
 }
 
@@ -169,7 +261,6 @@ void mach_tegra_idle(void)
     static NvU64 cur_jiffies = 0, old_jiffies = 0;
     NvU64 delta_jif = 0;
     NvU32 msec, delta;
-    NvRmDfsClockUsage clock_usage;
 
 #ifdef CONFIG_WAKELOCK
     //The wake lock api is ready if the main lock is ready 
