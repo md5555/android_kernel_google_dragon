@@ -522,7 +522,7 @@ static void pci_tegra_setup_pci_device(struct pci_tegra_device *dev)
 		/* Handle 64 bit addresses by forcing to 32 bit addresses */
 		if ((flags == 0x0c) || (flags==0x04)) {
 			bar_index++;
-			BUG_ON(bar_index < 6);
+			BUG_ON(bar_index > PCI_STD_RESOURCE_END);
 			pci_conf_write32(dev->bus, dev->devfn, bar_index * 4
 				+ PCI_BASE_ADDRESS_0, 0);
 		}
