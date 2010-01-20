@@ -2569,9 +2569,13 @@ static int __init fsl_udc_probe(struct platform_device *pdev)
 	create_proc_file();
 
 #if defined(CONFIG_ARCH_TEGRA)
-	/* Get the OTG transceiver. If OTG is enabled then transceiver will be set
-	 * otherwise transceiver will be NULL */
+#ifdef CONFIG_USB_OTG_UTILS
+	/* Get the OTG transceiver. If OTG is enabled then transceiver
+	 * will be set otherwise transceiver will be NULL */
 	udc_controller->transceiver = otg_get_transceiver();
+#else
+	udc_controller->transceiver = NULL;
+#endif
 	/* Power down the phy if cable is not connected */
 	if (!(fsl_readl(&usb_sys_regs->vbus_wakeup) & USB_SYS_VBUS_STATUS))
 		platform_udc_clk_suspend();

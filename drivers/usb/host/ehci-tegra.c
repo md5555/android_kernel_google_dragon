@@ -82,6 +82,7 @@ static int tegra_ehci_hub_control (
 	/* Power down the USB phy when there is no port connection and all
 	 * HUB events are cleared by checking the lower four bits
 	 * (PORT_CONNECT | PORT_CSC | PORT_PE | PORT_PEC) */
+#ifdef CONFIG_USB_OTG_UTILS
 	if ((pdata->pUsbProperty->UsbMode == NvOdmUsbModeType_OTG)
 		&& ehci->transceiver) {
 		if (ehci->transceiver->state == OTG_STATE_A_SUSPEND) {
@@ -94,6 +95,7 @@ static int tegra_ehci_hub_control (
 			}
 		}
 	}
+#endif
 
 	return retval;
 }
@@ -158,6 +160,7 @@ static irqreturn_t tegra_ehci_irq (struct usb_hcd *hcd)
 
 	spin_lock (&ehci->lock);
 
+#ifdef CONFIG_USB_OTG_UTILS
 	if ((pdata->pUsbProperty->UsbMode == NvOdmUsbModeType_OTG)
 		&& ehci->transceiver) {
 		if (ehci->transceiver->state == OTG_STATE_A_HOST) {
@@ -175,7 +178,9 @@ static irqreturn_t tegra_ehci_irq (struct usb_hcd *hcd)
 			spin_unlock (&ehci->lock);
 			return IRQ_HANDLED;
 		}
-	} else {
+	} else
+#endif
+	{
 		if (pdata->pUsbProperty->IdPinDetectionType ==
 			NvOdmUsbIdPinType_CableId) {
 			/* read otgsc register for ID pin status change */
@@ -392,13 +397,15 @@ static int tegra_ehci_probe(struct platform_device *pdev)
 		goto fail;
 	platform_set_drvdata(pdev, hcd);
 
+#ifdef CONFIG_USB_OTG_UTILS
 	if (pdata->pUsbProperty->UsbMode == NvOdmUsbModeType_OTG) {
 		struct ehci_hcd *ehci = hcd_to_ehci(hcd);
 		ehci->transceiver = otg_get_transceiver();
 		if (ehci->transceiver) {
 			otg_set_host(ehci->transceiver, (struct usb_bus *)hcd);
-			/* Stop the controller and power down the phy, OTG will start the
-			 * host driver based on the ID pin detection */
+			/* Stop the controller and power down the phy, OTG will
+			 * start the host driver based on the ID pin
+			 * detection */
 			ehci_halt(ehci);
 			/* reset the host and put the controller in idle mode */
 			temp = ehci_readl(ehci, &ehci->regs->command);
@@ -414,7 +421,9 @@ static int tegra_ehci_probe(struct platform_device *pdev)
 			e = -ENODEV;
 			goto fail;
 		}
-	} else {
+	} else
+#endif
+	{
 		if (pdata->pUsbProperty->IdPinDetectionType ==
 			NvOdmUsbIdPinType_CableId) {
 			/* enable the cable ID interrupt */
