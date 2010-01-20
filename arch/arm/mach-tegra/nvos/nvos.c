@@ -161,7 +161,7 @@ typedef struct NvOsInterruptBlockRec
 
 static NvOsInterruptBlock *s_pIrqList[NVOS_MAX_SYSTEM_IRQS] = { NULL };
 
-static NvBootArgs s_BootArgs = { {0}, {0}, {0}, {0}, {0}, {{0}} };
+static NvBootArgs s_BootArgs = { {0}, {0}, {0}, {0}, {0}, {0}, {{0}} };
 
 /* Defined in mach-tegra/irq.c.  Stores the number of native (non-GPIO) SoC
  * IRQs. */
@@ -1707,6 +1707,10 @@ NvError NvOsBootArgGet(NvU32 key, void *arg, NvU32 size)
             break;
         case NvBootArgKey_Carveout:
             return NvOsGetCarveoutParam((NvBootArgsCarveout*)arg, size);
+        case NvBootArgKey_WarmBoot:
+            src = &s_BootArgs.WarmbootArgs;
+            size_src = sizeof(NvBootArgsWarmboot);
+            break;
         default:
             src = NULL;
             size_src = 0;
@@ -1906,6 +1910,22 @@ static int __init parse_tegra_tag(const struct tag *tag)
         }
         return 0;
     }
+    case NvBootArgKey_WarmBoot:
+    {
+        NvBootArgsWarmboot *dst = &s_BootArgs.WarmbootArgs;
+        const NvBootArgsWarmboot *src =
+            (const NvBootArgsWarmboot *)nvtag->bootarg;
+
+        if (nvtag->bootarg_len != sizeof(NvBootArgsWarmboot))
+            printk("Unexpected warmboot tag length!\n");
+        else
+        {
+            printk("Found a warmboot tag!\n");
+            *dst = *src;
+        }
+        return 0;
+    }
+
     default:
         return 0;
     }
