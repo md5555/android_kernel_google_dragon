@@ -34,12 +34,46 @@ enum tegra_dma_req_error {
 	TEGRA_DMA_REQ_ERROR_ABOTRED,
 };
 
+enum tegra_dma_req_buff_status {
+	TEGRA_DMA_REQ_BUF_STATUS_EMPTY,
+	TEGRA_DMA_REQ_BUF_STATUS_HALF_FULL,
+	TEGRA_DMA_REQ_BUF_STATUS_FULL,
+};
+
 struct tegra_dma_req {
 	struct list_head list;
 	unsigned int modid;
 	int instance;
 
+	/* Called when the req is complete and from the DMA ISR context.
+	 * When this is called the req structure is no longer queued by
+	 * the DMA channel.
+	 *
+	 * State of the DMA depends on the number of req it has. If there are
+	 * no DMA requests queued up, then it will STOP the DMA. It there are
+	 * more requests in the DMA, then it will queue the next request.
+	 */
 	void (*complete)(struct tegra_dma_req *req, int err);
+
+	/*  This is a called from the DMA ISR context when the DMA is still in
+	 *  progress and is actively filling same buffer.
+	 *
+	 *  In case of continous mode receive, this threshold is 1/2 the buffer
+	 *  size. In other cases, this will not even be called as there is no
+	 *  hardware support for it.
+	 *
+	 * In the case of continous mode receive, if there is next req already
+	 * queued, DMA programs the HW to use that req when this req is
+	 * completed. If there is no "next req" queued, then DMA ISR doesn't do
+	 * anything before calling this callback.
+	 *
+	 *	This is mainly used by the cases, where the clients has queued
+	 *	only one req and want to get some sort of DMA threshold
+	 *	callback to program the next buffer.
+	 *
+	 */
+	void (*threshold)(struct tegra_dma_req *req, int err);
+
 	/* 1 to copy to memory.
 	 * 0 to copy from the memory to device FIFO */
 	int to_memory;
@@ -56,6 +90,9 @@ struct tegra_dma_req {
 	/* Updated by the DMA driver on the conpletion of the request. */
 	int bytes_transferred;
 	int status;
+
+	/* DMA completion tracking information */
+	int buffer_status;
 
 	/* Client specific data */
 	void *data;
