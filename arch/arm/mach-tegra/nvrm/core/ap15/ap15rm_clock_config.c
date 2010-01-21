@@ -1279,7 +1279,8 @@ NvRmPrivAp15IsModuleClockException(
             Ap15PllUConfigure(hRmDevice, PrefFreqList[0]);
             pCstate->SourceClock = 0;
             pCstate->Divider = 1;
-            pCstate->actual_freq = PrefFreqList[0]; 
+            pCstate->actual_freq =
+                NvRmPrivGetClockSourceFreq(pCinfo->Sources[0]);
             return NV_TRUE;
 
         default:

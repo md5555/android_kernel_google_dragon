@@ -47,6 +47,10 @@
 
 #define MAX_USB_INSTANCES 5
 
+// On platforms that never disable USB controller clock, use 1KHz as an
+// indicator that USB controller is idle, and core voltage can be scaled down
+#define USBC_IDLE_KHZ (1)
+
 static NvDdkUsbPhy *s_pUsbPhy = NULL;
 static NvDdkUsbPhyUtmiPadConfig *s_pUtmiPadConfig = NULL;
 
@@ -247,22 +251,54 @@ UsbPhyDfsBusyHint(
         { NvRmDfsClockId_Emc, 0, 0, NV_TRUE },
         { NvRmDfsClockId_Ahb, 0, 0, NV_TRUE }
     };
+    NvError e = NvSuccess;
 
     pUsbHintOn[0].BoostDurationMs = BoostDurationMs;
     pUsbHintOn[1].BoostDurationMs = BoostDurationMs;
 
     if (DfsOn)
+    {
+        if (hUsbPhy->Caps.PhyRegInController)
+        {
+            // Indicate USB controller is active
+            NvRmFreqKHz PrefFreq = NvRmPowerModuleGetMaxFrequency(
+                hUsbPhy->hRmDevice,
+                NVRM_MODULE_ID(NvRmModuleID_Usb2Otg, hUsbPhy->Instance));
+
+            NV_CHECK_ERROR_CLEANUP(
+                NvRmPowerModuleClockConfig(hUsbPhy->hRmDevice,
+                    NVRM_MODULE_ID(NvRmModuleID_Usb2Otg, hUsbPhy->Instance),
+                    hUsbPhy->RmPowerClientId, PrefFreq, PrefFreq, &PrefFreq,
+                    1, NULL, 0));
+        }
         return NvRmPowerBusyHintMulti(hUsbPhy->hRmDevice,
                                       hUsbPhy->RmPowerClientId,
                                       pUsbHintOn,
                                       NV_ARRAY_SIZE(pUsbHintOn),
                                       NvRmDfsBusyHintSyncMode_Async);
+    }
     else
+    {
+        if (hUsbPhy->Caps.PhyRegInController)
+        {
+            // Indicate USB controller is idle
+            NvRmFreqKHz PrefFreq = USBC_IDLE_KHZ;
+
+            NV_CHECK_ERROR_CLEANUP(
+                NvRmPowerModuleClockConfig(hUsbPhy->hRmDevice,
+                    NVRM_MODULE_ID(NvRmModuleID_Usb2Otg, hUsbPhy->Instance),
+                    hUsbPhy->RmPowerClientId, PrefFreq, PrefFreq, &PrefFreq,
+                    1, NULL, 0));
+        }
         return NvRmPowerBusyHintMulti(hUsbPhy->hRmDevice,
                                       hUsbPhy->RmPowerClientId,
                                       pUsbHintOff,
                                       NV_ARRAY_SIZE(pUsbHintOff),
                                       NvRmDfsBusyHintSyncMode_Async);
+    }
+
+fail:
+    return e;
 }
 
 
@@ -274,7 +310,8 @@ UsbPhyInitialize(
     NvRmFreqKHz CurrentFreq = 0;
     NvRmFreqKHz PrefFreqList[3] = {12000, 60000, NvRmFreqUnspecified};
 
-    //NvOsDebugPrintf("UsbPhyInitialize::VOLTAGE ON\n");
+    // NvOsDebugPrintf("UsbPhyInitialize::VOLTAGE ON, instance %d\n",
+    //                hUsbPhy->Instance);
     // request power
     NV_CHECK_ERROR_CLEANUP(
         NvRmPowerVoltageControl(hUsbPhy->hRmDevice,
@@ -288,23 +325,31 @@ UsbPhyInitialize(
             NVRM_MODULE_ID(NvRmModuleID_Usb2Otg, hUsbPhy->Instance),
                 hUsbPhy->RmPowerClientId, NV_TRUE));
 
-    if (hUsbPhy->pProperty->UsbInterfaceType == NvOdmUsbInterfaceType_UlpiNullPhy)
+    if (!hUsbPhy->Caps.PhyRegInController)
     {
-        /* Request for 60MHz clk */
-        NV_CHECK_ERROR_CLEANUP(
-            NvRmPowerModuleClockConfig(hUsbPhy->hRmDevice,
-                NVRM_MODULE_ID(NvRmModuleID_Usb2Otg, hUsbPhy->Instance),
-                hUsbPhy->RmPowerClientId, PrefFreqList[1],
-                PrefFreqList[1], &PrefFreqList[1], 1, &CurrentFreq, 0));
+        if (hUsbPhy->pProperty->UsbInterfaceType == NvOdmUsbInterfaceType_UlpiNullPhy)
+        {
+            /* Request for 60MHz clk */
+            NV_CHECK_ERROR_CLEANUP(
+                NvRmPowerModuleClockConfig(hUsbPhy->hRmDevice,
+                    NVRM_MODULE_ID(NvRmModuleID_Usb2Otg, hUsbPhy->Instance),
+                    hUsbPhy->RmPowerClientId, PrefFreqList[1],
+                    PrefFreqList[1], &PrefFreqList[1], 1, &CurrentFreq, 0));
+        }
+        else
+        {
+            /* Request for 12 MHz clk */
+            NV_CHECK_ERROR_CLEANUP(
+                NvRmPowerModuleClockConfig(hUsbPhy->hRmDevice,
+                    NVRM_MODULE_ID(NvRmModuleID_Usb2Otg, hUsbPhy->Instance),
+                    hUsbPhy->RmPowerClientId, PrefFreqList[0],
+                    PrefFreqList[0], &PrefFreqList[0], 1, &CurrentFreq, 0));
+        }
     }
-    else
+    // else
     {
-        /* Request for 12 MHz clk */
-        NV_CHECK_ERROR_CLEANUP(
-            NvRmPowerModuleClockConfig(hUsbPhy->hRmDevice,
-                NVRM_MODULE_ID(NvRmModuleID_Usb2Otg, hUsbPhy->Instance),
-                hUsbPhy->RmPowerClientId, PrefFreqList[0],
-                PrefFreqList[0], &PrefFreqList[0], 1, &CurrentFreq, 0));
+        /* No need for actual clock configuration - all USB PLL frequencies
+         are available concurrently in this case. */
     }
 
     // Reset controller
