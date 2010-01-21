@@ -1187,7 +1187,7 @@ NvOdmQueryGetUsbProperty(NvOdmIoModule OdmIoModule,
         (NvOdmUsbChargerType_SE0 | NvOdmUsbChargerType_SE1 | NvOdmUsbChargerType_SK),
         20,
         NV_TRUE,
-        NvOdmUsbModeType_Device,
+        NvOdmUsbModeType_OTG,
         NvOdmUsbIdPinType_CableId,
         NvOdmUsbConnectorsMuxType_None,
         NV_FALSE
