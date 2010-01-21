@@ -224,9 +224,57 @@ static int tegra_kbc_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static int tegra_kbc_suspend(struct platform_device *pdev, pm_message_t state)
+{
+	struct tegra_kbc_driver_data *kbc = platform_get_drvdata(pdev);
+	NvError e = NvError_Success;
+
+	if (!kbc)
+		return -1;
+
+	if (!kbc->ddkHandle) {
+		printk("%s: device handle is NULL\n", __func__);
+		return -1;
+	}
+
+	/* power down hardware */
+	e = NvDdkKbcSuspend(kbc->ddkHandle);
+	if (e != NvSuccess) {
+		printk("%s: hardware power down fail\n", __func__);
+		return -1;
+	}
+
+	return 0;
+}
+
+static int tegra_kbc_resume(struct platform_device *pdev)
+{
+	struct tegra_kbc_driver_data *kbc = platform_get_drvdata(pdev);
+	NvError e = NvError_Success;
+
+	if (!kbc)
+		return -1;
+
+	if (!kbc->ddkHandle) {
+		printk("%s: device handle is NULL\n", __func__);
+		return -1;
+	}
+
+	/* power up hardware */
+	e = NvDdkKbcResume(kbc->ddkHandle);
+	if (e != NvSuccess) {
+		printk("%s: hardware power up fail\n", __func__);
+		return -1;
+	}
+
+	return 0;
+}
+
 static struct platform_driver tegra_kbc_driver = {
 	.probe		= tegra_kbc_probe,
 	.remove		= tegra_kbc_remove,
+	.suspend	= tegra_kbc_suspend,
+	.resume		= tegra_kbc_resume,
 	.driver		= {
 		.name	= "tegra_kbc",
 	},
