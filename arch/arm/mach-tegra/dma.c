@@ -212,22 +212,39 @@ int tegra_dma_dequeue_req(int channel, struct tegra_dma_req *_req)
 }
 EXPORT_SYMBOL(tegra_dma_dequeue_req);
 
-int tegra_dma_is_empty(int channel)
+bool tegra_dma_is_empty(int channel)
 {
 	unsigned long irq_flags;
 	struct tegra_dma_channel *ch = &dma_channels[channel];
-	int is_empty;
+	bool is_empty;
 
 	spin_lock_irqsave(&ch->lock, irq_flags);
 	if (list_empty(&ch->list))
-		is_empty = 1;
+		is_empty = true;
 	else
-		is_empty = 0;
+		is_empty = false;
 	spin_unlock_irqrestore(&ch->lock, irq_flags);
-
 	return is_empty;
 }
 EXPORT_SYMBOL(tegra_dma_is_empty);
+
+bool tegra_dma_is_req_inflight(int channel, struct tegra_dma_req *_req)
+{
+	unsigned long irq_flags;
+	struct tegra_dma_channel *ch = &dma_channels[channel];
+	struct tegra_dma_req *req;
+
+	spin_lock_irqsave(&ch->lock, irq_flags);
+	list_for_each_entry (req, &ch->list, list) {
+		if (req == _req) {
+			spin_unlock_irqrestore(&ch->lock, irq_flags);
+			return true;
+		}
+	}
+	spin_unlock_irqrestore(&ch->lock, irq_flags);
+	return false;
+}
+EXPORT_SYMBOL(tegra_dma_is_req_inflight);
 
 int tegra_dma_enqueue_req(int channel, struct tegra_dma_req *req)
 {
