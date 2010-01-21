@@ -66,7 +66,9 @@ wait_for_other_cores:
 	beq	finish_power_state
 
 	//Save the local timers
+	stmfd	sp!, {r1}
 	bl	save_local_timers
+	ldmfd	sp!, {r1}
 
 	//Ok we can save state for core0 now	
 save_arm_state:	
