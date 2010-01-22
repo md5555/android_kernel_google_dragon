@@ -34,7 +34,7 @@
 #define DRIVER_DESC    "Nvidia Tegra rfkill"
 
 static NvRmGpioHandle hGpio = NULL;
-static NvRmGpioPinHandle  hBlueToothPowerPin = 0;
+static NvRmGpioPinHandle  hBlueToothResetPin = 0;
 static NvU32 blueToothPowerRailId = 0xff;
 static struct rfkill *bt = NULL;
 
@@ -47,7 +47,7 @@ static int bluetooth_set_power(void *data, enum rfkill_state state)
 	NvU32 settletime = 0;
 	NvU32 GpioLevel;
 
-	if (blueToothPowerRailId == 0xff || !hBlueToothPowerPin || !hGpio)
+	if (blueToothPowerRailId == 0xff || !hBlueToothResetPin || !hGpio)
 		return -ENXIO;
 
 	hPmu = NvOdmServicesPmuOpen();
@@ -58,21 +58,24 @@ static int bluetooth_set_power(void *data, enum rfkill_state state)
 	case RFKILL_STATE_UNBLOCKED:
 		NvOdmServicesPmuGetCapabilities(hPmu, blueToothPowerRailId,
 			&vddrailcap);
-		NvOdmServicesPmuSetVoltage(hPmu, blueToothPowerRailId, 
+		NvOdmServicesPmuSetVoltage(hPmu, blueToothPowerRailId,
 			vddrailcap.requestMilliVolts, &settletime);
 		if (settletime)
 			NvOdmOsWaitUS(settletime);
 
-		/* Enable power */
+		/* Pulse a reset */
 		GpioLevel = 0;
-		NvRmGpioWritePins(hGpio, &hBlueToothPowerPin, &GpioLevel, 1);
+		NvRmGpioWritePins(hGpio, &hBlueToothResetPin, &GpioLevel, 1);
 
 		/* Configure as output */
-		NvRmGpioConfigPins(hGpio, &hBlueToothPowerPin, 1,
+		NvRmGpioConfigPins(hGpio, &hBlueToothResetPin, 1,
 			NvRmGpioPinMode_Output);
-			
+
+		/* Give 5 milli seconds for the reset pulse */
+		NvOdmOsSleepMS(5);
+
 		GpioLevel = 1;
-		NvRmGpioWritePins(hGpio, &hBlueToothPowerPin, &GpioLevel, 1);
+		NvRmGpioWritePins(hGpio, &hBlueToothResetPin, &GpioLevel, 1);
 
 		printk(KERN_INFO "Bluetooth power ON\n");
 		break;
@@ -80,13 +83,13 @@ static int bluetooth_set_power(void *data, enum rfkill_state state)
 	case RFKILL_STATE_SOFT_BLOCKED:
 		/* Disable power */
 		GpioLevel = 0;
-		NvRmGpioWritePins(hGpio, &hBlueToothPowerPin, &GpioLevel, 1);
+		NvRmGpioWritePins(hGpio, &hBlueToothResetPin, &GpioLevel, 1);
 
 		/* Configure as output */
-		NvRmGpioConfigPins(hGpio, &hBlueToothPowerPin, 1,
+		NvRmGpioConfigPins(hGpio, &hBlueToothResetPin, 1,
 			NvRmGpioPinMode_Output);
 
-		NvOdmServicesPmuSetVoltage( hPmu, blueToothPowerRailId, 
+		NvOdmServicesPmuSetVoltage( hPmu, blueToothPowerRailId,
 			NVODM_VOLTAGE_OFF, &settletime);
 		if (settletime)
 			NvOdmOsWaitUS(settletime);
@@ -112,7 +115,7 @@ static int __init tegra_rfkill_probe(struct platform_device *pdev)
 	NvU64 bluetooth = NV_ODM_GUID('b','l','u','t','o','o','t','h');
 
 	/* conn will be null if bluetooth is not present. */
-	conn = 
+	conn =
 		NvOdmPeripheralGetGuid(bluetooth);
 	if (!conn)
 		return -ENXIO;
@@ -121,7 +124,7 @@ static int __init tegra_rfkill_probe(struct platform_device *pdev)
 		if (conn->AddressList[i].Interface == NvOdmIoModule_Gpio) {
 			port  = conn->AddressList[i].Instance;
 			pin = conn->AddressList[i].Address;
-		} 
+		}
 		if (conn->AddressList[i].Interface == NvOdmIoModule_Vdd) {
 			blueToothPowerRailId = conn->AddressList[i].Address;
 		}
@@ -137,7 +140,7 @@ static int __init tegra_rfkill_probe(struct platform_device *pdev)
 		printk(KERN_ERR "NvRmGpioOpen failed\n");
 		return -ENXIO;
 	}
-	err = NvRmGpioAcquirePinHandle(hGpio, port, pin, &hBlueToothPowerPin);
+	err = NvRmGpioAcquirePinHandle(hGpio, port, pin, &hBlueToothResetPin);
 	if (err) {
 		printk(KERN_ERR "NvRmGpioAcquirePinHandle failed\n");
 		NvRmGpioClose(hGpio);
@@ -146,7 +149,7 @@ static int __init tegra_rfkill_probe(struct platform_device *pdev)
 
 	rfkill_switch_all(RFKILL_TYPE_BLUETOOTH, RFKILL_STATE_SOFT_BLOCKED);
 	bluetooth_set_power(NULL, RFKILL_STATE_SOFT_BLOCKED);
-	
+
 	bt = rfkill_allocate(&pdev->dev, RFKILL_TYPE_BLUETOOTH);
 	if (!bt) {
 		rc = -ENOMEM;
@@ -163,12 +166,12 @@ static int __init tegra_rfkill_probe(struct platform_device *pdev)
 	rc = rfkill_register(bt);
 	if (rc)
 		goto fail;
-	
+
 	return rc;
 
 fail:
-	if (hBlueToothPowerPin)
-		NvRmGpioReleasePinHandles(hGpio, &hBlueToothPowerPin, 1);
+	if (hBlueToothResetPin)
+		NvRmGpioReleasePinHandles(hGpio, &hBlueToothResetPin, 1);
 
 	if (hGpio)
 		NvRmGpioClose(hGpio);
@@ -183,8 +186,8 @@ static int __init tegra_rfkill_remove(struct platform_device *pdev)
 	rfkill_switch_all(RFKILL_TYPE_BLUETOOTH, RFKILL_STATE_SOFT_BLOCKED);
 	bluetooth_set_power(NULL, RFKILL_STATE_SOFT_BLOCKED);
 
-	if (hBlueToothPowerPin)
-		NvRmGpioReleasePinHandles(hGpio, &hBlueToothPowerPin, 1);
+	if (hBlueToothResetPin)
+		NvRmGpioReleasePinHandles(hGpio, &hBlueToothResetPin, 1);
 
 	if (hGpio)
 		NvRmGpioClose(hGpio);
@@ -214,4 +217,3 @@ static int __init tegra_rfkill_init(void)
 module_init(tegra_rfkill_init);
 MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_LICENSE("GPL");
-
