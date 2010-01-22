@@ -101,11 +101,10 @@ struct tegra_dma_req {
 int tegra_dma_enqueue_req(int channel, struct tegra_dma_req *req);
 int tegra_dma_dequeue_req(int channel, struct tegra_dma_req *req);
 void tegra_dma_dequeue(int channel);
-
-/*  Returns 1 if there are DMA is empty.
- */
-int tegra_dma_is_empty(int channel);
 void tegra_dma_flush(int channel);
+
+bool tegra_dma_is_req_inflight(int channel, struct tegra_dma_req *req);
+bool tegra_dma_is_empty(int channel);
 
 int tegra_dma_allocate_channel(int mode);
 void tegra_dma_free_channel(int channel);
