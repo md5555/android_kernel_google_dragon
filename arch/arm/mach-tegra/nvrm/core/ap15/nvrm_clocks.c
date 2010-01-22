@@ -1471,9 +1471,9 @@ NvRmPowerModuleClockConfig (
 
         // Display configuration always at nominal voltage. UART divider is not
         // in CAR, and clock state contains source, rather than UART frequency.
-        // Hence, get ready for fastest clock. For other modules use maximum of
-        // target and current frequency. Make sure voltage is high enough for
-        // maximum module source frequency.
+        // Hence, get ready for fastest clock. Same for USB clock. For other
+        // modules use maximum of target and current frequency. Make sure that
+        // voltage is high enough for maximum module source frequency.
         if ((ModuleName == NvRmModuleID_Display) ||
             (ModuleName == NvRmModuleID_Dsi))
         {
@@ -1482,7 +1482,8 @@ NvRmPowerModuleClockConfig (
         }
         else
         {
-            if (ModuleName == NvRmModuleID_Uart)
+            if ((ModuleName == NvRmModuleID_Uart) ||
+                (ModuleName == NvRmModuleID_Usb2Otg))
                 f = NvRmFreqMaximum;
             else
                 f = NV_MAX(MaxFreq, state->actual_freq);
@@ -1664,7 +1665,7 @@ leave:
          (ModuleName == NvRmModuleID_Dsi) || state->Vscale))
     {
         // Tune voltage level to the actually configured frequency; for Display
-        // and UART, use maximum requested frequency. Make sure voltage is
+        // UART, and USB use maximum requested frequency. Make sure voltage is
         // updated after display configuration, which may change DVFS clocks.
         SourceClockFreq =
             s_ClockSourceFreq[(cinfo->Sources[state->SourceClock])];
@@ -1685,7 +1686,8 @@ leave:
         }
         else
         {
-            if (ModuleName == NvRmModuleID_Uart)
+            if ((ModuleName == NvRmModuleID_Uart) ||
+                (ModuleName == NvRmModuleID_Usb2Otg))
                 f = MaxFreq;
             else
                 f = state->actual_freq;
