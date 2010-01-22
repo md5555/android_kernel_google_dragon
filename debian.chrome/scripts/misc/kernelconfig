@@ -21,7 +21,7 @@ case "$mode" in
 esac
 kerneldir="`pwd`"
 confdir="$kerneldir/${DEBIAN}/config"
-archs="i386"
+archs="i386 armel"
 family='chromeos'
 bindir="`pwd`/${DEBIAN}/scripts/misc"
 common_conf="$confdir/config.common.$family"
@@ -41,6 +41,7 @@ for arch in $archs; do
 		amd64)	kernarch="x86_64"	;;
 		lpia)   kernarch="x86" ;;
 		sparc)	kernarch="sparc64"	;;
+		armel)  kernarch="arm" ;;
 		*)	kernarch="$arch"	;;
 	esac
 
