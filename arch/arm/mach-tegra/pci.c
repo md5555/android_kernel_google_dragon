@@ -402,12 +402,21 @@ static struct pci_bus __init *pci_tegra_scan_bus(int nr,
 	return NULL;
 }
 
+int pci_tegra_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
+{
+	int ret = 0;
+	pci_tegra_read_conf(dev->bus, dev->devfn, PCI_INTERRUPT_LINE,
+		sizeof(int), &ret);
+	return (ret & 0x000000ff);
+}
+
 static struct hw_pci pci_tegra_data __initdata = {
 	.nr_controllers		= 2,
 	.preinit		= pci_tegra_preinit,
 	.setup			= pci_tegra_setup,
 	.scan			= pci_tegra_scan_bus,
 	.swizzle		= pci_std_swizzle,
+	.map_irq 		= pci_tegra_map_irq,
 };
 
 late_initcall(pcie_tegra_init);

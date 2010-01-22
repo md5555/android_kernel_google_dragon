@@ -494,7 +494,7 @@ static void pci_tegra_setup_pci_device(struct pci_tegra_device *dev)
 				}
 
 				dev->res[bar_index].flags = IORESOURCE_MEM;
-				dev->res[bar_index].start = 0;
+				dev->res[bar_index].start = addr;
 				dev->res[bar_index].end =
 					dev->res[bar_index].start + size - 1;
 
