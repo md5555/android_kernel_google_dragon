@@ -33,6 +33,7 @@
 
 #include <mach/pci.h>
 #include <mach/nvrm_linux.h>
+#include <mach/board.h>
 
 #include "nvrm_pmu.h"
 #include "nvodm_query_discovery.h"
@@ -362,7 +363,7 @@ static int __init pci_tegra_setup(int nr, struct pci_sys_data *data)
 			0, NULL);
 		NvRmPowerModuleClockControl(s_hRmGlobal, NvRmPrivModuleID_Pcie,
 			pci_tegra_powerid, NV_FALSE);
-		pci_tegra_power(0);
+		tegra_set_voltage(NV_VDD_PEX_CLK_ODM_ID, 0);
 		return 0;
 	}
 	pci_tegra_device_attached = true;

@@ -320,6 +320,4 @@ static inline void __iomem *pci_tegra_config_addr(u8 bus_number,
 
 void pci_tegra_enumerate(void);
 
-void __init pci_tegra_power(int on);
-
 #endif

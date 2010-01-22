@@ -22,5 +22,11 @@
 #define __MACH_TEGRA_BOARD_H
 
 #include <linux/types.h>
+#include "nvodm_pmu.h"
+#include "mach/nvrm_linux.h"
+#include "nvodm_query_discovery.h"
+
+/* ON/off power rail given the GUID */
+void tegra_set_voltage(NvU64 guid, int on);
 
 #endif

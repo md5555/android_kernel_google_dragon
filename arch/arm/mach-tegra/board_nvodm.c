@@ -26,6 +26,7 @@
 #include <linux/platform_device.h>
 #include <linux/synaptics_i2c_rmi.h>
 #include <linux/i2c.h>
+#include <linux/pm.h>
 #include <linux/spi/spi.h>
 
 #include <asm/mach-types.h>
@@ -56,7 +57,6 @@
 #include "mach/nvrm_linux.h"
 #include "nvassert.h"
 #include "nvodm_query_discovery.h"
-#include "mach/pci.h"
 
 #include <../../../drivers/staging/android/timed_output.h>
 
@@ -277,13 +277,13 @@ static void __init NvConfigDebugConsole(
     return;
 }
 
-void __init pci_tegra_power(int on)
+void tegra_set_voltage(NvU64 guid, int on)
 {
 	u32 settling_time;
 	const NvOdmPeripheralConnectivity *con = NULL;
 	int i;
 
-	con = NvOdmPeripheralGetGuid(NV_VDD_PEX_CLK_ODM_ID);
+	con = NvOdmPeripheralGetGuid(guid);
 	if (con == NULL)
 		return;
 
@@ -310,6 +310,12 @@ extern void __init tegra_clk_init(void);
 #ifdef CONFIG_TEGRA_DPRAM
 extern void __init tegra_init_snor_controller(void);
 #endif
+
+
+static void tegra_system_power_off(void)
+{
+	tegra_set_voltage(NV_VDD_SoC_ODM_ID, 0);
+}
 
 #if !(defined(CONFIG_ENC28J60) && defined(CONFIG_SPI_TEGRA))
 #define register_enc28j60() do {} while (0)
@@ -476,11 +482,12 @@ static void __init tegra_machine_init(void)
 #endif
 
 #ifdef CONFIG_TEGRA_PCI
-	pci_tegra_power(1);
+	tegra_set_voltage( NV_VDD_PEX_CLK_ODM_ID, 1);
 #else
-	pci_tegra_power(0);
+	tegra_set_voltage( NV_VDD_PEX_CLK_ODM_ID, 0);
 #endif
 
+	pm_power_off = tegra_system_power_off;
 }
 
 MACHINE_START(TEGRA_GENERIC, "Tegra generic")
