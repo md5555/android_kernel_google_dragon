@@ -304,6 +304,7 @@ static int __devinit nvec_mouse_probe(struct platform_device *pdev)
 	printk("**nvec_mouse_probe\n");
 
 	mouse = kzalloc(sizeof(struct nvec_mouse), GFP_KERNEL);
+	memset(mouse, 0, sizeof(struct nvec_mouse));
 	input_dev = input_allocate_device();
 	if (!mouse || !input_dev) {
 		printk("**nvec_mouse_probe: input_allocate_device: fail\n");
@@ -397,12 +398,15 @@ fail_input_register:
 	(void)kthread_stop(mouse->task);
 fail_thread_create:
 	NvOdmOsSemaphoreDestroy(mouse->semaphore);
+	mouse->semaphore = NULL;
 fail_semaphore_create:
 fail_no_mouse_found:
 	NvOdmMouseDeviceClose(mouse->hDevice);
+	mouse->hDevice = NULL;
 fail:
 	input_free_device(input_dev);
 	kfree(mouse);
+	mouse = NULL;
 
 	return error;
 }
@@ -415,11 +419,58 @@ static int __devexit nvec_mouse_remove(struct platform_device *dev)
 	printk("**nvec_mouse_remove\n");
 	(void)kthread_stop(mouse->task);
 	NvOdmOsSemaphoreDestroy(mouse->semaphore);
+	mouse->semaphore = NULL;
 	NvOdmMouseDeviceClose(mouse->hDevice);
+	mouse->hDevice = NULL;
 	input_free_device(input_dev);
 	kfree(mouse);
+	mouse = NULL;
 
 	printk("**nvec_mouse_remove end\n");
+	return 0;
+}
+
+static int nvec_mouse_suspend(struct platform_device *pdev, pm_message_t state)
+{
+	struct input_dev *input_dev = platform_get_drvdata(pdev);
+	struct nvec_mouse *mouse = input_get_drvdata(input_dev);
+
+	if (!mouse)
+		return -1;
+
+	if (!mouse->hDevice) {
+		printk("%s: device handle NULL\n", __func__);
+		return -1;
+	}
+
+	/* power down hardware */
+	if (!NvOdmMousePowerSuspend(mouse->hDevice)) {
+		printk("%s: hardware power down fail\n", __func__);
+		return -1;
+	}
+
+	return 0;
+}
+
+static int nvec_mouse_resume(struct platform_device *pdev)
+{
+	struct input_dev *input_dev = platform_get_drvdata(pdev);
+	struct nvec_mouse *mouse = input_get_drvdata(input_dev);
+
+	if (!mouse)
+		return -1;
+
+	if (!mouse->hDevice) {
+		printk("%s: device handle NULL\n", __func__);
+		return -1;
+	}
+
+	/* power up hardware */
+	if (!NvOdmMousePowerResume(mouse->hDevice)) {
+		printk("%s: hardware power up fail\n", __func__);
+		return -1;
+	}
+
 	return 0;
 }
 
@@ -430,8 +481,9 @@ static struct platform_driver nvec_mouse_driver = {
 	},
 	.probe		= nvec_mouse_probe,
 	.remove		= __devexit_p(nvec_mouse_remove),
+	.suspend	= nvec_mouse_suspend,
+	.resume		= nvec_mouse_resume,
 };
-
 
 static int __init nvec_mouse_init(void)
 {

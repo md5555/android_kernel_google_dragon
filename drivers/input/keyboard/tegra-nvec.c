@@ -312,7 +312,6 @@ static void nvec_keyboard_close(struct input_dev *dev)
 	return;
 }
 
-
 static int __devinit nvec_keyboard_probe(struct platform_device *pdev)
 {
 	int error;
@@ -362,6 +361,12 @@ static int __devinit nvec_keyboard_probe(struct platform_device *pdev)
 		__set_bit(extcode_tab_us102[i], input_dev->keybit);
 	}
 
+	/* get EC handle */
+	nverr = NvEcOpen(&keyboard->hNvec, 0 /* instance */);
+	if (nverr != NvError_Success) {
+		goto fail_input_register;
+	}
+
 	error = input_register_device(keyboard->input_dev);
 	if (error)
 		goto fail_input_register;
@@ -374,6 +379,8 @@ fail_thread_create:
 	NvOdmKeyboardDeInit();
 fail_keyboard_init:
 fail:
+	NvEcClose(keyboard->hNvec);
+	keyboard->hNvec = NULL;
 	input_free_device(input_dev);
 	kfree(keyboard);
 
@@ -383,12 +390,104 @@ fail:
 static int __devexit nvec_keyboard_remove(struct platform_device *dev)
 {
 	struct input_dev *input_dev = platform_get_drvdata(dev);
-	struct nvec_keyboard *keyboard = platform_get_drvdata(dev);
+	struct nvec_keyboard *keyboard = input_get_drvdata(input_dev);
 
 	(void)kthread_stop(keyboard->task);
 	NvOdmKeyboardDeInit();
+	NvEcClose(keyboard->hNvec);
+	keyboard->hNvec = NULL;
 	input_free_device(input_dev);
 	kfree(keyboard);
+
+	return 0;
+}
+
+static int nvec_keyboard_suspend(struct platform_device *pdev, pm_message_t state)
+{
+	NvEcRequest Request = {0};
+	NvEcResponse Response = {0};
+	struct input_dev *input_dev = platform_get_drvdata(pdev);
+	struct nvec_keyboard *keyboard = input_get_drvdata(input_dev);
+	NvError err = NvError_Success;
+
+	if (!keyboard) {
+		printk("%s: device handle is NULL\n", __func__);
+		return -1;
+	}
+
+	/* disable keyboard scanning */
+	Request.PacketType = NvEcPacketType_Request;
+	Request.RequestType = NvEcRequestResponseType_Keyboard;
+	Request.RequestSubtype =
+		(NvEcRequestResponseSubtype)NvEcKeyboardSubtype_Disable;
+	Request.NumPayloadBytes = 0;
+
+	err = NvEcSendRequest(
+					keyboard->hNvec,
+					&Request,
+					&Response,
+					sizeof(Request),
+					sizeof(Response));
+	if (err != NvError_Success) {
+		printk("%s: scanning disable request send fail\n", __func__);
+		return -1;
+	}
+
+	if (Response.Status != NvEcStatus_Success) {
+		printk("%s: scanning could not be disabled\n", __func__);
+		return -1;
+	}
+
+	/* power down hardware */
+	if (!NvOdmKeyboardPowerHandler(NV_TRUE)) {
+		printk("%s: hardware power down fail\n", __func__);
+		return -1;
+	}
+
+	return 0;
+}
+
+static int nvec_keyboard_resume(struct platform_device *pdev)
+{
+	NvEcRequest Request = {0};
+	NvEcResponse Response = {0};
+	struct input_dev *input_dev = platform_get_drvdata(pdev);
+	struct nvec_keyboard *keyboard = input_get_drvdata(input_dev);
+	NvError err = NvError_Success;
+
+	if (!keyboard) {
+		printk("%s: device handle is NULL\n", __func__);
+		return -1;
+	}
+
+	/* power up hardware */
+	if (!NvOdmKeyboardPowerHandler(NV_FALSE)) {
+		printk("%s: hardware power up fail\n", __func__);
+		return -1;
+	}
+
+	/* re-enable keyboard scanning */
+	Request.PacketType = NvEcPacketType_Request;
+	Request.RequestType = NvEcRequestResponseType_Keyboard;
+	Request.RequestSubtype =
+		(NvEcRequestResponseSubtype)NvEcKeyboardSubtype_Enable;
+	Request.NumPayloadBytes = 0;
+
+	err = NvEcSendRequest(
+					keyboard->hNvec,
+					&Request,
+					&Response,
+					sizeof(Request),
+					sizeof(Response));
+	if (err != NvError_Success) {
+		printk("%s: scanning enable request send fail\n", __func__);
+		return -1;
+	}
+
+	if (Response.Status != NvEcStatus_Success) {
+		printk("%s: scanning could not be enabled\n", __func__);
+		return -1;
+	}
 
 	return 0;
 }
@@ -400,8 +499,9 @@ static struct platform_driver nvec_keyboard_driver = {
 	},
 	.probe	= nvec_keyboard_probe,
 	.remove	= __devexit_p(nvec_keyboard_remove),
+	.suspend	= nvec_keyboard_suspend,
+	.resume		= nvec_keyboard_resume,
 };
-
 
 static int __init nvec_keyboard_init(void)
 {
