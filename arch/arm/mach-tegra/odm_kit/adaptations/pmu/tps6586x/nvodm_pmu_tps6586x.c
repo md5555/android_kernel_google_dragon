@@ -1,3 +1,4 @@
+
 /*
  * Copyright (c) 2009 NVIDIA Corporation.
  * All rights reserved.
@@ -1649,8 +1650,10 @@ NvBool Tps6586xSetup(NvOdmPmuDeviceHandle hDevice)
     }
 #endif
 
+#if defined(CONFIG_TEGRA_ODM_HARMONY)
     /* Initialize the refcont of the rails which are ON by default */
     hPmu->supplyRefCntTable[TPS6586xPmuSupply_SoC] = 1;
+#endif
 
 #if !defined(CONFIG_TEGRA_ODM_HARMONY)
     // If your project doesn't use this GPIO, please delete them!
