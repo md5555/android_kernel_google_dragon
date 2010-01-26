@@ -28,6 +28,7 @@
 #include <linux/sched.h>
 #include <linux/cpu.h>
 #include <linux/platform_device.h>
+#include <linux/freezer.h>
 #include "nvcommon.h"
 #include "nvassert.h"
 #include "nvos.h"
@@ -151,6 +152,8 @@ static void NvRmDfsThread(void *args)
     {
         panic("Unable to setaffinity of DFS thread!\n");
     }
+
+    set_freezable_with_signal();
 
     if (NvRmDfsGetState(hRm) > NvRmDfsRunState_Disabled)
     {
