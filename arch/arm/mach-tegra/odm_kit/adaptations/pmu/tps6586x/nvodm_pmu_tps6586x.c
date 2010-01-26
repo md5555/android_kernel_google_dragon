@@ -1649,6 +1649,9 @@ NvBool Tps6586xSetup(NvOdmPmuDeviceHandle hDevice)
     }
 #endif
 
+    /* Initialize the refcont of the rails which are ON by default */
+    hPmu->supplyRefCntTable[TPS6586xPmuSupply_SoC] = 1;
+
 #if !defined(CONFIG_TEGRA_ODM_HARMONY)
     // If your project doesn't use this GPIO, please delete them!
     // Enable GPIO3 to HIGH
