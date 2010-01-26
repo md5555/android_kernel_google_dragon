@@ -60,6 +60,7 @@
 #include <asm/setup.h>
 #include <asm/cacheflush.h>
 #include <mach/irqs.h>
+#include <linux/freezer.h>
 
 #if NVOS_TRACE || NV_DEBUG
 #undef NvOsAlloc
@@ -984,10 +985,9 @@ void NvOsMutexLock(NvOsMutexHandle mutex)
         /*  FIXME: interruptible mutexes may not be necessary, since this
          *  implementation is only used by the kernel tasks. */
         ret = mutex_lock_interruptible( &mutex->mutex );
-
         //  If a signal arrives while the task is sleeping,
         //  re-schedule it and attempt to reacquire the mutex
-        if (ret)
+        if (ret && !try_to_freeze())
             schedule();
     } while (ret);
     mutex->owner = info;
@@ -1108,16 +1108,16 @@ NvError NvOsSemaphoreUnmarshal(
 int NvOsSemaphoreWaitInterruptible(NvOsSemaphoreHandle semaphore);
 int NvOsSemaphoreWaitInterruptible(NvOsSemaphoreHandle semaphore)
 {
-    NV_ASSERT( semaphore );
+    NV_ASSERT(semaphore);
 
-    return down_interruptible( &semaphore->sem );
+    return down_interruptible(&semaphore->sem);
 }
 
 void NvOsSemaphoreWait(NvOsSemaphoreHandle semaphore)
 {
     int ret;
     
-    NV_ASSERT( semaphore );
+    NV_ASSERT(semaphore);
 
     do
     {
@@ -1125,13 +1125,13 @@ void NvOsSemaphoreWait(NvOsSemaphoreHandle semaphore)
          * one for semaphore that were created by users ioctl'ing into
          * the nvos device (which need down_interruptible), and others that
          * are created and used by the kernel drivers, which do not */
-        ret = down_interruptible( &semaphore->sem );
-
-        //The kernel doesn't reschedule tasks
-        //that have pending signals. If a signal
-        //is pending, forcibly reschedule the task.
-        if (ret)
-            schedule();        
+        ret = down_interruptible(&semaphore->sem);
+        /* The kernel doesn't reschedule tasks
+         * that have pending signals. If a signal
+         * is pending, forcibly reschedule the task.
+         */
+        if (ret && !try_to_freeze())
+            schedule();
     } while (ret);
 }
 
@@ -1163,7 +1163,7 @@ NvError NvOsSemaphoreWaitTimeout(
     /* FIXME:  The kernel doesn't provide an interruptible timed
      * semaphore wait, which would be preferable for our the ioctl'd
      * NvOs sempahores. */
-    t = down_timeout( &semaphore->sem, (long)msecs_to_jiffies( msec ) );
+    t = down_timeout(&semaphore->sem, (long)msecs_to_jiffies( msec ));
 
     if (t == -ETIME)
         return NvError_Timeout;
