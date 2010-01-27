@@ -525,6 +525,21 @@ static irqreturn_t tegra_uart_isr(int irq, void *data)
 
 static void tegra_stop_rx(struct uart_port *u)
 {
+	struct tegra_uart_port *t;
+	unsigned long flags;
+
+	t = container_of(u, struct tegra_uart_port, uport);
+
+	spin_lock_irqsave(&u->lock, flags);
+
+	u->mctrl &= ~TIOCM_RTS;
+	u->mctrl &= ~TIOCM_DTR;
+	tegra_set_mctrl(u, u->mctrl);
+
+	tegra_dma_dequeue(t->rx_dma);
+
+	spin_unlock_irqrestore(&u->lock, flags);
+
 	return;
 }
 
@@ -801,13 +816,6 @@ static void tegra_shutdown(struct uart_port *u)
 	t = container_of(u, struct tegra_uart_port, uport);
 	dev_vdbg(u->dev, "+tegra_shutdown\n");
 
-	if (t->use_tx_dma) {
-		/* FIXME: dequeue means abort. Should we need to abort
-		 * or wait for the DMA to complete?
-		 */
-		tegra_dma_dequeue_req(t->tx_dma, &t->tx_dma_req);
-		t->tx_dma_req.size = 0;
-	}
 	tegra_uart_hw_deinit(t);
 	spin_unlock_irqrestore(&u->lock, flags);
 
@@ -913,6 +921,13 @@ static unsigned int tegra_tx_empty(struct uart_port *u)
 
 static void tegra_stop_tx(struct uart_port *u)
 {
+	struct tegra_uart_port *t;
+	t = container_of(u, struct tegra_uart_port, uport);
+
+	if (t->use_tx_dma) {
+		tegra_dma_dequeue_req(t->tx_dma, &t->tx_dma_req);
+		t->tx_dma_req.size = 0;
+	}
 	return;
 }
 
@@ -1128,10 +1143,14 @@ static struct uart_ops tegra_uart_ops = {
 
 static int __init tegra_uart_probe(struct platform_device *pdev);
 static int __devexit tegra_uart_remove(struct platform_device *pdev);
+static int tegra_uart_suspend(struct platform_device *pdev, pm_message_t state);
+static int tegra_uart_resume(struct platform_device *pdev);
 
 static struct platform_driver tegra_uart_platform_driver = {
 	.remove		= tegra_uart_remove,
 	.probe		= tegra_uart_probe,
+	.suspend	= tegra_uart_suspend,
+	.resume		= tegra_uart_resume,
 	.driver		= {
 		.name	= "tegra_uart"
 	}
@@ -1144,6 +1163,38 @@ static struct uart_driver tegra_uart_driver =
 	.dev_name	= "ttyHS",
 	.cons		= 0,
 };
+
+static int tegra_uart_suspend(struct platform_device *pdev, pm_message_t state)
+{
+	struct tegra_uart_port *t = platform_get_drvdata(pdev);
+	struct uart_port *u;
+
+	if (pdev->id < 0 || pdev->id > tegra_uart_driver.nr) {
+		printk(KERN_ERR "Invalid Uart instance (%d) \n", pdev->id);
+	}
+
+	dev_err(t->uport.dev, "tegra_uart_suspend called \n");
+	u = &t->uport;
+	uart_suspend_port(&tegra_uart_driver, u);
+	return 0;
+}
+
+static int tegra_uart_resume(struct platform_device *pdev)
+{
+	struct tegra_uart_port *t = platform_get_drvdata(pdev);
+	struct uart_port *u;
+
+	if (pdev->id < 0 || pdev->id > tegra_uart_driver.nr) {
+		printk(KERN_ERR "Invalid Uart instance (%d) \n", pdev->id);
+	}
+
+	u = &t->uport;
+	dev_err(t->uport.dev, "tegra_uart_resume called \n");
+	uart_resume_port(&tegra_uart_driver, u);
+	return 0;
+}
+
+
 
 static int __devexit tegra_uart_remove(struct platform_device *pdev)
 {
