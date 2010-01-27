@@ -119,7 +119,7 @@ static int check_block_isbad(struct mtd_info *mtd, loff_t offs,
 		&blockInfo, NV_FALSE);
 
 	if (!blockInfo.IsFactoryGoodBlock) {
-		//It's a factory bad block
+		/* It's a factory bad block */
 		ret = 1;
 		pr_info("Block %d is factory bad in chip %d, offset = "
 			"%llx\n", block, deviceNum, offs);
@@ -326,10 +326,10 @@ static int tegra_nand_erase(struct mtd_info *mtd, struct erase_info *instr)
 
 		pageNumbers[ChipNumber] = -1;
 
-		// get the nand flash chip number
+		/* get the nand flash chip number */
 		ChipNumber = (NvU32)(curAddr >> info->chip.chip_shift);
 
-		// get the page number on the nand flash chip
+		/* get the page number on the nand flash chip */
 		PageNumber = (NvU32)((curAddr >> info->chip.page_shift) &
 			info->chip.page_mask);
 
@@ -386,10 +386,10 @@ static int tegra_nand_read(struct mtd_info *mtd, loff_t from, size_t len,
 	do {
 		pageNumbers[ChipNumber] = -1;
 
-		// get the nand flash chip number
+		/* get the nand flash chip number */
 		ChipNumber = (NvU32)(curAddr >> info->chip.chip_shift);
 
-		// get the page number on the nand flash chip
+		/* get the page number on the nand flash chip */
 		PageNumber = (NvU32)((curAddr >> info->chip.page_shift) &
 			info->chip.page_mask);
 
@@ -455,10 +455,10 @@ static int do_read_oob(struct mtd_info *mtd, loff_t from,
 	for (i=0;i<NDFLASH_CS_MAX;i++)
 		pageNumbers[i] = -1;
 
-	// get the nand flash chip number
+	/* get the nand flash chip number */
 	ChipNumber = (NvU32)(curAddr >> info->chip.chip_shift);
 
-	// get the page number on the nand flash chip
+	/* get the page number on the nand flash chip */
 	PageNumber = (NvU32)((curAddr >> info->chip.page_shift) &
 		info->chip.page_mask);
 
@@ -549,10 +549,10 @@ static int tegra_nand_write(struct mtd_info *mtd, loff_t to, size_t len,
 	do {
 		pageNumbers[ChipNumber] = -1;
 
-		// get the nand flash chip number
+		/* get the nand flash chip number */
 		ChipNumber = (NvU32)(curAddr >> info->chip.chip_shift);
 
-		// get the page number on the nand flash chip
+		/* get the page number on the nand flash chip */
 		PageNumber = (NvU32)((curAddr >> info->chip.page_shift) &
 			info->chip.page_mask);
 
@@ -613,10 +613,10 @@ static int do_write_oob(struct mtd_info *mtd, loff_t to,
 	for (i=0;i<NDFLASH_CS_MAX;i++)
 		pageNumbers[i] = -1;
 
-	// get the nand flash chip number
+	/* get the nand flash chip number */
 	ChipNumber = (NvU32)(to >> info->chip.chip_shift);
 
-	// get the page number on the nand flash chip
+	/* get the page number on the nand flash chip */
 	PageNumber = (NvU32)((to >> info->chip.page_shift) &
 		info->chip.page_mask);
 
@@ -667,14 +667,41 @@ static int tegra_nand_write_oob(struct mtd_info *mtd, loff_t to,
 	return do_write_oob(mtd, to, ops);
 }
 
-static int tegra_nand_suspend(struct mtd_info *mtd)
+static int tegra_nand_suspend(struct platform_device *dev,
+	pm_message_t state)
 {
+	struct mtd_info *mtd = platform_get_drvdata(dev);
+	NvError Err;
+
+	/* Call ddk suspend API */
+	if (!s_hNand) {
+		NvOsDebugPrintf("\n Nand: Ddk handle NULL in suspend ");
+		return -1;
+	}
+	Err = NvDdkNandSuspend(s_hNand);
+	if (Err != NvSuccess) {
+		NvOsDebugPrintf("\n Nand Ddk Suspend error=0x%x ", Err);
+		return -1;
+	}
 	return 0;
 }
 
-static void tegra_nand_resume(struct mtd_info *mtd)
+static int tegra_nand_resume(struct platform_device *dev)
 {
-	; // do nothing
+	struct mtd_info *mtd = platform_get_drvdata(dev);
+	NvError Err;
+
+	/* call Ddk resume code */
+	if (!s_hNand) {
+		NvOsDebugPrintf("\n Nand: Ddk handle NULL in resume ");
+		return -1;
+	}
+	Err = NvDdkNandResume(s_hNand);
+	if (Err != NvSuccess) {
+		NvOsDebugPrintf("\n Nand Ddk Resume error=0x%x ", Err);
+		return -1;
+	}
+	return 0;
 }
 
 static int scan_bad_blocks(struct tegra_nand_info *info)
@@ -728,7 +755,7 @@ static int tegra_nand_scan(struct mtd_info *mtd)
 		NvDdkNandGetDeviceInfo(s_hNand, 0, &nandDevInfo)
 	);
 
-	//Get some info from the nand driver
+	/*Get some info from the nand driver */
 	vendor_id = nandDevInfo.VendorId;
 	dev_id = nandDevInfo.DeviceId;
 
@@ -761,7 +788,7 @@ static int tegra_nand_scan(struct mtd_info *mtd)
 	}
 
 	/* spare area, must be at least 64 bytes */
-	//FIXME: Nand driver doesn't expose spare area size?
+	/* FIXME: Nand driver doesn't expose spare area size? */
 	tmp = NAND_SPARE_SIZE;
 
 	if (tmp < 64) {
@@ -911,8 +938,8 @@ static int __devexit tegra_nand_remove(struct platform_device *pdev)
 static struct platform_driver tegra_nand_driver = {
 	.probe		= tegra_nand_probe,
 	.remove		= __devexit_p(tegra_nand_remove),
-	.suspend	= NULL,
-	.resume		= NULL,
+	.suspend	= tegra_nand_suspend,
+	.resume		= tegra_nand_resume,
 	.driver		= {
 		.name	= "tegra_nand",
 		.owner	= THIS_MODULE,
