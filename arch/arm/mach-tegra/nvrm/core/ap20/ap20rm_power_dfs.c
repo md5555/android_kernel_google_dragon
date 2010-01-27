@@ -223,7 +223,8 @@ NvRmPrivAp20DttPolicyUpdate(
                 break;
         }
         NV_ASSERT(steps);
-        s_CpuThrottleMaxKHz = p[steps-1];
+        s_CpuThrottleMaxKHz = NV_MIN(
+            NvRmPrivGetSocClockLimits(NvRmModuleID_Cpu)->MaxKHz, p[steps-1]);
         s_CpuThrottleMinKHz =
             NvRmPrivGetSocClockLimits(NvRmModuleID_Cpu)->MaxKHz / 2;
         NV_ASSERT(s_CpuThrottleMaxKHz > s_CpuThrottleMinKHz); 
@@ -364,19 +365,17 @@ NvRmPrivAp20GetPmRequest(
 
     // Slave CPU1 power management policy thresholds:
     // - use fixed values if they are defined explicitly, otherwise
-    // - use max CPU frequency at min CPU voltage) as CPU1 OffMax threshold,
+    // - set CPU1 OffMax threshold at 2/3 of cpu frequency range,
     //   and half of that frequency as CPU1 OnMin threshold
     if ((s_Cpu1OffMaxKHz == 0) && (s_Cpu1OnMinKHz == 0))
     {
-        NvU32 n;
-        const NvRmFreqKHz* p = NvRmPrivModuleVscaleGetMaxKHzList(
-            hRmDevice, NvRmModuleID_Cpu, &n);
+        NvRmFreqKHz MaxKHz =
+            NvRmPrivGetSocClockLimits(NvRmModuleID_Cpu)->MaxKHz;
 
-        NV_ASSERT (p && n);
         s_Cpu1OnMinKHz = NVRM_CPU1_ON_MIN_KHZ ?
-                         NVRM_CPU1_ON_MIN_KHZ : (p[0] >> 1);
+                         NVRM_CPU1_ON_MIN_KHZ : (MaxKHz / 3);
         s_Cpu1OffMaxKHz = NVRM_CPU1_OFF_MAX_KHZ ?
-                          NVRM_CPU1_OFF_MAX_KHZ : p[0];
+                          NVRM_CPU1_OFF_MAX_KHZ : (2 * MaxKHz / 3);
         NV_ASSERT(s_Cpu1OnMinKHz < s_Cpu1OffMaxKHz);
     }
 
