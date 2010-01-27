@@ -50,7 +50,7 @@ NvU32 g_enterLP2PA = 0;
 NvU32 g_localTimerLoadRegister, g_localTimerCntrlRegister;
 NvU32 g_coreSightClock, g_currentCcbp;
 volatile void *g_pPMC, *g_pAHB, *g_pCLK_RST_CONTROLLER;
-volatile void *g_pEMC, *g_pMC, *g_pAPB_MISC;
+volatile void *g_pEMC, *g_pMC, *g_pAPB_MISC, *g_pTimerus;
 volatile void *g_pIRAM;
 
 // Chip external specific wakeup events list
@@ -137,7 +137,9 @@ void cpu_ap20_do_lp0(void)
 	//Enter low power LP0 mode
 	prepare_for_wb0();
 	shadow_lp0_scratch_regs();
+	printk("LP0: Entering...\n");
 	enter_power_state(POWER_STATE_LP0, 0);
+	printk("LP0: Exited...\n");
 	shadow_runstate_scratch_regs();
 
 	if (HasPmuProperty && PmuProperty.CombinedPowerReq)
@@ -230,12 +232,10 @@ void power_lp0_init(void)
 
 	LPStateInfo = NvOdmQueryLowestSocPowerState();
 
-	//CPU power request must be already configured and enabled in early boot
-	//by now. Leave it enabled to be ready for LP2/LP1.
+	//Enable CPU power request. Leave it enabled to be ready for LP2/LP1.
 	Reg = NV_PMC_REGR(g_pPMC, CNTRL);
-	Reg = NV_DRF_VAL(APBDEV_PMC, CNTRL, CPUPWRREQ_OE, Reg);
-	if (Reg != APBDEV_PMC_CNTRL_0_CPUPWRREQ_OE_ENABLE)
-		goto fail;
+	Reg = NV_FLD_SET_DRF_DEF(APBDEV_PMC, CNTRL, CPUPWRREQ_OE, ENABLE, Reg);
+	NV_PMC_REGW(g_pPMC, CNTRL, Reg);
 
 	//If the system supports deep sleep (LP0), initialize PMC accordingly.
 	if (LPStateInfo->LowestPowerState == NvOdmSocPowerState_DeepSleep)
@@ -285,6 +285,7 @@ void power_lp0_init(void)
 
 	//Create the list of wakeup IRQs.
 	create_wakeup_irqs();
+	return;
 fail:
 	printk("lp0 init failed!\n");
 }

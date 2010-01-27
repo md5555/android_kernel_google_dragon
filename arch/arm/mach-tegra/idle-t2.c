@@ -36,12 +36,13 @@
 
 extern NvRmDeviceHandle s_hRmGlobal;
 extern void cpu_ap20_do_lp2(void);
+extern void cpu_ap20_do_lp0(void);
 extern void resume(unsigned int state);
 extern uintptr_t g_resume, g_contextSavePA, g_contextSaveVA;
 extern NvU32 g_NumActiveCPUs, g_ArmPerif;
 extern NvU32 g_enterLP2PA;
 extern volatile void *g_pPMC, *g_pAHB, *g_pCLK_RST_CONTROLLER;
-extern volatile void *g_pEMC, *g_pMC, *g_pAPB_MISC, *g_pIRAM;
+extern volatile void *g_pEMC, *g_pMC, *g_pAPB_MISC, *g_pIRAM, *g_pTimerus;
 #ifdef CONFIG_WAKELOCK
 extern struct wake_lock main_wake_lock;
 #endif
@@ -181,6 +182,18 @@ void __init NvAp20InitFlowController(void)
     if (NvRmPhysicalMemMap(g_IramPA, len, NVOS_MEM_READ_WRITE,
             NvOsMemAttribute_Uncached,
             (void**)&g_pIRAM)!=NvSuccess)
+    {
+        printk(KERN_INFO "failed to map iram; DVFS will not function"
+               " correctly as a result\n");
+        return;
+    }
+
+    NvRmModuleGetBaseAddress(s_hRmGlobal,
+        NVRM_MODULE_ID(NvRmModuleID_TimerUs, 0), &pa, &len);
+
+    if (NvRmPhysicalMemMap(pa, len, NVOS_MEM_READ_WRITE,
+            NvOsMemAttribute_Uncached,
+            (void**)&g_pTimerus)!=NvSuccess)
     {
         printk(KERN_INFO "failed to map iram; DVFS will not function"
                " correctly as a result\n");

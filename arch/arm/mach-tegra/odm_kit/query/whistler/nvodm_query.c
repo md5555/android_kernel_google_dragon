@@ -1126,7 +1126,7 @@ NvBool NvOdmQueryGetPmuProperty(NvOdmPmuProperty* pPmuProperty)
     // Not there yet, add it later ...
     //pPmuProperty->CpuPowerReqPolarity = ;
 
-    pPmuProperty->CorePowerReqPolarity = NvOdmCorePowerReqPolarity_Low;
+    pPmuProperty->CorePowerReqPolarity = NvOdmCorePowerReqPolarity_High;
     pPmuProperty->SysClockReqPolarity = NvOdmSysClockReqPolarity_High;
     pPmuProperty->CombinedPowerReq = NV_TRUE;
     pPmuProperty->CpuPowerGoodUs = 2000;

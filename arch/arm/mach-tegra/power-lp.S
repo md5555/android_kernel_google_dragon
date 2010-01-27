@@ -41,6 +41,7 @@
 #define CSITE_CPUDBG0_LAR_0 0x10fb0
 #define CSITE_CPUDBG1_LAR_0 0x12fb0
 #define TEMP_AREA_SIZE 16
+#define DEBUG_FORCE_RTC_WAKEUP 5
 #else
 #error "Unrecognized Tegra SoC Family"
 #endif
@@ -52,6 +53,7 @@ ENTRY(enter_power_state)
 	//with IRQs turned off
 	mrs	r2, CPSR
 	stmfd	sp!, {r0-r12, lr}
+	stmfd	sp!, {r0}
 
 	cmp	r1, #0
 	bne	save_arm_state
@@ -93,7 +95,7 @@ ArmCortexA9Saved:
 	bne	reset_slave
 
 	//Check which power state we want to enter
-	mov r0, #0
+	ldmfd	sp!, {r0}
 	//Is it LP2?
 	cmp r0, #0
 	ldreq r2, =g_enterLP2PA
@@ -110,10 +112,8 @@ ArmCortexA9Saved:
 
 	//Is it LP0?
 	cmp r0, #2
-	ldr r5, =enter_lp0
-	ldr r6, =enter_lp0_end
-
-	b .
+	ldr r5, =enter_lp0_end
+	ldr r6, =enter_lp0
 
 	//For LP0, the AVP stores it's continuation address at the first
 	//location in IRAM. Before we overwrite IRAM with the LP0 entry
@@ -130,7 +130,7 @@ ArmCortexA9Saved:
 	str r1, [r3, #APBDEV_PMC_SCRATCH39_0]
 
 copy_to_iram:
-	//Copy the enter_lp2 function to IRAM using 8x4 block moves.
+	//Copy the enter_lp0 function to IRAM using 8x4 block moves.
 	//It doesn't matter if we copy a few extra words.
 	//IRAM has already been safely saved by the AVP at this point
 	//R4 = destination address to copy code to
@@ -173,9 +173,6 @@ transition_to_state:
 	ldr	r1, =g_wakeupCcbp
 	ldr	r1, [r1] 
 
-	ldr	r2, =g_enterLP2PA
-	ldr	r2, [r2]
-
 	mov	r10, #0	
 	mcr	p15, 0, r10, c8, c7, 0	// invalidate TLB
 	dsb
@@ -213,6 +210,7 @@ wait_for_master:
  	str	r3, [r2]
 
 finish_power_state:
+	ldmfd	sp!, {r0}
 	ldmfd	sp!, {r0-r12, lr}
 	bx	lr
 ENDPROC(EnterPowerState)
@@ -408,10 +406,11 @@ TempStoreArea:
 ENDPROC(exit_lp2)
 
 ENTRY(enter_lp0)
-	ldr		r4, [pc, #0x84] //EMC base
-	ldr		r5, [pc, #0x84] //PMC base
-	ldr		r6, [pc, #0x84] //FLOW base
-	ldr		r7, [pc, #0x84] //TIMERUS base
+	ldr		r4, [pc, #0xC8] //EMC base
+	ldr		r5, [pc, #0xC8] //PMC base
+	ldr		r6, [pc, #0xC8] //FLOW base
+	ldr		r7, [pc, #0xC8] //TIMERUS base
+	ldr		r8, [pc, #0xC8] //RTC base
 
 	//Flush the write buffer
 	dmb
@@ -453,6 +452,29 @@ is_self:
 	orr		r2, r2, #1
 	str		r2, [r6, #8]
 
+	//r0 = RTC_BASE
+	mov r0, r8
+	//setup rtc wake
+	ldr r2, [r0, #0x10] //milli
+	ldr r2, [r0, #0x8] //shadow
+
+	add r2, r2, #DEBUG_FORCE_RTC_WAKEUP
+rtc_idle1:
+	ldr r1, [r0, #0x4]
+	tst r1, #0x1
+	bne rtc_idle1
+	str r2, [r0, #0x14]
+rtc_idle2:
+	ldr r1, [r0, #0x4]
+	tst r1, #0x1
+	bne rtc_idle2
+	//intr mask alarm0
+	mov r2, #1
+	str r2, [r0, #0x28]
+rtc_idle3:
+	ldr r1, [r0, #0x4]
+	tst r1, #0x1
+	bne rtc_idle3
 	//Save the microsecond count before LP0
 	ldr		r2, [r7]
 	str		r2, [r5, #0x134]
@@ -468,6 +490,7 @@ do_wfi:
 	andvc	lr, r0, r0, lsl #8
 	andvs	r7, r0, r0
 	andvs	r5, r0, r0, lsl r0
+	.word	0x7000e000
 enter_lp0_end:
 ENDPROC(enter_lp0)
 
@@ -509,8 +532,10 @@ ArmCortexA9PhysicalRestored:
 	//Check if power state is POWER_STATE_LP0
 	cmp		r0, #2
 	bne		skip_pll
-	ldr		r0, =PMC_PA_BASE
-	ldr		r1, =TIMERUS_PA_BASE
+	ldr		r0, =g_pPMC
+	ldr		r0, [r0]
+	ldr		r1, =g_pTimerus
+	ldr		r1, [r1]
 
 	//Read from LP0 exit time from SCRATCH1
 	ldr		r2, [r0, #0x54]
@@ -521,7 +546,8 @@ pll_wait:
 	blt		pll_wait
 
 	//Put CPU clock source on PLLX
-	ldr		r0, =CLK_RST_PA_BASE
+	ldr		r0, =g_pCLK_RST_CONTROLLER
+	ldr		r0, [r0]
 	ldr		r1, =0x20008888
 	str		r1, [r0, #0x20]
 
@@ -548,6 +574,7 @@ ArmCortexA9VirtualRestored:
 
 skip_local_timer_restore:
 	//Restore the stack registers
+	ldmfd	sp!, {r0}
 	ldmfd	sp!, {r0-r12, lr}
 
 	//Restore the CPSR stored in r2

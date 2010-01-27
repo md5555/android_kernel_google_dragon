@@ -58,7 +58,7 @@ static void update_registers_for_lp0(void)
 	//SCRATCH0 : Warmbootflag
 	Reg = NV_REGR(s_hRmGlobal, NvRmModuleID_Pmif, 0,
 				APBDEV_PMC_SCRATCH0_0);
-	Reg = NV_FLD_SET_DRF_NUM (APBDEV_PMC, SCRATCH0, WARM_BOOT0_FLAG, 0, Reg);
+	Reg = NV_FLD_SET_DRF_NUM (APBDEV_PMC, SCRATCH0, WARM_BOOT0_FLAG, 1, Reg);
 	NV_REGW(s_hRmGlobal, NvRmModuleID_Pmif, 0,
 				APBDEV_PMC_SCRATCH0_0, Reg);
 
@@ -217,7 +217,7 @@ static NvU32* save_clockreset_context(
 	case PowerModuleContext_Save:
 		//Register base address must have been set
 		//by PowerModuleContext_Init.
-		if (pBase == NULL);
+		if (pBase == NULL)
 			goto fail;
 
 		//Anchor the starting point for this controller's context.
@@ -252,7 +252,7 @@ static NvU32* save_clockreset_context(
 	case PowerModuleContext_Restore:
 		//Register base address must have been set
 		//by PowerModuleContext_Init.
-		if (pBase == NULL);
+		if (pBase == NULL)
 			goto fail;
 
 		//We should be at the same place in the context
