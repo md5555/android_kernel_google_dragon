@@ -78,6 +78,9 @@
 #define NVRM_DTT_USE_INTERRUPT (1)
 #define NVRM_DTT_RANGE_CHANGE_PRINTF (1)
 
+// Allow PMUs with CPU voltage range above chip minimum
+#define NVRM_DVS_ACCEPT_PMU_HIGH_CPU_MIN (1)
+
 /*****************************************************************************/
 
 // TODO: Always Disable before check-in
@@ -2278,10 +2281,11 @@ void NvRmPrivDvsInit(void)
             NvOdmPeripheralGetGuid(NV_VDD_CPU_ODM_ID);
 
         pDvs->NominalCpuMv = NvRmPrivModuleVscaleGetMV(
-            pDfs->hRm, NvRmModuleID_Cpu, NvRmFreqMaximum);
-        pDvs->MinCpuMv = NvRmPrivModuleVscaleGetMV(pDfs->hRm, NvRmModuleID_Cpu,
+            pDfs->hRm, NvRmModuleID_Cpu,
+            NvRmPrivGetSocClockLimits(NvRmModuleID_Cpu)->MaxKHz);
+        pDvs->MinCpuMv = NvRmPrivModuleVscaleGetMV(
+            pDfs->hRm, NvRmModuleID_Cpu,
             NvRmPrivGetSocClockLimits(NvRmModuleID_Cpu)->MinKHz);
-        pDvs->LowCornerCpuMv = pDvs->MinCpuMv;
 
         NV_ASSERT(pCpuRail && pCpuRail->NumAddress);
         pDvs->CpuRailAddress = pCpuRail->AddressList[0].Address;
@@ -2290,9 +2294,15 @@ void NvRmPrivDvsInit(void)
                   (cap.StepMilliVolts <= NVRM_SAFE_VOLTAGE_STEP_MV));
         NV_ASSERT((cap.StepMilliVolts) &&
                   (cap.StepMilliVolts <= NVRM_CORE_RESOLUTION_MV));
+#if NVRM_DVS_ACCEPT_PMU_HIGH_CPU_MIN
+        pDvs->MinCpuMv = NV_MAX(pDvs->MinCpuMv, cap.MinMilliVolts);
+        NV_ASSERT(pDvs->MinCpuMv <= pDvs->NominalCpuMv);
+#else
         NV_ASSERT(cap.MinMilliVolts <= pDvs->MinCpuMv);
+#endif
         NV_ASSERT(cap.MaxMilliVolts >= pDvs->NominalCpuMv);
         pDvs->CpuOTPMv = cap.requestMilliVolts;
+        pDvs->LowCornerCpuMv = pDvs->MinCpuMv;
 
         // CPU rail behaviour after CPU request signal On-Off-On transition
         if (NvOdmQueryGetPmuProperty(&PmuProperty))
@@ -2331,11 +2341,20 @@ void NvRmPrivDvsInit(void)
     pDvs->DvsCorner.ModulesMv = pDvs->NominalCoreMv;
 
     if ((pDfs->hRm->ChipId.Id == 0x15) || (pDfs->hRm->ChipId.Id == 0x16))
+    {
         pDvs->LowCornerCoreMv = NV_MAX(NVRM_AP15_LOW_CORE_MV, pDvs->MinCoreMv);
+        pDvs->LowCornerCoreMv =
+            NV_MIN(pDvs->LowCornerCoreMv, pDvs->NominalCoreMv);
+    }
     else if (pDfs->hRm->ChipId.Id == 0x20)
     {
         pDvs->LowCornerCoreMv = NV_MAX(NVRM_AP20_LOW_CORE_MV, pDvs->MinCoreMv);
+        pDvs->LowCornerCoreMv =
+            NV_MIN(pDvs->LowCornerCoreMv, pDvs->NominalCoreMv);
+
         pDvs->LowCornerCpuMv = NV_MAX(NVRM_AP20_LOW_CPU_MV, pDvs->MinCpuMv);
+        pDvs->LowCornerCpuMv =
+            NV_MIN(pDvs->LowCornerCpuMv, pDvs->NominalCpuMv);
     }
 }
 

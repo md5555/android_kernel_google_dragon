@@ -531,31 +531,33 @@ void NvRmPrivCoreVoltageInit(NvRmDeviceHandle hRmDevice)
         NV_ASSERT(!"Unexpected initial RTC voltage");
         return;
     }
-    NvRmPmuSetVoltage(hRmDevice, RtcRailAddress, NominalCoreMv, NULL);
-    NvRmPmuSetVoltage(hRmDevice, CoreRailAddress, NominalCoreMv, NULL);
+    // If core voltage is going up, update it before CPU
+    if (CurrentCoreMv <= NominalCoreMv)
+    {
+        NvRmPmuSetVoltage(hRmDevice, RtcRailAddress, NominalCoreMv, NULL);
+        NvRmPmuSetVoltage(hRmDevice, CoreRailAddress, NominalCoreMv, NULL);
+    }
 
     // If the platform has dedicated CPU voltage rail, make sure it is set to
-    // nominal level first. Similar to the core, CPU boot voltage is expected
-    // to be within one safe step from nominal.
+    // nominal level as well (bump PMU ref count along the way).
     if (NvRmPrivIsCpuRailDedicated(hRmDevice))
     {
-        NvRmMilliVolts CurrentCpuMv = 0;
         NvRmMilliVolts NominalCpuMv = NvRmPrivModuleVscaleGetMV(
-            hRmDevice, NvRmModuleID_Cpu, NvRmFreqMaximum);
+            hRmDevice, NvRmModuleID_Cpu,
+            NvRmPrivGetSocClockLimits(NvRmModuleID_Cpu)->MaxKHz);
 
         pPmuRail = NvOdmPeripheralGetGuid(NV_VDD_CPU_ODM_ID);
         NV_ASSERT(pPmuRail);
         NV_ASSERT(pPmuRail->NumAddress);
         CpuRailAddress = pPmuRail->AddressList[0].Address;
-
-        NvRmPmuGetVoltage(hRmDevice, CpuRailAddress, &CurrentCpuMv);
-        if((CurrentCpuMv > (NominalCpuMv + NVRM_SAFE_VOLTAGE_STEP_MV)) ||
-           ((CurrentCpuMv + NVRM_SAFE_VOLTAGE_STEP_MV) < NominalCpuMv))
-        {
-            NV_ASSERT(!"Unexpected initial CPU voltage");
-            return;
-        }
         NvRmPmuSetVoltage(hRmDevice, CpuRailAddress, NominalCpuMv, NULL);
+    }
+
+    // If core voltage is going down, update it after CPU voltage
+    if (CurrentCoreMv > NominalCoreMv)
+    {
+        NvRmPmuSetVoltage(hRmDevice, RtcRailAddress, NominalCoreMv, NULL);
+        NvRmPmuSetVoltage(hRmDevice, CoreRailAddress, NominalCoreMv, NULL);
     }
 
     // Always On System I/O, DDR IO and RX DDR (if exist) - set nominal,

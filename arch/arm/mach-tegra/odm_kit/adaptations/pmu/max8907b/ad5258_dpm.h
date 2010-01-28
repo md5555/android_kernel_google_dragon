@@ -58,7 +58,7 @@ extern "C"
  * particular schematic combining constant resistors, DPM, and DCDC supply.
  */
 // On Whistler:
-#define AD5258_V0   (818)
+#define AD5258_V0   (815)
 #define AD5258_M1   (229)        
 #define AD5258_M2   (4571)
 #define AD5258_b    (10)

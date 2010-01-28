@@ -55,7 +55,7 @@
 #define NVRM_DEFAULT_PMU_ACCURACY_PCT (3)
 
 // Minimum core over CPU voltage margin (at SoC)
-#define NV_AP20_CORE_OVER_CPU_MV (100)
+#define NV_AP20_CORE_OVER_CPU_MV (120)
 
 /*****************************************************************************/
 
