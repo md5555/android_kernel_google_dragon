@@ -128,6 +128,8 @@ NvRmPrivClockLimitsInit(NvRmDeviceHandle hRmDevice)
     pShmoo = s_ChipFlavor.pSocShmoo;
     pHwLimits = &pShmoo->ScaledLimitsList[0];
     pSKUedLimits = pShmoo->pSKUedLimits;
+    NvOsDebugPrintf("NVRM corner (%d, %d)\n",
+        s_ChipFlavor.corner, s_ChipFlavor.CpuCorner);
 
     NvOsMemset((void*)s_pClockScales, 0, sizeof(s_pClockScales));
     NvOsMemset(s_ClockRangeLimits, 0, sizeof(s_ClockRangeLimits));

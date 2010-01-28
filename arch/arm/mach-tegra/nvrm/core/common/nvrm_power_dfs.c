@@ -2296,8 +2296,9 @@ void NvRmPrivDvsInit(void)
                   (cap.StepMilliVolts <= NVRM_CORE_RESOLUTION_MV));
 #if NVRM_DVS_ACCEPT_PMU_HIGH_CPU_MIN
         pDvs->MinCpuMv = NV_MAX(pDvs->MinCpuMv, cap.MinMilliVolts);
-        NV_ASSERT(pDvs->MinCpuMv <= pDvs->NominalCpuMv);
+        pDvs->NominalCpuMv = NV_MAX(pDvs->NominalCpuMv, pDvs->MinCpuMv);
 #else
+        NV_ASSERT(pDvs->MinCpuMv <= pDvs->NominalCpuMv);
         NV_ASSERT(cap.MinMilliVolts <= pDvs->MinCpuMv);
 #endif
         NV_ASSERT(cap.MaxMilliVolts >= pDvs->NominalCpuMv);

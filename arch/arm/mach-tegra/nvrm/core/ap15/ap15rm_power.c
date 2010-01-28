@@ -542,6 +542,7 @@ void NvRmPrivCoreVoltageInit(NvRmDeviceHandle hRmDevice)
     // nominal level as well (bump PMU ref count along the way).
     if (NvRmPrivIsCpuRailDedicated(hRmDevice))
     {
+        NvRmPmuVddRailCapabilities cap;
         NvRmMilliVolts NominalCpuMv = NvRmPrivModuleVscaleGetMV(
             hRmDevice, NvRmModuleID_Cpu,
             NvRmPrivGetSocClockLimits(NvRmModuleID_Cpu)->MaxKHz);
@@ -550,6 +551,14 @@ void NvRmPrivCoreVoltageInit(NvRmDeviceHandle hRmDevice)
         NV_ASSERT(pPmuRail);
         NV_ASSERT(pPmuRail->NumAddress);
         CpuRailAddress = pPmuRail->AddressList[0].Address;
+
+        // Clip nominal CPU voltage to minimal PMU capabilities, and set it.
+        // (note: PMU with CPU voltage range above nominal is temporary
+        // accepted exception; for other limit violations: PMU maximum level
+        // for CPU is not high enough, or PMU core range does not include
+        // nominal core voltage, assert is fired inside NvRmPmuSetVoltage())
+        NvRmPmuGetCapabilities(hRmDevice, CpuRailAddress, &cap);
+        NominalCpuMv = NV_MAX(NominalCpuMv, cap.MinMilliVolts);
         NvRmPmuSetVoltage(hRmDevice, CpuRailAddress, NominalCpuMv, NULL);
     }
 
