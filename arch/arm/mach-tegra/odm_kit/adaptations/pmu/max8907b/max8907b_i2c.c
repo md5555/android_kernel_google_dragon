@@ -37,6 +37,9 @@
 #define MAX8907B_I2C_SPEED_KHZ   400
 #define MAX8907B_I2C_RETRY_CNT     2
 
+// Maximum i2c transaction count
+#define MAX_TRANSACTION_COUNT 5
+
 NvBool Max8907bI2cWrite8(
    NvOdmPmuDeviceHandle hDevice,
    NvU8 Addr,
@@ -45,14 +48,14 @@ NvBool Max8907bI2cWrite8(
     NvU32 i;
     NvU8 WriteBuffer[2];
     NvOdmI2cTransactionInfo TransactionInfo;
-    NvOdmI2cStatus status = NvOdmI2cStatus_Success;    
+    NvOdmI2cStatus status = NvOdmI2cStatus_Success;
     Max8907bPrivData *hPmu = (Max8907bPrivData*)hDevice->pPrivate;
 
     for (i = 0; i < MAX8907B_I2C_RETRY_CNT; i++)
     {
         WriteBuffer[0] = Addr & 0xFF;   // PMU offset
         WriteBuffer[1] = Data & 0xFF;   // written data
-    
+
         TransactionInfo.Address = hPmu->DeviceAddr;
         TransactionInfo.Buf = &WriteBuffer[0];
         TransactionInfo.Flags = NVODM_I2C_IS_WRITE;
@@ -69,12 +72,12 @@ NvBool Max8907bI2cWrite8(
     switch (status)
     {
         case NvOdmI2cStatus_Timeout:
-            NVODMPMU_PRINTF(("NvOdmPmuI2cWrite8 Failed: Timeout\n")); 
+            NVODMPMU_PRINTF(("NvOdmPmuI2cWrite8 Failed: Timeout\n"));
             break;
         case NvOdmI2cStatus_SlaveNotFound:
         default:
             NVODMPMU_PRINTF(("NvOdmPmuI2cWrite8 Failed: SlaveNotFound\n"));
-            break;             
+            break;
     }
     return NV_FALSE;
 }
@@ -86,28 +89,30 @@ NvBool Max8907bI2cRead8(
 {
     NvU32 i;
     NvU8 ReadBuffer = 0;
-    NvOdmI2cStatus  status = NvOdmI2cStatus_Success;    
+    NvOdmI2cStatus  status = NvOdmI2cStatus_Success;
     Max8907bPrivData *hPmu = (Max8907bPrivData*)hDevice->pPrivate;
     NvOdmI2cTransactionInfo TransactionInfo[2];
 
     for (i = 0; i < MAX8907B_I2C_RETRY_CNT; i++)
     {
+        NvU32 TransactionCount = 0;
         // Write the PMU offset
         ReadBuffer = Addr & 0xFF;
 
-        TransactionInfo[0].Address = hPmu->DeviceAddr;
-        TransactionInfo[0].Buf = &ReadBuffer;
-        TransactionInfo[0].Flags = NVODM_I2C_IS_WRITE | NVODM_I2C_USE_REPEATED_START;
-        TransactionInfo[0].NumBytes = 1;
+        TransactionInfo[TransactionCount].Address = hPmu->DeviceAddr;
+        TransactionInfo[TransactionCount].Buf = &ReadBuffer;
+        TransactionInfo[TransactionCount].Flags =
+            NVODM_I2C_IS_WRITE | NVODM_I2C_USE_REPEATED_START;
+        TransactionInfo[TransactionCount++].NumBytes = 1;
 
-        TransactionInfo[1].Address = (hPmu->DeviceAddr | 0x1);
-        TransactionInfo[1].Buf = &ReadBuffer;
-        TransactionInfo[1].Flags = 0;
-        TransactionInfo[1].NumBytes = 1;
+        TransactionInfo[TransactionCount].Address = (hPmu->DeviceAddr | 0x1);
+        TransactionInfo[TransactionCount].Buf = &ReadBuffer;
+        TransactionInfo[TransactionCount].Flags = 0;
+        TransactionInfo[TransactionCount++].NumBytes = 1;
 
         // Read data from PMU at the specified offset
-        status = NvOdmI2cTransaction(hPmu->hOdmI2C, &TransactionInfo[0], 2, 
-            MAX8907B_I2C_SPEED_KHZ, NV_WAIT_INFINITE);
+        status = NvOdmI2cTransaction(hPmu->hOdmI2C, &TransactionInfo[0],
+            TransactionCount, MAX8907B_I2C_SPEED_KHZ, NV_WAIT_INFINITE);
 
         if (status == NvOdmI2cStatus_Success)
         {
@@ -120,12 +125,12 @@ NvBool Max8907bI2cRead8(
     switch (status)
     {
         case NvOdmI2cStatus_Timeout:
-            NVODMPMU_PRINTF(("NvOdmPmuI2cRead8 Failed: Timeout\n")); 
+            NVODMPMU_PRINTF(("NvOdmPmuI2cRead8 Failed: Timeout\n"));
             break;
         case NvOdmI2cStatus_SlaveNotFound:
         default:
             NVODMPMU_PRINTF(("NvOdmPmuI2cRead8 Failed: SlaveNotFound\n"));
-            break;             
+            break;
     }
     return NV_FALSE;
 }
@@ -137,13 +142,13 @@ NvBool Max8907bI2cWrite32(
 {
     NvU32 i;
     NvU8 WriteBuffer[5];
-    NvOdmI2cStatus  status = NvOdmI2cStatus_Success;    
+    NvOdmI2cStatus  status = NvOdmI2cStatus_Success;
     Max8907bPrivData *hPmu = (Max8907bPrivData*)hDevice->pPrivate;
     NvOdmI2cTransactionInfo TransactionInfo;
 
     for (i = 0; i < MAX8907B_I2C_RETRY_CNT; i++)
     {
-        WriteBuffer[0] = (NvU8)(Addr & 0xFF);  
+        WriteBuffer[0] = (NvU8)(Addr & 0xFF);
         WriteBuffer[1] = (NvU8)((Data >> 24) & 0xFF);
         WriteBuffer[2] = (NvU8)((Data >> 16) & 0xFF);
         WriteBuffer[3] = (NvU8)((Data >>  8) & 0xFF);
@@ -154,7 +159,7 @@ NvBool Max8907bI2cWrite32(
         TransactionInfo.Flags = NVODM_I2C_IS_WRITE;
         TransactionInfo.NumBytes = 5;
 
-        status = NvOdmI2cTransaction(hPmu->hOdmI2C, &TransactionInfo, 1, 
+        status = NvOdmI2cTransaction(hPmu->hOdmI2C, &TransactionInfo, 1,
             MAX8907B_I2C_SPEED_KHZ, NV_WAIT_INFINITE);
 
         if (status == NvOdmI2cStatus_Success)
@@ -165,12 +170,12 @@ NvBool Max8907bI2cWrite32(
     switch (status)
     {
         case NvOdmI2cStatus_Timeout:
-            NVODMPMU_PRINTF(("NvOdmPmuI2cWrite32 Failed: Timeout\n")); 
+            NVODMPMU_PRINTF(("NvOdmPmuI2cWrite32 Failed: Timeout\n"));
             break;
         case NvOdmI2cStatus_SlaveNotFound:
         default:
             NVODMPMU_PRINTF(("NvOdmPmuI2cWrite32 Failed: SlaveNotFound\n"));
-            break;             
+            break;
     }
     return NV_FALSE;
 }
@@ -182,30 +187,32 @@ NvBool Max8907bI2cRead32(
 {
     NvU32 i;
     NvU8 ReadBuffer[5];
-    NvOdmI2cStatus  status = NvOdmI2cStatus_Success;    
+    NvOdmI2cStatus  status = NvOdmI2cStatus_Success;
     Max8907bPrivData *hPmu = (Max8907bPrivData*)hDevice->pPrivate;
     NvOdmI2cTransactionInfo TransactionInfo[2];
 
     for (i = 0; i < MAX8907B_I2C_RETRY_CNT; i++)
     {
+        NvU32 TransactionCount = 0;
         ReadBuffer[0] = Addr & 0xFF;
 
-        TransactionInfo[0].Address = hPmu->DeviceAddr;
-        TransactionInfo[0].Buf = &ReadBuffer[0];
-        TransactionInfo[0].Flags = NVODM_I2C_IS_WRITE | NVODM_I2C_USE_REPEATED_START;
-        TransactionInfo[0].NumBytes = 1;
+        TransactionInfo[TransactionCount].Address = hPmu->DeviceAddr;
+        TransactionInfo[TransactionCount].Buf = &ReadBuffer[0];
+        TransactionInfo[TransactionCount].Flags =
+            NVODM_I2C_IS_WRITE | NVODM_I2C_USE_REPEATED_START;
+        TransactionInfo[TransactionCount++].NumBytes = 1;
 
-        TransactionInfo[1].Address = (hPmu->DeviceAddr | 0x1);
-        TransactionInfo[1].Buf = &ReadBuffer[0];
-        TransactionInfo[1].Flags = 0;
-        TransactionInfo[1].NumBytes = 4;
+        TransactionInfo[TransactionCount].Address = (hPmu->DeviceAddr | 0x1);
+        TransactionInfo[TransactionCount].Buf = &ReadBuffer[0];
+        TransactionInfo[TransactionCount].Flags = 0;
+        TransactionInfo[TransactionCount++].NumBytes = 4;
 
-        status = NvOdmI2cTransaction(hPmu->hOdmI2C, &TransactionInfo[0], 2,
-            MAX8907B_I2C_SPEED_KHZ, NV_WAIT_INFINITE);
+        status = NvOdmI2cTransaction(hPmu->hOdmI2C, &TransactionInfo[0],
+            TransactionCount, MAX8907B_I2C_SPEED_KHZ, NV_WAIT_INFINITE);
 
         if (status == NvOdmI2cStatus_Success)
         {
-            *Data = (ReadBuffer[0] << 24) | (ReadBuffer[1] << 16) | 
+            *Data = (ReadBuffer[0] << 24) | (ReadBuffer[1] << 16) |
                     (ReadBuffer[2] << 8) | ReadBuffer[3];
 
             return NV_TRUE;
@@ -216,12 +223,12 @@ NvBool Max8907bI2cRead32(
     switch (status)
     {
         case NvOdmI2cStatus_Timeout:
-            NVODMPMU_PRINTF(("NvOdmPmuI2cRead32 Failed: Timeout\n")); 
+            NVODMPMU_PRINTF(("NvOdmPmuI2cRead32 Failed: Timeout\n"));
             break;
         case NvOdmI2cStatus_SlaveNotFound:
         default:
             NVODMPMU_PRINTF(("NvOdmPmuI2cRead32 Failed: SlaveNotFound\n"));
-            break;             
+            break;
     }
     return NV_FALSE;
 }
@@ -233,13 +240,14 @@ NvBool Max8907bRtcI2cWriteTime(
 {
     NvU32 i;
     NvU8 WriteBuffer[5];
-    NvOdmI2cStatus  status = NvOdmI2cStatus_Success;    
+    NvOdmI2cStatus  status = NvOdmI2cStatus_Success;
     Max8907bPrivData *hPmu = (Max8907bPrivData*)hDevice->pPrivate;
     NvOdmI2cTransactionInfo TransactionInfo;
 
+    NVODMPMU_PRINTF(("\n RTC I2C write: Addr=0x%x, Data=0x%x ", Addr, Data));
     for (i = 0; i < MAX8907B_I2C_RETRY_CNT; i++)
     {
-        WriteBuffer[0] = (NvU8)(Addr & 0xFF);  
+        WriteBuffer[0] = (NvU8)(Addr & 0xFF);
         WriteBuffer[1] = (NvU8)((Data >> 24) & 0xFF);
         WriteBuffer[2] = (NvU8)((Data >> 16) & 0xFF);
         WriteBuffer[3] = (NvU8)((Data >>  8) & 0xFF);
@@ -250,7 +258,7 @@ NvBool Max8907bRtcI2cWriteTime(
         TransactionInfo.Flags = NVODM_I2C_IS_WRITE;
         TransactionInfo.NumBytes = 5;
 
-        status = NvOdmI2cTransaction(hPmu->hOdmI2C, &TransactionInfo, 1, 
+        status = NvOdmI2cTransaction(hPmu->hOdmI2C, &TransactionInfo, 1,
             MAX8907B_I2C_SPEED_KHZ, NV_WAIT_INFINITE);
 
         if (status == NvOdmI2cStatus_Success)
@@ -261,12 +269,12 @@ NvBool Max8907bRtcI2cWriteTime(
     switch (status)
     {
         case NvOdmI2cStatus_Timeout:
-            NVODMPMU_PRINTF(("Max8907bRtcI2cWrite32 Failed: Timeout\n")); 
+            NVODMPMU_PRINTF(("Max8907bRtcI2cWrite32 Failed: Timeout\n"));
             break;
         case NvOdmI2cStatus_SlaveNotFound:
         default:
             NVODMPMU_PRINTF(("Max8907bRtcI2cWrite32 Failed: SlaveNotFound\n"));
-            break;             
+            break;
     }
     return NV_FALSE;
 }
@@ -278,46 +286,63 @@ NvBool Max8907bRtcI2cReadTime(
 {
     NvU32 i;
     NvU8 ReadBuffer[4];
-    NvOdmI2cStatus  status = NvOdmI2cStatus_Success;    
+    NvOdmI2cStatus  status = NvOdmI2cStatus_Success;
     Max8907bPrivData *hPmu = (Max8907bPrivData*)hDevice->pPrivate;
-    NvOdmI2cTransactionInfo TransactionInfo[4];
+    NvOdmI2cTransactionInfo TransactionInfo[MAX_TRANSACTION_COUNT];
 
+    NVODMPMU_PRINTF(("\n RTC I2C read: Addr=0x%x ", Addr));
     for (i = 0; i < MAX8907B_I2C_RETRY_CNT; i++)
     {
-        ReadBuffer[0] = Addr++ & 0xFF;
-        ReadBuffer[1] = Addr++ & 0xFF;
-        ReadBuffer[2] = Addr++ & 0xFF;
-        ReadBuffer[3] = 0;
+        NvU32 TransactionCount = 0;
+        ReadBuffer[0] = Addr & 0xFF;
 
-        TransactionInfo[0].Address = MAX8907B_RTC_SLAVE_ADDR;
-        TransactionInfo[0].Buf = &ReadBuffer[0];
-        TransactionInfo[0].Flags = NVODM_I2C_IS_WRITE | NVODM_I2C_USE_REPEATED_START;
-        TransactionInfo[0].NumBytes = 1;
+        TransactionInfo[TransactionCount].Address = MAX8907B_RTC_SLAVE_ADDR;
+        TransactionInfo[TransactionCount].Buf = &ReadBuffer[0];
+        TransactionInfo[TransactionCount].Flags =
+            NVODM_I2C_IS_WRITE | NVODM_I2C_USE_REPEATED_START;
+        TransactionInfo[TransactionCount++].NumBytes = 1;
 
-        // Seconds
-        TransactionInfo[1].Address = (MAX8907B_RTC_SLAVE_ADDR | 0x1);
-        TransactionInfo[1].Buf = &ReadBuffer[0];
-        TransactionInfo[1].Flags = 0;
-        TransactionInfo[1].NumBytes = 1;
+        // Seconds / day
+        if (TransactionCount >= MAX_TRANSACTION_COUNT)
+            return NV_FALSE;
+        TransactionInfo[TransactionCount].Address =
+            (MAX8907B_RTC_SLAVE_ADDR | 0x1);
+        TransactionInfo[TransactionCount].Buf = &ReadBuffer[0];
+        TransactionInfo[TransactionCount].Flags = 0;
+        TransactionInfo[TransactionCount++].NumBytes = 1;
 
-        // Minutes
-        TransactionInfo[2].Address = (MAX8907B_RTC_SLAVE_ADDR | 0x1);
-        TransactionInfo[2].Buf = &ReadBuffer[1];
-        TransactionInfo[2].Flags = 0;
-        TransactionInfo[2].NumBytes = 1;
+        // Minutes / month
+        if (TransactionCount >= MAX_TRANSACTION_COUNT)
+            return NV_FALSE;
+        TransactionInfo[TransactionCount].Address =
+            (MAX8907B_RTC_SLAVE_ADDR | 0x1);
+        TransactionInfo[TransactionCount].Buf = &ReadBuffer[1];
+        TransactionInfo[TransactionCount].Flags = 0;
+        TransactionInfo[TransactionCount++].NumBytes = 1;
 
-        // Hours
-        TransactionInfo[3].Address = (MAX8907B_RTC_SLAVE_ADDR | 0x1);
-        TransactionInfo[3].Buf = &ReadBuffer[2];
-        TransactionInfo[3].Flags = 0;
-        TransactionInfo[3].NumBytes = 1;
+        // Hours / YY1
+        if (TransactionCount >= MAX_TRANSACTION_COUNT)
+            return NV_FALSE;
+        TransactionInfo[TransactionCount].Address =
+            (MAX8907B_RTC_SLAVE_ADDR | 0x1);
+        TransactionInfo[TransactionCount].Buf = &ReadBuffer[2];
+        TransactionInfo[TransactionCount].Flags = 0;
+        TransactionInfo[TransactionCount++].NumBytes = 1;
 
-        status = NvOdmI2cTransaction(hPmu->hOdmI2C, &TransactionInfo[0], 4,
-            MAX8907B_I2C_SPEED_KHZ, NV_WAIT_INFINITE);
+        // Weekday / YY2
+        if (TransactionCount >= MAX_TRANSACTION_COUNT)
+            return NV_FALSE;
+        TransactionInfo[TransactionCount].Address =
+            (MAX8907B_RTC_SLAVE_ADDR | 0x1);
+        TransactionInfo[TransactionCount].Buf = &ReadBuffer[3];
+        TransactionInfo[TransactionCount].Flags = 0;
+        TransactionInfo[TransactionCount++].NumBytes = 1;
 
+        status = NvOdmI2cTransaction(hPmu->hOdmI2C, &TransactionInfo[0],
+            TransactionCount, MAX8907B_I2C_SPEED_KHZ, NV_WAIT_INFINITE);
         if (status == NvOdmI2cStatus_Success)
         {
-            *Data = (ReadBuffer[0] << 24) | (ReadBuffer[1] << 16) | 
+            *Data = (ReadBuffer[0] << 24) | (ReadBuffer[1] << 16) |
                     (ReadBuffer[2] << 8) | ReadBuffer[3];
 
             return NV_TRUE;
@@ -328,12 +353,12 @@ NvBool Max8907bRtcI2cReadTime(
     switch (status)
     {
         case NvOdmI2cStatus_Timeout:
-            NVODMPMU_PRINTF(("Max8907bRtcI2cRead32 Failed: Timeout\n")); 
+            NVODMPMU_PRINTF(("Max8907bRtcI2cRead32 Failed: Timeout\n"));
             break;
         case NvOdmI2cStatus_SlaveNotFound:
         default:
             NVODMPMU_PRINTF(("Max8907bRtcI2cRead32 Failed: SlaveNotFound\n"));
-            break;             
+            break;
     }
     return NV_FALSE;
 }
