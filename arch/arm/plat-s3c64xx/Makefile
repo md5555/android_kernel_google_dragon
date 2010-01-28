@@ -40,6 +40,9 @@ obj-$(CONFIG_S3C64XX_DMA)	+= dma.o
 
 obj-$(CONFIG_S3C_ADC)		+= dev-adc.o
 
+# SPI support
+obj-$(CONFIG_S3C64XX_DEV_SPI) += dev-spi.o
+
 # Device setup
 
 obj-$(CONFIG_S3C64XX_SETUP_I2C0) += setup-i2c0.o
