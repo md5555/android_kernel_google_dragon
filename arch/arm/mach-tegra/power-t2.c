@@ -3,7 +3,7 @@
  *
  * CPU shutdown routines for Tegra 2 SoCs
  *
- * Copyright (c) 2009, NVIDIA Corporation.
+ * Copyright (c) 2010, NVIDIA Corporation.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,40 +20,14 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#include "nvos.h"
-#include "nvrm_init.h"
-#include "nvrm_drf.h"
-#include "ap20/arapbpm.h"
-#include "nvrm_module.h"
-#include "ap20/arflow_ctlr.h"
-#include "ap20/arclk_rst.h"
-#include "nvrm_hardware_access.h"
-#include "nvrm_interrupt.h"
-#include "nvrm_power.h"
-#include "nvrm_power_private.h"
-#include <linux/kernel.h>
-#include <linux/platform_device.h>
-#include <linux/interrupt.h>
-
-typedef enum
-{
-    PowerPllA = 0,
-    PowerPllC,
-    PowerPllM,
-    PowerPllP,
-    PowerPllX
-} PowerPll;
-
-typedef enum
-{
-    POWER_STATE_LP2,
-    POWER_STATE_LP1,
-    POWER_STATE_LP0,
-} PowerState;
+#include "power.h"
 
 extern void NvPrivAp20MaskIrq(unsigned int irq);
 extern void NvPrivAp20UnmaskIrq(unsigned int irq);
 extern int enter_power_state(PowerState state, unsigned int proc_id);
+extern void prepare_for_wb0(void);
+extern NvU32* perform_context_operation(PowerModuleContext Context);
+
 void cpu_ap20_do_lp2(void);
 void resume(unsigned int state);
 static NvU32 select_wakeup_pll(void);
@@ -63,14 +37,69 @@ void do_suspend_prep(void);
 void reset_cpu(unsigned int cpu, unsigned int reset);
 extern NvRmDeviceHandle s_hRmGlobal;
 
-#define NUM_LOCAL_TIMER_REGISTERS 3
-
 uintptr_t g_resume = 0, g_contextSavePA = 0, g_contextSaveVA = 0;
 NvU32 g_modifiedPlls;
 NvU32 g_wakeupCcbp = 0, g_NumActiveCPUs, g_Sync = 0, g_ArmPerif = 0;
 NvU32 g_enterLP2PA = 0;
 NvU32 g_localTimerLoadRegister, g_localTimerCntrlRegister;
 NvU32 g_coreSightClock, g_currentCcbp;
+
+void cpu_ap20_do_lp0(void)
+{
+	//NOTE: Once we enter this routine, there is no way to avert a LP0.
+	//If there is a potential interrupt waiting, we will enter LP0
+	//and exit immediately as soon the PMC samples it and the
+	//power good timer expires.
+	NvU32   Reg;
+	NvOdmPmuProperty	PmuProperty;
+	NvBool HasPmuProperty = NvOdmQueryGetPmuProperty(&PmuProperty);
+
+	//Inform RM about entry to LP0 state
+	NvRmPrivPowerSetState(s_hRmGlobal, NvRmPowerState_LP0);
+
+	if (HasPmuProperty && PmuProperty.CombinedPowerReq)
+	{
+		//Enable core power request, and tristate CPU power request outputs
+		//(both requests are active, so there are no glitches as long as
+		//proper external pu/pd are set)
+		Reg = NV_REGR(s_hRmGlobal, NvRmModuleID_Pmif, 0,
+				APBDEV_PMC_CNTRL_0);
+		Reg = NV_FLD_SET_DRF_DEF(APBDEV_PMC, CNTRL, PWRREQ_OE, ENABLE, Reg);
+		NV_REGW(s_hRmGlobal, NvRmModuleID_Pmif, 0,
+				APBDEV_PMC_CNTRL_0, Reg);
+		// FIXME: do we need an explicit delay?
+		Reg = NV_REGR(s_hRmGlobal, NvRmModuleID_Pmif, 0,
+			APBDEV_PMC_CNTRL_0);
+		Reg = NV_FLD_SET_DRF_DEF(APBDEV_PMC, CNTRL, CPUPWRREQ_OE, DISABLE, Reg);
+	}
+
+	// Enter low power LP0 mode
+	prepare_for_wb0();
+
+	//TODO: Shadow required state here
+
+	if (HasPmuProperty && PmuProperty.CombinedPowerReq)
+	{
+		//Enable CPU power request and tristate core power request outputs
+		//(both requests are active, so there are no glitches as long as
+		//proper external pu/pd are set)
+		Reg = NV_REGR(s_hRmGlobal, NvRmModuleID_Pmif, 0,
+				APBDEV_PMC_CNTRL_0);
+		Reg = NV_FLD_SET_DRF_DEF(APBDEV_PMC, CNTRL, CPUPWRREQ_OE, ENABLE, Reg);
+		NV_REGW(s_hRmGlobal, NvRmModuleID_Pmif, 0,
+				APBDEV_PMC_CNTRL_0, Reg);
+		// FIXME: do we need an explicit delay ?
+		Reg = NV_REGR(s_hRmGlobal, NvRmModuleID_Pmif, 0,
+				APBDEV_PMC_CNTRL_0);
+		Reg = NV_FLD_SET_DRF_DEF(APBDEV_PMC, CNTRL, PWRREQ_OE, DISABLE, Reg);
+		NV_REGW(s_hRmGlobal, NvRmModuleID_Pmif, 0,
+				APBDEV_PMC_CNTRL_0, Reg);
+	}
+
+	//Restore the saved module(s) context
+	//Interrupt, gpio, pin mux, clock management etc
+	perform_context_operation(PowerModuleContext_Restore);
+}
 
 void cpu_ap20_do_lp2(void)
 {
@@ -83,9 +112,6 @@ void cpu_ap20_do_lp2(void)
     //Save our context ptrs to scratch regs
     NV_REGW(s_hRmGlobal, NvRmModuleID_Pmif, 0,
             APBDEV_PMC_SCRATCH1_0, g_resume);
-    //LP0 needs the resume address in SCRATCH41
-    NV_REGW(s_hRmGlobal, NvRmModuleID_Pmif, 0,
-            APBDEV_PMC_SCRATCH41_0, g_resume);
     NV_REGW(s_hRmGlobal, NvRmModuleID_Pmif, 0,
             APBDEV_PMC_SCRATCH37_0, g_contextSavePA);
 
