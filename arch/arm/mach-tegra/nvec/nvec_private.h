@@ -204,6 +204,7 @@ typedef struct NvEcPrivStateRec
     NvOsThreadHandle    hPingThread;
     NvOsSemaphoreHandle hPingSema;
     NvBool              exitPingThread;
+    NvBool              IsEcActive;
 } NvEcPrivState;
 
 

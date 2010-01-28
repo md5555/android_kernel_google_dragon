@@ -255,6 +255,7 @@ struct nvec_keyboard
 	struct input_dev		*input_dev;
 	struct task_struct		*task;
 	char				name[128];
+	int					shutdown;
 	unsigned short			keycode[512];
 	NvEcHandle			hNvec;
 	NvEcEventRegistrationHandle	hEvent;
@@ -267,7 +268,7 @@ static int nvec_keyboard_recv(void *arg)
 	struct input_dev *input_dev = (struct input_dev *)arg;
 	struct nvec_keyboard *keyboard = input_get_drvdata(input_dev);
 
-	while (!kthread_should_stop()) {
+	while (!keyboard->shutdown) {
 		unsigned int pressed;
 		NvU32 code;
 		NvU8 flags;
@@ -278,9 +279,8 @@ static int nvec_keyboard_recv(void *arg)
 			continue;
 		}
 
-		/* Check for the thread terminaiton request */
-		if (kthread_should_stop())
-			return 0;
+		if (keyboard->shutdown)
+			break;
 
 		pressed = (flags & NV_ODM_SCAN_CODE_FLAG_MAKE);
 
@@ -396,6 +396,7 @@ static int __devexit nvec_keyboard_remove(struct platform_device *dev)
 	NvOdmKeyboardDeInit();
 	NvEcClose(keyboard->hNvec);
 	keyboard->hNvec = NULL;
+	keyboard->shutdown = 1;
 	input_free_device(input_dev);
 	kfree(keyboard);
 
