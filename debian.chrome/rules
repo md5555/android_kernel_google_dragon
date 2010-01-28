@@ -99,24 +99,4 @@ $(DEBIAN)/control.stub: \
 
 .PHONY: debian/control
 debian/control: $(DEBIAN)/control.stub
-	rm -rf $(builddir)/modules $(builddir)/firmware			\
-		$(builddir)/kernel-versions $(builddir)/package-list	\
-		$(builddir)/$(DEBIAN)
-	mkdir -p $(builddir)/modules/$(arch)/
-	mkdir -p $(builddir)/firmware/$(arch)/
-	touch $(builddir)/modules/$(arch)/kernel-image
-	# kernel-wedge needs to poke around in $(DEBIAN)/
-	ln -nsf $(CURDIR)/debian $(builddir)/debian
-
-	if [ ! -d $(builddir)/modules/$(build_arch) ]; then		\
-		mkdir -p $(builddir)/modules/$(build_arch);		\
-		cp $(builddir)/modules/$(arch)/*			\
-			$(builddir)/modules/$(build_arch);		\
-	fi
-	if [ ! -d $(builddir)/firmware/$(build_arch) ]; then		\
-		mkdir -p $(builddir)/firmware/$(build_arch);		\
-		cp $(builddir)/firmware/$(arch)/*			\
-			$(builddir)/firmware/$(build_arch);		\
-	fi
-
 	cp $(DEBIAN)/control.stub debian/control
