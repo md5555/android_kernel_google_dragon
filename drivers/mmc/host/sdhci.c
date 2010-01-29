@@ -411,6 +411,25 @@ static int sdhci_adma_table_pre(struct sdhci_host *host,
 			len -= offset;
 		}
 
+		if ((len == 0x10000) &&
+			(host->quirks & SDHCI_QUIRK_32KB_MAX_ADMA_SIZE)) {
+			len = 1 << 15;
+
+			desc[7] = (addr >> 24) & 0xff;
+			desc[6] = (addr >> 16) & 0xff;
+			desc[5] = (addr >> 8) & 0xff;
+			desc[4] = (addr >> 0) & 0xff;
+
+			desc[3] = (len >> 8) & 0xff;
+			desc[2] = (len >> 0) & 0xff;
+
+			desc[1] = 0x00;
+			desc[0] = 0x21; /* tran, valid */
+
+			desc += 8;
+			addr += len;
+		}
+
 		desc[7] = (addr >> 24) & 0xff;
 		desc[6] = (addr >> 16) & 0xff;
 		desc[5] = (addr >> 8) & 0xff;
@@ -696,7 +715,8 @@ static void sdhci_prepare_data(struct sdhci_host *host, struct mmc_data *data)
 	 * (e.g. JMicron) can't do PIO properly when the selection
 	 * is ADMA.
 	 */
-	if (host->version >= SDHCI_SPEC_200) {
+	if ((host->version >= SDHCI_SPEC_200) ||
+		(host->quirks & SDHCI_QUIRK_BROKEN_SPEC_VERSION)) {
 		ctrl = readb(host->ioaddr + SDHCI_HOST_CONTROL);
 		ctrl &= ~SDHCI_CTRL_DMA_MASK;
 		if ((host->flags & SDHCI_REQ_USE_DMA) &&
@@ -1613,6 +1633,9 @@ int sdhci_add_host(struct sdhci_host *host)
 
 	if (host->flags & SDHCI_USE_DMA) {
 		if ((host->version >= SDHCI_SPEC_200) &&
+				(caps & SDHCI_CAN_DO_ADMA2))
+			host->flags |= SDHCI_USE_ADMA;
+		else if ((host->quirks & SDHCI_QUIRK_BROKEN_SPEC_VERSION) &&
 				(caps & SDHCI_CAN_DO_ADMA2))
 			host->flags |= SDHCI_USE_ADMA;
 	}
