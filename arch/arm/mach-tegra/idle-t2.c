@@ -47,6 +47,7 @@ extern struct wake_lock main_wake_lock;
 #define CPU_CONTEXT_SAVE_AREA_SIZE 4096
 #define TEMP_SAVE_AREA_SIZE 16
 #define ENABLE_LP2 1
+#define ENABLE_LP0 0
 #define NV_POWER_LP2_IDLE_THRESHOLD_MS 700
 #define NV_POWER_IDLE_WINDOW_SIZE 100
 #define MAX_LP2_TIME_US 1000000
@@ -60,6 +61,7 @@ void mach_tegra_reset(void);
 void mach_tegra_idle(void);
 extern void enter_lp2(NvU32, NvU32);
 extern void exit_power_state(void);
+extern void module_context_init(void);
 extern void NvSpareTimerTrigger(unsigned long); /* timer.c */
 
 NvU32 lp2count = 0, lp3count = 0, lp2safe = 0;
@@ -107,7 +109,10 @@ void __init NvAp20InitFlowController(void)
         (uintptr_t)kmalloc(CPU_CONTEXT_SAVE_AREA_SIZE, GFP_ATOMIC);
     g_contextSavePA = virt_to_phys((void*)g_contextSaveVA);
     g_NumActiveCPUs = num_online_cpus();
-    g_enterLP2PA = virt_to_phys((void*)enter_lp2);    
+    g_enterLP2PA = virt_to_phys((void*)enter_lp2);
+#if ENABLE_LP0
+	module_context_init();
+#endif
 }
 
 /*
