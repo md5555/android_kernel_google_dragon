@@ -116,7 +116,8 @@ static const NvOdmQueryOwrDeviceInfo s_NvOdmQueryOwrInfo = {
 
     0x7, /* Read data sample clk */
     0x50, /* Presence sample clk */
-    2  /* Memory address size */
+    2,  /* Memory address size */
+    0x80 /* Memory size*/
 };
 
 static const NvOdmSdramControllerConfigAdv s_NvOdmE1109EmcConfigTable[] =

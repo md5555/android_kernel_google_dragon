@@ -149,6 +149,7 @@ NVERROR(IdeWriteError,                      0x00046002, "Ide write error")
 NVERROR(OwrReadFailed,                      0x00047000, "OWR data reading failed")
 NVERROR(OwrWriteFailed,                     0x00047001, "OWR data write failed")
 NVERROR(OwrBitTransferFailed,               0x00047002, "OWR bit transfer failed")
+NVERROR(OwrInvalidOffset,                   0x00047003, "OWR invalid offset")
 
 /* Nv2D error codes */
 NVERROR(InvalidOperation,                   0x00050000, "invalid operation")
