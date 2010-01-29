@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2009 NVIDIA Corporation.
+ * Copyright (c) 2007-2010 NVIDIA Corporation.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -57,7 +57,7 @@ Max8907bPrivData *hMax8907bPmu;
 
 #define ALWAYS_ONLINE (1)
 
-/** 
+/**
  * MAX8907B regulators can be enabled/disabled via s/w I2C commands only
  * when MAX8907B_SEQSEL_I2CEN_LXX (7) is selected as regulator sequencer.
  * Otherwise, regulator is controlled by h/w sequencers: SEQ1 (SYSEN),
@@ -71,7 +71,7 @@ Max8907bPrivData *hMax8907bPmu;
 #define MAX8907B_OUT_VOLTAGE_CONTROL_DISABLE \
     (MAX8907B_SEQSEL_I2CEN_LXX << MAX8907B_CTL_SEQ_SHIFT)
 
-/** 
+/**
 *   The FAN5355 is used to scale the voltage of an external
 *   DC/DC voltage rail (for PCIE).  However, voltage scaling is
 *   not required for this source, since the 1.05V default
@@ -122,7 +122,7 @@ static const NvU32 VoltageTable_LDO_A[] = {
 
 // FAN5355 VOUT_02 (millivolts x 10)
 static const NvU32 VoltageTable_VOUT_02[] = {
-     7500,  7625,  7750,  7875,  8000,  8125,  8250,  8375,  
+     7500,  7625,  7750,  7875,  8000,  8125,  8250,  8375,
      8500,  8625,  8750,  8875,  9000,  9125,  9250,  9375,
      9500,  9625,  9750,  9875, 10000, 10125, 10250, 10375,
     10500, 10625, 10750, 10875, 11000, 11125, 11250, 11375,
@@ -172,10 +172,10 @@ static NvU32 Max8907bPmuVoltageGet_LDO_A(const NvU32 OutVoltageIndex)
 }
 
 // Secondary PMU MIC2826 API
-static NvBool MIC2826ReadVoltageReg(NvOdmPmuDeviceHandle hDevice, 
+static NvBool MIC2826ReadVoltageReg(NvOdmPmuDeviceHandle hDevice,
                  NvU32 vddRail, NvU32* pMilliVolts);
 
-static NvBool MIC2826WriteVoltageReg( NvOdmPmuDeviceHandle hDevice, 
+static NvBool MIC2826WriteVoltageReg( NvOdmPmuDeviceHandle hDevice,
                  NvU32 vddRail, NvU32  MilliVolts, NvU32* pSettleMicroSeconds);
 
 const NvU8 MIC2826_BUCK_Votage_Table[] =
@@ -971,7 +971,7 @@ const Max8907bPmuSupplyInfo Max8907bSupplyInfoTable[] =
         NULL,
         {
             NV_FALSE,
-            MIC2826_BUCK_VOLTAGE_MIN_MV, 
+            MIC2826_BUCK_VOLTAGE_MIN_MV,
             MIC2826_BUCK_VOLTAGE_STEP_MV,
             MIC2826_BUCK_VOLTAGE_MAX_MV,
             MIC2826_BUCK_REQUESTVOLTAGE_MV
@@ -989,7 +989,7 @@ const Max8907bPmuSupplyInfo Max8907bSupplyInfoTable[] =
         NULL,
         {
             NV_FALSE,
-            MIC2826_LDO_VOLTAGE_MIN_MV, 
+            MIC2826_LDO_VOLTAGE_MIN_MV,
             MIC2826_LDO_VOLTAGE_STEP_MV,
             MIC2826_LDO_VOLTAGE_MAX_MV,
             MIC2826_LDO1_REQUESTVOLTAGE_MV
@@ -1008,7 +1008,7 @@ const Max8907bPmuSupplyInfo Max8907bSupplyInfoTable[] =
         NULL,
         {
             NV_FALSE,
-            MIC2826_LDO_VOLTAGE_MIN_MV, 
+            MIC2826_LDO_VOLTAGE_MIN_MV,
             MIC2826_LDO_VOLTAGE_STEP_MV,
             MIC2826_LDO_VOLTAGE_MAX_MV,
             MIC2826_LDO2_REQUESTVOLTAGE_MV
@@ -1027,14 +1027,14 @@ const Max8907bPmuSupplyInfo Max8907bSupplyInfoTable[] =
         NULL,
         {
             NV_FALSE,
-            MIC2826_LDO_VOLTAGE_MIN_MV, 
+            MIC2826_LDO_VOLTAGE_MIN_MV,
             MIC2826_LDO_VOLTAGE_STEP_MV,
             MIC2826_LDO_VOLTAGE_MAX_MV,
             MIC2826_LDO3_REQUESTVOLTAGE_MV
         },
     },
 
-    // EXT_DC/DC7 (controlled by LX_V1, scaled by AD5258 DPM) 
+    // EXT_DC/DC7 (controlled by LX_V1, scaled by AD5258 DPM)
     {
         Max8907bLxV1_Ad5258_DPM_EXT_DCDC_7,
         AD5258_RDAC_ADDR,
@@ -1054,10 +1054,10 @@ const Max8907bPmuSupplyInfo Max8907bSupplyInfoTable[] =
     }
 };
 
-static NvBool 
+static NvBool
 Max8907bReadVoltageReg(
-    NvOdmPmuDeviceHandle hDevice, 
-    NvU32 vddRail, 
+    NvOdmPmuDeviceHandle hDevice,
+    NvU32 vddRail,
     NvU32* pMilliVolts)
 {
     const Max8907bPmuSupplyInfo *pSupplyInfo = &Max8907bSupplyInfoTable[vddRail];
@@ -1095,11 +1095,11 @@ Max8907bReadVoltageReg(
     return NV_TRUE;
 }
 
-static NvBool 
+static NvBool
 Max8907bWriteVoltageReg(
-    NvOdmPmuDeviceHandle hDevice, 
-    NvU32 vddRail, 
-    NvU32  MilliVolts, 
+    NvOdmPmuDeviceHandle hDevice,
+    NvU32 vddRail,
+    NvU32  MilliVolts,
     NvU32* pSettleMicroSeconds)
 {
     const Max8907bPmuSupplyInfo *pSupplyInfo = &Max8907bSupplyInfoTable[vddRail];
@@ -1128,7 +1128,7 @@ Max8907bWriteVoltageReg(
         if (((Max8907bPrivData*)hDevice->pPrivate)->supplyRefCntTable[pSupplyInfo->supply] != 0)
             ((Max8907bPrivData*)hDevice->pPrivate)->supplyRefCntTable[pSupplyInfo->supply] --;
 
-        return NV_TRUE; 
+        return NV_TRUE;
     }
 
     // Set voltage level
@@ -1263,9 +1263,9 @@ Max8907bPwrEnAttach(
     return NV_TRUE;
 }
 
-static NvBool 
+static NvBool
 Tca6416ConfigPort(
-    NvOdmPmuDeviceHandle hDevice, 
+    NvOdmPmuDeviceHandle hDevice,
     NvU32 vddRail,
     NvBool Enable)
 {
@@ -1273,7 +1273,7 @@ Tca6416ConfigPort(
     NvU32 PortNo;
     NvU32 PinNo;
 
-    // Get port number and pin number 
+    // Get port number and pin number
     PortNo = pSupplyInfo->OutputPort;
     PinNo = pSupplyInfo->PmuGpio;
 
@@ -1309,10 +1309,10 @@ Tca6416ConfigPort(
 
 
 #if defined(MAX8907B_USE_FAN5355_VOLTAGE_SCALING)
-static NvBool 
+static NvBool
 Fan5355ReadVoltageReg(
-    NvOdmPmuDeviceHandle hDevice, 
-    NvU32 vddRail, 
+    NvOdmPmuDeviceHandle hDevice,
+    NvU32 vddRail,
     NvU32* pMilliVolts)
 {
     const Max8907bPmuSupplyInfo *pSupplyInfo = &Max8907bSupplyInfoTable[vddRail];
@@ -1337,10 +1337,10 @@ Fan5355ReadVoltageReg(
 }
 #endif
 
-static NvBool 
+static NvBool
 Fan5355WriteVoltageReg(
-    NvOdmPmuDeviceHandle hDevice, 
-    NvU32 vddRail, 
+    NvOdmPmuDeviceHandle hDevice,
+    NvU32 vddRail,
     NvU32  MilliVolts)
 {
     const Max8907bPmuSupplyInfo *pSupplyInfo = NULL;
@@ -1390,13 +1390,13 @@ Fan5355WriteVoltageReg(
     return NV_TRUE;
 }
 
-static NvBool 
+static NvBool
 Max8907bLxV1Ad5258ReadVoltageReg(
-    NvOdmPmuDeviceHandle hDevice, 
-    NvU32 vddRail, 
+    NvOdmPmuDeviceHandle hDevice,
+    NvU32 vddRail,
     NvU32* pMilliVolts)
 {
-    const Max8907bPmuSupplyInfo* pSupplyInfo = 
+    const Max8907bPmuSupplyInfo* pSupplyInfo =
         &Max8907bSupplyInfoTable[vddRail];
 
     NV_ASSERT(pSupplyInfo->supply == (Max8907bPmuSupply)vddRail);
@@ -1416,11 +1416,11 @@ Max8907bLxV1Ad5258ReadVoltageReg(
     return Ad5258I2cGetVoltage(hDevice, pMilliVolts);
 }
 
-static NvBool 
+static NvBool
 Max8907bLxV1Ad5258WriteVoltageReg(
-    NvOdmPmuDeviceHandle hDevice, 
-    NvU32 vddRail, 
-    NvU32 MilliVolts, 
+    NvOdmPmuDeviceHandle hDevice,
+    NvU32 vddRail,
+    NvU32 MilliVolts,
     NvU32* pSettleMicroSeconds)
 {
     const Max8907bPmuSupplyInfo *pSupplyInfo =
@@ -1446,7 +1446,7 @@ Max8907bLxV1Ad5258WriteVoltageReg(
             pSupplyInfo->supply] --;
         }
         // TODO: add external DCDC turning Off settling time
-        return NV_TRUE; 
+        return NV_TRUE;
     }
 
     // Set DPM voltage level (includes DPM and DCDC change level settle time)
@@ -1468,14 +1468,14 @@ Max8907bLxV1Ad5258WriteVoltageReg(
     return NV_TRUE;
 }
 
-NvBool 
+NvBool
 Max8907bSetup(NvOdmPmuDeviceHandle hDevice)
 {
     NvOdmIoModule I2cModule = NvOdmIoModule_I2c;
     NvU32  I2cInstance = 0;
     NvU32  I2cAddress  = 0;
     NvU32  i           = 0;
-    const NvOdmPeripheralConnectivity *pConnectivity = 
+    const NvOdmPeripheralConnectivity *pConnectivity =
                            NvOdmPeripheralGetGuid(PMUGUID);
 
     NV_ASSERT(hDevice);
@@ -1491,7 +1491,7 @@ Max8907bSetup(NvOdmPmuDeviceHandle hDevice)
 
     ((Max8907bPrivData*)hDevice->pPrivate)->supplyRefCntTable = NvOdmOsAlloc(sizeof(NvU32) * Max8907bPmuSupply_Num);
     if (((Max8907bPrivData*)hDevice->pPrivate)->supplyRefCntTable == NULL)
-    {     
+    {
         NVODMPMU_PRINTF(("Error Allocating RefCntTable. \n"));
         goto fail;
     }
@@ -1505,7 +1505,7 @@ Max8907bSetup(NvOdmPmuDeviceHandle hDevice)
     if (pConnectivity != NULL) // PMU is in database
     {
         NvU32 i = 0;
-        
+
         for (i = 0; i < pConnectivity->NumAddress; i ++)
         {
             if (pConnectivity->AddressList[i].Interface == NvOdmIoModule_I2c_Pmu)
@@ -1523,17 +1523,17 @@ Max8907bSetup(NvOdmPmuDeviceHandle hDevice)
         ((Max8907bPrivData*)hDevice->pPrivate)->hOdmI2C = NvOdmI2cOpen(I2cModule, I2cInstance);
         if (!((Max8907bPrivData*)hDevice->pPrivate)->hOdmI2C)
         {
-            NVODMPMU_PRINTF(("[NVODM PMU]Max8907bSetup: Error Opening I2C device. \n"));     
-            NVODMPMU_PRINTF(("[NVODM PMU]Please check PMU device I2C settings. \n"));     
+            NVODMPMU_PRINTF(("[NVODM PMU]Max8907bSetup: Error Opening I2C device. \n"));
+            NVODMPMU_PRINTF(("[NVODM PMU]Please check PMU device I2C settings. \n"));
             return NV_FALSE;
         }
         ((Max8907bPrivData*)hDevice->pPrivate)->DeviceAddr = I2cAddress;
         ((Max8907bPrivData*)hDevice->pPrivate)->hOdmPmuSevice = NvOdmServicesPmuOpen();
-    }   
+    }
     else
     {
         // if PMU is not present in the database, then the platform is PMU-less.
-        NVODMPMU_PRINTF(("[NVODM PMU]Max8907bSetup: The system did not doscover PMU from the data base.\n"));     
+        NVODMPMU_PRINTF(("[NVODM PMU]Max8907bSetup: The system did not doscover PMU from the data base.\n"));
         NVODMPMU_PRINTF(("[NVODM PMU]Max8907bSetup: If this is not intended, please check the peripheral database for PMU settings.\n"));
         return NV_FALSE;
     }
@@ -1545,7 +1545,7 @@ Max8907bSetup(NvOdmPmuDeviceHandle hDevice)
         return NV_FALSE;
     }
 
-    // Configure PWREN, and attach CPU V1 rail to it. 
+    // Configure PWREN, and attach CPU V1 rail to it.
     // TODO: h/w events (power cycle, reset, battery low) auto-disables PWREN.
     // Only soft reset (not supported) requires s/w to disable PWREN explicitly
     if (!Max8907bPwrEnConfigure(hDevice, NV_TRUE))
@@ -1570,7 +1570,7 @@ Max8907bSetup(NvOdmPmuDeviceHandle hDevice)
     // if board info ROMs cannot be read when the thermal rail is enabled).
     // This has to be done as early as possible because of 100ms+ power up
     // delay before interface level shifters are operational.
-    pConnectivity = 
+    pConnectivity =
         NvOdmPeripheralGetGuid(NV_ODM_GUID('a','d','t','7','4','6','1',' '));
     if (pConnectivity)
     {
@@ -1590,7 +1590,7 @@ Max8907bSetup(NvOdmPmuDeviceHandle hDevice)
         }
     }
 
-    // The interrupt assumes not supported until Max8907bInterruptHandler() is called. 
+    // The interrupt assumes not supported until Max8907bInterruptHandler() is called.
     ((Max8907bPrivData*)hDevice->pPrivate)->pmuInterruptSupported = NV_FALSE;
 
     return NV_TRUE;
@@ -1600,7 +1600,7 @@ fail:
     return NV_FALSE;
 }
 
-void 
+void
 Max8907bRelease(NvOdmPmuDeviceHandle hDevice)
 {
     if (hDevice->pPrivate != NULL)
@@ -1684,7 +1684,7 @@ Max8907bGetVoltage(
 }
 
 
-static  NvBool 
+static  NvBool
 Tca6416UsbVbusControl(
     NvOdmPmuDeviceHandle hDevice,
     NvU32 vddRail,
@@ -1694,7 +1694,7 @@ Tca6416UsbVbusControl(
     NvU32 PortNo;
     NvU32 PinNo;
 
-    // Get port number and pin number 
+    // Get port number and pin number
     PortNo = pSupplyInfo->OutputPort;
     PinNo = pSupplyInfo->PmuGpio;
 
@@ -1775,7 +1775,7 @@ Max8907bSetVoltage(
     }
 
     // Check whether need to enable VBUS for any of the USB Instance
-    if ((vddRail == Max8907bPmuSupply_EXT_DCDC_3_USB1) || 
+    if ((vddRail == Max8907bPmuSupply_EXT_DCDC_3_USB1) ||
         (vddRail == Max8907bPmuSupply_EXT_DCDC_3_USB3))
     {
         // Enable  VBUS for USB1 or USB3
@@ -1864,9 +1864,9 @@ Max8907bGetBatteryStatus(
     NV_ASSERT(batteryInst <= NvOdmPmuBatteryInst_Num);
 
     if (batteryInst == NvOdmPmuBatteryInst_Main)
-    {    
+    {
         if ( ((Max8907bPrivData*)hDevice->pPrivate)->battPresence == NV_TRUE )
-        {   
+        {
             NvOdmPmuAcLineStatus stat = NvOdmPmuAcLine_Offline;
             NvU32 VBatSense = 0;
             if (!Max8907bGetAcLineStatus(hDevice, &stat))
@@ -1902,7 +1902,7 @@ Max8907bGetBatteryStatus(
         }
         *pStatus = status;
     }
-    else 
+    else
     {
         *pStatus = NVODM_BATTERY_STATUS_UNKNOWN;
     }
@@ -1939,7 +1939,7 @@ Max8907bGetBatteryData(
         if (((Max8907bPrivData*)hDevice->pPrivate)->battPresence == NV_TRUE)
         {
             /* retrieve Battery voltage and temperature */
-            
+
             // Get VBatSense
             if (!Max8907bAdcVBatSenseRead(hDevice, &VBatSense))
             {
@@ -1957,7 +1957,7 @@ Max8907bGetBatteryData(
             batteryData.batteryVoltage = VBatSense;
             batteryData.batteryTemperature = Max8907bBatteryTemperature(VBatSense, VBatTemp);
         }
-        
+
         *pData = batteryData;
     }
     else
@@ -1994,16 +1994,18 @@ Max8907bSetChargingCurrent(
     NvOdmUsbChargerType ChargerType)
 {
     NvU8 data = 0;
+    NvU8 fchg = 0;
     NV_ASSERT(hDevice);
 
-    // if no battery, then do nothing
+    // If no battery is connected, then do nothing.
     if (((Max8907bPrivData*)hDevice->pPrivate)->battPresence == NV_FALSE)
         return NV_TRUE;
 
-    // if requested current is more than max supported current then limit to supported
+    // If requested current is more than supported maximum then limit to supported.
     if ( chargingCurrentLimitMa > MAX_CHARGER_LIMIT_MA )
         chargingCurrentLimitMa = MAX_CHARGER_LIMIT_MA;
 
+    // If dedicated charger is connected, request maximum current.
     if (chargingPath == NvOdmPmuChargingPath_UsbBus)
     {
         switch (ChargerType)
@@ -2016,18 +2018,40 @@ Max8907bSetChargingCurrent(
                 break;
             case NvOdmUsbChargerType_UsbHost:
             default:
-                // USB Host based charging, nothing to do. Just pass current limit to PMU.
                 break;
         }
     }
 
-    // For now, use default charging current (no change to charge control register)
-
-    // turn off the charger path if the requested current limit is 0mA. Turn on the path otherwise. 
-    data = 0;
+    // Read the current charger setup.
     if ( !Max8907bI2cRead8(hDevice, MAX8907B_CHG_CNTL1, &data) )
         return NV_FALSE;
-  
+
+    // Set charging current to the value no larger than requested.
+    // If less than 85mA is requested, set to 85mA.
+    // If larger than 1000mA is requested, set to 1000mA.
+    if (chargingCurrentLimitMa >= 1000)
+        fchg = MAX8907B_CHG_CNTL1_FCHG_1000MA;
+    else if (chargingCurrentLimitMa >= 900)
+        fchg = MAX8907B_CHG_CNTL1_FCHG_900MA;
+    else if (chargingCurrentLimitMa >= 800)
+        fchg = MAX8907B_CHG_CNTL1_FCHG_800MA;
+    else if (chargingCurrentLimitMa >= 700)
+        fchg = MAX8907B_CHG_CNTL1_FCHG_700MA;
+    else if (chargingCurrentLimitMa >= 600)
+        fchg = MAX8907B_CHG_CNTL1_FCHG_600MA;
+    else if (chargingCurrentLimitMa >= 460)
+        fchg = MAX8907B_CHG_CNTL1_FCHG_460MA;
+    else if (chargingCurrentLimitMa >= 300)
+        fchg = MAX8907B_CHG_CNTL1_FCHG_300MA;
+    else
+        fchg = MAX8907B_CHG_CNTL1_FCHG_85MA;
+
+    data &= ~(MAX8907B_CHG_CNTL1_FCHG_MASK <<
+              MAX8907B_CHG_CNTL1_FCHG_SHIFT);
+    data |= fchg << MAX8907B_CHG_CNTL1_FCHG_SHIFT;
+
+    // Turn off the charger path if the requested current limit is 0mA.
+    // Turn on the path otherwise.
     if ( chargingCurrentLimitMa == 0 )
     {
         // off
@@ -2041,6 +2065,7 @@ Max8907bSetChargingCurrent(
                   MAX8907B_CHG_CNTL1_NOT_CHGEN_SHIFT);
     }
 
+    // Update the current charger setup.
     if ( !Max8907bI2cWrite8(hDevice, MAX8907B_CHG_CNTL1, data) )
         return NV_FALSE;
 
@@ -2056,10 +2081,10 @@ void Max8907bInterruptHandler( NvOdmPmuDeviceHandle  hDevice)
 }
 
 /****************   Secondary PMU MIC2826 Programming  */
-static NvBool 
+static NvBool
 MIC2826ReadVoltageReg(
-    NvOdmPmuDeviceHandle hDevice, 
-    NvU32 vddRail, 
+    NvOdmPmuDeviceHandle hDevice,
+    NvU32 vddRail,
     NvU32* pMilliVolts)
 {
     NvU32 milliVolts = 0;
@@ -2093,7 +2118,7 @@ MIC2826ReadVoltageReg(
                 milliVolts = 1200 + ((index - 0x10) * MIC2826_BUCK_VOLTAGE_STEP_50MV) ;
             }
         }
-        else if ( (vddRail == MIC2826PmuSupply_LDO1) || 
+        else if ( (vddRail == MIC2826PmuSupply_LDO1) ||
                   (vddRail == MIC2826PmuSupply_LDO2) ||
                   (vddRail == MIC2826PmuSupply_LDO3))
         {
@@ -2112,11 +2137,11 @@ MIC2826ReadVoltageReg(
 }
 
 
-static NvBool 
+static NvBool
 MIC2826WriteVoltageReg(
-    NvOdmPmuDeviceHandle hDevice, 
-    NvU32 vddRail, 
-    NvU32  MilliVolts, 
+    NvOdmPmuDeviceHandle hDevice,
+    NvU32 vddRail,
+    NvU32  MilliVolts,
     NvU32* pSettleMicroSeconds)
 {
     NvU8 data = 0;
@@ -2160,7 +2185,7 @@ MIC2826WriteVoltageReg(
         else
             NvOdmOsWaitUS(settleTime);
 
-        return NV_TRUE; 
+        return NV_TRUE;
     }
 
     // turn on supply
@@ -2194,18 +2219,18 @@ MIC2826WriteVoltageReg(
            index = (MilliVolts - MIC2826_BUCK_VOLTAGE_OFFSET) / MIC2826_BUCK_VOLTAGE_STEP_25MV ;
        }else
        {
-           index = 0x10 + ((MilliVolts - 1200) / MIC2826_BUCK_VOLTAGE_STEP_50MV) ; 
+           index = 0x10 + ((MilliVolts - 1200) / MIC2826_BUCK_VOLTAGE_STEP_50MV) ;
        }
        data = MIC2826_BUCK_Votage_Table[index];
     }
-    else if ( (vddRail == MIC2826PmuSupply_LDO1) || 
+    else if ( (vddRail == MIC2826PmuSupply_LDO1) ||
               (vddRail == MIC2826PmuSupply_LDO2) ||
               (vddRail == MIC2826PmuSupply_LDO3))
     {
         index = (MilliVolts - MIC2826_LDO_VOLTAGE_OFFSET) / pSupplyInfo->cap.StepMilliVolts;
         data = MIC2826_LDO_Votage_Table[index];
     }
-       
+
     // Program the Rail Voltage
     if(! MIC2826I2cRead8(hDevice, pSupplyInfo->ControlRegAddr, &data))
          return NV_FALSE;
