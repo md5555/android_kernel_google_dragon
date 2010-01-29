@@ -526,19 +526,14 @@ static irqreturn_t tegra_uart_isr(int irq, void *data)
 static void tegra_stop_rx(struct uart_port *u)
 {
 	struct tegra_uart_port *t;
-	unsigned long flags;
 
 	t = container_of(u, struct tegra_uart_port, uport);
-
-	spin_lock_irqsave(&u->lock, flags);
 
 	u->mctrl &= ~TIOCM_RTS;
 	u->mctrl &= ~TIOCM_DTR;
 	tegra_set_mctrl(u, u->mctrl);
 
 	tegra_dma_dequeue(t->rx_dma);
-
-	spin_unlock_irqrestore(&u->lock, flags);
 
 	return;
 }

@@ -31,6 +31,7 @@ enum tegra_dma_mode {
 };
 
 enum tegra_dma_req_error {
+	TEGRA_DMA_REQ_SUCCESS = 0,
 	TEGRA_DMA_REQ_ERROR_ABOTRED,
 };
 
