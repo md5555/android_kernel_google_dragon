@@ -217,6 +217,10 @@ struct sdhci_host {
 #define SDHCI_QUIRK_ENABLE_INTERRUPT_AT_BLOCK_GAP	(1<<16)
 /* Controller should not program HIGH_SPEED_EN after switching to high speed */
 #define SDHCI_QUIRK_BROKEN_CTRL_HISPD			(1<<17)
+/* Controller provides an incorrect SPECIFICATION_VERSION_NUMBER */
+#define SDHCI_QUIRK_BROKEN_SPEC_VERSION			(1<<18)
+/* Controller supports maximum ADMA size of 32 Kilo bytes. */
+#define SDHCI_QUIRK_32KB_MAX_ADMA_SIZE			(1<<19)
 
 	int			irq;		/* Device IRQ */
 	void __iomem *		ioaddr;		/* Mapped address */

@@ -298,6 +298,10 @@ int __init tegra_sdhci_probe(struct platform_device *pdev)
 
 	if (!pSdioCaps->EnableDmaSupport)
 		sdhost->quirks |= SDHCI_QUIRK_BROKEN_DMA;
+	else {
+		sdhost->quirks |= SDHCI_QUIRK_BROKEN_SPEC_VERSION;
+		sdhost->quirks |= SDHCI_QUIRK_32KB_MAX_ADMA_SIZE;
+	}
 
 	err1 = NvRmGetModuleInterfaceCapabilities(s_hRmGlobal,
 		NVRM_MODULE_ID(NvRmModuleID_Sdio, pdev->id),
