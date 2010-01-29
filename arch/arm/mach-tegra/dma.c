@@ -506,11 +506,11 @@ static void handle_oneshot_dma(struct tegra_dma_channel *ch)
 
 		list_del(&req->list);
 		req->bytes_transferred = bytes_transferred;
-		req->status = 0;
+		req->status = TEGRA_DMA_REQ_SUCCESS;
 
 		spin_unlock(&ch->lock);
 		/* Callback should be called without any lock */
-		req->complete(req, 0);
+		req->complete(req, TEGRA_DMA_REQ_SUCCESS);
 		spin_lock(&ch->lock);
 	}
 
@@ -547,7 +547,7 @@ static void handle_continuous_dma(struct tegra_dma_channel *ch)
 			req->buffer_status = TEGRA_DMA_REQ_BUF_STATUS_HALF_FULL;
 			/* DMA lock is NOT held when callbak is called */
 			spin_unlock(&ch->lock);
-			req->threshold(req, 0);
+			req->threshold(req, TEGRA_DMA_REQ_SUCCESS);
 			return;
 
 		} else if (req->buffer_status ==
@@ -563,12 +563,12 @@ static void handle_continuous_dma(struct tegra_dma_channel *ch)
 
 			req->buffer_status = TEGRA_DMA_REQ_BUF_STATUS_FULL;
 			req->bytes_transferred = bytes_transferred;
-			req->status = 0;
+			req->status = TEGRA_DMA_REQ_SUCCESS;
 			list_del(&req->list);
 
 			/* DMA lock is NOT held when callbak is called */
 			spin_unlock(&ch->lock);
-			req->complete(req, 0);
+			req->complete(req, TEGRA_DMA_REQ_SUCCESS);
 			return;
 
 		} else {
