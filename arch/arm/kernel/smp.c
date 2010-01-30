@@ -751,6 +751,12 @@ static void local_dma_cache_op(int type, const void *start, const void *end)
 	case SMP_DMA_CACHE_FLUSH:
 		dmac_flush_range(start, end);
 		break;
+	case SMP_DMA_CACHE_CLEAN_ALL:
+		dmac_clean_all();
+		break;
+	case SMP_DMA_CACHE_FLUSH_ALL:
+		dmac_flush_all();
+		break;
 	default:
 		printk(KERN_CRIT "CPU%u: Unknown SMP DMA cache type %d\n",
 		       smp_processor_id(), type);

@@ -274,6 +274,36 @@ v6_dma_flush_dcache_all:
 	mov	pc, lr
 #endif
 
+/*
+ *	v6_dma_clean_all()
+ *
+ *	cleans the entire L1 data cache
+ */
+ENTRY(v6_dma_clean_all)
+#ifdef HARVARD_CACHE
+	mcr	p15, 0, r0, c7, c10, 0		@ D cache clean
+#else
+	mcr	p15, 0, r0, c7, c15, 0		@ Cache clean+invalidate
+#endif
+	mcr	p15, 0, r0, c7, c10, 4		@ drain write buffer
+	mov	pc, lr
+
+/*
+ *	v6_dma_flush_all()
+ *
+ *	flushes the entire L1 data cache
+ */
+ENTRY(v6_dma_flush_all)
+#ifdef HARVARD_CACHE
+	mcr	p15, 0, r0, c7, c14, 0		@ D cache clean+invalidate
+#else
+	mcr	p15, 0, r0, c7, c15, 0		@ Cache clean+invalidate
+#endif
+	mcr	p15, 0, r0, c7, c10, 4		@ drain write buffer
+	mov	pc, lr
+
+
+
 	__INITDATA
 
 	.type	v6_cache_fns, #object
@@ -287,4 +317,6 @@ ENTRY(v6_cache_fns)
 	.long	v6_dma_inv_range
 	.long	v6_dma_clean_range
 	.long	v6_dma_flush_range
+	.long	v6_dma_clean_all
+	.long	v6_dma_flush_all
 	.size	v6_cache_fns, . - v6_cache_fns

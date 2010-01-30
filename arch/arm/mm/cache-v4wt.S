@@ -184,4 +184,6 @@ ENTRY(v4wt_cache_fns)
 	.long	v4wt_dma_inv_range
 	.long	v4wt_dma_clean_range
 	.long	v4wt_dma_flush_range
+	.long	v4wt_flush_kern_cache_all
+	.long	v4wt_flush_kern_cache_all
 	.size	v4wt_cache_fns, . - v4wt_cache_fns

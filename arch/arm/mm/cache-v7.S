@@ -26,19 +26,19 @@
  *
  *	- mm    - mm_struct describing address space
  */
-ENTRY(v7_flush_dcache_all)
+	.macro v7_way_op, op
 	dmb					@ ensure ordering with previous memory accesses
 	mrc	p15, 1, r0, c0, c0, 1		@ read clidr
 	ands	r3, r0, #0x7000000		@ extract loc from clidr
 	mov	r3, r3, lsr #23			@ left align loc bit field
-	beq	finished			@ if loc is 0, then no need to clean
+	beq	50f				@ if loc is 0, then no need to clean
 	mov	r10, #0				@ start clean at cache level 0
-loop1:
+10:
 	add	r2, r10, r10, lsr #1		@ work out 3x current cache level
 	mov	r1, r0, lsr r2			@ extract cache type bits from clidr
 	and	r1, r1, #7			@ mask of the bits for current cache only
 	cmp	r1, #2				@ see what cache we have at this level
-	blt	skip				@ skip if no cache, or just i-cache
+	blt	40f				@ skip if no cache, or just i-cache
 	mcr	p15, 2, r10, c0, c0, 0		@ select current cache level in cssr
 	isb					@ isb to sych the new cssr&csidr
 	mrc	p15, 1, r1, c0, c0, 0		@ read the new csidr
@@ -49,31 +49,41 @@ loop1:
 	clz	r5, r4				@ find bit position of way size increment
 	ldr	r7, =0x7fff
 	ands	r7, r7, r1, lsr #13		@ extract max number of the index size
-loop2:
+20:
 	mov	r9, r4				@ create working copy of max way size
-loop3:
+30:
  ARM(	orr	r11, r10, r9, lsl r5	)	@ factor way and cache number into r11
  THUMB(	lsl	r6, r9, r5		)
  THUMB(	orr	r11, r10, r6		)	@ factor way and cache number into r11
  ARM(	orr	r11, r11, r7, lsl r2	)	@ factor index number into r11
  THUMB(	lsl	r6, r7, r2		)
  THUMB(	orr	r11, r11, r6		)	@ factor index number into r11
-	mcr	p15, 0, r11, c7, c14, 2		@ clean & invalidate by set/way
+	mcr	p15, 0, r11, c7, \op , 2	@ clean & invalidate by set/way
 	subs	r9, r9, #1			@ decrement the way
-	bge	loop3
+	bge	30b
 	subs	r7, r7, #1			@ decrement the index
-	bge	loop2
-skip:
+	bge	20b
+40:
 	add	r10, r10, #2			@ increment cache number
 	cmp	r3, r10
-	bgt	loop1
-finished:
+	bgt	10b
+50:
 	mov	r10, #0				@ swith back to cache level 0
 	mcr	p15, 2, r10, c0, c0, 0		@ select current cache level in cssr
 	dsb
 	isb
+	.endm
+
+ENTRY(v7_flush_dcache_all)
+	v7_way_op c14
 	mov	pc, lr
 ENDPROC(v7_flush_dcache_all)
+
+
+ENTRY(v7_clean_dcache_all)
+	v7_way_op c10
+	mov	pc, lr
+ENDPROC(v7_clean_dcache_all)
 
 /*
  *	v7_flush_cache_all()
@@ -266,6 +276,35 @@ ENTRY(v7_dma_flush_range)
 	mov	pc, lr
 ENDPROC(v7_dma_flush_range)
 
+/*
+ *	v7_dma_flush_all()
+ *
+ *	flushes the entire L1 data cache
+ */
+ENTRY(v7_dma_flush_all)
+ ARM(	stmfd	sp!, {r4-r5, r7, r9-r11, lr}	)
+ THUMB(	stmfd	sp!, {r4-r7, r9-r11, lr}	)
+	bl	v7_flush_dcache_all
+ ARM(	ldmfd	sp!, {r4-r5, r7, r9-r11, lr}	)
+ THUMB(	ldmfd	sp!, {r4-r7, r9-r11, lr}	)
+	mov	pc, lr
+ENDPROC(v7_dma_flush_all)
+
+/*
+ *	v7_dma_clean_all()
+ *
+ *	cleans the entire L1 data cache
+ */
+ENTRY(v7_dma_clean_all)
+ ARM(	stmfd	sp!, {r4-r5, r7, r9-r11, lr}	)
+ THUMB(	stmfd	sp!, {r4-r7, r9-r11, lr}	)
+	bl	v7_clean_dcache_all
+ ARM(	ldmfd	sp!, {r4-r5, r7, r9-r11, lr}	)
+ THUMB(	ldmfd	sp!, {r4-r7, r9-r11, lr}	)
+	mov	pc, lr
+ENDPROC(v7_dma_clean_all)
+
+
 	__INITDATA
 
 	.type	v7_cache_fns, #object
@@ -279,4 +318,6 @@ ENTRY(v7_cache_fns)
 	.long	v7_dma_inv_range
 	.long	v7_dma_clean_range
 	.long	v7_dma_flush_range
+	.long	v7_dma_clean_all
+	.long	v7_dma_flush_all
 	.size	v7_cache_fns, . - v7_cache_fns

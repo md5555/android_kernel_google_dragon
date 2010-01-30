@@ -208,6 +208,8 @@ struct cpu_cache_fns {
 	void (*dma_inv_range)(const void *, const void *);
 	void (*dma_clean_range)(const void *, const void *);
 	void (*dma_flush_range)(const void *, const void *);
+	void (*dma_clean_all)(void);
+	void (*dma_flush_all)(void);
 };
 
 struct outer_cache_fns {
@@ -239,6 +241,8 @@ extern struct cpu_cache_fns cpu_cache;
 #define dmac_inv_range			cpu_cache.dma_inv_range
 #define dmac_clean_range		cpu_cache.dma_clean_range
 #define dmac_flush_range		cpu_cache.dma_flush_range
+#define dmac_clean_all			cpu_cache.dma_clean_all
+#define dmac_flush_all			cpu_cache.dma_flush_all
 
 #else
 
@@ -255,6 +259,8 @@ static inline void v7m_flush_kern_dcache_page(void *a) { }
 static inline void v7m_dma_inv_range(const void *a, const void *b) { }
 static inline void v7m_dma_clean_range(const void *a, const void *b) { }
 static inline void v7m_dma_flush_range(const void *a, const void *b) { }
+static inline void v7m_dma_clean_all(void) { }
+static inline void v7m_dma_flush_all(void) { }
 
 #endif
 
@@ -281,10 +287,14 @@ extern void __cpuc_flush_dcache_page(void *);
 #define dmac_inv_range			__glue(_CACHE,_dma_inv_range)
 #define dmac_clean_range		__glue(_CACHE,_dma_clean_range)
 #define dmac_flush_range		__glue(_CACHE,_dma_flush_range)
+#define dmac_clean_all			__glue(_CACHE,_dma_clean_all)
+#define dmac_flush_all			__glue(_CACHE,_dma_flush_all)
 
 extern void dmac_inv_range(const void *, const void *);
 extern void dmac_clean_range(const void *, const void *);
 extern void dmac_flush_range(const void *, const void *);
+extern void dmac_clean_all(void);
+extern void dmac_flush_all(void);
 
 #endif
 
@@ -293,6 +303,8 @@ enum smp_dma_cache_type {
 	SMP_DMA_CACHE_INV,
 	SMP_DMA_CACHE_CLEAN,
 	SMP_DMA_CACHE_FLUSH,
+	SMP_DMA_CACHE_CLEAN_ALL,
+	SMP_DMA_CACHE_FLUSH_ALL,
 };
 
 extern void smp_dma_cache_op(int type, const void *start, const void *end);
@@ -311,10 +323,23 @@ static inline void smp_dma_flush_range(const void *start, const void *end)
 {
 	smp_dma_cache_op(SMP_DMA_CACHE_FLUSH, start, end);
 }
+
+static inline void smp_dma_clean_all(void)
+{
+	smp_dma_cache_op(SMP_DMA_CACHE_CLEAN_ALL, NULL, NULL);
+}
+
+static inline void smp_dma_flush_all(void)
+{
+	smp_dma_cache_op(SMP_DMA_CACHE_FLUSH_ALL, NULL, NULL);
+}
+
 #else
 #define smp_dma_inv_range		dmac_inv_range
 #define smp_dma_clean_range		dmac_clean_range
 #define smp_dma_flush_range		dmac_flush_range
+#define smp_dma_clean_all		dmac_clean_all
+#define smp_dma_flush_all		dmac_flush_all
 #endif
 
 #ifdef CONFIG_OUTER_CACHE
