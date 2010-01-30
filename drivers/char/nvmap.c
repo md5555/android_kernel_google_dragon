@@ -21,6 +21,8 @@
  */
 
 #include <linux/module.h>
+#include <linux/bitmap.h>
+#include <linux/wait.h>
 #include <linux/miscdevice.h>
 #include <linux/platform_device.h>
 #include <linux/mm.h>
@@ -34,6 +36,7 @@
 #include <linux/sched.h>
 #include <linux/io.h>
 #include <linux/tegra_devices.h>
+#include <asm/tlbflush.h>
 #include "linux/nvmem_ioctl.h"
 #include "nvcommon.h"
 #include "nvrm_memmgr.h"
@@ -54,8 +57,6 @@ static int nvmap_mmap(struct file *filp, struct vm_area_struct *vma);
 static long nvmap_ioctl(struct file *filp,
 	unsigned int cmd, unsigned long arg);
 
-static void nvmap_clean_handle(NvRmMemHandle hmem, size_t offs, size_t len);
-
 static int nvmap_cache_maint(struct file *filp, void __user *arg);
 
 static int nvmap_map_into_caller_ptr(struct file *filp, void __user *arg);
@@ -70,6 +71,18 @@ static struct backing_dev_info nvmap_bdi = {
 	.capabilities	= (BDI_CAP_NO_ACCT_AND_WRITEBACK |
 			   BDI_CAP_READ_MAP | BDI_CAP_WRITE_MAP),
 };
+
+
+#define NVMAP_PTE_OFFSET(x) (((unsigned long)(x) - NVMAP_BASE) >> PAGE_SHIFT)
+#define NVMAP_PTE_INDEX(x) (((unsigned long)(x) - NVMAP_BASE)>>PGDIR_SHIFT)
+#define NUM_NVMAP_PTES (NVMAP_SIZE >> PGDIR_SHIFT)
+#define NVMAP_END (NVMAP_BASE + NVMAP_SIZE)
+#define NVMAP_PAGES (NVMAP_SIZE >> PAGE_SHIFT)
+
+static pte_t *nvmap_pte[NUM_NVMAP_PTES];
+static unsigned long nvmap_ptebits[NVMAP_PAGES/BITS_PER_LONG];
+static DEFINE_SPINLOCK(nvmap_ptelock);
+static DECLARE_WAIT_QUEUE_HEAD(nvmap_ptefull);
 
 static struct vm_operations_struct nvmap_vma_ops = {
 	.open	= nvmap_vma_open,
@@ -110,6 +123,69 @@ static struct {
 	.mode = S_IRUGO | S_IWUGO,
 };
 
+static int _nvmap_map_pte(unsigned long pfn, pgprot_t prot, void **vaddr)
+{
+	static unsigned int last_bit = 0;
+	unsigned long bit;
+	pte_t *pte;
+	unsigned long addr;
+	unsigned long flags;
+        u32 off;
+        int idx;
+
+	spin_lock_irqsave(&nvmap_ptelock, flags);
+
+	bit = find_next_zero_bit(nvmap_ptebits, NVMAP_PAGES, last_bit);
+	if (bit==NVMAP_PAGES) {
+		bit = find_first_zero_bit(nvmap_ptebits, last_bit);
+		if (bit == last_bit) bit = NVMAP_PAGES;
+	}
+
+	if (bit==NVMAP_PAGES) {
+		spin_unlock_irqrestore(&nvmap_ptelock, flags);
+		return -ENOMEM;
+	}
+
+	last_bit = bit;
+	set_bit(bit, nvmap_ptebits);
+	spin_unlock_irqrestore(&nvmap_ptelock, flags);
+
+	addr = NVMAP_BASE + bit*PAGE_SIZE;
+
+	idx = NVMAP_PTE_INDEX(addr);
+	off = NVMAP_PTE_OFFSET(addr) & (PTRS_PER_PTE-1);
+
+	pte = nvmap_pte[idx] + off;
+	set_pte_ext(pte, pfn_pte(pfn, prot), 0);
+	flush_tlb_kernel_page(addr);
+	*vaddr = (void *)addr;
+	return 0;
+}
+
+static int nvmap_map_pte(unsigned long pfn, pgprot_t prot, void **addr)
+{
+	int ret;
+	ret = wait_event_interruptible(nvmap_ptefull,
+		!_nvmap_map_pte(pfn, prot, addr));
+
+	if (ret==-ERESTARTSYS) return -EINTR;
+	return ret;
+}
+
+static void nvmap_unmap_pte(void *addr)
+{
+	unsigned long bit = NVMAP_PTE_OFFSET(addr);
+	unsigned long flags;
+
+	/* the ptes aren't cleared in this function, since the address isn't
+	 * re-used until it is allocated again by nvmap_map_pte. */
+	BUG_ON(bit >= NVMAP_PAGES);
+	spin_lock_irqsave(&nvmap_ptelock, flags);
+	clear_bit(bit, nvmap_ptebits);
+	spin_unlock_irqrestore(&nvmap_ptelock, flags);
+	wake_up(&nvmap_ptefull);
+}
+
 /* to ensure that the backing store for the VMA isn't freed while a fork'd
  * reference still exists, nvmap_vma_open increments the reference count on
  * the handle, and nvmap_vma_close decrements it. alternatively, we could
@@ -130,11 +206,10 @@ static void nvmap_vma_close(struct vm_area_struct *vma) {
 	struct nvmap_vma_priv *priv = vma->vm_private_data;
 
 	if (priv && !atomic_dec_return(&priv->ref)) {
-		if (priv->hmem) {
-			size_t len = vma->vm_end - vma->vm_start;
-			size_t offs;
-			offs = (vma->vm_pgoff << PAGE_SHIFT) + priv->offs;
-			nvmap_clean_handle(priv->hmem, offs, len);
+		NvRmMemHandle hmem = priv->hmem;
+		if (hmem) {
+			if (hmem->coherency==NvOsMemAttribute_WriteBack)
+				dmac_clean_all();
 			NvRmMemHandleFree(priv->hmem);
 		}
 		kfree(priv);
@@ -148,41 +223,10 @@ extern struct page *NvOsPageGetPage(NvOsPageAllocHandle, size_t);
 #define is_same_page(a, b)  \
 	((unsigned long)(a)>>PAGE_SHIFT == (unsigned long)(b)>>PAGE_SHIFT)
 
-static inline void nvmap_flush(void* kva, unsigned long phys, size_t len)
-{
-	BUG_ON(!is_same_page(kva, kva+len-1));
-	smp_dma_flush_range(nvmap_range(kva, len));
-	outer_flush_range(nvmap_range(phys, len));
-}
-
-static void nvmap_clean_handle(NvRmMemHandle hmem, size_t start, size_t len)
-{
-	if (hmem->coherency != NvOsMemAttribute_WriteBack)
-		return;
-
-	if (hmem->hPageHandle) {
-		size_t offs;
-		size_t end = start + len;
-		for (offs=start; offs<end; offs+=PAGE_SIZE) {
-			size_t bytes = min((size_t)end-offs, (size_t)PAGE_SIZE);
-			struct page *page;
-			void *ptr;
-
-                        page = NvOsPageGetPage(hmem->hPageHandle, offs);
-                        ptr = page_address(page) + (offs & ~PAGE_MASK);
-			smp_dma_clean_range(nvmap_range(ptr, bytes));
-			outer_clean_range(nvmap_range(__pa(ptr), bytes));
-		}
-	}
-	else if (hmem->VirtualAddress && hmem->PhysicalAddress) {
-		smp_dma_clean_range(nvmap_range(hmem->VirtualAddress, hmem->size));
-		outer_clean_range(nvmap_range(hmem->PhysicalAddress, hmem->size));
-	}
-}
-
 static int nvmap_vma_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 {
 	struct nvmap_vma_priv *priv;
+	struct page *page;
 	unsigned long pfn;
 	unsigned long offs;
 
@@ -203,20 +247,21 @@ static int nvmap_vma_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	case NvRmHeap_ExternalCarveOut:
 	case NvRmHeap_IRam:
 		pfn = ((priv->hmem->PhysicalAddress+offs) >> PAGE_SHIFT);
-		break;
+		vm_insert_pfn(vma, (unsigned long)vmf->virtual_address, pfn);
+		return VM_FAULT_NOPAGE;
 
 	case NvRmHeap_GART:
 	case NvRmHeap_External:
 		if (!priv->hmem->hPageHandle)
 			return VM_FAULT_SIGBUS;
-		pfn = NvOsPageAddress(priv->hmem->hPageHandle, offs) >> PAGE_SHIFT;
-		break;
+		page = NvOsPageGetPage(priv->hmem->hPageHandle, offs);
+		if (page) get_page(page);
+		vmf->page = page;
+		return (page) ? 0 : VM_FAULT_SIGBUS;
 
 	default:
 		return VM_FAULT_SIGBUS;
 	}
-	vm_insert_pfn(vma, (unsigned long)vmf->virtual_address, pfn);
-	return VM_FAULT_NOPAGE;
 }
 
 static long nvmap_ioctl(struct file *filp,
@@ -348,7 +393,9 @@ static int nvmap_map_into_caller_ptr(struct file *filp, void __user *arg)
 	/* if the hmem is not writeback-cacheable, drop back to a page mapping
 	 * which will guarantee DMA coherency
 	 */
-	if (hmem->coherency != NvOsMemAttribute_WriteBack)
+	if (hmem->coherency == NvOsMemAttribute_WriteBack)
+		vma->vm_page_prot = pgprot_inner_writeback(vma->vm_page_prot);
+	else
 		vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
 
 	NvRmPrivMemIncrRef(hmem);
@@ -380,7 +427,7 @@ static int nvmap_mmap(struct file *filp, struct vm_area_struct *vma)
 	atomic_set(&priv->ref, 1);
 
 	vma->vm_flags |= VM_SHARED;
-	vma->vm_flags |= (VM_IO | VM_DONTEXPAND | VM_PFNMAP | VM_RESERVED);
+	vma->vm_flags |= (VM_IO | VM_DONTEXPAND | VM_MIXEDMAP | VM_RESERVED);
 	vma->vm_ops = &nvmap_vma_ops;
 	vma->vm_private_data = priv;
 
@@ -395,16 +442,15 @@ static int nvmap_cache_maint(struct file *filp, void __user *arg)
 	struct nvmap_vma_priv	*priv;
 	size_t			offs;
 	size_t			end;
+	unsigned long		count;
+	pgprot_t		prot = pgprot_inner_writeback(pgprot_kernel);
 
 	err = copy_from_user(&op, arg, sizeof(op));
-	if (err)
-		return err;
+	if (err) return err;
 
-	if (!op.handle || !op.addr ||
-		op.op<NVMEM_CACHE_OP_WB ||
-		op.op>NVMEM_CACHE_OP_WB_INV) {
+	if (!op.handle || !op.addr || op.op<NVMEM_CACHE_OP_WB ||
+		op.op>NVMEM_CACHE_OP_WB_INV)
 		return -EINVAL;
-	}
 
 	vma = find_vma(current->active_mm, (unsigned long)op.addr);
 	if (!vma || vma->vm_ops!=&nvmap_vma_ops ||
@@ -427,142 +473,90 @@ static int nvmap_cache_maint(struct file *filp, void __user *arg)
 	offs = (unsigned long)op.addr - vma->vm_start;
 	end  = offs + op.len;
 
+	/* for any write-back operation, it is safe to writeback the entire
+	 * cache rather than one line at a time.  for large regions, it
+	 * is faster to do this than to iterate over every line. */
+	if (end-offs >= PAGE_SIZE*3 && op.op != NVMEM_CACHE_OP_INV) {
+		if (op.op==NVMEM_CACHE_OP_WB) dmac_clean_all();
+		else dmac_flush_all();
+		goto out;
+	}
+
 	while (offs < end) {
-		unsigned long inner_addr = 0;
-		unsigned long outer_addr;
-		size_t count;
-		int clean = 0;
+		struct page *page = NULL;
+		void *addr = NULL, *src;
 
-		/* if kernel mappings exist already for the memory handle, use
-		 * the kernel's mapping for cache maintenance */
-		if (priv->hmem->VirtualAddress) {
-			inner_addr = (unsigned long)priv->hmem->VirtualAddress;
-			inner_addr += offs;
-			clean = 1;
+		if (priv->hmem->hPageHandle) {
+			struct page *page;
+			page = NvOsPageGetPage(priv->hmem->hPageHandle, offs);
+			get_page(page);
+			err = nvmap_map_pte(page_to_pfn(page), prot, &addr);
 		} else {
-			/* fixme: this is overly-conservative; not all pages in
-			 * the range might have be mapped, since pages are
-			 * faulted on-demand. the fault handler could be
-			 * extended to mark pages as accessed dirty so that
-			 * maintenance ops are only performed on dirty pages
-			 */
-			if (priv->hmem->hPageHandle) {
-				struct page *page;
-				page = NvOsPageGetPage(priv->hmem->hPageHandle,
-					offs);
-				inner_addr = (unsigned long)page_address(page);
-				inner_addr += (offs & ~PAGE_MASK);
-				clean = 1;
-			}
-			if (!inner_addr) {
-				/* this case only triggers for rm-managed memory
-				 * apertures (carveout, iram) for handles which
-				 * do not have a mirror mapping in the kernel.
-				 *
-				 * use follow_page, to ensure that we only try
-				 * to clean the cache using addresses that have
-				 * been mapped */
-				inner_addr = vma->vm_start + offs;
-				if (follow_page(vma, inner_addr, FOLL_WRITE))
-					clean = 1;
-			}
+			unsigned long phys = priv->hmem->PhysicalAddress + offs;
+			err = nvmap_map_pte(phys>>PAGE_SHIFT, prot, &addr);
 		}
 
-		switch (priv->hmem->heap) {
-		case NvRmHeap_ExternalCarveOut:
-		case NvRmHeap_IRam:
-			outer_addr = priv->hmem->PhysicalAddress+offs;
+		if (err) {
+			if (page) put_page(page);
 			break;
-
-		case NvRmHeap_GART:
-		case NvRmHeap_External:
-			BUG_ON(!priv->hmem->hPageHandle);
-			outer_addr = NvOsPageAddress(priv->hmem->hPageHandle,
-				offs);
-			break;
-		default:
-			BUG();
 		}
 
-		count = PAGE_SIZE - (inner_addr & ~PAGE_MASK);
-		if (clean) {
-			switch (op.op) {
-			case NVMEM_CACHE_OP_WB:
-				smp_dma_clean_range((void*)inner_addr,
-					(void*) inner_addr+count);
-				outer_clean_range(outer_addr, outer_addr+count);
-				break;
-			case NVMEM_CACHE_OP_INV:
-				smp_dma_inv_range((void*)inner_addr,
-					(void*) inner_addr+count);
-				outer_inv_range(outer_addr, outer_addr+count);
-				break;
-			case NVMEM_CACHE_OP_WB_INV:
-				smp_dma_flush_range((void*)inner_addr,
-					(void*)inner_addr+count);
-				outer_flush_range(outer_addr, outer_addr+count);
-				break;
-			}
+		src = addr + (offs & ~PAGE_MASK);
+		count = min_t(size_t, end-offs, PAGE_SIZE-(offs & ~PAGE_MASK));
+
+		switch (op.op) {
+		case NVMEM_CACHE_OP_WB:
+			smp_dma_clean_range(src, src+count);
+			break;
+		case NVMEM_CACHE_OP_INV:
+			smp_dma_inv_range(src, src+count);
+			break;
+		case NVMEM_CACHE_OP_WB_INV:
+			smp_dma_flush_range(src, src+count);
+			break;
 		}
 		offs += count;
+		nvmap_unmap_pte(addr);
+		if (page) put_page(page);
 	}
 
  out:
 	return err;
 }
 
-static void nvmap_do_rw_handle(NvRmMemHandle hmem, int is_read,
+static int nvmap_do_rw_handle(NvRmMemHandle hmem, int is_read,
 	unsigned long l_hmem_offs, unsigned long l_user_addr,
-	unsigned long bytes)
+	unsigned long bytes, pgprot_t prot)
 {
-	void *hmemp;
-	unsigned long hmem_phys;
-	int needs_unmap = 1;
+	void *addr = NULL, *dest;
+	struct page *page = NULL;
+	int ret = 0;
 
-	if (hmem->VirtualAddress) {
-		hmemp = (void*)((uintptr_t)hmem->VirtualAddress + l_hmem_offs);
-		needs_unmap = 0;
-	} else if (hmem->hPageHandle) {
-		unsigned long addr = l_hmem_offs & PAGE_MASK;
-
-		if (hmem->coherency == NvOsMemAttribute_WriteBack) {
-			struct page *os_page;
-			os_page = NvOsPageGetPage(hmem->hPageHandle, addr);
-			hmemp = page_address(os_page);
-			needs_unmap = 0;
-		} else {
-			addr = NvOsPageAddress(hmem->hPageHandle, addr);
-			hmemp = ioremap_wc(addr, PAGE_SIZE);
-		}
-		hmemp += (l_hmem_offs & ~PAGE_MASK);
-		hmem_phys = NvOsPageAddress(hmem->hPageHandle, l_hmem_offs);
+        if (hmem->hPageHandle) {
+		page = NvOsPageGetPage(hmem->hPageHandle, l_hmem_offs);
+		get_page(page);
+		ret = nvmap_map_pte(page_to_pfn(page), prot, &addr);
 	} else {
-		uintptr_t offs = hmem->PhysicalAddress + l_hmem_offs;
-		uintptr_t base = offs & PAGE_MASK;
-
-		if (hmem->coherency == NvOsMemAttribute_WriteBack)
-			hmemp = ioremap_cached(base, PAGE_SIZE);
-		else
-			hmemp = ioremap_wc(base, PAGE_SIZE);
-
-		hmemp += (offs & ~PAGE_MASK);
-		hmem_phys = offs;
+		unsigned long phys = hmem->PhysicalAddress + l_hmem_offs;
+		ret = nvmap_map_pte(phys>>PAGE_SHIFT, prot, &addr);
 	}
 
-	if (is_read) {
-		BUG_ON(!access_ok(VERIFY_WRITE, (void *)l_user_addr, bytes));
-		copy_to_user((void *)l_user_addr, hmemp, bytes);
-	} else {
-		BUG_ON(!access_ok(VERIFY_READ, (void*)l_user_addr, bytes));
-		copy_from_user(hmemp, (void*)l_user_addr, bytes);
+	dest = addr + (l_hmem_offs & ~PAGE_MASK);
+
+	if (is_read && !access_ok(VERIFY_WRITE, (void *)l_user_addr, bytes))
+		ret = -EPERM;
+
+	if (!is_read && !access_ok(VERIFY_READ, (void *)l_user_addr, bytes))
+		ret = -EPERM;
+
+	if (!ret) {
+		if (is_read) copy_to_user((void *)l_user_addr, dest, bytes);
+		else copy_from_user(dest, (void*)l_user_addr, bytes);
 	}
 
-	if (hmem->coherency == NvOsMemAttribute_WriteBack)
-		nvmap_flush(hmemp, hmem_phys, bytes);
-
-	if (needs_unmap) {
-		iounmap((void *)((uintptr_t)hmemp & PAGE_MASK));
-	}
+	if (addr) nvmap_unmap_pte(addr);
+	if (page) put_page(page);
+	return ret;
 }
 
 static int nvmap_rw_handle(struct file *filp, int is_read,
@@ -572,6 +566,7 @@ static int nvmap_rw_handle(struct file *filp, int is_read,
 	NvRmMemHandle hmem;
 	uintptr_t user_addr, hmem_offs;
 	int err = 0;
+	pgprot_t prot;
 
 	err = copy_from_user(&op, arg, sizeof(op));
 	if (err)
@@ -593,6 +588,13 @@ static int nvmap_rw_handle(struct file *filp, int is_read,
 	user_addr = (uintptr_t)op.addr;
 	hmem_offs = (uintptr_t)op.offset;
 
+	if (hmem->coherency==NvOsMemAttribute_WriteBack)
+		prot = pgprot_inner_writeback(pgprot_kernel);
+	else if (hmem->coherency==NvOsMemAttribute_WriteCombined)
+		prot = pgprot_writecombine(pgprot_kernel);
+	else
+		prot = pgprot_noncached(pgprot_kernel);
+
 	while (op.count--) {
 		unsigned long remain;
 		unsigned long l_hmem_offs = hmem_offs;
@@ -600,18 +602,20 @@ static int nvmap_rw_handle(struct file *filp, int is_read,
 
 		remain = op.elem_size;
 
-		while (remain) {
+		while (remain && !err) {
 			unsigned long bytes;
 
 			bytes = min(remain, PAGE_SIZE-(l_hmem_offs&~PAGE_MASK));
 			bytes = min(bytes, PAGE_SIZE-(l_user_addr&~PAGE_MASK));
 
-			nvmap_do_rw_handle(hmem, is_read, l_hmem_offs,
-				l_user_addr, bytes);
+			err = nvmap_do_rw_handle(hmem, is_read, l_hmem_offs,
+				l_user_addr, bytes, prot);
 
-			remain -= bytes;
-			l_hmem_offs += bytes;
-			l_user_addr += bytes;
+			if (!err) {
+				remain -= bytes;
+				l_hmem_offs += bytes;
+				l_user_addr += bytes;
+			}
 		}
 
 		user_addr += op.user_stride;
@@ -656,11 +660,40 @@ static struct platform_driver nvmap_driver = {
 	.driver = { .name = "nvmap_drv" }
 };
 
+static int __init nvmap_pte_init(void)
+{
+	u32 base = NVMAP_BASE;
+	pgd_t *pgd;
+	pmd_t *pmd;
+	pte_t *pte;
+	int i = 0;
+	do {
+		pgd = pgd_offset(&init_mm, base);
+		pmd = pmd_alloc(&init_mm, pgd, base);
+		if (!pmd) {
+			pr_err("%s: no pmd tables\n", __func__);
+			return -ENOMEM;
+		}
+		pte = pte_alloc_kernel(pmd, base);
+		if (!pte) {
+			pr_err("%s: no pte tables\n", __func__);
+			return -ENOMEM;
+		}
+		nvmap_pte[i++] = pte;
+		base += (1<<PGDIR_SHIFT);
+	} while (base < NVMAP_END);
+
+	return 0;
+}
+core_initcall(nvmap_pte_init);
+
 static int __init nvmap_init(void)
 {
 	int err = bdi_init(&nvmap_bdi);
-	if (err)
-		return err;
+
+	if (err) return err;
+
+	bitmap_zero(nvmap_ptebits, NVMAP_PAGES);
 
 	return platform_driver_register(&nvmap_driver);
 }

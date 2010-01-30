@@ -22,18 +22,19 @@
 #define __MACH_TEGRA_VMALLOC_H
 
 /************************************************************************
- *                    Kernel memory map for 512MB DRAM                  *
- *                                                                      *
- *                                                                      *
- *  FF00:0000     FFFF:FFFF    DMA mapping, reset vectors, etc. (16MB)  *
- *  FE00:0000     FEFF:FFFF    Static register apertures (16MB)         *
- *  F800:0000     FDFF:FFFF    -- Open -- (96MB)                        *
- *  E000:0000     F7FF:FFFF    VMalloc region (384MB)                   *
- *  C000:0000     DFFF:FFFF    Kernel direct-mapped memory region (.5GB)*
- *  BF00:0000     BFFF:FFFF    Kernel modules (16MB)                    *
- *  0000:0000     BEFF:FFFF    Task area (3056MB)                       *
+ *  FF00:0000	FFFF:FFF	DMA mapping, reset vectors, etc. (16MB)	*
+ *  FE00:0000	FEFF:FFFF	Static register apertures (16MB)	*
+ *  F840:0000	FDFF:FFFF	-- Open -- (92MB)			*
+ *  F820:0000	F83F:FFFF	nvmap remapping area (2MB)		*
+ *  F800:0000	FDFF:FFFF	-- empty -- (2MB)			*
+ *  high_memory	F7FF:FFFF	VMalloc region				*
  ************************************************************************/
 
-#define VMALLOC_END        ((PAGE_OFFSET) + 512*1024*1024 + 384*1024*1024)
+#define VMALLOC_END		((PAGE_OFFSET) + 512*1024*1024 + 384*1024*1024)
+
+#ifdef CONFIG_DEVNVMAP
+#define NVMAP_BASE		(VMALLOC_END + SZ_2M)
+#define NVMAP_SIZE		SZ_2M
+#endif
 
 #endif

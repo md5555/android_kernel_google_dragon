@@ -181,7 +181,13 @@ NvError NvOsPageAlloc(size_t size, NvOsMemAttribute attrib,
 	size += PAGE_SIZE-1;
 	size >>= PAGE_SHIFT;
 
-	if (attrib != NvOsMemAttribute_WriteBack)
+	/* writeback is implemented as inner-cacheable only, since these
+	 * allocators are only used to allocate buffers for DMA-driven
+	 * clients, and the cost of L2 maintenance makes outer cacheability
+	 * a net performance loss more often than not */
+	if (attrib == NvOsMemAttribute_WriteBack)
+		prot = pgprot_inner_writeback(prot);
+	else
 		prot = pgprot_writecombine(prot);
 
 	pm = nv_alloc_pages(size, prot, (flags==NvOsPageFlags_Contiguous), 1);
