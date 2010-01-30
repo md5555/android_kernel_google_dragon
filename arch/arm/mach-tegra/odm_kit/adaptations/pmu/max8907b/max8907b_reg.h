@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009 NVIDIA Corporation.
+ * Copyright (c) 2009-2010 NVIDIA Corporation.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -29,7 +29,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  *
  */
- 
+
 #ifndef INCLUDED_MAX8907B_REG_HEADER
 #define INCLUDED_MAX8907B_REG_HEADER
 
@@ -125,28 +125,28 @@ extern "C"
 #define MAX8907B_LDOCTL10           0x3C
 #define MAX8907B_LDOSEQCNT10        0x3D
 #define MAX8907B_LDO10VOUT          0x3E
-                                    
-// LDO11 Regulator                  
+
+// LDO11 Regulator
 #define MAX8907B_LDOCTL11           0x40
 #define MAX8907B_LDOSEQCNT11        0x41
 #define MAX8907B_LDO11VOUT          0x42
-                                    
-// LDO12 Regulator                  
+
+// LDO12 Regulator
 #define MAX8907B_LDOCTL12           0x44
 #define MAX8907B_LDOSEQCNT12        0x45
 #define MAX8907B_LDO12VOUT          0x46
-                                    
-// LDO13 Regulator                  
+
+// LDO13 Regulator
 #define MAX8907B_LDOCTL13           0x48
 #define MAX8907B_LDOSEQCNT13        0x49
 #define MAX8907B_LDO13VOUT          0x4A
-                                    
-// LDO14 Regulator                  
+
+// LDO14 Regulator
 #define MAX8907B_LDOCTL14           0x4C
 #define MAX8907B_LDOSEQCNT14        0x4D
 #define MAX8907B_LDO14VOUT          0x4E
-                                    
-// LDO15 Regulator                  
+
+// LDO15 Regulator
 #define MAX8907B_LDOCTL15           0x50
 #define MAX8907B_LDOSEQCNT15        0x51
 #define MAX8907B_LDO15VOUT          0x52
@@ -160,18 +160,18 @@ extern "C"
 #define MAX8907B_LDOCTL17           0x14
 #define MAX8907B_LDOSEQCNT17        0x15
 #define MAX8907B_LDO17VOUT          0x16
-                                    
-// LDO18 Regulator                  
+
+// LDO18 Regulator
 #define MAX8907B_LDOCTL18           0x72
 #define MAX8907B_LDOSEQCNT18        0x73
 #define MAX8907B_LDO18VOUT          0x74
-                                    
-// LDO19 Regulator                  
+
+// LDO19 Regulator
 #define MAX8907B_LDOCTL19           0x5C
 #define MAX8907B_LDOSEQCNT19        0x5D
 #define MAX8907B_LDO19VOUT          0x5E
-                                    
-// LDO20 Regulator                  
+
+// LDO20 Regulator
 #define MAX8907B_LDOCTL20           0x9C
 #define MAX8907B_LDOSEQCNT20        0x9D
 #define MAX8907B_LDO20VOUT          0x9E
@@ -179,8 +179,8 @@ extern "C"
 // OUT5V Regulator
 #define MAX8907B_OUT5VEN            0x54
 #define MAX8907B_OUT5VSEQ           0x55
-                                    
-// OUT3.3V Regulator                
+
+// OUT3.3V Regulator
 #define MAX8907B_OUT_3_3VEN         0x58
 #define MAX8907B_OUT_3_3VSEQ        0x59
 
@@ -302,6 +302,15 @@ extern "C"
 #define MAX8907B_CHG_CNTL1_FCHG_SHIFT           0x0
 #define MAX8907B_CHG_CNTL1_FCHG_MASK            0x7
 
+#define MAX8907B_CHG_CNTL1_FCHG_85MA            0
+#define MAX8907B_CHG_CNTL1_FCHG_300MA           1
+#define MAX8907B_CHG_CNTL1_FCHG_460MA           2
+#define MAX8907B_CHG_CNTL1_FCHG_600MA           3
+#define MAX8907B_CHG_CNTL1_FCHG_700MA           4
+#define MAX8907B_CHG_CNTL1_FCHG_800MA           5
+#define MAX8907B_CHG_CNTL1_FCHG_900MA           6
+#define MAX8907B_CHG_CNTL1_FCHG_1000MA          7
+
 // CHG_CNTL_1
 #define MAX8907B_CHG_CNTL2_FCHG_TMR_SHIFT       0x4
 #define MAX8907B_CHG_CNTL2_FCHG_TMR_MASK        0x3
@@ -377,7 +386,7 @@ extern "C"
 
 // ON/OFF controller
 #define MAX8907B_SYSENSEL_HRDSTEN_SHIFT         0x7
-#define MAX8907B_SYSENSEL_HRDSTEN_MASK          0x1 
+#define MAX8907B_SYSENSEL_HRDSTEN_MASK          0x1
 
 #define MAX8907B_RESET_CNFG_PWREN_EN_SHIFT      0x7
 #define MAX8907B_RESET_CNFG_PWREN_EN_MASK       0x1
