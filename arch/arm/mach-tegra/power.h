@@ -27,6 +27,12 @@
 #include "nvrm_module.h"
 #include "ap20/arflow_ctlr.h"
 #include "ap20/arclk_rst.h"
+#include "ap20/arapb_misc.h"
+#include "ap20/arapbdma.h"
+#include "ap20/arapbdmachan.h"
+#include "ap20/armc.h"
+#include "ap15/arictlr.h"
+#include "ap15/argpio.h"
 #include "nvrm_hardware_access.h"
 #include "nvrm_interrupt.h"
 #include "nvrm_power.h"
@@ -50,6 +56,36 @@ extern NvRmDeviceHandle s_hRmGlobal;
 		NV_READ32( (((NvUPtr)(pBase)) + off))
 #define NV_CAR_REGW_OFFSET(pBase, off, val)\
 		NV_WRITE32( (((NvUPtr)(pBase)) + off), (val))
+
+#define NV_ICTLR_REGR(pBase, reg)\
+		NV_READ32( (((NvUPtr)(pBase)) + ICTLR_##reg##_0))
+#define NV_ICTLR_REGW(pBase, reg, val)\
+		NV_WRITE32( (((NvUPtr)(pBase)) + ICTLR_##reg##_0), (val))
+
+#define NV_MISC_REGR(pBase, reg)\
+		NV_READ32( (((NvUPtr)(pBase)) + APB_MISC_##reg##_0))
+#define NV_MISC_REGW(pBase, reg, val)\
+		NV_WRITE32( (((NvUPtr)(pBase)) + APB_MISC_##reg##_0), (val))
+
+#define NV_GPIO_REGR(pBase, reg)\
+		NV_READ32( (((NvUPtr)(pBase)) + GPIO_##reg))
+#define NV_GPIO_REGW(pBase, reg, val)\
+		NV_WRITE32( (((NvUPtr)(pBase)) + GPIO_##reg), (val))
+
+#define NV_APBDMA_REGR(pBase, reg)\
+		NV_READ32( (((NvUPtr)(pBase)) + APBDMA_##reg##_0))
+#define NV_APBDMA_REGW(pBase, reg, val)\
+		NV_WRITE32( (((NvUPtr)(pBase)) + APBDMA_##reg##_0), (val))
+
+#define NV_APBDMACH_REGR(pBase, reg)\
+		NV_READ32( (((NvUPtr)(pBase)) + APBDMACHAN_CHANNEL_0_##reg##_0))
+#define NV_APBDMACH_REGW(pBase, reg, val)\
+		NV_WRITE32( (((NvUPtr)(pBase)) + APBDMACHAN_CHANNEL_0_##reg##_0),(val))
+
+#define NV_MC_REGR(pBase, reg)\
+		NV_READ32( (((NvUPtr)(pBase)) + MC_##reg##_0))
+#define NV_MC_REGW(pBase, reg, val)\
+		NV_WRITE32( (((NvUPtr)(pBase)) + MC_##reg##_0), (val))
 
 #define CAR_CLK_SOURCES_OFFSET_START	CLK_RST_CONTROLLER_CLK_SOURCE_I2S1_0
 #define CAR_CLK_SOURCES_OFFSET_END		CLK_RST_CONTROLLER_CLK_SOURCE_OSC_0
