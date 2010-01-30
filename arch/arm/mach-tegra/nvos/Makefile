@@ -8,5 +8,6 @@ ccflags-y += -DNV_DEBUG=0
 endif
 
 obj-y += nvos.o
+obj-y += nvos_page.o
 obj-y += nvustring.o
 obj-y += nvos_exports.o
