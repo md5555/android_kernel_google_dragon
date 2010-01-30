@@ -101,7 +101,8 @@
 #define OWR_DEFAULT_PRESENCE_CLK_VALUE    0x50
 /* Default OWR device memory offset size */
 #define OWR_DEFAULT_OFFSET_SIZE_BYTES   2
-
+/* Default OWR memory size */
+#define OWR_DEFAULT_MEMORY_SIZE     0x80
 
 /* Register access Macros */
 #define OWR_REGR(OwrVirtualAddress, reg) \
@@ -299,15 +300,26 @@ PrivOwrReadFifo(
     NvU32 ReadDataClk = OWR_DEFAULT_READ_DTA_CLK_VALUE;
     NvU32 PresenceClk = OWR_DEFAULT_PRESENCE_CLK_VALUE;
     NvU32 i = 0;
+    NvU32 size = OWR_DEFAULT_MEMORY_SIZE;
+    NvU32 value = 0;
 
     if (pOdmInfo)
     {
         ReadDataClk = pOdmInfo->ReadDataSampleClk;
         PresenceClk = pOdmInfo->PresenceSampleClk;
-    }    
-    
+        size = pOdmInfo->MemorySize;
+    }
+
+    if ( Transaction.Offset >= size)
+    {
+        status = NvError_OwrInvalidOffset;
+        return status;
+    }
     // Configure the number of bytes to read
-    OWR_REGW(pOwrInfo->pOwrVirtualAddress, EPROM, (NumBytes - 1));
+    value = size - Transaction.Offset - 1;
+    OWR_REGW(pOwrInfo->pOwrVirtualAddress,
+                    EPROM,
+                    value);
 
     // Configure the read, presence sample clock and
     // configure for byte transfer mode

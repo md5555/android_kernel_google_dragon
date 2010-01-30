@@ -391,6 +391,8 @@ typedef struct
 
     /** OWR device memory address size. */
     NvU32 AddressSize;
+    /** OWR device Memory size. */
+    NvU32 MemorySize;
 } NvOdmQueryOwrDeviceInfo;
 
 /**
