@@ -857,6 +857,14 @@ static unsigned int atkbd_dell_laptop_forced_release_keys[] = {
 };
 
 /*
+ * Dell Studio 1557 does not generate release keys for
+ * mute, volume up, & volume down
+ */
+static unsigned int atkdb_dell_studio_1157_force_relase_keys[] = {
+	0xa0, 0xae, 0xb0, -1U
+};
+
+/*
  * Perform fixup for HP system that doesn't generate release
  * for its video switch
  */
@@ -1540,6 +1548,15 @@ static struct dmi_system_id atkbd_dmi_quirk_table[] __initdata = {
 		},
 		.callback = atkbd_setup_forced_release,
 		.driver_data = atkbd_dell_laptop_forced_release_keys,
+	},
+	{
+		.ident = "Dell Stuido 1557",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "Dell Inc."),
+			DMI_MATCH(DMI_PRODUCT_NAME, "Studio 1557"),
+		},
+		.callback = atkbd_setup_forced_release,
+		.driver_data = atkdb_dell_studio_1157_force_relase_keys,
 	},
 	{
 		.ident = "HP 2133",
