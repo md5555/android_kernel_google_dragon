@@ -271,6 +271,22 @@ do\
 
 /*****************************************************************************/
 
+#if NVRM_DTT_RANGE_CHANGE_PRINTF
+
+#define DttRangeReport(T, pDtt) \
+do\
+{\
+    NvOsDebugPrintf("DTT: T = %d, Range = %d (%d : %d)\n", \
+        (T), (pDtt)->TcorePolicy.PolicyRange, \
+        (pDtt)->TcorePolicy.LowLimit, (pDtt)->TcorePolicy.HighLimit); \
+} while(0)
+
+#else
+#define DttRangeReport(T, pDtt)
+#endif
+
+/*****************************************************************************/
+
 // DFS object
 static NvRmDfs s_Dfs;
 
@@ -1698,8 +1714,6 @@ DttPolicyUpdate(
     NvS32 TemperatureC,
     NvRmDtt* pDtt)
 {
-    NvU32 Range = pDtt->TcorePolicy.PolicyRange;
-
     if (hRm->ChipId.Id == 0x20)
     {
         NvRmPrivAp20DttPolicyUpdate(hRm, TemperatureC, pDtt);
@@ -1716,14 +1730,6 @@ DttPolicyUpdate(
         pDtt->TcorePolicy.UpdateIntervalUs = NV_WAIT_INFINITE;
         pDtt->TcorePolicy.PolicyRange = 0;
     }
-    if (pDtt->UseIntr || (pDtt->TcorePolicy.PolicyRange != Range))
-    {
-#if NVRM_DTT_RANGE_CHANGE_PRINTF
-        NvOsDebugPrintf("DTT: T = %d, Range = %d (%d : %d)\n", 
-            TemperatureC, pDtt->TcorePolicy.PolicyRange,
-            pDtt->TcorePolicy.LowLimit, pDtt->TcorePolicy.HighLimit);
-#endif
-    }
 }
 
 static NvBool
@@ -1734,6 +1740,7 @@ DttClockUpdate(
 {
     NvS32 TemperatureC;
     NvS32 LowLimit, HighLimit;
+    NvU32 OldRange;
     NvRmTzonePolicy Policy;
 
     // Check if thermal throttling is supported
@@ -1749,6 +1756,7 @@ DttClockUpdate(
             NvOdmTmonTemperatureGet(pDtt->hOdmTcore, &TemperatureC))
         {
             DttPolicyUpdate(pDfs->hRm, TemperatureC, pDtt);
+            DttRangeReport(TemperatureC, pDtt);
             LowLimit = pDtt->TcorePolicy.LowLimit;
             HighLimit = pDtt->TcorePolicy.HighLimit;
 
@@ -1769,6 +1777,7 @@ DttClockUpdate(
         }
 
         // Update temperature monitoring policy
+        OldRange = pDtt->TcorePolicy.PolicyRange;
         if (!pDtt->UseIntr &&
             NvOdmTmonTemperatureGet(pDtt->hOdmTcore, &TemperatureC))
         {
@@ -1787,6 +1796,12 @@ DttClockUpdate(
             pDtt->TcorePolicy.UpdateFlag = NV_FALSE;
         }
         NvOsIntrMutexUnlock(pDfs->hIntrMutex);
+
+        // Report range change
+        if (!pDtt->UseIntr && (OldRange != pDtt->TcorePolicy.PolicyRange))
+        {
+            DttRangeReport(TemperatureC, pDtt);
+        }
     }
     else
     {
@@ -1828,10 +1843,8 @@ static void DttIntrCallback(void* args)
             NvOdmTmonConfigParam_IntrLimitLow, &LowLimit);
         (void)NvOdmTmonParameterConfig(pDtt->hOdmTcore,
             NvOdmTmonConfigParam_IntrLimitHigh, &HighLimit);
+        DttRangeReport(TemperatureC, pDtt);
     }
-
-    NVRM_DFS_PRINTF(("Dtt Intr: T = %d, LowLimit = %d, HighLimit = %d\n",
-                     TemperatureC, LowLimit, HighLimit));
 }
 
 /*****************************************************************************/

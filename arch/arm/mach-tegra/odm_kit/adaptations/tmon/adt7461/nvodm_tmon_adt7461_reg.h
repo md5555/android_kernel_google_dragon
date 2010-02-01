@@ -154,7 +154,7 @@ typedef enum
     ADT7461ConfigBits_IntrAutoClear =   (0x1 << 5),
 
     // If set - put device in stanby mode
-    // Ig cleared - put device in running mode
+    // If cleared - put device in running mode
     ADT7461ConfigBits_Standby =         (0x1 << 6),
 
     // If set - interrupt from device is disabled
@@ -165,10 +165,9 @@ typedef enum
 // ADT7461 initial configuration set by adaptation:
 // ADT7461 THERM1 output is dedicated for critical h/w shutdown, and ADT7461
 // ALERT/THERM2 output is always configured as out of limit ALERT interrupt.
-// Range and standby onfiguration options are selected per ODM policy macros.
+// Monitor is in running mode, in the range selected per ODM policy.
 #define ADT7461_INITIAL_CONFIG \
         ((ADT7461ConfigBits_IntrDisabled) | \
-         (ADT7461_ODM_STANDBY_ENABLED ? ADT7461ConfigBits_Standby : 0) | \
          (ADT7461_ODM_EXTENDED_RANGE  ? ADT7461ConfigBits_ExtendedRange : 0))
 
 

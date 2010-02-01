@@ -44,6 +44,8 @@
 #define NVODM_ADT7461_PRINTF(x)
 #endif
 
+#define ADT7461_ALERT_DEBOUNCE (1)
+
 // ADT7461 Descrriptor
 static const ADT7461Info s_Adt7461Info = 
 {
@@ -347,6 +349,7 @@ Adt7461ConfigureSampleInterval(
 
         if(!Adt7461WriteReg(pPrivData, pReg, i))
             return NV_FALSE;
+        pPrivData->ShadowRate = i;
     }
     *pTargetMs = s_Adt7461SampleIntervalsMS[i];
     return NV_TRUE;
@@ -366,7 +369,13 @@ static void Adt7461Isr(void* arg)
     {
         Callback(CallbackArg);
     }
-
+#if ADT7461_ALERT_DEBOUNCE
+    // New range limits set by callback are not guaranteed to take effect
+    // before the next temperature conversion is completed, and interrupt
+    // can not be cleared until then. Hence, the debounce delay below.
+    NvOdmOsSleepMS(s_Adt7461SampleIntervalsMS[pPrivData->ShadowRate] +
+                   s_Adt7461ConversionTimesMS[pPrivData->ShadowRate] + 1);
+#endif
     // Read status and ARA to finish clearing interrupt after callback
     pReg = &pPrivData->pDeviceInfo->Status;
     (void)Adt7461ReadReg(pPrivData, pReg, &Data);
@@ -557,6 +566,7 @@ NvBool Adt7461Init(NvOdmTmonDeviceHandle hTmon)
     pReg = &pPrivData->pDeviceInfo->Rate;
     if(!Adt7461WriteReg(pPrivData, pReg, Data))
         goto fail;
+    pPrivData->ShadowRate = Data;
 
     // Set remote channel offset (8-bit 2's complement value for any range)
     Data = ((NvU8)ADT7461_ODM_REMOTE_OFFSET_VALUE);

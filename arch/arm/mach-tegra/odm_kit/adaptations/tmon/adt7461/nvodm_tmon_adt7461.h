@@ -125,6 +125,9 @@ typedef struct ADT7461PrivDataRec
     // Shadow of ADT7461 internal configuration register
     NvU8 ShadowConfig;
 
+    // Shadow of ADT7461 internal rate settings
+    NvU8 ShadowRate;
+
     // Shadow of ADT7461 internal address pointer
     NvU8 ShadowRegPtr;
 
