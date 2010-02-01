@@ -32,6 +32,7 @@ source "sound/soc/omap/Kconfig"
 source "sound/soc/pxa/Kconfig"
 source "sound/soc/s3c24xx/Kconfig"
 source "sound/soc/sh/Kconfig"
+source "sound/soc/tegra/Kconfig"
 
 # Supported codecs
 source "sound/soc/codecs/Kconfig"

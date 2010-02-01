@@ -1,0 +1,33 @@
+config TEGRA_SND_SOC
+	tristate "Soc alsa driver for Tegra"
+	depends on ARCH_TEGRA
+	select TEGRA_PCM
+	select TEGRA_I2S
+	help
+	  Say Y to support ALSA SoC for TEGRA
+
+config TEGRA_PCM
+	depends on TEGRA_SND_SOC
+	tristate "Tegra pcm callbacks"
+
+config TEGRA_I2S
+	depends on TEGRA_SND_SOC
+	tristate "Tegra I2S"
+
+config TEGRA_SND_WHISTLER
+	tristate "SoC alsa driver for whistler"
+	depends on TEGRA_SND_SOC && TEGRA_ODM_WHISTLER
+	select SND_SOC_WM8753
+
+config SND_SOC_WM8753
+	depends on TEGRA_SND_WHISTLER
+	tristate "audio codec WM8753"
+
+config TEGRA_SND_HARMONY
+	tristate "SoC alsa driver for harmony"
+	depends on TEGRA_SND_SOC && TEGRA_ODM_HARMONY
+	select SND_SOC_WM8903
+
+config SND_SOC_WM8903
+	depends on TEGRA_SND_HARMONY
+	tristate "audio codec WM8903"
