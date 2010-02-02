@@ -2657,6 +2657,7 @@ static int __exit fsl_udc_remove(struct platform_device *pdev)
 static int fsl_udc_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	dr_controller_stop(udc_controller);
+	platform_udc_clk_suspend();
 	return 0;
 }
 
@@ -2666,6 +2667,7 @@ static int fsl_udc_suspend(struct platform_device *pdev, pm_message_t state)
  *-----------------------------------------------------------------*/
 static int fsl_udc_resume(struct platform_device *pdev)
 {
+	platform_udc_clk_resume();
 	/* Enable DR irq reg and set controller Run */
 	if (udc_controller->stopped) {
 		dr_controller_setup(udc_controller);
