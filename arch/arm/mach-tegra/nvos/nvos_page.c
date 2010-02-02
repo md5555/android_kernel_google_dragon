@@ -43,7 +43,7 @@ static void pagemap_flush_page(struct page *page)
 	void *km = NULL;
 
 	if (!page_address(page)) {
-		void *km = kmap(page);
+		km = kmap(page);
 		if (!km) {
 			pr_err("unable to map high page\n");
 			return;
