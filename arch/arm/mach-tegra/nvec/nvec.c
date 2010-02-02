@@ -30,11 +30,14 @@
  *
  */
 
+#include "linux/freezer.h"
+
 #include "nvcommon.h"
 #include "nvassert.h"
 #include "nvec.h"
 #include "nvec_transport.h"
 #include "nvec_private.h"
+
 
 #define DEBUG_NVEC 0
 #define DISP_MESSAGE(x) do { if (DEBUG_NVEC) { NvOsDebugPrintf x ; } } while (0)
@@ -45,6 +48,9 @@
 
 static  NvU32           s_refcount = 0;
 static  NvEcPrivState   g_ec = {0};     // init mutex to NULL
+
+/* Wakes up EC */
+static DECLARE_WAIT_QUEUE_HEAD(wq_ec);
 
 // forward declarations
 static void
@@ -230,40 +236,49 @@ NvEcPrivPowerResumeHook( NvEcHandle hEc )
 static void
 NvEcPrivPingThread(void *args)
 {
-    NvError NvStatus = NvError_Success;
-    NvEcRequest req;
-    NvEcResponse resp;
-    NvEcPrivState *ec = (NvEcPrivState *)args;
+	NvError NvStatus = NvError_Success;
+	NvEcRequest req;
+	NvEcResponse resp;
+	NvEcPrivState *ec = (NvEcPrivState *)args;
+	int timeout = 0;
 
-    while (!ec->exitPingThread)
-    {
-        if (NvStatus == NvError_Timeout)
-        {
-            // send no-op commands
-            DISP_MESSAGE(("NvEcPrivPingThread: Sending no-op command\n"));
+	set_freezable_with_signal();
 
-            req.PacketType = NvEcPacketType_Request;
-            req.RequestType = NvEcRequestResponseType_Control;
-            req.RequestSubtype = (NvEcRequestResponseSubtype)
-                                  NvEcControlSubtype_NoOperation;
-            req.NumPayloadBytes = 0;
+	while (!ec->exitPingThread){
+	// request timed out
+	if (timeout > 0){
+		// send no-op commands
+		DISP_MESSAGE(("NvEcPrivPingThread: Sending no-op command\n"));
+		req.PacketType = NvEcPacketType_Request;
+		req.RequestType = NvEcRequestResponseType_Control;
+		req.RequestSubtype = (NvEcRequestResponseSubtype)
+				  NvEcControlSubtype_NoOperation;
+		req.NumPayloadBytes = 0;
 
-            NvStatus = NvEcSendRequest(
-                            ec->hEc,
-                            &req,
-                            &resp,
-                            sizeof(req),
-                            sizeof(resp));
-            if (NvStatus != NvError_Success)
-                DISP_MESSAGE(("NvEcPrivPingThread: no-op command send fail\n"));
+		NvStatus = NvEcSendRequest(
+				ec->hEc,
+				&req,
+				&resp,
+				sizeof(req),
+				sizeof(resp));
+		if (NvStatus != NvError_Success)
+		DISP_MESSAGE(("NvEcPrivPingThread: no-op command send fail\n"));
 
-            if (resp.Status != NvEcStatus_Success)
-                DISP_MESSAGE(("NvEcPrivPingThread: no-op command fail\n"));
+		if (resp.Status != NvEcStatus_Success)
+		DISP_MESSAGE(("NvEcPrivPingThread: no-op command fail\n"));
 
-            DISP_MESSAGE(("NvEcPrivPingThread: no-op command sent\n"));
-        }
-        NvStatus = NvOsSemaphoreWaitTimeout(ec->hPingSema, NVEC_PING_TIMEOUT);
-    }
+		DISP_MESSAGE(("NvEcPrivPingThread: no-op command sent\n"));
+		ec->IsEcActive = NV_FALSE;
+	}
+
+	timeout = NVEC_PING_TIMEOUT;
+	timeout = wait_event_freezable_timeout(
+			wq_ec,
+			ec->IsEcActive,
+			timeout);
+	if (timeout == 0)
+		ec->IsEcActive = NV_FALSE;
+	}
 }
 
 NvError
@@ -361,6 +376,8 @@ NvEcOpen(NvEcHandle *phEc,
     s_refcount++;
 
     NvOsMutexUnlock( ec->mutex );
+
+    ec->IsEcActive = NV_FALSE;
 
     return NvSuccess;
 
@@ -1010,7 +1027,7 @@ NvEcPrivThread( void * args )
     NvU32           tStatus = 0;
     NvError         wait = NvSuccess;
     NvError         e;
-    
+
     while( !ec->exitThread )
     {
     #if ENABLE_TIMEOUT
@@ -1169,6 +1186,7 @@ NvEcSendRequest(
         NV_CHECK_ERROR_CLEANUP( NvOsSemaphoreCreate( &responseSema, 0 ) );
     }
 
+    ec->IsEcActive = NV_TRUE;
     // kick the "heartbeat" thread so that the pings would only be sent when
     // there are no commands being sent from AP->EC.
     if (ec->hPingSema)
