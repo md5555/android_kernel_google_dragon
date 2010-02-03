@@ -264,18 +264,6 @@ static int tegra_ehci_setup(struct usb_hcd *hcd)
 	return retval;
 }
 
-static int tegra_ehci_bus_suspend(struct usb_hcd *hcd)
-{
-	printk("%s called\n", __func__);
-	return 0;
-}
-
-static int tegra_ehci_bus_resume(struct usb_hcd *hcd)
-{
-	printk("%s called\n", __func__);
-	return 0;
-}
-
 static const struct hc_driver tegra_ehci_hc_driver = {
 	.description		= hcd_name,
 	.product_desc		= "Tegra Ehci host controller",
@@ -295,8 +283,8 @@ static const struct hc_driver tegra_ehci_hc_driver = {
 	.get_frame_number	= ehci_get_frame,
 	.hub_status_data	= ehci_hub_status_data,
 	.hub_control		= tegra_ehci_hub_control,
-	.bus_suspend		= tegra_ehci_bus_suspend,
-	.bus_resume 		= tegra_ehci_bus_resume,
+	.bus_suspend		= ehci_bus_suspend,
+	.bus_resume 		= ehci_bus_resume,
 	.relinquish_port	= ehci_relinquish_port,
 	.port_handed_over	= ehci_port_handed_over,
 };
@@ -470,12 +458,34 @@ static int tegra_ehci_remove(struct platform_device *pdev)
 static int tegra_ehci_suspend(struct platform_device *pdev,
 	pm_message_t message)
 {
-	printk("%s called\n", __func__);
+	struct tegra_hcd_platform_data	*pdata;
+	NvError Err;
+	pdata = (struct tegra_hcd_platform_data *)pdev->dev.platform_data;
+	if (!pdata) {
+		dev_err(&pdev->dev, "Cannot run without platform data\n");
+		return -1;
+	}
+	Err = NvDdkUsbPhyPowerDown(pdata->hUsbPhy, NV_TRUE, 0);
+	if (Err != NvSuccess) {
+		dev_err(&pdev->dev, "\n Usb Phy down error=0x%x ", Err);
+		return -1;
+	}
 	return 0;
 }
 static int tegra_ehci_resume(struct platform_device *pdev)
 {
-	printk("%s called\n", __func__);
+	struct tegra_hcd_platform_data	*pdata;
+	NvError Err;
+	pdata = (struct tegra_hcd_platform_data *)pdev->dev.platform_data;
+	if (!pdata) {
+		dev_err(&pdev->dev, "Cannot run without platform data\n");
+		return -1;
+	}
+	Err = NvDdkUsbPhyPowerUp(pdata->hUsbPhy, NV_TRUE, 0);
+	if (Err != NvSuccess) {
+		dev_err(&pdev->dev, "\n Usb Phy Up error=0x%x ", Err);
+		return -1;
+	}
 	return 0;
 }
 
