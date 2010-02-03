@@ -33,9 +33,6 @@
 
 #include <nvodm_pmu.h>
 
-#define SET_YEAR(Y)  (Y-1900)
-#define SET_MONTH(M) (M-1)
-
 /* Create a custom rtc structrue and move this to that structure */
 static NvOdmPmuDeviceHandle hPmu = NULL;
 
@@ -51,20 +48,7 @@ static int tegra_rtc_read_time(struct device *dev, struct rtc_time *tm)
 		return -1;
 	}
 
-	 if (!now) {
-		tm->tm_sec = 0;
-		tm->tm_min = 0;
-		tm->tm_hour = 0;
-		tm->tm_mday = 1;
-		tm->tm_mon = SET_MONTH(5);
-		tm->tm_year = SET_YEAR(2009);
-		tm->tm_wday = 0;
-		tm->tm_yday = 0;
-		tm->tm_isdst = 0;
-	} else {
-		rtc_time_to_tm(now, tm);
-	}
-
+	rtc_time_to_tm(now, tm);
 	return 0;
 }
 
@@ -95,11 +79,22 @@ static struct rtc_class_ops tegra_rtc_ops = {
 static int __init tegra_rtc_probe(struct platform_device *pdev)
 {
 	struct rtc_device *rtc;
+	NvU32 initial;
 
 	if (NvOdmPmuDeviceOpen(&hPmu) == NV_FALSE) {
 		pr_debug("%s: NvOdmPmuDeviceOpen failed\n", pdev->name);
 		return -ENXIO;
 	}
+
+	/* if the SoCs PMU has't been properly initialized, a bogus large
+	 * value may be returned which triggers the Y2038 bug in the kernel.
+	 * work-around this issue by checking the initial value of the PMU
+	 * and then clobbering it if the value is bogus */
+
+	if (NvOdmPmuReadRtc(hPmu, &initial) && ((time_t)initial < 0))
+		NvOdmPmuWriteRtc(hPmu, 0);
+
+
 
 	rtc = rtc_device_register(pdev->name, &pdev->dev,
 		&tegra_rtc_ops, THIS_MODULE);
