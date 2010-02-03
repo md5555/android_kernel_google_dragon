@@ -49,7 +49,7 @@ extern "C"
 /**
  * NvRmOwrHandle is an opaque handle for the RM OWR driver.
  */
- 
+
 typedef struct NvRmOwrRec *NvRmOwrHandle;
 
 /**
@@ -68,12 +68,12 @@ typedef struct NvRmOwrRec *NvRmOwrHandle;
  * the memory.
  */
 
- NvError NvRmOwrOpen( 
+ NvError NvRmOwrOpen(
     NvRmDeviceHandle hDevice,
     NvU32 instance,
     NvRmOwrHandle * hOwr );
 
-/** 
+/**
  * @brief Closes the OWR driver. Disables the clock and invalidates the OWR handle.
  * This API never fails.
  *
@@ -81,7 +81,7 @@ typedef struct NvRmOwrRec *NvRmOwrHandle;
  *     nothing.
  */
 
- void NvRmOwrClose( 
+ void NvRmOwrClose(
     NvRmOwrHandle hOwr );
 
 /**
@@ -99,6 +99,15 @@ typedef enum
 
       /// OWR memory write transaction.
           NvRmOwr_MemWrite,
+
+      /// OWR memory readbyte transaction.
+          NvRmOwr_ReadByte,
+
+      /// OWR memory writebyte transaction.
+          NvRmOwr_WriteByte,
+
+      /// OWR memory Check Presence
+          NvRmOwr_CheckPresence,
     NvRmOwrTransactionFlags_Num,
     NvRmOwrTransactionFlags_Force32 = 0x7FFFFFFF
 } NvRmOwrTransactionFlags;
@@ -123,9 +132,9 @@ typedef struct NvRmOwrTransactionInfoRec
         NvU32 Address;
 } NvRmOwrTransactionInfo;
 
-/** 
+/**
  * @brief Does multiple OWR transactions. Each transaction can be a read or write.
- * 
+ *
  * @param hOwr Handle to the OWR channel.
  * @param OwrPinMap for OWR controllers which are being multiplexed across
  *        multiple pin mux configurations, this specifies which pin mux configuration
@@ -133,7 +142,7 @@ typedef struct NvRmOwrTransactionInfoRec
  *        specifies a non-multiplexed configuration for the controller.
  * @param Data Pointer to the buffer for all the required read, write transactions.
  * @param DataLength Length of the data buffer.
- * @param Transcations Pointer to the NvRmOwrTransactionInfo structure. 
+ * @param Transcations Pointer to the NvRmOwrTransactionInfo structure.
  * See @NvRmOwrTransactionInfo
  * @param NumOfTransactions Number of transcations
  *
@@ -146,7 +155,7 @@ typedef struct NvRmOwrTransactionInfoRec
  * OWR transaction.
  */
 
- NvError NvRmOwrTransaction( 
+ NvError NvRmOwrTransaction(
     NvRmOwrHandle hOwr,
     NvU32 OwrPinMap,
     NvU8 * Data,

@@ -95,7 +95,7 @@ static NvOdmQuerySdioInterfaceProperty s_NvOdmQuerySdioInterfaceProperty_Voyager
 };
 
 static const NvOdmQueryOwrDeviceInfo s_NvOdmQueryOwrInfo = {
-    NV_TRUE,
+    NV_FALSE,
     0x1, /* Tsu */
     0xF, /* TRelease */
     0xF,  /* TRdv */
