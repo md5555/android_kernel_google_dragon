@@ -26,6 +26,7 @@
 #include <linux/platform_device.h>
 #include <linux/kthread.h>
 #include <linux/tegra_devices.h>
+#include <linux/freezer.h>
 
 #include "nvos.h"
 #include "nvec.h"
@@ -267,6 +268,10 @@ static int nvec_keyboard_recv(void *arg)
 {
 	struct input_dev *input_dev = (struct input_dev *)arg;
 	struct nvec_keyboard *keyboard = input_get_drvdata(input_dev);
+
+	/* keyboard event thread should be frozen before suspending the
+	 * keyboard and NVEC drivers */
+	set_freezable_with_signal();
 
 	while (!keyboard->shutdown) {
 		unsigned int pressed;
