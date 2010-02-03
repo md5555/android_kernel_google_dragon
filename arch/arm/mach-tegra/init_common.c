@@ -26,6 +26,7 @@
 #include <linux/fsl_devices.h>
 #include <linux/dma-mapping.h>
 #include <linux/tegra_devices.h>
+#include <mach/iovmm.h>
 #include "nvcommon.h"
 #include "nvrm_init.h"
 #include "nvrm_drf.h"
@@ -650,6 +651,43 @@ fail:
 }
 #endif
 
+#if !defined(CONFIG_TEGRA_IOVMM)
+#define tegra_register_iovmm() do {} while (0)
+#elif defined(CONFIG_TEGRA_IOVMM_GART)
+
+static struct resource tegra_gart_resources[] = {
+    {
+        .name = "mc",
+        .flags = IORESOURCE_MEM
+    },
+    {
+        .name = "gart",
+        .flags = IORESOURCE_MEM
+    }
+};
+
+static struct platform_device tegra_gart_dev = {
+    .name = "tegra_gart",
+    .id = -1,
+    .num_resources = ARRAY_SIZE(tegra_gart_resources),
+    .resource = tegra_gart_resources
+};
+
+static void __init tegra_register_iovmm(void)
+{
+    unsigned int i;
+    struct resource *res = tegra_gart_resources;
+
+    for (i=0; i<ARRAY_SIZE(tegra_gart_resources); i++, res++) {
+        res->start = tegra_get_module_inst_base(res->name, 0);
+        res->end = res->start + tegra_get_module_inst_size(res->name, 0) - 1;
+    }
+
+    if (platform_device_register(&tegra_gart_dev))
+        pr_err("unable to add %s device\n", tegra_gart_dev.name);
+}
+#endif
+
 #if !defined(CONFIG_USB_TEGRA_OTG)
 #define tegra_register_usb_otg() do {} while (0)
 #else
@@ -925,6 +963,7 @@ void __init tegra_common_init(void)
     NV_ASSERT_SUCCESS(NvRmGpioOpen(s_hRmGlobal, &s_hGpioGlobal));
 
     tegra_init_cpu();
+    tegra_register_iovmm();
     tegra_dma_init();
     tegra_register_i2c();
     tegra_register_spi();
