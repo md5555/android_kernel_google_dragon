@@ -98,6 +98,11 @@ static void l2x0_flush_range(unsigned long start, unsigned long end)
 	cache_sync();
 }
 
+static void l2x0_sync(void)
+{
+	cache_sync();
+}
+
 void l2x0_deinit()
 {
 	/* FIXME: get num_ways from the cache config */
@@ -164,6 +169,7 @@ void __init l2x0_init(void __iomem *base, __u32 aux_val, __u32 aux_mask)
 	outer_cache.inv_range = l2x0_inv_range;
 	outer_cache.clean_range = l2x0_clean_range;
 	outer_cache.flush_range = l2x0_flush_range;
+	outer_cache.sync = l2x0_sync;
 
 	printk(KERN_INFO "L2X0 cache controller enabled\n");
 }
