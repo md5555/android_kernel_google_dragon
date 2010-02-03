@@ -46,6 +46,7 @@ NvU32* perform_context_operation(PowerModuleContext Context);
 void prepare_for_wb0(void);
 
 struct power_context *s_pModulesContextAnchor = NULL;
+extern NvU32 g_AvpWarmbootEntry;
 
 #define WORKAROUND_573705 1
 #define MODULE_CONTEXT_SAVE_AREA_SIZE 4096
@@ -62,7 +63,8 @@ static void update_registers_for_lp0(void)
 				APBDEV_PMC_SCRATCH0_0, Reg);
 
 	//SCRATCH1 : AVP-side recovery physical address.
-	//FIXME: Need to get the AVP restore address from the bootloader
+	NV_REGW(s_hRmGlobal, NvRmModuleID_Pmif, 0,
+			APBDEV_PMC_SCRATCH1_0, g_AvpWarmbootEntry);
 
 	//SCRATCH41 : CPU-side recovery physical address.
 	//LP0 needs the resume address in SCRATCH41

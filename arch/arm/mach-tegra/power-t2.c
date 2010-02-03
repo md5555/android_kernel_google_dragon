@@ -35,6 +35,12 @@ void enable_pll(PowerPll pll, NvBool enable);
 void enable_plls(NvBool enable);
 void do_suspend_prep(void);
 void reset_cpu(unsigned int cpu, unsigned int reset);
+static void init_lp0_scratch_registers(void);
+static void create_wakeup_irqs(void);
+void shadow_runstate_scratch_regs(void);
+void shadow_lp0_scratch_regs(void);
+
+
 extern NvRmDeviceHandle s_hRmGlobal;
 
 uintptr_t g_resume = 0, g_contextSavePA = 0, g_contextSaveVA = 0;
@@ -43,6 +49,59 @@ NvU32 g_wakeupCcbp = 0, g_NumActiveCPUs, g_Sync = 0, g_ArmPerif = 0;
 NvU32 g_enterLP2PA = 0;
 NvU32 g_localTimerLoadRegister, g_localTimerCntrlRegister;
 NvU32 g_coreSightClock, g_currentCcbp;
+volatile void *g_pPMC, *g_pAHB, *g_pCLK_RST_CONTROLLER;
+volatile void *g_pEMC, *g_pMC, *g_pAPB_MISC;
+
+// Chip external specific wakeup events list
+static const struct wakeup_source s_WakeupSources[] =
+{
+	WAKEUP_EXTERNAL('o', 5),						//wake 0
+	WAKEUP_EXTERNAL('v', 3),						//wake 1
+	WAKEUP_EXTERNAL('l', 1),						//wake 2
+	WAKEUP_EXTERNAL('b', 6),						//wake 3
+	WAKEUP_EXTERNAL('n', 7),						//wake 4
+	WAKEUP_EXTERNAL('a', 0),						//wake 5
+	WAKEUP_EXTERNAL('u', 5),						//wake 6
+	WAKEUP_EXTERNAL('u', 6),						//wake 7
+	WAKEUP_EXTERNAL('c', 7),						//wake 8
+	WAKEUP_EXTERNAL('s', 2),						//wake 9
+	WAKEUP_EXTERNAL( aa, 1),						//wake 10
+	WAKEUP_EXTERNAL('w', 3),						//wake 11
+	WAKEUP_EXTERNAL('w', 2),						//wake 12
+	WAKEUP_EXTERNAL('y', 6),						//wake 13
+	WAKEUP_EXTERNAL('v', 6),						//wake 14
+	WAKEUP_EXTERNAL('j', 7),						//wake 15
+	WAKEUP_INTERNAL(NvRmModuleID_Rtc, 0, 0),		//wake 16
+	WAKEUP_INTERNAL(NvRmModuleID_Kbc, 0, 0),		//wake 17
+	WAKEUP_INTERNAL(NvRmPrivModuleID_PmuExt, 0, 0),	//wake 18
+	//TODO: Check if USB values are correct
+	WAKEUP_INTERNAL(NvRmModuleID_Usb2Otg, 0, 0),	//wake 19
+	WAKEUP_INTERNAL(NvRmModuleID_Usb2Otg, 0, 1),	//wake 20
+	WAKEUP_INTERNAL(NvRmModuleID_Usb2Otg, 1, 0),	//wake 21
+	WAKEUP_INTERNAL(NvRmModuleID_Usb2Otg, 1, 1),	//wake 22
+	WAKEUP_EXTERNAL('i', 5),						//wake 23
+	WAKEUP_EXTERNAL('v', 2),						//wake 24
+	WAKEUP_EXTERNAL('s', 4),						//wake 25
+	WAKEUP_EXTERNAL('s', 5),						//wake 26
+	WAKEUP_EXTERNAL('s', 0),						//wake 27
+	WAKEUP_EXTERNAL('q', 6),						//wake 28
+	WAKEUP_EXTERNAL('q', 7),						//wake 29
+	WAKEUP_EXTERNAL('n', 2),						//wake 30
+};
+
+#define WAKEUP_SOURCE_INT_RTC   16
+#define INVALID_IRQ				(0xFFFF)
+#define AP20_BASE_PA_BOOT_INFO	0x40000000
+//IRQs of external wake events.
+static NvIrqNumber s_WakeupIrqTable[NV_ARRAY_SIZE(s_WakeupSources)];
+
+//Extended table of external wakeup events. If the wakeup source
+//doesn't fall under the default 16 (chip specific) wakeup sources
+//add it to this list.
+static  const NvIrqNumber s_WakeupIrqTableEx[] =
+{
+	INVALID_IRQ
+};
 
 void cpu_ap20_do_lp0(void)
 {
@@ -70,13 +129,15 @@ void cpu_ap20_do_lp0(void)
 		// FIXME: do we need an explicit delay?
 		Reg = NV_REGR(s_hRmGlobal, NvRmModuleID_Pmif, 0,
 			APBDEV_PMC_CNTRL_0);
-		Reg = NV_FLD_SET_DRF_DEF(APBDEV_PMC, CNTRL, CPUPWRREQ_OE, DISABLE, Reg);
+		Reg = NV_FLD_SET_DRF_DEF(APBDEV_PMC, CNTRL,
+			CPUPWRREQ_OE, DISABLE, Reg);
 	}
 
-	// Enter low power LP0 mode
+	//Enter low power LP0 mode
 	prepare_for_wb0();
-
-	//TODO: Shadow required state here
+	shadow_lp0_scratch_regs();
+	enter_power_state(POWER_STATE_LP0, 0);
+	shadow_runstate_scratch_regs();
 
 	if (HasPmuProperty && PmuProperty.CombinedPowerReq)
 	{
@@ -88,7 +149,7 @@ void cpu_ap20_do_lp0(void)
 		Reg = NV_FLD_SET_DRF_DEF(APBDEV_PMC, CNTRL, CPUPWRREQ_OE, ENABLE, Reg);
 		NV_REGW(s_hRmGlobal, NvRmModuleID_Pmif, 0,
 				APBDEV_PMC_CNTRL_0, Reg);
-		// FIXME: do we need an explicit delay ?
+		//FIXME: do we need an explicit delay ?
 		Reg = NV_REGR(s_hRmGlobal, NvRmModuleID_Pmif, 0,
 				APBDEV_PMC_CNTRL_0);
 		Reg = NV_FLD_SET_DRF_DEF(APBDEV_PMC, CNTRL, PWRREQ_OE, DISABLE, Reg);
@@ -157,6 +218,216 @@ void cpu_ap20_do_lp2(void)
                 CLK_RST_CONTROLLER_CLK_SOURCE_CSITE_0, g_coreSightClock);
 
     }
+}
+
+void power_lp0_init(void)
+{
+	NvU32				Reg;
+	NvOdmPmuProperty	PmuProperty;
+	NvBool HasPmuProperty = NvOdmQueryGetPmuProperty(&PmuProperty);
+	const NvOdmSocPowerStateInfo	*LPStateInfo;
+
+	LPStateInfo = NvOdmQueryLowestSocPowerState();
+
+	//CPU power request must be already configured and enabled in early boot
+	//by now. Leave it enabled to be ready for LP2/LP1.
+	Reg = NV_PMC_REGR(g_pPMC, CNTRL);
+	Reg = NV_DRF_VAL(APBDEV_PMC, CNTRL, CPUPWRREQ_OE, Reg);
+	if (Reg != APBDEV_PMC_CNTRL_0_CPUPWRREQ_OE_ENABLE)
+		goto fail;
+
+	//If the system supports deep sleep (LP0), initialize PMC accordingly.
+	if (LPStateInfo->LowestPowerState == NvOdmSocPowerState_DeepSleep)
+	{
+		//Initialize the scratch registers  with the current system info.
+		init_lp0_scratch_registers();
+
+		//Get the core_power_request and sys_clock_request signal polarities.
+		if (HasPmuProperty)
+		{
+			Reg = NV_PMC_REGR(g_pPMC, CNTRL);
+
+			//Configure CORE power request signal polarity (the output is
+			//still tristated)
+			if (PmuProperty.CorePowerReqPolarity == NvOdmCorePowerReqPolarity_Low)
+			{
+				Reg = NV_FLD_SET_DRF_DEF(APBDEV_PMC, CNTRL,
+					PWRREQ_POLARITY, INVERT, Reg);
+			}
+
+			//Enable clock request signal if supported and it's polarity.
+			Reg = NV_FLD_SET_DRF_DEF(APBDEV_PMC, CNTRL,
+				SYSCLK_OE, ENABLE, Reg);
+			if (PmuProperty.SysClockReqPolarity == NvOdmSysClockReqPolarity_Low)
+			{
+				Reg = NV_FLD_SET_DRF_DEF(APBDEV_PMC, CNTRL,
+					SYSCLK_POLARITY, INVERT, Reg);
+			}
+
+			NV_PMC_REGW(g_pPMC,CNTRL,Reg);
+
+			//Enable CORE power request output if it is connected separately
+			//to PMU; keep it tristated if it is combined with CPU request -
+			//it will be dynamically enabled/disabled on entry/exit to LP0
+			if (!PmuProperty.CombinedPowerReq)
+			{
+				Reg = NV_PMC_REGR(g_pPMC, CNTRL); // make sure polarity is set
+				Reg = NV_FLD_SET_DRF_DEF(APBDEV_PMC, CNTRL,
+					PWRREQ_OE, ENABLE, Reg);
+				NV_PMC_REGW(g_pPMC,CNTRL,Reg);
+			}
+		}
+
+		//Program the power good timer
+		NV_PMC_REGW(g_pPMC,PWRGOOD_TIMER,PmuProperty.PowerGoodCount);
+	}
+
+	//Create the list of wakeup IRQs.
+	create_wakeup_irqs();
+fail:
+	printk("lp0 init failed!\n");
+}
+
+//Generate definitions of local variables to hold scratch register values.
+#define SCRATCH_REG(s) static NvU32 s = 0;
+SCRATCH_REGS()
+#undef SCRATCH_REG
+
+//Generate definitions of local variables to hold shadow
+//scratch register values.
+#define SHADOW_REG(s) static NvU32 SHADOW_##s = 0;
+SHADOW_REGS()
+#undef SHADOW_REG
+
+static void init_lp0_scratch_registers(void)
+{
+	NvU32					Reg;		//Module register contents
+	NvU32					Val;		//Register field contents
+
+	//NOTE: The SDRAM registers have already been saved
+	//by the bootloader
+
+	//Generate reads to the shadowed PMC scratch registers to copy the current
+	//values while we populate the register with their LP0 values.
+	#define SHADOW_REG(s) SHADOW_##s = NV_PMC_REGR(g_pPMC, s);
+	SHADOW_REGS()
+	#undef SHADOW_REG
+
+	//Define the transformation macro that will read and pull apart the
+	// module register values and pack them into PMC scratch regsiters.
+
+	//REG(s,d,r,f)
+	//s = destination Scratch register
+	//d = Device name
+	//r = Register name
+	//f = register Field
+	#define REG(s,d,r,f)  \
+		Reg = NV_DR_REGR(d,r); \
+		Val = NV_DRF_VAL(d,r,f,Reg); \
+		s = NV_FLD_SET_SDRF_NUM(s,d,r,f,Val);
+
+	//Instantiate all of the register transformations.
+	REGS()
+	#undef REG
+	#undef RAM
+	#undef CONSTANT
+
+	//Generate writes to the PMC scratch registers to copy the local
+	//variables to the actual registers.
+	#define SCRATCH_REG(s) NV_PMC_REGW(g_pPMC, s, s);
+	SCRATCH_REGS()
+	#undef SCRATCH_REG
+
+	//Generate writes to the shadowed PMC scratch registers to restore the
+	//"normal" values expected by RM.
+	#define SHADOW_REG(s) NV_PMC_REGW(g_pPMC, s, SHADOW_##s);
+	SHADOW_REGS()
+	#undef SHADOW_REG
+
+	return;
+}
+
+void shadow_runstate_scratch_regs(void)
+{
+	//Generate writes to the shadowed PMC scratch registers to restore the
+	//"normal" running mode values expected by RM.
+	#define SHADOW_REG(s) NV_PMC_REGW(g_pPMC, s, SHADOW_##s);
+	SHADOW_REGS()
+	#undef SHADOW_REG
+}
+
+void shadow_lp0_scratch_regs(void)
+{
+	//Generate reads of the shadowed PMC scratch registers to copy the current
+	//values while we populate the register with their LP0 values.
+	#define SHADOW_REG(s) SHADOW_##s = NV_PMC_REGR(g_pPMC, s);
+	SHADOW_REGS()
+	#undef SHADOW_REG
+
+	// Generate writes to the shadowed PMC scratch registers
+	//for the LP0 values.
+	#define SHADOW_REG(s) NV_PMC_REGW(g_pPMC, s, s);
+	SHADOW_REGS()
+	#undef SHADOW_REG
+}
+
+static void create_wakeup_irqs(void)
+{
+	NvU32						WakeupTableSize;
+	NvU32						Count;
+	NvU32						PadNumber;
+	const NvOdmWakeupPadInfo*	pNvOdmWakeupPadInfo;
+	const NvOdmWakeupPadInfo*	pWakeupPad;
+
+	//Initialize the wakeup irq table.
+	for (Count = 0; Count < NV_ARRAY_SIZE(s_WakeupIrqTable); Count++)
+	{
+		s_WakeupIrqTable[Count] = INVALID_IRQ;
+	}
+
+	//Get the wakeup sources table from odm.
+	pNvOdmWakeupPadInfo = NvOdmQueryGetWakeupPadTable(&WakeupTableSize);
+	if (WakeupTableSize > NV_ARRAY_SIZE(s_WakeupSources))
+		goto fail;
+
+	//If there is a wakeup pad information table
+	if (pNvOdmWakeupPadInfo)
+	{
+		//Then for each pad ...
+		for (Count = 0; Count < WakeupTableSize; Count++)
+		{
+			//... get it's pad number.
+			pWakeupPad = &pNvOdmWakeupPadInfo[Count];
+			PadNumber = pWakeupPad->WakeupPadNumber;
+
+			if (PadNumber >= NV_ARRAY_SIZE(s_WakeupSources))
+				goto fail;
+
+			//If the pad is enabled as a wakeup source...
+			if (pWakeupPad->enable)
+			{
+				//... get it's IRQ number.
+				s_WakeupIrqTable[PadNumber] = NvRmGetIrqForLogicalInterrupt(
+						s_hRmGlobal,
+						s_WakeupSources[PadNumber].Module,
+						s_WakeupSources[PadNumber].Index);
+				if (s_WakeupIrqTable[PadNumber] == INVALID_IRQ)
+					goto fail;
+			}
+		}
+	}
+
+	// Create internal events those are transparent to ODM.
+	//These events will always be enabled.
+	s_WakeupIrqTable[WAKEUP_SOURCE_INT_RTC] =
+	NvRmGetIrqForLogicalInterrupt(s_hRmGlobal,
+		s_WakeupSources[WAKEUP_SOURCE_INT_RTC].Module,
+		s_WakeupSources[WAKEUP_SOURCE_INT_RTC].Index);
+
+	return;
+fail:
+	printk("Failed to create wakeup irqs\n");
+	return;
 }
 
 static NvU32 select_wakeup_pll(void)
