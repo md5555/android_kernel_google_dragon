@@ -71,6 +71,10 @@ Max8907bPrivData *hMax8907bPmu;
 #define MAX8907B_OUT_VOLTAGE_CONTROL_DISABLE \
     (MAX8907B_SEQSEL_I2CEN_LXX << MAX8907B_CTL_SEQ_SHIFT)
 
+// MAX8907B revision that requires s/w WAR to connect PWREN input to
+// sequencer 2 because of the bug in the silicon.
+#define MAX8907B_II2RR_PWREN_WAR (0x12)
+
 /**
 *   The FAN5355 is used to scale the voltage of an external
 *   DC/DC voltage rail (for PCIE).  However, voltage scaling is
@@ -1195,14 +1199,20 @@ Max8907bPwrEnConfigure(NvOdmPmuDeviceHandle hDevice, NvBool Enable)
     if (!Max8907bI2cWrite8(hDevice, MAX8907B_RESET_CNFG, data))
         return NV_FALSE;
 
-    // When enabled, connect PWREN to SEQ2 (when disbled leave it
-    // connected - no harm, anyway)
+    // When enabled, connect PWREN to SEQ2 by clearing SEQ2 configuration
+    // settings for silicon revision that requires s/w WAR. On other MAX8907B
+    // revisions PWREN is always connected to SEQ2.
     if (Enable)
     {
-        data = 0x00; // TODO: The 0x00 value does not match register
-                     //  definition due to the bug in PMU silicon.
-        if (!Max8907bI2cWrite8(hDevice, MAX8907B_SEQ2CNFG, data))
+        if (!Max8907bI2cRead8(hDevice, MAX8907B_II2RR, &data))
             return NV_FALSE;
+
+        if (data == MAX8907B_II2RR_PWREN_WAR)
+        {
+            data = 0x00;
+            if (!Max8907bI2cWrite8(hDevice, MAX8907B_SEQ2CNFG, data))
+                return NV_FALSE;
+        }
     }
     return NV_TRUE;
 }
