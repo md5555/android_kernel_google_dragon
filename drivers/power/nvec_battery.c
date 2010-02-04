@@ -40,6 +40,10 @@
 
 #define GET_CHARGER_STATUS 1
 
+#define NVBATTERY_POLLING_INTERVAL 30000 /* 30 Seconds */
+
+static struct timer_list battery_poll_timer;
+
 typedef enum
 {
 	NvCharger_Type_Battery = 0,
@@ -283,7 +287,7 @@ static int tegra_battery_get_property(struct power_supply *psy,
 			/* TODO:Get Charger status here */
 #if GET_CHARGER_STATUS
 		if (!NvOdmBatteryGetBatteryStatus(batt_dev->hOdmBattDev,
-			NvOdmBatteryInst_Main, &state)) 
+			NvOdmBatteryInst_Main, &state))
 			return -ENODEV;
 
 		if (state == NVODM_BATTERY_STATUS_UNKNOWN) {
@@ -402,6 +406,16 @@ static int tegra_battery_get_property(struct power_supply *psy,
 	return 0;
 }
 
+static void tegra_battery_poll_timer_func(unsigned long unused)
+{
+	power_supply_changed(&tegra_power_supplies[NvCharger_Type_Battery]);
+	power_supply_changed(&tegra_power_supplies[NvCharger_Type_USB]);
+	power_supply_changed(&tegra_power_supplies[NvCharger_Type_AC]);
+
+	mod_timer(&battery_poll_timer,
+		jiffies + msecs_to_jiffies(NVBATTERY_POLLING_INTERVAL));
+}
+
 static int tegra_battery_probe(struct platform_device *pdev)
 {
 	int i;
@@ -424,27 +438,59 @@ static int tegra_battery_probe(struct platform_device *pdev)
 			printk(KERN_ERR "Failed to register power supply\n");
 	}
 
+	setup_timer(&battery_poll_timer, tegra_battery_poll_timer_func, 0);
+	mod_timer(&battery_poll_timer,
+		jiffies + msecs_to_jiffies(NVBATTERY_POLLING_INTERVAL));
+
 	return 0;
 }
 
 static int tegra_battery_remove(struct platform_device *pdev)
 {
+	unsigned int i = 0;
+
 	if (batt_dev) {
 		if (batt_dev->hOdmBattDev) {
 			NvOdmBatteryDeviceClose(batt_dev->hOdmBattDev);
 			batt_dev->hOdmBattDev = NULL;
+
+			for (i = 0; i < ARRAY_SIZE(tegra_power_supplies); i++) {
+				power_supply_unregister(&tegra_power_supplies[i]);
+			}
 		}
 
 		kfree(batt_dev);
 		batt_dev = NULL;
 
 	}
+
+	del_timer_sync(&battery_poll_timer);
+
+	return 0;
+}
+
+static int tegra_battery_suspend(struct platform_device *dev,
+	pm_message_t state)
+{
+	/* Kill the Battery Polling timer */
+	del_timer_sync(&battery_poll_timer);
+	return 0;
+}
+
+static int tegra_battery_resume(struct platform_device *dev)
+{
+	/*Create Battery Polling timer */
+	setup_timer(&battery_poll_timer, tegra_battery_poll_timer_func, 0);
+	mod_timer(&battery_poll_timer,
+		jiffies + msecs_to_jiffies(NVBATTERY_POLLING_INTERVAL));
 	return 0;
 }
 
 static struct platform_driver tegra_battery_driver = {
 	.probe  = tegra_battery_probe,
 	.remove = tegra_battery_remove,
+	.suspend= tegra_battery_suspend,
+	.resume = tegra_battery_resume,
 	.driver = {
 		.name   = "tegra_battery",
 		.owner  = THIS_MODULE,
