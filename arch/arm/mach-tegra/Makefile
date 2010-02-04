@@ -16,6 +16,10 @@ obj-y					+= irq_gpio.o
 obj-y					+= timer.o
 obj-y					+= tegra_sysmap.o
 
+# IOVMM support
+obj-$(CONFIG_TEGRA_IOVMM_GART)		+= iovmm-gart.o
+obj-$(CONFIG_TEGRA_IOVMM)		+= iovmm.o
+
 # Tegra suspend operation
 obj-$(CONFIG_PM)		+= suspend_ops.o
 

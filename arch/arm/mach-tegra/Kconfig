@@ -42,6 +42,20 @@ config TEGRA_SYSTEM_DMA
 	  Adds system DMA functionality for NVIDIA Tegra SoCs, used by
 	  several Tegra device drivers
 
+config TEGRA_IOVMM_GART
+	bool "Enable I/O virtual memory manager for GART"
+	depends on ARCH_TEGRA_1x_SOC || ARCH_TEGRA_2x_SOC
+	default y
+	select TEGRA_IOVMM
+	help
+	  Enables support for remapping discontiguous physical memory
+	  shared with the operating system into contiguous I/O virtual
+	  space through the GART hardware included on Tegra and
+	  Tegra 2 SoCs
+
+config TEGRA_IOVMM
+	bool
+
 config MACH_TEGRA_GENERIC_DEBUG
 	bool "Enable debug logging for Tegra generic drivers"
 	depends on MACH_TEGRA_GENERIC
