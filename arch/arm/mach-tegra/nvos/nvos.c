@@ -1122,6 +1122,7 @@ void NvOsInstrCacheInvalidateRange(
 void NvOsFlushWriteCombineBuffer( void )
 {
     dsb();
+    outer_sync();
 }
 
 NvError NvOsInterruptRegisterInternal(
