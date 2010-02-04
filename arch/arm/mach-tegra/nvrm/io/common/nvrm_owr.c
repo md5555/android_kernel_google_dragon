@@ -356,7 +356,8 @@ NvError NvRmOwrTransaction(
 
     for (i = 0; i < NumOfTransactions; i++)
     {
-        if (Transaction[i].Flags == NvRmOwr_MemWrite)
+        if ((Transaction[i].Flags == NvRmOwr_MemWrite) ||
+            (Transaction[i].Flags == NvRmOwr_WriteByte))
         {
             // OWR write transaction
             status = (pOwrInfo->write)(

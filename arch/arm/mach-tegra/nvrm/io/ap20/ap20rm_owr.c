@@ -42,7 +42,7 @@
 #include "nvrm_module.h"
 #include "ap20/arowr.h"
 #include "nvrm_hardware_access.h"
-#include "nvrm_power.h" 
+#include "nvrm_power.h"
 #include "nvrm_interrupt.h"
 #include "nvassert.h"
 #include "nvodm_query_pinmux.h"
@@ -59,7 +59,7 @@
 #if ENABLE_OWR_DEBUG
 #define OWR_PRINT(X)   NvOsDebugPrintf X
 #else
-#define OWR_PRINT(X)  
+#define OWR_PRINT(X)
 #endif
 
 // Enabling the following flag for enabling the polling in bit transfer mode
@@ -165,14 +165,14 @@ PrivOwrCheckBitTransferDone(
             break;
         }
         NvOsWaitUS(BIT_TRASNFER_DONE_STEP_TIMEOUT_USEC);
-        timeout += BIT_TRASNFER_DONE_STEP_TIMEOUT_USEC;   
+        timeout += BIT_TRASNFER_DONE_STEP_TIMEOUT_USEC;
     }
 
     if (timeout >= BIT_TRASNFER_DONE_TIMEOUT_USEC)
     {
         return NvError_Timeout;
     }
-    
+
    return NvSuccess;
 #else
         // wait for the read to complete
@@ -210,8 +210,8 @@ NvError PrivOwrSendCommand(NvRmOwrController *pOwrInfo, NvU32 Command)
     NvError status = NvError_Timeout;
     NvU32 i =0;
     NvU32 ControlReg = 0;
-    
-    val = 
+
+    val =
         (NV_DRF_NUM(OWR, CONTROL, RD_DATA_SAMPLE_CLK, 0x7) |
         NV_DRF_NUM(OWR, CONTROL, PRESENCE_SAMPLE_CLK, 0x50) |
         NV_DRF_DEF(OWR, CONTROL, DATA_TRANSFER_MODE, BIT_TRANSFER_MODE));
@@ -221,26 +221,26 @@ NvError PrivOwrSendCommand(NvRmOwrController *pOwrInfo, NvU32 Command)
 
         if (data & 0x1)
         {
-            ControlReg = 
+            ControlReg =
                 val | (NV_DRF_DEF(OWR, CONTROL, WR1_BIT, TRANSFER_ONE));
         }
         else
         {
-           ControlReg = 
+           ControlReg =
             val | (NV_DRF_DEF(OWR, CONTROL, WR0_BIT, TRANSFER_ZERO));
         }
         OWR_REGW(pOwrInfo->pOwrVirtualAddress, CONTROL, ControlReg);
-        
+
         status = PrivOwrCheckBitTransferDone(pOwrInfo,
                                     OwrIntrStatus_BitTransferDoneIntEnable);
         if (status != NvSuccess)
         {
             return status;
-        }        
-      
+        }
+
         data = (data >> 1);
     }
-    
+
     return NvSuccess;
 }
 
@@ -253,20 +253,20 @@ PrivOwrReadData(
     NvU32 ControlReg = 0;
     NvError status = NvError_Timeout;
     NvU8* pBuf = Buffer;
-    NvU32 val = 0;  
+    NvU32 val = 0;
     NvU32 i =0;
     NvU32 j =0;
-    
+
     NvOsMemset(pBuf, 0, NoOfBytes);
-    
-    ControlReg = 
+
+    ControlReg =
         NV_DRF_NUM(OWR, CONTROL, RD_DATA_SAMPLE_CLK, 0x7) |
         NV_DRF_NUM(OWR, CONTROL, PRESENCE_SAMPLE_CLK, 0x50) |
         NV_DRF_DEF(OWR, CONTROL, DATA_TRANSFER_MODE, BIT_TRANSFER_MODE) |
         NV_DRF_DEF(OWR, CONTROL, RD_BIT, TRANSFER_READ_SLOT);
 
     for (i = 0; i < NoOfBytes; i++)
-    {        
+    {
         for (j = 0; j < OWR_NO_OF_BITS_PER_BYTE; j++)
         {
             OWR_REGW(pOwrInfo->pOwrVirtualAddress, CONTROL, ControlReg);
@@ -275,13 +275,13 @@ PrivOwrReadData(
             if (status != NvSuccess)
             {
                 return status;
-            }            
+            }
             val = OWR_REGR(pOwrInfo->pOwrVirtualAddress, STATUS);
             val = NV_DRF_VAL(OWR, STATUS, READ_SAMPLED_BIT, val);
-            *pBuf |= (val << j);            
+            *pBuf |= (val << j);
         }
         pBuf++;
-    }   
+    }
     return NvSuccess;
 }
 
@@ -296,7 +296,7 @@ PrivOwrReadFifo(
     NvU32 val = 0;
     NvError status = NvError_OwrReadFailed;
     NvU32 BytesToRead = 0;
-    NvU32 WordsToRead = 0; 
+    NvU32 WordsToRead = 0;
     NvU32 ReadDataClk = OWR_DEFAULT_READ_DTA_CLK_VALUE;
     NvU32 PresenceClk = OWR_DEFAULT_PRESENCE_CLK_VALUE;
     NvU32 i = 0;
@@ -353,9 +353,9 @@ PrivOwrReadFifo(
                 val = OWR_REGR(pOwrInfo->pOwrVirtualAddress, READ_ROM0);
                 NvOsMemcpy(pBuffer, &val, 4);
                 pBuffer += 4;
-                
+
                 val = OWR_REGR(pOwrInfo->pOwrVirtualAddress, READ_ROM1);
-                NvOsMemcpy(pBuffer, &val, 4);                    
+                NvOsMemcpy(pBuffer, &val, 4);
             }
             else if (Transaction.Flags == NvRmOwr_MemRead)
             {
@@ -374,13 +374,13 @@ PrivOwrReadFifo(
                     NvOsMemcpy(pBuffer, &val, OWR_FIFO_WORD_SIZE);
                     pBuffer += OWR_FIFO_WORD_SIZE;
                 }
-                
+
                 BytesToRead = (BytesToRead % OWR_FIFO_WORD_SIZE);
                 if (BytesToRead)
                 {
                       val = OWR_REGR(pOwrInfo->pOwrVirtualAddress, RX_FIFO);
                        NvOsMemcpy(pBuffer, &val, BytesToRead);
-                }                    
+                }
             }
         }
         else
@@ -414,8 +414,7 @@ PrivOwrWriteFifo(
     {
         ReadDataClk = pOdmInfo->ReadDataSampleClk;
         PresenceClk = pOdmInfo->PresenceSampleClk;
-    }    
-    
+    }
     // Configure the number of bytes to write
     OWR_REGW(pOwrInfo->pOwrVirtualAddress, EPROM, (NumBytes - 1));
 
@@ -438,7 +437,7 @@ PrivOwrWriteFifo(
 
     // Configure the read, presence sample clock and
     // configure for byte transfer mode
-    val = 
+    val =
         NV_DRF_NUM(OWR, CONTROL, RD_DATA_SAMPLE_CLK, ReadDataClk) |
         NV_DRF_NUM(OWR, CONTROL, PRESENCE_SAMPLE_CLK, PresenceClk) |
         NV_DRF_DEF(OWR, CONTROL, DATA_TRANSFER_MODE, BYTE_TRANSFER_MODE) |
@@ -470,8 +469,8 @@ PrivOwrWriteFifo(
             val -= OWR_MEM_CMD_SIZE_BYTES;
             val -= OWR_MEM_CMD_SIZE_BYTES;
             val -= OWR_DEFAULT_OFFSET_SIZE_BYTES;
-            
-            /** Assert if the actual bytes written is 
+
+            /** Assert if the actual bytes written is
              * not equal to the bytes written
              */
             NV_ASSERT(val == NumBytes);
@@ -485,8 +484,36 @@ PrivOwrWriteFifo(
                 NVRM_MODULE_ID(NvRmModuleID_OneWire, pOwrInfo->Instance));
             return NvError_OwrWriteFailed;
         }
-    }    
+    }
     return status;
+}
+
+NvError
+PrivOwrCheckPresence(
+        NvRmOwrController* pOwrInfo,
+        NvU32 ReadDataClk,
+        NvU32 PresenceClk)
+{
+        NvError status = NvSuccess;
+        NvU32 val = 0;
+
+        // Enable the bit transfer done interrupt
+        PrivOwrEnableInterrupts(pOwrInfo, OwrIntrStatus_PresenceDoneIntEnable);
+        pOwrInfo->OwrTransferStatus = 0;
+
+        // Configure for presence
+        val =
+            NV_DRF_NUM(OWR, CONTROL, RD_DATA_SAMPLE_CLK, ReadDataClk) |
+            NV_DRF_NUM(OWR, CONTROL, PRESENCE_SAMPLE_CLK, PresenceClk) |
+            NV_DRF_DEF(OWR, CONTROL, DATA_TRANSFER_MODE, BIT_TRANSFER_MODE) |
+            NV_DRF_DEF(OWR, CONTROL, GO, START_PRESENCE_PULSE);
+
+        OWR_REGW(pOwrInfo->pOwrVirtualAddress, CONTROL, val);
+
+        // Check for presence
+        status = PrivOwrCheckBitTransferDone(pOwrInfo,
+                                    OwrIntrStatus_PresenceDoneIntEnable);
+        return status;
 }
 
 /****************************************************************************/
@@ -501,10 +528,10 @@ static void OwrIsr(void* args)
 
     // Save the status
     pOwrInfo->OwrTransferStatus = IntStatus;
-        
+
     // Clear the interrupt status register
     OWR_REGW(pOwrInfo->pOwrVirtualAddress, INTR_STATUS, IntStatus);
-  
+
     // Signal the sema
     NvOsSemaphoreSignal(pOwrInfo->OwrSyncSemaphore);
     NvRmInterruptDone(pOwrInfo->OwrInterruptHandle);
@@ -528,14 +555,14 @@ static void AP20RmOwrClose(NvRmOwrController *pOwrInfo)
     NvRmPhysicalMemUnmap(pOwrInfo->pOwrVirtualAddress, pOwrInfo->OwrBankSize);
 }
 
-static NvError 
+static NvError
 AP20RmOwrRead(
     NvRmOwrController* pOwrInfo,
     NvU8*  pBuffer,
     NvRmOwrTransactionInfo Transaction)
 {
     NvU32 val = 0;
-    NvError status = NvError_Timeout;
+    NvError status = NvError_BadParameter;
     NvBool IsByteModeSupported = NV_FALSE;
     const NvOdmQueryOwrDeviceInfo* pOwrOdmInfo = NULL;
     NvU32 ReadDataClk = OWR_DEFAULT_READ_DTA_CLK_VALUE;
@@ -550,7 +577,7 @@ AP20RmOwrRead(
     if ((Transaction.Flags == NvRmOwr_MemRead) && (!Transaction.NumBytes))
     {
         return NvError_BadParameter;
-    }        
+    }
 
     pOwrOdmInfo = NvOdmQueryGetOwrDeviceInfo(pOwrInfo->Instance);
     if (!pOwrOdmInfo)
@@ -570,7 +597,7 @@ AP20RmOwrRead(
         DeviceOffsetSize = pOwrOdmInfo->AddressSize;
 
          // program the timing registers
-        val = 
+        val =
             NV_DRF_NUM(OWR, WR_RD_TCTL, TSLOT, pOwrOdmInfo->TSlot) |
             NV_DRF_NUM(OWR, WR_RD_TCTL, TLOW1, pOwrOdmInfo->TLow1) |
             NV_DRF_NUM(OWR, WR_RD_TCTL, TLOW0, pOwrOdmInfo->TLow0) |
@@ -578,15 +605,15 @@ AP20RmOwrRead(
             NV_DRF_NUM(OWR, WR_RD_TCTL, TRELEASE, pOwrOdmInfo->TRelease) |
             NV_DRF_NUM(OWR, WR_RD_TCTL, TSU, pOwrOdmInfo->Tsu);
         OWR_REGW(pOwrInfo->pOwrVirtualAddress, WR_RD_TCTL, val);
-         
-        val = 
+
+        val =
             NV_DRF_NUM(OWR, RST_PRESENCE_TCTL, TRSTH, pOwrOdmInfo->TRsth) |
             NV_DRF_NUM(OWR, RST_PRESENCE_TCTL, TRSTL, pOwrOdmInfo->TRstl) |
             NV_DRF_NUM(OWR, RST_PRESENCE_TCTL, TPDH, pOwrOdmInfo->Tpdh) |
             NV_DRF_NUM(OWR, RST_PRESENCE_TCTL, TPDL, pOwrOdmInfo->Tpdl);
         OWR_REGW(pOwrInfo->pOwrVirtualAddress, RST_PRESENCE_TCTL, val);
 
-        val = 
+        val =
             NV_DRF_NUM(OWR, PROG_PULSE_TCTL, TPD, pOwrOdmInfo->Tpd) |
             NV_DRF_NUM(OWR, PROG_PULSE_TCTL, TDV, pOwrOdmInfo->Tdv) |
             NV_DRF_NUM(OWR, PROG_PULSE_TCTL, TRP, pOwrOdmInfo->Trp) |
@@ -594,81 +621,75 @@ AP20RmOwrRead(
             NV_DRF_NUM(OWR, PROG_PULSE_TCTL, TPP, pOwrOdmInfo->Tpp);
         OWR_REGW(pOwrInfo->pOwrVirtualAddress, PROG_PULSE_TCTL, val);
     }
-    
-    if (!IsByteModeSupported)
+
+    if (Transaction.Flags == NvRmOwr_CheckPresence)
     {
-        // Bit Transfer Mode
-   
-         // Enable the bit transfer done interrupt
-        PrivOwrEnableInterrupts(pOwrInfo, OwrIntrStatus_PresenceDoneIntEnable);
+        NV_ASSERT(!IsByteModeSupported);
+        status = PrivOwrCheckPresence(pOwrInfo, ReadDataClk, PresenceClk);
+    }
+    else if (Transaction.Flags == NvRmOwr_ReadByte)
+    {
+        NV_ASSERT(!IsByteModeSupported);
+
         pOwrInfo->OwrTransferStatus = 0;
-
-        // Configure for presence
-        val = 
-            NV_DRF_NUM(OWR, CONTROL, RD_DATA_SAMPLE_CLK, ReadDataClk) |
-            NV_DRF_NUM(OWR, CONTROL, PRESENCE_SAMPLE_CLK, PresenceClk) |
-            NV_DRF_DEF(OWR, CONTROL, DATA_TRANSFER_MODE, BIT_TRANSFER_MODE) |
-            NV_DRF_DEF(OWR, CONTROL, GO, START_PRESENCE_PULSE);
-        
-        OWR_REGW(pOwrInfo->pOwrVirtualAddress, CONTROL, val);
-
-        // Check for presence
-        status = PrivOwrCheckBitTransferDone(pOwrInfo,
-                                    OwrIntrStatus_PresenceDoneIntEnable);
-        if (status != NvSuccess)
-        {
-            return status;
-        }
-
-         // Enable the bit transfer done interrupt
+        // Enable the bit transfer done interrupt
         PrivOwrEnableInterrupts(pOwrInfo,
                                     OwrIntrStatus_BitTransferDoneIntEnable);
-
-
-        if (Transaction.Flags == NvRmOwr_ReadAddress)
+        status =
+            PrivOwrReadData(pOwrInfo, pReadPtr, 1);
+    }
+    else if ((Transaction.Flags == NvRmOwr_MemRead) ||
+                 (Transaction.Flags == NvRmOwr_ReadAddress))
+    {
+        if (!IsByteModeSupported)
         {
-            // Send the ROM Read Command
-            NV_ASSERT_SUCCESS(PrivOwrSendCommand(pOwrInfo,
+            // Bit transfer mode
+            status = PrivOwrCheckPresence(pOwrInfo, ReadDataClk, PresenceClk);
+            if (status != NvSuccess)
+                return status;
+
+            if (Transaction.Flags == NvRmOwr_ReadAddress)
+            {
+
+                // Send the ROM Read Command
+                NV_ASSERT_SUCCESS(PrivOwrSendCommand(pOwrInfo,
                             OWR_ROM_READ_COMMAND));
 
-            // Read the ROM ID
-            status = PrivOwrReadData(pOwrInfo, pReadPtr, OWR_ROM_ID_SIZE_BYTES);
-        }
-        else if (Transaction.Flags == NvRmOwr_MemRead)
-        {        
-            // Skip the ROM Read Command
-            NV_ASSERT_SUCCESS(
+                // Read byte
+                status = PrivOwrReadData(pOwrInfo, pReadPtr, OWR_ROM_ID_SIZE_BYTES);
+            }
+            else
+            {
+                // Skip the ROM Read Command
+                NV_ASSERT_SUCCESS(
                 PrivOwrSendCommand(pOwrInfo, OWR_ROM_SKIP_COMMAND));
-       
-            // Send the Mem Read Command
-            NV_ASSERT_SUCCESS(
+
+                // Send the Mem Read Command
+                NV_ASSERT_SUCCESS(
                 PrivOwrSendCommand(pOwrInfo, OWR_MEM_READ_COMMAND));
 
-            // Send offset in memory
-            for (i = 0; i < DeviceOffsetSize; i++)
-            {
+                // Send offset in memory
+                for (i = 0; i < DeviceOffsetSize; i++)
+                {
                 val = (Transaction.Offset >> i) & 0xFF;
                 NV_ASSERT_SUCCESS(PrivOwrSendCommand(pOwrInfo, val));
-            }
+                }
 
-            // Read the CRC
-            NV_ASSERT_SUCCESS(
+                // Read the CRC
+                NV_ASSERT_SUCCESS(
                 PrivOwrReadData(pOwrInfo, pReadPtr, OWR_CRC_SIZE_BYTES));
 
-            // TODO: Need to compute the CRC and compare with the CRC read
+                // TODO: Need to compute the CRC and compare with the CRC read
 
-            // Read Mem data
-            status = PrivOwrReadData(pOwrInfo, pReadPtr, Transaction.NumBytes);
+                // Read Mem data
+                status = PrivOwrReadData(pOwrInfo, pReadPtr, Transaction.NumBytes);
+            }
         }
-
-        return status;
-    }
-    else
-    {
-        // Byte transfer Mode
-        
-        // Enable the interrupts
-        PrivOwrEnableInterrupts(pOwrInfo, 
+        else
+        {
+            // Byte transfer Mode
+            // Enable the interrupts
+            PrivOwrEnableInterrupts(pOwrInfo,
                         (OwrIntrStatus_PresenceErrIntEnable |
                          OwrIntrStatus_CrcErrIntEnable |
                          OwrIntrStatus_MemWriteErrIntEnable |
@@ -677,35 +698,35 @@ AP20RmOwrRead(
                          OwrIntrStatus_TxfOvfIntEnable |
                          OwrIntrStatus_RxfUnrIntEnable));
 
-        // Configure the Rom command and the eeprom starting address
-        val = (
+            // Configure the Rom command and the eeprom starting address
+            val = (
                 NV_DRF_NUM(OWR, COMMAND, ROM_CMD, OWR_ROM_READ_COMMAND) |
                 NV_DRF_NUM(OWR, COMMAND, MEM_CMD, OWR_MEM_READ_COMMAND) |
                 NV_DRF_NUM(OWR, COMMAND, MEM_ADDR, Transaction.Offset));
-        OWR_REGW(pOwrInfo->pOwrVirtualAddress, COMMAND, val);
+            OWR_REGW(pOwrInfo->pOwrVirtualAddress, COMMAND, val);
 
-        /** We can't porgam ROM ID read alone, memory read should also be given
-         * along with ROM ID read. So, preogramming memory read of 1byte even
-         * for ROM ID read.
-         */
-        TotalBytesToRead = (Transaction.NumBytes) ? Transaction.NumBytes : 1;
-        FifoSize = (OWR_FIFO_DEPTH * OWR_FIFO_WORD_SIZE);
-        while(TotalBytesToRead)
-        {
-            BytesRead = 
-                (TotalBytesToRead > FifoSize) ? FifoSize : TotalBytesToRead;
-            pOwrInfo->OwrTransferStatus = 0;
-            status =
-                PrivOwrReadFifo(pOwrInfo, pReadPtr, Transaction,
-                                    pOwrOdmInfo, BytesRead);
-            if (status != NvSuccess)
+            /** We can't porgam ROM ID read alone, memory read should also be given
+            * along with ROM ID read. So, preogramming memory read of 1byte even
+            * for ROM ID read.
+            */
+            TotalBytesToRead = (Transaction.NumBytes) ? Transaction.NumBytes : 1;
+            FifoSize = (OWR_FIFO_DEPTH * OWR_FIFO_WORD_SIZE);
+            while(TotalBytesToRead)
             {
-                break;
+                BytesRead =
+                    (TotalBytesToRead > FifoSize) ? FifoSize : TotalBytesToRead;
+                pOwrInfo->OwrTransferStatus = 0;
+                status =
+                    PrivOwrReadFifo(pOwrInfo, pReadPtr, Transaction,
+                                        pOwrOdmInfo, BytesRead);
+                if (status != NvSuccess)
+                {
+                    break;
+                }
+                TotalBytesToRead -= BytesRead;
+                pReadPtr += BytesRead;
             }
-            TotalBytesToRead -= BytesRead;
-            pReadPtr += BytesRead;
         }
-    
     }
     return status;
 }
@@ -717,7 +738,7 @@ AP20RmOwrWrite(
     NvRmOwrTransactionInfo Transaction)
 {
     NvU32 val = 0;
-    NvError status = NvError_Timeout;
+    NvError status = NvError_BadParameter;
     NvBool IsByteModeSupported = NV_FALSE;
     const NvOdmQueryOwrDeviceInfo* pOwrOdmInfo = NULL;
     NvU32 TotalBytesToWrite = 0;
@@ -728,7 +749,7 @@ AP20RmOwrWrite(
     if ((Transaction.Flags == NvRmOwr_MemWrite) && (!Transaction.NumBytes))
     {
         return NvError_BadParameter;
-    }        
+    }
 
     pOwrOdmInfo = NvOdmQueryGetOwrDeviceInfo(pOwrInfo->Instance);
     if (!pOwrOdmInfo)
@@ -745,7 +766,7 @@ AP20RmOwrWrite(
         IsByteModeSupported = pOwrOdmInfo->IsByteModeSupported;
 
          // program the timing registers
-        val = 
+        val =
             NV_DRF_NUM(OWR, WR_RD_TCTL, TSLOT, pOwrOdmInfo->TSlot) |
             NV_DRF_NUM(OWR, WR_RD_TCTL, TLOW1, pOwrOdmInfo->TLow1) |
             NV_DRF_NUM(OWR, WR_RD_TCTL, TLOW0, pOwrOdmInfo->TLow0) |
@@ -753,15 +774,15 @@ AP20RmOwrWrite(
             NV_DRF_NUM(OWR, WR_RD_TCTL, TRELEASE, pOwrOdmInfo->TRelease) |
             NV_DRF_NUM(OWR, WR_RD_TCTL, TSU, pOwrOdmInfo->Tsu);
         OWR_REGW(pOwrInfo->pOwrVirtualAddress, WR_RD_TCTL, val);
-         
-        val = 
+
+        val =
             NV_DRF_NUM(OWR, RST_PRESENCE_TCTL, TRSTH, pOwrOdmInfo->TRsth) |
             NV_DRF_NUM(OWR, RST_PRESENCE_TCTL, TRSTL, pOwrOdmInfo->TRstl) |
             NV_DRF_NUM(OWR, RST_PRESENCE_TCTL, TPDH, pOwrOdmInfo->Tpdh) |
             NV_DRF_NUM(OWR, RST_PRESENCE_TCTL, TPDL, pOwrOdmInfo->Tpdl);
         OWR_REGW(pOwrInfo->pOwrVirtualAddress, RST_PRESENCE_TCTL, val);
 
-        val = 
+        val =
             NV_DRF_NUM(OWR, PROG_PULSE_TCTL, TPD, pOwrOdmInfo->Tpd) |
             NV_DRF_NUM(OWR, PROG_PULSE_TCTL, TDV, pOwrOdmInfo->Tdv) |
             NV_DRF_NUM(OWR, PROG_PULSE_TCTL, TRP, pOwrOdmInfo->Trp) |
@@ -769,43 +790,53 @@ AP20RmOwrWrite(
             NV_DRF_NUM(OWR, PROG_PULSE_TCTL, TPP, pOwrOdmInfo->Tpp);
         OWR_REGW(pOwrInfo->pOwrVirtualAddress, PROG_PULSE_TCTL, val);
     }
-    
-    // Only Byte transfer Mode is supported for writes
-    NV_ASSERT(IsByteModeSupported == NV_TRUE);
 
-    // Enable the interrupts
-    PrivOwrEnableInterrupts(pOwrInfo, 
-                    (OwrIntrStatus_PresenceErrIntEnable |
-                     OwrIntrStatus_CrcErrIntEnable |
-                     OwrIntrStatus_MemWriteErrIntEnable |
-                     OwrIntrStatus_ErrCommandIntEnable |
-                     OwrIntrStatus_MemCmdDoneIntEnable|
-                     OwrIntrStatus_TxfOvfIntEnable |
-                     OwrIntrStatus_RxfUnrIntEnable));
-
-    // Configure the Rom command and the eeprom starting address
-    val = (
-            NV_DRF_NUM(OWR, COMMAND, ROM_CMD, OWR_ROM_READ_COMMAND) |
-            NV_DRF_NUM(OWR, COMMAND, MEM_CMD, OWR_MEM_WRITE_COMMAND) |
-            NV_DRF_NUM(OWR, COMMAND, MEM_ADDR, Transaction.Offset));
-    OWR_REGW(pOwrInfo->pOwrVirtualAddress, COMMAND, val);
-
-    TotalBytesToWrite = Transaction.NumBytes;
-    FifoSize = (OWR_FIFO_DEPTH * OWR_FIFO_WORD_SIZE);
-    while(TotalBytesToWrite)
+    if (Transaction.Flags == NvRmOwr_MemWrite)
     {
-        BytesWritten = 
-            (TotalBytesToWrite > FifoSize) ? FifoSize : TotalBytesToWrite;
-        pOwrInfo->OwrTransferStatus = 0;
-        status =
-            PrivOwrWriteFifo(pOwrInfo, pWritePtr, Transaction,
-                                pOwrOdmInfo, BytesWritten);
-        if (status != NvSuccess)
+        // Only Byte transfer Mode is supported for writes
+        NV_ASSERT(IsByteModeSupported == NV_TRUE);
+
+        // Enable the interrupts
+        PrivOwrEnableInterrupts(pOwrInfo,
+                        (OwrIntrStatus_PresenceErrIntEnable |
+                         OwrIntrStatus_CrcErrIntEnable |
+                         OwrIntrStatus_MemWriteErrIntEnable |
+                         OwrIntrStatus_ErrCommandIntEnable |
+                         OwrIntrStatus_MemCmdDoneIntEnable|
+                         OwrIntrStatus_TxfOvfIntEnable |
+                         OwrIntrStatus_RxfUnrIntEnable));
+
+        // Configure the Rom command and the eeprom starting address
+        val = (
+                NV_DRF_NUM(OWR, COMMAND, ROM_CMD, OWR_ROM_READ_COMMAND) |
+                NV_DRF_NUM(OWR, COMMAND, MEM_CMD, OWR_MEM_WRITE_COMMAND) |
+                NV_DRF_NUM(OWR, COMMAND, MEM_ADDR, Transaction.Offset));
+        OWR_REGW(pOwrInfo->pOwrVirtualAddress, COMMAND, val);
+
+        TotalBytesToWrite = Transaction.NumBytes;
+        FifoSize = (OWR_FIFO_DEPTH * OWR_FIFO_WORD_SIZE);
+        while(TotalBytesToWrite)
         {
-            break;
+            BytesWritten =
+                (TotalBytesToWrite > FifoSize) ? FifoSize : TotalBytesToWrite;
+            pOwrInfo->OwrTransferStatus = 0;
+            status =
+                PrivOwrWriteFifo(pOwrInfo, pWritePtr, Transaction,
+                                    pOwrOdmInfo, BytesWritten);
+            if (status != NvSuccess)
+            {
+                break;
+            }
+            TotalBytesToWrite -= BytesWritten;
+            pWritePtr += BytesWritten;
         }
-        TotalBytesToWrite -= BytesWritten;
-        pWritePtr += BytesWritten;
+    }
+    else if(Transaction.Flags == NvRmOwr_WriteByte)
+    {
+        // Enable the bit transfer done interrupt
+        PrivOwrEnableInterrupts(pOwrInfo, OwrIntrStatus_BitTransferDoneIntEnable);
+        pOwrInfo->OwrTransferStatus = 0;
+        status = PrivOwrSendCommand(pOwrInfo, (NvU32)(*pWritePtr));
     }
     return status;
 }
@@ -848,7 +879,7 @@ NvError AP20RmOwrOpen(NvRmOwrController *pOwrInfo)
 
 #if !OWR_BIT_TRANSFER_POLLING_MODE
         status = NvRmInterruptRegister(pOwrInfo->hRmDevice, 1, &IrqList,
-                    &IntHandlers, pOwrInfo, 
+                    &IntHandlers, pOwrInfo,
                     &pOwrInfo->OwrInterruptHandle, NV_TRUE);
 #endif
 
@@ -859,7 +890,7 @@ NvError AP20RmOwrOpen(NvRmOwrController *pOwrInfo)
             pOwrInfo->OwrSyncSemaphore = 0;
         }
     }
- 
+
     return status;
 }
 
