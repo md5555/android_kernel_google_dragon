@@ -75,12 +75,6 @@ static struct platform_device nvrm_device =
     .name = "nvrm"
 };
 
-#ifdef CONFIG_DEVNVMAP
-static struct platform_device nvmap_device = {
-    .name = "nvmap_drv"
-};
-#endif
-
 #if defined(CONFIG_USB_ANDROID) || defined(CONFIG_USB_ANDROID_MODULE)
 static struct android_usb_platform_data android_usb_plat =
 {
@@ -419,10 +413,6 @@ static void __init tegra_machine_init(void)
 
 #ifdef CONFIG_TOUCHSCREEN_TEGRA_ODM
     (void) platform_device_register(&tegra_touch_device);
-#endif
-
-#ifdef CONFIG_DEVNVMAP
-    (void) platform_device_register(&nvmap_device);
 #endif
 
 #ifdef CONFIG_INPUT_TEGRA_ODM_ACCEL

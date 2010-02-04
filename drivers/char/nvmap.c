@@ -90,7 +90,15 @@ static struct vm_operations_struct nvmap_vma_ops = {
 	.fault	= nvmap_vma_fault,
 };
 
-static struct file_operations nvmap_file_ops = {
+const struct file_operations nvmap_fops = {
+	.owner		= THIS_MODULE,
+	.open		= nvmap_open,
+	.release	= nvmap_release,
+	.unlocked_ioctl = nvmap_ioctl,
+	.mmap		= nvmap_mmap
+};
+
+const struct file_operations knvmap_fops = {
 	.owner		= THIS_MODULE,
 	.open		= nvmap_open,
 	.release	= nvmap_release,
@@ -102,25 +110,6 @@ struct nvmap_vma_priv {
 	NvRmMemHandle	hmem;
 	size_t		offs;
 	atomic_t	ref;
-};
-
-enum {
-	NVMAP_DEV_DRAM = 0,
-	NVMAP_DEV_IRAM,
-	NVMAP_DEV_COUNT,
-};
-
-static struct {
-	struct miscdevice	dev;
-	umode_t			mode;
-} nvmap_device = {
-
-	.dev = {
-		.name	= "nvmap",
-		.fops	= &nvmap_file_ops,
-		.minor	= MISC_DYNAMIC_MINOR,
-	},
-	.mode = S_IRUGO | S_IWUGO,
 };
 
 static int _nvmap_map_pte(unsigned long pfn, pgprot_t prot, void **vaddr)
@@ -626,40 +615,6 @@ static int nvmap_rw_handle(struct file *filp, int is_read,
 	return err;
 }
 
-static int nvmap_probe(struct platform_device *pdev)
-{
-	int e = 0;
-	static int id_count = 0;
-
-	/* only one nvmap device can be probed today */
-	if (id_count)
-		return -EINVAL;
-
-	e = misc_register(&nvmap_device.dev);
-
-	if (e<0)
-		nvmap_device.dev.minor = MISC_DYNAMIC_MINOR;
-	else
-		id_count++;
-
-	return e;
-}
-
-static int nvmap_remove(struct platform_device *pdev)
-{
-	if (nvmap_device.dev.minor != MISC_DYNAMIC_MINOR)
-		misc_deregister(&nvmap_device.dev);
-	nvmap_device.dev.minor = MISC_DYNAMIC_MINOR;
-
-	return 0;
-}
-
-static struct platform_driver nvmap_driver = {
-	.probe = nvmap_probe,
-	.remove = nvmap_remove,
-	.driver = { .name = "nvmap_drv" }
-};
-
 static int __init nvmap_pte_init(void)
 {
 	u32 base = NVMAP_BASE;
@@ -687,20 +642,3 @@ static int __init nvmap_pte_init(void)
 }
 core_initcall(nvmap_pte_init);
 
-static int __init nvmap_init(void)
-{
-	int err = bdi_init(&nvmap_bdi);
-
-	if (err) return err;
-
-	bitmap_zero(nvmap_ptebits, NVMAP_PAGES);
-
-	return platform_driver_register(&nvmap_driver);
-}
-
-static void __exit nvmap_deinit(void) {
-	platform_driver_unregister(&nvmap_driver);
-}
-
-module_init(nvmap_init);
-module_exit(nvmap_deinit);
