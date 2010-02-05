@@ -270,7 +270,7 @@ void cpu_ap20_do_idle(void)
     // Wait for any interrupt
     __asm__ volatile ("wfi");
 
-    if (likely(s_pFlowCtrl))
+    if (addr)
     {
         /*
          * Signal "stats monitor" to stop counting the idle cycles.
