@@ -256,6 +256,42 @@ static void __init tegra_register_spi(void)
 }
 #endif
 
+#if !defined(CONFIG_W1_MASTER_TEGRA)
+#define tegra_register_w1() do { } while (0)
+#else
+static void __init tegra_register_w1(void)
+{
+    const NvU32 *pPinMuxes;
+    NvU32 NumPinMuxes, NumModules;
+    struct platform_device *pDev;
+    struct tegra_w1_platform_data W1Data;
+    NvU32 i;
+
+    NumModules = NvRmModuleGetNumInstances(s_hRmGlobal, NvOdmIoModule_OneWire);
+    NvOdmQueryPinMux(NvOdmIoModule_OneWire, &pPinMuxes, &NumPinMuxes);
+
+    for (i=0; i < NumModules && i < NumPinMuxes; i++)
+    {
+	if (!pPinMuxes[i])
+	    continue;
+
+	pDev = platform_device_alloc("tegra_w1", i);
+	if (!pDev)
+	    goto fail;
+	W1Data.Instance = i;
+	W1Data.PinMuxConfig = pPinMuxes[i];
+	if (platform_device_add_data(pDev, &W1Data, sizeof(W1Data)))
+	    goto fail;
+	if (platform_device_add(pDev))
+	    goto fail;
+    }
+    return;
+fail:
+    if (pDev)
+	platform_device_del(pDev);
+}
+#endif
+
 #if !defined(CONFIG_I2C_TEGRA)
 #define tegra_register_i2c() do { } while (0)
 #else
@@ -873,6 +909,7 @@ void __init tegra_common_init(void)
     tegra_register_uart();
     tegra_register_sdio();
     tegra_register_usb();
+    tegra_register_w1();
 #ifdef CONFIG_PM
 	/* FIXME : Uncomment this for actual suspend/resume
 	tegra_set_suspend_ops(); */

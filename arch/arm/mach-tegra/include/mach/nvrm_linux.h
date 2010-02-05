@@ -48,6 +48,7 @@
 
 #include <nvrm_init.h>
 #include <nvrm_i2c.h>
+#include <nvrm_owr.h>
 #include <nvrm_gpio.h>
 #include <nvodm_query_pinmux.h>
 #include <nvodm_query.h>

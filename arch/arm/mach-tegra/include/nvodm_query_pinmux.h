@@ -194,6 +194,27 @@ typedef enum
 } NvOdmHsmmcPinMap;
 
 /**
+ * Defines the OWR pin-mux configurations.
+ */
+typedef enum
+{
+    NvOdmOwrPinMap_Config1 = 1,
+    NvOdmOwrPinMap_Config2,
+    NvOdmOwrPinMap_Config3,
+
+    /**
+     * This configuration disables (tristates) OWR pins. This option may be
+     * used to change which pins an attached OWR device is using at runtime.
+     * In some cases, one device might set up OWR, communicate across this bus,
+     * and then set the OWR bus configuration to "multiplexed" so that another
+     * device can opt to use OWR with its own configurations at a later time.
+     */
+    NvOdmOwrPinMap_Multiplexed = NVODM_QUERY_PINMAP_MULTIPLEXED,
+    /** Ignore -- Forces compilers to make 32-bit enums. */
+    NvOdmOwrPinMap_Force32 = 0x7FFFFFFF,
+} NvOdmOwrPinMap;
+
+/**
  * Defines I2C pin-mux configurations.
  */
 typedef enum
