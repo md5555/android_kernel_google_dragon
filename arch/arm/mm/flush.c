@@ -137,14 +137,23 @@ void __flush_dcache_page(struct address_space *mapping, struct page *page)
 	 * page.  This ensures that data in the physical page is mutually
 	 * coherent with the kernels mapping.
 	 */
+	void *vaddr;
+
 #ifdef CONFIG_HIGHMEM
 	/*
 	 * kmap_atomic() doesn't set the page virtual address, and
-	 * kunmap_atomic() takes care of cache flushing already.
+	 * kunmap_atomic() takes care of cache flushing already; however,
+	 * the background PKMAP zero-ref TLB shootdown can race with
+	 * cache maintenance, so highmem mapping must be pinned in place.
 	 */
-	if (page_address(page))
+	if (PageHighMem(page))
+		vaddr = kmap_high_get(page);
+	else
 #endif
-		__cpuc_flush_dcache_page(page_address(page));
+		vaddr = page_address(page);
+
+	if (vaddr)
+		__cpuc_flush_dcache_page(vaddr);
 
 	/*
 	 * If this is a page cache page, and we have an aliasing VIPT cache,
@@ -154,6 +163,11 @@ void __flush_dcache_page(struct address_space *mapping, struct page *page)
 	if (mapping && cache_is_vipt_aliasing())
 		flush_pfn_alias(page_to_pfn(page),
 				page->index << PAGE_CACHE_SHIFT);
+
+#ifdef CONFIG_HIGHMEM
+	if (PageHighMem(page) && vaddr)
+		kunmap_high(page);
+#endif
 }
 
 static void __flush_dcache_aliases(struct address_space *mapping, struct page *page)
