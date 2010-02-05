@@ -301,6 +301,12 @@ static void tegra_tx_dma_workqueue(struct work_struct *w)
 		return;
 	}
 
+	/* PIO is in flight. Just return */
+	if (t->tx_pio_inflight == true) {
+		spin_unlock_irqrestore(&u->lock, flags);
+		return;
+	}
+
 	/* DMA just finished. Wait for the FIFO to drain. */
 	if (t->tx_dma_req.size) {
 		/* FIXME: Do a better job on computing the delay */
@@ -324,16 +330,11 @@ static void tegra_tx_dma_workqueue(struct work_struct *w)
 	u->icount.tx += t->tx_dma_req.size;
 	t->tx_dma_req.size = 0;
 
-	/* PIO is in flight. Just return */
-	if (t->tx_pio_inflight == true) {
-		spin_unlock_irqrestore(&u->lock, flags);
-		return;
-	}
-
 	if (uart_circ_empty(xmit)) {
 		spin_unlock_irqrestore(&u->lock, flags);
 		return;
 	}
+
 	to_send = CIRC_CNT_TO_END(xmit->head, xmit->tail,
 		UART_XMIT_SIZE);
 	to_send &= ~0x3;
@@ -729,7 +730,7 @@ static int tegra_startup(struct uart_port *u)
 			t->use_tx_dma = true;
 	}
 	if (t->use_tx_dma) {
-		t->tx_dma_virt = dma_alloc_writecombine(t->uport.dev,
+		t->tx_dma_virt = dma_alloc_coherent(t->uport.dev,
 			UART_XMIT_SIZE, &t->tx_dma_phys, GFP_KERNEL);
 		if (t->tx_dma_virt) {
 			t->tx_dma_size = UART_XMIT_SIZE;
