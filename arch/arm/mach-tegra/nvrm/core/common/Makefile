@@ -12,10 +12,6 @@ ccflags-y += -Iarch/arm/mach-tegra/nvrm/core/common
 ccflags-y += -Iarch/arm/mach-tegra/nvrm/core
 
 obj-y += nvrm_pinmux.o
-obj-y += nvrm_heap_simple.o
-obj-y += nvrm_memmgr.o
-obj-y += nvrm_heap_carveout.o
-obj-y += nvrm_heap_iram.o
 obj-y += nvrm_keylist.o
 obj-y += nvrm_configuration.o
 obj-y += nvrm_pmu.o

@@ -18,4 +18,3 @@ obj-y += ap20rm_power_dfs.o
 obj-y += ap20rm_pinmux_tables.o
 obj-y += ap20rm_fuse.o
 obj-y += ap20rm_clocks_info.o
-obj-y += ap20rm_gart.o

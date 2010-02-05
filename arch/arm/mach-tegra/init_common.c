@@ -43,6 +43,7 @@
 #include "nvrm_arm_cp.h"
 #include "nvrm_interrupt.h"
 #include "ap20/arusb.h"
+#include "linux/nvmem_ioctl.h"
 
 const char *tegra_partition_list = NULL;
 char *tegra_boot_device = NULL;
@@ -959,6 +960,12 @@ extern int __init tegra_dma_init(void);
 
 void __init tegra_common_init(void)
 {
+    if (tegra_get_module_inst_size("iram", 0)) {
+        nvmap_add_carveout_heap(tegra_get_module_inst_base("iram", 0),
+            tegra_get_module_inst_size("iram", 0) *
+            NvRmModuleGetNumInstances(s_hRmGlobal, NvRmPrivModuleID_Iram),
+            "iram", NVMEM_HEAP_CARVEOUT_IRAM);
+    }
     NV_ASSERT_SUCCESS(NvRmOpen(&s_hRmGlobal,0));
     NV_ASSERT_SUCCESS(NvRmGpioOpen(s_hRmGlobal, &s_hGpioGlobal));
 

@@ -1474,7 +1474,6 @@ NvError
 NvRmKernelPowerSuspend( NvRmDeviceHandle hRmDeviceHandle )
 {
 
-    NvRmPrivGartSuspend(hRmDeviceHandle);
     NvRmPrivPmuInterruptMask(hRmDeviceHandle, NV_TRUE);
     NvRmPrivDfsSuspend(NvOdmQueryLowestSocPowerState()->LowestPowerState);
 
@@ -1523,7 +1522,6 @@ NvError
 NvRmKernelPowerResume( NvRmDeviceHandle hRmDeviceHandle )
 {
     NvRmPrivPmuInterruptMask(hRmDeviceHandle, NV_FALSE);
-    NvRmPrivGartResume(hRmDeviceHandle);
     return NvSuccess;
 }
 

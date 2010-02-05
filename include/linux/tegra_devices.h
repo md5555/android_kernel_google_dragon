@@ -84,5 +84,9 @@ struct tegra_sdio_platform_data {
 	NvU32 StartOffset; /* start sector offset to MBR for the card */
 };
 
+#ifdef CONFIG_DEVNVMAP
+int nvmap_add_carveout_heap(unsigned long base, size_t size,
+	const char *name, unsigned int bitmask);
+#endif
 
 #endif

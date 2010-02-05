@@ -1427,7 +1427,6 @@ NvError NvOsBootArgSet(NvU32 key, void *arg, NvU32 size)
     return NvError_NotImplemented;
 }
 
-static NvError NvOsGetCarveoutParam(NvBootArgsCarveout* arg, NvU32 size);
 NvError NvOsBootArgGet(NvU32 key, void *arg, NvU32 size)
 {
     const void *src;
@@ -1465,8 +1464,6 @@ NvError NvOsBootArgGet(NvU32 key, void *arg, NvU32 size)
             src = &s_BootArgs.ChipShmooPhysArgs;
             size_src = sizeof(NvBootArgsChipShmooPhys);
             break;
-        case NvBootArgKey_Carveout:
-            return NvOsGetCarveoutParam((NvBootArgsCarveout*)arg, size);
         case NvBootArgKey_WarmBoot:
             src = &s_BootArgs.WarmbootArgs;
             size_src = sizeof(NvBootArgsWarmboot);
@@ -1532,50 +1529,6 @@ void NvOsSetResourceAllocFileLine(void* userptr, const char* file, int line)
 {
 }
 #endif
-
-#define MAX_CARVEOUTS 2
-
-static int gs_NumCarveouts = 0;
-
-typedef struct CarveoutRegionRec {
-    unsigned long base;
-    unsigned long size;
-} CarveoutRegion;
-
-static CarveoutRegion gs_Carveouts[MAX_CARVEOUTS];
-
-static NvError NvOsGetCarveoutParam(NvBootArgsCarveout* arg, NvU32 size)
-{
-    if (size != sizeof(*arg))
-        return NvError_BadParameter;
-
-    if (!gs_NumCarveouts)
-        return NvError_NotSupported;
-
-    arg->base = gs_Carveouts[0].base;
-    arg->size = gs_Carveouts[0].size;
-    return NvSuccess;
-}
-
-static int __init carveout_memory_setup(char *options)
-{
-    unsigned long start, size;
-    char *p = options;
-
-    start = -1;
-    size = memparse(p, &p);
-    if (*p == '@')
-        start = memparse(p + 1, &p);
-
-    if (gs_NumCarveouts < NV_ARRAY_SIZE(gs_Carveouts))
-    {
-        gs_Carveouts[gs_NumCarveouts].base = start;
-        gs_Carveouts[gs_NumCarveouts++].size = size;
-    }
-
-    return 0;
-}
-__setup("nvmem=", carveout_memory_setup);
 
 static int __init parse_tegra_tag(const struct tag *tag)
 {

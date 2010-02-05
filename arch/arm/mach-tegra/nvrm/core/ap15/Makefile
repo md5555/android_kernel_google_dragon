@@ -12,7 +12,6 @@ ccflags-y += -Iarch/arm/mach-tegra/nvrm/core
 
 obj-y += ap15rm_interrupt_generic.o
 obj-y += ap15rm_hwmap.o
-obj-y += ap15rm_gart.o
 obj-y += ap15rm_clocks.o
 obj-y += ap15rm_clock_config.o
 obj-y += ap15rm_clocks_info.o

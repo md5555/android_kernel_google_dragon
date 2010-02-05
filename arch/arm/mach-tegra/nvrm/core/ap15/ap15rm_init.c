@@ -39,7 +39,6 @@
 #include "nvrm_rmctrace.h"
 #include "nvrm_configuration.h"
 #include "nvrm_chiplib.h"
-#include "nvrm_heap.h"
 #include "nvrm_pmu_private.h"
 #include "nvrm_processor.h"
 #include "nvrm_xpc.h"
@@ -143,8 +142,6 @@ NvRmOpenNew(NvRmDeviceHandle *pHandle)
     NvRmDevice *rm = 0;
     NvU32 *table = 0;
 
-    NvU32 CarveoutBaseAddr;
-    NvU32 CarveoutSize = 0;
     NvU32 BctCustomerOption = 0;
     NvU64 Uid = 0;
 
@@ -279,31 +276,8 @@ NvRmOpenNew(NvRmDeviceHandle *pHandle)
     rm->bPreInit = NV_TRUE;
 
 
-    {
-        NvBootArgsCarveout Carveout;
-        if (NvOsBootArgGet(NvBootArgKey_Carveout, &Carveout,
-            sizeof(Carveout)) == NvSuccess)
-        {
-            CarveoutSize = Carveout.size;
-            CarveoutBaseAddr = (NvU32) Carveout.base;
-        }
-        else
-        {
-            CarveoutSize = NvOdmQueryCarveoutSize();
-            CarveoutBaseAddr = rm->ExtMemoryInfo.base +
-                NvOdmQueryMemSize(NvOdmMemoryType_Sdram) - CarveoutSize;
-        }
-    }
-
-    NvRmPrivHeapCarveoutInit(CarveoutSize, CarveoutBaseAddr);
-    NvRmPrivHeapIramInit(rm->IramMemoryInfo.size, rm->IramMemoryInfo.base);
-    NvRmPrivPreservedMemHandleInit(rm);
-
     if (!NVOS_IS_WINDOWS_X86)
     {
-        // Initialize the GART heap (size & base address)
-        NvRmPrivHeapGartInit( rm );
-
         NvRmPrivCheckBondOut( rm );
 
         /* bring modules out of reset */
@@ -523,15 +497,6 @@ NvRmClose(NvRmDeviceHandle handle)
 
         }
 
-        NvRmPrivHeapCarveoutDeinit();
-        NvRmPrivHeapIramDeinit();
-
-        if (!NVOS_IS_WINDOWS_X86)
-        {
-            // De-Initialize the GART heap
-            NvRmPrivHeapGartDeinit();
-        }
-
         NvRmRmcClose( &handle->rmc );
 
         /* deallocate the instance table */
@@ -594,14 +559,6 @@ NvRmPrivMemoryInfo( NvRmDeviceHandle hDevice )
         inst++;
     }
 
-    if (!(NVCPU_IS_X86 && NVOS_IS_WINDOWS))
-    {
-        /* Get GART memory module info */
-        inst = tbl->ModInst +
-            (tbl->Modules)[NvRmPrivModuleID_Gart].Index;
-        hDevice->GartMemoryInfo.base = inst->PhysAddr;
-        hDevice->GartMemoryInfo.size = inst->Length;
-    }
 }
 
 NvError

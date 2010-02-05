@@ -903,11 +903,6 @@ static const struct file_operations kmsg_fops = {
 	.write =	kmsg_write,
 };
 
-#ifdef CONFIG_DEVNVMAP
-extern const struct file_operations nvmap_fops;
-extern const struct file_operations knvmap_fops;
-#endif
-
 static int memory_open(struct inode * inode, struct file * filp)
 {
 	int ret = 0;
@@ -957,14 +952,6 @@ static int memory_open(struct inode * inode, struct file * filp)
 			filp->f_op = &oldmem_fops;
 			break;
 #endif
-#ifdef CONFIG_DEVNVMAP
-		case 13:
-			filp->f_op = &nvmap_fops;
-			break;
-		case 14:
-			filp->f_op = &knvmap_fops;
-			break;
-#endif
 		default:
 			unlock_kernel();
 			return -ENXIO;
@@ -1002,10 +989,6 @@ static const struct {
 	{11,"kmsg",    S_IRUGO | S_IWUSR,           &kmsg_fops},
 #ifdef CONFIG_CRASH_DUMP
 	{12,"oldmem",    S_IRUSR | S_IWUSR | S_IRGRP, &oldmem_fops},
-#endif
-#ifdef CONFIG_DEVNVMAP
-	{13, "nvmap",  S_IRUGO | S_IWUGO, &nvmap_fops},
-	{14, "knvmap", S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, &knvmap_fops },
 #endif
 };
 

@@ -39,7 +39,6 @@
 #include "nvrm_rmctrace.h"
 #include "nvrm_configuration.h"
 #include "nvrm_chiplib.h"
-#include "nvrm_heap.h"
 #include "nvrm_pmu_private.h"
 #include "nvrm_processor.h"
 #include "nvrm_structure.h"

@@ -175,42 +175,6 @@ void
 NvRmPrivInitPinMux(NvRmDeviceHandle hDevice);
 
 /**
- * Create a mapping from a list of physical sdram pages to the GART.  No error
- * checking is done here, so you can clobber your friend's mappings if you
- * want. Every map for itself!  This function programs registers and cannot
- * fail. Invalid parameters will result in asserts for debug purposes.
- *
- * @see NvRmPrivGartAlloc()
- *
- * @param hDevice The RM device handle.
- * @param pPhysAddrArray Points to an array of physical page addresses.  Each
- *  entry represents the base address for a 4KB page of memory.  These entries
- *  do not need to be contiguous memory blocks; after all, that's why you're
- *  using this API.
- * @param NumberOfPages Specifies the number of physical address entries.  A
- * value of 0 has no effect.
- * @param FirstGartPage Specifies the base address of the first available GART
- *  page.  This value should be obtained via a call to NvRmPrivGartAlloc().
- */
-void
-NvRmPrivCreateGARTMap(
-    NvRmDeviceHandle hDevice,
-    NvU32 *pPhysAddrArray,
-    NvU32 NumberOfPages,
-    NvU32 FirstGartPage);
-
-/**
- * Suspend GART.
- */
-void NvRmPrivGartSuspend( NvRmDeviceHandle hDevice );
-
-/**
- * Resume GART.
- */
-
-void NvRmPrivGartResume(NvRmDeviceHandle hDevice);
-
-/**
  * Initializes the clock manager.
  *
  * @param hRmDevice The RM device handle
@@ -228,12 +192,6 @@ NvRmPrivClocksInit(NvRmDeviceHandle hRmDevice);
  */
 void
 NvRmPrivClocksDeinit(NvRmDeviceHandle hRmDevice);
-
-/**
- * Increments a memory handle reference count.
- */
-void
-NvRmPrivMemIncrRef( NvRmMemHandle hMem );
 
 
 /*** Private Interrupt API's ***/
