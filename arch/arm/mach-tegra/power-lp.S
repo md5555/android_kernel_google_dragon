@@ -92,10 +92,75 @@ ArmCortexA9Saved:
 	ands	r2, r2, #0x3	
 	bne	reset_slave
 
+	//Check which power state we want to enter
+	mov r0, #0
+	//Is it LP2?
+	cmp r0, #0
+	ldreq r2, =g_enterLP2PA
+	ldreq r2, [r2]
+	beq transition_to_state
+
+	ldr r4, =g_pIRAM
+	ldr r4, [r4]
+
+	//Is it LP1?
+	cmp r0, #1
+	ldreq r2, =g_enterLP2PA
+	ldreq r2, [r2]
+
+	//Is it LP0?
+	cmp r0, #2
+	ldr r5, =enter_lp0
+	ldr r6, =enter_lp0_end
+
+	b .
+
+	//For LP0, the AVP stores it's continuation address at the first
+	//location in IRAM. Before we overwrite IRAM with the LP0 entry
+	//code, copy the AVP continuation and store it in the scratch
+	//register dedicated for this purposed.
+
+	//R1 = *g_pIRAM
+	ldr r1, [r4]
+	//R3 = &(g_pPMC)
+	ldr r3, =g_pPMC
+	//R3 = g_pPMC
+	ldr r3, [r3]
+	//Store in scratch39
+	str r1, [r3, #APBDEV_PMC_SCRATCH39_0]
+
+copy_to_iram:
+	//Copy the enter_lp2 function to IRAM using 8x4 block moves.
+	//It doesn't matter if we copy a few extra words.
+	//IRAM has already been safely saved by the AVP at this point
+	//R4 = destination address to copy code to
+	//R5 = size of code to copy in bytes
+	//R6 = source address to copy code from
+
+	//r2 is the source address
+	cpy r2, r6
+	//r3 is the size to copy
+	sub r3, r5, r6
+
+copy_code:
+	//Load source
+	ldmia   r2!, {r5-r12}
+	//Store at destination
+	stmia   r4!, {r5-r12}
+	//Decrement count
+	subs    r3, r3, #32
+	bgt     copy_code
+
+	//Get the physical address of IRAM
+	//This is where we will jump to start LP0
+	ldr r2, =g_IramPA
+	ldr r2, [r2]
+
 	//We are the master. We should
 	//turn of MMUs and caches.
 	//Write a value to unblock the slaves
 
+transition_to_state:
 	//Turn off caches and MMU
 	mrc	p15, 0, r3, c1, c0, 0
 	bic	r3, r3, #(1<<12) //I-Cache
@@ -119,7 +184,7 @@ ArmCortexA9Saved:
 	//Disable L1 caches and MMU
 	mcr	p15, 0, r3, c1, c0, 0
 
-	//Finish up LP2 by entering flow control state
+	//Jump to the appropriate LPx function
 	//bl enter_lp2
 	bx	r2
 
@@ -403,6 +468,7 @@ do_wfi:
 	andvc	lr, r0, r0, lsl #8
 	andvs	r7, r0, r0
 	andvs	r5, r0, r0, lsl r0
+enter_lp0_end:
 ENDPROC(enter_lp0)
 
 ENTRY(exit_power_state)

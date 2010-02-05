@@ -51,6 +51,7 @@ NvU32 g_localTimerLoadRegister, g_localTimerCntrlRegister;
 NvU32 g_coreSightClock, g_currentCcbp;
 volatile void *g_pPMC, *g_pAHB, *g_pCLK_RST_CONTROLLER;
 volatile void *g_pEMC, *g_pMC, *g_pAPB_MISC;
+volatile void *g_pIRAM;
 
 // Chip external specific wakeup events list
 static const struct wakeup_source s_WakeupSources[] =
