@@ -86,6 +86,9 @@ typedef struct
     /* The ref cnt table of the power supplies */
     NvU32 *supplyRefCntTable;
 
+    /* The pointer to supply voltages shadow */
+    NvU32 *pVoltages;
+
 } Max8907bPrivData;
 
 NvBool 
