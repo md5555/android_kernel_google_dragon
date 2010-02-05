@@ -69,6 +69,8 @@ typedef struct NvRmPwmRec
     // Pmc bank size
     NvU32 PmcBankSize;
 
+    // pmu powerEnabled flag
+    NvBool PowerEnabled;
 } NvRmPwm;
 
 #define PWM_RESET(r)            NV_RESETVAL(PWM_CONTROLLER_PWM,r)
