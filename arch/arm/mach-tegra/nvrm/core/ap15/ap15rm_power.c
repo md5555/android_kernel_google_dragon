@@ -560,6 +560,8 @@ void NvRmPrivCoreVoltageInit(NvRmDeviceHandle hRmDevice)
         NvRmPmuGetCapabilities(hRmDevice, CpuRailAddress, &cap);
         NominalCpuMv = NV_MAX(NominalCpuMv, cap.MinMilliVolts);
         NvRmPmuSetVoltage(hRmDevice, CpuRailAddress, NominalCpuMv, NULL);
+        if (CurrentCoreMv > NominalCoreMv)
+            NvOsWaitUS(NVRM_CPU_TO_CORE_DOWN_US); // delay if core to go down
     }
 
     // If core voltage is going down, update it after CPU voltage

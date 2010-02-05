@@ -42,6 +42,7 @@
 
 #include "nvrm_power_dfs.h"
 #include "nvrm_pmu.h"
+#include "nvrm_pmu_private.h"
 #include "nvassert.h"
 #include "nvrm_hwintf.h"
 #include "nvodm_query_discovery.h"
@@ -2335,19 +2336,29 @@ void NvRmPrivDvsInit(void)
         pDvs->RtcRailAddress = pDvs->CoreRailAddress = 0;
         return;
     }
-    DvsChangeCoreVoltage(pDfs->hRm, pDvs, pDvs->NominalCoreMv);
 
     if (NvRmPrivIsCpuRailDedicated(pDfs->hRm))
     {
+        // If core voltage is going up, update it before CPU and vice versa
+        if (pDvs->CurrentCoreMv <= pDvs->NominalCoreMv)
+        {
+            DvsChangeCoreVoltage(pDfs->hRm, pDvs, pDvs->NominalCoreMv);
+        }
         DvsChangeCpuVoltage(pDfs->hRm, pDvs, pDvs->NominalCpuMv);
         pDvs->DvsCorner.CpuMv = pDvs->NominalCpuMv;
 
+        if (pDvs->CurrentCoreMv > pDvs->NominalCoreMv)
+        {
+            NvOsWaitUS(NVRM_CPU_TO_CORE_DOWN_US); // delay if core to go down
+            DvsChangeCoreVoltage(pDfs->hRm, pDvs, pDvs->NominalCoreMv);
+        }
         // No core scaling if CPU voltage is not preserved across LPx
         if (pDvs->VCpuOTPOnWakeup)
             pDvs->MinCoreMv = pDvs->NominalCoreMv;
     }
     else
     {
+        DvsChangeCoreVoltage(pDfs->hRm, pDvs, pDvs->NominalCoreMv);
         pDvs->DvsCorner.CpuMv = pDvs->NominalCoreMv;
     }
     pDvs->DvsCorner.SystemMv = pDvs->NominalCoreMv;
@@ -2435,8 +2446,14 @@ void NvRmPrivVoltageScale(
         else
         {
             if (pDvs->CurrentCpuMv > CpuMv)
+            {
                 DvsChangeCpuVoltage(pDfs->hRm, pDvs, CpuMv);
-            if (pDvs->CurrentCoreMv > TargetMv)
+                // Defer core voltage change to the next DVFS tick to account
+                // for CPU capacitors discharge
+                if (pDvs->CurrentCoreMv > TargetMv)
+                    pDvs->UpdateFlag = NV_TRUE;
+            }
+            else if (pDvs->CurrentCoreMv > TargetMv)
                 DvsChangeCoreVoltage(pDfs->hRm, pDvs, TargetMv);
         }
     }
