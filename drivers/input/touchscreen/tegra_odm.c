@@ -25,6 +25,8 @@
 #include <linux/platform_device.h>
 #include <linux/kthread.h>
 #include <linux/delay.h>
+#include <linux/earlysuspend.h>
+#include <linux/freezer.h>
 
 #include <nvodm_services.h>
 #include <nvodm_touch.h>
@@ -42,11 +44,65 @@ struct tegra_touch_driver_data
 	NvU32			MinX;
 	NvU32			MaxY;
 	NvU32			MinY;
+	int			shutdown;
+	struct early_suspend	early_suspend;
 };
 
 #define NVODM_TOUCH_NAME "nvodm_touch"
 
 #define swapv(x, y) do { typeof(x) z = x; x = y; y = z; } while (0)
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
+static void tegra_touch_early_suspend(struct early_suspend *es)
+{
+        struct tegra_touch_driver_data *touch;
+        touch = container_of(es, struct tegra_touch_driver_data, early_suspend);
+
+	if (touch && touch->hTouchDevice) {
+		NvOdmTouchPowerOnOff(touch->hTouchDevice, NV_FALSE);
+	}
+	else {
+		pr_err("tegra_touch_early_suspend: NULL handles passed\n");
+	}
+}
+
+static void tegra_touch_late_resume(struct early_suspend *es)
+{
+        struct tegra_touch_driver_data *touch;
+        touch = container_of(es, struct tegra_touch_driver_data, early_suspend);
+
+	if (touch && touch->hTouchDevice) {
+		NvOdmTouchPowerOnOff(touch->hTouchDevice, NV_TRUE);
+	}
+	else {
+		pr_err("tegra_touch_late_resume: NULL handles passed\n");
+	}
+}
+#else
+static int tegra_touch_suspend(struct platform_device *pdev, pm_message_t state)
+{
+	struct tegra_touch_driver_data *touch = platform_get_drvdata(input_dev);
+
+	if (touch && touch->hTouchDevice) {
+		NvOdmTouchPowerOnOff(touch->hTouchDevice, NV_FALSE);
+		return 0;
+	}
+	pr_err("tegra_touch_suspend: NULL handles passed\n");
+	return -1;
+}
+
+static int tegra_touch_resume(struct platform_device *pdev)
+{
+	struct tegra_touch_driver_data *touch = platform_get_drvdata(pdev);
+
+	if (touch && touch->hTouchDevice) {
+		NvOdmTouchPowerOnOff(touch->hTouchDevice, NV_TRUE);
+		return 0;
+	}
+	pr_err("tegra_touch_resume: NULL handles passed\n");
+	return -1;
+}
+#endif
 
 static int tegra_touch_thread(void *pdata)
 {
@@ -59,6 +115,9 @@ static int tegra_touch_thread(void *pdata)
 	NvBool ToolDown[2] = {NV_FALSE, NV_FALSE};
 	NvOdmTouchCapabilities *caps = &touch->caps;
 	NvU32 max_fingers = caps->MaxNumberOfFingerCoordReported;
+
+	/* touch event thread should be frozen before suspend */
+	set_freezable_with_signal();
 
 	for (;;) {
 		if (touch->bPollingMode)
@@ -274,8 +333,14 @@ static int __init tegra_touch_probe(struct platform_device *pdev)
 		goto err_input_register_device_failed;
 	}
 
+#ifdef CONFIG_HAS_EARLYSUSPEND
+        touch->early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN + 1;
+        touch->early_suspend.suspend = tegra_touch_early_suspend;
+        touch->early_suspend.resume = tegra_touch_late_resume;
+        register_early_suspend(&touch->early_suspend);
+#endif
 	printk(KERN_INFO NVODM_TOUCH_NAME 
-		": Successfully registered the ODM touch driver\n");
+		": Successfully registered the ODM touch driver %x\n", touch->hTouchDevice);
 	return 0;
 
 err_input_register_device_failed:
@@ -294,6 +359,10 @@ static int tegra_touch_remove(struct platform_device *pdev)
 {
 	struct tegra_touch_driver_data *touch = platform_get_drvdata(pdev);
 
+#ifdef CONFIG_HAS_EARLYSUSPEND
+        unregister_early_suspend(&touch->early_suspend);
+#endif
+        touch->shutdown = 1;
 	/* FIXME How to destroy the thread? Maybe we should use workqueues? */
 	input_unregister_device(touch->input_dev);
 	/* NvOsSemaphoreDestroy(touch->semaphore); */
@@ -305,6 +374,10 @@ static int tegra_touch_remove(struct platform_device *pdev)
 static struct platform_driver tegra_touch_driver = {
 	.probe	  = tegra_touch_probe,
 	.remove	 = tegra_touch_remove,
+#ifndef CONFIG_HAS_EARLYSUSPEND
+	.suspend = tegra_touch_suspend,
+	.resume	 = tegra_touch_resume,
+#endif
 	.driver	 = {
 		.name   = "tegra_touch",
 	},
