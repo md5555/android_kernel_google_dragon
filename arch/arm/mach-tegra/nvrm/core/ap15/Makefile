@@ -32,3 +32,5 @@ obj-y += ap16rm_reloctable.o
 obj-y += ap15rm_init.o
 obj-y += ap15rm_init_common.o
 obj-y += ap15rm_interrupt.o
+obj-y += ap15rm_xpc.o
+obj-y += ap15rm_xpc_hw_private.o

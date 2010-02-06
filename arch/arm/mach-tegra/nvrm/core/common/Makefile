@@ -28,3 +28,4 @@ obj-y += nvrm_power.o
 obj-y += nvrm_power_dfs.o
 obj-y += nvrm_rmctrace.o
 obj-y += nvrm_relocation_table.o
+obj-y += nvrm_transport.o

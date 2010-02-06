@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009 NVIDIA Corporation.
+ * Copyright (c) 2009-2010 NVIDIA Corporation.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -35,6 +35,8 @@
 #include "nvassert.h"
 #include "nvidlcmd.h"
 #include "nvreftrack.h"
+#include "nvrm_xpc.h"
+#include "nvrm_transport.h"
 #include "nvrm_memctrl.h"
 #include "nvrm_pcie.h"
 #include "nvrm_pwm.h"
@@ -53,6 +55,8 @@
 #include "nvrm_module.h"
 #include "nvrm_memmgr.h"
 #include "nvrm_init.h"
+NvError nvrm_xpc_Dispatch( NvU32 function, void *InBuffer, NvU32 InSize, void *OutBuffer, NvU32 OutSize, NvDispatchCtx* Ctx );
+NvError nvrm_transport_Dispatch( NvU32 function, void *InBuffer, NvU32 InSize, void *OutBuffer, NvU32 OutSize, NvDispatchCtx* Ctx );
 NvError nvrm_memctrl_Dispatch( NvU32 function, void *InBuffer, NvU32 InSize, void *OutBuffer, NvU32 OutSize, NvDispatchCtx* Ctx );
 NvError nvrm_pcie_Dispatch( NvU32 function, void *InBuffer, NvU32 InSize, void *OutBuffer, NvU32 OutSize, NvDispatchCtx* Ctx );
 NvError nvrm_pwm_Dispatch( NvU32 function, void *InBuffer, NvU32 InSize, void *OutBuffer, NvU32 OutSize, NvDispatchCtx* Ctx );
@@ -76,6 +80,8 @@ NvError nvrm_init_Dispatch( NvU32 function, void *InBuffer, NvU32 InSize, void *
 typedef enum
 {
     NvRm_Invalid = 0,
+    NvRm_nvrm_xpc,
+    NvRm_nvrm_transport,
     NvRm_nvrm_memctrl,
     NvRm_nvrm_pcie,
     NvRm_nvrm_pwm,
@@ -108,6 +114,8 @@ typedef struct NvIdlDispatchTableRec
 
 static NvIdlDispatchTable gs_DispatchTable[] =
 {
+    { NvRm_nvrm_xpc, nvrm_xpc_Dispatch },
+    { NvRm_nvrm_transport, nvrm_transport_Dispatch },
     { NvRm_nvrm_memctrl, nvrm_memctrl_Dispatch },
     { NvRm_nvrm_pcie, nvrm_pcie_Dispatch },
     { NvRm_nvrm_pwm, nvrm_pwm_Dispatch },
@@ -149,3 +157,4 @@ NvError NvRm_Dispatch( void *InBuffer, NvU32 InSize, void *OutBuffer, NvU32 OutS
     return table_[packid_ - 1].DispFunc( funcid_, InBuffer, InSize,
         OutBuffer, OutSize, Ctx );
 }
+
