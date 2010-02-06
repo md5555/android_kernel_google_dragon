@@ -88,6 +88,7 @@ EXPORT_SYMBOL(NvRmMemWr32);
 EXPORT_SYMBOL(NvRmMemWrite);
 EXPORT_SYMBOL(NvRmModuleGetBaseAddress);
 EXPORT_SYMBOL(NvRmModuleGetCapabilities);
+EXPORT_SYMBOL(NvRmModuleReset);
 EXPORT_SYMBOL(NvRmPhysicalMemMap);
 EXPORT_SYMBOL(NvRmPhysicalMemUnmap);
 EXPORT_SYMBOL(NvRmPowerBusyHint);
