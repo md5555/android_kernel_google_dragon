@@ -27,9 +27,11 @@
 #include "ap20/arclk_rst.h"
 #include "ap20/arevp.h"
 #include "ap20/arapbpm.h"
+#include "ap20/aremc.h"
 #include "nvrm_drf.h"
 
 #if defined(CONFIG_ARCH_TEGRA_2x_SOC)
+#define EMC_PA_BASE 0x7000f400
 #define PMC_PA_BASE 0x7000e400
 #define FLOW_PA_BASE 0x60007000
 #define TIMERUS_PA_BASE 0x60005010
@@ -37,6 +39,8 @@
 #define EVP_PA_BASE 0x6000f000
 #define CSITE_PA_BASE 0x70040000
 #define TEMP_RESET_VECTOR 8
+#define TEMP_SCLK_BURST_POLICY 16
+#define TEMP_CCLK_BURST_POLICY 20
 #define TEMP_PLLX_BASE 12
 #define CSITE_CPUDBG0_LAR_0 0x10fb0
 #define CSITE_CPUDBG1_LAR_0 0x12fb0
@@ -107,8 +111,9 @@ ArmCortexA9Saved:
 
 	//Is it LP1?
 	cmp r0, #1
-	ldreq r2, =g_enterLP2PA
-	ldreq r2, [r2]
+	ldreq r5, =exit_lp1_end
+	ldreq r6, =enter_lp1
+	beq	copy_to_iram
 
 	//Is it LP0?
 	cmp r0, #2
@@ -213,6 +218,7 @@ finish_power_state:
 	ldmfd	sp!, {r0}
 	ldmfd	sp!, {r0-r12, lr}
 	bx	lr
+.ltorg
 ENDPROC(EnterPowerState)
 
 ENTRY(enter_lp2)
@@ -404,6 +410,311 @@ TempStoreArea:
 	.space TEMP_AREA_SIZE
 
 ENDPROC(exit_lp2)
+
+ENTRY(enter_lp1)
+	add		r4, pc, #lp1_literals-(.+8)
+	ldr		r4, [r4]
+	add		r5, pc, #lp1_literals-(.+4)
+	ldr		r5, [r5]
+	add		r6, pc, #lp1_literals-(.+0)
+	ldr		r6, [r6]
+	add		r7, pc, #lp1_literals-(.-4)
+	ldr		r7, [r7]
+	add		r8, pc, #lp1_literals-(.-8)
+	ldr		r8, [r8]
+	add		r9, pc, #lp1_literals-(.-12)
+	ldr		r9, [r9]
+
+	add		r12, pc, #TemporaryStore-(.+8)
+	orr		r0, r0, #5
+	stmia	r12!, {r0, r1}
+
+	ldr		r0, [r9, #EVP_CPU_RESET_VECTOR_0]
+	ldr		r1, [r8, #CLK_RST_CONTROLLER_PLLX_BASE_0]
+	ldr		r2, [r8, #CLK_RST_CONTROLLER_SCLK_BURST_POLICY_0]
+	ldr		r3, [r8, #CLK_RST_CONTROLLER_CCLK_BURST_POLICY_0]
+	stmia	r12, {r0 - r3}
+	sub	r12, r12, #8
+
+	add		r2, pc, #exit_lp1-(.+8)
+	str		r2, [r9, #EVP_CPU_RESET_VECTOR_0]
+
+	dmb
+
+	//Stall incoming EMC read/write transactions
+	mov		r2, #3
+	str		r2, [r4, #0x2B0]
+
+	//Poll till EMC is idle
+is_idle1:
+	ldr		r2, [r4, #0x2B4]
+	tst		r2, #4
+	beq		is_idle1
+
+	//Put SDRAM into self refresh
+	mov		r2, #1
+	str		r2, [r4, #0xE0]
+	ldr		r2, [r4, #0x10]
+	ands	r2, r2, #3, 8
+	moveq	r0, #1, 24
+	movne	r0, #3, 24
+
+	//Poll until all devices are in self refresh
+is_self1:
+	ldr		r2, [r4, #0x2B4]
+	and		r2, r2, r0
+	teq		r0, r2
+	bne		is_self1
+
+	//Make sure SIDE_EFFECT_LP0 is not set
+	ldr		r2, [r5, #APBDEV_PMC_CNTRL_0]
+	//Unset the SIDE_EFFECT bit
+	bic		r2, r2, #(1<<14)
+	str		r2, [r5, #APBDEV_PMC_CNTRL_0]
+
+	//Powergate the cpu by setting the ENABLE bit
+	ldr		r2, [r6, #FLOW_CTLR_CPU_CSR_0]
+	orr		r2, r2, #(1<<0)
+	str		r2, [r6, #FLOW_CTLR_CPU_CSR_0]
+
+	mov		r2, #1, 4
+	str		r2, [r8, #CLK_RST_CONTROLLER_CCLK_BURST_POLICY_0]
+
+	//Switch clocks to 32Khz
+	mov		r2, #0x61, 4
+	mov		r3, #0
+	str		r2, [r8, #CLK_RST_CONTROLLER_SCLK_BURST_POLICY_0]
+	str		r3, [r8, #CLK_RST_CONTROLLER_SUPER_SCLK_DIVIDER_0]
+
+	//Turn off pll-m
+	ldr		r2, [r8, #CLK_RST_CONTROLLER_PLLM_BASE_0]
+	bic		r2, r2, #1, 2
+	str		r2, [r8, #CLK_RST_CONTROLLER_PLLM_BASE_0]
+
+	//Turn off pll-p - Uncomment in real testing
+	//ldr       r2, [r8, #CLK_RST_CONTROLLER_PLLP_BASE_0]
+	//bic       r2, r2, #1, 2
+	//str       r2, [r8, #CLK_RST_CONTROLLER_PLLP_BASE_0]
+
+	//Get the microsecond count before LP1
+	ldr		r2, [r7]
+	str		r2, [r5, #0x134]
+
+	//Finally, halt the CPU
+	mov		r2, #0
+	orr		r2, r2, #(4<<29)  //STOP_UNTIL_IRQ
+	orr		r2, r2, #(1<<10)  //IRQ_0 event
+	orr		r2, r2, #(1<<8)	//FIQ_0 event
+	str		r2, [r6, #FLOW_CTLR_HALT_CPU_EVENTS_0]
+
+do_wfi1:
+	dsb
+	wfi
+	b		do_wfi1
+enter_lp1_end:
+.ltorg
+ENDPROC(enter_lp1)
+
+ENTRY(exit_lp1)
+	add		r4, pc, #lp1_literals-(.+8)
+	ldr		r4, [r4]
+	add		r5, pc, #lp1_literals-(.+4)
+	ldr		r5, [r5]
+	add		r6, pc, #lp1_literals-(.+0)
+	ldr		r6, [r6]
+	add		r7, pc, #lp1_literals-(.-4)
+	ldr		r7, [r7]
+	add		r8, pc, #lp1_literals-(.-8)
+	ldr		r8, [r8]
+	add		r9, pc, #lp1_literals-(.-12)
+	ldr		r9, [r9]
+	add		r10, pc, #lp1_literals-(.-16)
+	ldr		r10, [r10]
+
+	//R12 = Temporary iram store
+	add		r12, pc, #TemporaryStore-(.+8)
+
+	//Read the microsecond counter
+	ldr		r11, [r7]
+
+	//Assert CoreSight reset.
+	ldr		r0, [r8, #CLK_RST_CONTROLLER_RST_DEVICES_U_0]
+	orr		r0, r0, #(1<<9)
+	str		r0, [r8, #CLK_RST_CONTROLLER_RST_DEVICES_U_0]
+
+	//Hold CoreSight reset for 2us.
+	add		r1, r11, #2
+reset_poll1:
+	ldr		r2, [r7, #0]
+	cmp		r2, r1
+	ble		reset_poll1
+
+	//De-assert CoreSight reset.
+	bic		r0, r0, #(1<<9)
+	str		r0, [r8, #CLK_RST_CONTROLLER_RST_DEVICES_U_0]
+
+	//Unlock debugger access by writing special "CSACCESS"
+	ldr		r0, =0xC5ACCE55
+	ldr		r1, =CSITE_CPUDBG0_LAR_0  //R1 = CPU0 lock offset
+	ldr		r2, =CSITE_CPUDBG1_LAR_0  //R2 = CPU1 lock offset
+	str		r0, [r10, r1]		//Unlock CPU0
+	str		r0, [r10, r2]		//Unlock CPU1
+
+	//Switch the system to CLKM
+	mov		r2, #1, 4
+	str		r2, [r8, #CLK_RST_CONTROLLER_SCLK_BURST_POLICY_0]
+
+	//Check which plls to start
+	ldr		r0, [r12]
+	mov		r1, #0
+	tst		r0, #2
+
+	//Enable PLL-C if we disabled it.
+	//tst r0, #PowerPllC
+	tst		r0, #1
+	beq		no_pllc1
+	ldr		r2, [r8, #CLK_RST_CONTROLLER_PLLC_BASE_0]
+	mov		r3, #(1<<30) //PllC ENABLE
+	tst		r2, r3
+	orreq	r2, r2, r3
+	streq	r2, [r8, #CLK_RST_CONTROLLER_PLLC_BASE_0]
+no_pllc1:
+	//Enable PLL-M if we disabled it.
+	//tst r0, #PowerPllM
+	tst		r0, #2
+	beq		no_pllm1
+	ldr		r2, [r8, #CLK_RST_CONTROLLER_PLLM_BASE_0]
+	mov		r3, #(1<<30) //PllM ENABLE
+	tst		r2, r3
+	orreq	r2, r2, r3
+	streq	r2, [r8, #CLK_RST_CONTROLLER_PLLM_BASE_0]
+no_pllm1:
+	//Enable PLL-P if we disabled it.
+	//tst r0, #PowerPllP
+	mov		r0, #
+	tst		r0, #3
+	beq		no_pllp1
+	ldr		r2, [r8, #CLK_RST_CONTROLLER_PLLP_BASE_0]
+	mov		r3, #(1<<30) //PllP ENABLE
+	tst		r2, r3
+	orreq	r2, r2, r3
+	streq	r2, [r8, #CLK_RST_CONTROLLER_PLLP_BASE_0]
+no_pllp1:
+	//Enable PLL-X if we disabled it.
+	//NOTE: The PLLX_BASE have have been cleared so get it's value
+	//from the temporary save area.
+	//tst r0, #PowerPllX
+	tst		r0, #4
+	beq		no_pllx1
+	ldr		r2, [r12, #TEMP_PLLX_BASE]
+	mov		r3, #(1<<30) //PllX ENABLE
+	orr		r2, r2, r3
+	str		r2, [r8, #CLK_RST_CONTROLLER_PLLX_BASE_0]
+no_pllx1:
+	//Configure CPU island to not be power gated
+	ldr		r2, [r6, #8]
+	bic		r2, r2, #1
+	str		r2, [r6, #8]
+
+	//Restore the reset vector target
+	ldr		r2, [r12, #TEMP_RESET_VECTOR]
+	str		r2, [r9, #EVP_CPU_RESET_VECTOR_0]
+
+	//Check if we started any plls
+	cmp		r1, #0
+	beq		restore_clocks
+
+	//Explicit delay for pll stabilization
+	mov		r0, #0xFF
+	mov		r1, #0x42, 8
+	mov		r2, #0x4B, 30
+delay_for_pll:
+	cmp		r2, r0
+	orrle	r3, r1, r2
+	orrgt	r3, r1, r0
+	sub		r2, r2, r0
+	//Do a flow control wait
+	str		r3, [r6]
+wait_for_event:
+	wfe
+
+	//Check if the event is ours
+	ldr		r3, [r6, #FLOW_CTLR_CPU_CSR_0]
+	tst		r3, #1, 18
+	strne	r3, [r6, #FLOW_CTLR_CPU_CSR_0]
+	bne		event_signalled
+
+	//Check if we're still waiting for an event
+	ldr		r3, [r6, #FLOW_CTLR_HALT_CPU_EVENTS_0]
+	tst		r3, #0xE, 4
+	bne		wait_for_event
+event_signalled:
+	//Check if we waited long enough
+	cmp		r2, #0
+	bgt		delay_for_pll
+restore_clocks:
+	//Restore the system and CPU burst, csite, clksrc registers
+	ldr		r1, [r12, #TEMP_SCLK_BURST_POLICY]
+	ldr		r2, [r12, #TEMP_CCLK_BURST_POLICY]
+	str		r1, [r8, #CLK_RST_CONTROLLER_SCLK_BURST_POLICY_0]
+	str		r2, [r8, #CLK_RST_CONTROLLER_CCLK_BURST_POLICY_0]
+
+	//Take the SDRAM out of self-refresh
+
+	//Make sure that the sdram is not gated
+	ldr		r1, [r4, #EMC_CFG_0]
+	bic		r1, r1, #2, 2
+	str		r1, [r4, #EMC_CFG_0]
+
+	//Take the sdram out of self refresh
+	mov		r1, #0
+	str		r1, [r4, #EMC_SELF_REF_0]
+
+	//Issue a couple of nops
+	mov		r1, #1
+	str		r1, [r4, #EMC_NOP_0]
+	str		r1, [r4, #EMC_NOP_0]
+
+	//Issue a refresh command
+	mov		r1, #1
+	str		r1, [r4, #EMC_REF_0]
+
+	//Confirm that all chips have exited self-refresh
+	ldr		r1, [r4, #EMC_ADR_CFG_0]
+	ands	r1, r1, #3, 8
+	moveq	r0, #1, 24
+	movne	r0, #3, 24
+
+	//Poll until all chips have exited self-refresh
+is_auto:
+	ldr		r1, [r4, #EMC_EMC_STATUS_0]
+	and		r2, r1, r0
+	cmp		r2, #0
+	bne		is_auto
+
+	//Un-stall incoming reads/writes
+	mov		r1, #0
+	str		r1, [r4, #EMC_REQ_CTRL_0]
+
+	//Store the LP1 exit time and restore return addr
+	ldr		lr, [r5, #APBDEV_PMC_SCRATCH1_0]
+	str		r11, [r5, #APBDEV_PMC_SCRATCH1_0]
+	bx		lr
+lp1_literals:
+	.word	0x7000f400
+	.word	0x7000e400
+	.word	0x60007000
+	.word	0x60005010
+	.word	0x60006000
+	.word	0x6000f000
+	.word	0x70040000
+TemporaryStore:
+	//Create some empty space. We can't use literals
+	//after the MMU has been turned off, so we need
+	//some PC relative scratch space
+	.space TEMP_AREA_SIZE
+exit_lp1_end:
+ENDPROC(exit_lp1)
 
 ENTRY(enter_lp0)
 	ldr		r4, [pc, #0xC8] //EMC base

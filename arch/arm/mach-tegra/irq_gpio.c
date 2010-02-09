@@ -116,7 +116,7 @@ static void NvPrivGpioMaskIrq(unsigned int irq)
     NvPrivGpioEnable(irq, NV_FALSE);
 }
 
-static void NvPrivGpioUnMaskIrq(unsigned int irq)
+void NvPrivGpioUnMaskIrq(unsigned int irq)
 {
     //printk("Enabling IRQ(%d)\n", irq);
     NvPrivGpioEnable(irq, NV_TRUE);
