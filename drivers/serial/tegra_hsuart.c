@@ -443,14 +443,15 @@ static irqreturn_t tegra_uart_isr(int irq, void *data)
 	struct tegra_uart_port *t;
 	unsigned char iir_fcr;
 	unsigned char ier;
+	unsigned long flags;
 
-	spin_lock(&u->lock);
+	spin_lock_irqsave(&u->lock, flags);
 	t  = container_of(u, struct tegra_uart_port, uport);
 	/* FIXME why do we need to loop here? */
 	while (1) {
 		iir_fcr = readb(t->regs + UART_IIR_FCR_0);
 		if (iir_fcr & NV_DRF_DEF(UART, IIR_FCR, IS_STA, NO_INTR_PEND)) {
-			spin_unlock(&u->lock);
+			spin_unlock_irqrestore(&u->lock, flags);
 			return IRQ_HANDLED;
 		}
 
@@ -481,9 +482,9 @@ static irqreturn_t tegra_uart_isr(int irq, void *data)
 			} else {
 				do_handle_rx_pio(u);
 
-				spin_unlock(&u->lock);
+				spin_unlock_irqrestore(&u->lock, flags);
 				tty_flip_buffer_push(u->info->port.tty);
-				spin_lock(&u->lock);
+				spin_lock_irqsave(&u->lock, flags);
 			}
 			break;
 		case 3: /* Receive error */
