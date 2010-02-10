@@ -40,7 +40,6 @@
 #include "nvrm_memmgr.h"
 #include "nvassert.h"
 #include "nvrm_transport.h"
-
 #include "tegra_sndfx.h"
 
 
@@ -52,6 +51,10 @@
 #define NVALSA_BUFFER_COUNT 1
 #define TEGRA_DEFAULT_BUFFER_SIZE 4096
 #define NVALSA_INVALID_STATE -1
+#define TEGRA_SAMPLE_RATES (SNDRV_PCM_RATE_8000_48000)
+#define TEGRA_SAMPLE_FORMATS (SNDRV_PCM_FMTBIT_S8 | SNDRV_PCM_FMTBIT_U8 |\
+		     SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S24_LE |\
+		     SNDRV_PCM_FMTBIT_S32_LE)
 
 #define TEGRA_TRANSPORT_SEND_TIMEOUT           5000
 #define TEGRA_TRANSPORT_CONNECT_TIMEOUT        60000
