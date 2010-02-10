@@ -224,7 +224,7 @@ extern "C"
 #define NVRM_CPU1_OFF_PENDING_CNT (100)
 
 /// Default low corners for core and dedicated CPU voltages
-#define NVRM_AP20_LOW_CORE_MV (1200)
+#define NVRM_AP20_LOW_CORE_MV (950)
 #define NVRM_AP20_LOW_CPU_MV (750)
 
 /*****************************************************************************/
