@@ -1078,6 +1078,8 @@ Max8907bReadVoltageReg(
         if ((data & MAX8907B_OUT_VOLTAGE_CONTROL_MASK) ==
             MAX8907B_OUT_VOLTAGE_CONTROL_DISABLE)
         {
+            ((Max8907bPrivData*)hDevice->pPrivate)->pVoltages[vddRail] =
+                ODM_VOLTAGE_OFF;
             *pMilliVolts = ODM_VOLTAGE_OFF;
             return NV_TRUE;
         }
@@ -1095,6 +1097,7 @@ Max8907bReadVoltageReg(
     else
         milliVolts = pSupplyInfo->GetVoltage(data);
 
+    ((Max8907bPrivData*)hDevice->pPrivate)->pVoltages[vddRail] = milliVolts;
     *pMilliVolts = milliVolts;
     return NV_TRUE;
 }
@@ -1108,10 +1111,10 @@ Max8907bWriteVoltageReg(
 {
     const Max8907bPmuSupplyInfo *pSupplyInfo = &Max8907bSupplyInfoTable[vddRail];
     NvU8 data = 0;
+    NvU32 SettleUS = 0;
 
     NV_ASSERT(pSupplyInfo->supply == (Max8907bPmuSupply)vddRail);
 
-    // TO DO: Account for reference counting
     if (MilliVolts == ODM_VOLTAGE_OFF)
     {
         // check if the supply can be turned off
@@ -1127,10 +1130,19 @@ Max8907bWriteVoltageReg(
             data |= MAX8907B_OUT_VOLTAGE_CONTROL_DISABLE;
             if (!Max8907bI2cWrite8(hDevice, pSupplyInfo->ControlRegAddr, data))
                 return NV_FALSE;
+
+            ((Max8907bPrivData*)hDevice->pPrivate)->pVoltages[vddRail] =
+                ODM_VOLTAGE_OFF;
+            SettleUS = MAX8907B_TURN_OFF_TIME_US;
         }
 
         if (((Max8907bPrivData*)hDevice->pPrivate)->supplyRefCntTable[pSupplyInfo->supply] != 0)
             ((Max8907bPrivData*)hDevice->pPrivate)->supplyRefCntTable[pSupplyInfo->supply] --;
+
+        if (pSettleMicroSeconds)
+            *pSettleMicroSeconds = SettleUS;
+        else
+            NvOdmOsWaitUS(SettleUS);
 
         return NV_TRUE;
     }
@@ -1139,6 +1151,14 @@ Max8907bWriteVoltageReg(
     data = pSupplyInfo->SetVoltage(MilliVolts);
     if (!Max8907bI2cWrite8(hDevice, pSupplyInfo->OutputVoltageRegAddr, data))
         return NV_FALSE;
+    if (MilliVolts >
+        ((Max8907bPrivData*)hDevice->pPrivate)->pVoltages[vddRail])
+    {
+        NvU32 LastMV =
+            ((Max8907bPrivData*)hDevice->pPrivate)->pVoltages[vddRail];
+        SettleUS = (MilliVolts - LastMV) * 1000 / MAX8907B_SCALE_UP_UV_PER_US;
+    }
+    ((Max8907bPrivData*)hDevice->pPrivate)->pVoltages[vddRail] = MilliVolts;
 
     // turn on supply
     if (((Max8907bPrivData*)hDevice->pPrivate)->supplyRefCntTable[pSupplyInfo->supply] == 0)
@@ -1156,10 +1176,17 @@ Max8907bWriteVoltageReg(
             data |= MAX8907B_OUT_VOLTAGE_ENABLE_BIT;
             if (!Max8907bI2cWrite8(hDevice, pSupplyInfo->ControlRegAddr, data))
                 return NV_FALSE;
+
+            SettleUS = MAX8907B_TURN_ON_TIME_US;
         }
     }
 
     ((Max8907bPrivData*)hDevice->pPrivate)->supplyRefCntTable[pSupplyInfo->supply] ++;
+
+    if (pSettleMicroSeconds)
+        *pSettleMicroSeconds = SettleUS;
+    else
+        NvOdmOsWaitUS(SettleUS);
 
     return NV_TRUE;
 }
@@ -1455,7 +1482,6 @@ Max8907bLxV1Ad5258WriteVoltageReg(
             ((Max8907bPrivData*)hDevice->pPrivate)->supplyRefCntTable[
             pSupplyInfo->supply] --;
         }
-        // TODO: add external DCDC turning Off settling time
         return NV_TRUE;
     }
 
@@ -1470,7 +1496,12 @@ Max8907bLxV1Ad5258WriteVoltageReg(
         if (!Max8907bWriteVoltageReg(hDevice, Max8907bPmuSupply_LX_V1,
                 MAX8907B_REQUESTVOLTAGE_LX_V1, pSettleMicroSeconds))
             return NV_FALSE;
-        // TODO: add external DCDC turning On settling time
+
+        // Add external DCDC turning On settling time
+        if (pSettleMicroSeconds)
+            *pSettleMicroSeconds += AD5258_TURN_ON_TIME_US;
+        else
+            NvOdmOsWaitUS(AD5258_TURN_ON_TIME_US);
     }
     ((Max8907bPrivData*)hDevice->pPrivate)->supplyRefCntTable[
         pSupplyInfo->supply] ++;
@@ -1499,10 +1530,18 @@ Max8907bSetup(NvOdmPmuDeviceHandle hDevice)
     NvOdmOsMemset(hMax8907bPmu, 0, sizeof(Max8907bPrivData));
     hDevice->pPrivate = hMax8907bPmu;
 
-    ((Max8907bPrivData*)hDevice->pPrivate)->supplyRefCntTable = NvOdmOsAlloc(sizeof(NvU32) * Max8907bPmuSupply_Num);
+    ((Max8907bPrivData*)hDevice->pPrivate)->supplyRefCntTable =
+        NvOdmOsAlloc(sizeof(NvU32) * Max8907bPmuSupply_Num);
     if (((Max8907bPrivData*)hDevice->pPrivate)->supplyRefCntTable == NULL)
     {
         NVODMPMU_PRINTF(("Error Allocating RefCntTable. \n"));
+        goto fail;
+    }
+    ((Max8907bPrivData*)hDevice->pPrivate)->pVoltages =
+        NvOdmOsAlloc(sizeof(NvU32) * Max8907bPmuSupply_Num);
+    if (((Max8907bPrivData*)hDevice->pPrivate)->pVoltages == NULL)
+    {
+        NVODMPMU_PRINTF(("Error Allocating shadow voltages table. \n"));
         goto fail;
     }
 
@@ -1510,6 +1549,10 @@ Max8907bSetup(NvOdmPmuDeviceHandle hDevice)
     for (i = 0; i < Max8907bPmuSupply_Num; i++)
     {
         ((Max8907bPrivData*)hDevice->pPrivate)->supplyRefCntTable[i] = 0;
+        // Setting shadow to 0 would cause spare delay on the 1st scaling of
+        // always On rail; however the alternative reading of initial settings
+        // over I2C is even worse.
+        ((Max8907bPrivData*)hDevice->pPrivate)->pVoltages[i] = 0;
     }
 
     if (pConnectivity != NULL) // PMU is in database
@@ -1632,6 +1675,13 @@ Max8907bRelease(NvOdmPmuDeviceHandle hDevice)
             NvOdmOsFree(((Max8907bPrivData*)hDevice->pPrivate)->supplyRefCntTable);
             ((Max8907bPrivData*)hDevice->pPrivate)->supplyRefCntTable = NULL;
         }
+
+        if (((Max8907bPrivData*)hDevice->pPrivate)->pVoltages != NULL)
+        {
+            NvOdmOsFree(((Max8907bPrivData*)hDevice->pPrivate)->pVoltages);
+            ((Max8907bPrivData*)hDevice->pPrivate)->pVoltages = NULL;
+        }
+
 
         NvOdmOsFree(hDevice->pPrivate);
         hDevice->pPrivate = NULL;

@@ -71,6 +71,7 @@ extern "C"
 #define AD5258_MIN_STEP_MV ((AD5258_M2 + (0x1 << AD5258_b) - 1) >> AD5258_b)
 #define AD5258_MAX_STEP_MV (50)
 #define AD5258_MAX_STEP_SETTLE_TIME_US (20)
+#define AD5258_TURN_ON_TIME_US (2000)
 
 NvBool 
 Ad5258I2cSetVoltage(

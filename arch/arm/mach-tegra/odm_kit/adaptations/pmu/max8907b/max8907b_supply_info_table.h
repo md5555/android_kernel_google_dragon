@@ -94,6 +94,13 @@ extern "C"
 #define MAX8907B_SEQCNT_PWREN_LX_V1         0x00    /* no delay */
 #define MAX8907B_SEQCNT_PWREN_LX_V2         0x00    /* no delay */
 
+// Defines PMU output timing parameters. Scaling up time is dynamically
+// calculated based on the slew rate maintained by MAX8907B. Turn On delay
+// is fixed at max. Turn Off time is "just in case" placeholder -  no need
+// for s/w to track when output capacitors are discharged.
+#define MAX8907B_SCALE_UP_UV_PER_US         (2500)
+#define MAX8907B_TURN_ON_TIME_US            (3000)
+#define MAX8907B_TURN_OFF_TIME_US           (20)
 
 // Output voltages supplied by PMU
 typedef enum
