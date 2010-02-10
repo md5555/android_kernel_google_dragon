@@ -1510,6 +1510,8 @@ source "drivers/Kconfig"
 
 source "ubuntu/Kconfig"
 
+source "chromeos/drivers/Kconfig"
+
 source "fs/Kconfig"
 
 source "arch/arm/Kconfig.debug"
