@@ -1,0 +1,5 @@
+config STM_LIS33
+	tristate "STMicroelectronics LIS331DLH accelerometer sensor"
+	depends on I2C
+	default n
+

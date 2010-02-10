@@ -129,3 +129,5 @@ source "drivers/staging/udlfb/Kconfig"
 
 endif # !STAGING_EXCLUDE_BUILD
 endif # STAGING
+
+source "drivers/staging/stm-lis33/Kconfig"
