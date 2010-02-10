@@ -127,3 +127,5 @@ source "drivers/staging/iio/Kconfig"
 
 endif # !STAGING_EXCLUDE_BUILD
 endif # STAGING
+
+source "drivers/staging/stm-lis33/Kconfig"
