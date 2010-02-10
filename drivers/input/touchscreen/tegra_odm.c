@@ -27,7 +27,7 @@
 #include <linux/delay.h>
 #include <linux/earlysuspend.h>
 #include <linux/freezer.h>
-
+#include <linux/tegra_devices.h>
 #include <nvodm_services.h>
 #include <nvodm_touch.h>
 
@@ -81,7 +81,7 @@ static void tegra_touch_late_resume(struct early_suspend *es)
 #else
 static int tegra_touch_suspend(struct platform_device *pdev, pm_message_t state)
 {
-	struct tegra_touch_driver_data *touch = platform_get_drvdata(input_dev);
+	struct tegra_touch_driver_data *touch = platform_get_drvdata(pdev);
 
 	if (touch && touch->hTouchDevice) {
 		NvOdmTouchPowerOnOff(touch->hTouchDevice, NV_FALSE);
