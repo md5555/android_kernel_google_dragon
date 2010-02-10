@@ -1477,6 +1477,8 @@ source "drivers/uio/Kconfig"
 
 source "drivers/staging/Kconfig"
 
+source "chromeos/drivers/Kconfig"
+
 endmenu
 
 source "fs/Kconfig"
