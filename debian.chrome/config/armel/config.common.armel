@@ -66,6 +66,7 @@ CONFIG_FTRACE=y
 # CONFIG_HIDRAW is not set
 # CONFIG_HID_DEBUG is not set
 # CONFIG_HID_PID is not set
+CONFIG_HID_WACOM=m
 # CONFIG_HIGHMEM is not set
 # CONFIG_HUGETLB_PAGE is not set
 # CONFIG_HWMON is not set
