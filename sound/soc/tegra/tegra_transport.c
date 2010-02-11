@@ -1,5 +1,5 @@
 /*
- * sound/soc/tegra/alsa_transport.c
+ * sound/soc/tegra/tegra_transport.c
  *
  * ALSA SOC driver for NVIDIA Tegra SoCs
  *
@@ -891,11 +891,13 @@ NvError tegra_audiofx_create_input(NvRmDeviceHandle hRmDevice,
 	}
 
 	audiofx_path_connect(pInput->Resize, pInput->Stream);
+	audiofx_path_connect(pInput->Convert, pInput->Resize);
+	audiofx_path_connect(pInput->Src, pInput->Convert);
 
 	/* Wire 5 */
 	connection.SourcePin = (InputSelect == NvAudioInputSelect_Record) ?
 				NvAudioFxSourcePin :  NvAudioFxLoopbackPin;
-	connection.hSink = (NvAudioFxHandle)pInput->Resize;
+	connection.hSink = (NvAudioFxHandle)pInput->Src;
 	connection.SinkPin = NvAudioFxSinkPin;
 	e = tegra_transport_set_property(0,
 	                             NvAudioFxProperty_Attach,
