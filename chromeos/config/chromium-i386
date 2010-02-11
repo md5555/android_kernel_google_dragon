@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.31.4-chromeos
-# Fri Jan 15 21:57:03 2010
+# Linux kernel version: 2.6.31.4
+# Thu Feb 11 19:08:13 2010
 #
 # CONFIG_64BIT is not set
 CONFIG_X86_32=y
@@ -2296,6 +2296,7 @@ CONFIG_RTC_DRV_V3020=m
 # TI VLYNQ
 #
 # CONFIG_STAGING is not set
+CONFIG_STM_LIS33=m
 CONFIG_X86_PLATFORM_DEVICES=y
 CONFIG_ACER_WMI=m
 CONFIG_ACERHDF=y
@@ -2360,6 +2361,10 @@ CONFIG_FSAM7400=m
 CONFIG_AVERATEC_5100P=m
 CONFIG_PACKARDBELL_E5=m
 CONFIG_LENOVO_SL_LAPTOP=m
+
+#
+# Chromeos Supplied Third-Party Device Drivers
+#
 
 #
 # Firmware Drivers
