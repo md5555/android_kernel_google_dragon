@@ -787,7 +787,7 @@ fail:
 }
 #endif
 
-#if !defined(CONFIG_CACHE_L2X0)
+#if !(defined(CONFIG_CACHE_PL3X0) || defined(CONFIG_CACHE_L2X0))
 #define tegra_pl310_init() do {} while (0)
 #else
 #include <asm/hardware/cache-l2x0.h>
