@@ -680,7 +680,7 @@ const NvOdmSocPowerStateInfo* NvOdmQueryLowestSocPowerState(void)
     if (pPowerStateInfo == NULL)
     {
         // Lowest power state.
-        PowerStateInfo.LowestPowerState = NvOdmSocPowerState_Active;
+        PowerStateInfo.LowestPowerState = NvOdmSocPowerState_Suspend;
 
         pPowerStateInfo = (const NvOdmSocPowerStateInfo*) &PowerStateInfo;
     }
