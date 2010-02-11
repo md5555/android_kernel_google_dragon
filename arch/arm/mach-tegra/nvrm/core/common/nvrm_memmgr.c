@@ -283,9 +283,8 @@ NvError NvRmMemAlloc(
     /* FIXME: Windows should support full caching for memory handles.
      * But not yet.
      */
-#if !NVOS_IS_LINUX
-    Coherency = NvOsMemAttribute_Uncached;
-#endif
+    if (Coherency == NvOsMemAttribute_Uncached)
+        Coherency = NvOsMemAttribute_WriteCombined;
 
     if (NV_RM_HMEM_IS_ALLOCATED(hMem))
         return NvError_AlreadyAllocated;
