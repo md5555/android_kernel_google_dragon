@@ -762,11 +762,19 @@ config CACHE_TEGRA_CMC
 
 config CACHE_L2X0
 	bool "Enable the L2x0 outer cache controller"
-	depends on REALVIEW_EB_ARM11MP || MACH_REALVIEW_PB11MP || MACH_REALVIEW_PB1176 || REALVIEW_EB_A9MP || MACH_REALVIEW_PBX || ARCH_TEGRA_2x_SOC
+	depends on REALVIEW_EB_ARM11MP || MACH_REALVIEW_PB11MP || MACH_REALVIEW_PB1176 || REALVIEW_EB_A9MP || MACH_REALVIEW_PBX
 	default y
 	select OUTER_CACHE
 	help
 	  This option enables the L2x0 PrimeCell.
+
+config CACHE_PL3X0
+	bool "Enable the PL3x0 outer cache controller"
+	depends on ARCH_TEGRA_2x_SOC
+	default y
+	select OUTER_CACHE
+	help
+	  This option enables the PL3x0 PrimeCell.
 
 config CACHE_XSC3L2
 	bool "Enable the L2 cache on XScale3"
