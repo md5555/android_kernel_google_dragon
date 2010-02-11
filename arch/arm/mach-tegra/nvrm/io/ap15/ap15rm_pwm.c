@@ -70,52 +70,83 @@ static NvRmPwmHandle s_hPwm = NULL;
 static NvBool s_IsPwmFirstConfig = NV_FALSE;
 static NvBool s_IsFreqDividerSupported = NV_FALSE;
 
+// Checks whether all the PWM channels are disabled or not.
+// Returns NV_FALSE if any of the channels are enabled
+// else returns NV_TRUE
+static NvBool IsPwmDisabled(NvRmPwmHandle hPwm);
+
+static NvBool IsPwmDisabled(NvRmPwmHandle hPwm)
+{
+    NvU32 RegValue = 0;
+    NvU32 i = 0;
+    NvBool PwmDisabled = NV_TRUE;
+
+    for (i = 0; i < NvRmPwmOutputId_Num-2; i++)
+    {
+        RegValue = PWM_REGR( hPwm->VirtualAddress[i], 0 );
+        if (PWM_GET(CSR_0, ENB, RegValue))
+        {
+            PwmDisabled = NV_FALSE;
+            break;
+        }
+    }
+    return PwmDisabled;
+}
+
 static NvError PwmPowerConfigure(NvRmPwmHandle hPwm, NvBool IsEnablePower)
 {
     NvError status = NvSuccess;
 
     if (IsEnablePower == NV_TRUE)
     {
-        // Enable power
-        status = NvRmPowerVoltageControl(hPwm->RmDeviceHandle,
-                    NVRM_MODULE_ID(NvRmModuleID_Pwm, 0),
-                                        s_PwmPowerID,
-                                        NvRmVoltsUnspecified, 
-                                        NvRmVoltsUnspecified, 
-                                        NULL,
-                                        0,
-                                        NULL);
-        if (status == NvSuccess)
-        {       
-            // Enable the clock to the pwm controller
-            status = NvRmPowerModuleClockControl(hPwm->RmDeviceHandle,
-                    NVRM_MODULE_ID(NvRmModuleID_Pwm, 0),
-                    s_PwmPowerID, 
-                    NV_TRUE);
+        if (!hPwm->PowerEnabled)
+        {
+            // Enable power
+            status = NvRmPowerVoltageControl(hPwm->RmDeviceHandle,
+                        NVRM_MODULE_ID(NvRmModuleID_Pwm, 0),
+                                            s_PwmPowerID,
+                                            NvRmVoltsUnspecified,
+                                            NvRmVoltsUnspecified,
+                                            NULL,
+                                            0,
+                                            NULL);
+            if (status == NvSuccess)
+            {
+                // Enable the clock to the pwm controller
+                status = NvRmPowerModuleClockControl(hPwm->RmDeviceHandle,
+                        NVRM_MODULE_ID(NvRmModuleID_Pwm, 0),
+                        s_PwmPowerID,
+                        NV_TRUE);
+                hPwm->PowerEnabled = NV_TRUE;
+            }
         }
     }
     else
     {
-        // Disable the clock to the pwm controller
-        status = NvRmPowerModuleClockControl(hPwm->RmDeviceHandle,
-                    NVRM_MODULE_ID(NvRmModuleID_Pwm, 0),
-                    s_PwmPowerID, 
-                    NV_FALSE);
-        
-        if(status == NvSuccess)
+        if (hPwm->PowerEnabled)
         {
-            // Disable power
-            status = NvRmPowerVoltageControl(hPwm->RmDeviceHandle,
+            // Disable the clock to the pwm controller
+            status = NvRmPowerModuleClockControl(hPwm->RmDeviceHandle,
                         NVRM_MODULE_ID(NvRmModuleID_Pwm, 0),
                         s_PwmPowerID,
-                        NvRmVoltsOff, 
-                        NvRmVoltsOff, 
-                        NULL,
-                        0,
-                        NULL);
+                        NV_FALSE);
+
+            if(status == NvSuccess)
+            {
+                // Disable power
+                status = NvRmPowerVoltageControl(hPwm->RmDeviceHandle,
+                            NVRM_MODULE_ID(NvRmModuleID_Pwm, 0),
+                            s_PwmPowerID,
+                            NvRmVoltsOff,
+                            NvRmVoltsOff,
+                            NULL,
+                            0,
+                            NULL);
+                hPwm->PowerEnabled = NV_FALSE;
+            }
         }
     }
-    
+
     return status;
 }
 
@@ -343,6 +374,7 @@ NvError NvRmPwmConfig(
     {
         if (!s_IsPwmFirstConfig)
         {
+            hPwm->PowerEnabled = NV_FALSE;
             // Register with RM power
             status = NvRmPowerRegister(hPwm->RmDeviceHandle, NULL, &s_PwmPowerID);
             if (status != NvSuccess)
@@ -381,6 +413,15 @@ NvError NvRmPwmConfig(
             }
             s_IsPwmFirstConfig = NV_TRUE;
         }
+
+        // Enable power
+        status = PwmPowerConfigure(hPwm, NV_TRUE);
+        if (status != NvSuccess)
+        {
+            NvRmPowerUnRegister(hPwm->RmDeviceHandle, s_PwmPowerID);
+            goto fail;
+        }
+
 
         // Validate PWM output and pin map config
         status = PwmCheckValidConfig(hPwm, OutputId, Mode);
@@ -438,6 +479,23 @@ NvError NvRmPwmConfig(
         }
 
         PWM_REGW(hPwm->VirtualAddress[OutputId-1], 0, RegValue);
+
+        // If PWM mode is disabled and all pwd channels are disabled then
+        // disable power to PWM
+        if (!PwmMode)
+        {
+            if (IsPwmDisabled(hPwm))
+            {
+                // Disable power
+                status = PwmPowerConfigure(hPwm, NV_FALSE);
+                if (status != NvSuccess)
+                {
+                    NvRmPowerUnRegister(hPwm->RmDeviceHandle, s_PwmPowerID);
+                    goto fail;
+                }
+            }
+        }
+
     }
     else
     {
@@ -502,7 +560,4 @@ fail:
     NvOsMutexUnlock(s_hPwmMutex);
     return status;
 }
-
-
-
 
