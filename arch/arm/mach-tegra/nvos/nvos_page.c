@@ -99,6 +99,7 @@ static struct nvos_pagemap *nv_alloc_pages(unsigned int count,
 
 		for ( ; i < (1<<order); i++)
 			__free_page(nth_page(compound_page, i));
+		i = count;
 	} else {
 		for (i=0; i<count; i++) {
 			pm->pages[i] = alloc_page(nv_gfp_pool);
