@@ -937,8 +937,8 @@ static void tegra_enable_ms(struct uart_port *u)
 static void tegra_set_baudrate(struct tegra_uart_port *t, unsigned int baud)
 {
 	unsigned int clock;
-	unsigned long minclock;
-	unsigned long maxclock;
+	unsigned long long minclock;
+	unsigned long long maxclock;
 	unsigned int actual_clock;
 	unsigned int divisor;
 	NvError err;
@@ -950,10 +950,10 @@ static void tegra_set_baudrate(struct tegra_uart_port *t, unsigned int baud)
 	clock =  (baud * 16) / 1000;
 	clock = clock ? clock : 1;
 
-	minclock = (unsigned long) baud * 16 * (100 - UART_CLOCK_ACCURACY);
+	minclock = (unsigned long long) baud * 16 * (100 - UART_CLOCK_ACCURACY);
 	do_div(minclock, 1000 * 100);
 
-	maxclock = (unsigned long) baud * 16 * (100 + UART_CLOCK_ACCURACY);
+	maxclock = (unsigned long long) baud * 16 * (100 + UART_CLOCK_ACCURACY);
 	do_div(maxclock, 1000 * 100);
 
 	err = NvRmPowerModuleClockConfig(s_hRmGlobal,
