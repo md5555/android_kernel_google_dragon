@@ -18,7 +18,6 @@
 #include <linux/io.h>
 #include <linux/dma-mapping.h>
 #include <linux/scatterlist.h>
-#include <linux/mmc/card.h>
 
 #include <linux/leds.h>
 
@@ -135,9 +134,6 @@ static void sdhci_init(struct sdhci_host *host)
 
 	writel(intmask, host->ioaddr + SDHCI_INT_ENABLE);
 	writel(intmask, host->ioaddr + SDHCI_SIGNAL_ENABLE);
-#ifdef CONFIG_MMC_SDHCI_DYNAMIC_SDMEM_CLOCK
-	host->last_clock = 0;
-#endif
 }
 
 static void sdhci_activate_led(struct sdhci_host *host)
@@ -933,9 +929,7 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 
 	if (clock == 0)
 		goto out;
-#ifdef CONFIG_MMC_SDHCI_DYNAMIC_SDMEM_CLOCK
-	host->last_clock = clock;
-#endif
+
 	div = 0;
 	if (host->ops->set_clock)
 		div = host->ops->set_clock(host, clock);
@@ -1036,15 +1030,6 @@ static void sdhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 	unsigned long flags;
 
 	host = mmc_priv(mmc);
-#ifdef CONFIG_MMC_SDHCI_DYNAMIC_SDMEM_CLOCK
-	if (host->mmc->card != NULL) {
-		if (host->mmc->card->type != MMC_TYPE_SDIO) {
-			if (host->last_clock)
-				/* Enable clock */
-				sdhci_set_clock(host, host->last_clock);
-		}
-	}
-#endif
 
 	spin_lock_irqsave(&host->lock, flags);
 
@@ -1275,14 +1260,7 @@ static void sdhci_tasklet_finish(unsigned long param)
 
 	mmiowb();
 	spin_unlock_irqrestore(&host->lock, flags);
-#ifdef CONFIG_MMC_SDHCI_DYNAMIC_SDMEM_CLOCK
-	/* Disable clock */
-	if (host->mmc->card != NULL) {
-		if (host->mmc->card->type != MMC_TYPE_SDIO) {
-			sdhci_set_clock(host, 0);
-		}
-	}
-#endif
+
 	mmc_request_done(host->mmc, mrq);
 }
 
