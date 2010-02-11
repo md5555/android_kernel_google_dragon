@@ -29,6 +29,17 @@
 #include "nvcommon.h"
 #include "nvos.h"
 
+#if NVOS_TRACE || NV_DEBUG
+#undef NvOsPageMap
+#undef NvOsPageGetPage
+#undef NvOsPageAddress
+#undef NvOsPageUnmap
+#undef NvOsPageAlloc
+#undef NvOsPageFree
+#undef NvOsPageLock
+#undef NvOsPageMapIntoPtr
+#endif
+
 #define nv_gfp_pool (GFP_KERNEL | __GFP_HIGHMEM | __GFP_NOWARN)
 
 struct nvos_pagemap {
