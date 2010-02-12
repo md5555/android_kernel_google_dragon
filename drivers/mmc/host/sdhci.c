@@ -18,7 +18,7 @@
 #include <linux/io.h>
 #include <linux/dma-mapping.h>
 #include <linux/scatterlist.h>
-
+#include <linux/mmc/card.h>
 #include <linux/leds.h>
 
 #include <linux/mmc/host.h>
@@ -34,6 +34,8 @@
 	defined(CONFIG_MMC_SDHCI_MODULE))
 #define SDHCI_USE_LEDS_CLASS
 #endif
+
+#define SDHCI_DISABLE_TIMEOUT 50
 
 static unsigned int debug_quirks = 0;
 
@@ -134,6 +136,7 @@ static void sdhci_init(struct sdhci_host *host)
 
 	writel(intmask, host->ioaddr + SDHCI_INT_ENABLE);
 	writel(intmask, host->ioaddr + SDHCI_SIGNAL_ENABLE);
+	host->last_clock = 0;
 }
 
 static void sdhci_activate_led(struct sdhci_host *host)
@@ -930,6 +933,8 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 	if (clock == 0)
 		goto out;
 
+	host->last_clock = clock;
+
 	div = 0;
 	if (host->ops->set_clock)
 		div = host->ops->set_clock(host, clock);
@@ -1177,6 +1182,38 @@ out:
 	spin_unlock_irqrestore(&host->lock, flags);
 }
 
+#ifdef CONFIG_MMC_SDHCI_DYNAMIC_SDMEM_CLOCK
+
+int sdhci_enable(struct mmc_host *mmc) {
+
+	struct sdhci_host *host;
+
+	host = mmc_priv(mmc);
+	if (mmc->card != NULL) {
+		if (mmc->card->type != MMC_TYPE_SDIO) {
+			if (host->last_clock)
+				/* Enable clock */
+				sdhci_set_clock(host, host->last_clock);
+		}
+	}
+	return 0;
+}
+
+int sdhci_disable(struct mmc_host *mmc, int lazy) {
+
+	struct sdhci_host *host;
+
+	host = mmc_priv(mmc);
+	/* Disable clock */
+	if (mmc->card != NULL) {
+		if (mmc->card->type != MMC_TYPE_SDIO) {
+			sdhci_set_clock(host, 0);
+		}
+	}
+	return 0;
+}
+#endif
+
 #ifdef CONFIG_EMBEDDED_MMC_START_OFFSET
 static unsigned int sdhci_get_host_offset(struct mmc_host *mmc) {
 	struct sdhci_host *host;
@@ -1189,6 +1226,13 @@ static const struct mmc_host_ops sdhci_ops = {
 	.request	= sdhci_request,
 	.set_ios	= sdhci_set_ios,
 	.get_ro		= sdhci_get_ro,
+#ifdef CONFIG_MMC_SDHCI_DYNAMIC_SDMEM_CLOCK
+	.enable		= sdhci_enable,
+	.disable	= sdhci_disable,
+#else
+	.enable 	= NULL,
+	.disable	= NULL,
+#endif
 	.enable_sdio_irq = sdhci_enable_sdio_irq,
 #ifdef CONFIG_EMBEDDED_MMC_START_OFFSET
 	.get_host_offset = sdhci_get_host_offset,
@@ -1260,7 +1304,6 @@ static void sdhci_tasklet_finish(unsigned long param)
 
 	mmiowb();
 	spin_unlock_irqrestore(&host->lock, flags);
-
 	mmc_request_done(host->mmc, mrq);
 }
 
@@ -1707,7 +1750,11 @@ int sdhci_add_host(struct sdhci_host *host)
 
 	if (host->data_width >= 8)
 		mmc->caps |= MMC_CAP_8_BIT_DATA;
-
+#ifdef CONFIG_MMC_SDHCI_DYNAMIC_SDMEM_CLOCK
+	mmc->caps |= MMC_CAP_DISABLE;
+	/* Use delayed suspend */
+	mmc_set_disable_delay(mmc, msecs_to_jiffies(SDHCI_DISABLE_TIMEOUT));
+#endif
 	mmc->ocr_avail = 0;
 	if (caps & SDHCI_CAN_VDD_330)
 		mmc->ocr_avail |= MMC_VDD_32_33|MMC_VDD_33_34;
