@@ -42,7 +42,7 @@
 #include "nvrm_transport.h"
 #include "nvrm_xpc.h"
 #include "nvrm_interrupt.h"
-#include "nvrm_rpc.h"
+#include "nvrm_message.h"
 #include "nvutil.h"
 #include "nvassert.h"
 #include "nvcommon.h"

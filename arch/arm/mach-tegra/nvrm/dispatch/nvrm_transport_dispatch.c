@@ -41,7 +41,8 @@
 #include "nvrm_transport.h"
 
 #define OFFSET( s, e ) (NvU32)(void *)(&(((s*)0)->e))
-
+#define MAX_MESSAGE_LENGTH 256
+#define MAX_PORT_NAME_LENGTH 20
 
 typedef struct NvRmTransportRecvMsg_in_t
 {
@@ -331,13 +332,16 @@ static NvError NvRmTransportRecvMsg_dispatch_( void *InBuffer, NvU32 InSize, voi
     NvRmTransportRecvMsg_in *p_in;
     NvRmTransportRecvMsg_out *p_out;
     void*  pMessageBuffer = NULL;
+    NvU32 MsgBuff[MAX_MESSAGE_LENGTH/sizeof(NvU32)];
 
     p_in = (NvRmTransportRecvMsg_in *)InBuffer;
     p_out = (NvRmTransportRecvMsg_out *)((NvU8 *)OutBuffer + OFFSET(NvRmTransportRecvMsg_params, out) - OFFSET(NvRmTransportRecvMsg_params, inout));
 
     if( p_in->MaxSize && p_in->pMessageBuffer )
     {
-        pMessageBuffer = (void*  )NvOsAlloc( p_in->MaxSize );
+        pMessageBuffer = (void*  )MsgBuff;
+        if( p_in->MaxSize > MAX_MESSAGE_LENGTH )
+            pMessageBuffer = (void* )NvOsAlloc( p_in->MaxSize );
         if( !pMessageBuffer )
         {
             err_ = NvError_InsufficientMemory;
@@ -356,7 +360,8 @@ static NvError NvRmTransportRecvMsg_dispatch_( void *InBuffer, NvU32 InSize, voi
         }
     }
 clean:
-    NvOsFree( pMessageBuffer );
+    if (pMessageBuffer != MsgBuff)
+        NvOsFree( pMessageBuffer );
     return err_;
 }
 
@@ -366,13 +371,16 @@ static NvError NvRmTransportSendMsgInLP0_dispatch_( void *InBuffer, NvU32 InSize
     NvRmTransportSendMsgInLP0_in *p_in;
     NvRmTransportSendMsgInLP0_out *p_out;
     void*  message = NULL;
+    NvU32 MsgBuff[MAX_MESSAGE_LENGTH/sizeof(NvU32)];
 
     p_in = (NvRmTransportSendMsgInLP0_in *)InBuffer;
     p_out = (NvRmTransportSendMsgInLP0_out *)((NvU8 *)OutBuffer + OFFSET(NvRmTransportSendMsgInLP0_params, out) - OFFSET(NvRmTransportSendMsgInLP0_params, inout));
 
     if( p_in->MessageSize && p_in->message )
     {
-        message = (void*  )NvOsAlloc( p_in->MessageSize );
+        message = (void*  )MsgBuff;
+        if( p_in->MessageSize > MAX_MESSAGE_LENGTH )
+            message = (void*  )NvOsAlloc( p_in->MessageSize );
         if( !message )
         {
             err_ = NvError_InsufficientMemory;
@@ -392,7 +400,8 @@ static NvError NvRmTransportSendMsgInLP0_dispatch_( void *InBuffer, NvU32 InSize
     p_out->ret_ = NvRmTransportSendMsgInLP0( p_in->hPort, message, p_in->MessageSize );
 
 clean:
-    NvOsFree( message );
+    if( message != MsgBuff )
+        NvOsFree( message );
     return err_;
 }
 
@@ -402,13 +411,16 @@ static NvError NvRmTransportSendMsg_dispatch_( void *InBuffer, NvU32 InSize, voi
     NvRmTransportSendMsg_in *p_in;
     NvRmTransportSendMsg_out *p_out;
     void*  pMessageBuffer = NULL;
+    NvU32 MsgBuff[MAX_MESSAGE_LENGTH/sizeof(NvU32)];
 
     p_in = (NvRmTransportSendMsg_in *)InBuffer;
     p_out = (NvRmTransportSendMsg_out *)((NvU8 *)OutBuffer + OFFSET(NvRmTransportSendMsg_params, out) - OFFSET(NvRmTransportSendMsg_params, inout));
 
     if( p_in->MessageSize && p_in->pMessageBuffer )
     {
-        pMessageBuffer = (void*  )NvOsAlloc( p_in->MessageSize );
+        pMessageBuffer = (void*  )&MsgBuff[0];
+        if( p_in->MessageSize > MAX_MESSAGE_LENGTH )
+            pMessageBuffer = (void*  )NvOsAlloc( p_in->MessageSize );
         if( !pMessageBuffer )
         {
             err_ = NvError_InsufficientMemory;
@@ -428,7 +440,8 @@ static NvError NvRmTransportSendMsg_dispatch_( void *InBuffer, NvU32 InSize, voi
     p_out->ret_ = NvRmTransportSendMsg( p_in->hTransport, pMessageBuffer, p_in->MessageSize, p_in->TimeoutMS );
 
 clean:
-    NvOsFree( pMessageBuffer );
+    if( pMessageBuffer != MsgBuff )
+        NvOsFree( pMessageBuffer );
     return err_;
 }
 
@@ -523,12 +536,15 @@ static NvError NvRmTransportGetPortName_dispatch_( void *InBuffer, NvU32 InSize,
     NvError err_ = NvSuccess;
     NvRmTransportGetPortName_in *p_in;
     NvU8  *PortName = NULL;
+    NvU32 PortNameBuff[MAX_PORT_NAME_LENGTH/sizeof(NvU32)];
 
     p_in = (NvRmTransportGetPortName_in *)InBuffer;
 
     if( p_in->PortNameSize && p_in->PortName )
     {
-        PortName = (NvU8  *)NvOsAlloc( p_in->PortNameSize * sizeof( NvU8  ) );
+        PortName = (NvU8  *)PortNameBuff;
+        if( (p_in->PortNameSize * sizeof(NvU8)) > MAX_PORT_NAME_LENGTH )
+            PortName = (NvU8  *)NvOsAlloc( p_in->PortNameSize * sizeof( NvU8  ) );
         if( !PortName )
         {
             err_ = NvError_InsufficientMemory;
@@ -556,7 +572,8 @@ static NvError NvRmTransportGetPortName_dispatch_( void *InBuffer, NvU32 InSize,
         }
     }
 clean:
-    NvOsFree( PortName );
+    if ( PortName != PortNameBuff )
+        NvOsFree( PortName );
     return err_;
 }
 
@@ -567,13 +584,16 @@ static NvError NvRmTransportOpen_dispatch_( void *InBuffer, NvU32 InSize, void *
     NvRmTransportOpen_out *p_out;
     char *pPortName = NULL;
     NvOsSemaphoreHandle RecvMessageSemaphore = NULL;
+    NvU32 PortNameBuff[MAX_PORT_NAME_LENGTH/sizeof(NvU32)];
 
     p_in = (NvRmTransportOpen_in *)InBuffer;
     p_out = (NvRmTransportOpen_out *)((NvU8 *)OutBuffer + OFFSET(NvRmTransportOpen_params, out) - OFFSET(NvRmTransportOpen_params, inout));
 
     if( p_in->pPortName_len )
     {
-        pPortName = NvOsAlloc( p_in->pPortName_len );
+        pPortName = (char *)PortNameBuff;
+        if( p_in->pPortName_len > MAX_PORT_NAME_LENGTH )
+            pPortName = NvOsAlloc( p_in->pPortName_len );
         if( !pPortName )
         {
             err_ = NvError_InsufficientMemory;
@@ -604,7 +624,8 @@ static NvError NvRmTransportOpen_dispatch_( void *InBuffer, NvU32 InSize, void *
     p_out->ret_ = NvRmTransportOpen( p_in->hRmDevice, pPortName, RecvMessageSemaphore, &p_out->phTransport );
 
 clean:
-    NvOsFree( pPortName );
+    if( pPortName != PortNameBuff )
+        NvOsFree( pPortName );
     NvOsSemaphoreDestroy( RecvMessageSemaphore );
     return err_;
 }
