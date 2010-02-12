@@ -54,7 +54,7 @@
 #include "nvodm_query_discovery.h"
 
 #define ENABLE_NEW_SLAVE 1
-#define ADD_5US_DELAY 1
+#define ADD_ACK_DELAY 1
 #define DELAY_COUNT 0x1E
 #define MAX_NACKS   1
 
@@ -318,9 +318,9 @@ HwI2cHandleVariableRead(
 
     if (NV_DRF_VAL(I2C, I2C_SL_STATUS, RCVD, SlaveStatus))
     {
-        #if ADD_5US_DELAY
+        #if ADD_ACK_DELAY
         // Work around for AP20 New Slave Hw Bug. Give 1us extra.
-        while( (NvOsGetTimeUS() - IsrStartTime) < (5 + 1) );
+        while( (NvOsGetTimeUS() - IsrStartTime) < (((1000 / t->ClockSpeedInKHz) / 2) + 1) );
         #endif
 
         /* 
