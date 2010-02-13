@@ -470,11 +470,12 @@ UartGetSocCapabilities(
     SocUartCapability *pUartSocCaps)
 {
     NvRmModuleID ModuleId;
-    static SocUartCapability s_SocUartCapsList[2];
+    static SocUartCapability s_SocUartCapsList[3];
     NvRmModuleCapability UartCapsList[] =
     {
         { 1, 0, 0, &s_SocUartCapsList[0] }, // Major.Minor = 1.0
         { 1, 1, 0, &s_SocUartCapsList[1] }, // Major.Minor = 1.1
+        { 1, 2, 0, &s_SocUartCapsList[2] }, // Major.Minor = 1.2
     };
     SocUartCapability *pUartCaps = NULL;
 
@@ -485,16 +486,21 @@ UartGetSocCapabilities(
     s_SocUartCapsList[0].FifoDepth = 16;
 
     s_SocUartCapsList[1].IsEndOfDataIntSupported = NV_TRUE;
-    s_SocUartCapsList[1].FifoDepth = 32;
+    s_SocUartCapsList[1].FifoDepth = 16;
+
+    s_SocUartCapsList[2].IsEndOfDataIntSupported = NV_TRUE;
+    s_SocUartCapsList[2].FifoDepth = 32;
 
     // FIXEME!! HW Bug: The RTS hw flow control is not working when enabling
     // EORD interrupt.
     // As the EORD is more important feature then the Rts hw flow control,
     // disabling this feature.
     s_SocUartCapsList[1].IsRtsHwFlowControlSupported = NV_FALSE;
+    s_SocUartCapsList[2].IsRtsHwFlowControlSupported = NV_FALSE;
 
     // Get the capability from modules files.
-    NV_ASSERT_SUCCESS(NvRmModuleGetCapabilities(hRmDevice, ModuleId, UartCapsList, 2,
+    NV_ASSERT_SUCCESS(NvRmModuleGetCapabilities(hRmDevice, ModuleId,
+                           UartCapsList, NV_ARRAY_SIZE(UartCapsList),
                                     (void **)&pUartCaps));
     pUartSocCaps->IsEndOfDataIntSupported = pUartCaps->IsEndOfDataIntSupported;
     pUartSocCaps->IsRtsHwFlowControlSupported = pUartCaps->IsRtsHwFlowControlSupported;
