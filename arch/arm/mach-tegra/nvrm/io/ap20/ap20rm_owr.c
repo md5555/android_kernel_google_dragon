@@ -129,6 +129,12 @@ PrivOwrReadData(
     NvU32 NoOfBytes);
 
 static NvError
+PrivOwrCheckPresence(
+        NvRmOwrController* pOwrInfo,
+        NvU32 ReadDataClk,
+        NvU32 PresenceClk);
+
+static NvError
 PrivOwrReadFifo(
     NvRmOwrController* pOwrInfo,
     NvU8*  pBuffer,
