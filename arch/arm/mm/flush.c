@@ -124,6 +124,7 @@ void flush_ptrace_access(struct vm_area_struct *vma, struct page *page,
 		unsigned long addr = (unsigned long)kaddr;
 		/* only flushing the kernel mapping on non-aliasing VIPT */
 		__cpuc_coherent_kern_range(addr, addr + len);
+		__flush_icache_all();
 	}
 }
 #else
@@ -152,9 +153,13 @@ void __flush_dcache_page(struct address_space *mapping, struct page *page)
 #endif
 		vaddr = page_address(page);
 
-	if (vaddr)
+	if (vaddr) {
 		__cpuc_flush_dcache_page(vaddr);
-
+#ifdef CONFIG_HIGHMEM
+		if (PageHighMem(page))
+			kunmap_high(page);
+#endif
+	}
 	/*
 	 * If this is a page cache page, and we have an aliasing VIPT cache,
 	 * we only need to do one flush - which would be at the relevant
@@ -163,11 +168,6 @@ void __flush_dcache_page(struct address_space *mapping, struct page *page)
 	if (mapping && cache_is_vipt_aliasing())
 		flush_pfn_alias(page_to_pfn(page),
 				page->index << PAGE_CACHE_SHIFT);
-
-#ifdef CONFIG_HIGHMEM
-	if (PageHighMem(page) && vaddr)
-		kunmap_high(page);
-#endif
 }
 
 static void __flush_dcache_aliases(struct address_space *mapping, struct page *page)
