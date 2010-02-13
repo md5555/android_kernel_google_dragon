@@ -35,6 +35,9 @@ struct android_usb_platform_data {
 
 	/* number of LUNS for mass storage function */
 	int nluns;
+
+	/* size, in bytes, of the mass storage bulk buffer */
+	size_t bulk_size;
 };
 
 /* Platform data for "usb_mass_storage" driver.
