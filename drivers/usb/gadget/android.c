@@ -71,6 +71,7 @@ struct android_dev {
 
 	int adb_enabled;
 	int nluns;
+	size_t bulk_size;
 };
 
 static atomic_t adb_enable_excl;
@@ -128,7 +129,8 @@ static int __init android_bind_config(struct usb_configuration *c)
 	int ret;
 	printk(KERN_DEBUG "android_bind_config\n");
 
-	ret = mass_storage_function_add(dev->cdev, c, dev->nluns);
+	ret = mass_storage_function_add(dev->cdev, c, dev->nluns,
+		dev->bulk_size);
 	if (ret)
 		return ret;
 	return adb_function_add(dev->cdev, c);
@@ -297,6 +299,7 @@ static int __init android_probe(struct platform_device *pdev)
 		if (pdata->serial_number)
 			strings_dev[STRING_SERIAL_IDX].s = pdata->serial_number;
 		dev->nluns = pdata->nluns;
+		dev->bulk_size = pdata->bulk_size;
 	}
 
 	return 0;

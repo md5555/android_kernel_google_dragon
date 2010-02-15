@@ -2913,7 +2913,7 @@ static struct platform_driver fsg_platform_driver = {
 };
 
 int __init mass_storage_function_add(struct usb_composite_dev *cdev,
-	struct usb_configuration *c, int nluns)
+	struct usb_configuration *c, int nluns, size_t bulk_size)
 {
 	int		rc;
 	struct fsg_dev	*fsg;
@@ -2930,7 +2930,7 @@ int __init mass_storage_function_add(struct usb_composite_dev *cdev,
 	kref_init(&fsg->ref);
 	init_completion(&fsg->thread_notifier);
 
-	the_fsg->buf_size = BULK_BUFFER_SIZE;
+	the_fsg->buf_size = (bulk_size) ? bulk_size : BULK_BUFFER_SIZE;
 	the_fsg->sdev.name = DRIVER_NAME;
 	the_fsg->sdev.print_name = print_switch_name;
 	the_fsg->sdev.print_state = print_switch_state;
