@@ -35,8 +35,6 @@
 #define SDHCI_USE_LEDS_CLASS
 #endif
 
-#define SDHCI_DISABLE_TIMEOUT 50
-
 static unsigned int debug_quirks = 0;
 
 static void sdhci_prepare_data(struct sdhci_host *, struct mmc_data *);
@@ -1752,8 +1750,6 @@ int sdhci_add_host(struct sdhci_host *host)
 		mmc->caps |= MMC_CAP_8_BIT_DATA;
 #ifdef CONFIG_MMC_SDHCI_DYNAMIC_SDMEM_CLOCK
 	mmc->caps |= MMC_CAP_DISABLE;
-	/* Use delayed suspend */
-	mmc_set_disable_delay(mmc, msecs_to_jiffies(SDHCI_DISABLE_TIMEOUT));
 #endif
 	mmc->ocr_avail = 0;
 	if (caps & SDHCI_CAN_VDD_330)
