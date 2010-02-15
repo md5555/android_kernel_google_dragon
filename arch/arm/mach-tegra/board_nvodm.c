@@ -85,6 +85,7 @@ static struct android_usb_platform_data android_usb_plat =
     .manufacturer_name = "NVIDIA Corporation",
     .serial_number = "0000000000000000",
     .nluns = 1,
+    .bulk_size = 16384,
 };
 
 static struct platform_device android_usb_device =
