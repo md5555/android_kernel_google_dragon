@@ -12,6 +12,7 @@ obj-$(CONFIG_NDISWRAPPER)	+= ndiswrapper/
 obj-$(CONFIG_BLK_DEV_COMPCACHE)	+= compcache/
 obj-$(CONFIG_LIRC_DEV)          += lirc/
 obj-$(CONFIG_LENOVO_SL_LAPTOP)	+= lenovo-sl-laptop/
+obj-$(CONFIG_RTL8103)		+= rtl8103/r8101-1.014.00/src/
 
 obj-m				+= misc/ rfkill/
 
