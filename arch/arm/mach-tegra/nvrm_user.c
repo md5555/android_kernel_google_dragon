@@ -36,7 +36,6 @@
 #include "nvassert.h"
 #include "nvos.h"
 #include "nvrm_memmgr.h"
-#include "nvrm_memmgr_private.h"
 #include "nvrm_ioctls.h"
 #include "mach/nvrm_linux.h"
 #include "linux/nvos_ioctl.h"
@@ -85,60 +84,6 @@ static struct miscdevice nvrm_dev =
     .fops = &nvrm_fops,
     .minor = MISC_DYNAMIC_MINOR,
 };
-
-static void MemReadStrided(
-    NvRmMemHandle hMem,
-    NvU32 Offset,
-    NvU32 SrcStride,
-    void *pDst,
-    NvU32 DstStride,
-    NvU32 ElementSize,
-    NvU32 Count)
-{
-    const void *p = (NvU8 *)hMem->VirtualAddress + Offset;
-    NvU32 Size = ElementSize + SrcStride * (Count-1);
-    NV_ASSERT(Offset + Size <= hMem->size);
-    if ((ElementSize == SrcStride) && (ElementSize == DstStride))
-    {
-        NV_ASSERT_SUCCESS( NvOsCopyOut(pDst, p, Size) );
-    }
-    else
-    {
-        while (Count--)
-        {
-            NV_ASSERT_SUCCESS( NvOsCopyOut(pDst, p, ElementSize) );
-            p = (const NvU8 *)p + SrcStride;
-            pDst = (NvU8 *)pDst + DstStride;
-        }
-    }
-}
-
-static void MemWriteStrided(
-    NvRmMemHandle hMem,
-    NvU32 Offset,
-    NvU32 DstStride,
-    const void *pSrc,
-    NvU32 SrcStride,
-    NvU32 ElementSize,
-    NvU32 Count)
-{
-    void *p = (NvU8 *)hMem->VirtualAddress + Offset;
-    NvU32 Size = ElementSize + DstStride * (Count-1);
-    NV_ASSERT(Offset + Size <= hMem->size);
-    if ((ElementSize == SrcStride) && (ElementSize == DstStride))
-    {
-        NV_ASSERT_SUCCESS( NvOsCopyIn(p, pSrc, Size) );
-    }
-    else
-    {
-        while (Count--)
-        {
-            NV_ASSERT_SUCCESS( NvOsCopyIn(p, pSrc, ElementSize) );
-            p = (NvU8 *)p + DstStride;
-            pSrc = (const NvU8 *)pSrc + SrcStride;
-        }
-    }
-}
 
 static void NvRmDfsThread(void *args)
 {
@@ -241,12 +186,8 @@ long nvrm_unlocked_ioctl(struct file *file,
 {
     NvError err;
     NvOsIoctlParams p;
-    NvRmMemHandle hMem;
-    NvU32 offset;
     NvU32 size;
-    NvU32 *pBufIn;
     NvU32 small_buf[8];
-    void *unsafep = 0;
     void *ptr = 0;
     long e;
     NvBool bAlloc = NV_FALSE;
@@ -326,164 +267,18 @@ long nvrm_unlocked_ioctl(struct file *file,
     case NvRmIoctls_NvRmFbControl:
         tegra_fb_control(0, 0);
         break;
+
     case NvRmIoctls_NvRmMemRead:
-        err = NvOsCopyIn( &p, (void *)arg, sizeof(p) );
-        if( err != NvSuccess )
-        {
-            printk( "NvRmIoctls_NvRmMemRead: copy in failed\n" );
-            goto fail;
-        }
-
-        pBufIn = (NvU32 *)small_buf;
-
-        err = NvOsCopyIn( pBufIn, p.pBuffer, 4 * 4 );
-        if( err != NvSuccess )
-        {
-            printk( "NvRmIoctls_NvRmMemRead: copy in failed\n" );
-            goto fail;
-        }
-
-        hMem = (NvRmMemHandle)((NvU32*)pBufIn)[0];
-        offset = ((NvU32*)pBufIn)[1];
-        unsafep = (void *)((NvU32*)pBufIn)[2];
-        size = ((NvU32*)pBufIn)[3];
-
-        //printk( "NvRmIoctls_NvRmMemRead\n" );
-
-        ptr = (NvU8 *)hMem->VirtualAddress + offset;
-        NV_ASSERT(offset + size <= hMem->size);
-
-        err = NvOsCopyOut(unsafep, ptr, size);
-        if( err != NvSuccess )
-        {
-            printk( "NvRmIoctls_NvRmMemRead: copy out failed\n" );
-            goto fail;
-        }
-
-        break;
     case NvRmIoctls_NvRmMemWrite:
-        err = NvOsCopyIn( &p, (void *)arg, sizeof(p) );
-        if( err != NvSuccess )
-        {
-            printk( "NvRmIoctls_NvRmMemWrite: copy in failed\n" );
-            goto fail;
-        }
-
-        pBufIn = (NvU32 *)small_buf;
-
-        err = NvOsCopyIn( pBufIn, p.pBuffer, 4 * 4 );
-        if( err != NvSuccess )
-        {
-            printk( "NvRmIoctls_NvRmMemWrite: copy in failed\n" );
-            goto fail;
-        }
-
-        hMem = (NvRmMemHandle)((NvU32*)pBufIn)[0];
-        offset = ((NvU32*)pBufIn)[1];
-        unsafep = (void *)((NvU32*)pBufIn)[2];
-        size = ((NvU32*)pBufIn)[3];
-
-        //printk( "NvRmIoctls_NvRmMemWrite\n" );
-
-        ptr = (NvU8 *)hMem->VirtualAddress + offset;
-        NV_ASSERT(offset + size <= hMem->size);
-
-        err = NvOsCopyIn(ptr, unsafep, size);
-        if( err != NvSuccess )
-        {
-            printk( "NvRmIoctls_NvRmMemWrite: copy out failed\n" );
-            goto fail;
-        }
-        break;
     case NvRmIoctls_NvRmMemReadStrided:
-        err = NvOsCopyIn( &p, (void *)arg, sizeof(p) );
-        if( err != NvSuccess )
-        {
-            printk( "NvRmIoctls_NvRmMemReadStrided: copy in failed\n" );
-            goto fail;
-        }
-
-        pBufIn = (NvU32 *)small_buf;
-
-        //printk( "NvRmIoctls_NvRmMemReadStrided\n" );
-
-        err = NvOsCopyIn( pBufIn, p.pBuffer, 7 * 4 );
-        if( err != NvSuccess )
-        {
-            printk( "NvRmIoctls_NvRmMemReadStrided: copy in failed\n" );
-            goto fail;
-        }
-
-        MemReadStrided(
-            (NvRmMemHandle)((NvU32*)pBufIn)[0],
-            ((NvU32*)pBufIn)[1],
-            ((NvU32*)pBufIn)[2],
-            (void *)((NvU32*)pBufIn)[3],
-            ((NvU32*)pBufIn)[4],
-            ((NvU32*)pBufIn)[5],
-            ((NvU32*)pBufIn)[6]);
-        break;
+    case NvRmIoctls_NvRmGetCarveoutInfo:
     case NvRmIoctls_NvRmMemWriteStrided:
-        err = NvOsCopyIn( &p, (void *)arg, sizeof(p) );
-        if( err != NvSuccess )
-        {
-            printk( "NvRmIoctls_NvRmMemWriteStrided: copy in failed\n" );
-            goto fail;
-        }
+        goto fail;
 
-        pBufIn = (NvU32 *)small_buf;
-
-        //printk( "NvRmIoctls_NvRmMemWriteStrided\n" );
-
-        err = NvOsCopyIn( pBufIn, p.pBuffer, 7 * 4 );
-        if( err != NvSuccess )
-        {
-            printk( "NvRmIoctls_NvRmMemWriteStrided: copy in failed\n" );
-            goto fail;
-        }
-
-        MemWriteStrided(
-            (NvRmMemHandle)((NvU32*)pBufIn)[0],
-            ((NvU32*)pBufIn)[1],
-            ((NvU32*)pBufIn)[2],
-            (const void *)((NvU32*)pBufIn)[3],
-            ((NvU32*)pBufIn)[4],
-            ((NvU32*)pBufIn)[5],
-            ((NvU32*)pBufIn)[6]);
-        break;
     case NvRmIoctls_NvRmMemMapIntoCallerPtr:
         // FIXME: implement?
         printk( "NvRmIoctls_NvRmMemMapIntoCallerPtr: not supported\n" );
         goto fail;
-    case NvRmIoctls_NvRmGetCarveoutInfo:
-    {
-        NvU32 *pBufOut32;
-        NvU32 out[3];
-
-        err = NvOsCopyIn( &p, (void *)arg, sizeof(p) );
-        if( err != NvSuccess )
-        {
-            printk( "NvRmIoctls_NvRmGetCarveoutInfo: copy in failed\n" );
-            goto fail;
-        }
-
-        pBufOut32 = (NvU32 *)((NvU8 *)p.pBuffer) + p.InBufferSize +
-            p.InOutBufferSize;
-
-        //printk( "NvRmIoctls_NvRmGetCarveoutInfo\n" );
-
-        // get all the great information about the carveout.
-        NvRmPrivHeapCarveoutGetInfo( &out[0], (void *)&out[1], &out[2] );
-
-        err = NvOsCopyOut( pBufOut32, out, sizeof(out) );
-        if( err != NvSuccess )
-        {
-            printk( "NvRmIoctls_NvRmGetCarveoutInfo: copy out failed\n" );
-            goto fail;
-        }
-
-        break;
-    }
     case NvRmIoctls_NvRmBootDone:
         if (!s_DfsThread)
         {
