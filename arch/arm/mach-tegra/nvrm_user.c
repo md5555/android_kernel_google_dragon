@@ -647,25 +647,30 @@ static int nvrm_remove(struct platform_device *pdev)
 
 static int nvrm_suspend(struct platform_device *pdev)
 {
-    NvError Err = NvSuccess;
-    printk(KERN_INFO "%s called\n", __func__);
-    return Err;
+	if(NvRmKernelPowerSuspend(s_hRmGlobal)) {
+		printk(KERN_INFO "%s : FAILED\n", __func__);
+		return -1;
+	}
+	return 0;
 }
 
 static int nvrm_resume(struct platform_device *pdev)
 {
-    NvError Err = NvSuccess;
-    printk(KERN_INFO "%s called\n", __func__);
-    return Err;
+	if(NvRmKernelPowerResume(s_hRmGlobal)) {
+		printk(KERN_INFO "%s : FAILED\n", __func__);
+		return -1;
+	}
+	return 0;
+
 }
 
 static struct platform_driver nvrm_driver =
 {
-    .probe = nvrm_probe,
-    .remove = nvrm_remove,
-    .suspend = nvrm_suspend,
-    .resume = nvrm_resume,
-    .driver = { .name = "nvrm" }
+    .probe	= nvrm_probe,
+    .remove	= nvrm_remove,
+    .suspend	= nvrm_suspend,
+    .resume	= nvrm_resume,
+    .driver	= { .name = "nvrm" }
 };
 
 static int __init nvrm_init(void)
