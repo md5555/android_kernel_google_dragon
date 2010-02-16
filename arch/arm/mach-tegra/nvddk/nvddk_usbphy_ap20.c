@@ -590,7 +590,8 @@ Ap20UsbPhyUlpiNullModeConfigure(
     USB_IF_REG_WR(ULPIS2S_CTRL, 
                     USB_IF_DRF_DEF(ULPIS2S_CTRL, ULPIS2S_ENA, ENABLE) |
                     USB_IF_DRF_DEF(ULPIS2S_CTRL, ULPIS2S_PLLU_MASTER_BLASTER60, ENABLE) |
-                    USB_IF_DRF_NUM(ULPIS2S_CTRL, ULPIS2S_SPARE, 1));
+                    USB_IF_DRF_NUM(ULPIS2S_CTRL, ULPIS2S_SPARE,
+                    (pUsbPhy->pProperty->UsbMode == NvOdmUsbModeType_Host)?3:1));
 
     // Select ULPI_CORE_CLK_SEL to SHADOW_CLK
     ULPI_IF_REG_WR(TIMING_CTRL_0, 
@@ -1239,6 +1240,7 @@ Ap20UsbPhyPowerUp(
     {
         case NvOdmUsbInterfaceType_UlpiNullPhy:
             Ap20UsbPhyUlpiNullModeConfigure(pUsbPhy);
+            Ap20UsbPhyUlpiPowerControl(pUsbPhy, NV_TRUE);
             break;
         case NvOdmUsbInterfaceType_UlpiExternalPhy:
             pUsbPhy->hOdmUlpi = NvOdmUsbUlpiOpen(pUsbPhy->Instance);
@@ -1259,6 +1261,10 @@ Ap20UsbPhyPowerUp(
     if (ErrVal == NvSuccess)
     {
         Ap20UsbPhySelectUsbMode(pUsbPhy);
+
+        if (pUsbPhy->pProperty->UsbInterfaceType ==
+		NvOdmUsbInterfaceType_UlpiNullPhy)
+		pUsbPhy->hOdmUlpi = NvOdmUsbUlpiOpen(pUsbPhy->Instance);
     }
 
     return ErrVal;
