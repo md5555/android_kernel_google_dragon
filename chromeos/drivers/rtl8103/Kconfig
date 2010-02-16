@@ -1,0 +1,12 @@
+config R8103
+	tristate "Realtek 8103 gigabit ethernet support"
+	depends on PCI
+	select CRC32
+	select MII
+	---help---
+	  Say Y here if you have a Realtek 8103 PCI Gigabit Ethernet adapter.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called r8103.  This is recommended.
+
+
