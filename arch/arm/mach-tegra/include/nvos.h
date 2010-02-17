@@ -1213,6 +1213,7 @@ NvOsLibraryUnload(NvOsLibraryHandle library);
 
 typedef struct NvOsMutexRec *NvOsMutexHandle;
 typedef struct NvOsIntrMutexRec *NvOsIntrMutexHandle;
+typedef struct NvOsSpinMutexRec *NvOsSpinMutexHandle;
 typedef struct NvOsSemaphoreRec *NvOsSemaphoreHandle;
 typedef struct NvOsThreadRec *NvOsThreadHandle;
 
@@ -1307,6 +1308,37 @@ void NvOsIntrMutexUnlock(NvOsIntrMutexHandle mutex);
  *     effect.
  */
 void NvOsIntrMutexDestroy(NvOsIntrMutexHandle mutex);
+
+/**
+ * Creates a spin mutex.
+ * This mutex is SMP safe, but it is not ISR-safe.
+ *
+ * @param mutex A pointer to the mutex is stored here on success.
+ */
+NvError NvOsSpinMutexCreate(NvOsSpinMutexHandle *mutex);
+
+/**
+ * Acquire a spin mutex.
+ * Spins until mutex is acquired; when acquired disables kernel preemption.
+ *
+ * @param mutex The mutex handle to lock.
+ */
+void NvOsSpinMutexLock(NvOsSpinMutexHandle mutex);
+
+/**
+ * Releases a spin mutex.
+ *
+ * @param mutex The mutex handle to unlock.
+ */
+void NvOsSpinMutexUnlock(NvOsSpinMutexHandle mutex);
+
+/**
+ * Destroys a spin mutex.
+ *
+ * @param mutex The mutex to destroy. If \a mutex is NULL, this API has no
+ *     effect.
+ */
+void NvOsSpinMutexDestroy(NvOsSpinMutexHandle mutex);
 
 /**
  * Creates a counting semaphore.

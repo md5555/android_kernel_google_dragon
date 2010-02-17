@@ -66,12 +66,12 @@
        {\
            NvU32 RegValue; \
            NvU32 RegOffset = APBDEV_PMC_SCRATCH0_0; \
-           NvOsMutexLock(s_hPmcScratchMutex); \
+           NvOsSpinMutexLock(s_hPmcScratchMutex); \
            RegValue = NV_REGR(rm, NvRmModuleID_Pmif, 0, RegOffset); \
            RegValue = NV_FLD_SET_DRF_NUM(\
                APBDEV_PMC, SCRATCH0, FieldName, FieldValue, RegValue); \
            NV_REGW(rm, NvRmModuleID_Pmif, 0, RegOffset, RegValue); \
-           NvOsMutexUnlock(s_hPmcScratchMutex); \
+           NvOsSpinMutexUnlock(s_hPmcScratchMutex); \
        }\
    } while (0)
 
@@ -82,7 +82,7 @@
 /*****************************************************************************/
 
 // Mutex for thread-safe access to PMC scratch fields
-static NvOsMutexHandle s_hPmcScratchMutex = NULL;
+static NvOsSpinMutexHandle s_hPmcScratchMutex = NULL;
 
 // Pointer to LP2 Time storage
 static NvUPtr s_pLp2Time = 0;
@@ -95,7 +95,7 @@ NvError NvRmPrivOalIntfInit(NvRmDeviceHandle hRmDeviceHandle)
     // Create PMC scratch register access mutex
     s_pLp2Time = 0;
     s_hPmcScratchMutex = NULL;
-    NV_CHECK_ERROR_CLEANUP(NvOsMutexCreate(&s_hPmcScratchMutex));
+    NV_CHECK_ERROR_CLEANUP(NvOsSpinMutexCreate(&s_hPmcScratchMutex));
 
     // Clear DFS flags; other fields initialized by OAL and preserved by RM
     SET_POWER_FLD_AP15(hRmDeviceHandle, RM_DFS_FLAG, 0);
@@ -108,7 +108,7 @@ fail:
 
 void NvRmPrivOalIntfDeinit(NvRmDeviceHandle hRmDeviceHandle)
 {
-    NvOsMutexDestroy(s_hPmcScratchMutex);
+    NvOsSpinMutexDestroy(s_hPmcScratchMutex);
     s_hPmcScratchMutex = NULL;
 }
 
@@ -169,7 +169,7 @@ NvRmPrivUpdateDfsPauseFlag(
         NvU32 mask = (NvRmDfsStatusFlags_Pause <<
                       NV_FIELD_SHIFT(APBDEV_PMC_SCRATCH0_0_RM_DFS_FLAG_RANGE));
 
-        NvOsMutexLock(s_hPmcScratchMutex);
+        NvOsSpinMutexLock(s_hPmcScratchMutex);
 
         RegValue = NV_REGR(hRmDeviceHandle, NvRmModuleID_Pmif, 0, RegOffset);
         if (Pause)
@@ -178,7 +178,7 @@ NvRmPrivUpdateDfsPauseFlag(
             RegValue &= ~mask;
         NV_REGW(hRmDeviceHandle, NvRmModuleID_Pmif, 0, RegOffset, RegValue);
 
-        NvOsMutexUnlock(s_hPmcScratchMutex);
+        NvOsSpinMutexUnlock(s_hPmcScratchMutex);
     }
 }
 
@@ -202,7 +202,7 @@ NvRmPrivPllRefUpdate(
     mask = (pPllRef->StopFlag <<
             NV_FIELD_SHIFT(APBDEV_PMC_SCRATCH0_0_RM_DFS_FLAG_RANGE));
 
-    NvOsMutexLock(s_hPmcScratchMutex);
+    NvOsSpinMutexLock(s_hPmcScratchMutex);
 
     if (Increment)
     {
@@ -217,15 +217,19 @@ NvRmPrivPllRefUpdate(
     else
     {
         NV_ASSERT(pPllRef->ReferenceCnt);
-        pPllRef->ReferenceCnt--;
-        if (pPllRef->ReferenceCnt == 0)
+        if (pPllRef->ReferenceCnt)
         {
-            RegValue = mask |
-                (NV_REGR(hRmDeviceHandle, NvRmModuleID_Pmif, 0, RegOffset));
-            NV_REGW(hRmDeviceHandle, NvRmModuleID_Pmif, 0, RegOffset, RegValue);
+            pPllRef->ReferenceCnt--;
+            if (pPllRef->ReferenceCnt == 0)
+            {
+                RegValue = mask |
+                    (NV_REGR(hRmDeviceHandle, NvRmModuleID_Pmif, 0, RegOffset));
+                NV_REGW(
+                    hRmDeviceHandle, NvRmModuleID_Pmif, 0, RegOffset, RegValue);
+            }
         }
     }
-    NvOsMutexUnlock(s_hPmcScratchMutex);
+    NvOsSpinMutexUnlock(s_hPmcScratchMutex);
 #endif
 }
 
@@ -264,7 +268,7 @@ void NvRmPrivAp15IoPowerDetectReset(NvRmDeviceHandle hRmDeviceHandle)
     {
         NvU32 RegValue;
         NvU32 RegOffset = APBDEV_PMC_SCRATCH0_0;
-        NvOsMutexLock(s_hPmcScratchMutex);
+        NvOsSpinMutexLock(s_hPmcScratchMutex);
 
         RegValue =
             NV_REGR(hRmDeviceHandle, NvRmModuleID_Pmif, 0, RegOffset);
@@ -277,7 +281,7 @@ void NvRmPrivAp15IoPowerDetectReset(NvRmDeviceHandle hRmDeviceHandle)
         NV_REGW(hRmDeviceHandle,
                 NvRmModuleID_Pmif, 0, RegOffset, RegValue);
 
-        NvOsMutexUnlock(s_hPmcScratchMutex);
+        NvOsSpinMutexUnlock(s_hPmcScratchMutex);
     }
 }
 
