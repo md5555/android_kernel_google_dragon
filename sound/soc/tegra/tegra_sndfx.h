@@ -146,6 +146,7 @@ typedef enum
     NvAudioFxProperty_Detach,
     NvAudioFxProperty_Format,
     NvAudioFxProperty_Method,
+    NvAudioFxProperty_PowerState,
     NvAudioFxProperty_SampleRate,
     NvAudioFxProperty_State,
     NvAudioFxPinProperty_Format,
@@ -239,6 +240,7 @@ typedef enum
     NvAudioFxState_Run,
     NvAudioFxState_Pause,
     NvAudioFxState_Disable,
+    NvAudioFxState_EndOfStream,
     NvAudioFxState_Num,
     NvAudioFxState_Force32 = 0x7FFFFFFF
 } NvAudioFxState;
