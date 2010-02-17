@@ -56,6 +56,7 @@
 #define ENABLE_NEW_SLAVE 1
 #define ADD_5US_DELAY 1
 #define DELAY_COUNT 0x1E
+#define MAX_NACKS   1
 
 #ifndef __KERNEL__
 #define __KERNEL__ 0
@@ -169,6 +170,8 @@ typedef struct NvEcTransportRec
     NvOsInterruptHandle I2CInterruptHandle;
     // Data send to Master is pending.
     NvBool SendPending;
+    // Flag to indicate max number of NACKS sent
+    NvBool MaxNacksSent;
     // To track number of bytes sent out.
     NvU8 SendCounter;
     // Buffer to send the data to master from.
@@ -183,6 +186,8 @@ typedef struct NvEcTransportRec
     NvU8* PacketBuffer;
     // Counter to keep track of received data.
     NvU8 PacketCounter;
+    // Counter to track the number of NACKs
+    NvU8 NackCounter;
     // Packet type
     EctPacketType PktType;
     // Trnasfer type
@@ -555,6 +560,21 @@ static void Isr(void* args)
         g_I2cSlaveRxData.sts[g_I2cSlaveRxData.Index] = SlaveStatus;
         g_I2cSlaveRxData.Buffer[g_I2cSlaveRxData.Index++] = Data;
         #endif
+
+	// increment counter which tracks number of nacks
+	t->NackCounter++;
+
+	/*
+	 * if the count ever exceeds max number of nacks permitted
+	 * (as called out in the spec), reset the count and set a flag
+	 * indicating max nacks have been sent. This allows the upper layer to
+	 * send a ping to get the EC back in sync.
+	*/
+	if (t->NackCounter >= MAX_NACKS) {
+	    t->NackCounter = 0; // reset count
+	    t->MaxNacksSent = NV_TRUE;
+	    NvOsSemaphoreSignal(t->hEcNotifySema);
+	}
     }
     if (PktRcvd)
     {
@@ -568,6 +588,7 @@ static void Isr(void* args)
         t->NumPacketsRcvd++;
         NvOsIntrMutexUnlock(t->I2cThreadSafetyMutex);
         t->PacketCounter = 0;
+	t->NackCounter = 0;
         NvOsSemaphoreSignal(t->hEcNotifySema);
     }
 exit:
@@ -800,24 +821,31 @@ void NvEcTransportClose(NvEcTransportHandle t)
 
 NvU32 NvEcTransportQueryStatus(NvEcTransportHandle t)
 {
-    NvU8 Data;
-    EctPacketType PktType;
-    NvU32 Status = t->Status;
-    NvU8 Index = t->BufferValidIndex;
-    
-    if (t->NumPacketsRcvd)
-    {
-        NV_ASSERT(t->RxBuffers[Index].BufferInUse && t->RxBuffers[Index].DataValid);
-        Data = t->RxBuffers[Index].Buffer[0];
-        PktType = (EctPacketType) NV_DRF_VAL(NVEC, COMMAND, PACKET_TYPE, Data);
-        if (PktType == EctPacketType_Event)
-            Status |= NVEC_TRANSPORT_STATUS_EVENT_RECEIVE_COMPLETE;
-        else
-            Status |= NVEC_TRANSPORT_STATUS_RESPONSE_RECEIVE_COMPLETE;
-    }
-    // Clear Send Complete Event.
-    t->Status = 0;
-    return Status;
+	NvU8 Data;
+	EctPacketType PktType;
+	NvU32 Status = t->Status;
+	NvU8 Index = t->BufferValidIndex;
+
+	if (t->MaxNacksSent)
+	{
+		Status |= NVEC_TRANSPORT_STATUS_EVENT_PACKET_MAX_NACK;
+		t->MaxNacksSent = NV_FALSE;
+	}
+
+	if (t->NumPacketsRcvd) {
+		NV_ASSERT(t->RxBuffers[Index].BufferInUse &&
+			t->RxBuffers[Index].DataValid);
+		Data = t->RxBuffers[Index].Buffer[0];
+		PktType = (EctPacketType) NV_DRF_VAL(NVEC, COMMAND, PACKET_TYPE, Data);
+	if (PktType == EctPacketType_Event)
+		Status |= NVEC_TRANSPORT_STATUS_EVENT_RECEIVE_COMPLETE;
+	else
+		Status |= NVEC_TRANSPORT_STATUS_RESPONSE_RECEIVE_COMPLETE;
+	}
+
+	// Clear Send Complete Event.
+	t->Status = 0;
+	return Status;
 }
 
 NvError

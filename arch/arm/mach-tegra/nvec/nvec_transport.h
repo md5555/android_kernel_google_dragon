@@ -105,6 +105,9 @@ typedef struct NvEcTransportRec *NvEcTransportHandle;
  * all bit fields are cleared on read
  */
 
+/// the AP has sent maximum number of NACKs for a packet
+#define NVEC_TRANSPORT_STATUS_EVENT_PACKET_MAX_NACK     0x40
+
 /// an error occurred while receiving a event packet (if nonzero)
 /// this bit is only meaningful if the EVENT_RECEIVE_COMPLETE bit is set
 #define NVEC_TRANSPORT_STATUS_EVENT_RECEIVE_ERROR      0x20
