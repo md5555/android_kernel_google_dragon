@@ -407,6 +407,8 @@ extern NvRmDeviceHandle s_hRmGlobal;
 #define aa							('z'+1) // GPIO port AA
 #define ab							('z'+2) // GPIO port AB
 
+#define AVP_CONTEXT_SAVE_AREA_SIZE 	4096
+
 //------------------------------------------------------------------------------
 // Wakeup source table macros
 //------------------------------------------------------------------------------

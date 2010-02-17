@@ -24,8 +24,10 @@
 
 extern void NvPrivAp20MaskIrq(unsigned int irq);
 extern void NvPrivAp20UnmaskIrq(unsigned int irq);
+extern void NvPrivGpioUnMaskIrq(unsigned int irq);
 extern int enter_power_state(PowerState state, unsigned int proc_id);
 extern void prepare_for_wb0(void);
+extern void prepare_for_wb1(void);
 extern NvU32* perform_context_operation(PowerModuleContext Context);
 
 void cpu_ap20_do_lp2(void);
@@ -44,6 +46,7 @@ void shadow_lp0_scratch_regs(void);
 extern NvRmDeviceHandle s_hRmGlobal;
 
 uintptr_t g_resume = 0, g_contextSavePA = 0, g_contextSaveVA = 0;
+uintptr_t g_iramContextSaveVA = 0;
 NvU32 g_modifiedPlls;
 NvU32 g_wakeupCcbp = 0, g_NumActiveCPUs, g_Sync = 0, g_ArmPerif = 0;
 NvU32 g_enterLP2PA = 0;
@@ -93,6 +96,9 @@ static const struct wakeup_source s_WakeupSources[] =
 #define WAKEUP_SOURCE_INT_RTC   16
 #define INVALID_IRQ				(0xFFFF)
 #define AP20_BASE_PA_BOOT_INFO	0x40000000
+#define MAX_IRQ_CONTROLLERS	4
+#define MAX_IRQ	(32*(MAX_IRQ_CONTROLLERS+1))
+
 //IRQs of external wake events.
 static NvIrqNumber s_WakeupIrqTable[NV_ARRAY_SIZE(s_WakeupSources)];
 
@@ -163,6 +169,113 @@ void cpu_ap20_do_lp0(void)
 	//Restore the saved module(s) context
 	//Interrupt, gpio, pin mux, clock management etc
 	perform_context_operation(PowerModuleContext_Restore);
+}
+void prepare_lp1_wake_events(void)
+{
+	NvU32 irq_count, irq;
+
+	for (irq_count=0;irq_count<NV_ARRAY_SIZE(s_WakeupIrqTable);irq_count++)
+	{
+		irq = s_WakeupIrqTable[irq_count];
+
+		if (irq != INVALID_IRQ)
+		{
+			printk("irq = %d\n", s_WakeupIrqTable[irq_count]);
+
+			if (irq < MAX_IRQ)
+				NvPrivAp20UnmaskIrq(irq);
+			else
+				NvPrivGpioUnMaskIrq(irq);
+		}
+	}
+
+	for (irq_count=0;irq_count<NV_ARRAY_SIZE(s_WakeupIrqTableEx);irq_count++)
+	{
+		irq = s_WakeupIrqTableEx[irq_count];
+		if (irq != INVALID_IRQ)
+		{
+			if (irq < MAX_IRQ)
+				NvPrivAp20UnmaskIrq(irq);
+			else
+				NvPrivGpioUnMaskIrq(irq);
+		}
+	}
+}
+
+void cpu_ap20_do_lp1(void)
+{
+	NvU32 irq, moduleId;
+	unsigned int proc_id = smp_processor_id();
+
+	prepare_for_wb1();
+	prepare_lp1_wake_events();
+
+	//Inform RM about entry to LP1 state
+	NvRmPrivPowerSetState(s_hRmGlobal, NvRmPowerState_LP1);
+
+	NvOsMemcpy((void*)g_iramContextSaveVA, (void*)g_pIRAM,
+		AVP_CONTEXT_SAVE_AREA_SIZE);
+	moduleId = NVRM_MODULE_ID(NvRmModuleID_SysStatMonitor, 0);
+	irq = NvRmGetIrqForLogicalInterrupt(s_hRmGlobal, moduleId, 0);
+
+	//Save our context ptrs to scratch regs
+	NV_REGW(s_hRmGlobal, NvRmModuleID_Pmif, 0,
+			APBDEV_PMC_SCRATCH1_0, g_resume);
+	NV_REGW(s_hRmGlobal, NvRmModuleID_Pmif, 0,
+			APBDEV_PMC_SCRATCH37_0, g_contextSavePA);
+
+	//Only CPU0 must execute the actual suspend operations
+	//CPU1 must be in the reset state before we continue LP1
+	if (!proc_id)
+	{
+		//Disable the Statistics interrupt
+		NvPrivAp20MaskIrq(irq);
+
+		do_suspend_prep();
+
+		g_modifiedPlls |= PowerPllM;
+	}
+
+	printk("entering lp1\n");
+	//Do LP2
+	enter_power_state(POWER_STATE_LP1, proc_id);
+	printk("exiting lp1\n");
+
+	if (!proc_id)
+	{
+		//We're back
+		NvPrivAp20UnmaskIrq(irq);
+
+		g_NumActiveCPUs = num_online_cpus();
+		//We're back
+		//Delay if needed
+
+		if (g_modifiedPlls & PowerPllC)
+			enable_pll(PowerPllC, NV_TRUE);
+		if (g_modifiedPlls & PowerPllM)
+			enable_pll(PowerPllM, NV_TRUE);
+		if (g_modifiedPlls & PowerPllP)
+			enable_pll(PowerPllP, NV_TRUE);
+		if (g_modifiedPlls & PowerPllX)
+			enable_pll(PowerPllX, NV_TRUE);
+
+		NvOsWaitUS(300);
+
+		//Restore burst policy
+		NV_REGW(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 0,
+				CLK_RST_CONTROLLER_CCLK_BURST_POLICY_0, g_currentCcbp);
+
+		//Restore the CoreSight clock source.
+		NV_REGW(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 0,
+				CLK_RST_CONTROLLER_CLK_SOURCE_CSITE_0, g_coreSightClock);
+	}
+
+	NvOsMemcpy((void*)g_pIRAM, (void*)g_iramContextSaveVA,
+		AVP_CONTEXT_SAVE_AREA_SIZE);
+
+	//Restore the saved module(s) context
+	//Interrupt, gpio, pin mux, clock management etc
+	perform_context_operation(PowerModuleContext_RestoreLP1);
 }
 
 void cpu_ap20_do_lp2(void)
@@ -421,10 +534,7 @@ static void create_wakeup_irqs(void)
 
 	// Create internal events those are transparent to ODM.
 	//These events will always be enabled.
-	s_WakeupIrqTable[WAKEUP_SOURCE_INT_RTC] =
-	NvRmGetIrqForLogicalInterrupt(s_hRmGlobal,
-		s_WakeupSources[WAKEUP_SOURCE_INT_RTC].Module,
-		s_WakeupSources[WAKEUP_SOURCE_INT_RTC].Index);
+	//Nothing for now.
 
 	return;
 fail:

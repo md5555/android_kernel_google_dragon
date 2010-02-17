@@ -48,7 +48,6 @@ void prepare_for_wb0(void);
 struct power_context *s_pModulesContextAnchor = NULL;
 extern NvU32 g_AvpWarmbootEntry;
 
-#define WORKAROUND_573705 1
 #define MODULE_CONTEXT_SAVE_AREA_SIZE 4096
 
 static void update_registers_for_lp0(void)
@@ -465,7 +464,6 @@ static NvU32* save_intc_context(
 		break;
 
 	case PowerModuleContext_DisableInterrupt:
-		#if !WORKAROUND_573705
 		//For each instance...
 		for (Instance = 0; Instance < Instances; ++Instance, ++pBase)
 		{
@@ -476,7 +474,6 @@ static NvU32* save_intc_context(
 			NV_ICTLR_REGW(*pBase, CPU_IER_CLR, ~0);
 			NV_ICTLR_REGW(*pBase, COP_IER_CLR, ~0);
 		}
-		#endif
 		break;
 
 	default:
@@ -818,7 +815,6 @@ static NvU32* save_gpio_context(
 		if (pBase == NULL)
 			goto fail;
 
-		#if !WORKAROUND_573705
 		//For each instance...
 		for (Instance = 0; Instance < Instances; ++Instance, ++pBase)
 		{
@@ -833,7 +829,6 @@ static NvU32* save_gpio_context(
 			NV_GPIO_REGW(*pBase, INT_ENB_2, 0);
 			NV_GPIO_REGW(*pBase, INT_ENB_3, 0);
 		}
-		#endif
 		break;
 	default:
 		break;
@@ -1196,4 +1191,10 @@ void prepare_for_wb0(void)
 	//Save module context that should be restored after LP0
 	//Interrupt, gpio, pin mux, clock management etc
 	perform_context_operation(PowerModuleContext_Save);
+}
+
+void prepare_for_wb1(void)
+{
+	perform_context_operation(PowerModuleContext_SaveLP1);
+	perform_context_operation(PowerModuleContext_DisableInterrupt);
 }

@@ -20,25 +20,23 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#include "nvos.h"
-#include "nvrm_init.h"
-#include "nvrm_drf.h"
 #include "ap20/arapbpm.h"
 #include "nvrm_module.h"
 #include "ap20/arflow_ctlr.h"
-#include "nvrm_hardware_access.h"
-#include "nvrm_power_private.h"
 #include "nvbootargs.h"
 #include "nvrm_memmgr.h"
+#include "power.h"
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
 #include <linux/wakelock.h>
 
 extern NvRmDeviceHandle s_hRmGlobal;
 extern void cpu_ap20_do_lp2(void);
+extern void cpu_ap20_do_lp1(void);
 extern void cpu_ap20_do_lp0(void);
 extern void resume(unsigned int state);
 extern uintptr_t g_resume, g_contextSavePA, g_contextSaveVA;
+extern uintptr_t g_iramContextSaveVA;
 extern NvU32 g_NumActiveCPUs, g_ArmPerif;
 extern NvU32 g_enterLP2PA;
 extern volatile void *g_pPMC, *g_pAHB, *g_pCLK_RST_CONTROLLER;
@@ -51,7 +49,6 @@ extern struct wake_lock main_wake_lock;
 #define CPU_CONTEXT_SAVE_AREA_SIZE 4096
 #define TEMP_SAVE_AREA_SIZE 16
 #define ENABLE_LP2 1
-#define ENABLE_LP0 0
 #define NV_POWER_LP2_IDLE_THRESHOLD_MS 700
 #define NV_POWER_IDLE_WINDOW_SIZE 100
 #define MAX_LP2_TIME_US 1000000
@@ -211,6 +208,8 @@ void __init NvAp20InitFlowController(void)
     g_resume = virt_to_phys((void*)exit_power_state);
     g_contextSaveVA =
         (uintptr_t)kmalloc(CPU_CONTEXT_SAVE_AREA_SIZE, GFP_ATOMIC);
+    g_iramContextSaveVA =
+        (uintptr_t)kmalloc(AVP_CONTEXT_SAVE_AREA_SIZE, GFP_ATOMIC);
     g_contextSavePA = virt_to_phys((void*)g_contextSaveVA);
     g_NumActiveCPUs = num_online_cpus();
     g_enterLP2PA = virt_to_phys((void*)enter_lp2);
@@ -227,10 +226,8 @@ void __init NvAp20InitFlowController(void)
         g_AvpWarmbootEntry = NvRmMemPin(s_hWarmboot);
     }
 
-#if ENABLE_LP0
     module_context_init();
     power_lp0_init();
-#endif
 }
 
 /*
