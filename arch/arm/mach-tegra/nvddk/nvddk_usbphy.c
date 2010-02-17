@@ -692,6 +692,10 @@ NvDdkUsbPhyPowerUp(
     NV_CHECK_ERROR_CLEANUP(hUsbPhy->PowerUp(hUsbPhy));
     hUsbPhy->IsPhyPoweredUp = NV_TRUE;
     hUsbPhy->IsHostMode = IsHostMode;
+    if (hUsbPhy->IsHostMode)
+    {
+        hUsbPhy->RestoreContext(hUsbPhy);
+    }
     // signal to set the busy hints and vbus
     NvOsSemaphoreSignal(hUsbPhy->HelperThreadSema);
 
@@ -715,7 +719,10 @@ NvDdkUsbPhyPowerDown(
 
     if (!hUsbPhy->IsPhyPoweredUp)
         return e;
-
+    if (hUsbPhy->IsHostMode)
+    {
+        hUsbPhy->SaveContext(hUsbPhy);
+    }
     // Power down the USB Phy
     NV_CHECK_ERROR_CLEANUP(hUsbPhy->PowerDown(hUsbPhy));
 

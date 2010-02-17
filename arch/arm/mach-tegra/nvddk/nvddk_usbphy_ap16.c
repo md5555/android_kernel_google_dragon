@@ -1007,7 +1007,21 @@ Ap16UsbPhyClose(
     NV_ASSERT_SUCCESS(Ap16UsbPhyPowerDown(pUsbPhy));
 }
 
-void 
+static void
+Ap16PhySaveContext(
+    NvDdkUsbPhy *pUsbPhy)
+{
+    // return
+}
+
+static void
+Ap16PhyRestoreContext(
+    NvDdkUsbPhy *pUsbPhy)
+{
+    // return
+}
+
+void
 Ap16UsbPhyOpenHwInterface(
     NvDdkUsbPhy *pUsbPhy)
 {
@@ -1016,8 +1030,9 @@ Ap16UsbPhyOpenHwInterface(
     pUsbPhy->Ioctl = Ap16UsbPhyIoctl;
     pUsbPhy->WaitForStableClock = Ap16UsbPhyWaitForStableClock;
     pUsbPhy->CloseHwInterface = Ap16UsbPhyClose;
+    pUsbPhy->SaveContext = Ap16PhySaveContext;
+    pUsbPhy->RestoreContext = Ap16PhyRestoreContext;
 
     Ap16UsbPhyReadXcvrSetupValueFromFuses(pUsbPhy);
 }
-
 

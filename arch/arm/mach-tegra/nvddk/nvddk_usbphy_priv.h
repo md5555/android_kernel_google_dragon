@@ -66,6 +66,30 @@ enum {USB_HW_MIN_SYSTEM_FREQ_KH = 100000};
 enum {USB_PHY_HW_TIMEOUT_US = 1000000};
 
 /**
+ *  Maximum elements in the controller context
+ */
+enum {USB_PHY_MAX_CONTEXT_REGS = 10};
+
+/**
+ * Defines possible USB Port Speed types.
+ */
+typedef enum
+{
+    /// Defines the port full speed.
+    NvDdkUsbPhyPortSpeedType_Full = 0,
+
+    /// Defines the port low speed.
+    NvDdkUsbPhyPortSpeedType_Low,
+
+    /// Defines the port high speed.
+    NvDdkUsbPhyPortSpeedType_High,
+
+    /// Ignore -- Forces compilers to make 32-bit enums.
+    NvDdkUsbPhyPortSpeedType_Force32 = 0x7FFFFFF
+} NvDdkUsbPhyPortSpeedType;
+
+
+/**
  * USB Phy capabilities structure
  */
 typedef struct NvDdkUsbPhyCapabilitiesRec
@@ -88,6 +112,21 @@ typedef struct NvDdkUsbPhyUtmiPadConfigRec
     // Utmi Pad On reference count
     NvU32 PadOnRefCount;
 } NvDdkUsbPhyUtmiPadConfig;
+
+/**
+ * USB Controller Context
+ */
+typedef struct NvDdkUsbPhyControllerContextRec
+{
+    /// Inidcates USB phy controller context is valid or not
+    NvBool IsValid;
+    /// USB Regsisters
+    NvU32 UsbRegs[USB_PHY_MAX_CONTEXT_REGS];
+    ///  Vlaid Register count
+    NvU16 UsbRegCount;
+    /// USB Port speed
+    NvDdkUsbPhyPortSpeedType UsbPortSpeed;
+} NvDdkUsbPhyControllerContext;
 
 /**
  * Usb Phy record structure.
@@ -126,6 +165,8 @@ typedef struct NvDdkUsbPhyRec
     NvBool IsPhyPoweredUp;
     // Utmpi Pad Config control structure
     NvDdkUsbPhyUtmiPadConfig *pUtmiPadConfig;
+    // Usb Controller context
+    NvDdkUsbPhyControllerContext Context;
     // Thread ID for the helper thread
     NvOsThreadHandle hThreadId;
     // semphore for signaling the thread
@@ -143,6 +184,10 @@ typedef struct NvDdkUsbPhyRec
     NvError (*WaitForStableClock)(NvDdkUsbPhyHandle hUsbPhy);
     // Pointer to the h/w specific CloseHwInterface function.
     void (*CloseHwInterface)(NvDdkUsbPhyHandle hUsbPhy);
+    // Pointer to save context function
+    void (* SaveContext)(NvDdkUsbPhyHandle hUsbPhy);
+    // Pointer to restore context function
+    void (* RestoreContext)(NvDdkUsbPhyHandle hUsbPhy);
     // Pointer to the h/w specific Ioctl function.
     NvError (*Ioctl)(NvDdkUsbPhyHandle hUsbPhy,
         NvDdkUsbPhyIoctlType IoctlType,

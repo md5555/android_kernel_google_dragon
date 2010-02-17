@@ -42,6 +42,7 @@
 #include "nvrm_module.h"
 #include "nvrm_drf.h"
 #include "ap20/arusb.h"
+#include "ap20/arapb_misc.h"
 #include "nvrm_hardware_access.h"
 #include "nvddk_usbphy_priv.h"
 
@@ -166,6 +167,12 @@
 #define USB_UTMIP_REG_UPDATE_NUM(reg, field, num) \
     USB_UTMIP_REG_WR(reg, USB_UTMIP_REG_SET_DRF_NUM(reg, field, num))
 
+/* Defines for MISC register access */
+#define USB_MISC_REGR(pUsbPhy, offset) \
+    NV_READ32(pUsbPhy->MiscVirAdr + offset/4)
+
+#define USB_MISC_REGW(pUsbPhy, offset, value) \
+    NV_WRITE32(pUsbPhy->MiscVirAdr + offset/4, value)
 
 /**
  * Structure defining the fields for USB UTMI clocks delay Parameters.
@@ -717,18 +724,24 @@ Ap20UsbPhyUlpiLinkModeConfigure(
         {
             RegVal = USB_REG_RD(ULPI_VIEWPORT);
         } while (USB_DRF_VAL(ULPI_VIEWPORT, ULPI_RUN, RegVal));
+
+        // enabling WKCN/WKDS/WKOC bit
+        RegVal = USB_REG_RD(PORTSC1);
+        RegVal = USB_FLD_SET_DRF_DEF(PORTSC1, WKCN, ENABLE, RegVal);
+        RegVal = USB_FLD_SET_DRF_DEF(PORTSC1, WKDS, ENABLE, RegVal);
+        RegVal = USB_FLD_SET_DRF_DEF(PORTSC1, WKOC, ENABLE, RegVal);
+        USB_REG_WR(PORTSC1, RegVal);
     }
     else
     {
          // Resetting  the ULPI register IndicatorPassThru
         RegVal = USB_REG_RD(ULPI_VIEWPORT);
-        RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_WAKEUP, CLEAR, RegVal); 
-        RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_RUN, SET, RegVal); 
-        RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_RD_WR, WRITE, RegVal); 
+        RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_WAKEUP, CLEAR, RegVal);
+        RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_RUN, SET, RegVal);
+        RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_RD_WR, WRITE, RegVal);
         RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_PORT, SW_DEFAULT, RegVal);
-        
-        RegVal = USB_REG_SET_DRF_NUM(ULPI_VIEWPORT, ULPI_REG_ADDR, 0x9, RegVal); 
-        RegVal = USB_REG_SET_DRF_NUM(ULPI_VIEWPORT, ULPI_DATA_WR, 0x40, RegVal); 
+        RegVal = USB_REG_SET_DRF_NUM(ULPI_VIEWPORT, ULPI_REG_ADDR, 0x9, RegVal);
+        RegVal = USB_REG_SET_DRF_NUM(ULPI_VIEWPORT, ULPI_DATA_WR, 0x40, RegVal);
         USB_REG_WR(ULPI_VIEWPORT, RegVal);
 
         // wait for run bit to be cleared
@@ -739,13 +752,12 @@ Ap20UsbPhyUlpiLinkModeConfigure(
 
         // Resetting ULPI register UseExternalVbusIndicator
         RegVal = USB_REG_RD(ULPI_VIEWPORT);
-        RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_WAKEUP, CLEAR, RegVal); 
-        RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_RUN, SET, RegVal); 
-        RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_RD_WR, WRITE, RegVal); 
+        RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_WAKEUP, CLEAR, RegVal);
+        RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_RUN, SET, RegVal);
+        RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_RD_WR, WRITE, RegVal);
         RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_PORT, SW_DEFAULT, RegVal);
-        RegVal = USB_REG_SET_DRF_NUM(ULPI_VIEWPORT, ULPI_REG_ADDR, 0xC, RegVal); 
-        RegVal = USB_REG_SET_DRF_NUM(ULPI_VIEWPORT, ULPI_DATA_WR, 0x80, RegVal); 
-
+        RegVal = USB_REG_SET_DRF_NUM(ULPI_VIEWPORT, ULPI_REG_ADDR, 0xC, RegVal);
+        RegVal = USB_REG_SET_DRF_NUM(ULPI_VIEWPORT, ULPI_DATA_WR, 0x80, RegVal);
         USB_REG_WR(ULPI_VIEWPORT, RegVal);
 
         // wait for run bit to be cleared
@@ -753,6 +765,94 @@ Ap20UsbPhyUlpiLinkModeConfigure(
         {
             RegVal = USB_REG_RD(ULPI_VIEWPORT);
         } while (USB_DRF_VAL(ULPI_VIEWPORT, ULPI_RUN, RegVal));
+
+        // USB Interrupt Rising - making sure vbus comparator and id are off
+        RegVal = USB_REG_RD(ULPI_VIEWPORT);
+        RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_WAKEUP, CLEAR, RegVal);
+        RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_RUN, SET, RegVal);
+        RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_RD_WR, WRITE, RegVal);
+        RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_PORT, SW_DEFAULT, RegVal);
+        RegVal = USB_REG_SET_DRF_NUM(ULPI_VIEWPORT, ULPI_REG_ADDR, 0x0d, RegVal);
+        RegVal = USB_REG_SET_DRF_NUM(ULPI_VIEWPORT, ULPI_DATA_WR, 0x00, RegVal);
+        USB_REG_WR(ULPI_VIEWPORT, RegVal);
+
+        // wait for run bit to be cleared
+        do
+        {
+            RegVal = USB_REG_RD(ULPI_VIEWPORT);
+        } while (USB_DRF_VAL(ULPI_VIEWPORT, ULPI_RUN, RegVal));
+
+        // USB Interrupt Falling
+        RegVal = USB_REG_RD(ULPI_VIEWPORT);
+        RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_WAKEUP, CLEAR, RegVal);
+        RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_RUN, SET, RegVal);
+        RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_RD_WR, WRITE, RegVal);
+        RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_PORT, SW_DEFAULT, RegVal);
+        RegVal = USB_REG_SET_DRF_NUM(ULPI_VIEWPORT, ULPI_REG_ADDR, 0x10, RegVal);
+        RegVal = USB_REG_SET_DRF_NUM(ULPI_VIEWPORT, ULPI_DATA_WR, 0x00, RegVal);
+        USB_REG_WR(ULPI_VIEWPORT, RegVal);
+
+        // wait for run bit to be cleared
+        do
+        {
+            RegVal = USB_REG_RD(ULPI_VIEWPORT);
+        } while (USB_DRF_VAL(ULPI_VIEWPORT, ULPI_RUN, RegVal));
+
+        //Carkit Control
+        RegVal = USB_REG_RD(ULPI_VIEWPORT);
+        RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_WAKEUP, CLEAR, RegVal);
+        RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_RUN, SET, RegVal);
+        RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_RD_WR, WRITE, RegVal);
+        RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_PORT, SW_DEFAULT, RegVal);
+        RegVal = USB_REG_SET_DRF_NUM(ULPI_VIEWPORT, ULPI_REG_ADDR, 0x19, RegVal);
+        RegVal = USB_REG_SET_DRF_NUM(ULPI_VIEWPORT, ULPI_DATA_WR, 0x00, RegVal);
+        USB_REG_WR(ULPI_VIEWPORT, RegVal);
+
+        // wait for run bit to be cleared
+        do
+        {
+            RegVal = USB_REG_RD(ULPI_VIEWPORT);
+        } while (USB_DRF_VAL(ULPI_VIEWPORT, ULPI_RUN, RegVal));
+
+        // Disabling ID float Rise/Fall (Carkit Enable)
+        RegVal = USB_REG_RD(ULPI_VIEWPORT);
+        RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_WAKEUP, CLEAR, RegVal);
+        RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_RUN, SET, RegVal);
+        RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_RD_WR, WRITE, RegVal);
+        RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_PORT, SW_DEFAULT, RegVal);
+        RegVal = USB_REG_SET_DRF_NUM(ULPI_VIEWPORT, ULPI_REG_ADDR, 0x1D, RegVal);
+        RegVal = USB_REG_SET_DRF_NUM(ULPI_VIEWPORT, ULPI_DATA_WR, 0x00, RegVal);
+        USB_REG_WR(ULPI_VIEWPORT, RegVal);
+
+        // wait for run bit to be cleared
+        do
+        {
+            RegVal = USB_REG_RD(ULPI_VIEWPORT);
+        } while (USB_DRF_VAL(ULPI_VIEWPORT, ULPI_RUN, RegVal));
+
+        // USB I/O and power
+        RegVal = USB_REG_RD(ULPI_VIEWPORT);
+        RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_WAKEUP, CLEAR, RegVal);
+        RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_RUN, SET, RegVal);
+        RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_RD_WR, WRITE, RegVal);
+        RegVal = USB_FLD_SET_DRF_DEF(ULPI_VIEWPORT, ULPI_PORT, SW_DEFAULT, RegVal);
+        RegVal = USB_REG_SET_DRF_NUM(ULPI_VIEWPORT, ULPI_REG_ADDR, 0x39, RegVal);
+        RegVal = USB_REG_SET_DRF_NUM(ULPI_VIEWPORT, ULPI_DATA_WR, 0x00, RegVal);
+        USB_REG_WR(ULPI_VIEWPORT, RegVal);
+
+        // wait for run bit to be cleared
+        do
+        {
+            RegVal = USB_REG_RD(ULPI_VIEWPORT);
+        } while (USB_DRF_VAL(ULPI_VIEWPORT, ULPI_RUN, RegVal));
+
+        // clear WKCN/WKDS/WKOC wake-on events that can cause the USB
+        // Controller to immediately bring the ULPI PHY out of low power mode
+        RegVal = USB_REG_RD(PORTSC1);
+        RegVal = USB_FLD_SET_DRF_DEF(PORTSC1, WKCN, DISBLE, RegVal);
+        RegVal = USB_FLD_SET_DRF_DEF(PORTSC1, WKDS, DISBLE, RegVal);
+        RegVal = USB_FLD_SET_DRF_DEF(PORTSC1, WKOC, DISBLE, RegVal);
+        USB_REG_WR(PORTSC1, RegVal);
     }
 }
 
@@ -1198,7 +1298,169 @@ Ap20UsbPhyClose(
     NV_ASSERT_SUCCESS(Ap20UsbPhyPowerDown(pUsbPhy));
 }
 
-void 
+/* static void
+PrintRegs(
+    NvDdkUsbPhy *pUsbPhy)
+{
+    NvOsDebugPrintf("********** USB REG DUMP - Start\n");
+    NvOsDebugPrintf("USBMODE:          0x%x\n",USB_REG_RD(USBMODE));
+    NvOsDebugPrintf("OTGSC:            0x%x\n",USB_REG_RD(OTGSC));
+    NvOsDebugPrintf("TXFILLTUNING:     0x%x\n",USB_REG_RD(TXFILLTUNING));
+    NvOsDebugPrintf("ASYNCLISTADDR:    0x%x\n",USB_REG_RD(ASYNCLISTADDR));
+    NvOsDebugPrintf("PERIODICLISTBASE: 0x%x\n",USB_REG_RD(PERIODICLISTBASE));
+    NvOsDebugPrintf("USBCMD:           0x%x\n",USB_REG_RD(USBCMD));
+    NvOsDebugPrintf("USBINTR:          0x%x\n",USB_REG_RD(USBINTR));
+    NvOsDebugPrintf("USBSTS:           0x%x\n",USB_REG_RD(USBSTS));
+    NvOsDebugPrintf("PORTSC1:          0x%x\n",USB_REG_RD(PORTSC1));
+    NvOsDebugPrintf("********** USB REG DUMP - End\n");
+} */
+
+static void
+Ap20PhyRemoveTristate(
+    NvDdkUsbPhy *pUsbPhy)
+{
+    NvU32 RegVal = 0;
+    // Remove ULPI pads from tristate.  This step will bring the PHY out of suspend, since
+    // the controller will start driving the ULPI pads.
+    RegVal = USB_MISC_REGR(pUsbPhy, APB_MISC_PP_TRISTATE_REG_B_0);
+    RegVal = NV_FLD_SET_DRF_DEF(APB_MISC_PP, TRISTATE_REG_B, Z_UAA, NORMAL, RegVal);
+    RegVal = NV_FLD_SET_DRF_DEF(APB_MISC_PP, TRISTATE_REG_B, Z_UAB, NORMAL, RegVal);
+    RegVal = NV_FLD_SET_DRF_DEF(APB_MISC_PP, TRISTATE_REG_B, Z_UAC, NORMAL, RegVal);
+    USB_MISC_REGW(pUsbPhy, APB_MISC_PP_TRISTATE_REG_B_0, RegVal);
+    do
+    {
+        RegVal = USB_IF_REG_RD(SUSP_CTRL);
+        RegVal = NV_DRF_VAL(USB2_IF_USB,SUSP_CTRL, USB_PHY_CLK_VALID, RegVal);
+    } while (RegVal != USB2_IF_USB_SUSP_CTRL_0_USB_PHY_CLK_VALID_SET);
+}
+
+static void
+Ap20PhyRestoreRegs(
+    NvDdkUsbPhy *pUsbPhy)
+{
+    NvU16 RegCount = 0;
+
+    RegCount = pUsbPhy->Context.UsbRegCount;
+    RegCount--;
+    USB_REG_WR(USBMODE, pUsbPhy->Context.UsbRegs[RegCount--]);
+    USB_REG_WR(OTGSC, pUsbPhy->Context.UsbRegs[RegCount--]);
+    USB_REG_WR(TXFILLTUNING, pUsbPhy->Context.UsbRegs[RegCount--]);
+    USB_REG_WR(ASYNCLISTADDR, pUsbPhy->Context.UsbRegs[RegCount--]);
+    USB_REG_WR(PERIODICLISTBASE, pUsbPhy->Context.UsbRegs[RegCount--]);
+    // Restore interrupt context later
+    RegCount--;
+    USB_REG_WR(USBCMD, pUsbPhy->Context.UsbRegs[RegCount--]);
+
+}
+
+static void
+Ap20PhySaveContext(
+    NvDdkUsbPhy *pUsbPhy)
+{
+    NvU16 RegCount = 0;
+
+    pUsbPhy->Context.UsbPortSpeed = (NvDdkUsbPhyPortSpeedType)USB_REG_READ_VAL(PORTSC1, PSPD);
+
+    // If no device connection or invalid speeds just return
+    if( pUsbPhy->Context.UsbPortSpeed > NvDdkUsbPhyPortSpeedType_High)
+    {
+        pUsbPhy->Context.IsValid = NV_FALSE;
+        return;
+    }
+    // PrintRegs(pUsbPhy);
+
+    pUsbPhy->Context.UsbRegs[RegCount++] = USB_REG_RD(USBCMD);
+    pUsbPhy->Context.UsbRegs[RegCount++] = USB_REG_RD(USBINTR);
+    pUsbPhy->Context.UsbRegs[RegCount++] = USB_REG_RD(PERIODICLISTBASE);
+    pUsbPhy->Context.UsbRegs[RegCount++] = USB_REG_RD(ASYNCLISTADDR);
+    pUsbPhy->Context.UsbRegs[RegCount++] = USB_REG_RD(TXFILLTUNING);
+    pUsbPhy->Context.UsbRegs[RegCount++] = USB_REG_RD(OTGSC);
+    pUsbPhy->Context.UsbRegs[RegCount++] = USB_REG_RD(USBMODE);
+    pUsbPhy->Context.UsbRegCount = RegCount;
+    pUsbPhy->Context.IsValid = NV_TRUE;
+}
+
+static void
+Ap20PhyRestoreContext(
+    NvDdkUsbPhy *pUsbPhy)
+{
+    NvU32 RegVal = 0;
+
+    /* If any saved context is present, restore it */
+    // In case of no valid context just return
+    if (!pUsbPhy->Context.IsValid)
+        return;
+
+    // Restore register context
+    Ap20PhyRestoreRegs(pUsbPhy);
+
+    // Enable Port Power
+    USB_REG_UPDATE_DEF(PORTSC1, PP, POWERED);
+    NvOsWaitUS(10);
+
+    // Program the field PTC in PORTSC based on the saved speed mode
+    RegVal = USB_REG_RD(PORTSC1);
+    if (pUsbPhy->Context.UsbPortSpeed == NvDdkUsbPhyPortSpeedType_High)
+    {
+        RegVal = USB_REG_SET_DRF_NUM(PORTSC1, PTC, 0x05, RegVal);
+    }
+    else if (pUsbPhy->Context.UsbPortSpeed == NvDdkUsbPhyPortSpeedType_Full)
+    {
+        RegVal = USB_REG_SET_DRF_NUM(PORTSC1, PTC, 0x06, RegVal);
+    }
+    else if (pUsbPhy->Context.UsbPortSpeed == NvDdkUsbPhyPortSpeedType_Low)
+    {
+        RegVal = USB_REG_SET_DRF_NUM(PORTSC1, PTC, 0x07, RegVal);
+    }
+    else
+    {
+        NV_ASSERT(!"\n speed is not configureed properly");
+    }
+    USB_REG_WR(PORTSC1, RegVal);
+    NvOsWaitUS(10);
+
+    // Disable test mode by setting PTC field to NORMAL_OP
+    USB_REG_UPDATE_DEF(PORTSC1, PTC, NORMAL_OP);
+
+    // Poll until CCS is enabled
+    do
+    {
+         RegVal = USB_REG_RD(PORTSC1);
+     } while (!USB_DRF_VAL(PORTSC1, CCS, RegVal));
+
+    // Poll until PE is enabled
+    do
+    {
+        RegVal = USB_REG_RD(PORTSC1);
+    } while (!USB_DRF_VAL(PORTSC1, PE, RegVal));
+
+    // Clear the PCI status, to avoid an interrupt taken upon resume
+    USB_REG_UPDATE_DEF(USBSTS, PCI, PORT_CHANGE);
+    do
+    {
+        RegVal = USB_REG_RD(USBSTS);
+    } while (USB_DRF_VAL(USBSTS, PCI, RegVal));
+
+    // Put controller in suspend mode by writing 1 to SUSP bit of PORTSC
+    USB_REG_UPDATE_DEF(PORTSC1, SUSP, SUSPEND);
+    // Wait until port suspend completes
+    while (!USB_REG_READ_VAL(PORTSC1, SUSP))
+    {
+        NvOsWaitUS(1);
+    };
+    if (pUsbPhy->pProperty->UsbInterfaceType == NvOdmUsbInterfaceType_UlpiExternalPhy)
+    {
+        Ap20PhyRemoveTristate(pUsbPhy);
+    }
+
+    // Restore interrupt register
+    USB_REG_WR(USBINTR, pUsbPhy->Context.UsbRegs[1]);
+    NvOsWaitUS(10);
+
+    // PrintRegs(pUsbPhy);
+}
+
+void
 Ap20UsbPhyOpenHwInterface(
     NvDdkUsbPhy *pUsbPhy)
 {
@@ -1207,5 +1469,7 @@ Ap20UsbPhyOpenHwInterface(
     pUsbPhy->Ioctl = Ap20UsbPhyIoctl;
     pUsbPhy->WaitForStableClock = Ap20UsbPhyWaitForStableClock;
     pUsbPhy->CloseHwInterface = Ap20UsbPhyClose;
+    pUsbPhy->SaveContext = Ap20PhySaveContext;
+    pUsbPhy->RestoreContext = Ap20PhyRestoreContext;
 }
 
