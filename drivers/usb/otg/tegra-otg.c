@@ -79,6 +79,8 @@ static irqreturn_t tegra_otg_irq(int irq, void *data)
 			} else {
 				tegra_otg->otg.state = OTG_STATE_A_HOST;
 				hcd->state = HC_STATE_RUNNING;
+				/* set HCD flags to start host ISR */
+				set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
 			}
 		}
 	}
@@ -112,7 +114,10 @@ static int tegra_otg_set_peripheral(struct otg_transceiver *otg,
 	spin_lock_irqsave(&sg_tegra_otg->lock, flags);
 	/* Check if we detect any device connected */
 	if (!(temp & TEGRA_USB_ID_STATUS)) {
+		struct usb_hcd *hcd = (struct usb_hcd *)otg->host;
 		otg->state = OTG_STATE_A_HOST;
+		/* set HCD flags to start host ISR */
+		set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
 		NvDdkUsbPhyPowerUp(sg_tegra_otg->usb_phy, NV_TRUE, 0);
 	}
 	spin_unlock_irqrestore(&sg_tegra_otg->lock, flags);
