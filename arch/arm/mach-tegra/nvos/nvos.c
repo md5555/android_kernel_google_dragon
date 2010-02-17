@@ -772,6 +772,42 @@ void NvOsIntrMutexDestroy(NvOsIntrMutexHandle mutex)
         kfree(mutex);
 }
 
+typedef struct NvOsSpinMutexRec
+{
+    spinlock_t lock;
+} NvOsSpinMutex;
+
+NvError NvOsSpinMutexCreate(NvOsSpinMutexHandle *mutex)
+{
+    NvOsSpinMutex *m;
+
+    m = kzalloc( sizeof(NvOsSpinMutex), GFP_KERNEL );
+    if( !m )
+        return NvError_InsufficientMemory;
+
+    spin_lock_init( &m->lock );
+    *mutex = m;
+    return NvSuccess;
+}
+
+void NvOsSpinMutexLock(NvOsSpinMutexHandle mutex)
+{
+    NV_ASSERT( mutex );
+    spin_lock( &mutex->lock );
+}
+
+void NvOsSpinMutexUnlock(NvOsSpinMutexHandle mutex)
+{
+    NV_ASSERT( mutex );
+    spin_unlock( &mutex->lock );
+}
+
+void NvOsSpinMutexDestroy(NvOsSpinMutexHandle mutex)
+{
+    if (mutex)
+        kfree(mutex);
+}
+
 typedef struct NvOsSemaphoreRec
 {
     struct semaphore sem;
