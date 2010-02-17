@@ -269,8 +269,9 @@ static NvOsInterruptHandle s_TransportInterruptHandle = NULL;
 static NvRmTransportHandle
 FindPort(NvRmDeviceHandle hDevice, char *pPortName);
 
-static NvError
-NvRmPrivTransportSendMessage(NvRmDeviceHandle hDevice, NvU32 *message, NvU32 MessageLength);
+static NvError NvRmPrivTransportSendMessage(NvRmDeviceHandle hDevice,
+    NvU32 *messagehdr, NvU32 MessageHdrLength,
+    NvU32 *Message, NvU32 MessageLength);
 
 static void HandleAVPResetMessage(NvRmDeviceHandle hDevice);
 
@@ -1027,7 +1028,8 @@ void NvRmTransportClose(NvRmTransportHandle hPort)
     {
         RemoteMessage[0] = TransportCmd_Disconnect;
         RemoteMessage[1] = hPort->RemotePort;
-        NvRmPrivTransportSendMessage(hPort->hRmDevice, RemoteMessage, 2*sizeof(NvU32));
+        NvRmPrivTransportSendMessage(hPort->hRmDevice, RemoteMessage,
+            2*sizeof(NvU32), NULL, 0);
     }
 
     NvOsSemaphoreDestroy(hPort->hOnPushMsgSem);
@@ -1169,8 +1171,9 @@ NvRmPrivTransportWaitResponse(NvRmDeviceHandle hDevice, NvU32 *response, NvU32 R
 }
 
 
-static NvError
-NvRmPrivTransportSendMessage(NvRmDeviceHandle hDevice, NvU32 *message, NvU32 MessageLength)
+static NvError NvRmPrivTransportSendMessage(NvRmDeviceHandle hDevice,
+    NvU32 *MessageHdr, NvU32 MessageHdrLength,
+    NvU32 *Message, NvU32 MessageLength)
 {
     NvU32 ReadData;
 
@@ -1188,7 +1191,7 @@ NvRmPrivTransportSendMessage(NvRmDeviceHandle hDevice, NvU32 *message, NvU32 Mes
     }
     else
     {
-        ReadData = ((NvU32*)s_TransportInfo.pTransmitMem)[0];
+        ReadData = ((volatile NvU32*)s_TransportInfo.pTransmitMem)[0];
     }
 
     // Check for clear to send
@@ -1198,39 +1201,50 @@ NvRmPrivTransportSendMessage(NvRmDeviceHandle hDevice, NvU32 *message, NvU32 Mes
     if (s_TransportInfo.pTransmitMem == NULL)
     {
         /* QT/EMUTRANS takes this code path */
-        NvRmMemWrite(s_TransportInfo.hMessageMem, 0, message, MessageLength);
+        NvRmMemWrite(s_TransportInfo.hMessageMem, 0, MessageHdr, MessageHdrLength);
+        if (Message && MessageLength)
+        {
+            NvRmMemWrite(s_TransportInfo.hMessageMem, MessageHdrLength,
+                Message, MessageLength);
+        }
     }
     else
     {
-        NvOsMemcpy(s_TransportInfo.pTransmitMem, message, MessageLength);
+        NvOsMemcpy(s_TransportInfo.pTransmitMem, MessageHdr, MessageHdrLength);
+        if (Message && MessageLength)
+        {
+            NvOsMemcpy(s_TransportInfo.pTransmitMem + MessageHdrLength,
+                Message, MessageLength);
+        }
         NvOsFlushWriteCombineBuffer();
     }
     NvRmPrivXpcSendMessage(s_TransportInfo.hXpc, s_TransportInfo.MessageMemPhysAddr);
     return NvSuccess;
 }
 
-NvError
-NvRmTransportSendMsgInLP0(NvRmTransportHandle hPort, void *pMessageBuffer, NvU32 MessageSize)
+NvError NvRmTransportSendMsgInLP0(NvRmTransportHandle hPort,
+    void *pMessageBuffer, NvU32 MessageSize)
 {
     NvU32 ReadData;
-    NvU32 Message[3 + ((MAX_MESSAGE_LENGTH) / sizeof(NvU32))];
+    NvU32 MessageHdr[3];
 
     NV_ASSERT(pMessageBuffer);
 
-    Message[0] = TransportCmd_Message;
-    Message[1] = hPort->RemotePort;
-    Message[2] = MessageSize;
+    MessageHdr[0] = TransportCmd_Message;
+    MessageHdr[1] = hPort->RemotePort;
+    MessageHdr[2] = MessageSize;
    
-    if (MessageSize)
-        NvOsMemcpy(&Message[3], pMessageBuffer, MessageSize);
-
-    ReadData = ((NvU32*)s_TransportInfo.pTransmitMem)[0];
+    ReadData = ((volatile NvU32*)s_TransportInfo.pTransmitMem)[0];
     
     // Check for clear to send
     if ( ReadData != 0)
         return NvError_TransportMessageBoxFull;  // someone else is sending a message
 
-    NvOsMemcpy(s_TransportInfo.pTransmitMem, Message, MessageSize + 3*sizeof(NvU32));
+    NvOsMemcpy(s_TransportInfo.pTransmitMem, MessageHdr, sizeof(MessageHdr));
+    if (MessageSize) {
+        NvOsMemcpy(s_TransportInfo.pTransmitMem + sizeof(MessageHdr),
+            pMessageBuffer, MessageSize);
+    }
     NvOsFlushWriteCombineBuffer();
 
     NvRmPrivXpcSendMessage(s_TransportInfo.hXpc, s_TransportInfo.MessageMemPhysAddr);
@@ -1305,7 +1319,8 @@ NvError NvRmTransportConnect(NvRmTransportHandle hPort, NvU32 TimeoutMS)
             ConnectMessage[1] = (NvU32)hPort;
             NvOsMemcpy(&ConnectMessage[2], hPort->PortName, MAX_PORT_NAME_LENGTH);
             
-            err = NvRmPrivTransportSendMessage(hPort->hRmDevice, ConnectMessage, sizeof(ConnectMessage));
+            err = NvRmPrivTransportSendMessage(hPort->hRmDevice,
+                      ConnectMessage, sizeof(ConnectMessage), NULL, 0);
             if (!err)
             {
                 // should send back 2 words of data.  Give remote side 1000ms to respond, which should be about 100x more
@@ -1414,22 +1429,22 @@ NvRmPrivTransportSendRemoteMsg(
     NvError err;
     NvU32 StartTime;
     NvU32 CurrentTime;
-    NvU32 Message[3 + ((MAX_MESSAGE_LENGTH) / sizeof(NvU32))];
+    NvU32 MessageHdr[3];
 
     NV_ASSERT((MAX_MESSAGE_LENGTH) >= MessageSize);
 
     StartTime = NvOsGetTimeMS();
 
-    Message[0] = TransportCmd_Message;
-    Message[1] = hPort->RemotePort;
-    Message[2] = MessageSize;
+    MessageHdr[0] = TransportCmd_Message;
+    MessageHdr[1] = hPort->RemotePort;
+    MessageHdr[2] = MessageSize;
    
-    NvOsMemcpy(&Message[3], pMessageBuffer, MessageSize);
-
     for (;;)
     {
         NvOsMutexLock(s_TransportInfo.mutex);
-        err = NvRmPrivTransportSendMessage(hPort->hRmDevice, Message, MessageSize + 3*sizeof(NvU32));
+        err = NvRmPrivTransportSendMessage(hPort->hRmDevice,
+                  MessageHdr, sizeof(MessageHdr),
+                  pMessageBuffer, MessageSize);
         NvOsMutexUnlock(s_TransportInfo.mutex);
         if (err == NvSuccess)
         {
@@ -1576,6 +1591,7 @@ NvRmTransportRecvMsg(
     NV_ASSERT(pMessageSize);
 
 
+    *pMessageSize = 0;
     NvOsMutexLock(s_TransportInfo.mutex);
     if (hPort->RecvMessageQueue.ReadIndex == hPort->RecvMessageQueue.WriteIndex)
     {
@@ -1589,6 +1605,7 @@ NvRmTransportRecvMsg(
         // not enough room to copy the message
         NvOsMutexUnlock(s_TransportInfo.mutex);
         NV_ASSERT(!" RM Transport: Illegal message size. ");
+        return NvError_InvalidSize;
     }
 
 

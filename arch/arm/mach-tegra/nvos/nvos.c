@@ -349,9 +349,12 @@ void NvOsMemmove(void *dest, const void *src, size_t size)
 
 NvError NvOsCopyIn(void *pDst, const void *pSrc, size_t Bytes)
 {
+    if (!Bytes)
+        return NvSuccess;
+
     if( access_ok( VERIFY_READ, pSrc, Bytes ) )
     {
-        copy_from_user(pDst, pSrc, Bytes);
+        __copy_from_user(pDst, pSrc, Bytes);
         return NvSuccess;
     }
 
@@ -360,9 +363,12 @@ NvError NvOsCopyIn(void *pDst, const void *pSrc, size_t Bytes)
 
 NvError NvOsCopyOut(void *pDst, const void *pSrc, size_t Bytes)
 {
+    if (!Bytes)
+        return NvSuccess;
+
     if( access_ok( VERIFY_WRITE, pDst, Bytes ) )
     {
-        copy_to_user(pDst, pSrc, Bytes);
+        __copy_to_user(pDst, pSrc, Bytes);
         return NvSuccess;
     }
 
