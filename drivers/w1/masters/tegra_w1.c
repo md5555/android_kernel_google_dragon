@@ -157,6 +157,13 @@ static int tegra_w1_probe(struct platform_device *pdev)
 	dev->bus_master.write_byte = tegra_w1_write_byte;
 	dev->bus_master.reset_bus = tegra_w1_reset_bus;
 
+	if (tegra_w1_reset_bus(dev))
+	{
+		printk(KERN_INFO "No Device Present\n");
+		ret = -ENODEV;
+		goto err_device_not_found;
+	}
+
 	ret = w1_add_master_device(&dev->bus_master);
 	if (ret)
 	{
@@ -168,8 +175,10 @@ static int tegra_w1_probe(struct platform_device *pdev)
 
 	return 0;
 
-err_rmapi_failed:
 err_w1_add_master_device_failed:
+err_device_not_found:
+	NvRmOwrClose(dev->OwrHandle);
+err_rmapi_failed:
 	kfree(dev);
 	return ret;
 }
