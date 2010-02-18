@@ -48,8 +48,10 @@ char *tegra_boot_device = NULL;
 NvRmGpioHandle s_hGpioGlobal = NULL;
 
 #ifdef CONFIG_PM
-/* FIXME : Uncomment this for actual suspend/resume
-extern void tegra_set_suspend_ops(void); */
+#ifdef MACH_TEGRA_GENERIC_DEBUG
+extern int console_suspend_enabled;
+#endif
+extern void tegra_set_suspend_ops(void);
 #endif
 
 /*
@@ -911,8 +913,12 @@ void __init tegra_common_init(void)
     tegra_register_usb();
     tegra_register_w1();
 #ifdef CONFIG_PM
-	/* FIXME : Uncomment this for actual suspend/resume
-	tegra_set_suspend_ops(); */
+#ifdef MACH_TEGRA_GENERIC_DEBUG
+	/* This is needed to get prints on UART
+	 * during suspend/resume */
+	console_suspend_enabled = 0;
+#endif
+	tegra_set_suspend_ops();
 #endif
 }
 
