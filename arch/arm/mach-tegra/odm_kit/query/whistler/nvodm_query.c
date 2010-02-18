@@ -581,7 +581,7 @@ static NvOdmWakeupPadInfo s_NvOdmWakeupPadInfo[] =
     {NV_FALSE, 14, NvOdmWakeupPadPolarity_AnyEdge}, // Wake Event 14 - gp3_pv[6] (WLAN_INT)
     {NV_FALSE, 15, NvOdmWakeupPadPolarity_AnyEdge}, // Wake Event 15 - gmi_ad16  (SPI3_DOUT, DTV_SPI4_CS1)
     {NV_FALSE, 16, NvOdmWakeupPadPolarity_High},    // Wake Event 16 - rtc_irq
-    {NV_FALSE, 17, NvOdmWakeupPadPolarity_High},    // Wake Event 17 - kbc_interrupt
+    {NV_TRUE, 17, NvOdmWakeupPadPolarity_High},    // Wake Event 17 - kbc_interrupt
     {NV_FALSE, 18, NvOdmWakeupPadPolarity_Low},     // Wake Event 18 - pwr_int (PMIC_INT)
     {NV_FALSE, 19, NvOdmWakeupPadPolarity_High},    // Wake Event 19 - usb_vbus_wakeup[0]
     {NV_FALSE, 20, NvOdmWakeupPadPolarity_High},    // Wake Event 20 - usb_vbus_wakeup[1]
@@ -1169,9 +1169,9 @@ const NvOdmSocPowerStateInfo* NvOdmQueryLowestSocPowerState(void)
         PowerStateInfo.LowestPowerState =  ((LPStateSelection == TEGRA_DEVKIT_BCT_CUSTOPT_0_LPSTATE_LP1)?
                                             NvOdmSocPowerState_Suspend : NvOdmSocPowerState_DeepSleep);
 #endif
-        PowerStateInfo.LowestPowerState = NvOdmSocPowerState_DeepSleep;
+        PowerStateInfo.LowestPowerState = NvOdmSocPowerState_Suspend;
         // Idle threshold (Msecs) for the lowest power state.
-        PowerStateInfo.IdleThreshold = 525;
+        //PowerStateInfo.IdleThreshold = 525;
         pPowerStateInfo = (const NvOdmSocPowerStateInfo*) &PowerStateInfo;
     }
 
