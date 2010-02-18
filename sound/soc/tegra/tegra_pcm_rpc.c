@@ -21,21 +21,22 @@
  */
 
 #include "tegra_transport.h"
+
 static struct tegra_audio_data* tegra_snd_cx = NULL;
 
 static const struct snd_pcm_hardware tegra_pcm_hardware = {
-	.info = SNDRV_PCM_INFO_INTERLEAVED | SNDRV_PCM_INFO_PAUSE |
+	.info = SNDRV_PCM_INFO_INTERLEAVED | SNDRV_PCM_INFO_PAUSE |\
 	        SNDRV_PCM_INFO_RESUME,
-	.formats = SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S24_LE |
-		   SNDRV_PCM_FMTBIT_S32_LE,
-	.channels_min = 2,
+	.rates = TEGRA_SAMPLE_RATES,
+	.formats = TEGRA_SAMPLE_FORMATS,
+	.channels_min = 1,
 	.channels_max = 2,
-	.buffer_bytes_max = 16*1024,
-	.period_bytes_min = 4*1024,
-	.period_bytes_max = 4*1024,
+	.buffer_bytes_max = 32*1024,
+	.period_bytes_min = TEGRA_DEFAULT_BUFFER_SIZE,
+	.period_bytes_max = TEGRA_DEFAULT_BUFFER_SIZE,
 	.periods_min = 4,
-	.periods_max = 4,
-	.fifo_size = 4,
+	.periods_max = 8,
+	.fifo_size = 8,
 };
 
 
@@ -137,16 +138,23 @@ static int play_thread( void *arg)
 
 		if (buffer_to_prime == buffer_in_queue) {
 			e = NvOsSemaphoreWaitTimeout(prtd->play_sema,
-			                                 prtd->timeout);
+		                                 prtd->timeout);
 			if (e != NvSuccess) {
 				snd_printk(KERN_ERR "sema wait Fail\n");
-				return  -ETIMEDOUT;
+				goto EXIT;
 			}
 
 			buffer_in_queue--;
 
-			prtd->cur_pos += bytes_to_frames(runtime,
-						     TEGRA_DEFAULT_BUFFER_SIZE);
+			if ((frames_to_bytes(runtime, prtd->cur_pos) +
+				TEGRA_DEFAULT_BUFFER_SIZE) > rtbuffersize) {
+				size = rtbuffersize -
+				       frames_to_bytes(runtime, prtd->cur_pos);
+			} else {
+				size = TEGRA_DEFAULT_BUFFER_SIZE;
+			}
+
+			prtd->cur_pos += bytes_to_frames(runtime, size);
 
 			if (prtd->cur_pos < prtd->last_pos) {
 				period_offset = (runtime->buffer_size +
@@ -159,6 +167,7 @@ static int play_thread( void *arg)
 			if (period_offset >= runtime->period_size) {
 				prtd->last_pos = prtd->cur_pos;
 				snd_pcm_period_elapsed(substream);
+
 			}
 
 			if (prtd->cur_pos >= runtime->buffer_size) {
@@ -286,9 +295,15 @@ static int rec_thread( void *arg )
 
 			buffer_in_queue--;
 
-			prtd->cur_pos += bytes_to_frames(
-						runtime,
-						TEGRA_DEFAULT_BUFFER_SIZE);
+			if ((frames_to_bytes(runtime, prtd->cur_pos) +
+				TEGRA_DEFAULT_BUFFER_SIZE) > rtbuffersize) {
+				size = rtbuffersize -
+				       frames_to_bytes(runtime, prtd->cur_pos);
+			} else {
+				size = TEGRA_DEFAULT_BUFFER_SIZE;
+			}
+
+			prtd->cur_pos += bytes_to_frames(runtime, size);
 
 			if (prtd->cur_pos < prtd->last_pos) {
 				period_offset = (runtime->buffer_size +

@@ -37,7 +37,6 @@
 #include "mach/nvrm_linux.h"
 #include "nvrm_memmgr.h"
 #include "nvassert.h"
-
 #include "tegra_transport.h"
 
 extern struct snd_soc_dai tegra_i2s_rpc_dai;
@@ -48,6 +47,10 @@ static int tegra_i2s_rpc_hw_params(struct snd_pcm_substream *substream,
 {
 	switch (params_rate(params)) {
 	case 8000:
+	case 11025:
+	case 16000:
+	case 22050:
+	case 24000:
 	case 32000:
 	case 44100:
 	case 48000:
@@ -65,25 +68,22 @@ static int tegra_i2s_rpc_probe(struct platform_device *pdev,
 	return 0;
 }
 
-#define TEGRA_I2S_RATES (SNDRV_PCM_RATE_8000_96000)
-
 struct snd_soc_dai tegra_i2s_rpc_dai = {
 	.name = "tegra-i2s-rpc",
 	.id = 0,
 	.probe = tegra_i2s_rpc_probe,
 	.playback = {
-	.channels_min = 1,
-	.channels_max = 2,
-	.rates = TEGRA_I2S_RATES,
-	.formats = SNDRV_PCM_FMTBIT_S8 | SNDRV_PCM_FMTBIT_U8 | \
-		   SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S24_LE | \
-		   SNDRV_PCM_FMTBIT_S32_LE,},
+		.channels_min = 1,
+		.channels_max = 2,
+		.rates = TEGRA_SAMPLE_RATES,
+		.formats = TEGRA_SAMPLE_FORMATS,
+	},
 	.capture = {
-	.channels_min = 1,
-	.channels_max = 2,
-	.rates = TEGRA_I2S_RATES,
-	.formats = SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S24_LE |\
-		   SNDRV_PCM_FMTBIT_S32_LE,},
+		.channels_min = 1,
+		.channels_max = 2,
+		.rates = TEGRA_SAMPLE_RATES,
+		.formats = TEGRA_SAMPLE_FORMATS,
+	},
 	.ops = {
 	.hw_params = tegra_i2s_rpc_hw_params,
 	},
