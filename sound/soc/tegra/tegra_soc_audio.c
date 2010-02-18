@@ -1,5 +1,5 @@
 /*
- * sound/soc/tegra/tegra_harmony.c
+ * sound/soc/tegra/tegra_whistler.c
  *
  * ALSA SOC driver for NVIDIA Tegra SoCs
  *
@@ -33,16 +33,21 @@
 #include <sound/soc-dapm.h>
 #include <sound/tlv.h>
 #include <linux/clk.h>
-
 #include <asm/mach-types.h>
 #include <asm/hardware/scoop.h>
 #include <linux/io.h>
 #include "nvodm_query_discovery.h"
-
-#include "../codecs/wm8903.h"
-#include "../codecs/wm8753.h"
-
 #include "tegra_transport.h"
+
+struct codec_setup_data {
+	unsigned dem0_pin;
+	unsigned dem1_pin;
+	unsigned pdad_pin;
+	unsigned pdda_pin;
+};
+
+extern struct snd_soc_codec_device soc_codec_dev_tegra_generic_codec;
+extern struct snd_soc_dai dit_stub_dai;
 
 static struct platform_device *tegra_snd_device;
 NvU64 codec_guid;
@@ -56,7 +61,6 @@ static int set_clock_source_on_codec(NvU64 codec_guid,int IsEnable)
 	const NvOdmPeripheralConnectivity *p_connectivity = NULL;
 	unsigned int clock_instances[NVODM_CODEC_MAX_CLOCKS];
 	unsigned int num_clocks;
-
 	p_connectivity = NvOdmPeripheralGetGuid(codec_guid);
 	if (p_connectivity == NULL)
 		return NV_FALSE;
@@ -77,37 +81,27 @@ static int set_clock_source_on_codec(NvU64 codec_guid,int IsEnable)
 	return NV_TRUE;
 }
 
-static int tegra_harmony_hifi_hw_params(struct snd_pcm_substream *substream,
-                                       struct snd_pcm_hw_params *params)
+static int tegra_whistler_hifi_hw_params(struct snd_pcm_substream *substream,
+					struct snd_pcm_hw_params *params)
 {
+	/* Set codec DAI configuration */
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *codec_dai = rtd->dai->codec_dai;
-	int err;
+	int ret;
 
-	err = snd_soc_dai_set_fmt(codec_dai,
-	                          SND_SOC_DAIFMT_I2S | \
-	                          SND_SOC_DAIFMT_NB_IF | \
-	                          SND_SOC_DAIFMT_CBS_CFS);
-	if (err < 0) {
-		return err;
-	}
+	ret = snd_soc_dai_set_fmt(codec_dai,SND_SOC_DAIFMT_I2S);
 
-	err = snd_soc_dai_set_sysclk(codec_dai,
-	                             0,
-	                             clock_frequencies[0]*1000,
-	                             SND_SOC_CLOCK_IN);
+	if (ret < 0)
+		return ret;
 
-	if (err<0) {
-		return err;
-	}
 	return 0;
 }
 
-static struct snd_soc_ops tegra_harmony_hifi_ops = {
-	.hw_params = tegra_harmony_hifi_hw_params,
+static struct snd_soc_ops tegra_whistler_hifi_ops = {
+	.hw_params = tegra_whistler_hifi_hw_params,
 };
 
-static int tegra_wm8903_init(struct snd_soc_codec *codec)
+static int tegra_wm8753_init(struct snd_soc_codec *codec)
 {
 	return 0;
 }
@@ -115,31 +109,25 @@ static int tegra_wm8903_init(struct snd_soc_codec *codec)
 extern struct snd_soc_dai tegra_i2s_rpc_dai;
 extern struct snd_soc_platform tegra_soc_platform;
 
-static struct snd_soc_dai_link tegra_harmony_dai = {
-	/* Hifi Playback - for similatious use with voice below */
-	.name = "WM8903",
-	.stream_name = "WM8903 HiFi",
+static struct snd_soc_dai_link tegra_whistler_dai = {
+	.name = "tegra-generic-codec",
+	.stream_name = "tegra-codec-rpc",
 	.cpu_dai = &tegra_i2s_rpc_dai,
-	.codec_dai = &wm8903_dai,
-	.init = tegra_wm8903_init,
-	.ops = &tegra_harmony_hifi_ops,
+	.codec_dai = &dit_stub_dai,
+	.init = tegra_wm8753_init,
+	.ops = &tegra_whistler_hifi_ops,
 };
 
-static struct snd_soc_card tegra_harmony = {
+static struct snd_soc_card tegra_whistler = {
 	.name = "tegra",
 	.platform = &tegra_soc_platform,
-	.dai_link = &tegra_harmony_dai,
+	.dai_link = &tegra_whistler_dai,
 	.num_links = 1,
 };
 
-struct harmony_setup_data {
-	int i2c_bus;
-	unsigned short i2c_address;
-};
-
-static struct snd_soc_device tegra_harmony_snd_devdata = {
-	.card = &tegra_harmony,
-	.codec_dev = &soc_codec_dev_wm8903,
+static struct snd_soc_device tegra_whistler_snd_devdata = {
+	.card = &tegra_whistler,
+	.codec_dev = &soc_codec_dev_tegra_generic_codec,
 };
 
 static int __init tegra_soc_init(void)
@@ -149,9 +137,8 @@ static int __init tegra_soc_init(void)
 	if (!tegra_snd_device)
 		return -ENOMEM;
 
-	codec_guid = NV_ODM_GUID('w','o','l','f','8','9','0','3');
-	platform_set_drvdata(tegra_snd_device, &tegra_harmony_snd_devdata);
-	tegra_harmony_snd_devdata.dev = &tegra_snd_device->dev;
+	platform_set_drvdata(tegra_snd_device, &tegra_whistler_snd_devdata);
+	tegra_whistler_snd_devdata.dev = &tegra_snd_device->dev;
 
 	ret = platform_device_add(tegra_snd_device);
 	if (ret) {
@@ -159,6 +146,8 @@ static int __init tegra_soc_init(void)
 		platform_device_put(tegra_snd_device);
 		return ret;
 	}
+
+	codec_guid = NV_ODM_GUID('w','o','l','f','8','7','5','3');
 
 	set_clock_source_on_codec(codec_guid,NV_TRUE);
 	if (ret != 0)
