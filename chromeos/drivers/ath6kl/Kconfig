@@ -1,0 +1,77 @@
+config ATH6K_LEGACY
+	tristate "Atheros AR600x support (non mac80211)"
+	depends on MMC
+	depends on WLAN_80211
+	depends on CFG80211
+	help
+	This module adds support for wireless adapters based on Atheros AR600x chipset running over SDIO. If you choose to build it as a module, it will be called ath6kl.
+
+choice
+	prompt "AR600x Version"
+	depends on ATH6K_LEGACY
+	default AR6003_HW10
+	help
+	Select the appropriate configuration from the list below that matches your AR600x based reference design.
+
+config AR6003_HW10
+	bool "AR6003, Rev 1.0"
+	help
+        AR6003 1.0 silicon
+
+config AR6003_HW20
+	bool "AR6003, Rev 2.0"
+	help
+        AR6003 2.0 silicon
+endchoice
+
+choice
+	prompt "AR600x Configuration"
+	depends on ATH6K_LEGACY
+	default AR600x_SD31_XXX
+	help
+	Select the appropriate configuration from the list below that matches your AR600x based reference design.
+
+config AR600x_SD31_XXX
+	bool "SD31-xxx"
+	help
+        Board Data file for a standard SD31 reference design (File: bdata.SD31.bin)
+
+config AR600x_WB31_XXX
+	bool "WB31-xxx"
+	help
+        Board Data file for a standard WB31 (BT/WiFi) reference design (File: bdata.WB31.bin)
+
+config AR600x_SD32_XXX
+	bool "SD32-xxx"
+	help
+        Board Data file for a standard SD32 (5GHz) reference design (File: bdata.SD32.bin)
+
+config AR600x_CUSTOM_XXX
+	bool "CUSTOM-xxx"
+	help
+        Board Data file for a custom reference design (File: should be named as bdata.CUSTOM.bin)
+endchoice
+
+config ATH6KL_HCI_BRIDGE
+	bool "HCI over SDIO support"
+	depends on ATH6K_LEGACY
+	help
+	Enables BT over SDIO. Applicable only for combo designs (eg: WB31)
+
+config ATH6KL_CFG80211
+	bool "CFG80211 support"
+	depends on ATH6K_LEGACY
+	help
+	Enables support for CFG80211 APIs
+
+config ATH6KL_HTC_RAW_INTERFACE
+	bool "RAW HTC support "
+	depends on ATH6K_LEGACY
+	help
+	Enables raw HTC interface. Allows application to directly talk to the HTC interface via the ioctl interface
+
+config ATH6KL_DEBUG
+	bool "Debug support"
+	depends on ATH6K_LEGACY
+	help
+	Enables debug support in the driver
