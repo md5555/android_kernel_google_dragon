@@ -3,7 +3,7 @@
  *
  * User-land access to NvRm APIs
  *
- * Copyright (c) 2008-2009, NVIDIA Corporation.
+ * Copyright (c) 2008-2010, NVIDIA Corporation.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,6 +29,7 @@
 #include <linux/cpu.h>
 #include <linux/platform_device.h>
 #include <linux/freezer.h>
+#include <linux/suspend.h>
 #include "nvcommon.h"
 #include "nvassert.h"
 #include "nvos.h"
@@ -39,6 +40,9 @@
 #include "linux/nvos_ioctl.h"
 #include "nvrm_power_private.h"
 #include "nvreftrack.h"
+
+pid_t s_nvrm_daemon_pid = 0;
+int s_nvrm_daemon_sig = 0;
 
 NvError NvRm_Dispatch(void *InBuffer,
                       NvU32 InSize,
@@ -645,7 +649,7 @@ static int nvrm_remove(struct platform_device *pdev)
     return 0;
 }
 
-static int nvrm_suspend(struct platform_device *pdev)
+static int nvrm_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	if(NvRmKernelPowerSuspend(s_hRmGlobal)) {
 		printk(KERN_INFO "%s : FAILED\n", __func__);
@@ -673,11 +677,147 @@ static struct platform_driver nvrm_driver =
     .driver	= { .name = "nvrm" }
 };
 
+//
+// /sys/power/nvrm/notifier
+//
+
+wait_queue_head_t tegra_pm_notifier_wait;
+int tegra_pm_notifier_continue_ok;
+
+struct kobject *nvrm_kobj;
+
+char* nvrm_notifier;
+
+#define STRING_PM_NONE            "none"               // initial state
+#define STRING_PM_SUSPEND_PREPARE "PM_SUSPEND_PREPARE" // notify to daemon
+#define STRING_PM_POST_SUSPEND    "PM_POST_SUSPEND"    // notify to daemon
+#define STRING_PM_CONTINUE        "PM_CONTINUE"        // reply from daemon
+#define STRING_PM_SIGNAL          "PM_SIGNAL"          // request signal
+
+ssize_t
+nvrm_notifier_show(struct kobject *kobj, struct kobj_attribute *attr,
+		   char *buf)
+{
+    return sprintf(buf, "%s\n", nvrm_notifier);
+}
+
+ssize_t
+nvrm_notifier_store(struct kobject *kobj, struct kobj_attribute *attr,
+		    const char *buf, size_t count)
+{
+    printk(KERN_INFO "%s: /sys/power/nvrm/notifier=%s\n", __func__, buf);
+
+    if (! strcmp(buf, STRING_PM_CONTINUE))
+    {
+	nvrm_notifier = STRING_PM_CONTINUE;
+
+	// Wake up pm_notifier.
+	tegra_pm_notifier_continue_ok = 1;
+	wake_up(&tegra_pm_notifier_wait);
+    }
+    else if (! strncmp(buf, STRING_PM_SIGNAL, strlen(STRING_PM_SIGNAL)))
+    {
+	s_nvrm_daemon_pid = 0;
+	s_nvrm_daemon_sig = 0;
+	sscanf(buf, STRING_PM_SIGNAL " %d %d",
+	       &s_nvrm_daemon_pid, &s_nvrm_daemon_sig);
+	printk(KERN_INFO "%s: nvrm_daemon=%d signal=%d\n",
+	       __func__, s_nvrm_daemon_pid, s_nvrm_daemon_sig);
+    }
+    else
+    {
+	printk(KERN_ERR "%s: Wrong value '%s'.\n", __func__, buf);
+    }
+
+    return count;
+}
+
+static struct kobj_attribute nvrm_notifier_attribute =
+    __ATTR(notifier, 0666, nvrm_notifier_show, nvrm_notifier_store);
+
+//
+// PM notifier
+//
+
+int tegra_pm_notifier(struct notifier_block *nb,
+		      unsigned long event, void *nouse)
+{
+    int err;
+    long timeout = HZ * 30;
+
+    printk(KERN_INFO "%s: event=%lx\n", __func__, event);
+
+    // Notify the event to nvrm_daemon.
+    if (event == PM_SUSPEND_PREPARE)
+    {
+	tegra_pm_notifier_continue_ok = 0; // Clear before kicking nvrm_daemon.
+	nvrm_notifier = STRING_PM_SUSPEND_PREPARE;
+    }
+    else if (event == PM_POST_SUSPEND)
+    {
+	tegra_pm_notifier_continue_ok = 0; // Clear before kicking nvrm_daemon.
+	nvrm_notifier = STRING_PM_POST_SUSPEND;
+    }
+    else
+    {
+	printk(KERN_ERR "%s: Unknown event %ld.\n", __func__, event);
+	return NOTIFY_DONE;
+    }
+
+    // In case if daemon's pid is not reported, do not signal or wait.
+    if (! s_nvrm_daemon_pid)
+    {
+	printk(KERN_ERR "%s: Don't know nvrm_daemon's PID.\n", __func__);
+	return NOTIFY_DONE;
+    }
+
+    // Send signal to nvrm_daemon.
+    printk(KERN_INFO "%s: Sending signal=%d to pid=%d.\n",
+	   __func__, s_nvrm_daemon_sig, s_nvrm_daemon_pid);
+    err = kill_pid(find_get_pid(s_nvrm_daemon_pid), s_nvrm_daemon_sig, 0);
+    if (err)
+    {
+	printk(KERN_ERR "%s: Cannot send signal to nvrm_daemon (PID=%d).\n",
+	       __func__, s_nvrm_daemon_pid);
+	return NOTIFY_DONE;
+    }
+
+    // Wait for the reply from nvrm_daemon.
+    printk(KERN_INFO "%s: Wait for nvrm_daemon.\n", __func__);
+    timeout = wait_event_timeout(tegra_pm_notifier_wait,
+				 tegra_pm_notifier_continue_ok, timeout);
+
+    // Go back to the initial state.
+    nvrm_notifier = STRING_PM_NONE;
+
+    // In case of timeout.
+    if (timeout == 0)
+    {
+	printk(KERN_ERR "%s: Timed out. nvrm_daemon did not reply.\n", __func__);
+	return NOTIFY_DONE;
+    }
+
+    printk(KERN_INFO "%s: Woken up.\n", __func__);
+    return NOTIFY_OK;
+}
+
 static int __init nvrm_init(void)
 {
     int ret = 0;
     printk(KERN_INFO "%s called\n", __func__);
+
+    // Register PM notifier.
+    pm_notifier(tegra_pm_notifier, 0);
+    init_waitqueue_head(&tegra_pm_notifier_wait);
+
+    // Create /sys/power/nvrm/notifier.
+    nvrm_kobj = kobject_create_and_add("nvrm", power_kobj);
+    sysfs_create_file(nvrm_kobj, &nvrm_notifier_attribute.attr);
+    nvrm_notifier = STRING_PM_NONE;
+
+    // Register NvRm platform driver.
     ret= platform_driver_register(&nvrm_driver);
+
     return ret;
 }
 
