@@ -22,10 +22,23 @@
 
 #include <linux/suspend.h>
 #include "nvcommon.h"
+#include "nvodm_query.h"
+#include <linux/wakelock.h>
+#include <linux/cpu.h>
+
+extern void cpu_ap20_do_lp0(void);
+extern void cpu_ap20_do_lp1(void);
+extern unsigned int check_for_cpu1_reset(void);
+
+#if defined(CONFIG_TEGRA_ODM_HARMONY)
+static struct wake_lock suspend_ops_wake_lock;
+static bool wake_lock_initialized = false;
+#endif
+
+static bool Cpu1PoweredOff = false;
 
 int tegra_state_valid(suspend_state_t state)
 {
-	printk("%s CALLED\n", __func__);
 	if (state > PM_SUSPEND_ON && state <= PM_SUSPEND_MAX)
 		return 1;
 	return 0;
@@ -33,49 +46,58 @@ int tegra_state_valid(suspend_state_t state)
 
 int tegra_state_begin(suspend_state_t state)
 {
-	printk("%s CALLED with state = %d\n", __func__, state);
-	return 0;
-}
-
-int tegra_state_prepare(void)
-{
-	printk("%s CALLED \n", __func__);
+	if(check_for_cpu1_reset() ==  0) {
+		cpu_down(1);
+		Cpu1PoweredOff = true;
+	}
 	return 0;
 }
 
 int tegra_state_enter(suspend_state_t state)
 {
-	printk("%s CALLED with state = %d\n", __func__, state);
-	return 0;
-}
+	const NvOdmSocPowerStateInfo *LPStateInfo;
 
-void tegra_state_finish(void)
-{
-	printk("%s CALLED \n", __func__);
+	LPStateInfo = NvOdmQueryLowestSocPowerState();
+	if (LPStateInfo->LowestPowerState == NvOdmSocPowerState_DeepSleep) {
+#if defined(CONFIG_ARCH_TEGRA_2x_SOC)
+		/* do AP20 LP0 */
+		cpu_ap20_do_lp0();
+#endif
+	}
+	else if (LPStateInfo->LowestPowerState == NvOdmSocPowerState_Suspend) {
+#if defined(CONFIG_ARCH_TEGRA_2x_SOC)
+		/* do AP20 LP1 */
+		cpu_ap20_do_lp1();
+#endif
+	}
+	return 0;
 }
 
 void tegra_state_end(void)
 {
-	printk("%s CALLED \n", __func__);
-}
+	if(Cpu1PoweredOff) {
+		cpu_up(1);
+		Cpu1PoweredOff = false;
+	}
 
-void tegra_state_recover(void)
-{
-	printk("%s CALLED \n", __func__);
+#if defined(CONFIG_TEGRA_ODM_HARMONY)
+	if(!wake_lock_initialized) {
+		wake_lock_init(&suspend_ops_wake_lock, WAKE_LOCK_SUSPEND, "tegra_suspend_ops");
+		wake_lock_initialized = true;
+	}
+	wake_lock_timeout(&suspend_ops_wake_lock, 1000);
+#endif
 }
 
 static struct platform_suspend_ops tegra_suspend_ops =
 {
 	.valid   = tegra_state_valid,
 	.begin   = tegra_state_begin,
-	.prepare = tegra_state_prepare,
 	.enter   = tegra_state_enter,
-	.finish  = tegra_state_finish,
-	.end     = tegra_state_end,
-	.recover = tegra_state_recover
+	.end     = tegra_state_end
 };
 
-void tegra_set_suspend_ops()
+void tegra_set_suspend_ops(void)
 {
 	suspend_set_ops(&tegra_suspend_ops);
 }
