@@ -47,6 +47,7 @@
 #include "nvassert.h"
 #include "nvcommon.h"
 #include "avp.h"
+#include <linux/jiffies.h>
 
 #define LOOPBACK_PROFILE 0
 
@@ -1430,6 +1431,7 @@ NvRmPrivTransportSendRemoteMsg(
     NvU32 StartTime;
     NvU32 CurrentTime;
     NvU32 MessageHdr[3];
+    NvU32 JiffyTime = jiffies_to_msecs(1);
 
     NV_ASSERT((MAX_MESSAGE_LENGTH) >= MessageSize);
 
@@ -1455,8 +1457,15 @@ NvRmPrivTransportSendRemoteMsg(
         CurrentTime = NvOsGetTimeMS();
         if ( TimeoutMS != NV_WAIT_INFINITE && (CurrentTime - StartTime) > TimeoutMS )
             return NvError_Timeout;
-        
-        NvOsSleepMS(1); // try again later...
+        /* Sleeping for 1msec may not sleep exactly for 1msec. It depends
+         * on OS jiffy(tick) time. If jiffy time is much bigger,then this 1msec
+         * sleep would cause performance issues. At the same time, if complete
+         * polling is used, it can potentially block other threads from running.
+         * To reduce the impact of sleep in either ways, poll for one jiffy time
+         * and if operation is not complete then start sleeping.
+         */
+        if ( (CurrentTime - StartTime) > JiffyTime )
+            NvOsSleepMS(1); // try again later...
     }
 }
 
@@ -1472,6 +1481,7 @@ NvRmPrivTransportSendLocalMsg(
     NvU32  CurrentTime;
     NvU32  StartTime;
     NvError err            = NvSuccess;
+    NvU32 JiffyTime = jiffies_to_msecs(1);
 
     NvRmTransportHandle hRemotePort;
 
@@ -1506,7 +1516,15 @@ NvRmPrivTransportSendLocalMsg(
         // unlock the mutex, and wait a small amount of time.
         NvOsMutexUnlock(s_TransportInfo.mutex);
 
-        NvOsSleepMS(1);
+        /* Sleeping for 1msec may not sleep exactly for 1msec. It depends
+         * on OS jiffy(tick) time. If jiffy time is much bigger,then this 1msec
+         * sleep would cause performance issues. At the same time, if complete
+         * polling is used, it can potentially block other threads from running.
+         * To reduce the impact of sleep in either ways, poll for one jiffy time
+         * and if operation is not complete then start sleeping.
+         */
+        if ( (CurrentTime - StartTime) > JiffyTime )
+            NvOsSleepMS(1);
         NvOsMutexLock(s_TransportInfo.mutex);
         if (TimeoutMS != NV_WAIT_INFINITE)
         {
