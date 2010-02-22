@@ -369,6 +369,7 @@ static int __devinit nvec_keyboard_probe(struct platform_device *pdev)
 	/* get EC handle */
 	nverr = NvEcOpen(&keyboard->hNvec, 0 /* instance */);
 	if (nverr != NvError_Success) {
+		error = -ENODEV;
 		goto fail_input_register;
 	}
 
@@ -408,6 +409,7 @@ static int __devexit nvec_keyboard_remove(struct platform_device *dev)
 	return 0;
 }
 
+#ifdef ENABLE_NVEC_KBD_SUSPEND
 static int nvec_keyboard_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	NvEcRequest Request = {0};
@@ -497,6 +499,7 @@ static int nvec_keyboard_resume(struct platform_device *pdev)
 
 	return 0;
 }
+#endif /* ENABLE_NVEC_KBD_SUSPEND */
 
 static struct platform_driver nvec_keyboard_driver = {
 	.driver	 = {
@@ -505,8 +508,10 @@ static struct platform_driver nvec_keyboard_driver = {
 	},
 	.probe	= nvec_keyboard_probe,
 	.remove	= __devexit_p(nvec_keyboard_remove),
+#ifdef ENABLE_NVEC_KBD_SUSPEND
 	.suspend	= nvec_keyboard_suspend,
 	.resume		= nvec_keyboard_resume,
+#endif
 };
 
 static int __init nvec_keyboard_init(void)
