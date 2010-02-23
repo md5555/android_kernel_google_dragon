@@ -184,8 +184,15 @@ void prepare_lp1_wake_events(void)
 
 			if (irq < MAX_IRQ)
 				NvPrivAp20UnmaskIrq(irq);
-			else
+			else {
+				NvU32 irq_top;
+				irq_top = NvRmGetIrqForLogicalInterrupt(
+					s_hRmGlobal,
+					s_WakeupSources[irq_count].Module,
+					0xff);
+				NvPrivAp20UnmaskIrq(irq_top);
 				NvPrivGpioUnMaskIrq(irq);
+			}
 		}
 	}
 
@@ -197,7 +204,7 @@ void prepare_lp1_wake_events(void)
 			if (irq < MAX_IRQ)
 				NvPrivAp20UnmaskIrq(irq);
 			else
-				NvPrivGpioUnMaskIrq(irq);
+				pr_err("specific GPIO wakeups not supported\n");
 		}
 	}
 }
