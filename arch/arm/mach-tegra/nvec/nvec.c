@@ -244,40 +244,33 @@ NvEcPrivPingThread(void *args)
 
 	set_freezable_with_signal();
 
-	while (!ec->exitPingThread){
-	// request timed out
-	if (timeout > 0){
-		// send no-op commands
-		DISP_MESSAGE(("NvEcPrivPingThread: Sending no-op command\n"));
-		req.PacketType = NvEcPacketType_Request;
-		req.RequestType = NvEcRequestResponseType_Control;
-		req.RequestSubtype = (NvEcRequestResponseSubtype)
-				  NvEcControlSubtype_NoOperation;
-		req.NumPayloadBytes = 0;
+	for (;;) {
+	NvOsSemaphoreWait(ec->hPingSema);
+	if (ec->exitPingThread)
+		break;
 
-		NvStatus = NvEcSendRequest(
-				ec->hEc,
-				&req,
-				&resp,
-				sizeof(req),
-				sizeof(resp));
-		if (NvStatus != NvError_Success)
-		DISP_MESSAGE(("NvEcPrivPingThread: no-op command send fail\n"));
+	// send no-op commands
+	DISP_MESSAGE(("NvEcPrivPingThread: Sending no-op command\n"));
+	req.PacketType = NvEcPacketType_Request;
+	req.RequestType = NvEcRequestResponseType_Control;
+	req.RequestSubtype = (NvEcRequestResponseSubtype)
+		NvEcControlSubtype_NoOperation;
+	req.NumPayloadBytes = 0;
 
-		if (resp.Status != NvEcStatus_Success)
-		DISP_MESSAGE(("NvEcPrivPingThread: no-op command fail\n"));
+	NvStatus = NvEcSendRequest(
+			ec->hEc,
+			&req,
+			&resp,
+			sizeof(req),
+			sizeof(resp));
+	if (NvStatus != NvError_Success)
+	DISP_MESSAGE(("NvEcPrivPingThread: no-op command send fail\n"));
 
-		DISP_MESSAGE(("NvEcPrivPingThread: no-op command sent\n"));
-		ec->IsEcActive = NV_FALSE;
-	}
+	if (resp.Status != NvEcStatus_Success)
+	DISP_MESSAGE(("NvEcPrivPingThread: no-op command fail\n"));
 
-	timeout = NVEC_PING_TIMEOUT;
-	timeout = wait_event_freezable_timeout(
-			wq_ec,
-			ec->IsEcActive,
-			timeout);
-	if (timeout == 0)
-		ec->IsEcActive = NV_FALSE;
+	DISP_MESSAGE(("NvEcPrivPingThread: no-op command sent\n"));
+	ec->IsEcActive = NV_FALSE;
 	}
 }
 
@@ -1085,7 +1078,15 @@ NvEcPrivThread( void * args )
             e = NvEcPrivProcessReceiveEvent( ec, e );
                 // return ignored.  Could be spurious event.
         }
-        
+
+	if ( tStatus & NVEC_TRANSPORT_STATUS_EVENT_PACKET_MAX_NACK ) {
+		// signal the ping thread to send a ping command since max
+		// number of nacks have been sent to the EC
+		if (ec->hPingSema) {
+			NvOsSemaphoreSignal(ec->hPingSema);
+		}
+	}
+
         // send request whenever possible 
         if ( (ec->timeout[NVEC_IDX_REQUEST] == NV_WAIT_INFINITE) && 
              (ec->EnterLowPowerState == NV_FALSE) )
@@ -1187,10 +1188,6 @@ NvEcSendRequest(
     }
 
     ec->IsEcActive = NV_TRUE;
-    // kick the "heartbeat" thread so that the pings would only be sent when
-    // there are no commands being sent from AP->EC.
-    if (ec->hPingSema)
-        NvOsSemaphoreSignal(ec->hPingSema);
 
     // request end-queue.  Timeout set to infinite until request sent.
     NvOsMemset( requestNode, 0, sizeof(NvEcRequestNode) );
