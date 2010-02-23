@@ -80,4 +80,9 @@ config REGULATOR_PCF50633
 	 Say Y here to support the voltage regulators and convertors
 	 on PCF50633
 
+config REGULATOR_TEGRA
+	boolean "Regulator support on Nvidia Tegra SoCs"
+	depends on ARCH_TEGRA
+	help
+	 This enables the regulator interfaces in Nvidia Tegra SoCs.
 endif
