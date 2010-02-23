@@ -30,6 +30,8 @@
 #include <linux/platform_device.h>
 #include <linux/freezer.h>
 #include <linux/suspend.h>
+#include <linux/percpu.h>
+#include <asm/cpu.h>
 #include "nvcommon.h"
 #include "nvassert.h"
 #include "nvos.h"
@@ -173,7 +175,8 @@ static void NvRmDfsThread(void *args)
             if (Request & NvRmPmRequest_CpuOnFlag)
             {
 #ifdef CONFIG_HOTPLUG_CPU
-                printk("DFS requested CPU ON\n");
+                printk("DFS requested CPU1 ON\n");
+                preset_lpj = per_cpu(cpu_data, 0).loops_per_jiffy;
                 cpu_up(1);
 #endif
             }
@@ -181,7 +184,7 @@ static void NvRmDfsThread(void *args)
             if (Request & NvRmPmRequest_CpuOffFlag)
             {
 #ifdef CONFIG_HOTPLUG_CPU
-                printk("DFS requested CPU OFF\n");
+                printk("DFS requested CPU1 OFF\n");
                 cpu_down(1);
 #endif
             }
