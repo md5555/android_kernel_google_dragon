@@ -1490,6 +1490,7 @@ NvRmPrivTransportSendLocalMsg(
 
 
     StartTime = NvOsGetTimeMS();
+    CurrentTime = StartTime;
 
     for (;;)
     {
