@@ -370,6 +370,10 @@ static int mmc_blk_issue_rq(struct mmc_queue *mq, struct request *req)
 		 * programming mode even when things go wrong.
 		 */
 		if (brq.cmd.error || brq.data.error || brq.stop.error) {
+			/* Media is not present */
+			if (brq.cmd.error == -ENOMEDIUM)
+				goto cmd_err;
+
 			if (brq.data.blocks > 1 && rq_data_dir(req) == READ) {
 				/* Redo read one sector at a time */
 				printk(KERN_WARNING "%s: retrying using single "
@@ -495,6 +499,18 @@ static int mmc_blk_issue_rq(struct mmc_queue *mq, struct request *req)
 		ret = __blk_end_request(req, -EIO, blk_rq_cur_bytes(req));
 	spin_unlock_irq(&md->lock);
 
+	if (brq.cmd.error == -ENOMEDIUM) {
+		/* Clean up the dead queue */
+		struct request *temp_req;
+		spin_lock_irq(&md->lock);
+		while ((temp_req = elv_next_request( mq->queue)) != NULL) {
+			do {
+				ret = __blk_end_request(temp_req, -EIO,
+							blk_rq_cur_bytes(temp_req));
+			} while (ret);
+		}
+		spin_unlock_irq(&md->lock);
+	}
 	return 0;
 }
 
