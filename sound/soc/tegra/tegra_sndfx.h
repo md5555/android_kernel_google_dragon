@@ -140,35 +140,31 @@ typedef NvS32 NvAudioFxPin;
 #define NvAudioFxSinkPin (0)
 #define NvAudioFxSourcePin (1)
 
-typedef enum
-{
-    NvAudioFxProperty_Attach,
-    NvAudioFxProperty_Detach,
-    NvAudioFxProperty_Format,
-    NvAudioFxProperty_Method,
-    NvAudioFxProperty_PowerState,
-    NvAudioFxProperty_SampleRate,
-    NvAudioFxProperty_State,
-    NvAudioFxPinProperty_Format,
-    NvAudioFxDrcProperty_Drc,
-    NvAudioFxEqProperty_Eq,
-    NvAudioFxIoProperty_AddEvent,
-    NvAudioFxIoProperty_Position,
-    NvAudioFxIoProperty_RemoveEvent,
-    NvAudioFxIoProperty_SetMappedPositionBuffer,
-    NvAudioFxMixerProperty_ProcessBufferSize,
-    NvAudioFxMixProperty_Headroom,
-    NvAudioFxNotifierProperty_Connect,
-    NvAudioFxNotifierProperty_Disconnect,
-    NvAudioFxPeqProperty_Peq,
-    NvAudioFxResizeProperty_OutputSize,
-    NvAudioFxSpreaderProperty_Spreader,
-    NvAudioFxSrcProperty_SampleRateShift,
-    NvAudioFxVolumeProperty_Ramping,
-    NvAudioFxVolumeProperty_Volume,
-    NvAudioFxProperty_Num,
-    NvAudioFxProperty_Force32 = 0x7FFFFFFF
-} NvAudioFxProperty;
+typedef NvS32 NvAudioFxProperty;
+#define NvAudioFxProperty_Attach (0x1000)
+#define NvAudioFxProperty_Detach (0x1010)
+#define NvAudioFxProperty_Format (0x1020)
+#define NvAudioFxProperty_Method (0x1030)
+#define NvAudioFxProperty_PowerState (0x1040)
+#define NvAudioFxProperty_SampleRate (0x1050)
+#define NvAudioFxProperty_State (0x1060)
+#define NvAudioFxPinProperty_Format (0x2000)
+#define NvAudioFxDrcProperty_Drc (0x3000)
+#define NvAudioFxEqProperty_Eq (0x4000)
+#define NvAudioFxIoProperty_AddEvent (0x5000)
+#define NvAudioFxIoProperty_Position (0x5010)
+#define NvAudioFxIoProperty_RemoveEvent (0x5020)
+#define NvAudioFxIoProperty_SetMappedPositionBuffer (0x5030)
+#define NvAudioFxMixerProperty_ProcessBufferSize (0x6000)
+#define NvAudioFxMixProperty_Headroom (0x7000)
+#define NvAudioFxNotifierProperty_Connect (0x8000)
+#define NvAudioFxNotifierProperty_Disconnect (0x8010)
+#define NvAudioFxPeqProperty_Peq (0x9000)
+#define NvAudioFxResizeProperty_OutputSize (0xa000)
+#define NvAudioFxSpreaderProperty_Spreader (0xb000)
+#define NvAudioFxSrcProperty_SampleRateShift (0xc000)
+#define NvAudioFxVolumeProperty_Ramping (0xd000)
+#define NvAudioFxVolumeProperty_Volume (0xd010)
 
 // Description of the NvAudioFxProperty_Attach and
 // NvAudioFxProperty_Detach properties.
@@ -193,13 +189,9 @@ typedef struct NvAudioFxFormatRec
 
 // Description of the NvAudioFxProperty_Method property.
 
-typedef enum
-{
-    NvAudioFxMethod_Sliced,
-    NvAudioFxMethod_Unsliced,
-    NvAudioFxMethod_Num,
-    NvAudioFxMethod_Force32 = 0x7FFFFFFF
-} NvAudioFxMethod;
+typedef NvS32 NvAudioFxMethod;
+#define NvAudioFxMethod_Sliced (0x1000)
+#define NvAudioFxMethod_Unsliced (0x1010)
 
 // Description of the position property.
 
@@ -207,43 +199,31 @@ typedef NvU64 NvAudioFxPosition;
 
 // Description of supported power states in AudioFx.
 
-typedef enum
-{
-    NvAudioFxPowerState_Low,
-    NvAudioFxPowerState_High,
-    NvAudioFxPowerState_Full,
-    NvAudioFxPowerState_Ready,
-    NvAudioFxPowerState_Off,
-    NvAudioFxPowerState_Num,
-    NvAudioFxPowerState_Force32 = 0x7FFFFFFF
-} NvAudioFxPowerState;
+typedef NvS32 NvAudioFxPowerState;
+#define NvAudioFxPowerState_Low (0x1000)
+#define NvAudioFxPowerState_High (0x1010)
+#define NvAudioFxPowerState_Full (0x1020)
+#define NvAudioFxPowerState_Ready (0x1030)
+#define NvAudioFxPowerState_Off (0x1040)
 
 // Description of the supported priority states.
 
-typedef enum
-{
-    NvAudioFxPriority_Normal,
-    NvAudioFxPriority_Medium,
-    NvAudioFxPriority_High,
-    NvAudioFxPriority_Critical,
-    NvAudioFxPriority_Num,
-    NvAudioFxPriority_Force32 = 0x7FFFFFFF
-} NvAudioFxPriority;
+typedef NvS32 NvAudioFxPriority;
+#define NvAudioFxPriority_Normal (0x1000)
+#define NvAudioFxPriority_Medium (0x1010)
+#define NvAudioFxPriority_High (0x1020)
+#define NvAudioFxPriority_Critical (0x1030)
 
 // Description of the NvAudioFxProperty_State property.
 
-typedef enum
-{
-    NvAudioFxState_Uninitialized,
-    NvAudioFxState_Initialized,
-    NvAudioFxState_Stop,
-    NvAudioFxState_Run,
-    NvAudioFxState_Pause,
-    NvAudioFxState_Disable,
-    NvAudioFxState_EndOfStream,
-    NvAudioFxState_Num,
-    NvAudioFxState_Force32 = 0x7FFFFFFF
-} NvAudioFxState;
+typedef NvS32 NvAudioFxState;
+#define NvAudioFxState_Uninitialized (0x1000)
+#define NvAudioFxState_Initialized (0x1010)
+#define NvAudioFxState_Stop (0x1020)
+#define NvAudioFxState_Run (0x1030)
+#define NvAudioFxState_Pause (0x1040)
+#define NvAudioFxState_Disable (0x1050)
+#define NvAudioFxState_EndOfStream (0x1060)
 
 // Audio DRC information.
 
