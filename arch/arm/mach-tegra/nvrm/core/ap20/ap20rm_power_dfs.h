@@ -331,7 +331,7 @@ NvRmPrivAp20DttClockUpdate(
  * 
  * @param hRmDevice The RM device handle.
  * @param pCpuSampler Pointer to the DFS CPU clock sampling records
- * @param CpuKHz CPU clock frequency target
+ * @param pCpuKHz Pointer to the CPU clock frequency target
  * 
  * @return New PM request to change CPU power state
  */
@@ -339,7 +339,7 @@ NvRmPmRequest
 NvRmPrivAp20GetPmRequest(
     NvRmDeviceHandle hRmDevice,
     const NvRmDfsSampler* pCpuSampler,
-    NvRmFreqKHz CpuKHz);
+    NvRmFreqKHz* pCpuKHz);
 
 #ifdef __cplusplus
 }

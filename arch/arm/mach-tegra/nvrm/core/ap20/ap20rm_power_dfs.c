@@ -349,7 +349,7 @@ NvRmPmRequest
 NvRmPrivAp20GetPmRequest(
     NvRmDeviceHandle hRmDevice,
     const NvRmDfsSampler* pCpuSampler,
-    NvRmFreqKHz CpuKHz)
+    NvRmFreqKHz* pCpuKHz)
 {
     // Assume initial slave CPU1 On request
     static NvRmPmRequest s_LastPmRequest = (NvRmPmRequest_CpuOnFlag | 0x1);
@@ -361,7 +361,7 @@ NvRmPrivAp20GetPmRequest(
         (0 != NV_DRF_VAL(CLK_RST_CONTROLLER, RST_CPU_CMPLX_SET, SET_CPURESET1,
                          NV_REGR(hRmDevice, NvRmPrivModuleID_ClockAndReset, 0,
                                  CLK_RST_CONTROLLER_RST_CPU_CMPLX_SET_0)));
-    NvRmFreqKHz CpuLoadGaugeKHz = CpuKHz;
+    NvRmFreqKHz CpuLoadGaugeKHz = *pCpuKHz;
 
     // Slave CPU1 power management policy thresholds:
     // - use fixed values if they are defined explicitly, otherwise
@@ -415,7 +415,10 @@ NvRmPrivAp20GetPmRequest(
             return PmRequest;
         }
         if ((s_LastPmRequest & NvRmPmRequest_CpuOffFlag) && Cpu1Off)
+        {
             s_LastPmRequest = PmRequest = (NvRmPmRequest_CpuOnFlag | 0x1);
+            *pCpuKHz = NvRmPrivGetSocClockLimits(NvRmModuleID_Cpu)->MaxKHz;
+        }
 #if NVRM_TEST_PMREQUEST_UP_MODE
         NV_REGW(hRmDevice, NvRmPrivModuleID_ClockAndReset, 0,
             CLK_RST_CONTROLLER_RST_CPU_CMPLX_CLR_0,

@@ -397,7 +397,7 @@ static NvRmPmRequest
 DfsGetPmRequest(
     NvRmDeviceHandle hRmDevice,
     NvRmDfsSampler* pCpuSampler,
-    NvRmFreqKHz CpuKHz);
+    NvRmFreqKHz* pCpuKHz);
 
 /*****************************************************************************/
 
@@ -991,11 +991,11 @@ static NvRmPmRequest
 DfsGetPmRequest(
     NvRmDeviceHandle hRmDevice,
     NvRmDfsSampler* pCpuSampler,
-    NvRmFreqKHz CpuKHz)
+    NvRmFreqKHz* pCpuKHz)
 {
     if (hRmDevice->ChipId.Id == 0x20)
     {
-        return NvRmPrivAp20GetPmRequest(hRmDevice, pCpuSampler, CpuKHz);
+        return NvRmPrivAp20GetPmRequest(hRmDevice, pCpuSampler, pCpuKHz);
     }
     return NvRmPmRequest_None;
 }
@@ -1223,7 +1223,7 @@ DfsGetTargetFrequencies(
         if (i == NvRmDfsClockId_Cpu)
         {
             NvRmPmRequest r =
-                DfsGetPmRequest(pDfs->hRm, pDomainSampler, *pDomainKHz);
+                DfsGetPmRequest(pDfs->hRm, pDomainSampler, pDomainKHz);
             if (r != NvRmPmRequest_None)
             {
                 pDfs->PmRequest = r;
