@@ -857,6 +857,14 @@ static unsigned int atkbd_dell_laptop_forced_release_keys[] = {
 };
 
 /*
+ * Dell Studio 1557 does not generate release keys for
+ * mute, volume up, & volume down
+ */
+static unsigned int atkdb_dell_studio_1157_force_relase_keys[] = {
+	0xa0, 0xae, 0xb0, -1U
+};
+
+/*
  * Perform fixup for HP system that doesn't generate release
  * for its video switch
  */
@@ -907,6 +915,13 @@ static unsigned int atkbd_amilo_pa1510_forced_release_keys[] = {
  */
 static unsigned int atkbd_amilo_pi3525_forced_release_keys[] = {
 	0x20, 0xa0, 0x2e, 0xae, 0x30, 0xb0, -1U
+};
+
+/*
+ * Amilo Si 1848 key release for Fn+Volume keys not working
+ */
+static unsigned int atkbd_amilo_si1848_forced_release_keys[] = {
+	0xa0, 0xae, 0xb0, -1U
 };
 
 /*
@@ -1535,6 +1550,15 @@ static struct dmi_system_id atkbd_dmi_quirk_table[] __initdata = {
 		.driver_data = atkbd_dell_laptop_forced_release_keys,
 	},
 	{
+		.ident = "Dell Stuido 1557",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "Dell Inc."),
+			DMI_MATCH(DMI_PRODUCT_NAME, "Studio 1557"),
+		},
+		.callback = atkbd_setup_forced_release,
+		.driver_data = atkdb_dell_studio_1157_force_relase_keys,
+	},
+	{
 		.ident = "HP 2133",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "Hewlett-Packard"),
@@ -1616,6 +1640,24 @@ static struct dmi_system_id atkbd_dmi_quirk_table[] __initdata = {
 		.driver_data = atkbd_samsung_forced_release_keys,
 	},
 	{
+		.ident = "Samsung Q210/P210",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "SAMSUNG ELECTRONICS CO., LTD."),
+			DMI_MATCH(DMI_PRODUCT_NAME, "Q210/P210"),
+		},
+		.callback = atkbd_setup_forced_release,
+		.driver_data = atkbd_samsung_forced_release_keys,
+	},
+	{
+		.ident = "Samsung R59P/R60P/R61P",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "SAMSUNG ELECTRONICS CO., LTD."),
+			DMI_MATCH(DMI_PRODUCT_NAME, "R59P/R60P/R61P"),
+		},
+		.callback = atkbd_setup_forced_release,
+		.driver_data = atkbd_samsung_forced_release_keys,
+	},
+	{
 		.ident = "Fujitsu Amilo PA 1510",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "FUJITSU SIEMENS"),
@@ -1623,6 +1665,15 @@ static struct dmi_system_id atkbd_dmi_quirk_table[] __initdata = {
 		},
 		.callback = atkbd_setup_forced_release,
 		.driver_data = atkbd_amilo_pa1510_forced_release_keys,
+	},
+	{
+		.ident = "Fujitsu Amilo Si 1848+u",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "FUJITSU SIEMENS"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "AMILO Si 1848+u"),
+		},
+		.callback = atkbd_setup_forced_release,
+		.driver_data = atkbd_amilo_si1848_forced_release_keys,
 	},
 	{
 		.ident = "Fujitsu Amilo Pi 3525",

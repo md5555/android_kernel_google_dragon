@@ -188,6 +188,8 @@ typedef struct drm_i915_private {
 	u32 gt_irq_mask_reg;
 	u32 gt_irq_enable_reg;
 	u32 de_irq_enable_reg;
+	u32 pch_irq_mask_reg;
+	u32 pch_irq_enable_reg;
 
 	u32 hotplug_supported_mask;
 	struct work_struct hotplug_work;
@@ -256,6 +258,13 @@ typedef struct drm_i915_private {
 	u32 saveVBLANK_A;
 	u32 saveVSYNC_A;
 	u32 saveBCLRPAT_A;
+	u32 saveTRANSACONF;
+	u32 saveTRANS_HTOTAL_A;
+	u32 saveTRANS_HBLANK_A;
+	u32 saveTRANS_HSYNC_A;
+	u32 saveTRANS_VTOTAL_A;
+	u32 saveTRANS_VBLANK_A;
+	u32 saveTRANS_VSYNC_A;
 	u32 savePIPEASTAT;
 	u32 saveDSPASTRIDE;
 	u32 saveDSPASIZE;
@@ -264,8 +273,11 @@ typedef struct drm_i915_private {
 	u32 saveDSPASURF;
 	u32 saveDSPATILEOFF;
 	u32 savePFIT_PGM_RATIOS;
+	u32 saveBLC_HIST_CTL;
 	u32 saveBLC_PWM_CTL;
 	u32 saveBLC_PWM_CTL2;
+	u32 saveBLC_CPU_PWM_CTL;
+	u32 saveBLC_CPU_PWM_CTL2;
 	u32 saveFPB0;
 	u32 saveFPB1;
 	u32 saveDPLL_B;
@@ -277,6 +289,13 @@ typedef struct drm_i915_private {
 	u32 saveVBLANK_B;
 	u32 saveVSYNC_B;
 	u32 saveBCLRPAT_B;
+	u32 saveTRANSBCONF;
+	u32 saveTRANS_HTOTAL_B;
+	u32 saveTRANS_HBLANK_B;
+	u32 saveTRANS_HSYNC_B;
+	u32 saveTRANS_VTOTAL_B;
+	u32 saveTRANS_VBLANK_B;
+	u32 saveTRANS_VSYNC_B;
 	u32 savePIPEBSTAT;
 	u32 saveDSPBSTRIDE;
 	u32 saveDSPBSIZE;
@@ -309,6 +328,12 @@ typedef struct drm_i915_private {
 	u32 saveIER;
 	u32 saveIIR;
 	u32 saveIMR;
+	u32 saveDEIER;
+	u32 saveDEIMR;
+	u32 saveGTIER;
+	u32 saveGTIMR;
+	u32 saveFDI_RXA_IMR;
+	u32 saveFDI_RXB_IMR;
 	u32 saveCACHE_MODE_0;
 	u32 saveD_STATE;
 	u32 saveCG_2D_DIS;
@@ -342,6 +367,26 @@ typedef struct drm_i915_private {
 	u32 savePIPEB_DP_LINK_M;
 	u32 savePIPEA_DP_LINK_N;
 	u32 savePIPEB_DP_LINK_N;
+	u32 saveFDI_RXA_CTL;
+	u32 saveFDI_TXA_CTL;
+	u32 saveFDI_RXB_CTL;
+	u32 saveFDI_TXB_CTL;
+	u32 savePFA_CTL_1;
+	u32 savePFB_CTL_1;
+	u32 savePFA_WIN_SZ;
+	u32 savePFB_WIN_SZ;
+	u32 savePFA_WIN_POS;
+	u32 savePFB_WIN_POS;
+	u32 savePCH_DREF_CONTROL;
+	u32 saveDISP_ARB_CTL;
+	u32 savePIPEA_DATA_M1;
+	u32 savePIPEA_DATA_N1;
+	u32 savePIPEA_LINK_M1;
+	u32 savePIPEA_LINK_N1;
+	u32 savePIPEB_DATA_M1;
+	u32 savePIPEB_DATA_N1;
+	u32 savePIPEB_LINK_M1;
+	u32 savePIPEB_LINK_N1;
 
 	struct {
 		struct drm_mm gtt_space;
@@ -576,6 +621,8 @@ extern struct drm_ioctl_desc i915_ioctls[];
 extern int i915_max_ioctl;
 extern unsigned int i915_fbpercrtc;
 
+extern void i915_save_display(struct drm_device *dev);
+extern void i915_restore_display(struct drm_device *dev);
 extern int i915_master_create(struct drm_device *dev, struct drm_master *master);
 extern void i915_master_destroy(struct drm_device *dev, struct drm_master *master);
 
@@ -626,6 +673,8 @@ i915_enable_pipestat(drm_i915_private_t *dev_priv, int pipe, u32 mask);
 
 void
 i915_disable_pipestat(drm_i915_private_t *dev_priv, int pipe, u32 mask);
+
+void intel_enable_asle (struct drm_device *dev);
 
 
 /* i915_mem.c */
@@ -746,11 +795,13 @@ extern int i915_restore_state(struct drm_device *dev);
 extern int intel_opregion_init(struct drm_device *dev, int resume);
 extern void intel_opregion_free(struct drm_device *dev, int suspend);
 extern void opregion_asle_intr(struct drm_device *dev);
+extern void ironlake_opregion_gse_intr(struct drm_device *dev);
 extern void opregion_enable_asle(struct drm_device *dev);
 #else
 static inline int intel_opregion_init(struct drm_device *dev, int resume) { return 0; }
 static inline void intel_opregion_free(struct drm_device *dev, int suspend) { return; }
 static inline void opregion_asle_intr(struct drm_device *dev) { return; }
+static inline void ironlake_opregion_gse_intr(struct drm_device *dev) { return; }
 static inline void opregion_enable_asle(struct drm_device *dev) { return; }
 #endif
 
@@ -837,6 +888,7 @@ extern int i915_wait_ring(struct drm_device * dev, int n, const char *caller);
 #define IS_I85X(dev) ((dev)->pci_device == 0x3582)
 #define IS_I855(dev) ((dev)->pci_device == 0x3582)
 #define IS_I865G(dev) ((dev)->pci_device == 0x2572)
+#define IS_I8XX(dev) (IS_I830(dev) || IS_845G(dev) || IS_I85X(dev) || IS_I865G(dev))
 
 #define IS_I915G(dev) ((dev)->pci_device == 0x2582 || (dev)->pci_device == 0x258a)
 #define IS_I915GM(dev) ((dev)->pci_device == 0x2592)
@@ -898,9 +950,12 @@ extern int i915_wait_ring(struct drm_device * dev, int n, const char *caller);
  */
 #define HAS_128_BYTE_Y_TILING(dev) (IS_I9XX(dev) && !(IS_I915G(dev) || \
 						      IS_I915GM(dev)))
+#define SUPPORTS_DIGITAL_OUTPUTS(dev)	(IS_I9XX(dev) && !IS_IGD(dev))
 #define SUPPORTS_INTEGRATED_HDMI(dev)	(IS_G4X(dev) || IS_IGDNG(dev))
 #define SUPPORTS_INTEGRATED_DP(dev)	(IS_G4X(dev) || IS_IGDNG(dev))
 #define SUPPORTS_EDP(dev)		(IS_IGDNG_M(dev))
+#define SUPPORTS_TV(dev)		(IS_I9XX(dev) && IS_MOBILE(dev) && \
+					!IS_IGDNG(dev) && !IS_IGD(dev))
 #define I915_HAS_HOTPLUG(dev) (IS_I945G(dev) || IS_I945GM(dev) || IS_I965G(dev))
 /* dsparb controlled by hw only */
 #define DSPARB_HWCONTROL(dev) (IS_G4X(dev) || IS_IGDNG(dev))

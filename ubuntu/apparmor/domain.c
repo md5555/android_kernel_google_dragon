@@ -64,10 +64,15 @@ static int aa_may_change_ptraced_domain(struct task_struct *task,
 		cred = aa_get_task_policy(tracer, &tracerp);
 	rcu_read_unlock();
 
+	/* not ptraced */
+	if (!tracer)
+		return 0;
+
 	if (!tracerp)
-		return error;
+		goto out;
 
 	error = aa_may_ptrace(tracer, tracerp, to_profile, PTRACE_MODE_ATTACH);
+out:
 	put_cred(cred);
 
 	return error;
@@ -248,7 +253,7 @@ int apparmor_bprm_set_creds(struct linux_binprm *bprm)
 	sa.base.error = aa_get_name(&bprm->file->f_path, 0, &buffer,
 				    (char **) &sa.name);
 	if (sa.base.error) {
-		if (profile || profile->flags & PFLAG_IX_ON_NAME_ERROR)
+		if (!profile || profile->flags & PFLAG_IX_ON_NAME_ERROR)
 			sa.base.error = 0;
 		sa.base.info = "Exec failed name resolution";
 		sa.name = bprm->filename;

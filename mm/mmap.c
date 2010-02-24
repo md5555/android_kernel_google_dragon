@@ -953,13 +953,9 @@ unsigned long do_mmap_pgoff(struct file *file, unsigned long addr,
 	if (!(flags & MAP_FIXED))
 		addr = round_hint_to_min(addr);
 
-	error = arch_mmap_check(addr, len, flags);
-	if (error)
-		return error;
-
 	/* Careful about overflows.. */
 	len = PAGE_ALIGN(len);
-	if (!len || len > TASK_SIZE)
+	if (!len)
 		return -ENOMEM;
 
 	/* offset overflow? */
@@ -1292,7 +1288,12 @@ arch_get_unmapped_area(struct file *filp, unsigned long addr,
 	struct mm_struct *mm = current->mm;
 	struct vm_area_struct *vma;
 	unsigned long start_addr;
+	unsigned long error = arch_mmap_check(addr, len, flags);
 
+	if (error)
+		return error;
+
+	/* Careful about overflows.. */
 	if (len > TASK_SIZE)
 		return -ENOMEM;
 
@@ -1502,8 +1503,11 @@ arch_get_unmapped_exec_area(struct file *filp, unsigned long addr0,
 	if (flags & MAP_FIXED)
 		return addr;
 
-	if (!addr)
-		addr = randomize_range(SHLIB_BASE, 0x01000000, len);
+	if (!addr) {
+		addr = SHLIB_BASE;
+		if ((current->flags & PF_RANDOMIZE) && randomize_va_space)
+			addr = randomize_range(addr, 0x01000000, len);
+	}
 
 	if (addr) {
 		addr = PAGE_ALIGN(addr);
@@ -1531,7 +1535,9 @@ arch_get_unmapped_exec_area(struct file *filp, unsigned long addr0,
 			 * Up until the brk area we randomize addresses
 			 * as much as possible:
 			 */
-			if (addr >= 0x01000000) {
+			if ((current->flags & PF_RANDOMIZE) &&
+                            randomize_va_space &&
+                            addr >= 0x01000000) {
 				tmp = randomize_range(0x01000000,
 					PAGE_ALIGN(max(mm->start_brk,
 					(unsigned long)0x08000000)), len);
@@ -2093,20 +2099,14 @@ unsigned long do_brk(unsigned long addr, unsigned long len)
 	if (!len)
 		return addr;
 
-	if ((addr + len) > TASK_SIZE || (addr + len) < addr)
-		return -EINVAL;
-
-	if (is_hugepage_only_range(mm, addr, len))
-		return -EINVAL;
-
 	error = security_file_mmap(NULL, 0, 0, 0, addr, 1);
 	if (error)
 		return error;
 
 	flags = VM_DATA_DEFAULT_FLAGS | VM_ACCOUNT | mm->def_flags;
 
-	error = arch_mmap_check(addr, len, flags);
-	if (error)
+	error = get_unmapped_area(NULL, addr, len, 0, MAP_FIXED);
+	if (error & ~PAGE_MASK)
 		return error;
 
 	/*
