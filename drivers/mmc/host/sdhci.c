@@ -1031,6 +1031,7 @@ static void sdhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 {
 	struct sdhci_host *host;
 	unsigned long flags;
+	int present;
 
 	host = mmc_priv(mmc);
 
@@ -1044,8 +1045,12 @@ static void sdhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 
 	host->mrq = mrq;
 
-	if (!(readl(host->ioaddr + SDHCI_PRESENT_STATE) & SDHCI_CARD_PRESENT)
-		|| (host->flags & SDHCI_DEVICE_DEAD)) {
+	if (host->quirks & SDHCI_QUIRK_PRESENT_STATE_REGISTER_INVALID)
+		present = host->card_present;
+	else
+		present = readl(host->ioaddr + SDHCI_PRESENT_STATE);
+
+	if (!present || (host->flags & SDHCI_DEVICE_DEAD)) {
 		host->mrq->cmd->error = -ENOMEDIUM;
 		tasklet_schedule(&host->finish_tasklet);
 	} else
@@ -1926,10 +1931,16 @@ EXPORT_SYMBOL_GPL(sdhci_free_host);
 void sdhci_card_detect_callback(struct sdhci_host *host)
 {
 	unsigned long flags;
+	int present;
 
 	spin_lock_irqsave(&host->lock, flags);
 
-	if (!(readl(host->ioaddr + SDHCI_PRESENT_STATE) & SDHCI_CARD_PRESENT)) {
+	if (host->quirks & SDHCI_QUIRK_PRESENT_STATE_REGISTER_INVALID)
+		present = host->card_present;
+	else
+		present = readl(host->ioaddr + SDHCI_PRESENT_STATE);
+
+	if (!present) {
 		if (host->mrq) {
 			printk(KERN_ERR "%s: Card removed during transfer!\n",
 				mmc_hostname(host->mmc));

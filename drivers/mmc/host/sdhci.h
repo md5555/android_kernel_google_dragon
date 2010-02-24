@@ -221,6 +221,8 @@ struct sdhci_host {
 #define SDHCI_QUIRK_BROKEN_SPEC_VERSION			(1<<18)
 /* Controller supports maximum ADMA size of 32 Kilo bytes. */
 #define SDHCI_QUIRK_32KB_MAX_ADMA_SIZE			(1<<19)
+/* Controller doesn't support card detection using sd lines */
+#define SDHCI_QUIRK_PRESENT_STATE_REGISTER_INVALID		(1<<20)
 
 	int			irq;		/* Device IRQ */
 	void __iomem *		ioaddr;		/* Mapped address */
@@ -263,7 +265,7 @@ struct sdhci_host {
 	unsigned int		blocks;		/* remaining PIO blocks */
 
 	int			sg_count;	/* Mapped sg entries */
-
+	int			card_present;	/* Is Card Present */
 	u8			*adma_desc;	/* ADMA descriptor table */
 	u8			*align_buffer;	/* Bounce buffer */
 
