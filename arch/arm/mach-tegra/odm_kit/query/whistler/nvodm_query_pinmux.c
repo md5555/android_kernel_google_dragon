@@ -216,6 +216,7 @@ NvOdmQueryPinMux(
 {
     NvU32 CustomerOption = 0;
     NvU32 Personality = 0;
+    NvU32 Ril = 0;
     NvOdmServicesKeyListHandle hKeyList;
 
     hKeyList = NvOdmServicesKeyListOpen();
@@ -227,10 +228,15 @@ NvOdmQueryPinMux(
         NvOdmServicesKeyListClose(hKeyList);
         Personality =
             NV_DRF_VAL(TEGRA_DEVKIT, BCT_CUSTOPT, PERSONALITY, CustomerOption);
+	Ril =
+            NV_DRF_VAL(TEGRA_DEVKIT, BCT_CUSTOPT, RIL, CustomerOption);
     }
 
     if (!Personality)
         Personality = TEGRA_DEVKIT_DEFAULT_PERSONALITY;
+
+    if (!Ril)
+        Ril = TEGRA_DEVKIT_BCT_CUSTOPT_0_RIL_DEFAULT;
 
     switch (IoModule)
     {
@@ -385,9 +391,7 @@ NvOdmQueryPinMux(
         break;
 
     case NvOdmIoModule_Ulpi:
-        if ((Personality == TEGRA_DEVKIT_BCT_CUSTOPT_0_PERSONALITY_71) ||
-            (Personality == TEGRA_DEVKIT_BCT_CUSTOPT_0_PERSONALITY_01) ||
-            (Personality == TEGRA_DEVKIT_BCT_CUSTOPT_0_PERSONALITY_11))
+        if (Ril == TEGRA_DEVKIT_BCT_CUSTOPT_0_RIL_EMP_RAINBOW_ULPI)
         {
             *pPinMuxConfigTable = s_NvOdmPinMuxConfig_Ulpi;
             *pCount = NV_ARRAY_SIZE(s_NvOdmPinMuxConfig_Ulpi);
