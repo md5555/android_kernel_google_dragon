@@ -61,19 +61,10 @@ static int tegra_sdhci_enable_dma(struct sdhci_host *host)
 	return 0;
 }
 
-static void do_handle_cardetect(void *args)
-{
-	struct sdhci_host *sdhost = (struct sdhci_host *)args;
-	struct tegra_sdhci *t_sdhci = sdhci_priv(sdhost);
-
-	sdhci_card_detect_callback(sdhost);
-	NvRmGpioInterruptDone(t_sdhci->cd_int);
-}
-
 /*
- *  Return 0 if the card is inserted.
+ *  Return 0 if the card is removed.
  *  -ve if the feature is not supported.
- *  +ve if the card is removed.
+ *  +ve if the card is inserted.
  */
 static int tegra_sdhci_isCardInserted(struct sdhci_host *host)
 {
@@ -87,6 +78,16 @@ static int tegra_sdhci_isCardInserted(struct sdhci_host *host)
 	}
 
 	return -1;
+}
+
+static void do_handle_cardetect(void *args)
+{
+	struct sdhci_host *sdhost = (struct sdhci_host *)args;
+	struct tegra_sdhci *t_sdhci = sdhci_priv(sdhost);
+
+	sdhci_card_detect_callback(sdhost);
+	sdhost->card_present = tegra_sdhci_isCardInserted(sdhost);
+	NvRmGpioInterruptDone(t_sdhci->cd_int);
 }
 
 /*
@@ -293,7 +294,8 @@ int __init tegra_sdhci_probe(struct platform_device *pdev)
 		SDHCI_QUIRK_BROKEN_TIMEOUT_VAL |
 		SDHCI_QUIRK_SINGLE_POWER_WRITE |
 	SDHCI_QUIRK_ENABLE_INTERRUPT_AT_BLOCK_GAP |
-		SDHCI_QUIRK_BROKEN_WRITE_PROTECT |
+	SDHCI_QUIRK_BROKEN_WRITE_PROTECT |
+	SDHCI_QUIRK_PRESENT_STATE_REGISTER_INVALID |
 	SDHCI_QUIRK_BROKEN_CTRL_HISPD;
 
 	if (!pSdioCaps->EnableDmaSupport)
