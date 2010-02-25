@@ -93,6 +93,70 @@ static void tegra_w1_write_byte(void *data, u8 a_byte)
 	}
 }
 
+static u8 tegra_w1_read_bit(void *data)
+{
+	struct tegra_w1_dev *dev = data;
+	NvRmOwrTransactionInfo tInfo;
+	NvError err;
+	u8 buffer[1];
+
+	tInfo.Flags = NvRmOwr_ReadBit;
+	tInfo.NumBytes = 1;
+	tInfo.Address = 0;
+	tInfo.Offset = 0;
+
+	err = NvRmOwrTransaction(dev->OwrHandle, dev->pin_map,
+			buffer, tInfo.NumBytes, &tInfo, 1);
+	if (err != NvSuccess)
+	{
+		printk(KERN_ERR "tegra_w1_read_bit failed 0x%x\r\n", err);
+		err = -EIO;
+	}
+
+	if (!err)
+		return (buffer[0] & 0x1);
+	else
+		return 0;
+}
+
+static void tegra_w1_write_bit(void *data, u8 bit)
+{
+	struct tegra_w1_dev *dev = data;
+	NvRmOwrTransactionInfo tInfo;
+	NvError err;
+	u8 buffer[1];
+
+	tInfo.Flags = NvRmOwr_WriteBit;
+	tInfo.NumBytes = 1;
+	tInfo.Address = 0;
+	tInfo.Offset = 0;
+	buffer[0] = bit & 0x1;
+
+	err = NvRmOwrTransaction(dev->OwrHandle, dev->pin_map,
+			buffer, tInfo.NumBytes, &tInfo, 1);
+	if (err != NvSuccess)
+	{
+		printk(KERN_ERR "tegra_w1_write_bit failed 0x%x\r\n", err);
+		err = -EIO;
+	}
+}
+
+/* Performs a write-0 or write-1 cycle and samples the level */
+static u8 tegra_w1_touch_bit(void *data, u8 bit)
+{
+	struct tegra_w1_dev *dev = data;
+
+	if (bit)
+	{
+		return tegra_w1_read_bit(dev);
+	}
+	else
+	{
+		tegra_w1_write_bit(dev, 0);
+		return 0;
+	}
+}
+
 static u8 tegra_w1_reset_bus(void *data)
 {
 	struct tegra_w1_dev *dev = data;
@@ -155,6 +219,9 @@ static int tegra_w1_probe(struct platform_device *pdev)
 	dev->bus_master.data = dev;
 	dev->bus_master.read_byte = tegra_w1_read_byte;
 	dev->bus_master.write_byte = tegra_w1_write_byte;
+	dev->bus_master.read_bit = tegra_w1_read_bit;
+	dev->bus_master.write_bit = tegra_w1_write_bit;
+	dev->bus_master.touch_bit = tegra_w1_touch_bit;
 	dev->bus_master.reset_bus = tegra_w1_reset_bus;
 
 	if (tegra_w1_reset_bus(dev))

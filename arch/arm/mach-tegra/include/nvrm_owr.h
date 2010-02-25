@@ -108,6 +108,15 @@ typedef enum
 
       /// OWR memory Check Presence
           NvRmOwr_CheckPresence,
+
+      /// OWR readbit transaction.
+      /// The LSB will be received first.
+          NvRmOwr_ReadBit,
+
+      /// OWR writebit transaction.
+      /// The LSB will be transmitted first.
+          NvRmOwr_WriteBit,
+
     NvRmOwrTransactionFlags_Num,
     NvRmOwrTransactionFlags_Force32 = 0x7FFFFFFF
 } NvRmOwrTransactionFlags;
