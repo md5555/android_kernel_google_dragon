@@ -390,13 +390,14 @@ struct pcm_runtime_data {
 	int timeout;
 	int state;
 	int stream;
-	NvOsSemaphoreHandle play_sema,rec_sema;
-	struct completion play_comp;
-	struct completion rec_comp;
+	int shutdown_thrd;
+	unsigned int audiofx_frames;
+	struct completion thread_comp;
+	struct semaphore buf_done_sem;
 	StandardPath* stdoutpath;
 	StandardPath* stdinpath;
-	NvU64 cur_pos;
-	NvU64 last_pos;
+	u64 cur_pos;
+	u64 last_pos;
 	NvAudioFxMixBufferHandle mixer_buffer;
 };
 

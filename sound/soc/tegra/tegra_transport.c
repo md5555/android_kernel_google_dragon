@@ -519,13 +519,7 @@ static void tegra_audiofx_notifier_thread(void *arg)
 				struct pcm_runtime_data* prtd =
 				      (struct pcm_runtime_data*)bdm->m.pContext;
 
-				if ((prtd->stream == SNDRV_PCM_STREAM_PLAYBACK) &&
-				(prtd->play_sema != NULL)){
-					NvOsSemaphoreSignal(prtd->play_sema);
-				}
-				else if(prtd->rec_sema != NULL){
-					NvOsSemaphoreSignal(prtd->rec_sema);
-				}
+				 up(&prtd->buf_done_sem);
 			}
 			break;
 

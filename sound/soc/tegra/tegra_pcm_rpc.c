@@ -72,12 +72,12 @@ static int play_thread( void *arg)
 	NvAudioFxBufferDescriptor abd;
 	NvAudioFxState state = NVALSA_INVALID_STATE;
 
-	wait_for_completion(&prtd->play_comp);
+	wait_for_completion(&prtd->thread_comp);
 
 	rtbuffersize = frames_to_bytes(runtime, runtime->buffer_size);
 	buffer_to_prime  = (rtbuffersize / TEGRA_DEFAULT_BUFFER_SIZE);
 
-	while (1) {
+	while (!prtd->shutdown_thrd) {
 		switch (prtd->state) {
 		case SNDRV_PCM_TRIGGER_START:
 			state = NvAudioFxState_Run;
@@ -89,14 +89,6 @@ static int play_thread( void *arg)
 			prtd->state = NVALSA_INVALID_STATE;
 			break;
 		case SNDRV_PCM_TRIGGER_STOP:
-			while (buffer_in_queue > 0) {
-				e = NvOsSemaphoreWaitTimeout(
-						prtd->play_sema, prtd->timeout);
-				if (e != NvSuccess) {
-					snd_printk(KERN_ERR "Sema Wait Fail\n");
-				}
-				buffer_in_queue--;
-			}
 			state = NvAudioFxState_Stop;
 			tegra_snd_cx->xrt_fxn.SetProperty(
 						 prtd->stdoutpath->Stream,
@@ -104,52 +96,51 @@ static int play_thread( void *arg)
 						 sizeof(NvAudioFxState),
 						 &state);
 			prtd->state = NVALSA_INVALID_STATE;
-			break;
+			goto EXIT;
 		default:
 			;
 		}
 
-		if (kthread_should_stop())
-			goto EXIT;
+		if (prtd->audiofx_frames < runtime->control->appl_ptr) {
+			memset(&abd, 0, sizeof(NvAudioFxBufferDescriptor));
 
-		memset(&abd, 0, sizeof(NvAudioFxBufferDescriptor));
-
-		if(rtbuffersize > (offset + TEGRA_DEFAULT_BUFFER_SIZE)) {
 			size = TEGRA_DEFAULT_BUFFER_SIZE;
-		} else {
-			size = rtbuffersize - offset;
+			if ((offset + size) > rtbuffersize) {
+				size = rtbuffersize - offset;
+			}
+
+			abd.hMixBuffer = prtd->mixer_buffer;
+			abd.Offset = offset;
+			abd.Size = size;
+			abd.Format.FormatTag = 1;
+			abd.Format.SampleRate = runtime->rate;
+			abd.Format.BitsPerSample = runtime->sample_bits;
+			abd.Format.Channels = runtime->channels;
+			abd.Format.ChannelMask = 0;
+
+			e = tegra_snd_cx->xrt_fxn.StreamAddBuffer(
+				(NvAudioFxStreamHandle)prtd->stdoutpath->Stream,
+				&abd);
+			buffer_in_queue++;
+			offset += size;
+			if (offset >= rtbuffersize)
+				offset =0;
+
+			prtd->audiofx_frames += bytes_to_frames(runtime,
+								size);
 		}
 
-		abd.hMixBuffer = prtd->mixer_buffer;
-		abd.Offset = offset;
-		abd.Size = size;
-		abd.Format.FormatTag = 1;
-		abd.Format.SampleRate = runtime->rate;
-		abd.Format.BitsPerSample = runtime->sample_bits;
-		abd.Format.Channels = runtime->channels;
-		abd.Format.ChannelMask = 0;
-
-		e = tegra_snd_cx->xrt_fxn.StreamAddBuffer(
-			(NvAudioFxStreamHandle)prtd->stdoutpath->Stream, &abd);
-		buffer_in_queue++;
-		offset += size;
-		if (offset >= rtbuffersize)
-			offset =0;
-
-		if (buffer_to_prime == buffer_in_queue) {
-			e = NvOsSemaphoreWaitTimeout(prtd->play_sema,
-		                                 prtd->timeout);
-			if (e != NvSuccess) {
-				snd_printk(KERN_ERR "sema wait Fail\n");
-				goto EXIT;
-			}
+		if ((buffer_to_prime == buffer_in_queue) ||
+			(prtd->audiofx_frames >=
+			runtime->control->appl_ptr)) {
+			down(&prtd->buf_done_sem);
 
 			buffer_in_queue--;
 
 			if ((frames_to_bytes(runtime, prtd->cur_pos) +
 				TEGRA_DEFAULT_BUFFER_SIZE) > rtbuffersize) {
 				size = rtbuffersize -
-				       frames_to_bytes(runtime, prtd->cur_pos);
+					frames_to_bytes(runtime, prtd->cur_pos);
 			} else {
 				size = TEGRA_DEFAULT_BUFFER_SIZE;
 			}
@@ -173,13 +164,16 @@ static int play_thread( void *arg)
 			if (prtd->cur_pos >= runtime->buffer_size) {
 				prtd->cur_pos -= runtime->buffer_size;
 			}
-
 		}
 	}
-	snd_printk(KERN_ERR "play_thread:  return -EFAULT \n");
-	return -EFAULT;
 EXIT:
-	NvOsSemaphoreWaitTimeout(prtd->play_sema, prtd->timeout);
+	while (buffer_in_queue > 0) {
+		down(&prtd->buf_done_sem);
+		buffer_in_queue--;
+	}
+
+	while (!kthread_should_stop()) {
+	}
 	return 0;
 }
 
@@ -198,11 +192,11 @@ static int rec_thread( void *arg )
 	NvAudioFxState state = NVALSA_INVALID_STATE;
 	NvAudioFxPinFormatDescriptor pin_format;
 
-	wait_for_completion(&prtd->rec_comp);
+	wait_for_completion(&prtd->thread_comp);
 	rtbuffersize = frames_to_bytes(runtime, runtime->buffer_size);
 	buffer_to_prime  = (rtbuffersize / TEGRA_DEFAULT_BUFFER_SIZE);
 
-	while (1) {
+	while (!prtd->shutdown_thrd ) {
 		switch (prtd->state) {
 		case SNDRV_PCM_TRIGGER_START:
 			pin_format.Format.FormatTag = 1;
@@ -239,15 +233,6 @@ static int rec_thread( void *arg )
 			prtd->state = NVALSA_INVALID_STATE;
 			break;
 		case SNDRV_PCM_TRIGGER_STOP:
-			while (buffer_in_queue) {
-				e = NvOsSemaphoreWaitTimeout(
-						prtd->rec_sema, prtd->timeout);
-				if (e != NvSuccess) {
-					snd_printk(KERN_ERR "Sema Wait Fail\n");
-				}
-				buffer_in_queue--;
-			}
-
 			state = NvAudioFxState_Stop;
 			tegra_snd_cx->xrt_fxn.SetProperty(
 						 prtd->stdinpath->Stream,
@@ -260,38 +245,37 @@ static int rec_thread( void *arg )
 			;
 		}
 
-		memset(&abd, 0, sizeof(NvAudioFxBufferDescriptor));
+		if ((state == NvAudioFxState_Run) &&
+			(buffer_in_queue < buffer_to_prime)) {
+			memset(&abd, 0, sizeof(NvAudioFxBufferDescriptor));
 
-		if(rtbuffersize > (offset + TEGRA_DEFAULT_BUFFER_SIZE)) {
 			size = TEGRA_DEFAULT_BUFFER_SIZE;
-		} else {
-			size = rtbuffersize - offset;
+			if ((offset + size) > rtbuffersize) {
+				size = rtbuffersize - offset;
+			}
+
+			abd.hMixBuffer = prtd->mixer_buffer;
+			abd.Offset = offset;
+			abd.Size = size;
+			abd.Format.FormatTag = 1;
+			abd.Format.SampleRate = runtime->rate;
+			abd.Format.BitsPerSample = runtime->sample_bits;
+			abd.Format.Channels = runtime->channels;
+			abd.Format.ChannelMask = 0;
+
+			e = tegra_snd_cx->xrt_fxn.StreamAddBuffer(
+				(NvAudioFxStreamHandle)prtd->stdinpath->Stream, &abd);
+			buffer_in_queue++;
+			offset += size;
+
+			if (offset >= rtbuffersize)
+				offset =0;
 		}
 
-		abd.hMixBuffer = prtd->mixer_buffer;
-		abd.Offset = offset;
-		abd.Size = size;
-		abd.Format.FormatTag = 1;
-		abd.Format.SampleRate = runtime->rate;
-		abd.Format.BitsPerSample = runtime->sample_bits;
-		abd.Format.Channels = runtime->channels;
-		abd.Format.ChannelMask = 0;
-
-		e = tegra_snd_cx->xrt_fxn.StreamAddBuffer(
-			(NvAudioFxStreamHandle)prtd->stdinpath->Stream, &abd);
-		buffer_in_queue++;
-		offset += size;
-
-		if (offset >= rtbuffersize)
-			offset =0;
-
-		if (buffer_to_prime == buffer_in_queue) {
-			e = NvOsSemaphoreWaitTimeout(prtd->rec_sema,
-			                             prtd->timeout);
-			if (e != NvSuccess) {
-				snd_printk(KERN_ERR "sema wait Fail\n");
-				return  -ETIMEDOUT;
-			}
+		if ((buffer_to_prime == buffer_in_queue) &&
+		    ((runtime->status->hw_ptr - runtime->control->appl_ptr) <
+		    (runtime->buffer_size -runtime->period_size))) {
+			down(&prtd->buf_done_sem);
 
 			buffer_in_queue--;
 
@@ -322,10 +306,13 @@ static int rec_thread( void *arg )
 			}
 		}
 	}
-	snd_printk(KERN_ERR "rec_thread:  return -EFAULT \n");
-	return -EFAULT;
 EXIT:
-	while(!kthread_should_stop()){
+	while (buffer_in_queue > 0) {
+		down(&prtd->buf_done_sem);
+		buffer_in_queue--;
+	}
+
+	while (!kthread_should_stop()) {
 	}
 
 	return 0;
@@ -333,29 +320,25 @@ EXIT:
 
 static int tegra_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 {
-	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct pcm_runtime_data *prtd = substream->runtime->private_data;
-	int size;
 	int ret = 0;
 	int state = prtd->state;
 
 	prtd->state = cmd;
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
-		size=frames_to_bytes(runtime, runtime->period_size);
-		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+		prtd->cur_pos = 0;
+		prtd->last_pos = 0;
+		prtd->audiofx_frames = 0;
+		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
 			prtd->timeout = PLAY_TIMEOUT;
-			if(state == NVALSA_INVALID_STATE)
-				complete(&prtd->play_comp);
-			else
-				NvOsSemaphoreSignal(prtd->play_sema);
-		} else {
+		else
 			prtd->timeout = REC_TIMEOUT;
-			if(state == NVALSA_INVALID_STATE)
-				complete(&prtd->rec_comp);
-			else
-				NvOsSemaphoreSignal(prtd->rec_sema);
-		}
+
+		if (state == NVALSA_INVALID_STATE)
+			complete(&prtd->thread_comp);
+		else
+			up(&prtd->buf_done_sem);
 		break;
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
@@ -476,31 +459,14 @@ static int pcm_common_close(struct snd_pcm_substream *substream)
 	if (!prtd)
 		snd_printk(KERN_ERR "pcm_close called with prtd = NULL\n");
 
-	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
-		if (prtd->play_sema)
-			NvOsSemaphoreSignal(prtd->play_sema);
+	prtd->shutdown_thrd = 1;
+	up(&prtd->buf_done_sem);
 
-		if (prtd->play_thread)
-			kthread_stop(prtd->play_thread);
+	if (prtd->play_thread)
+		kthread_stop(prtd->play_thread);
 
-		if (prtd->play_sema){
-			NvOsSemaphoreDestroy(prtd->play_sema);
-			prtd->play_sema = NULL;
-		}
-
-	} else {
-
-		if (prtd->rec_sema)
-			NvOsSemaphoreSignal(prtd->rec_sema);
-
-		if (prtd->rec_thread)
-			kthread_stop(prtd->rec_thread);
-
-		if (prtd->rec_sema){
-			NvOsSemaphoreDestroy(prtd->rec_sema);
-			prtd->rec_sema = NULL;
-		}
-	}
+	if (prtd->rec_thread)
+		kthread_stop(prtd->rec_thread);
 
 	if (tegra_snd_cx->m_FxNotifier.Event & NvAudioFxEventBufferDone) {
 
@@ -557,10 +523,14 @@ static int tegra_pcm_open(struct snd_pcm_substream *substream)
 	prtd->stdinpath = 0;
 	prtd->state = NVALSA_INVALID_STATE;
 	prtd->stream = substream->stream;
+	prtd->shutdown_thrd = 0;
 
 	ret = init_mixer(substream);
 	if (ret)
 		goto fail;
+
+	init_completion(&prtd->thread_comp);
+	sema_init(&prtd->buf_done_sem, 0);
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK){
 		prtd->mixer_buffer = tegra_snd_cx->mixer_buffer[0];
@@ -599,14 +569,7 @@ static int tegra_pcm_open(struct snd_pcm_substream *substream)
 		}
 
 		tegra_snd_cx->m_FxNotifier.Event |= (NvAudioFxEventBufferDone);
-		e = NvOsSemaphoreCreate(&prtd->play_sema, 0);
-		if (e != NvSuccess) {
-			snd_printk(KERN_ERR "play_sema creation failed\n");
-			ret = -EFAULT;
-			goto fail;
-		}
 
-		init_completion(&prtd->play_comp);
 		prtd->play_thread = kthread_run(play_thread,
 						substream,
 						"%sthread",
@@ -652,14 +615,6 @@ static int tegra_pcm_open(struct snd_pcm_substream *substream)
 		}
 		tegra_snd_cx->m_FxNotifier.Event |= (NvAudioFxEventBufferDone);
 
-		e = NvOsSemaphoreCreate(&prtd->rec_sema, 0);
-		if (e != NvSuccess) {
-			snd_printk(KERN_ERR "rec_sema creation failed\n");
-			ret = -EFAULT;
-			goto fail;
-		}
-
-		init_completion(&prtd->rec_comp);
 		prtd->rec_thread = kthread_run(rec_thread,
 						substream,
 						"%sthread",
