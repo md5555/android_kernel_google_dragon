@@ -66,13 +66,11 @@ static int tegra_sdhci_enable_dma(struct sdhci_host *host)
  *  -ve if the feature is not supported.
  *  +ve if the card is inserted.
  */
-static int tegra_sdhci_isCardInserted(struct sdhci_host *host)
+static int tegra_sdhci_detect(struct tegra_sdhci *t_sdhci)
 {
-	struct tegra_sdhci *t_sdhci = sdhci_priv(host);
 	NvRmGpioPinState val;
 
-	if (t_sdhci->cd_pin)
-	{
+	if (t_sdhci->cd_pin) {
 		NvRmGpioReadPins(s_hGpioGlobal, &(t_sdhci->cd_pin), &val, 1);
 		return val == t_sdhci->cd_polarity;
 	}
@@ -86,7 +84,7 @@ static void do_handle_cardetect(void *args)
 	struct tegra_sdhci *t_sdhci = sdhci_priv(sdhost);
 
 	sdhci_card_detect_callback(sdhost);
-	sdhost->card_present = tegra_sdhci_isCardInserted(sdhost);
+	sdhost->card_present = tegra_sdhci_detect(t_sdhci);
 	NvRmGpioInterruptDone(t_sdhci->cd_int);
 }
 
@@ -103,7 +101,7 @@ static int tegra_sdhci_get_ro(struct sdhci_host *host)
 
 	t_sdhci = sdhci_priv(host);
 
-	if (!tegra_sdhci_isCardInserted(host) && t_sdhci->wp_pin) {
+	if (!tegra_sdhci_detect(t_sdhci) && t_sdhci->wp_pin) {
 		NvRmGpioReadPins(s_hGpioGlobal, &(t_sdhci->wp_pin), &val, 1);
 		return val == t_sdhci->wp_polarity;
 	}
@@ -131,7 +129,7 @@ static unsigned int tegra_sdhci_get_maxclock(struct sdhci_host *host)
 	return t_sdhci->MaxClock / 1000;
 }
 
-static unsigned int tegra_sdhci_set_clock(struct sdhci_host *host,
+static int tegra_sdhci_set_clock(struct sdhci_host *host,
 	unsigned int clock)
 {
 	struct tegra_sdhci *t_sdhci;
@@ -329,6 +327,8 @@ int __init tegra_sdhci_probe(struct platform_device *pdev)
 		if (err1 != NvSuccess)
 			goto fail;
 	}
+
+	sdhost->card_present = tegra_sdhci_detect(host);
 
 	dev_info(&pdev->dev, "tegra_sdhci_probe: irq(%d) io(0x%x) phys(0x%x)",
 		irq, (NvU32)sdhost->ioaddr, addr);
