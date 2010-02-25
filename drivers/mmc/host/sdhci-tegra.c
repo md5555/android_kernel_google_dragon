@@ -83,8 +83,8 @@ static void do_handle_cardetect(void *args)
 	struct sdhci_host *sdhost = (struct sdhci_host *)args;
 	struct tegra_sdhci *t_sdhci = sdhci_priv(sdhost);
 
-	sdhci_card_detect_callback(sdhost);
 	sdhost->card_present = tegra_sdhci_detect(t_sdhci);
+	sdhci_card_detect_callback(sdhost);
 	NvRmGpioInterruptDone(t_sdhci->cd_int);
 }
 
