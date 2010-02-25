@@ -101,7 +101,7 @@ static int tegra_sdhci_get_ro(struct sdhci_host *host)
 
 	t_sdhci = sdhci_priv(host);
 
-	if (!tegra_sdhci_detect(t_sdhci) && t_sdhci->wp_pin) {
+	if (tegra_sdhci_detect(t_sdhci) && t_sdhci->wp_pin) {
 		NvRmGpioReadPins(s_hGpioGlobal, &(t_sdhci->wp_pin), &val, 1);
 		return val == t_sdhci->wp_polarity;
 	}
