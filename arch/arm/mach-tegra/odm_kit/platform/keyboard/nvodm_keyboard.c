@@ -30,6 +30,7 @@
  *
  */
 
+#include "mach/nvrm_linux.h" // for s_hRmGlobal
 #include "nvodm_keyboard.h"
 #include "nvodm_query_discovery.h"
 #include "nvodm_services.h"
@@ -47,7 +48,7 @@
 #endif
 
 // wake from keyboard disabled for now
-#define WAKE_FROM_KEYBOARD 0
+#define WAKE_FROM_KEYBOARD	1
 
 /* command main category */
 #define EC_KBC_COMMAND 0x5
@@ -75,16 +76,29 @@ static NvOdmOsSemaphoreHandle s_hKbcKeyScanRecvSema = NULL;
 static NvEcEventRegistrationHandle s_hEcEventRegistration = NULL;
 static NvBool s_KeyboardDeinit = NV_FALSE;
 
+#if WAKE_FROM_KEYBOARD
+extern NvRmGpioHandle s_hGpioGlobal;
+#define DEBOUNCE_TIME_MS	5 /* GPIO debounce time in ms */
 typedef struct NvOdmKbdContextRec
 {
-    const NvOdmGpioPinInfo *GpioPinInfo; // GPIO info struct
-    NvRmGpioPinHandle Pins[4]; // array of gpio pin handles
-    NvU32 PinCount;
-    NvRmDeviceHandle hRm;
-    NvRmGpioHandle hGpio;
+	const NvOdmGpioPinInfo *GpioPinInfo;
+	NvRmGpioPinHandle hPin;
+	NvRmGpioInterruptHandle GpioIntrHandle;
+	NvU32 PinCount;
 } NvOdmKbdContext;
+NvOdmKbdContext *hOdm;
 
-NvOdmKbdContext *phOdm;
+static void GpioInterruptHandler(void *args)
+{
+	NvOdmKbdContext *Odm = (NvOdmKbdContext *)args;
+
+	if (Odm)
+	{
+		NvRmGpioInterruptDone(Odm->GpioIntrHandle);
+	}
+}
+
+#endif
 
 // Shadow LED state
 NvU8 s_LedState = 0;
@@ -121,27 +135,61 @@ NvBool NvOdmKeyboardInit(void)
     }
 
 #if WAKE_FROM_KEYBOARD
-    /* enable keyboard as wake up source */
-    Request.PacketType = NvEcPacketType_Request;
-    Request.RequestType = NvEcRequestResponseType_Keyboard;
-    Request.RequestSubtype = (NvEcRequestResponseSubtype)
-        NvEcKeyboardSubtype_ConfigureWake;
-    Request.NumPayloadBytes = 1;
-    Request.Payload[0] = NVEC_KEYBOARD_WAKE_ENABLE_0_ACTION_ENABLE;
+	hOdm = NvOdmOsAlloc(sizeof(NvOdmKbdContext));
+	if (!hOdm) {
+		goto cleanup;
+	}
 
-    NvStatus = NvEcSendRequest(
-                    s_NvEcHandle,
-                    &Request,
-                    &Response,
-                    sizeof(Request),
-                    sizeof(Response));
-    if (NvStatus != NvError_Success)
-        goto cleanup;
+	/* Check the supported GPIOs */
+	hOdm->GpioPinInfo = NvOdmQueryGpioPinMap(NvOdmGpioPinGroup_WakeFromECKeyboard,
+					0,
+					&hOdm->PinCount);
 
-    if (Response.Status != NvEcStatus_Success)
-    {
-        goto cleanup;
-    }
+	NvRmGpioAcquirePinHandle(s_hGpioGlobal,
+		hOdm->GpioPinInfo->Port,
+		hOdm->GpioPinInfo->Pin,
+		&hOdm->hPin);
+	if (!hOdm->hPin) {
+		goto cleanup;
+	}
+
+	/* register to receive GPIO events */
+	NvStatus = NvRmGpioInterruptRegister(s_hGpioGlobal,
+		s_hRmGlobal,
+		hOdm->hPin,
+		(NvOsInterruptHandler)GpioInterruptHandler,
+		NvRmGpioPinMode_InputData,
+		hOdm,
+		&hOdm->GpioIntrHandle,
+		DEBOUNCE_TIME_MS);
+	if (NvStatus != NvError_Success) {
+		goto cleanup;
+	}
+
+	NvStatus = NvRmGpioInterruptEnable(hOdm->GpioIntrHandle);
+	if (NvStatus != NvError_Success) {
+		goto cleanup;
+	}
+
+	/* enable keyboard as wake up source */
+	Request.PacketType = NvEcPacketType_Request;
+	Request.RequestType = NvEcRequestResponseType_Keyboard;
+	Request.RequestSubtype = (NvEcRequestResponseSubtype)
+	NvEcKeyboardSubtype_ConfigureWake;
+	Request.NumPayloadBytes = 1;
+	Request.Payload[0] = NVEC_KEYBOARD_WAKE_ENABLE_0_ACTION_ENABLE;
+
+	NvStatus = NvEcSendRequest(s_NvEcHandle,
+		&Request,
+		&Response,
+		sizeof(Request),
+		sizeof(Response));
+	if (NvStatus != NvError_Success)
+		goto cleanup;
+
+	if (Response.Status != NvEcStatus_Success) {
+		goto cleanup;
+	}
 #endif
 
     /* create semaphore which can be used to send scan codes to the clients */
@@ -169,6 +217,13 @@ NvBool NvOdmKeyboardInit(void)
     return NV_TRUE;
 
 cleanup:
+#if WAKE_FROM_KEYBOARD
+	NvRmGpioInterruptUnregister(s_hGpioGlobal, s_hRmGlobal, hOdm->GpioIntrHandle);
+	hOdm->GpioIntrHandle = NULL;
+	NvRmGpioReleasePinHandles(s_hGpioGlobal, &hOdm->hPin, hOdm->PinCount);
+	NvOdmOsFree(hOdm);
+	hOdm = NULL;
+#endif
     (void)NvEcUnregisterForEvents(s_hEcEventRegistration);
     s_hEcEventRegistration = NULL;
 
@@ -184,6 +239,15 @@ fail:
 
 void NvOdmKeyboardDeInit(void)
 {
+#if WAKE_FROM_KEYBOARD
+	NvRmGpioInterruptUnregister(s_hGpioGlobal, s_hRmGlobal, hOdm->GpioIntrHandle);
+	hOdm->GpioIntrHandle = NULL;
+	NvRmGpioReleasePinHandles(s_hGpioGlobal, &hOdm->hPin, hOdm->PinCount);
+	hOdm->PinCount = 0;
+	NvOdmOsFree(hOdm);
+	hOdm = NULL;
+#endif
+
     (void)NvEcUnregisterForEvents(s_hEcEventRegistration);
     s_hEcEventRegistration = NULL;
 
