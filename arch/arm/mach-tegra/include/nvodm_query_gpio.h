@@ -144,6 +144,9 @@ typedef enum
     /// Specifies a group for keys used to suspend/resume/shutdown.
     NvOdmGpioPinGroup_Power,
 
+    /// Specifies a group for keys used to resume from EC keyboard.
+    NvOdmGpioPinGroup_WakeFromECKeyboard,
+
     /// Specifies the total number of pin groups.
     NvOdmGpioPinGroup_Num,
     NvOdmGpioPinGroup_Force32 = 0x7FFFFFFF,
