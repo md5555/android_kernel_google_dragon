@@ -521,6 +521,7 @@ static void tegra_uart_hw_deinit(struct tegra_uart_port *t)
 	NvRmModuleReset(s_hRmGlobal, t->modid);
 	clk_disable(t->clk);
 	NvRmSetModuleTristate(s_hRmGlobal, t->modid, NV_TRUE);
+	t->baud = 0;
 }
 
 static int tegra_uart_hw_init(struct tegra_uart_port *t)
@@ -535,6 +536,7 @@ static int tegra_uart_hw_init(struct tegra_uart_port *t)
 	t->mcr_shadow = 0;
 	t->lcr_shadow = 0;
 	t->ier_shadow = 0;
+	t->baud = 0;
 
 	err = NvRmSetModuleTristate(s_hRmGlobal, t->modid, NV_FALSE);
 	if (err != NvSuccess) {
