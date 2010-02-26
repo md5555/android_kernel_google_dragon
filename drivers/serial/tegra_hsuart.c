@@ -74,6 +74,8 @@ struct tegra_uart_port {
 	unsigned char		mcr_shadow;
 	unsigned char		lcr_shadow;
 	unsigned char		ier_shadow;
+	bool           		use_cts_control;
+	bool            	rts_active;
 
 	/* FIFO watermarks which decides when the interrupts are triggered(PIO
 	 * mode).  In the case of receive it is high watermark and in the case
@@ -112,6 +114,8 @@ struct tegra_uart_port {
 static void tegra_set_baudrate(struct tegra_uart_port *t, unsigned int baud);
 static void tegra_set_mctrl(struct uart_port *u, unsigned int mctrl);
 static void do_handle_rx_pio(struct uart_port *u);
+static void set_rts(struct tegra_uart_port *t, bool active);
+static void set_dtr(struct tegra_uart_port *t, bool active);
 
 static inline int tegra_uart_isbreak(struct uart_port *u)
 {
@@ -143,15 +147,11 @@ void tegra_rx_dma_threshold_callback(struct tegra_dma_req *req, int err)
 
 	spin_lock_irqsave(&u->lock, flags);
 
-	u->mctrl &= ~TIOCM_RTS;
-	u->mctrl &= ~TIOCM_DTR;
-	tegra_set_mctrl(u, u->mctrl);
-
+	if (t->rts_active)
+		set_rts(t, false);
 	tegra_dma_dequeue(t->rx_dma);
-
-	u->mctrl |= TIOCM_RTS;
-	u->mctrl |= TIOCM_DTR;
-	tegra_set_mctrl(u, u->mctrl);
+	if (t->rts_active)
+		set_rts(t, true);
 
 	spin_unlock_irqrestore(&u->lock, flags);
 }
@@ -202,17 +202,11 @@ static void do_handle_rx_dma(struct uart_port *u)
 	struct tegra_uart_port *t;
 
 	t = container_of(u, struct tegra_uart_port, uport);
-
-	u->mctrl &= ~TIOCM_RTS;
-	u->mctrl &= ~TIOCM_DTR;
-	tegra_set_mctrl(u, u->mctrl);
-
+	if (t->rts_active)
+		set_rts(t, false);
 	tegra_dma_dequeue(t->rx_dma);
-
-	u->mctrl |= TIOCM_RTS;
-	u->mctrl |= TIOCM_DTR;
-	tegra_set_mctrl(u, u->mctrl);
-
+	if (t->rts_active)
+		set_rts(t, true);
 }
 
 static char do_decode_rx_error(struct uart_port *u)
@@ -504,10 +498,8 @@ static void tegra_stop_rx(struct uart_port *u)
 
 	t = container_of(u, struct tegra_uart_port, uport);
 
-	u->mctrl &= ~TIOCM_RTS;
-	u->mctrl &= ~TIOCM_DTR;
-	tegra_set_mctrl(u, u->mctrl);
-
+	if (t->rts_active)
+		set_rts(t, false);
 	tegra_dma_dequeue(t->rx_dma);
 
 	return;
@@ -534,7 +526,6 @@ static void tegra_uart_hw_deinit(struct tegra_uart_port *t)
 static int tegra_uart_hw_init(struct tegra_uart_port *t)
 {
 	unsigned char fcr;
-	unsigned char mcr;
 	unsigned char ier;
 	NvError err;
 
@@ -612,16 +603,6 @@ static int tegra_uart_hw_init(struct tegra_uart_port *t)
 		t->fcr_shadow = NV_FLD_SET_DRF_DEF(UART, IIR_FCR, DMA,
 			NO_CHANGE, t->fcr_shadow);
 	writeb(t->fcr_shadow, t->regs + UART_IIR_FCR_0);
-
-	/* Let hw control the RTS/CTS signals.
-	 */
-	mcr = t->mcr_shadow;
-	mcr = NV_FLD_SET_DRF_DEF(UART, MCR, CTS_EN, ENABLE, mcr);
-	mcr = NV_FLD_SET_DRF_DEF(UART, MCR, RTS_EN, DISABLE, mcr);
-	mcr = NV_FLD_SET_DRF_DEF(UART, MCR, RTS, FORCE_RTS_HI, mcr);
-	mcr = NV_FLD_SET_DRF_DEF(UART, MCR, DTR, FORCE_DTR_HI, mcr);
-	t->mcr_shadow = mcr;
-	writeb(mcr, t->regs + UART_MCR_0);
 
 	/*
 	 *  Enable IE_RXS for the receive status interrupts like line errros.
@@ -820,6 +801,36 @@ static unsigned int tegra_get_mctrl(struct uart_port *u)
 	return TIOCM_RI | TIOCM_CD | TIOCM_DSR | TIOCM_CTS;
 }
 
+static void set_rts(struct tegra_uart_port *t, bool active)
+{
+	unsigned char mcr;
+	mcr = t->mcr_shadow;
+	if (active)
+		mcr = NV_FLD_SET_DRF_DEF(UART, MCR, RTS, FORCE_RTS_LOW, mcr);
+	else
+		mcr = NV_FLD_SET_DRF_DEF(UART, MCR, RTS, FORCE_RTS_HI, mcr);
+	if (mcr != t->mcr_shadow) {
+		writeb(mcr, t->regs + UART_MCR_0);
+		t->mcr_shadow = mcr;
+	}
+	return;
+}
+
+static void set_dtr(struct tegra_uart_port *t, bool active)
+{
+	unsigned char mcr;
+	mcr = t->mcr_shadow;
+	if (active)
+		mcr = NV_FLD_SET_DRF_DEF(UART, MCR, DTR, FORCE_DTR_LOW, mcr);
+	else
+		mcr = NV_FLD_SET_DRF_DEF(UART, MCR, DTR, FORCE_DTR_HI, mcr);
+	if (mcr != t->mcr_shadow) {
+		writeb(mcr, t->regs + UART_MCR_0);
+		t->mcr_shadow = mcr;
+	}
+	return;
+}
+
 static void tegra_set_mctrl(struct uart_port *u, unsigned int mctrl)
 {
 	unsigned char mcr;
@@ -829,20 +840,18 @@ static void tegra_set_mctrl(struct uart_port *u, unsigned int mctrl)
 	t = container_of(u, struct tegra_uart_port, uport);
 
 	mcr = t->mcr_shadow;
-	if (mctrl & TIOCM_RTS)
-                mcr = NV_FLD_SET_DRF_DEF(UART, MCR, RTS, FORCE_RTS_LOW, mcr);
-	else
-                mcr = NV_FLD_SET_DRF_DEF(UART, MCR, RTS, FORCE_RTS_HI, mcr);
+	if (mctrl & TIOCM_RTS) {
+		t->rts_active = true;
+		set_rts(t, true);
+	} else {
+		t->rts_active = false;
+		set_rts(t, false);
+	}
 
 	if (mctrl & TIOCM_DTR)
-		mcr = NV_FLD_SET_DRF_DEF(UART, MCR, DTR, FORCE_DTR_LOW, mcr);
+		set_dtr(t, true);
 	else
-                mcr = NV_FLD_SET_DRF_DEF(UART, MCR, DTR, FORCE_DTR_HI, mcr);
-
-	if (mcr != t->mcr_shadow) {
-		writeb(mcr, t->regs + UART_MCR_0);
-		t->mcr_shadow = mcr;
-	}
+		set_dtr(t, false);
 	return;
 }
 
@@ -961,7 +970,7 @@ static void tegra_set_baudrate(struct tegra_uart_port *t, unsigned int baud)
 		&clock, 1, &actual_clock, 0);
 	if (err != NvSuccess) {
 		dev_err(t->uport.dev, "Setting the UART clock failed min "
-			"%ld ideal %d max %ld\n", minclock, clock, maxclock);
+			"%lld ideal %d max %lld\n", minclock, clock, maxclock);
 		return;
 	}
 
@@ -994,6 +1003,7 @@ void tegra_set_termios(struct uart_port *u, struct ktermios *termios,
 	unsigned int lcr;
 	unsigned int c_cflag = termios->c_cflag;
 	char debug_string[50];
+	unsigned char mcr;
 
 	t = container_of(u, struct tegra_uart_port, uport);
 	dev_vdbg(t->uport.dev, "+tegra_set_termios\n");
@@ -1061,7 +1071,21 @@ void tegra_set_termios(struct uart_port *u, struct ktermios *termios,
 	t->lcr_shadow = lcr;
 
 	/* Flow control */
-	termios->c_cflag |=  CRTSCTS;
+	if (termios->c_cflag & CRTSCTS)	{
+		mcr = t->mcr_shadow;
+		mcr = NV_FLD_SET_DRF_DEF(UART, MCR, CTS_EN, ENABLE, mcr);
+		mcr = NV_FLD_SET_DRF_DEF(UART, MCR, RTS_EN, DISABLE, mcr);
+		t->mcr_shadow = mcr;
+		writeb(mcr, t->regs + UART_MCR_0);
+		t->use_cts_control = true;
+	} else {
+		mcr = t->mcr_shadow;
+		mcr = NV_FLD_SET_DRF_DEF(UART, MCR, CTS_EN, DISABLE, mcr);
+		mcr = NV_FLD_SET_DRF_DEF(UART, MCR, RTS_EN, DISABLE, mcr);
+		t->mcr_shadow = mcr;
+		writeb(mcr, t->regs + UART_MCR_0);
+		t->use_cts_control = false;
+	}
 
 	spin_unlock_irqrestore(&u->lock, flags);
 	dev_info(u->dev, "%s\n", debug_string);
