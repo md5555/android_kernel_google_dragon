@@ -29,6 +29,7 @@
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
 #include <linux/wakelock.h>
+#include "nvos.h"
 
 extern NvRmDeviceHandle s_hRmGlobal;
 extern void cpu_ap20_do_lp2(void);
@@ -49,10 +50,8 @@ extern struct wake_lock main_wake_lock;
 #define CPU_CONTEXT_SAVE_AREA_SIZE 4096
 #define TEMP_SAVE_AREA_SIZE 16
 #define ENABLE_LP2 1
-#define NV_POWER_LP2_IDLE_THRESHOLD_MS 700
-#define NV_POWER_IDLE_WINDOW_SIZE 100
-#define MAX_LP2_TIME_US 1000000
-#define NV_POWER_COMPLETE_IDLE_MS 1000
+#define LP2_ROUNDTRIP_TIME	1
+#define LP2_PADDING_FACTOR	100
 
 // When non-zero, collects and prints aggregate statistics about idle times
 static volatile NvU8 *s_pFlowCtrl = NULL;
@@ -280,90 +279,66 @@ void cpu_ap20_do_idle(void)
 
 void mach_tegra_idle(void)
 { 
-    static NvU32 flag = 0, lp2_time;
-    static NvU64 cur_jiffies = 0, old_jiffies = 0;
-    NvU64 delta_jif = 0;
-    NvU32 msec, delta;
+	static NvU32 flag = 0;
+	static NvU64 cur_jiffies = 0, next_timer;
+	static NvU32 msec = 0;
+	NvU64 delta_jif = 0;
+	static NvS32 lp2_time = 0;
 
 #ifdef CONFIG_WAKELOCK
-    //The wake lock api is ready if the main lock is ready 
-    if (main_wake_lock.flags)
-    {
-        //Check if there are any IDLE locks pending
-        //If there are, then we do LP3. Else we do LP2
-        if (!has_wake_lock(WAKE_LOCK_IDLE) && flag)
-        {
-            flag = 0;
+	//The wake lock api is ready if the main lock is ready
+	if (main_wake_lock.flags)
+	{
+		//Check if there are any IDLE locks pending
+		//If there are, then we do LP3. Else we do LP2
+		if (!has_wake_lock(WAKE_LOCK_IDLE) && flag)
+		{
+			flag = 0;
 #if ENABLE_LP2            
-            //Only attempt LP2 if the flow controller is ready
-            if (s_pFlowCtrl)            
-            {
-                if (num_online_cpus() > 1)
-                    lp2safe = 1;
+			//Only attempt LP2 if the flow controller is ready
+			if (s_pFlowCtrl)
+			{
+				if (num_online_cpus() > 1)
+					lp2safe = 1;
 
-                if (num_online_cpus() == 1 && lp2safe) {
-                    NvU32 dfs_low_corner = (NvRmPrivGetDfsFlags(s_hRmGlobal) &
-                                            NvRmDfsStatusFlags_Pause);
+				if (num_online_cpus() == 1 && lp2safe) {
+					NvU32 dfs_low_corner = (NvRmPrivGetDfsFlags(s_hRmGlobal) &
+											NvRmDfsStatusFlags_Pause);
 
-                    if (dfs_low_corner) {
-                        lp2count++;
-                        NvSpareTimerTrigger(lp2_time);
-                        cpu_ap20_do_lp2();
-                        NvRmPrivSetLp2TimeUS(s_hRmGlobal, MAX_LP2_TIME_US);
-                        return;
-                    }
-                }
-            }
+					if (dfs_low_corner) {
+						lp2count++;
+						NvSpareTimerTrigger(lp2_time);
+						cpu_ap20_do_lp2();
+
+						jiffies += msecs_to_jiffies(lp2_time / 1000);
+						NvRmPrivSetLp2TimeUS(s_hRmGlobal, lp2_time);
+						return;
+					}
+				}
+			}
 #endif
-        }        
-    }
-#endif // CONFIG_WAKELOCK
-    lp3count++;
-    if (lp3count % NV_POWER_IDLE_WINDOW_SIZE == 0)
-    {
-        old_jiffies = cur_jiffies;
-        cur_jiffies = get_jiffies_64();
-		delta_jif = cur_jiffies - old_jiffies;
-		msec = jiffies_to_msecs(delta_jif);
-		
-		//In a truly idle system, time spent in the idle loop
-		//will be very high due to the wfi. In a non-idle system
-		//we will enter and exit the idle loop quickly. As a result,
-		//we can say that the longer an IDLE_WINDOW, the more
-		//idle the system is.
-		if (msec > NV_POWER_LP2_IDLE_THRESHOLD_MS)
-		{    	
-	        flag = 1;
-
-	        //The IDLE_WINDOW addresses the first axis - Performance.
-	        //The second axis - Power savings, still needs to be addressed.
-	        //The greater our LP2 duty cycle, the greater our power savings.
-	        //We can say that the longer the IDLE_WINDOW, the more idle the
-	        //system and, consequently, the longer we can stay in LP2.
-	        if (msec > NV_POWER_COMPLETE_IDLE_MS)
-	        	msec = NV_POWER_COMPLETE_IDLE_MS;
-
-			delta = NV_POWER_COMPLETE_IDLE_MS - msec;
-
-			if (delta >= 300)
-			{			
-	        	lp2_time = MAX_LP2_TIME_US / 8;
-			}
-			else if (delta >= 200)
-			{
-				lp2_time = MAX_LP2_TIME_US / 5;
-			}
-			else if (delta >= 100)
-			{
-				lp2_time = MAX_LP2_TIME_US / 3;
-			}
-			else
-			{
-				lp2_time = MAX_LP2_TIME_US;
-			}	        
 		}
-    }
-    cpu_ap20_do_idle();    
+	}
+#endif // CONFIG_WAKELOCK
+	lp3count++;
+	cur_jiffies = get_jiffies_64();
+	next_timer = get_next_timer_interrupt(cur_jiffies);
+	delta_jif = next_timer - cur_jiffies;
+	msec = jiffies_to_msecs(delta_jif);
+
+	lp2_time = msec - LP2_ROUNDTRIP_TIME * LP2_PADDING_FACTOR;
+
+	if (lp2_time > 0)
+	{
+		if (num_online_cpus() > 1)
+			lp2safe = 1;
+		else
+			flag = 1;
+
+		lp2_time *= 1000;
+	}
+
+	cpu_ap20_do_idle();
 }
 
 void mach_tegra_reset(void)
