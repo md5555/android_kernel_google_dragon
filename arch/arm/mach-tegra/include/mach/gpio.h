@@ -21,18 +21,31 @@
 #ifndef __MACH_TEGRA_GPIO_H
 #define __MACH_TEGRA_GPIO_H
 
-extern int gpio_set_value(unsigned gpio, int value);
+#include <mach/irqs.h>
 
-extern int gpio_get_value(unsigned gpio);
-
-extern int gpio_direction_input(unsigned gpio);
-
-extern int gpio_direction_output(unsigned gpio, int value);
+#define ARCH_NR_GPIOS		INT_GPIO_NR
 
 #include <asm-generic/gpio.h>
+#include <mach/gpio-names.h>
 
-extern int gpio_request(unsigned gpio, const char *tag);
+#define gpio_get_value		__gpio_get_value
+#define gpio_set_value		__gpio_set_value
+#define gpio_cansleep		__gpio_cansleep
 
-extern void gpio_free(unsigned gpio);
+static inline int gpio_to_irq(unsigned int gpio)
+{
+	if (gpio < ARCH_NR_GPIOS)
+		return INT_GPIO_BASE + gpio;
+	return -EINVAL;
+}
 
+static inline int irq_to_gpio(unsigned int irq)
+{
+	if ((irq >= INT_GPIO_BASE) && (irq < INT_GPIO_BASE + INT_GPIO_NR))
+		return irq - INT_GPIO_BASE;
+	return -EINVAL;
+}
+
+void tegra_gpio_enable(int gpio);
+void tegra_gpio_disable(int gpio);
 #endif

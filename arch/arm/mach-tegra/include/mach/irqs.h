@@ -26,6 +26,22 @@
 #define NR_IRQS 512
 #elif defined(CONFIG_ARCH_TEGRA_2x_SOC)
 #define NR_IRQS 512
+
+/* Gpio interrupt details */
+#define INT_SEC_BASE        64
+#define INT_GPIO1			(INT_SEC_BASE + 0)
+#define INT_GPIO2			(INT_SEC_BASE + 1)
+#define INT_GPIO3			(INT_SEC_BASE + 2)
+#define INT_GPIO4			(INT_SEC_BASE + 3)
+#define INT_GPIO5			(INT_SEC_BASE + 23)
+
+#define INT_TRI_BASE        96
+#define INT_GPIO6			(INT_TRI_BASE + 23)
+#define INT_GPIO7			(INT_TRI_BASE + 25)
+
+#define INT_GPIO_BASE	    (128 + 32)
+#define INT_GPIO_NR			(7*4* 8)
+
 #else
 #error "Invalid Tegra SoC family selection"
 #endif

@@ -12,7 +12,7 @@ obj-y					+= clock.o
 obj-y					+= io.o
 obj-y					+= irq.o
 obj-y					+= irq_dma.o
-obj-y					+= irq_gpio.o
+obj-y					+= gpio.o
 obj-y					+= timer.o
 obj-y					+= tegra_sysmap.o
 

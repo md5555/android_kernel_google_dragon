@@ -21,10 +21,10 @@
  */
 
 #include "power.h"
+#include "linux/interrupt.h"
 
 extern void NvPrivAp20MaskIrq(unsigned int irq);
 extern void NvPrivAp20UnmaskIrq(unsigned int irq);
-extern void NvPrivGpioUnMaskIrq(unsigned int irq);
 extern int enter_power_state(PowerState state, unsigned int proc_id);
 extern void prepare_for_wb0(void);
 extern void prepare_for_wb1(void);
@@ -170,7 +170,7 @@ void cpu_ap20_do_lp0(void)
 	//Interrupt, gpio, pin mux, clock management etc
 	perform_context_operation(PowerModuleContext_Restore);
 }
-void prepare_lp1_wake_events(void)
+void prepare_lp1_wake_events(NvBool entry)
 {
 	NvU32 irq_count, irq;
 
@@ -182,19 +182,30 @@ void prepare_lp1_wake_events(void)
 		{
 			printk("irq = %d\n", s_WakeupIrqTable[irq_count]);
 
-			if (irq < MAX_IRQ)
-				NvPrivAp20UnmaskIrq(irq);
-			else {
-				NvU32 irq_top;
-				irq_top = NvRmGetIrqForLogicalInterrupt(
-					s_hRmGlobal,
-					s_WakeupSources[irq_count].Module,
-					0xff);
-				NvPrivAp20UnmaskIrq(irq_top);
-				NvPrivGpioUnMaskIrq(irq);
+			if (entry) {
+				if (irq < MAX_IRQ)
+					NvPrivAp20UnmaskIrq(irq);
+				else {
+					NvU32 irq_top;
+					irq_top = NvRmGetIrqForLogicalInterrupt(
+						s_hRmGlobal,
+						s_WakeupSources[irq_count].Module,
+						0xff);
+					NvPrivAp20UnmaskIrq(irq_top);
+					enable_irq_wake(irq);
+				}
+			} else {
+				/* resume path only nullifies gpio interrupt */
+				if (irq >= MAX_IRQ) {
+					disable_irq_wake(irq);
+				}
 			}
 		}
 	}
+
+	/* Exit if it is called after resume */
+	if (entry == NV_FALSE)
+		return;
 
 	for (irq_count=0;irq_count<NV_ARRAY_SIZE(s_WakeupIrqTableEx);irq_count++)
 	{
@@ -215,7 +226,7 @@ void cpu_ap20_do_lp1(void)
 	unsigned int proc_id = smp_processor_id();
 
 	prepare_for_wb1();
-	prepare_lp1_wake_events();
+	prepare_lp1_wake_events(NV_TRUE);
 
 	//Inform RM about entry to LP1 state
 	NvRmPrivPowerSetState(s_hRmGlobal, NvRmPowerState_LP1);
@@ -268,6 +279,7 @@ void cpu_ap20_do_lp1(void)
 	NvOsMemcpy((void*)g_pIRAM, (void*)g_iramContextSaveVA,
 		AVP_CONTEXT_SAVE_AREA_SIZE);
 
+	prepare_lp1_wake_events(NV_FALSE);
 	//Restore the saved module(s) context
 	//Interrupt, gpio, pin mux, clock management etc
 	perform_context_operation(PowerModuleContext_RestoreLP1);

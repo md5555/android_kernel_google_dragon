@@ -314,7 +314,6 @@ void __init tegra_init_irq(void)
                 tegra_irq_register_module(Module, pIrq);
 	}
  
-	tegra_init_gpio();
 
 #ifdef CONFIG_TEGRA_SYSTEM_DMA
 	tegra_init_dma();

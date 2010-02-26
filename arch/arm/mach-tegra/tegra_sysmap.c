@@ -30,12 +30,14 @@
 
 static NvRmModuleID tegra_map_name_to_mod(const char *name, int inst)
 {
-	if (!strcmp(name, "pl310"))
+	if (!strcmp(name, "gpio"))
+		return NVRM_MODULE_ID(NvRmPrivModuleID_Gpio, inst);
+	else if (!strcmp(name, "pcie"))
+		return NVRM_MODULE_ID(NvRmPrivModuleID_Pcie, inst);
+	else if (!strcmp(name, "pl310"))
 		return NVRM_MODULE_ID(NvRmPrivModuleID_Pl310, inst);
 	else if (!strcmp(name, "scu"))
 		return NVRM_MODULE_ID(NvRmPrivModuleID_ArmPerif, inst);
-	else if (!strcmp(name, "pcie"))
-		return NVRM_MODULE_ID(NvRmPrivModuleID_Pcie, inst);
 	else if (!strcmp(name, "usbotg"))
 		return NVRM_MODULE_ID(NvRmModuleID_Usb2Otg, inst);
 	else if (!strcmp(name, "mc"))
