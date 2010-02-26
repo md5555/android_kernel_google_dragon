@@ -677,8 +677,10 @@ static NvBool
 NvIsFilteredPeripheral(const NvOdmPeripheralConnectivity* pConnectivity)
 {
     NvOdmServicesKeyListHandle hKeyList;
+    NvU32 CustOpt = 0;
     NvU32 Personality = 0;
     NvU32 opt = 0;
+    NvU32 ril = 0;
     NvOdmIoModule OdmModule;
     const NvU32 *OdmConfigs=NULL;
     NvU32 NumOdmConfigs = 0;
@@ -734,14 +736,40 @@ NvIsFilteredPeripheral(const NvOdmPeripheralConnectivity* pConnectivity)
 
     if (hKeyList)
     {
-        Personality =
+        CustOpt =
             NvOdmServicesGetKeyValue(hKeyList,
                                      NvOdmKeyListId_ReservedBctCustomerOption);
         NvOdmServicesKeyListClose(hKeyList);
         Personality = 
-            NV_DRF_VAL(TEGRA_DEVKIT, BCT_CUSTOPT, PERSONALITY, Personality);
+            NV_DRF_VAL(TEGRA_DEVKIT, BCT_CUSTOPT, PERSONALITY, CustOpt);
         opt =
-            NV_DRF_VAL(TEGRA_DEVKIT, BCT_CUSTOPT, DISPLAY_OPTION, opt);
+            NV_DRF_VAL(TEGRA_DEVKIT, BCT_CUSTOPT, DISPLAY_OPTION, CustOpt);
+        ril =
+            NV_DRF_VAL(TEGRA_DEVKIT, BCT_CUSTOPT, RIL, CustOpt);
+    }
+
+    if (pConnectivity->Guid == NV_ODM_GUID('e','m','p',' ','_','m','d','m'))
+    {
+        if (ril == TEGRA_DEVKIT_BCT_CUSTOPT_0_RIL_EMP_RAINBOW)
+        {
+            return NV_FALSE; // EMP RAINBOW supported - don't filter it
+        }
+        else
+        {
+            return NV_TRUE; // EMP RAINBOW not supported - filter it
+        }
+    }
+
+    if (pConnectivity->Guid == NV_ODM_GUID('e','m','p',' ','M','5','7','0'))
+    {
+        if (ril == TEGRA_DEVKIT_BCT_CUSTOPT_0_RIL_EMP_RAINBOW_ULPI)
+        {
+            return NV_FALSE; // EMP RAINBOW ULPI supported - don't filter it
+        }
+        else
+        {
+            return NV_TRUE; // EMP RAINBOW ULPI not supported - filter it
+        }
     }
 
     if (!Personality)

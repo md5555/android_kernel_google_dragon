@@ -44,9 +44,6 @@
 #include "nvrm_drf.h"
 #include "nvos.h"
 
-#define TEGRA_DEVKIT_BCT_CUSTOPT_0_RIL_RANGE              14:13
-#define TEGRA_DEVKIT_BCT_CUSTOPT_0_RIL_EMP_RAINBOW_ULPI   0x2UL
-
 typedef struct NvOdmUsbUlpiRec {
 	NvU64 CurrentGUID;
 } NvOdmUsbUlpi;
@@ -79,7 +76,7 @@ static NvOdmGpioPinHandle ste_u3xx_cwr_gpio_pin;
 
 static int ste_u3xx_query(struct ste_u3xx_info *info)
 {
-	NvU64 guid = NV_ODM_GUID('e', 'm', 'p', ' ', '_', 'm', 'd', 'm');
+	NvU64 guid = NV_ODM_GUID('e', 'm', 'p', ' ', 'M', '5', '7', '0');
 	NvOdmPeripheralConnectivity *pConnectivity;
 
 	/* query odm kit for modem support */
@@ -87,7 +84,7 @@ static int ste_u3xx_query(struct ste_u3xx_info *info)
 	    (NvOdmPeripheralConnectivity *) NvOdmPeripheralGetGuid(guid);
 	if (pConnectivity == NULL)
 		return -1;
-	NV_ASSERT(pConnectivity->NumAddress >= 8);
+	NV_ASSERT(pConnectivity->NumAddress >= 5);
 
 	/* query for uart port */
 	NV_ASSERT(pConnectivity->AddressList[0].Interface ==

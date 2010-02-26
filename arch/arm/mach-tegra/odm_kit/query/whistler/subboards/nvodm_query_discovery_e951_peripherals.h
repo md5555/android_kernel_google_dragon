@@ -63,4 +63,12 @@
     NvOdmPeripheralClass_Other
 },
 
+// EMP M570 Modem on COMMs Module
+{
+    NV_ODM_GUID('e','m','p',' ','M','5','7','0'),
+    s_ffaEmpM570Addresses,
+    NV_ARRAY_SIZE(s_ffaEmpM570Addresses),
+    NvOdmPeripheralClass_Other
+},
+
 // NOTE: This list *must* end with a trailing comma.
