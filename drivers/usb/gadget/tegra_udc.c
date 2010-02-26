@@ -61,3 +61,34 @@ void tegra_udc_clk_resume(void)
 {
 	NV_ASSERT_SUCCESS(NvDdkUsbPhyPowerUp(s_hUsbPhy, NV_FALSE, 0));
 }
+
+bool tegra_udc_charger_detection(void)
+{
+	NvDdkUsbPhyIoctl_DedicatedChargerDetectionInputArgs Charger;
+	NvDdkUsbPhyIoctl_DedicatedChargerStatusOutputArgs Status;
+
+	/* clear the input args */
+	NvOsMemset(&Charger, 0, sizeof(Charger));
+	/* enable the charger detection logic */
+	Charger.EnableChargerDetection = NV_TRUE;
+	NV_ASSERT_SUCCESS(NvDdkUsbPhyIoctl(
+		s_hUsbPhy,
+		NvDdkUsbPhyIoctlType_DedicatedChargerDetection,
+		&Charger,
+		NULL));
+	/* get the charger detection status */
+	NV_ASSERT_SUCCESS(NvDdkUsbPhyIoctl(
+		s_hUsbPhy,
+		NvDdkUsbPhyIoctlType_DedicatedChargerStatus,
+		NULL,
+		&Status));
+	/* disable the charger detection */
+	Charger.EnableChargerDetection = NV_FALSE;
+	NV_ASSERT_SUCCESS(NvDdkUsbPhyIoctl(
+		s_hUsbPhy,
+		NvDdkUsbPhyIoctlType_DedicatedChargerDetection,
+		&Charger,
+		NULL));
+
+	return Status.ChargerDetected;
+}

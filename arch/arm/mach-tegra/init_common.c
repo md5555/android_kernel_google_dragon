@@ -471,6 +471,21 @@ fail:
 }
 #endif
 
+#if defined(CONFIG_REGULATOR_TEGRA)
+static struct platform_device* tegra_register_regulator_device(void)
+{
+    struct platform_device * pdev;
+
+    pdev = platform_device_alloc("tegra_regulator", 0);
+    if (pdev)
+        platform_device_add(pdev);
+
+    return pdev;
+}
+#else
+#define tegra_register_regulator_device() NULL
+#endif
+
 /* FIXME: Needed for filling the USB gadget device platform data structure */
 #if !defined(CONFIG_USB_TEGRA)
 #define tegra_register_usb_gadget() do {} while (0)
@@ -547,6 +562,7 @@ static void __init tegra_register_usb_gadget(void)
         /* FIXME: add support for ULPI and HSIC here */
         pdata.phy_mode = FSL_USB2_PHY_UTMI;
         pdata.operating_mode = FSL_USB2_DR_DEVICE;
+        pdata.regulator_dev = tegra_register_regulator_device();
         if (platform_device_add_data(platdev, &pdata, sizeof(pdata))) {
             pr_err("unable to add data to tegra-udc device\n");
             goto fail;

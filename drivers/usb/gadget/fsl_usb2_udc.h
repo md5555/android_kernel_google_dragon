@@ -513,6 +513,8 @@ struct fsl_udc {
 	u32 ep0_dir;		/* Endpoint zero direction: can be
 				   USB_DIR_IN or USB_DIR_OUT */
 	u8 device_address;	/* Device USB address */
+	struct regulator *vbus_regulator;	/* regulator for drawing VBUS */
+	struct delayed_work work; /* delayed work for charger detection */
 };
 
 /*-------------------------------------------------------------------------*/
@@ -612,13 +614,14 @@ struct platform_device;
 #define platform_udc_clk_release	__glue(_UDC_NAME,_udc_clk_release)
 #define platform_udc_clk_suspend	__glue(_UDC_NAME,_udc_clk_suspend)
 #define platform_udc_clk_resume		__glue(_UDC_NAME,_udc_clk_resume)
-
+#define platform_udc_charger_detection	__glue(_UDC_NAME,_udc_charger_detection)
 
 extern int platform_udc_clk_init(struct platform_device *pdev);
 extern void platform_udc_clk_finalize(struct platform_device *pdev);
 extern void platform_udc_clk_release(void);
 extern void platform_udc_clk_suspend(void);
 extern void platform_udc_clk_resume(void);
+extern bool platform_udc_charger_detection(void);
 #else
 static inline int platform_udc_clk_init(struct platform_device *pdev)
 {
@@ -628,6 +631,10 @@ static inline void platform_udc_clk_finalize(struct platform_device *pdev)
 { }
 static inline void platform_udc_clk_release(void)
 { }
+static inline bool platform_udc_charger_detection(void)
+{
+	return 0;
+}
 #endif
 
 #endif
