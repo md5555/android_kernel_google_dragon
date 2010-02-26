@@ -23,7 +23,7 @@
 
 #include <linux/module.h>
 #include <linux/input.h>
-#include <linux/platform_device.h>
+#include <linux/device.h>
 #include <linux/kthread.h>
 #include <linux/tegra_devices.h>
 #include <linux/earlysuspend.h>
@@ -33,6 +33,7 @@
 #include "nvec.h"
 #include "nvodm_services.h"
 #include "nvodm_mouse.h"
+#include "nvec_device.h"
 
 #define DRIVER_DESC "NvEc mouse driver"
 #define DRIVER_LICENSE "GPL"
@@ -63,10 +64,7 @@ struct nvec_mouse
 	int			packetSize;
 	unsigned char		previousState;
 	int			shutdown;
-	struct early_suspend	early_suspend;
 };
-
-static struct platform_device *nvec_mouse_device;
 
 // Commands sent to the mouse.
 //
@@ -293,44 +291,23 @@ static int mouse_suspend(struct nvec_mouse *m)
 	return 0;
 }
 
-#ifndef CONFIG_HAS_EARLYSUSPEND
-
-static int nvec_mouse_suspend(struct platform_device *pdev, pm_message_t state)
+static int nvec_mouse_suspend(struct nvec_device *pdev, pm_message_t state)
 {
-	struct input_dev *input_dev = platform_get_drvdata(pdev);
+	struct input_dev *input_dev = nvec_get_drvdata(pdev);
 	struct nvec_mouse *mouse = input_get_drvdata(input_dev);
 
 	return mouse_suspend(mouse);
 }
 
-static int nvec_mouse_resume(struct platform_device *pdev)
+static int nvec_mouse_resume(struct nvec_device *pdev)
 {
-	struct input_dev *input_dev = platform_get_drvdata(pdev);
+	struct input_dev *input_dev = nvec_get_drvdata(pdev);
 	struct nvec_mouse *mouse = input_get_drvdata(input_dev);
 
 	return mouse_resume(mouse);
 }
 
-#else
-
-static void nvec_mouse_early_suspend(struct early_suspend *es)
-{
-	struct nvec_mouse *mouse;
-	mouse = container_of(es, struct nvec_mouse, early_suspend);
-
-	mouse_suspend(mouse);
-}
-
-static void nvec_mouse_late_resume(struct early_suspend *es)
-{
-	struct nvec_mouse *mouse;
-	mouse = container_of(es, struct nvec_mouse, early_suspend);
-
-	mouse_resume(mouse);
-}
-#endif
-
-static int __devinit nvec_mouse_probe(struct platform_device *pdev)
+static int __devinit nvec_mouse_probe(struct nvec_device *pdev)
 {
 	int error;
 	struct nvec_mouse *mouse;
@@ -373,7 +350,7 @@ static int __devinit nvec_mouse_probe(struct platform_device *pdev)
 		goto fail_no_mouse_found;
 	}
 
-	platform_set_drvdata(pdev, input_dev);
+	nvec_set_drvdata(pdev, input_dev);
 
 	mouse->semaphore = NvOdmOsSemaphoreCreate(0);
 	if (mouse->semaphore == NULL) {
@@ -413,12 +390,6 @@ static int __devinit nvec_mouse_probe(struct platform_device *pdev)
 	}
 
 	mouse->previousState = 0;
-#ifdef CONFIG_HAS_EARLYSUSPEND
-	mouse->early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN + 1;
-	mouse->early_suspend.suspend = nvec_mouse_early_suspend;
-	mouse->early_suspend.resume = nvec_mouse_late_resume;
-	register_early_suspend(&mouse->early_suspend);
-#endif
 
 	printk(KERN_INFO DRIVER_DESC ": registered NVEC mouse driver\n");
 	return 0;
@@ -440,12 +411,11 @@ fail:
 	return error;
 }
 
-static int __devexit nvec_mouse_remove(struct platform_device *dev)
+static void nvec_mouse_remove(struct nvec_device *dev)
 {
-	struct input_dev *input_dev = platform_get_drvdata(dev);
-	struct nvec_mouse *mouse = platform_get_drvdata(dev);
+	struct input_dev *input_dev = nvec_get_drvdata(dev);
+	struct nvec_mouse *mouse = input_get_drvdata(input_dev);
 
-	unregister_early_suspend(&mouse->early_suspend);
 	mouse->shutdown = 1;
 	NvOdmOsSemaphoreSignal(mouse->semaphore);
 	(void)kthread_stop(mouse->task);
@@ -454,59 +424,47 @@ static int __devexit nvec_mouse_remove(struct platform_device *dev)
 	input_free_device(input_dev);
 	kfree(mouse);
 	mouse = NULL;
-	return 0;
 }
 
-static struct platform_driver nvec_mouse_driver = {
-	.driver		= {
-		.name	= "nvec_mouse",
-		.owner	= THIS_MODULE,
-	},
+static struct nvec_driver nvec_mouse = {
+	.name		= "nvec_mouse",
 	.probe		= nvec_mouse_probe,
-	.remove		= __devexit_p(nvec_mouse_remove),
-#ifndef CONFIG_HAS_EARLYSUSPEND
+	.remove		= nvec_mouse_remove,
 	.suspend	= nvec_mouse_suspend,
 	.resume		= nvec_mouse_resume,
-#endif
+};
+
+static struct nvec_device nvec_mouse_device = {
+	.name	= "nvec_mouse",
+	.driver	= &nvec_mouse,
 };
 
 static int __init nvec_mouse_init(void)
 {
 	int err;
 
-	err = platform_driver_register(&nvec_mouse_driver);
-	if (err) {
-		pr_err("**nvec_mouse_init: platform_driver_register: fail\n");
-		goto error;
-	}
-
-	nvec_mouse_device = platform_device_alloc("nvec_mouse", -1);
-	if (!nvec_mouse_device) {
-		pr_err("**nvec_mouse_init: platform_device_alloc: fail\n");
-		err = -ENOMEM;
-		goto error_unregister_driver;
-	}
-
-	err = platform_device_add(nvec_mouse_device);
+	err = nvec_register_driver(&nvec_mouse);
 	if (err)
 	{
-		pr_err("**nvec_mouse_init: platform_device_add: fail\n");
-		goto error_free_device;
+		pr_err("**nvec_mouse_init: nvec_register_driver: fail\n");
+		return err;
 	}
-	return 0;
 
-error_free_device:
-	platform_device_put(nvec_mouse_device);
-error_unregister_driver:
-	platform_driver_unregister(&nvec_mouse_driver);
-error:
-	return err;
+	err = nvec_register_device(&nvec_mouse_device);
+	if (err)
+	{
+		pr_err("**nvec_mouse_init: nvec_device_add: fail\n");
+		nvec_unregister_driver(&nvec_mouse);
+		return err;
+	}
+
+	return 0;
 }
 
 static void __exit nvec_mouse_exit(void)
 {
-	platform_device_unregister(nvec_mouse_device);
-	platform_driver_unregister(&nvec_mouse_driver);
+	nvec_unregister_device(&nvec_mouse_device);
+	nvec_unregister_driver(&nvec_mouse);
 }
 
 module_init(nvec_mouse_init);

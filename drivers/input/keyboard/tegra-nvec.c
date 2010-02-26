@@ -23,7 +23,7 @@
 
 #include <linux/module.h>
 #include <linux/input.h>
-#include <linux/platform_device.h>
+#include <linux/device.h>
 #include <linux/kthread.h>
 #include <linux/tegra_devices.h>
 #include <linux/freezer.h>
@@ -32,6 +32,7 @@
 #include "nvec.h"
 #include "nvodm_services.h"
 #include "nvodm_keyboard.h"
+#include "nvec_device.h"
 
 #define DRIVER_DESC "NvEc keyboard driver"
 #define DRIVER_LICENSE "GPL"
@@ -262,8 +263,6 @@ struct nvec_keyboard
 	NvEcEventRegistrationHandle	hEvent;
 };
 
-static struct platform_device *nvec_keyboard_device;
-
 static int nvec_keyboard_recv(void *arg)
 {
 	struct input_dev *input_dev = (struct input_dev *)arg;
@@ -317,7 +316,7 @@ static void nvec_keyboard_close(struct input_dev *dev)
 	return;
 }
 
-static int __devinit nvec_keyboard_probe(struct platform_device *pdev)
+static int __devinit nvec_keyboard_probe(struct nvec_device *pdev)
 {
 	int error;
 	NvError nverr;
@@ -334,7 +333,7 @@ static int __devinit nvec_keyboard_probe(struct platform_device *pdev)
 
 	keyboard->input_dev = input_dev;
 	input_set_drvdata(input_dev, keyboard);
-	platform_set_drvdata(pdev, input_dev);
+	nvec_set_drvdata(pdev, input_dev);
 
 	if (!NvOdmKeyboardInit()) {
 		error = -ENODEV;
@@ -393,9 +392,9 @@ fail:
 	return error;
 }
 
-static int __devexit nvec_keyboard_remove(struct platform_device *dev)
+static int nvec_keyboard_remove(struct nvec_device *dev)
 {
-	struct input_dev *input_dev = platform_get_drvdata(dev);
+	struct input_dev *input_dev = nvec_get_drvdata(dev);
 	struct nvec_keyboard *keyboard = input_get_drvdata(input_dev);
 
 	(void)kthread_stop(keyboard->task);
@@ -409,12 +408,11 @@ static int __devexit nvec_keyboard_remove(struct platform_device *dev)
 	return 0;
 }
 
-#ifdef ENABLE_NVEC_KBD_SUSPEND
-static int nvec_keyboard_suspend(struct platform_device *pdev, pm_message_t state)
+static int nvec_keyboard_suspend(struct nvec_device *pdev, pm_message_t state)
 {
 	NvEcRequest Request = {0};
 	NvEcResponse Response = {0};
-	struct input_dev *input_dev = platform_get_drvdata(pdev);
+	struct input_dev *input_dev = nvec_get_drvdata(pdev);
 	struct nvec_keyboard *keyboard = input_get_drvdata(input_dev);
 	NvError err = NvError_Success;
 
@@ -455,11 +453,11 @@ static int nvec_keyboard_suspend(struct platform_device *pdev, pm_message_t stat
 	return 0;
 }
 
-static int nvec_keyboard_resume(struct platform_device *pdev)
+static int nvec_keyboard_resume(struct nvec_device *pdev)
 {
 	NvEcRequest Request = {0};
 	NvEcResponse Response = {0};
-	struct input_dev *input_dev = platform_get_drvdata(pdev);
+	struct input_dev *input_dev = nvec_get_drvdata(pdev);
 	struct nvec_keyboard *keyboard = input_get_drvdata(input_dev);
 	NvError err = NvError_Success;
 
@@ -499,54 +497,46 @@ static int nvec_keyboard_resume(struct platform_device *pdev)
 
 	return 0;
 }
-#endif /* ENABLE_NVEC_KBD_SUSPEND */
 
-static struct platform_driver nvec_keyboard_driver = {
-	.driver	 = {
-		.name	= "nvec_keyboard",
-		.owner	= THIS_MODULE,
-	},
-	.probe	= nvec_keyboard_probe,
-	.remove	= __devexit_p(nvec_keyboard_remove),
-#ifdef ENABLE_NVEC_KBD_SUSPEND
+static struct nvec_driver nvec_keyboard_driver = {
+	.name		= "nvec_keyboard",
+	.probe		= nvec_keyboard_probe,
+	.remove		= nvec_keyboard_remove,
 	.suspend	= nvec_keyboard_suspend,
 	.resume		= nvec_keyboard_resume,
-#endif
+};
+
+static struct nvec_device nvec_keyboard_device = {
+	.name	= "nvec_keyboard",
+	.driver	= &nvec_keyboard_driver,
 };
 
 static int __init nvec_keyboard_init(void)
 {
 	int err;
 
-	err = platform_driver_register(&nvec_keyboard_driver);
-	if (err) {
-		goto error;
-	}
-
-	nvec_keyboard_device = platform_device_alloc("nvec_keyboard", -1);
-	if (!nvec_keyboard_device) {
-		err = -ENOMEM;
-		goto error_unregister_driver;
-	}
-
-	err = platform_device_add(nvec_keyboard_device);
+	err = nvec_register_driver(&nvec_keyboard_driver);
 	if (err)
-		goto error_free_device;
+	{
+		pr_err("**nvec_keyboard_init: nvec_register_driver: fail\n");
+		return err;
+	}
+
+	err = nvec_register_device(&nvec_keyboard_device);
+	if (err)
+	{
+		pr_err("**nvec_keyboard_init: nvec_device_add: fail\n");
+		nvec_unregister_driver(&nvec_keyboard_driver);
+		return err;
+	}
 
 	return 0;
-
-error_free_device:
-	platform_device_put(nvec_keyboard_device);
-error_unregister_driver:
-	platform_driver_unregister(&nvec_keyboard_driver);
-error:
-	return err;
 }
 
 static void __exit nvec_keyboard_exit(void)
 {
-	platform_device_unregister(nvec_keyboard_device);
-	platform_driver_unregister(&nvec_keyboard_driver);
+	nvec_unregister_device(&nvec_keyboard_device);
+	nvec_unregister_driver(&nvec_keyboard_driver);
 }
 
 module_init(nvec_keyboard_init);
