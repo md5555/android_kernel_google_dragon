@@ -4830,35 +4830,14 @@ void NvDdkNandReleaseFlashLock(NvDdkNandHandle hNand)
 NvError NvDdkNandSuspendClocks(NvDdkNandHandle hNand)
 {
     NvError e = NvSuccess;
-    NvRmDfsBusyHint BusyHints[3];
-    NvBool BusyAttribute = NV_TRUE;
-    
+
     NvOsMutexLock(hNand->hMutex);
     if (!hNand->IsNandClkEnabled)
     {
         e = NvSuccess;
         goto fail;
     }
-    BusyHints[0].ClockId = NvRmDfsClockId_Emc;
-    BusyHints[0].BoostDurationMs = NV_WAIT_INFINITE;
-    BusyHints[0].BoostKHz = 0;
-    BusyHints[0].BusyAttribute = BusyAttribute;
 
-    BusyHints[1].ClockId = NvRmDfsClockId_Ahb;
-    BusyHints[1].BoostDurationMs = NV_WAIT_INFINITE;
-    BusyHints[1].BoostKHz = 0;
-    BusyHints[1].BusyAttribute = BusyAttribute;
-
-    BusyHints[2].ClockId = NvRmDfsClockId_Cpu;
-    BusyHints[2].BoostDurationMs = NV_WAIT_INFINITE;
-    BusyHints[2].BoostKHz = 0;
-    BusyHints[2].BusyAttribute = BusyAttribute;
-
-    NvRmPowerBusyHintMulti(hNand->RmDevHandle,
-                           hNand->RmPowerClientId,
-                           BusyHints,
-                           3,
-                           NvRmDfsBusyHintSyncMode_Async);
     /* Disable the clock */
     NV_CHECK_ERROR_CLEANUP(NvRmPowerModuleClockControl(hNand->RmDevHandle,
         NvRmModuleID_Nand, hNand->RmPowerClientId, NV_FALSE));
@@ -4873,7 +4852,7 @@ NvError NvDdkNandResumeClocks(NvDdkNandHandle hNand)
     NvError e = NvSuccess;
     NvRmDfsBusyHint BusyHints[3];
     NvBool BusyAttribute = NV_TRUE;
-    
+
     NvOsMutexLock(hNand->hMutex);
     if (hNand->IsNandClkEnabled)
     {
@@ -4881,18 +4860,18 @@ NvError NvDdkNandResumeClocks(NvDdkNandHandle hNand)
         goto fail;
     }
     BusyHints[0].ClockId = NvRmDfsClockId_Emc;
-    BusyHints[0].BoostDurationMs = NV_WAIT_INFINITE;
-    BusyHints[0].BoostKHz = 80000;
+    BusyHints[0].BoostDurationMs = 50;
+    BusyHints[0].BoostKHz = 100000;
     BusyHints[0].BusyAttribute = BusyAttribute;
 
     BusyHints[1].ClockId = NvRmDfsClockId_Ahb;
-    BusyHints[1].BoostDurationMs = NV_WAIT_INFINITE;
-    BusyHints[1].BoostKHz = 80000;
+    BusyHints[1].BoostDurationMs = 50;
+    BusyHints[1].BoostKHz = 100000;
     BusyHints[1].BusyAttribute = BusyAttribute;
 
     BusyHints[2].ClockId = NvRmDfsClockId_Cpu;
-    BusyHints[2].BoostDurationMs = NV_WAIT_INFINITE;
-    BusyHints[2].BoostKHz = 240000;
+    BusyHints[2].BoostDurationMs = 50;
+    BusyHints[2].BoostKHz = 350000;
     BusyHints[2].BusyAttribute = BusyAttribute;
 
     NvRmPowerBusyHintMulti(hNand->RmDevHandle,
@@ -4903,6 +4882,7 @@ NvError NvDdkNandResumeClocks(NvDdkNandHandle hNand)
     /* Enable clk to Nand controller */
     NV_CHECK_ERROR_CLEANUP(EnableNandClock(hNand));
     SetTimingRegVal(hNand, NV_FALSE);
+    hNand->IsNandClkEnabled = NV_TRUE;
 fail:
     NvOsMutexUnlock(hNand->hMutex);
     return e;
@@ -4911,7 +4891,7 @@ fail:
 NvError NvDdkNandSuspend(NvDdkNandHandle hNand)
 {
     NvError e = NvSuccess;
-    
+
     if (hNand->IsNandSuspended)
     {
         /* already in suspend state */
@@ -4938,7 +4918,7 @@ fail:
 NvError NvDdkNandResume(NvDdkNandHandle hNand)
 {
     NvError e = NvSuccess;
-    
+
     if (!hNand->IsNandSuspended) {
         /* already in resume state */
         return e;
