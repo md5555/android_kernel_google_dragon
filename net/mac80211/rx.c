@@ -1774,7 +1774,14 @@ ieee80211_rx_h_action(struct ieee80211_rx_data *rx)
 			if (len < (IEEE80211_MIN_ACTION_SIZE +
 				   sizeof(mgmt->u.action.u.measurement)))
 				return RX_DROP_MONITOR;
+#if 0
 			ieee80211_process_measurement_req(sdata, mgmt, len);
+#else
+            /* TODO(sleffler): drop frames to avoid ath9k crashes */
+            if (printk_ratelimit())
+                printk(KERN_DEBUG "%s: drop measurement request\n", __func__);
+            return RX_DROP_MONITOR;
+#endif
 			break;
 		case WLAN_ACTION_SPCT_CHL_SWITCH:
 			if (len < (IEEE80211_MIN_ACTION_SIZE +
