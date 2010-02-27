@@ -25,7 +25,7 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/err.h>
-#include <linux/platform_device.h>
+#include <linux/device.h>
 #include <linux/debugfs.h>
 #include <linux/power_supply.h>
 #include <linux/wakelock.h>
@@ -34,6 +34,8 @@
 #include "nvcommon.h"
 #include "nvos.h"
 #include "nvodm_battery.h"
+#include "nvec_device.h"
+
 
 /* This defines the manufacturer name and model name length */
 #define BATTERY_INFO_NAME_LEN 30
@@ -416,7 +418,7 @@ static void tegra_battery_poll_timer_func(unsigned long unused)
 		jiffies + msecs_to_jiffies(NVBATTERY_POLLING_INTERVAL));
 }
 
-static int tegra_battery_probe(struct platform_device *pdev)
+static int nvec_battery_probe(struct nvec_device *pdev)
 {
 	int i;
 	NvBool result = NV_FALSE;
@@ -445,7 +447,7 @@ static int tegra_battery_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int tegra_battery_remove(struct platform_device *pdev)
+static int nvec_battery_remove(struct nvec_device *pdev)
 {
 	unsigned int i = 0;
 
@@ -469,7 +471,7 @@ static int tegra_battery_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static int tegra_battery_suspend(struct platform_device *dev,
+static int nvec_battery_suspend(struct nvec_device *dev,
 	pm_message_t state)
 {
 	/* Kill the Battery Polling timer */
@@ -477,7 +479,7 @@ static int tegra_battery_suspend(struct platform_device *dev,
 	return 0;
 }
 
-static int tegra_battery_resume(struct platform_device *dev)
+static int nvec_battery_resume(struct nvec_device *dev)
 {
 	/*Create Battery Polling timer */
 	setup_timer(&battery_poll_timer, tegra_battery_poll_timer_func, 0);
@@ -486,29 +488,48 @@ static int tegra_battery_resume(struct platform_device *dev)
 	return 0;
 }
 
-static struct platform_driver tegra_battery_driver = {
-	.probe  = tegra_battery_probe,
-	.remove = tegra_battery_remove,
-	.suspend= tegra_battery_suspend,
-	.resume = tegra_battery_resume,
-	.driver = {
-		.name   = "tegra_battery",
-		.owner  = THIS_MODULE,
-	},
+static struct nvec_driver nvec_battery_driver = {
+	.name		= "nvec_battery",
+	.probe		= nvec_battery_probe,
+	.remove		= nvec_battery_remove,
+	.suspend	= nvec_battery_suspend,
+	.resume		= nvec_battery_resume,
 };
 
-static int __init tegra_battery_init(void)
+static struct nvec_device nvec_battery_device = {
+	.name	= "nvec_battery",
+	.driver	= &nvec_battery_driver,
+};
+
+static int __init nvec_battery_init(void)
 {
-	platform_driver_register(&tegra_battery_driver);
+	int err;
+
+	err = nvec_register_driver(&nvec_battery_driver);
+	if (err)
+	{
+		pr_err("**nvec_battery_init: nvec_register_driver: fail\n");
+		return err;
+	}
+
+	err = nvec_register_device(&nvec_battery_device);
+	if (err)
+	{
+		pr_err("**nvec_battery_init: nvec_device_add: fail\n");
+		nvec_unregister_driver(&nvec_battery_driver);
+		return err;
+	}
+
 	return 0;
 }
 
-static void __exit tegra_battery_exit(void)
+static void __exit nvec_battery_exit(void)
 {
-	platform_driver_unregister(&tegra_battery_driver);
+	nvec_unregister_device(&nvec_battery_device);
+	nvec_unregister_driver(&nvec_battery_driver);
 }
 
-module_init(tegra_battery_init);
-module_exit(tegra_battery_exit);
+module_init(nvec_battery_init);
+module_exit(nvec_battery_exit);
 MODULE_DESCRIPTION("TEGRA EC based Battery Driver");
 

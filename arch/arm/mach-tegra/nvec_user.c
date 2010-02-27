@@ -29,8 +29,13 @@
 #include "linux/nvec_ioctls.h"
 #include "nvreftrack.h"
 #include "nvassert.h"
+#include "nvec_device.h"
 
 static NvRtHandle s_RtHandle = NULL;
+int device_count = 0;
+
+#define dev_to_nvec_driver(d)	container_of(d, struct nvec_driver, driver)
+#define to_nvec_device(x) container_of((x), struct nvec_device, dev)
 
 NvError NvECPackage_Dispatch(void *InBuffer, NvU32 InSize, void *OutBuffer,
 	NvU32 OutSize, NvDispatchCtx* Ctx);
@@ -184,88 +189,189 @@ static struct miscdevice nvec_dev =
 
 static NvEcHandle s_NvEcHandle = NULL;
 
-static int __init nvec_probe(struct platform_device *pdev)
+static int nvec_bus_probe(struct device *_dev)
 {
-	int e = 0;
-	NvError status;
+	struct nvec_driver *drv = dev_to_nvec_driver(_dev->driver);
+	struct nvec_device *dev = to_nvec_device(_dev);
+
+	return drv->probe(dev);
+}
+
+static int nvec_bus_remove(struct device *_dev)
+{
+    return 0;
+}
+
+int nvec_bus_match(struct device *_dev, struct device_driver *drv)
+{
+	struct nvec_device *dev = to_nvec_device(_dev);
+
+	return (strcmp(dev->name, drv->name) == 0);
+}
+
+static int nvec_bus_suspend(struct device *_dev, pm_message_t state)
+{
+	struct nvec_driver *drv = dev_to_nvec_driver(_dev->driver);
+	struct nvec_device *dev = to_nvec_device(_dev);
+	NvError e = NvError_Success;
+
+	device_count--;
+	drv->suspend(dev, state);
+
+	if (!device_count)
+	{
+		e = NvEcPowerSuspend(NvEcPowerState_Suspend);
+		if (e != NvSuccess) {
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+static int nvec_bus_resume(struct device *_dev)
+{
+	struct nvec_driver *drv = dev_to_nvec_driver(_dev->driver);
+	struct nvec_device *dev = to_nvec_device(_dev);
+
+	if (!device_count)
+	{
+		NvError e = NvEcPowerResume();
+		if (e != NvSuccess) {
+			return -1;
+		}
+	}
+
+	device_count++;
+	drv->resume(dev);
+	return 0;
+}
+
+static void nvec_bus_shutdown(struct device *pdev)
+{
+    NvEcPowerSuspend(NvEcPowerState_PowerDown);
+}
+
+static struct bus_type nvec_bus_type = {
+	.name		= DEVICE_NAME,
+	.match		= nvec_bus_match,
+	.probe		= nvec_bus_probe,
+	.remove		= nvec_bus_remove,
+	.suspend	= nvec_bus_suspend,
+	.resume		= nvec_bus_resume,
+	.shutdown	= nvec_bus_shutdown,
+};
+
+static struct device nvec_bus_dev = {
+	.init_name	= DEVICE_NAME
+};
+
+int nvec_register_driver(struct nvec_driver *drv)
+{
+	drv->driver.name = drv->name;
+	drv->driver.bus = &nvec_bus_type;
+	return driver_register(&drv->driver);
+}
+EXPORT_SYMBOL_GPL(nvec_register_driver);
+
+void nvec_unregister_driver(struct nvec_driver *drv)
+{
+	drv->driver.bus = &nvec_bus_type;
+	driver_unregister(&drv->driver);
+}
+EXPORT_SYMBOL_GPL(nvec_unregister_driver);
+
+int nvec_register_device(struct nvec_device *pdev)
+{
+	if (!pdev)
+		return -EINVAL;
+
+	if (!pdev->dev.parent)
+		pdev->dev.parent = &nvec_bus_dev;
+
+	pdev->dev.bus = &nvec_bus_type;
+
+	dev_set_name(&pdev->dev, pdev->name);
+
+	device_count++;
+	return device_register(&pdev->dev);
+}
+EXPORT_SYMBOL_GPL(nvec_register_device);
+
+void nvec_unregister_device(struct nvec_device *pdev)
+{
+	if (pdev) {
+		device_count--;
+		device_unregister(&pdev->dev);
+	}
+}
+EXPORT_SYMBOL_GPL(nvec_unregister_device);
+
+static int __init nvec_init(void)
+{
+	int err = 0;
+	NvError status = NvSuccess;
 	NvU32 NumTypes = 1; // TODO: must have NvRtObjType_NvEc_Num instead;
+
+	err = device_register(&nvec_bus_dev);
+	if (err)
+		return err;
+
+	err = bus_register(&nvec_bus_type);
+	if (err){
+		device_unregister(&nvec_bus_dev);
+		return err;
+	}
+
 
 	NV_ASSERT(s_RtHandle == NULL);
 
 	if (NvRtCreate(1, &NumTypes, &s_RtHandle) != NvSuccess) {
 		printk("nvec NvRtCreate returned error\n");
+		bus_unregister(&nvec_bus_type);
+		device_unregister(&nvec_bus_dev);
 		return -ENOMEM;
 	}
 
 	status = NvEcOpen(&s_NvEcHandle, 0);
 	if (status != NvError_Success) {
 		printk("nvec NvEcOpen returned 0x%x\n", status);
+		NvRtDestroy(s_RtHandle);
+		s_RtHandle = NULL;
+		bus_unregister(&nvec_bus_type);
+		device_unregister(&nvec_bus_dev);
 		return -EINVAL;
 	}
 
-	e = misc_register(&nvec_dev);
-	if (e < 0) {
+	err = misc_register(&nvec_dev);
+	if (err < 0) {
 		if (s_RtHandle) {
+			NvEcClose(s_NvEcHandle);
+			s_NvEcHandle = NULL;
 			NvRtDestroy(s_RtHandle);
 			s_RtHandle = NULL;
+			bus_unregister(&nvec_bus_type);
+			device_unregister(&nvec_bus_dev);
 		}
 		printk("nvec failed to open\n");
 	}
-	return e;
+
+	return err;
 }
 
-static int nvec_remove(struct platform_device *pdev)
+static void __exit nvec_exit(void)
 {
-    NvEcClose(s_NvEcHandle);
-    misc_deregister( &nvec_dev );
-    NvRtDestroy(s_RtHandle);
-    s_RtHandle = NULL;
-    return 0;
-}
+	NvEcClose(s_NvEcHandle);
+	s_NvEcHandle = NULL;
+	misc_deregister( &nvec_dev );
+	NvRtDestroy(s_RtHandle);
+	s_RtHandle = NULL;
 
-static int nvec_suspend(struct platform_device *pdev, pm_message_t state)
-{
-    NvError e = NvEcPowerSuspend(NvEcPowerState_Suspend);
-    if (e != NvSuccess)
-        return -1;
-
-    return 0;
-}
-
-static int nvec_resume(struct platform_device *pdev)
-{
-    NvError e = NvEcPowerResume();
-    if (e != NvSuccess)
-        return -1;
-
-    return 0;
-}
-
-static void nvec_shutdown(struct platform_device *pdev)
-{
-    NvEcPowerSuspend(NvEcPowerState_PowerDown);
-}
-
-static struct platform_driver tegra_nvec_driver = {
-    .probe      = nvec_probe,
-    .remove     = nvec_remove,
-    .suspend    = nvec_suspend,
-    .resume     = nvec_resume,
-    .shutdown   = nvec_shutdown,
-    .driver     = {
-        .name   = "nvec",
-    },
-};
-
-static int __devinit nvec_init( void )
-{
-    return platform_driver_register(&tegra_nvec_driver);
-}
-
-static void __exit nvec_deinit( void )
-{
-    return platform_driver_unregister(&tegra_nvec_driver);
+	bus_unregister(&nvec_bus_type);
+	device_unregister(&nvec_bus_dev);
 }
 
 module_init(nvec_init);
-module_exit(nvec_deinit);
+module_exit(nvec_exit);
+
+MODULE_LICENSE("GPL");
