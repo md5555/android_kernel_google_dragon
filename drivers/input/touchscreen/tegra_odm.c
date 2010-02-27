@@ -109,8 +109,8 @@ static int tegra_touch_thread(void *pdata)
 	struct tegra_touch_driver_data *touch =
 		(struct tegra_touch_driver_data*)pdata;
 	NvOdmTouchCoordinateInfo c = {0};
-	NvU32 x[2] = {0}, y[2] = {0}, i = 0;
-	NvBool bKeepReadingSamples;
+	NvU32 x[2] = {0}, y[2] = {0}, i = 0, prev_x[2] = {0}, prev_y[2] = {0};
+	NvBool bKeepReadingSamples = NV_FALSE;
 	NvU32 fingers = 0;
 	NvBool ToolDown[2] = {NV_FALSE, NV_FALSE};
 	NvOdmTouchCapabilities *caps = &touch->caps;
@@ -133,10 +133,37 @@ static int tegra_touch_thread(void *pdata)
 				continue;
 			}
 
+			fingers = c.additionalInfo.Fingers;
+
+			/*
+			 * sometimes the HW reports num of fingers greater than
+			 * the max supported. This happens when previously there
+			 * were 2 fingers touching and one of them was lifted.
+			 * We give away the previously stored state for the
+			 * first finger, and the lifted finger is
+			 * sent with flags indicating PEN UP.
+			 */
+			if (((fingers == 1) || (fingers>max_fingers)) &&
+			     (ToolDown[1] == NV_TRUE)) {
+				ToolDown[0] = NV_TRUE;
+				input_report_abs(touch->input_dev,
+					ABS_X, prev_x[0]);
+				input_report_abs(touch->input_dev,
+					ABS_Y, prev_y[0]);
+				input_report_key(touch->input_dev,
+						BTN_TOUCH, ToolDown[0]);
+				ToolDown[1] = NV_FALSE;
+				input_report_abs(touch->input_dev,
+					ABS_HAT0X, prev_x[1]); // x
+				input_report_abs(touch->input_dev,
+					ABS_HAT0Y, prev_y[1]); // y
+				input_report_key(touch->input_dev,
+					BTN_2, ToolDown[1]);
+				input_sync(touch->input_dev);
+			}
+
 			if (c.fingerstate & NvOdmTouchSampleIgnore)
 				goto DoneWithSample;
-
-			fingers = c.additionalInfo.Fingers;
 
 			switch (fingers) {
 			case 0:
@@ -154,12 +181,18 @@ static int tegra_touch_thread(void *pdata)
 				}
 				break;
 			default:
-				// can occur because of sensor errors
-				c.fingerstate = NvOdmTouchSampleIgnore;
+				/* can occur because of sensor errors */
+				c.fingerstate = NvOdmTouchSampleIgnore;;
 				goto DoneWithSample;
 			}
 
-			if (fingers == 1) {
+			/* from 1 finger to no fingers */
+			if ((fingers == 0) && (ToolDown[0] == NV_TRUE)) {
+				x[0] = prev_x[0];
+				y[0] = prev_y[0];
+				ToolDown[0] = NV_FALSE;
+			}
+			else if (fingers == 1) {
 				x[0] = c.xcoord;
 				y[0] = c.ycoord;
 			}
@@ -192,6 +225,8 @@ static int tegra_touch_thread(void *pdata)
 			if (c.fingerstate & NvOdmTouchSampleValidFlag) {
 				input_report_abs(touch->input_dev, ABS_X, x[0]);
 				input_report_abs(touch->input_dev, ABS_Y, y[0]);
+				prev_x[0] = x[0];
+				prev_y[0] = y[0];
 			}
 
 			if (caps->IsPressureSupported) {
@@ -209,7 +244,7 @@ static int tegra_touch_thread(void *pdata)
 			input_report_key(touch->input_dev,
 					BTN_TOUCH, ToolDown[0]);
 
-			// report co-ordinates for the 2nd finger
+			/* report co-ordinates for the 2nd finger */
 			if (fingers == 2) {
 				input_report_abs(touch->input_dev,
 					ABS_HAT0X, x[1]); // x
@@ -217,16 +252,27 @@ static int tegra_touch_thread(void *pdata)
 					ABS_HAT0Y, y[1]); // y
 				input_report_key(touch->input_dev,
 					BTN_2, ToolDown[1]);
+				prev_x[1] = x[1];
+				prev_y[1] = y[1];
+			} else if (((fingers == 1) || (fingers == 0)) &&
+				   (ToolDown[1] == NV_TRUE)) {
+				ToolDown[1] = NV_FALSE;
+				input_report_abs(touch->input_dev,
+					ABS_HAT0X, prev_x[1]); // x
+				input_report_abs(touch->input_dev,
+					ABS_HAT0Y, prev_y[1]); // y
+				input_report_key(touch->input_dev,
+					BTN_2, ToolDown[1]);
 			}
 			input_sync(touch->input_dev);
 
 DoneWithSample:
 			bKeepReadingSamples = NV_FALSE;
-			if (!touch->bPollingMode && 
+			if (!touch->bPollingMode &&
 				!NvOdmTouchHandleInterrupt(touch->hTouchDevice)) {
 				/* Some more data to read keep going */
 				bKeepReadingSamples = NV_TRUE;
-			} 
+			}
 		}
 	}
 
@@ -340,7 +386,7 @@ static int __init tegra_touch_probe(struct platform_device *pdev)
         register_early_suspend(&touch->early_suspend);
 #endif
 	printk(KERN_INFO NVODM_TOUCH_NAME 
-		": Successfully registered the ODM touch driver %x\n", touch->hTouchDevice);
+		": Successfully registered the ODM touch driver %x\n", (NvU32)touch->hTouchDevice);
 	return 0;
 
 err_input_register_device_failed:
