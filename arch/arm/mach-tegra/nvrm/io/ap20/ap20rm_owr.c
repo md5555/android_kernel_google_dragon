@@ -116,6 +116,7 @@
 
 void PrivOwrEnableInterrupts(NvRmOwrController *pOwrInfo, NvU32 OwrIntStatus);
 NvError PrivOwrSendCommand(NvRmOwrController *pOwrInfo, NvU32 Command);
+NvError PrivOwrSendBit(NvRmOwrController *pOwrInfo, NvU32 Bit);
 
 NvError
 PrivOwrCheckBitTransferDone(
@@ -127,6 +128,11 @@ PrivOwrReadData(
     NvRmOwrController *pOwrInfo,
     NvU8* Buffer,
     NvU32 NoOfBytes);
+
+NvError
+PrivOwrReadDataBit(
+    NvRmOwrController *pOwrInfo,
+    NvU8* Buffer);
 
 static NvError
 PrivOwrCheckPresence(
@@ -250,6 +256,40 @@ NvError PrivOwrSendCommand(NvRmOwrController *pOwrInfo, NvU32 Command)
     return NvSuccess;
 }
 
+NvError PrivOwrSendBit(NvRmOwrController *pOwrInfo, NvU32 Bit)
+{
+    NvU32 val = 0;
+    NvU32 data = Bit;
+    NvError status = NvError_Timeout;
+    NvU32 ControlReg = 0;
+
+    val =
+        (NV_DRF_NUM(OWR, CONTROL, RD_DATA_SAMPLE_CLK, 0x7) |
+        NV_DRF_NUM(OWR, CONTROL, PRESENCE_SAMPLE_CLK, 0x50) |
+        NV_DRF_DEF(OWR, CONTROL, DATA_TRANSFER_MODE, BIT_TRANSFER_MODE));
+
+    if (data & 0x1)
+    {
+        ControlReg =
+            val | (NV_DRF_DEF(OWR, CONTROL, WR1_BIT, TRANSFER_ONE));
+    }
+    else
+    {
+        ControlReg =
+            val | (NV_DRF_DEF(OWR, CONTROL, WR0_BIT, TRANSFER_ZERO));
+    }
+    OWR_REGW(pOwrInfo->pOwrVirtualAddress, CONTROL, ControlReg);
+
+    status = PrivOwrCheckBitTransferDone(pOwrInfo,
+                                    OwrIntrStatus_BitTransferDoneIntEnable);
+    if (status != NvSuccess)
+    {
+        return status;
+    }
+
+    return NvSuccess;
+}
+
 NvError
 PrivOwrReadData(
     NvRmOwrController *pOwrInfo,
@@ -288,6 +328,34 @@ PrivOwrReadData(
         }
         pBuf++;
     }
+    return NvSuccess;
+}
+
+NvError
+PrivOwrReadDataBit(
+    NvRmOwrController *pOwrInfo,
+    NvU8* Buffer)
+{
+    NvU32 ControlReg = 0;
+    NvError status = NvError_Timeout;
+    NvU32 val = 0;
+
+    ControlReg =
+        NV_DRF_NUM(OWR, CONTROL, RD_DATA_SAMPLE_CLK, 0x7) |
+        NV_DRF_NUM(OWR, CONTROL, PRESENCE_SAMPLE_CLK, 0x50) |
+        NV_DRF_DEF(OWR, CONTROL, DATA_TRANSFER_MODE, BIT_TRANSFER_MODE) |
+        NV_DRF_DEF(OWR, CONTROL, RD_BIT, TRANSFER_READ_SLOT);
+
+    OWR_REGW(pOwrInfo->pOwrVirtualAddress, CONTROL, ControlReg);
+    status = PrivOwrCheckBitTransferDone(pOwrInfo,
+        OwrIntrStatus_BitTransferDoneIntEnable);
+    if (status != NvSuccess)
+    {
+        return status;
+    }
+    val = OWR_REGR(pOwrInfo->pOwrVirtualAddress, STATUS);
+    val = NV_DRF_VAL(OWR, STATUS, READ_SAMPLED_BIT, val);
+    *Buffer = val;
     return NvSuccess;
 }
 
@@ -644,6 +712,15 @@ AP20RmOwrRead(
         status =
             PrivOwrReadData(pOwrInfo, pReadPtr, 1);
     }
+    else if (Transaction.Flags == NvRmOwr_ReadBit)
+    {
+        NV_ASSERT(!IsByteModeSupported);
+        pOwrInfo->OwrTransferStatus = 0;
+        // Enable the bit transfer done interrupt
+        PrivOwrEnableInterrupts(pOwrInfo,
+                                    OwrIntrStatus_BitTransferDoneIntEnable);
+        status = PrivOwrReadDataBit(pOwrInfo, pReadPtr);
+    }
     else if ((Transaction.Flags == NvRmOwr_MemRead) ||
                  (Transaction.Flags == NvRmOwr_ReadAddress))
     {
@@ -844,6 +921,14 @@ AP20RmOwrWrite(
         pOwrInfo->OwrTransferStatus = 0;
         status = PrivOwrSendCommand(pOwrInfo, (NvU32)(*pWritePtr));
     }
+    else if(Transaction.Flags == NvRmOwr_WriteBit)
+    {
+        // Enable the bit transfer done interrupt
+        PrivOwrEnableInterrupts(pOwrInfo, OwrIntrStatus_BitTransferDoneIntEnable);
+        pOwrInfo->OwrTransferStatus = 0;
+        status = PrivOwrSendBit(pOwrInfo, (NvU32)(*pWritePtr));
+    }
+
     return status;
 }
 
