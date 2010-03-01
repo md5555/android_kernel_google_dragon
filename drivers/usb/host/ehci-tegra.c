@@ -365,20 +365,16 @@ static const struct hc_driver tegra_ehci_hc_driver = {
 	.relinquish_port	= ehci_relinquish_port,
 	.port_handed_over	= ehci_port_handed_over,
 };
-
 static int tegra_ehci_probe(struct platform_device *pdev)
 {
-	int				instance = pdev->id;
-	NvRmPhysAddr			addr;
-	NvU32				size;
-	struct tegra_hcd_platform_data	*pdata;
-	struct usb_hcd			*hcd;
-	int				e = 0;
-	int				irq;
-	unsigned int			temp;
-	void				*vaddr;
-	static u64			dummy_mask = DMA_32BIT_MASK;
-
+	int instance = pdev->id;
+	struct resource *res;
+	struct tegra_hcd_platform_data *pdata;
+	struct usb_hcd *hcd;
+	int e = 0;
+	int irq;
+	unsigned int temp;
+	static u64 dummy_mask = DMA_32BIT_MASK;
 	pdata = (struct tegra_hcd_platform_data *)pdev->dev.platform_data;
 	if (!pdata) {
 		dev_err(&pdev->dev, "Cannot run without platform data\n");
@@ -389,15 +385,11 @@ static int tegra_ehci_probe(struct platform_device *pdev)
 	pdev->dev.dma_mask = &dummy_mask;
 
 	hcd = usb_create_hcd(&tegra_ehci_hc_driver, &pdev->dev,
-		dev_name(&pdev->dev));
+					dev_name(&pdev->dev));
 	if (!hcd) {
 		e = -ENOMEM;
 		goto fail;
 	}
-	pdata->instance = instance;
-
-	pdata->pUsbProperty = NvOdmQueryGetUsbProperty(NvOdmIoModule_Usb,
-		instance);
 
 	if (pdata->pUsbProperty->IdPinDetectionType == NvOdmUsbIdPinType_Gpio
 		&& (instance == 0 || instance == 1)) {
@@ -429,32 +421,29 @@ static int tegra_ehci_probe(struct platform_device *pdev)
 		printk("%s: failed with error (0x%x)\n", __func__, e);
 		goto fail;
 	}
-
-	NvRmModuleGetBaseAddress(s_hRmGlobal,
-		NVRM_MODULE_ID(NvRmModuleID_Usb2Otg, instance), &addr, &size);
-	if (addr == 0x0 || size == 0) {
-		e = -ENODEV;
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!res) {
+		e = -ENXIO;
 		goto fail;
 	}
-	NvRmPhysicalMemMap(addr, size, NVOS_MEM_READ_WRITE,
-		 NvOsMemAttribute_Uncached, (void **)&vaddr);
-	if (vaddr == NULL) {
+	hcd->rsrc_start = res->start;
+	hcd->rsrc_len = resource_size(res);
+	hcd->regs = ioremap(res->start, resource_size(res));
+	if (!hcd->regs) {
 		e = -ENOMEM;
 		goto fail;
 	}
-	hcd->rsrc_start = addr;
-	hcd->rsrc_len = size;
-	hcd->regs = vaddr;
 
 	/* Set to Host mode by setting bit 0-1 of USB device mode register */
 	temp = readl(hcd->regs + TEGRA_USB_USBMODE_REG_OFFSET);
 	writel((temp | TEGRA_USB_USBMODE_HOST),
 			(hcd->regs + TEGRA_USB_USBMODE_REG_OFFSET));
-
-	irq = NvRmGetIrqForLogicalInterrupt(s_hRmGlobal,
-		NVRM_MODULE_ID(NvRmModuleID_Usb2Otg, instance), 0);
-	if (irq == 0xffff)
+	irq = platform_get_irq(pdev, 0);
+	if (!irq) {
+		e = -ENODEV;
 		goto fail;
+	}
+
 	set_irq_flags(irq, IRQF_VALID);
 
 	e  = usb_add_hcd(hcd, irq, IRQF_DISABLED | IRQF_SHARED);

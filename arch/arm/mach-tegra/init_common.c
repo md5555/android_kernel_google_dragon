@@ -580,29 +580,16 @@ static inline int tegra_is_udc(NvU32 mod)
 static void __init tegra_register_usb_host(void)
 {
     NvU32 port_count, i;
-
     port_count = NvRmModuleGetNumInstances(s_hRmGlobal, NvRmModuleID_Usb2Otg);
 
     for (i=0; i<port_count; i++) {
         const NvOdmUsbProperty *p;
-        struct platform_device *platdev = NULL;
+        struct resource *res;
         struct tegra_hcd_platform_data pdata;
+        struct platform_device *platdev = NULL;
 
-        NvU32 mod = NVRM_MODULE_ID(NvRmModuleID_Usb2Otg, i);
-        NvRmPhysAddr cont_addr;
-        NvU32 len;
-        NvU16 irq;
-
-        /* fixme: add ulpi here? */
         p = NvOdmQueryGetUsbProperty(NvOdmIoModule_Usb, i);
-        if (!p || !((p->UsbMode & NvOdmUsbModeType_Host) ||
-			(p->UsbMode & NvOdmUsbModeType_OTG) ) ||
-           (tegra_is_udc(mod) && !(p->UsbMode & NvOdmUsbModeType_OTG)))
-            continue;
-
-        irq = NvRmGetIrqForLogicalInterrupt(s_hRmGlobal, mod, 0);
-        NvRmModuleGetBaseAddress(s_hRmGlobal, mod, &cont_addr, &len);
-        if (irq==0xffff || !(~cont_addr) || !len)
+        if (!p || (p->UsbMode & NvOdmUsbModeType_Device))
             continue;
 
         platdev = platform_device_alloc("tegra-ehci", i);
@@ -611,9 +598,26 @@ static void __init tegra_register_usb_host(void)
             goto fail;
         }
 
+        res = kzalloc(sizeof(struct resource)*2, GFP_KERNEL);
+        if (!res) {
+            pr_err("unable to allocate resource for tegra-otg\n");
+            goto fail;
+        }
+
+        res[0].flags = IORESOURCE_MEM;
+        res[0].start = tegra_get_module_inst_base("usbotg", i);
+        res[0].end = res[0].start + tegra_get_module_inst_size("usbotg", i) - 1;
+        res[1].flags = IORESOURCE_IRQ;
+        res[1].start = res[1].end = tegra_get_module_inst_irq("usbotg", i, 0);
+
+        if (platform_device_add_resources(platdev, res, 2)) {
+            pr_err("unable to add resources to tegra-ehci device\n");
+            goto fail;
+        }
 
         memset(&pdata, 0, sizeof(pdata));
         pdata.instance = i;
+        pdata.pUsbProperty = p;
 
         if (platform_device_add_data(platdev, &pdata, sizeof(pdata))) {
             pr_err("unable to add data to tegra-ehci device\n");
@@ -626,7 +630,7 @@ static void __init tegra_register_usb_host(void)
         }
     }
 fail:
-    ;
+     ;
 }
 #endif
 
