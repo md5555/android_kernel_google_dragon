@@ -41,8 +41,8 @@ extern "C"
 #endif  /* __cplusplus */
 
 // CPU rail lowering voltage delay (applicable only to the platforms
-// with dedicated CPU rail, and PMU default core voltage above nominal)
-#define NVRM_CPU_TO_CORE_DOWN_US (10000)
+// with dedicated CPU rail)
+#define NVRM_CPU_TO_CORE_DOWN_US (2000)
 
 // Default voltage returned in environment with no PMU support
 #define NVRM_NO_PMU_DEFAULT_VOLTAGE (1)

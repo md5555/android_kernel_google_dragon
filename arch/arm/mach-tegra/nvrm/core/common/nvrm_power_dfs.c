@@ -2554,6 +2554,7 @@ static void NvRmPrivDvsStopAtNominal(void)
 static void NvRmPrivDvsRun(void)
 {
     NvRmDvs* pDvs = &s_Dfs.VoltageScaler;
+    pDvs->UpdateFlag = NV_TRUE;
     pDvs->StopFlag = NV_FALSE;
 }
 
@@ -2617,6 +2618,29 @@ void NvRmPrivDfsSuspend(NvOdmSocPowerState state)
             }
             DfsKHz = pDfs->SuspendKHz;
         }
+
+        if (NvRmPrivIsCpuRailDedicated(pDfs->hRm))
+        {
+            NvRmDvs* pDvs = &s_Dfs.VoltageScaler;
+            NvRmMilliVolts v = NV_MAX(pDvs->DvsCorner.SystemMv,
+                                      NV_MAX(pDvs->DvsCorner.EmcMv,
+                                             pDvs->DvsCorner.ModulesMv));
+
+            // If CPU rail returns to default level by PMU underneath DVFS
+            // need to synchronize voltage after LP1 same way as after LP2
+            if (pDvs->VCpuOTPOnWakeup)
+                pDfs->VoltageScaler.Lp2SyncOTPFlag = NV_TRUE;
+
+            // If core voltage change was deferred until CPU voltage is
+            // settled - do it now
+            if (v < pDvs->CurrentCoreMv)
+            {
+                NvOsWaitUS(NVRM_CPU_TO_CORE_DOWN_US);
+                DvsChangeCoreVoltage(pDfs->hRm, pDvs, v);
+            }
+            NvOsDebugPrintf("DVFS set core at %dmV\n", pDvs->CurrentCoreMv);
+        }
+
         pDfs->VoltageScaler.StopFlag = NV_TRUE;
     }
     NvRmPrivUnlockSharedPll();
