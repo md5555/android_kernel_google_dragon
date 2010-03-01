@@ -1163,6 +1163,7 @@ void __init tsc_init(void)
 {
 	u64 lpj;
 	int cpu;
+	u64 initial_tsc;
 
 	x86_init.timers.tsc_pre_init();
 
@@ -1170,6 +1171,10 @@ void __init tsc_init(void)
 		setup_clear_cpu_cap(X86_FEATURE_TSC_DEADLINE_TIMER);
 		return;
 	}
+
+	rdtscll(initial_tsc);
+	printk(KERN_INFO "Initial TSC value: %llu\n",
+               (unsigned long long)initial_tsc);
 
 	tsc_khz = x86_platform.calibrate_tsc();
 	cpu_khz = tsc_khz;
