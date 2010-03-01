@@ -2572,7 +2572,8 @@ void NvRmPrivDfsSuspend(NvOdmSocPowerState state)
             NvRmPrivAp15DfsVscaleFreqGet(
                 pDfs->hRm, NVRM_AP15_SUSPEND_CORE_MV, &pDfs->SuspendKHz);
         else if (pDfs->hRm->ChipId.Id == 0x20)
-            pDfs->SuspendKHz = pDfs->LowCornerKHz; // TODO: AP20 suspend corner
+            NvRmPrivAp20DfsSuspendFreqGet(
+                pDfs->hRm, NVRM_AP20_SUSPEND_CORE_MV, &pDfs->SuspendKHz);
         else
             pDfs->SuspendKHz = pDfs->LowCornerKHz; // Low corner by default
         pDfs->SuspendKHz.Domains[0] = NvRmFreqMaximum;   

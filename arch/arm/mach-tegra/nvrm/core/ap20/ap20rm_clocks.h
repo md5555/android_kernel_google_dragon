@@ -254,6 +254,19 @@ NvRmPrivAp20DfsClockConfigure(
     const NvRmDfsFrequencies* pMaxKHz,
     NvRmDfsFrequencies* pDfsKHz);
 
+/**
+ * Gets DFS domains frequencies to be set for suspend (LP1) entry/exit.
+ *
+ * @param hRmDevice The RM device handle.
+ * @param TargetMv Targeted suspend core voltage in mV.
+ * @param pDfsKHz Pointer to a structure filled in by this function with
+ *  output clock frequencies.
+ */
+void
+NvRmPrivAp20DfsSuspendFreqGet(
+    NvRmDeviceHandle hRmDevice,
+    NvRmMilliVolts TargetMv,
+    NvRmDfsFrequencies* pDfsKHz);
 
 /**
  * Configures the sdio tap delay

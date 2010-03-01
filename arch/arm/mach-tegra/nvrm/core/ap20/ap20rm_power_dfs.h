@@ -227,6 +227,9 @@ extern "C"
 #define NVRM_AP20_LOW_CORE_MV (950)
 #define NVRM_AP20_LOW_CPU_MV (750)
 
+/// Core voltage in suspend
+#define NVRM_AP20_SUSPEND_CORE_MV (1000)
+
 /*****************************************************************************/
 
 /**

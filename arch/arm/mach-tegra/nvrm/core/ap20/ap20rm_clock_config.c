@@ -1481,6 +1481,76 @@ NvRmPrivAp20DfsClockFreqGet(
         (s_Ap20EmcConfig.pEmc2xState->actual_freq >> 1);
 }
 
+void
+NvRmPrivAp20DfsSuspendFreqGet(
+    NvRmDeviceHandle hRmDevice,
+    NvRmMilliVolts TargetMv,
+    NvRmDfsFrequencies* pDfsKHz)
+{
+    NvU32 i;
+    NvRmMilliVolts v;
+    NvRmFreqKHz Fa, Fb, f;
+    NvRmDfsSource DfsClockSource;
+    NvRmFreqKHz CpuMaxKHz =
+        NvRmPrivGetSocClockLimits(NvRmModuleID_Cpu)->MaxKHz;
+    NvRmFreqKHz SysMaxKHz =
+        NvRmPrivGetSocClockLimits(NvRmPrivModuleID_System)->MaxKHz;
+    NV_ASSERT(hRmDevice && pDfsKHz);
+
+    // Binary search for maximum System/Avp frequency, with source that
+    // can be used at target voltage or below
+    Fb = SysMaxKHz;
+    Fa = NvRmPrivGetClockSourceFreq(NvRmClockSource_ClkM);
+    NV_ASSERT(Fa <= Fb);
+    while ((Fb - Fa) > 1000)    // 1MHz resolution
+    {
+        f = (Fa + Fb) >> 1;
+        Ap20SystemClockSourceFind(hRmDevice, SysMaxKHz, f, &DfsClockSource);
+        v = DfsClockSource.MinMv;
+        if (v <= TargetMv)
+            Fa = f;
+        else
+            Fb = f;
+    }
+    pDfsKHz->Domains[NvRmDfsClockId_System] = Fa;
+    pDfsKHz->Domains[NvRmDfsClockId_Avp] = Fa;
+    pDfsKHz->Domains[NvRmDfsClockId_Ahb] = Fa;
+    pDfsKHz->Domains[NvRmDfsClockId_Apb] = Fa;
+    // On AP20 Vde clock has its own voltage scale; however, it is disabled
+    // on suspend entry; hence, the setting below is "don't care"
+    pDfsKHz->Domains[NvRmDfsClockId_Vpipe] = Fa;
+
+    // If PLLM0 entry in EMC scaling table is valid, search the table for
+    // the entry below and closest to the traget voltage. Otherwise, there
+    // is no EMC scaling - just return current EMC frequency.
+    pDfsKHz->Domains[NvRmDfsClockId_Emc] =
+        (s_Ap20EmcConfig.pEmc2xState->actual_freq >> 1);
+    if (s_Ap20EmcConfigSortedTable[0].Emc2xKHz != 0)
+    {
+        for (i = 0; i < (NVRM_AP20_DFS_EMC_FREQ_STEPS - 1); i++)
+        {
+            if ((s_Ap20EmcConfigSortedTable[i+1].Emc2xKHz == 0) ||
+                (s_Ap20EmcConfigSortedTable[i].pOdmEmcConfig->EmcCoreVoltageMv
+                 <= TargetMv))
+                break;  // exit if found entry or next entry is invalid
+        }
+        pDfsKHz->Domains[NvRmDfsClockId_Emc] =
+            (s_Ap20EmcConfigSortedTable[i].Emc2xKHz >> 1);
+        f = s_Ap20EmcConfigSortedTable[i].CpuLimitKHz;
+        CpuMaxKHz = NV_MIN(CpuMaxKHz, f);     // throttle CPU if necessary
+    }
+
+    // CPU voltage is turned Off in suspend. Use CPU frequency derived from
+    // PLLP as LP1 resume start-up clock
+    f = s_Ap20PllPCpuClockPolicy[s_Ap20PllPCpuClockPolicyEntries-1].SourceKHz;
+    pDfsKHz->Domains[NvRmDfsClockId_Cpu] = NV_MIN(CpuMaxKHz, f);
+
+    NvOsDebugPrintf("LP1 entry/exit kHz: Cpu = %6d, Emc = %6d, Sys = %6d\n",
+                    pDfsKHz->Domains[NvRmDfsClockId_Cpu],
+                    pDfsKHz->Domains[NvRmDfsClockId_Emc],
+                    pDfsKHz->Domains[NvRmDfsClockId_System]);
+}
+
 /*****************************************************************************/
 /*****************************************************************************/
 
