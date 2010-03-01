@@ -856,9 +856,14 @@ void __init tsc_init(void)
 {
 	u64 lpj;
 	int cpu;
+	u64 initial_tsc;
 
 	if (!cpu_has_tsc)
 		return;
+
+	rdtscll(initial_tsc);
+	printk(KERN_INFO "Initial TSC value: %llu\n",
+               (unsigned long long)initial_tsc);
 
 	tsc_khz = calibrate_tsc();
 	cpu_khz = tsc_khz;
