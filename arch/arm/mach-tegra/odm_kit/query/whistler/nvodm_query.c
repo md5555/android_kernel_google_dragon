@@ -51,6 +51,7 @@
 
 #define BOARD_ID_WHISTLER_E1108 0x0B08
 #define BOARD_ID_WHISTLER_E1109 0x0B09
+#define BOARD_ID_WHISTLER_PMU_E1116 0x0B10
 #define BOARD_ID_WHISTLER_MOTHERBOARD_E1120 0xB14
 #define BOARD_ID_VOYAGER_MAINBOARD_E1215    0xC0F
 #define BOARD_REV_ALL ((NvU8)0xFF)
@@ -648,6 +649,18 @@ static NvBool NvOdmIsE1108Hynix(void)
 }
 #endif
 
+static NvBool NvOdmIsCpuRailPreserved(void)
+{
+    // A list of Whistler PMU boards that preserves CPU voltage across LP2/LP1
+    static const NvOdmBoardInfo s_WhistlerCpuPreservedBoards[] =
+    {
+        // ID                          SKU     FAB   Rev            Minor Rev
+        { BOARD_ID_WHISTLER_PMU_E1116, 0x0A0A, 0x01, BOARD_REV_ALL, BOARD_REV_ALL},
+    };
+    return NvOdmIsBoardPresent(s_WhistlerCpuPreservedBoards,
+                               NV_ARRAY_SIZE(s_WhistlerCpuPreservedBoards));
+}
+
 NvBool NvOdmIsCpuExtSupply(void)
 {
     // A list of Whistler processor boards that use external DCDC as CPU
@@ -1132,7 +1145,8 @@ NvBool NvOdmQueryGetPmuProperty(NvOdmPmuProperty* pPmuProperty)
     pPmuProperty->CpuPowerGoodUs = 2000;
     pPmuProperty->AccuracyPercent = 3;
 
-    if (NvOdmIsCpuExtSupply())
+    if (NvOdmIsCpuExtSupply() ||
+        NvOdmIsCpuRailPreserved())
         pPmuProperty->VCpuOTPOnWakeup = NV_FALSE;
     else
         pPmuProperty->VCpuOTPOnWakeup = NV_TRUE;
