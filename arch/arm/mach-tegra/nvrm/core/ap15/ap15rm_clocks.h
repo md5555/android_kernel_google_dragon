@@ -214,6 +214,7 @@ NvRmPrivAp15PllSet(
 /**
  * Configures output frequency for specified PLL.
  * 
+ * @param hRmDevice The RM device handle.
  * @param PllId Targeted PLL ID.
  * @param MaxOutKHz Upper limit for PLL output frequency.
  * @param pPllOutKHz A pointer to the requested PLL frequency on entry,
@@ -224,6 +225,19 @@ NvRmPrivAp15PllConfigureSimple(
     NvRmDeviceHandle hRmDevice,
     NvRmClockSource PllId,
     NvRmFreqKHz MaxOutKHz,
+    NvRmFreqKHz* pPllOutKHz);
+
+/**
+ * Configures specified PLL output to the CM of fixed HDMI frequencies.
+ *
+ * @param hRmDevice The RM device handle.
+ * @param PllId Targeted PLL ID.
+ * @param pPllOutKHz A pointer to the actually configured frequency on exit.
+ */
+void
+NvRmPrivAp15PllConfigureHdmi(
+    NvRmDeviceHandle hRmDevice,
+    NvRmClockSource PllId,
     NvRmFreqKHz* pPllOutKHz);
 
 /**

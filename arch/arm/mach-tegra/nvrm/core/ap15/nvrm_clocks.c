@@ -2682,6 +2682,7 @@ static const NvRmModuleID s_Ap15PllC0UsagePolicy[] =
     NvRmModuleID_3D,
     NvRmModuleID_2D,
     NvRmModuleID_Mpe,
+    NvRmModuleID_Hdmi,
 };
 
 static const NvRmModuleID s_Ap20PllC0UsagePolicy[] =
@@ -2691,6 +2692,7 @@ static const NvRmModuleID s_Ap20PllC0UsagePolicy[] =
     NvRmModuleID_3D,
     NvRmModuleID_2D,
     NvRmModuleID_Mpe,
+    NvRmModuleID_Hdmi,
     NvRmModuleID_Vde
 };
 
@@ -3175,6 +3177,7 @@ NvRmPrivReConfigurePllC(
     NvRmFreqKHz CpuFreq, SysFreq, MaxFreq;
     const NvRmCoreClockInfo* pCinfo =
         NvRmPrivGetClockSourceHandle(NvRmClockSource_CpuBus)->pInfo.pCore;
+    NvBool IsHdmi = NvRmIsFixedHdmiKHz(TargetFreq);
 
     // If maximum PLLC target is requested, and current PLLC output is close
     // enough - exit without adjusting PLLC (use CPU divider resolution as
@@ -3203,8 +3206,14 @@ NvRmPrivReConfigurePllC(
     SysFreq = PllCBackupSystemClock(hRmDevice);
     PllCBackupModuleClocks(hRmDevice);
 
-    NvRmPrivAp15PllConfigureSimple(
-        hRmDevice, NvRmClockSource_PllC0, TargetFreq, &TargetFreq);
+    // For 720p or 1080i/1080p HDMI - use fixed PLLC configuration;
+    // for other targets use simple variable configuration
+    if (IsHdmi)
+        NvRmPrivAp15PllConfigureHdmi(
+            hRmDevice, NvRmClockSource_PllC0, &TargetFreq);
+    else
+        NvRmPrivAp15PllConfigureSimple(
+            hRmDevice, NvRmClockSource_PllC0, TargetFreq, &TargetFreq);
 
     PllCRestoreCpuClock(hRmDevice, TargetFreq, CpuFreq);
     PllCRestoreSystemClock(hRmDevice, TargetFreq, SysFreq);

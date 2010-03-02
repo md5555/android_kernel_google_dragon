@@ -673,6 +673,42 @@ NvRmPrivAp15PllConfigureSimple(
     *pPllOutKHz = NvRmPrivGetClockSourceFreq(pCinfo->SourceId);
 }
 
+
+// Fixed list of PLL HDMI configurations for different reference frequencies
+// arranged according to CLK_RST_CONTROLLER_OSC_CTRL_0_OSC_FREQ_FIELD enum
+static const NvRmPllFixedConfig s_Ap15HdmiPllConfigurations[] =
+{
+    NVRM_PLLHD_AT_13MHZ,
+    NVRM_PLLHD_AT_19MHZ,
+    NVRM_PLLHD_AT_12MHZ,
+    NVRM_PLLHD_AT_26MHZ
+};
+
+void
+NvRmPrivAp15PllConfigureHdmi(
+    NvRmDeviceHandle hRmDevice,
+    NvRmClockSource PllId,
+    NvRmFreqKHz* pPllOutKHz)
+{
+    NvU32 reg;
+    NvRmPllFixedConfig HdmiConfig = {0};
+    const NvRmPllClockInfo* pCinfo =
+        NvRmPrivGetClockSourceHandle(PllId)->pInfo.pPll;
+
+    // Only PLLD or PLLC should be configured here
+    NV_ASSERT((PllId == NvRmClockSource_PllD0) ||
+              (PllId == NvRmClockSource_PllC0));
+
+    reg = NV_REGR(hRmDevice, NvRmPrivModuleID_ClockAndReset, 0,
+                  CLK_RST_CONTROLLER_OSC_CTRL_0);
+    HdmiConfig = s_Ap15HdmiPllConfigurations[NV_DRF_VAL(
+        CLK_RST_CONTROLLER, OSC_CTRL, OSC_FREQ, reg)];
+
+    NvRmPrivAp15PllSet(hRmDevice, pCinfo, HdmiConfig.M, HdmiConfig.N,
+                       HdmiConfig.P, (NvU32)-1, 0, 0, NV_TRUE, 0);
+    *pPllOutKHz = NvRmPrivGetClockSourceFreq(pCinfo->SourceId);
+}
+
 /*****************************************************************************/
 
 // Fixed list of PLLP configurations for different reference frequencies
@@ -992,16 +1028,6 @@ Ap15PllDControl(
         NvRmPrivGetClockSourceFreq(NvRmClockSource_PllD0);
 }
 
-// Fixed list of PLL HDMI configurations for different reference frequencies
-// arranged according to CLK_RST_CONTROLLER_OSC_CTRL_0_OSC_FREQ_FIELD enum
-static const NvRmPllFixedConfig s_Ap15HdmiPllConfigurations[] =
-{
-    NVRM_PLLHD_AT_13MHZ,
-    NVRM_PLLHD_AT_19MHZ,
-    NVRM_PLLHD_AT_12MHZ,
-    NVRM_PLLHD_AT_26MHZ
-};
-
 static void
 Ap15PllDConfigure(
     NvRmDeviceHandle hRmDevice,
@@ -1017,23 +1043,11 @@ Ap15PllDConfigure(
      * PLLD is adjusted when DDK/ODM is initializing DSI or reconfiguring
      * display clock (for HDMI, DSI, or in some cases CRT).
      */
-    if ((TargetFreq == NVRM_HDMI_720p_1080i_FIXED_FREQ_KHZ) ||
-        (TargetFreq == NVRM_HDMI_720p_1080p_FIXED_FREQ_KHZ) ||
-        (TargetFreq == NVRM_HDMI_480_FIXED_FREQ_KHZ))
+    if (NvRmIsFixedHdmiKHz(TargetFreq))
     {
         // 480p or 720p or 1080i/1080p HDMI - use fixed PLLD configuration
-        NvU32 reg;
-        NvRmPllFixedConfig HdmiConfig = {0};
-        const NvRmPllClockInfo* pCinfo =
-            NvRmPrivGetClockSourceHandle(NvRmClockSource_PllD0)->pInfo.pPll;
-
-        reg = NV_REGR(hRmDevice, NvRmPrivModuleID_ClockAndReset, 0,
-                      CLK_RST_CONTROLLER_OSC_CTRL_0);
-        HdmiConfig = s_Ap15HdmiPllConfigurations[NV_DRF_VAL(
-            CLK_RST_CONTROLLER, OSC_CTRL, OSC_FREQ, reg)];
-
-        NvRmPrivAp15PllSet(hRmDevice, pCinfo, HdmiConfig.M, HdmiConfig.N,
-                           HdmiConfig.P, (NvU32)-1, 0, 0, NV_TRUE, 0);
+        NvRmPrivAp15PllConfigureHdmi(
+            hRmDevice, NvRmClockSource_PllD0, &TargetFreq);
     }
     else
     {
@@ -1116,11 +1130,14 @@ Ap15DisplayClockConfigure(
     {
         // PLLC is available - use it
         SourceId = NvRmClockSource_PllC0;
-        TargetFreq = NvRmPrivGetMaxFreqPllC(hRmDevice); // Target PLLC max
-        if (!NvRmIsFreqRangeReachable(
-            TargetFreq, MinFreq, MaxFreq, NVRM_DISPLAY_DIVIDER_MAX))
+        if (!NvRmIsFixedHdmiKHz(TargetFreq))    // don't touch HDMI targets
         {
-            TargetFreq = MaxFreq;               // Target pixel range max
+            TargetFreq = NvRmPrivGetMaxFreqPllC(hRmDevice); // Target PLLC max
+            if (!NvRmIsFreqRangeReachable(
+                TargetFreq, MinFreq, MaxFreq, NVRM_DISPLAY_DIVIDER_MAX))
+            {
+                TargetFreq = MaxFreq;               // Target pixel range max
+            }
         }
         NvRmPrivReConfigurePllC(hRmDevice, TargetFreq);
     }
@@ -1188,6 +1205,10 @@ NvRmPrivAp15IsModuleClockException(
     NvRmModuleClockState* pCstate,
     NvU32 flags)
 {
+    NvU32 i;
+    NvRmFreqKHz FreqKHz;
+    NvRmClockSource SourceId;
+
     NV_ASSERT(hRmDevice);
     NV_ASSERT(pCinfo && PrefFreqList && pCstate);
 
@@ -1217,25 +1238,34 @@ NvRmPrivAp15IsModuleClockException(
 
         case NvRmModuleID_Hdmi:
             /*
-             * Complete configuration from PLLD if requested (PLLD should be already
-             * configured properly for display)
+             * Complete HDMI configuration; choose among possible sources:
+             * PLLP, PLLD, PLLC in the same order as for display (PLLD or
+             * PLLC should be already configured properly for display)
              */
             if (flags & NvRmClockConfig_MipiSync)
+                SourceId = NvRmClockSource_PllD0;
+            else if (NvRmIsFreqRangeReachable(NVRM_PLLP_FIXED_FREQ_KHZ,
+                         MinFreq, MaxFreq, NVRM_DISPLAY_DIVIDER_MAX))
+                SourceId = NvRmClockSource_PllP0;
+            else
+                SourceId = NvRmClockSource_PllC0;
+
+            // HDMI clock state with selected source
+            for (i = 0; i < NvRmClockSource_Num; i++)
             {
-                NvRmFreqKHz FreqKHz =
-                    NvRmPrivGetClockSourceFreq(NvRmClockSource_PllD0);
-                pCstate->SourceClock = 1;   // PLLD source index
-                pCstate->Divider = ((FreqKHz << 2) + PrefFreqList[0]) /
-                                    (PrefFreqList[0] << 1) - 2;
-                pCstate->actual_freq = (FreqKHz << 1) / (pCstate->Divider + 2);
-                NV_ASSERT(pCinfo->Sources[pCstate->SourceClock] ==
-                          NvRmClockSource_PllD0);
-                NV_ASSERT(pCstate->Divider <= pCinfo->DivisorFieldMask);
-                NV_ASSERT((MinFreq <= pCstate->actual_freq) &&
-                          (pCstate->actual_freq <= MaxFreq));
-                return NV_TRUE;
+                if (pCinfo->Sources[i] == SourceId)
+                    break;
             }
-            return NV_FALSE;
+            NV_ASSERT(i < NvRmClockSource_Num);
+            pCstate->SourceClock = i;       // source index
+            FreqKHz = NvRmPrivGetClockSourceFreq(SourceId);
+            pCstate->Divider = ((FreqKHz << 2) + PrefFreqList[0]) /
+                               (PrefFreqList[0] << 1) - 2;
+            pCstate->actual_freq = (FreqKHz << 1) / (pCstate->Divider + 2);
+            NV_ASSERT(pCstate->Divider <= pCinfo->DivisorFieldMask);
+            NV_ASSERT((MinFreq <= pCstate->actual_freq) &&
+                      (pCstate->actual_freq <= MaxFreq));
+            return NV_TRUE;
 
         case NvRmModuleID_Spdif:
             if (flags & NvRmClockConfig_SubConfig)
@@ -1250,7 +1280,7 @@ NvRmPrivAp15IsModuleClockException(
              */
             if (flags & NvRmClockConfig_AudioAdjust)
             {
-                NvRmFreqKHz FreqKHz = PrefFreqList[0];
+                FreqKHz = PrefFreqList[0];
                 Ap15PllAConfigure(hRmDevice, &FreqKHz);
 
                 pCstate->SourceClock = 0;   // PLLA source index

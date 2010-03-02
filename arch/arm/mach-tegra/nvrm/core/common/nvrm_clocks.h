@@ -47,9 +47,14 @@ extern "C"
 #define NVRM_VARIABLE_DIVIDER       ((NvU32)-1)
 
 // Fixed HDMI frequencies
-#define NVRM_HDMI_480_FIXED_FREQ_KHZ (27000)
-#define NVRM_HDMI_720p_1080i_FIXED_FREQ_KHZ (74250)
-#define NVRM_HDMI_720p_1080p_FIXED_FREQ_KHZ (148500)
+#define NVRM_HDMI_480p_FIXED_FREQ_KHZ (27000)
+#define NVRM_HDMI_720p_FIXED_FREQ_KHZ (74250)
+#define NVRM_HDMI_1080p_FIXED_FREQ_KHZ (148500)
+
+#define NvRmIsFixedHdmiKHz(KHz) \
+    (((KHz) == NVRM_HDMI_480p_FIXED_FREQ_KHZ) || \
+     ((KHz) == NVRM_HDMI_720p_FIXED_FREQ_KHZ) || \
+     ((KHz) == NVRM_HDMI_1080p_FIXED_FREQ_KHZ))
 
 // BR-fixed PLLP output frequency in kHz (override disabled) 
 #define NV_BOOT_PLLP_FIXED_FREQ_KHZ (432000)
