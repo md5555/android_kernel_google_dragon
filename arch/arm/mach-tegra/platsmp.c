@@ -272,7 +272,7 @@ int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
         return -ENOSYS;
     }
 
-    printk(KERN_INFO "TegraSMP: CPU %u responded with \"0x%08x\"\n", cpu, v);
+    printk(KERN_INFO "TegraSMP: CPU %u responded with \"0x%08x\"\n", cpu, Msg);
 
 #ifdef CONFIG_HOTPLUG_CPU
     EnabledCores |= (1<<cpu);

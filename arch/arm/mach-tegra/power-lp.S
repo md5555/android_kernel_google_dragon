@@ -400,7 +400,7 @@ skip_cpu0_restore:
 	str	r2, [r9, #EVP_CPU_RESET_VECTOR_0]
 
 	//Set lr to the resume function
-	ldr	lr, [r5, #APBDEV_PMC_SCRATCH1_0]
+	ldr	lr, [r5, #APBDEV_PMC_SCRATCH33_0]
 	bx	lr
 
 TempStoreArea:

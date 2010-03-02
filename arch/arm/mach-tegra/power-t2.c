@@ -295,7 +295,7 @@ void cpu_ap20_do_lp2(void)
 
     //Save our context ptrs to scratch regs
     NV_REGW(s_hRmGlobal, NvRmModuleID_Pmif, 0,
-            APBDEV_PMC_SCRATCH1_0, g_resume);
+            APBDEV_PMC_SCRATCH33_0, g_resume);
     NV_REGW(s_hRmGlobal, NvRmModuleID_Pmif, 0,
             APBDEV_PMC_SCRATCH37_0, g_contextSavePA);
 
