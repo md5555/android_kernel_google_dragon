@@ -670,6 +670,13 @@ static NvError HwI2cInitController(NvRmI2cSlaveController* t)
     I2C_REGW(t, I2C_SL_ADDR2, 0);
     // Set Delay count register
     I2C_REGW(t, I2C_SL_DELAY_COUNT, DELAY_COUNT);
+    // Enable NEW_MASTER_FSM in slave for T20
+    // It is found that in some corner case, it appears that the slave is
+    // driving '0' on the bus and the HW team suggested to enable new master
+    // even if it is not used as old master is known to go into
+    // bad state
+    SlaveConfig = NV_DRF_DEF(I2C, I2C_CNFG, NEW_MASTER_FSM, ENABLE);
+    I2C_REGW(t, I2C_CNFG, SlaveConfig);
     // Enable Ack and disable response to general call.
     SlaveConfig = ENABLE_I2C_SLAVE(t);
     //NvOsDebugPrintf("\n***SlaveConfig=0x%x", SlaveConfig);
@@ -954,6 +961,13 @@ NvError NvEcTransportPowerResume(NvEcTransportHandle t)
             // Set the slave address and 7-bit address mode.
             I2C_REGW(t, I2C_SL_ADDR1, (t->SlaveAddress >> 1));
             I2C_REGW(t, I2C_SL_ADDR2, 0);
+            // Enable NEW_MASTER_FSM in slave for T20
+            // It is found that in some corner case, it appears that the slave is
+            // driving '0' on the bus and the HW team suggested to enable new master
+            // even if it is not used as old master is known to go into
+            // bad state
+            SlaveConfig = NV_DRF_DEF(I2C, I2C_CNFG, NEW_MASTER_FSM, ENABLE);
+            I2C_REGW(t, I2C_CNFG, SlaveConfig);
             // Enable Ack and disable response to general call.
             SlaveConfig = ENABLE_I2C_SLAVE(t);
             I2C_REGW(t, I2C_SL_CNFG, SlaveConfig);
