@@ -1,6 +1,0 @@
-arch="armel"
-supported="armel"
-target="Geared toward desktop systems."
-desc="armel"
-bootloader="grub-pc | grub | lilo (>= 19.1)"
-provides="kvm-api-4, ivtv-modules"
