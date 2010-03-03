@@ -320,11 +320,13 @@ static int tegra_ehci_bus_resume(struct usb_hcd *hcd)
 {
 	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
 	int err_status = 0;
+	u32 status;
 
-#ifdef CONFIG_USB_OTG_UTILS
 	struct tegra_hcd_platform_data *pdata;
 	/* initialize the platform data pointer */
 	pdata = hcd->self.controller->platform_data;
+
+#ifdef CONFIG_USB_OTG_UTILS
 	if ((pdata->pUsbProperty->UsbMode == NvOdmUsbModeType_OTG)
 		&& ehci->transceiver) {
 		if (ehci->transceiver->state != OTG_STATE_A_HOST) {
@@ -338,6 +340,18 @@ static int tegra_ehci_bus_resume(struct usb_hcd *hcd)
 		tegra_ehci_power_up(hcd);
 		err_status = ehci_bus_resume(hcd);
 	}
+
+	if ((pdata->pUsbProperty->UsbMode != NvOdmUsbModeType_OTG)
+		&& (pdata->pUsbProperty->IdPinDetectionType ==
+			NvOdmUsbIdPinType_CableId)) {
+		/* read otgsc register for ID pin status */
+		status = readl(hcd->regs + TEGRA_USB_PHY_WAKEUP_REG_OFFSET);
+		writel(status, (hcd->regs + TEGRA_USB_PHY_WAKEUP_REG_OFFSET));
+		/* If no Id pin then disable the power */
+		if (status & TEGRA_USB_ID_PIN_STATUS) {
+			tegra_ehci_power_down(hcd);
+		}
+        }
 	return err_status;
 }
 

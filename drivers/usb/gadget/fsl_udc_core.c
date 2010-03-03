@@ -2764,6 +2764,11 @@ static int fsl_udc_resume(struct platform_device *pdev)
 	udc_controller->usb_state = USB_STATE_ATTACHED;
 	udc_controller->ep0_state = WAIT_FOR_SETUP;
 	udc_controller->ep0_dir = 0;
+
+	/* Power down the phy if cable is not connected */
+	if (!(fsl_readl(&usb_sys_regs->vbus_wakeup) & USB_SYS_VBUS_STATUS))
+		platform_udc_clk_suspend();
+
 	return 0;
 }
 
