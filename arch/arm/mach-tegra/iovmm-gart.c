@@ -135,8 +135,6 @@ static int gart_resume(struct platform_device *pdev)
 	reg = NV_DRF_DEF(MC, GART_CONFIG, GART_ENABLE, ENABLE);
 	writel(reg, gart->regs + MC_GART_CONFIG_0);
 	spin_unlock(&gart->pte_lock);
-	vfree(gart->savedata);
-	gart->savedata = NULL;
 
 	return 0;
 }
