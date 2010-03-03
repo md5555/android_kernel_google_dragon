@@ -692,7 +692,7 @@ NvDdkUsbPhyPowerUp(
     NV_CHECK_ERROR_CLEANUP(hUsbPhy->PowerUp(hUsbPhy));
     hUsbPhy->IsPhyPoweredUp = NV_TRUE;
     hUsbPhy->IsHostMode = IsHostMode;
-    if (hUsbPhy->IsHostMode)
+    if (hUsbPhy->pProperty->UsbMode == NvOdmUsbModeType_Host)
     {
         hUsbPhy->RestoreContext(hUsbPhy);
     }
@@ -719,7 +719,7 @@ NvDdkUsbPhyPowerDown(
 
     if (!hUsbPhy->IsPhyPoweredUp)
         return e;
-    if (hUsbPhy->IsHostMode)
+    if (hUsbPhy->pProperty->UsbMode == NvOdmUsbModeType_Host)
     {
         hUsbPhy->SaveContext(hUsbPhy);
     }
