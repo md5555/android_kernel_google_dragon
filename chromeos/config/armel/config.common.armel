@@ -184,6 +184,7 @@ CONFIG_SWAP=y
 # CONFIG_SYSCTL_SYSCALL_CHECK is not set
 # CONFIG_SYSVIPC is not set
 # CONFIG_TASKSTATS is not set
+# CONFIG_TCG_TPM is not set
 # CONFIG_TCP_CONG_ADVANCED is not set
 # CONFIG_TCP_MD5SIG is not set
 # CONFIG_THERMAL is not set
