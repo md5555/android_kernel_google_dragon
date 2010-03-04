@@ -906,7 +906,7 @@ NvBool NvOdmBatteryDeviceOpen(NvOdmBatteryDeviceHandle *hDevice,
         goto Cleanup;
     }
 
-    NvOdmOsMemset(pBattContext, 0, sizeof(pBattContext));
+    NvOdmOsMemset(pBattContext, 0, sizeof(NvOdmBatteryDevice));
 
     /* Get nvec handle */
     NvStatus = NvEcOpen(&pBattContext->hEc, 0 /* instance */);
