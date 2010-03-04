@@ -377,8 +377,7 @@ static NvBool TPK_GetSample (TPK_TouchDevice* hTouch, NvOdmTouchCoordinateInfo* 
             if ( coord->additionalInfo.multi_XYCoords[1][0] <= 0 ||
                 coord->additionalInfo.multi_XYCoords[1][0] >= hTouch->Caps.XMaxPosition ||
                 coord->additionalInfo.multi_XYCoords[1][1] <= 0 || 
-                coord->additionalInfo.multi_XYCoords[1][1] >= hTouch->Caps.YMaxPosition ||
-                coord->additionalInfo.width[0] == 0xf)
+                coord->additionalInfo.multi_XYCoords[1][1] >= hTouch->Caps.YMaxPosition)
                 coord->fingerstate = NvOdmTouchSampleIgnore;
 #if TPK_REPORT_2ND_FINGER_DATA
             else
