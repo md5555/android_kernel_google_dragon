@@ -263,6 +263,10 @@ ENTRY(enter_lp2)
 	str	r1, [r8, #CLK_RST_CONTROLLER_CCLK_BURST_POLICY_0]
 	dmb
 
+	//Get the microsecond count before LP2
+	ldr		r2, [r7]
+	str		r2, [r5, #APBDEV_PMC_SCRATCH38_0]
+
 	//Finally, halt the CPU
 	mov	r2, #0
 	orr	r2, r2, #(4<<29)  //STOP_UNTIL_IRQ
@@ -363,6 +367,12 @@ skip_cpu0_restore:
 	//Write to reset vector to allow platsmp to continue
 	str	r2, [r9, #EVP_CPU_RESET_VECTOR_0]
 
+	//Only get the timer for CPU0
+	bne	skip_lp2_time
+	//Get the microsecond count after LP2
+	str r11, [r5, #APBDEV_PMC_SCRATCH1_0]
+
+skip_lp2_time:
 	//Set lr to the resume function
 	ldr	lr, [r5, #APBDEV_PMC_SCRATCH33_0]
 	bx	lr
@@ -474,7 +484,7 @@ is_self1:
 
 	//Get the microsecond count before LP1
 	ldr		r2, [r7]
-	str		r2, [r5, #0x134]
+	str		r2, [r5, #APBDEV_PMC_SCRATCH38_0]
 
 	//Finally, halt the CPU
 	mov		r2, #0
