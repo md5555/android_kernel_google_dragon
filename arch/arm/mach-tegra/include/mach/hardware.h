@@ -20,7 +20,8 @@
 
 #ifndef __MACH_TEGRA_HARDWARE_H
 
-#define pcibios_assign_all_busses()         1
+//do not let linux override bios's bus assignments
+#define pcibios_assign_all_busses()         0
 
 extern unsigned long pci_tegra_get_base(char *aperture);
 
