@@ -290,6 +290,7 @@ static int tegra_ehci_setup(struct usb_hcd *hcd)
 	return retval;
 }
 
+#if defined(CONFIG_PM)
 static int tegra_ehci_bus_suspend(struct usb_hcd *hcd)
 {
 	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
@@ -354,6 +355,7 @@ static int tegra_ehci_bus_resume(struct usb_hcd *hcd)
         }
 	return err_status;
 }
+#endif
 
 static const struct hc_driver tegra_ehci_hc_driver = {
 	.description		= hcd_name,
@@ -374,8 +376,10 @@ static const struct hc_driver tegra_ehci_hc_driver = {
 	.get_frame_number	= ehci_get_frame,
 	.hub_status_data	= ehci_hub_status_data,
 	.hub_control		= tegra_ehci_hub_control,
+#if defined(CONFIG_PM)
 	.bus_suspend		= tegra_ehci_bus_suspend,
 	.bus_resume 		= tegra_ehci_bus_resume,
+#endif
 	.relinquish_port	= ehci_relinquish_port,
 	.port_handed_over	= ehci_port_handed_over,
 };
@@ -525,7 +529,7 @@ static int tegra_ehci_remove(struct platform_device *pdev)
 		return -EINVAL;
 
 	NvDdkUsbPhyClose(pdata->hUsbPhy);
-	
+
 	iounmap(hcd->regs);
 
 	usb_remove_hcd(hcd);
