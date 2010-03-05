@@ -1630,7 +1630,8 @@ static int nvmap_ioctl_pinop(struct file *filp,
 		size_t bytes = op.count * sizeof(unsigned long *);
 		if (!access_ok(VERIFY_READ, (void *)op.handles, bytes))
 			return -EPERM;
-		if (is_pin && !access_ok(VERIFY_WRITE, (void *)op.addr, bytes))
+		if (is_pin && op.addr &&
+		    !access_ok(VERIFY_WRITE, (void *)op.addr, bytes))
 			return -EPERM;
 
 		if (op.count <= ARRAY_SIZE(on_stack)) refs = on_stack;
@@ -1661,6 +1662,8 @@ static int nvmap_ioctl_pinop(struct file *filp,
 		struct nvmem_pin_handle __user *tmp = arg;
 		output = (unsigned long __user *)&(tmp->addr);
 	}
+
+	if (!output) goto out;
 
 	for (i=0; i<op.count; i++) {
 		unsigned long addr;
@@ -2479,15 +2482,15 @@ static unsigned int _nvmap_do_get_param(struct nvmap_handle *h,
 		return h->orig_size;
 
 	else if (param==NVMEM_HANDLE_PARAM_ALIGNMENT) {
-		unsigned int i = 0;
-
 		if (!h->alloc) return 0;
 
 		if (h->heap_pgalloc) return PAGE_SIZE;
 		else {
+			unsigned int i=1;
+			if (!h->carveout.base) return SZ_4M;
 			while (!(i & h->carveout.base)) i<<=1;
+			return i;
 		}
-		return i;
 	} else if (param==NVMEM_HANDLE_PARAM_BASE) {
 
 		WARN_ON(!h->alloc || !atomic_read(&h->pin));
