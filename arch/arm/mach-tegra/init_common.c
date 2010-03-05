@@ -438,7 +438,6 @@ void __init tegra_register_uart(void)
     NvU32 Port = ~0;
     const NvU32 *pPinMuxes;
     NvU32 NumPinMuxes;
-    NvU32 Cnt = 0;
     
     Console = NvOdmQueryDebugConsole();
     NumberOfUarts = NvRmModuleGetNumInstances(s_hRmGlobal, 
@@ -458,7 +457,7 @@ void __init tegra_register_uart(void)
         if (i==Port || !pPinMuxes[i])
             continue;
 
-        pDev = platform_device_alloc("tegra_uart", Cnt++);
+        pDev = platform_device_alloc("tegra_uart", i);
         if (!pDev)
             goto fail;
         if (platform_device_add(pDev))
