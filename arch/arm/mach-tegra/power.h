@@ -429,7 +429,6 @@ extern NvRmDeviceHandle s_hRmGlobal;
 #define WAKEUP_EXTERNAL(p,b)\
 	{NVRM_MODULE_ID(NvRmPrivModuleID_Gpio,GPIO_PORT(p)/GPIO_PORTS_PER_INSTANCE),\
 		(((GPIO_PORT(p) % GPIO_PORTS_PER_INSTANCE)*GPIO_BITS_PER_PORT) + (b)) }
-
 typedef struct
 {
 	NvU32 *pBase;
@@ -469,11 +468,12 @@ typedef enum
 
 typedef enum
 {
-	PowerPllA = 0,
-	PowerPllC,
-	PowerPllM,
-	PowerPllP,
-	PowerPllX
+	PowerPllM = 0x1,  // Memory
+	PowerPllC = 0x2,  // CPU
+	PowerPllP = 0x4,  // Peripherals
+	PowerPllA = 0x8,  // Audio
+	PowerPllX = 0x10, // CPU Complex
+	PowerPll_Force32 = 0x7fffffff
 } PowerPll;
 
 typedef enum

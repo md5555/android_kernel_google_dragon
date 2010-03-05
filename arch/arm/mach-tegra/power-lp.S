@@ -176,9 +176,9 @@ transition_to_state:
 	ldr	r0, =g_modifiedPlls
 	ldr	r0, [r0]
 	ldr	r1, =g_wakeupCcbp
-	ldr	r1, [r1] 
+	ldr	r1, [r1]
 
-	mov	r10, #0	
+	mov	r10, #0
 	mcr	p15, 0, r10, c8, c7, 0	// invalidate TLB
 	dsb
 
@@ -347,51 +347,15 @@ reset_poll:
 	//Put the CPU on the desired clock source for wakeup
 	str	r1, [r8, #CLK_RST_CONTROLLER_CCLK_BURST_POLICY_0]
 
-	//Enable PLL-C if we disabled it.
-	//tst r0, #PowerPllC
-	tst	r0, #1
-	beq	no_pllc
-	ldr	r2, [r8, #CLK_RST_CONTROLLER_PLLC_BASE_0]
-	mov	r3, #(1<<30) //PllC ENABLE
-	tst	r2, r3
-	orreq	r2, r2, r3
-	streq	r2, [r8, #CLK_RST_CONTROLLER_PLLC_BASE_0]
-no_pllc:
-	//Enable PLL-M if we disabled it.
-	//tst r0, #PowerPllM
-	tst	r0, #2
-	beq	no_pllm
-	ldr	r2, [r8, #CLK_RST_CONTROLLER_PLLM_BASE_0]
-	mov	r3, #(1<<30) //PllM ENABLE
-	tst	r2, r3
-	orreq	r2, r2, r3
-	streq	r2, [r8, #CLK_RST_CONTROLLER_PLLM_BASE_0]
-no_pllm:
-	//Enable PLL-P if we disabled it.
-	//tst r0, #PowerPllP
-	tst	r0, #3
-	beq	no_pllp
-	ldr	r2, [r8, #CLK_RST_CONTROLLER_PLLP_BASE_0]
-	mov	r3, #(1<<30) //PllP ENABLE
-	tst	r2, r3
-	orreq	r2, r2, r3
-	streq	r2, [r8, #CLK_RST_CONTROLLER_PLLP_BASE_0]
-no_pllp:
-	//Enable PLL-X if we disabled it.
-	//NOTE: The PLLX_BASE have have been cleared so get it's value
-	//from the temporary save area.
-	//tst r0, #PowerPllX
-	tst	r0, #4
-	beq	no_pllx
+
+	//Enable PLL-X and restore the values
 	ldr	r2, [r12, #TEMP_PLLX_BASE]
 	mov	r3, #(1<<30) //PllX ENABLE
 	orr	r2, r2, r3
 	str	r2, [r8, #CLK_RST_CONTROLLER_PLLX_BASE_0]
-no_pllx:
 	//Restore the reset vector target.
-	//##
-	//ldr r1, [r12, #TEMP_RESET_VECTOR]
-	//str r1, [r9, #EVP_CPU_RESET_VECTOR_0]
+	ldr r1, [r12, #TEMP_RESET_VECTOR]
+	str r1, [r9, #EVP_CPU_RESET_VECTOR_0]
 
 skip_cpu0_restore:
 	mrc	p15, 0, r2, c0, c0, 5
@@ -426,7 +390,6 @@ ENTRY(enter_lp1)
 	ldr		r9, [r9]
 
 	add		r12, pc, #TemporaryStore-(.+8)
-	orr		r0, r0, #5
 	stmia	r12!, {r0, r1}
 
 	ldr		r0, [r9, #EVP_CPU_RESET_VECTOR_0]
@@ -472,16 +435,29 @@ is_self1:
 	bic		r2, r2, #(1<<14)
 	str		r2, [r5, #APBDEV_PMC_CNTRL_0]
 
+        //Switch CPU clocks to CLKM
+	mov		r2, #0
+	orr		r2, r2, #(1<<28)
+	str		r2, [r8, #CLK_RST_CONTROLLER_CCLK_BURST_POLICY_0]
+
+	//Switch the system clock to CLKM
+	mov		r2, #0
+	orr		r2, r2, #(1<<28)
+	str		r2, [r8, #CLK_RST_CONTROLLER_SCLK_BURST_POLICY_0]
+
+	//2 uSec delay for System Clock Switching
+	mov		r2, #0x1
+	orr		r2, r2, #(1<<25)  //STOP_UNTIL_Event
+	str		r2, [r6, #FLOW_CTLR_HALT_CPU_EVENTS_0]
+
 	//Powergate the cpu by setting the ENABLE bit
 	ldr		r2, [r6, #FLOW_CTLR_CPU_CSR_0]
 	orr		r2, r2, #(1<<0)
 	str		r2, [r6, #FLOW_CTLR_CPU_CSR_0]
 
-	mov		r2, #1, 4
-	str		r2, [r8, #CLK_RST_CONTROLLER_CCLK_BURST_POLICY_0]
-
-	//Switch clocks to 32Khz
-	mov		r2, #0x61, 4
+	//Switch system clocks to 32Khz
+	mov		r2, #6
+	orr		r2, r2, #(1<<28)
 	mov		r3, #0
 	str		r2, [r8, #CLK_RST_CONTROLLER_SCLK_BURST_POLICY_0]
 	str		r3, [r8, #CLK_RST_CONTROLLER_SUPER_SCLK_DIVIDER_0]
@@ -491,10 +467,10 @@ is_self1:
 	bic		r2, r2, #1, 2
 	str		r2, [r8, #CLK_RST_CONTROLLER_PLLM_BASE_0]
 
-	//Turn off pll-p - Uncomment in real testing
-	//ldr       r2, [r8, #CLK_RST_CONTROLLER_PLLP_BASE_0]
-	//bic       r2, r2, #1, 2
-	//str       r2, [r8, #CLK_RST_CONTROLLER_PLLP_BASE_0]
+	//Turn off pll-p
+	ldr       r2, [r8, #CLK_RST_CONTROLLER_PLLP_BASE_0]
+	bic       r2, r2, #1, 2
+	str       r2, [r8, #CLK_RST_CONTROLLER_PLLP_BASE_0]
 
 	//Get the microsecond count before LP1
 	ldr		r2, [r7]
@@ -504,7 +480,7 @@ is_self1:
 	mov		r2, #0
 	orr		r2, r2, #(4<<29)  //STOP_UNTIL_IRQ
 	orr		r2, r2, #(1<<10)  //IRQ_0 event
-	orr		r2, r2, #(1<<8)	//FIQ_0 event
+	orr		r2, r2, #(1<<8)	  //FIQ_0 event
 	str		r2, [r6, #FLOW_CTLR_HALT_CPU_EVENTS_0]
 
 do_wfi1:
@@ -557,60 +533,34 @@ reset_poll1:
 	ldr		r0, =0xC5ACCE55
 	ldr		r1, =CSITE_CPUDBG0_LAR_0  //R1 = CPU0 lock offset
 	ldr		r2, =CSITE_CPUDBG1_LAR_0  //R2 = CPU1 lock offset
-	str		r0, [r10, r1]		//Unlock CPU0
-	str		r0, [r10, r2]		//Unlock CPU1
+	str		r0, [r10, r1]		  //Unlock CPU0
+	str		r0, [r10, r2]		  //Unlock CPU1
 
 	//Switch the system to CLKM
-	mov		r2, #1, 4
+	mov		r2, #0
+	orr		r2, r2, #(1<<28)
 	str		r2, [r8, #CLK_RST_CONTROLLER_SCLK_BURST_POLICY_0]
 
-	//Check which plls to start
-	ldr		r0, [r12]
-	mov		r1, #0
-	tst		r0, #2
-
-	//Enable PLL-C if we disabled it.
-	//tst r0, #PowerPllC
-	tst		r0, #1
-	beq		no_pllc1
-	ldr		r2, [r8, #CLK_RST_CONTROLLER_PLLC_BASE_0]
-	mov		r3, #(1<<30) //PllC ENABLE
-	tst		r2, r3
-	orreq	r2, r2, r3
-	streq	r2, [r8, #CLK_RST_CONTROLLER_PLLC_BASE_0]
-no_pllc1:
-	//Enable PLL-M if we disabled it.
-	//tst r0, #PowerPllM
-	tst		r0, #2
-	beq		no_pllm1
+	//Enable PLL-M
 	ldr		r2, [r8, #CLK_RST_CONTROLLER_PLLM_BASE_0]
 	mov		r3, #(1<<30) //PllM ENABLE
 	tst		r2, r3
-	orreq	r2, r2, r3
-	streq	r2, [r8, #CLK_RST_CONTROLLER_PLLM_BASE_0]
-no_pllm1:
-	//Enable PLL-P if we disabled it.
-	//tst r0, #PowerPllP
-	mov		r0, #
-	tst		r0, #3
-	beq		no_pllp1
+	orreq		r2, r2, r3
+	streq		r2, [r8, #CLK_RST_CONTROLLER_PLLM_BASE_0]
+
+	//Enable PLL-P
 	ldr		r2, [r8, #CLK_RST_CONTROLLER_PLLP_BASE_0]
 	mov		r3, #(1<<30) //PllP ENABLE
 	tst		r2, r3
-	orreq	r2, r2, r3
-	streq	r2, [r8, #CLK_RST_CONTROLLER_PLLP_BASE_0]
-no_pllp1:
-	//Enable PLL-X if we disabled it.
-	//NOTE: The PLLX_BASE have have been cleared so get it's value
-	//from the temporary save area.
-	//tst r0, #PowerPllX
-	tst		r0, #4
-	beq		no_pllx1
-	ldr		r2, [r12, #TEMP_PLLX_BASE]
-	mov		r3, #(1<<30) //PllX ENABLE
-	orr		r2, r2, r3
-	str		r2, [r8, #CLK_RST_CONTROLLER_PLLX_BASE_0]
-no_pllx1:
+	orreq		r2, r2, r3
+	streq		r2, [r8, #CLK_RST_CONTROLLER_PLLP_BASE_0]
+
+	//Enable PLL-X with restored  values
+	ldr	r2, [r12, #TEMP_PLLX_BASE]
+	mov	r3, #(1<<30) //PllX ENABLE
+	orr	r2, r2, r3
+	str	r2, [r8, #CLK_RST_CONTROLLER_PLLX_BASE_0]
+
 	//Configure CPU island to not be power gated
 	ldr		r2, [r6, #8]
 	bic		r2, r2, #1
@@ -620,39 +570,12 @@ no_pllx1:
 	ldr		r2, [r12, #TEMP_RESET_VECTOR]
 	str		r2, [r9, #EVP_CPU_RESET_VECTOR_0]
 
-	//Check if we started any plls
-	cmp		r1, #0
-	beq		restore_clocks
 
-	//Explicit delay for pll stabilization
-	mov		r0, #0xFF
-	mov		r1, #0x42, 8
-	mov		r2, #0x4B, 30
-delay_for_pll:
-	cmp		r2, r0
-	orrle	r3, r1, r2
-	orrgt	r3, r1, r0
-	sub		r2, r2, r0
-	//Do a flow control wait
-	str		r3, [r6]
-wait_for_event:
-	wfe
+	//Explicit delay of 255 uSec for pll stabilization
+	mov		r2, #0xfe
+	orr		r2, r2, #(1<<25)  //STOP_UNTIL_Event
+	str		r2, [r6, #FLOW_CTLR_HALT_CPU_EVENTS_0]
 
-	//Check if the event is ours
-	ldr		r3, [r6, #FLOW_CTLR_CPU_CSR_0]
-	tst		r3, #1, 18
-	strne	r3, [r6, #FLOW_CTLR_CPU_CSR_0]
-	bne		event_signalled
-
-	//Check if we're still waiting for an event
-	ldr		r3, [r6, #FLOW_CTLR_HALT_CPU_EVENTS_0]
-	tst		r3, #0xE, 4
-	bne		wait_for_event
-event_signalled:
-	//Check if we waited long enough
-	cmp		r2, #0
-	bgt		delay_for_pll
-restore_clocks:
 	//Restore the system and CPU burst, csite, clksrc registers
 	ldr		r1, [r12, #TEMP_SCLK_BURST_POLICY]
 	ldr		r2, [r12, #TEMP_CCLK_BURST_POLICY]
@@ -681,9 +604,9 @@ restore_clocks:
 
 	//Confirm that all chips have exited self-refresh
 	ldr		r1, [r4, #EMC_ADR_CFG_0]
-	ands	r1, r1, #3, 8
-	moveq	r0, #1, 24
-	movne	r0, #3, 24
+	ands		r1, r1, #3, 8
+	moveq		r0, #1, 24
+	movne		r0, #3, 24
 
 	//Poll until all chips have exited self-refresh
 is_auto:

@@ -188,7 +188,6 @@ static NvU32* save_clockreset_context(
 
 	//Get a pointer to the base address for the registers.
 	pBase = pAnchor->clock_reset.pBase;
-
 	switch (Context) {
 	case PowerModuleContext_Init:
 		//Already initialized?
@@ -240,11 +239,11 @@ static NvU32* save_clockreset_context(
 		//Save module reset state
 		*pCM++ = NV_CAR_REGR(pBase, RST_DEVICES_L);
 		*pCM++ = NV_CAR_REGR(pBase, RST_DEVICES_H);
-
+		*pCM++ = NV_CAR_REGR(pBase, RST_DEVICES_U);
 		//Save module clock enable state
 		*pCM++ = NV_CAR_REGR(pBase, CLK_OUT_ENB_L);
 		*pCM++ = NV_CAR_REGR(pBase, CLK_OUT_ENB_H);
-
+		*pCM++ = NV_CAR_REGR(pBase, CLK_OUT_ENB_U);
 		//Save clock mask register
 		*pCM++ = NV_CAR_REGR(pBase, CLK_MASK_ARM);
 		break;
@@ -289,7 +288,8 @@ static NvU32* save_clockreset_context(
 			CLK_RST_CONTROLLER_CLK_OUT_ENB_L_0_RESET_MASK);
 		NV_CAR_REGW(pBase, CLK_OUT_ENB_H,
 			CLK_RST_CONTROLLER_CLK_OUT_ENB_H_0_RESET_MASK);
-
+		NV_CAR_REGW(pBase, CLK_OUT_ENB_U,
+			CLK_RST_CONTROLLER_CLK_OUT_ENB_U_0_RESET_MASK);
 		//Restore clock sources for individual modules
 		Offset = CAR_CLK_SOURCES_OFFSET_START;
 		do
@@ -319,11 +319,11 @@ static NvU32* save_clockreset_context(
 		//Restore module reset state
 		NV_CAR_REGW(pBase, RST_DEVICES_L, *pCM++);
 		NV_CAR_REGW(pBase, RST_DEVICES_H, *pCM++);
-
+		NV_CAR_REGW(pBase, RST_DEVICES_U, *pCM++);
 		//Restore module clock enable state
 		NV_CAR_REGW(pBase, CLK_OUT_ENB_L, *pCM++);
 		NV_CAR_REGW(pBase, CLK_OUT_ENB_H, *pCM++);
-
+		NV_CAR_REGW(pBase, CLK_OUT_ENB_U, *pCM++);
 		//Restore clock mask register
 		NV_CAR_REGW(pBase, CLK_MASK_ARM, *pCM++);
 		break;

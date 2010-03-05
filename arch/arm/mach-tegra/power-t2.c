@@ -237,14 +237,11 @@ void cpu_ap20_do_lp1(void)
 	{
 		//Disable the Statistics interrupt
 		NvPrivAp20MaskIrq(irq);
-
 		do_suspend_prep();
-
-		g_modifiedPlls |= PowerPllM;
 	}
 
 	printk("entering lp1\n");
-	//Do LP2
+	//Do LP1
 	enter_power_state(POWER_STATE_LP1, proc_id);
 	printk("exiting lp1\n");
 
@@ -254,20 +251,11 @@ void cpu_ap20_do_lp1(void)
 		NvPrivAp20UnmaskIrq(irq);
 
 		g_NumActiveCPUs = num_online_cpus();
-		//We're back
-		//Delay if needed
-
-		if (g_modifiedPlls & PowerPllC)
+                // Assembly LP1 code explicitly turn on PLLX,PLLM and PLLP so no need to enable it
+		if (g_modifiedPlls & PowerPllC) {
 			enable_pll(PowerPllC, NV_TRUE);
-		if (g_modifiedPlls & PowerPllM)
-			enable_pll(PowerPllM, NV_TRUE);
-		if (g_modifiedPlls & PowerPllP)
-			enable_pll(PowerPllP, NV_TRUE);
-		if (g_modifiedPlls & PowerPllX)
-			enable_pll(PowerPllX, NV_TRUE);
-
-		NvOsWaitUS(300);
-
+			NvOsWaitUS(300);
+		}
 		//Restore burst policy
 		NV_REGW(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 0,
 				CLK_RST_CONTROLLER_CCLK_BURST_POLICY_0, g_currentCcbp);
@@ -305,9 +293,8 @@ void cpu_ap20_do_lp2(void)
     {
         //Disable the Statistics interrupt
         NvPrivAp20MaskIrq(irq);
-        
         do_suspend_prep();
-    }    
+    }
 
     //Do LP2
     enter_power_state(POWER_STATE_LP2, proc_id);
@@ -318,7 +305,6 @@ void cpu_ap20_do_lp2(void)
         NvPrivAp20UnmaskIrq(irq);
     
         g_NumActiveCPUs = num_online_cpus();
-        //We're back
         //Delay if needed
     
         if (g_modifiedPlls & PowerPllC)    
@@ -327,11 +313,8 @@ void cpu_ap20_do_lp2(void)
             enable_pll(PowerPllM, NV_TRUE);
         if (g_modifiedPlls & PowerPllP)    
             enable_pll(PowerPllP, NV_TRUE);
-        if (g_modifiedPlls & PowerPllX)    
-            enable_pll(PowerPllX, NV_TRUE);        
-        
+
         NvOsWaitUS(300);
-            
         //Restore burst policy
         NV_REGW(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 0, 
                 CLK_RST_CONTROLLER_CCLK_BURST_POLICY_0, g_currentCcbp);
@@ -339,7 +322,6 @@ void cpu_ap20_do_lp2(void)
         //Restore the CoreSight clock source.
         NV_REGW(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 0, 
                 CLK_RST_CONTROLLER_CLK_SOURCE_CSITE_0, g_coreSightClock);
-
     }
 }
 
@@ -748,8 +730,8 @@ void enable_pll(PowerPll pll, NvBool enable)
         default:
             break;
     }
-    
 }
+
 void enable_plls(NvBool enable)
 {
     NvU32 dfsPllFlags = NvRmPrivGetDfsFlags(s_hRmGlobal);
@@ -777,12 +759,6 @@ void enable_plls(NvBool enable)
         enable_pll(PowerPllM, NV_FALSE);
         g_modifiedPlls |= PowerPllM;
     }
-
-    //pllx - DFS currently doesn't signal this, but it doesn't matter
-    //We're going to turn it off anyway
-    if (dfsPllFlags & NvRmDfsStatusFlags_StopPllX0)
-    {        
-    }
 }
 
 void do_suspend_prep(void)
@@ -801,12 +777,11 @@ void do_suspend_prep(void)
             CSITE_CLK_SRC, CLK_M);
     NV_REGW(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 0, 
             CLK_RST_CONTROLLER_CLK_SOURCE_CSITE_0, reg);
-    
     //Turn off necessary PLLs
     enable_plls(NV_FALSE);
-    
     //Select the wakeup pll
     g_currentCcbp = select_wakeup_pll();
+
 }
 
 void reset_cpu(unsigned int cpu, unsigned int reset)
