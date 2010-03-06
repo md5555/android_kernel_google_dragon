@@ -25,6 +25,9 @@
 #include <linux/spinlock.h>
 #include <linux/types.h>
 
+#ifndef _MACH_TEGRA_IOVMM_H_
+#define _MACH_TEGRA_IOVMM_H_
+
 #if defined(CONFIG_ARCH_TEGRA_1x_SOC) || defined(CONFIG_ARCH_TEGRA_2x_SOC)
 typedef u32 tegra_iovmm_addr_t;
 #else
@@ -122,6 +125,7 @@ struct tegra_iovmm_area_ops {
 	void (*release)(struct tegra_iovmm_area *area, tegra_iovmm_addr_t offs);
 };
 
+#ifdef CONFIG_TEGRA_IOVMM
 /* called by clients to allocate an I/O VMM client mapping context which
  * will be shared by all clients in the same share_group */
 struct tegra_iovmm_client *tegra_iovmm_alloc_client(const char *name,
@@ -185,3 +189,85 @@ int tegra_iovmm_register(struct tegra_iovmm_device *dev);
 
 /* called by drivers to remove an I/O VMM device from the system */
 int tegra_iovmm_unregister(struct tegra_iovmm_device *dev);
+
+
+
+#else /* CONFIG_TEGRA_IOVMM */
+
+static inline struct tegra_iovmm_client *tegra_iovmm_alloc_client(
+	const char *name, const char *share_group)
+{
+	return NULL;
+}
+
+static inline size_t tegra_iovmm_get_vm_size(struct tegra_iovmm_client *client)
+{
+	return 0;
+}
+
+static inline void tegra_iovmm_free_client(struct tegra_iovmm_client *client)
+{}
+
+static inline int tegra_iovmm_client_lock(struct tegra_iovmm_client *client)
+{
+	return 0;
+}
+
+static inline int tegra_iovmm_client_trylock(struct tegra_iovmm_client *client)
+{
+	return 0;
+}
+
+static inline void tegra_iovmm_client_unlock(struct tegra_iovmm_client *client)
+{}
+
+static inline struct tegra_iovmm_area *tegra_iovmm_create_vm(
+	struct tegra_iovmm_client *client, struct tegra_iovmm_area_ops *ops,
+	unsigned long size, pgprot_t pgprot)
+{
+	return NULL;
+}
+
+static inline void tegra_iovmm_zap_vm(struct tegra_iovmm_area *vm) { }
+
+static inline void tegra_iovmm_unzap_vm(struct tegra_iovmm_area *vm) { }
+
+static inline void tegra_iovmm_free_vm(struct tegra_iovmm_area *vm) { }
+
+static inline void tegra_iovmm_vm_insert_pfn(struct tegra_iovmm_area *area,
+	tegra_iovmm_addr_t vaddr, unsigned long pfn) { }
+
+static inline struct tegra_iovmm_area *tegra_iovmm_find_area_get(
+	struct tegra_iovmm_client *client, tegra_iovmm_addr_t addr)
+{
+	return NULL;
+}
+
+static inline struct tegra_iovmm_area *tegra_iovmm_area_get(
+	struct tegra_iovmm_area *vm)
+{
+	return NULL;
+}
+
+static inline void tegra_iovmm_area_put(struct tegra_iovmm_area *vm) { }
+
+static inline int tegra_iovmm_domain_init(struct tegra_iovmm_domain *domain,
+	struct tegra_iovmm_device *dev, tegra_iovmm_addr_t start,
+	tegra_iovmm_addr_t end)
+{
+	return 0;
+}
+
+static inline int tegra_iovmm_register(struct tegra_iovmm_device *dev)
+{
+	return 0;
+}
+
+static inline int tegra_iovmm_unregister(struct tegra_iovmm_device *dev)
+{
+	return 0;
+}
+#endif /* CONFIG_TEGRA_IOVMM */
+
+
+#endif
