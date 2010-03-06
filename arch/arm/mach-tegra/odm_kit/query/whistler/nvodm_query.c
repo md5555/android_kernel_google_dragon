@@ -1208,8 +1208,8 @@ NvOdmQueryGetUsbProperty(NvOdmIoModule OdmIoModule,
         NV_FALSE
     };
 
-     static const NvOdmUsbProperty Usb2Property =
-     {
+    static const NvOdmUsbProperty Usb2Property =
+    {
         NvOdmUsbInterfaceType_UlpiExternalPhy,
         NvOdmUsbChargerType_UsbHost,
         20,
@@ -1218,6 +1218,19 @@ NvOdmQueryGetUsbProperty(NvOdmIoModule OdmIoModule,
         NvOdmUsbIdPinType_None,
         NvOdmUsbConnectorsMuxType_None,
         NV_FALSE
+    };
+
+    static const NvOdmUsbProperty Usb2NullPhyProperty =
+    {
+        NvOdmUsbInterfaceType_UlpiNullPhy,
+        NvOdmUsbChargerType_UsbHost,
+        20,
+        NV_TRUE,
+        NvOdmUsbModeType_Host,
+        NvOdmUsbIdPinType_None,
+        NvOdmUsbConnectorsMuxType_None,
+        NV_FALSE,
+        {10, 1, 1, 1}
     };
 
     static const NvOdmUsbProperty Usb3Property =
@@ -1236,7 +1249,15 @@ NvOdmQueryGetUsbProperty(NvOdmIoModule OdmIoModule,
         return &(Usb1Property);
 
     if (OdmIoModule == NvOdmIoModule_Usb && Instance == 1)
-        return &(Usb2Property);
+    {
+        NvU32 CustOpt = GetBctKeyValue();
+
+        if (NV_DRF_VAL(TEGRA_DEVKIT, BCT_CUSTOPT, RIL, CustOpt) ==
+            TEGRA_DEVKIT_BCT_CUSTOPT_0_RIL_EMP_RAINBOW_ULPI)
+            return &(Usb2NullPhyProperty);
+        else
+            return &(Usb2Property);
+    }
 
     if (OdmIoModule == NvOdmIoModule_Usb && Instance == 2)
         return &(Usb3Property);

@@ -977,6 +977,25 @@ typedef enum
     NvOdmUsbConnectorsMuxType_Force32 = 0x7FFFFFFF,
 } NvOdmUsbConnectorsMuxType;
 
+/**
+ *  Defines the USB trimmer control values. Keep all values zero unless the
+ *  default trimmer values programmed in DDK do not work on the customer board.
+ */
+typedef struct NvOdmUsbTrimmerCtrlRec
+{
+    /// Programmable delay on the Shadow ULPI Clock (0 ~ 31)
+    NvU8 UlpiShadowClkDelay;
+
+    /// Programmable delay on the ULPI Clock out (0 ~ 31)
+    NvU8 UlpiClockOutDelay;
+
+    /// ULPI Data Trimmer Value (0 ~ 7)
+    NvU8 UlpiDataTrimmerSel;
+
+    /// ULPI STP/DIR/NXT Trimmer Value (0 ~ 7)
+    NvU8 UlpiStpDirNxtTrimmerSel;
+} NvOdmUsbTrimmerCtrl;
+
 /**  Defines USB interface properties. */
 typedef struct NvOdmUsbPropertyRec
 {
@@ -1014,6 +1033,10 @@ typedef struct NvOdmUsbPropertyRec
     /// Set to NV_TRUE to specify usb rail power off in the deep sleep
     /// Set to NV_FALSE to specify usb rail can not be power off in the deep sleep
     NvBool UsbRailPoweOffInDeepSleep;
+
+    /// Specifies the USB trimmer values. The default value will be used if all values are zeros.
+    /// @see NvOdmUsbTrimmerCtrl
+    NvOdmUsbTrimmerCtrl TrimmerCtrl;
 } NvOdmUsbProperty;
 
 /** Defines wakeup sources. */
