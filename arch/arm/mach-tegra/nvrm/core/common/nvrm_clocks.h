@@ -203,9 +203,6 @@ typedef struct NvRmPllFixedConfigRec
 #define NVRM_PLLHD_AT_19MHZ { 594000, 16, 495, 0, 0}
 #define NVRM_PLLHD_AT_26MHZ { 594000, 26, 594, 0, 0}
 
-// Minimum PLLD_OUT0 frequency when used for display clocks
-#define NVRM_PLLD_DISPLAY_MIN_KHZ (50000)
-
 // Display divider is part of the display module and it is not described
 // in central module clock information table. Hence, need this define.
 #define NVRM_DISPLAY_DIVIDER_MAX (128)

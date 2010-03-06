@@ -647,6 +647,13 @@ NvRmPrivAp15PllConfigureSimple(
     {   // PLLD output is always divided by 2 (after P-divider)
         VcoKHz = VcoKHz << 1;
         MaxOutKHz = MaxOutKHz << 1;
+        while (VcoKHz < pCinfo->PllVcoMin)
+        {
+            VcoKHz = VcoKHz << 1;
+            MaxOutKHz = MaxOutKHz << 1;
+            P++;
+        }
+        NV_ASSERT(P <= CLK_RST_CONTROLLER_PLLD_BASE_0_PLLD_DIVP_DEFAULT_MASK);
         flags = NvRmPllConfigFlags_DiffClkEnable;
     }
     if (pCinfo->SourceId == NvRmClockSource_PllX0)
@@ -1052,13 +1059,6 @@ Ap15PllDConfigure(
     else
     {
         // for other targets use simple variable configuration
-        if (TargetFreq < NVRM_PLLD_DISPLAY_MIN_KHZ)
-        {
-            NV_ASSERT((TargetFreq * NVRM_DISPLAY_DIVIDER_MAX) >=
-                      NVRM_PLLD_DISPLAY_MIN_KHZ);
-            TargetFreq =
-                ((NVRM_PLLD_DISPLAY_MIN_KHZ / TargetFreq) + 1) * TargetFreq;
-        }
         NV_ASSERT(TargetFreq <= MaxFreq);
         NvRmPrivAp15PllConfigureSimple(
             hRmDevice, NvRmClockSource_PllD0, MaxFreq, &TargetFreq);
