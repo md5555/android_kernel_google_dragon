@@ -1502,11 +1502,11 @@ static int _nvmap_do_global_unpin(unsigned long ref)
 		return 0;
 	}
 
-	pr_err("%s: %s unpinning %s's %uB %s handle without local context\n",
+	/*pr_err("%s: %s unpinning %s's %uB %s handle without local context\n",
 		__func__, current->group_leader->comm,
 		(h->owner) ? h->owner->comm : "kernel", h->orig_size,
 		(h->heap_pgalloc && !h->pgalloc.contig) ? "iovmm" :
-		(h->heap_pgalloc) ? "sysmem" : "carveout");
+		(h->heap_pgalloc) ? "sysmem" : "carveout");*/
 
 	w = _nvmap_handle_unpin(h);
 	_nvmap_handle_put(h);
@@ -1567,10 +1567,10 @@ static int _nvmap_do_pin(struct nvmap_file_priv *priv,
 			ret = -EPERM;
 		else if (r) atomic_inc(&r->pin);
 		else {
-			pr_err("%s: %s pinning %s's %uB handle without "
+			/*pr_err("%s: %s pinning %s's %uB handle without "
 				"local context\n", __func__,
 				current->group_leader->comm,
-				h[i]->owner->comm, h[i]->orig_size);
+				h[i]->owner->comm, h[i]->orig_size);*/
                 }
 	}
 
