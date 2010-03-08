@@ -1250,6 +1250,19 @@ NvOdmQueryGetUsbProperty(NvOdmIoModule OdmIoModule,
         NV_FALSE
     };
 
+    /* E1108 has no ID pin for USB3, so disable USB3 Host */
+    static const NvOdmUsbProperty Usb3Property_E1108 =
+    {
+        NvOdmUsbInterfaceType_Utmi,
+        NvOdmUsbChargerType_UsbHost,
+        20,
+        NV_TRUE,
+        NvOdmUsbModeType_None,
+        NvOdmUsbIdPinType_None,
+        NvOdmUsbConnectorsMuxType_None,
+        NV_FALSE
+    };
+
     if (OdmIoModule == NvOdmIoModule_Usb && Instance == 0)
         return &(Usb1Property);
 
@@ -1265,7 +1278,18 @@ NvOdmQueryGetUsbProperty(NvOdmIoModule OdmIoModule,
     }
 
     if (OdmIoModule == NvOdmIoModule_Usb && Instance == 2)
-        return &(Usb3Property);
+    {
+#if NVODM_ENABLE_EMC_DVFS
+        if (NvOdmIsE1108Hynix())
+        {
+            return &(Usb3Property_E1108);
+        }
+        else
+#endif
+        {
+            return &(Usb3Property);
+        }
+    }
 
     return (const NvOdmUsbProperty *)NULL;
 }
