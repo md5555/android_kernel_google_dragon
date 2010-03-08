@@ -2434,8 +2434,8 @@ static ssize_t _nvmap_do_rw_handle(struct nvmap_handle *h, int is_read,
 		}
 		bytes_copied += ret;
 		if (ret < elem_size) break;
-		sys_addr += elem_size;
-		h_offs += elem_size;
+		sys_addr += sys_stride;
+		h_offs += h_stride;
 	}
 
 	if (addr) nvmap_unmap_pte(addr);
