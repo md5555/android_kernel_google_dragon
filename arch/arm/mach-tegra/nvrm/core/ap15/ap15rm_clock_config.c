@@ -1367,8 +1367,7 @@ NvRmPrivAp15PllDPowerControl(
         // On exit from display clock configuration turn off PLLD power
         // if it is disabled
         if ((*pMipiPllVddOn) &&
-            (NvRmPrivGetClockSourceFreq(NvRmClockSource_PllD0) <=
-             NvRmPrivGetClockSourceFreq(NvRmClockSource_ClkM)))
+            (NvRmPrivGetClockSourceFreq(NvRmClockSource_PllD0) == 0))
         {
             NvRmPrivPmuRailControl(hRmDevice, NV_VDD_PLLD_ODM_ID, NV_FALSE);
             *pMipiPllVddOn = NV_FALSE;
