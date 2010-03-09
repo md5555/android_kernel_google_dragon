@@ -90,7 +90,7 @@ static void NvRmDfsThread(void *args)
     NvRmDeviceHandle hRm = (NvRmDeviceHandle)args;
     struct cpumask cpu_mask;
 
-    //Ensure that only cpu0 is in the affinity mask    
+    //Ensure that only cpu0 is in the affinity mask
     cpumask_clear(&cpu_mask);
     cpumask_set_cpu(0, &cpu_mask);
     if (sched_setaffinity(0, &cpu_mask))
@@ -142,11 +142,11 @@ static void client_detach(NvRtClientHandle client)
     if (NvRtUnregisterClient(s_RtHandle, client))
     {
         NvDispatchCtx dctx;
-        
+
         dctx.Rt = s_RtHandle;
         dctx.Client = client;
         dctx.PackageIdx = 0;
-    
+
         for (;;)
         {
             void* ptr = NvRtFreeObjRef(&dctx,
@@ -154,24 +154,24 @@ static void client_detach(NvRtClientHandle client)
                                        NULL);
             if (!ptr) break;
             NVRT_LEAK("NvRm", "NvRmMemHandle", ptr);
-            NvRmMemHandleFree(ptr);        
+            NvRmMemHandleFree(ptr);
         }
 
         NvRtUnregisterClient(s_RtHandle, client);
-    }    
+    }
 }
 
 int nvrm_open(struct inode *inode, struct file *file)
 {
     NvRtClientHandle Client;
-    
+
     if (NvRtRegisterClient(s_RtHandle, &Client) != NvSuccess)
     {
         return -ENOMEM;
     }
 
     file->private_data = (void*)Client;
-    
+
     return 0;
 }
 
@@ -200,7 +200,7 @@ long nvrm_unlocked_ioctl(struct file *file,
         dctx.Rt         = s_RtHandle;
         dctx.Client     = (NvRtClientHandle)file->private_data;
         dctx.PackageIdx = 0;
-    
+
         err = NvOsCopyIn( &p, (void *)arg, sizeof(p) );
         if( err != NvSuccess )
         {
@@ -225,7 +225,7 @@ long nvrm_unlocked_ioctl(struct file *file,
                     size );
                 goto fail;
             }
-    
+
             bAlloc = NV_TRUE;
         }
 
@@ -334,7 +334,7 @@ long nvrm_unlocked_ioctl(struct file *file,
         }
 
         NV_ASSERT(Client || !"Bad client");
-        
+
         if (Client == (NvRtClientHandle)file->private_data)
         {
             // The daemon is attaching to itself, no need to add refcount
@@ -475,6 +475,7 @@ static struct platform_driver nvrm_driver =
     .driver	= { .name = "nvrm" }
 };
 
+#if defined(CONFIG_PM)
 //
 // /sys/power/nvrm/notifier
 //
@@ -598,12 +599,14 @@ int tegra_pm_notifier(struct notifier_block *nb,
     printk(KERN_INFO "%s: Woken up.\n", __func__);
     return NOTIFY_OK;
 }
+#endif
 
 static int __init nvrm_init(void)
 {
     int ret = 0;
     printk(KERN_INFO "%s called\n", __func__);
 
+    #if defined(CONFIG_PM)
     // Register PM notifier.
     pm_notifier(tegra_pm_notifier, 0);
     init_waitqueue_head(&tegra_pm_notifier_wait);
@@ -612,6 +615,7 @@ static int __init nvrm_init(void)
     nvrm_kobj = kobject_create_and_add("nvrm", power_kobj);
     sysfs_create_file(nvrm_kobj, &nvrm_notifier_attribute.attr);
     nvrm_notifier = STRING_PM_NONE;
+    #endif
 
     // Register NvRm platform driver.
     ret= platform_driver_register(&nvrm_driver);
