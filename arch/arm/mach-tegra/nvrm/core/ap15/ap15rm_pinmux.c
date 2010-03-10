@@ -322,6 +322,11 @@ void NvRmPrivAp15InitTrisateRefCount(NvRmDeviceHandle hDevice)
     NvOsMutexUnlock(hDevice->mutex);
 }
 
+void NvRmAp15SetDefaultTristate(NvRmDeviceHandle hDevice)
+{
+    return;
+}
+
 void NvRmPrivAp15SetGpioTristate(
     NvRmDeviceHandle hDevice,
     NvU32 Port,

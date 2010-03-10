@@ -1208,3 +1208,32 @@ NvRmAp20GetStraps(
     return NvSuccess;
 }
 
+static const NvU32 g_VddioNand[] = {
+    TRISTATE_UNUSED (ATA,A), TRISTATE_UNUSED (ATB,A), TRISTATE_UNUSED (ATC,A),
+    TRISTATE_UNUSED (ATD,A), TRISTATE_UNUSED (PTA,A), TRISTATE_UNUSED (GMA,A),
+    TRISTATE_UNUSED (GMC,A), TRISTATE_UNUSED (GMD,B), TRISTATE_UNUSED (GMB,B),
+    TRISTATE_UNUSED (ATE,B), TRISTATE_UNUSED (GME,B),
+};
+
+void NvRmAp20SetDefaultTristate(NvRmDeviceHandle hDevice)
+{
+    NvU32 Size = 0;
+    NvU32 TsOffs;
+    NvU32 TsShift ;
+    NvU32 i = 0;
+    Size = NV_ARRAY_SIZE(g_VddioNand) / sizeof(NvU32);
+    for ( i =0; i< Size; i++)
+    {
+        TsOffs = NV_DRF_VAL(MUX,ENTRY, TS_OFFSET, g_VddioNand[i]);
+        TsShift = NV_DRF_VAL(MUX,ENTRY, TS_SHIFT,  g_VddioNand[i]);
+        NvU32 Curr = NV_REGR(hDevice,
+             NvRmModuleID_Misc, 0 ,
+            APB_MISC_PP_TRISTATE_REG_A_0 + 4*TsOffs);
+        Curr &= ~(1<<TsShift);
+        Curr |= 1<<TsShift;
+
+        NV_REGW(hDevice, NvRmModuleID_Misc, 0 ,
+            APB_MISC_PP_TRISTATE_REG_A_0 + 4*TsOffs, Curr);
+    }
+}
+

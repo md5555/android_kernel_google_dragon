@@ -887,7 +887,7 @@ NvOdmQueryDapPortGetConnectionTable(
 {
     static const NvOdmQueryDapPortConnection s_Property[] =
     {
-        { NvOdmDapConnectionIndex_Music_Path, 
+        { NvOdmDapConnectionIndex_Music_Path,
           2, { {NvOdmDapPort_I2s1, NvOdmDapPort_Dap1, NV_FALSE},
                {NvOdmDapPort_Dap1, NvOdmDapPort_I2s1, NV_TRUE} } },
     };
@@ -896,7 +896,7 @@ NvOdmQueryDapPortGetConnectionTable(
         { NvOdmDapConnectionIndex_Music_Path,
           2, { {NvOdmDapPort_I2s1, NvOdmDapPort_Dap1, NV_FALSE},
                {NvOdmDapPort_Dap1, NvOdmDapPort_I2s1, NV_TRUE} } },
-        
+
         // Voicecall without Bluetooth
         { NvOdmDapConnectionIndex_VoiceCall_NoBlueTooth,
           3, { {NvOdmDapPort_Dap3, NvOdmDapPort_Dap2, NV_FALSE},
@@ -916,7 +916,7 @@ NvOdmQueryDapPortGetConnectionTable(
     {
     case TEGRA_DEVKIT_BCT_CUSTOPT_0_RIL_EMP_RAINBOW:
         {
-            for( TableIndex = 0; 
+            for( TableIndex = 0;
                  TableIndex < NV_ARRAY_SIZE(s_Property_Ril_Emp_Rainbow); TableIndex++)
             {
                 if (s_Property_Ril_Emp_Rainbow[TableIndex].UseIndex == ConnectionIndex)
@@ -1061,13 +1061,18 @@ const NvU8* NvOdmQueryProjectName(void)
  // Pin attributes
  static const NvOdmPinAttrib s_pin_config_attributes[] = {
 
+   { NvOdmPinRegister_Ap20_PullUpDown_A,
+     NVODM_QUERY_PIN_AP20_PULLUPDOWN_A(0x2, 0x2, 0x2, 0x0, 0x0, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x0, 0x1, 0x0) },
     // Pull ups for the kbc pins
-    { NvOdmPinRegister_Ap20_PullUpDown_B,
-     NVODM_QUERY_PIN_AP20_PULLUPDOWN_B(0x0, 0x0, 0x0, 0x0, 0x2, 0x2, 0x2, 0x2, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0) },
+   { NvOdmPinRegister_Ap20_PullUpDown_B,
+     NVODM_QUERY_PIN_AP20_PULLUPDOWN_B(0x0, 0x0, 0x2, 0x0, 0x2, 0x2, 0x2, 0x2, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0) },
+
+   { NvOdmPinRegister_Ap20_PullUpDown_C,
+     NVODM_QUERY_PIN_AP20_PULLUPDOWN_C(0x1, 0x1, 0x1, 0x1, 0x2, 0x1, 0x2, 0x1, 0x2, 0x2, 0x2, 0x2, 0x2, 0x0, 0x0) },
 
     // Pull ups for the kbc pins
     { NvOdmPinRegister_Ap20_PullUpDown_E,
-     NVODM_QUERY_PIN_AP20_PULLUPDOWN_E(0x2, 0x2, 0x0, 0x0, 0x0, 0x0, 0x2, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x2, 0x2) },
+      NVODM_QUERY_PIN_AP20_PULLUPDOWN_E(0x2, 0x2, 0x0, 0x0, 0x0, 0x0, 0x2, 0x0, 0x0, 0x0, 0x0, 0x2, 0x2, 0x2, 0x2, 0x2) },
 
     // Set pad control for the sdio2 - - AOCFG1 and AOCFG2 pad control register
     { NvOdmPinRegister_Ap20_PadCtrl_AOCFG1PADCTRL,
