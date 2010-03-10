@@ -52,6 +52,7 @@ NvU32 g_wakeupCcbp = 0, g_NumActiveCPUs, g_Sync = 0, g_ArmPerif = 0;
 NvU32 g_enterLP2PA = 0;
 NvU32 g_localTimerLoadRegister, g_localTimerCntrlRegister;
 NvU32 g_coreSightClock, g_currentCcbp;
+NvU32 g_lp1CpuPwrGoodCnt, g_currentCpuPwrGoodCnt;
 volatile void *g_pPMC, *g_pAHB, *g_pCLK_RST_CONTROLLER;
 volatile void *g_pEMC, *g_pMC, *g_pAPB_MISC, *g_pTimerus;
 volatile void *g_pIRAM;
@@ -249,6 +250,12 @@ void cpu_ap20_do_lp1(void)
 		//Disable the Statistics interrupt
 		NvPrivAp20MaskIrq(irq);
 		do_suspend_prep();
+
+		// Set/save CPU power good count
+		g_currentCpuPwrGoodCnt = NV_REGR(s_hRmGlobal,
+			NvRmModuleID_Pmif, 0, APBDEV_PMC_CPUPWRGOOD_TIMER_0);
+		NV_REGW(s_hRmGlobal, NvRmModuleID_Pmif, 0,
+			APBDEV_PMC_CPUPWRGOOD_TIMER_0, g_lp1CpuPwrGoodCnt);
 	}
 
 	printk("entering lp1\n");
@@ -274,6 +281,10 @@ void cpu_ap20_do_lp1(void)
 		//Restore the CoreSight clock source.
 		NV_REGW(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 0,
 				CLK_RST_CONTROLLER_CLK_SOURCE_CSITE_0, g_coreSightClock);
+
+		// Restore CPU power good count
+		NV_REGW(s_hRmGlobal, NvRmModuleID_Pmif, 0,
+			APBDEV_PMC_CPUPWRGOOD_TIMER_0, g_currentCpuPwrGoodCnt);
 	}
 
 	NvOsMemcpy((void*)g_pIRAM, (void*)g_iramContextSaveVA,
@@ -393,9 +404,18 @@ void power_lp0_init(void)
 			}
 		}
 
-		//Program the power good timer
+		//Program the core power good timer
 		NV_PMC_REGW(g_pPMC,PWRGOOD_TIMER,PmuProperty.PowerGoodCount);
 	}
+
+	// Get ready CPU power good count in 32.768 kHz clocks (don't set timer
+	// until actual LP1 entry; at run time it is on clock, scaled by DVFS)
+	// Calculate count as 32.768 * TimeUS / 1000 = 4096 * TimeUS / 125000
+	// and round it up.
+	g_lp1CpuPwrGoodCnt = HasPmuProperty ?
+		 PmuProperty.CpuPowerGoodUs : 2000;	// Use 2ms by default
+	g_lp1CpuPwrGoodCnt =
+		(4096 * PmuProperty.CpuPowerGoodUs + 124999) / 125000;
 
 	//Create the list of wakeup IRQs.
 	create_wakeup_irqs();

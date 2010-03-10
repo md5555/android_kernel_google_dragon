@@ -1165,8 +1165,8 @@ Ap20SetCpuPowerGoodDelay(
     NV_ASSERT(s_Ap20CpuConfig.CpuPowerGoodUs);
 
     // AP20 CPU power good delay is counted by h/w in APB clocks (use 
-    // 1/1000 ~ 5/4096 with 20% margin)
-    reg = ((ApbKHz * 5) >> 12) * s_Ap20CpuConfig.CpuPowerGoodUs;
+    // 1/1000 ~ 17/16384 with 3% margin)
+    reg = ((ApbKHz * 17) >> 14) * s_Ap20CpuConfig.CpuPowerGoodUs;
     reg = NV_DRF_NUM(APBDEV_PMC, CPUPWRGOOD_TIMER, DATA, reg);
     NV_REGW(hRmDevice, NvRmModuleID_Pmif, 0,
             APBDEV_PMC_CPUPWRGOOD_TIMER_0, reg);
