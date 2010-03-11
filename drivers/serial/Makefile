@@ -76,6 +76,5 @@ obj-$(CONFIG_SERIAL_OF_PLATFORM_NWPSERIAL) += nwpserial.o
 obj-$(CONFIG_SERIAL_KS8695) += serial_ks8695.o
 obj-$(CONFIG_KGDB_SERIAL_CONSOLE) += kgdboc.o
 obj-$(CONFIG_SERIAL_QE) += ucc_uart.o
-obj-$(CONFIG_SERIAL_TEGRA_DDK) += tegra_uart_ddk.o
 obj-$(CONFIG_SERIAL_TEGRA) += tegra_hsuart.o
 
