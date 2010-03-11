@@ -20,15 +20,34 @@
 #ifdef __KERNEL__
 
 #define atomic_read(v)	((v)->counter)
+#define atomic_set(v,i)	(((v)->counter) = (i))
 
 #if __LINUX_ARM_ARCH__ >= 6
+
+#ifdef CONFIG_ARM_ERRATA_351422
+static inline int atomic_backoff_delay(void)
+{
+	unsigned int delay;
+	__asm__ __volatile__(
+	"	mrc	p15, 0, %0, c0, c0, 5\n"
+	"	and	%0, %0, #0xf\n"
+	"	mov	%0, %0, lsl #8\n"
+	"1:	subs	%0, %0, #1\n"
+	"	bpl	1b\n"
+	: "=&r" (delay)
+	:
+	: "cc" );
+
+	return 1;
+}
+#else
+#define atomic_backoff_delay()	1
+#endif
 
 /*
  * ARMv6 UP and SMP safe atomic ops.  We use load exclusive and
  * store exclusive to ensure that these are atomic.  We may loop
- * to ensure that the update happens.  Writing to 'v->counter'
- * without using the following operations WILL break the atomic
- * nature of these ops.
+ * to ensure that the update happens.
  */
 static inline void atomic_set(atomic_t *v, int i)
 {
@@ -67,15 +86,17 @@ static inline int atomic_add_return(int i, atomic_t *v)
 
 	smp_mb();
 
+	do {
 	__asm__ __volatile__("@ atomic_add_return\n"
 "1:	ldrex	%0, [%2]\n"
 "	add	%0, %0, %3\n"
 "	strex	%1, %0, [%2]\n"
-"	teq	%1, #0\n"
-"	bne	1b"
 	: "=&r" (result), "=&r" (tmp)
 	: "r" (&v->counter), "Ir" (i)
 	: "cc");
+	} while (tmp && atomic_backoff_delay());
+
+	smp_mb();
 
 	smp_mb();
 
@@ -105,15 +126,17 @@ static inline int atomic_sub_return(int i, atomic_t *v)
 
 	smp_mb();
 
+	do {
 	__asm__ __volatile__("@ atomic_sub_return\n"
 "1:	ldrex	%0, [%2]\n"
 "	sub	%0, %0, %3\n"
 "	strex	%1, %0, [%2]\n"
-"	teq	%1, #0\n"
-"	bne	1b"
 	: "=&r" (result), "=&r" (tmp)
 	: "r" (&v->counter), "Ir" (i)
 	: "cc");
+	} while (tmp && atomic_backoff_delay());
+
+	smp_mb();
 
 	smp_mb();
 
@@ -131,11 +154,14 @@ static inline int atomic_cmpxchg(atomic_t *ptr, int old, int new)
 		"ldrex	%1, [%2]\n"
 		"mov	%0, #0\n"
 		"teq	%1, %3\n"
+		"it	eq\n"
 		"strexeq %0, %4, [%2]\n"
 		    : "=&r" (res), "=&r" (oldval)
 		    : "r" (&ptr->counter), "Ir" (old), "r" (new)
 		    : "cc");
-	} while (res);
+	} while (res && atomic_backoff_delay());
+
+	smp_mb();
 
 	smp_mb();
 
@@ -146,15 +172,19 @@ static inline void atomic_clear_mask(unsigned long mask, unsigned long *addr)
 {
 	unsigned long tmp, tmp2;
 
+	smp_mb();
+
+	do {
 	__asm__ __volatile__("@ atomic_clear_mask\n"
 "1:	ldrex	%0, [%2]\n"
 "	bic	%0, %0, %3\n"
 "	strex	%1, %0, [%2]\n"
-"	teq	%1, #0\n"
-"	bne	1b"
 	: "=&r" (tmp), "=&r" (tmp2)
 	: "r" (addr), "Ir" (mask)
 	: "cc");
+	} while (tmp && atomic_backoff_delay());
+
+	smp_mb();
 }
 
 #else /* ARM_ARCH_6 */
@@ -162,8 +192,6 @@ static inline void atomic_clear_mask(unsigned long mask, unsigned long *addr)
 #ifdef CONFIG_SMP
 #error SMP not supported on pre-ARMv6 CPUs
 #endif
-
-#define atomic_set(v,i)	(((v)->counter) = (i))
 
 static inline int atomic_add_return(int i, atomic_t *v)
 {

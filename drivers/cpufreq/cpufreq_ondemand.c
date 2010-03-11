@@ -52,6 +52,13 @@ static unsigned int min_sampling_rate;
 
 #define LATENCY_MULTIPLIER			(1000)
 #define MIN_LATENCY_MULTIPLIER			(100)
+
+/* for correct statistics, we need at least 10 ticks between each measure */
+#define MIN_STAT_SAMPLING_RATE 			\
+	(MIN_SAMPLING_RATE_RATIO * jiffies_to_usecs(CONFIG_CPU_FREQ_MIN_TICKS))
+#define MIN_SAMPLING_RATE			\
+			(def_sampling_rate / MIN_SAMPLING_RATE_RATIO)
+#define MAX_SAMPLING_RATE			(500 * def_sampling_rate)
 #define TRANSITION_LATENCY_LIMIT		(10 * 1000 * 1000)
 
 static void do_dbs_timer(struct work_struct *work);
@@ -492,6 +499,17 @@ static void do_dbs_timer(struct work_struct *work)
 	delay -= jiffies % delay;
 	mutex_lock(&dbs_info->timer_mutex);
 
+	if (num_online_cpus() > 1)
+		delay -= jiffies % delay;
+
+	if (lock_policy_rwsem_write(cpu) < 0)
+		return;
+
+	if (!dbs_info->enable) {
+		unlock_policy_rwsem_write(cpu);
+		return;
+	}
+
 	/* Common NORMAL_SAMPLE setup */
 	dbs_info->sample_type = DBS_NORMAL_SAMPLE;
 	if (!dbs_tuners_ins.powersave_bias ||
@@ -582,6 +600,14 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 			dbs_tuners_ins.sampling_rate =
 				max(min_sampling_rate,
 				    latency * LATENCY_MULTIPLIER);
+
+			def_sampling_rate = latency *
+				CONFIG_CPU_FREQ_SAMPLING_LATENCY_MULTIPLIER;
+
+			if (def_sampling_rate < MIN_STAT_SAMPLING_RATE)
+				def_sampling_rate = MIN_STAT_SAMPLING_RATE;
+
+			dbs_tuners_ins.sampling_rate = def_sampling_rate;
 		}
 		mutex_unlock(&dbs_mutex);
 

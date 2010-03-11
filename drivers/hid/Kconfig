@@ -70,6 +70,38 @@ source "drivers/hid/usbhid/Kconfig"
 menu "Special HID drivers"
 	depends on HID
 
+config USB_KEYBOARD_USES_COMMON_NAME
+	bool "Use a common name for all USB keyboards"
+	default n
+	depends on HID
+	---help---
+	Enabling this option will cause the kernel to report a common name
+	for all attached USB keyboards, for userspaces which rely on the
+	keyboard name for determining run-time behavior.
+
+	If you are unsure, say N here.
+
+config USB_KEYBOARD_COMMON_NAME
+	string "Common name returned for USB keyboards"
+	depends on USB_KEYBOARD_USES_COMMON_NAME
+	default "usb_keyboard_us102"
+	---help---
+	Set this to the name which you would like to return for USB keyboard
+	input devices. It should probably be based on the keyboard layout you
+	expect to be most often attached to your system.
+
+config HID_COMPAT
+	bool "Load all HID drivers on hid core load"
+	default y
+	---help---
+	Compatible option for older userspace. If you have system without udev
+	support of module loading through aliases and also old
+	module-init-tools which can't handle hid bus, choose Y here. Otherwise
+	say N. If you say N and your userspace is old enough, the only
+	functionality you lose is modules autoloading.
+
+	If unsure, say Y.
+
 config HID_A4TECH
 	tristate "A4 tech" if EMBEDDED
 	depends on USB_HID

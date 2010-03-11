@@ -1,0 +1,202 @@
+Tegra I/O Virtual Memory Manager Interface
+==========================================
+
+The Tegra IOVMM is an interface to allow device drivers and subsystems in
+the kernel to manage the virtual memory spaces visible to I/O devices.
+
+The interface has been designed to be scalable to allow for I/O virtual
+memory hardware which exists in one or more limited apertures of the address
+space (e.g., a small aperture in physical address space which can perform
+MMU-like remapping) up to complete virtual addressing with multiple
+address spaces and memory protection.
+
+The interface has been designed to be similar to the Linux virtual memory
+system; however, operations which would be difficult to implement or
+nonsensical for DMA devices (e.g., copy-on-write) are not present, and
+APIs have been added to allow for management of multiple simultaneous
+active address spaces.
+
+The API is broken into four principal objects: areas, clients, domains and
+devices.
+
+
+Areas
+=====
+
+An area is a contiguous region of the virtual address space which can be
+filled with virtual-to-physical translations (and, optionally, protection
+attributes). The virtual address of the area can be queried and used for
+DMA operations by the client which created it.
+
+As with the Linux vm_area structures, it is the responsibility of whichever
+code creates an area to ensure that it is populated with appropriate
+translations.
+
+
+Domains
+=======
+
+A domain in the IOVMM system is similar to a process in a standard CPU
+virtual memory system; it represents the entire range of virtual addresses
+which may be allocated and used for translation. Depending on hardware
+capabilities, one or more domains may be resident and available for
+translation. IOVMM areas are allocated from IOVMM domains.
+
+Whenever a DMA operation is performed to or from an IOVMM area, its parent
+domain must be made resident prior to commencing the operation.
+
+
+Clients
+=======
+
+I/O VMM clients represent any entity which needs to be able to allocate
+and map system memory into I/O virtual space. Clients are created by name
+and may be created as part of a "share group," where all clients created
+in the same share group will observe the same I/O virtual space (i.e., all
+will use the same IOVMM domain). This is similar to threads inside a process
+in the CPU virtual memory manager.
+
+The callers of the I/O VMM system are responsible for deciding on the
+granularity of client creation and share group definition; depending on the
+specific usage model expected by the caller, it may be appropriate to create
+an IOVMM client per task (if the caller represents an ioctl'able interface
+to user land), an IOVMM client per driver instance, a common IOVMM client
+for an entire bus, or a global IOVMM client for an OS subsystem (e.g., the DMA
+mapping interface).
+
+Each client is responsible for ensuring that its IOVMM client's translation is
+resident on the system prior to performing DMA operations using the IOVMM
+addresses. This is accomplished by preceding all DMA operations for the client
+with a call to tegra_iovmm_client_lock (or tegra_iovmm_client_trylock),
+and following all operations (once complete) with a call to
+tegra_iovmm_client_unlock. In this regard, clients are cooperatively context-
+switched, and are expected to behave appropriately.
+
+
+Devices
+=======
+
+I/O VMM devices are the physical hardware which is responsible for performing
+the I/O virtual-to-physical translation.
+
+Devices are responsible for domain management: the mapping and unmapping
+operations needed to make translations resident in the domain (including
+any TLB shootdown or cache invalidation needed to ensure coherency), locking
+and unlocking domains as they are made resident by clients into the devices'
+address space(s), and allocating and deallocating the domain objects.
+
+Devices are responsible for the allocation and deallocation of domains to
+allow coalescing of multiple client share groups into a single domain. For
+example, if the device's hardware only allows a single address space to
+be translated system-wide, performing full flushes and invalidates of the
+translation at every client switch may be prohibitively expensive. In these
+circumstances, a legal implementation of the IOVMM interface includes
+returning the same domain for all clients on the system (regardless of
+the originally-specified share group).
+
+In this respect, a client can be assured that it will share an address space
+with all of the other clients in its share group; however, it may also share
+this address space with other clients, too.
+
+Multiple devices may be present in a system; a device should return a NULL
+domain if it is incapable of servicing the client when it is asked to
+allocate a domain.
+
+----------------------------------------------------------------------------
+
+IOVMM Client API
+================
+
+tegra_iovmm_alloc_client - Called to create a new IOVMM client object; the
+ implementation may create a new domain or return an existing one depending on
+ both the device and the share group.
+
+tegra_iovmm_free_client - Frees a client.
+
+tegra_iovmm_client_lock - Makes a client's translations resident in the IOVMM
+ device for subsequent DMA operations. May block if the device is incapable
+ of context-switching the client when it is called. Returns -EINTR if the
+ waiting thread is interrupted before the client is locked.
+
+tegra_iovmm_client_trylock - Non-blocking version of tegra_iovmm_client_lock
+
+tegra_iovmm_client_unlock - Called by clients after DMA operations on IOVMM-
+ translated addresses is complete; allows IOVMM system to context-switch the
+ current client out of the device if needed.
+
+tegra_iovmm_create_vm - Called to allocate an IOVMM area. If
+ lazy / demand-loading of pages is desired, clients should supply a pointer
+ to a tegra_iovmm_area_ops structure providing callback functions to load, pin
+ and unpin the physical pages which will be mapped into this IOVMM region.
+
+tegra_iovmm_get_vm_size - Called to query the total size of an IOVMM client
+
+tegra_iovmm_free_vm - Called to free a IOVMM area, releasing any pinned
+ physical pages mapped by it and to decommit any resources (memory for
+ PTEs / PDEs) required by the VM area.
+
+tegra_iovmm_vm_insert_pfn - Called to insert an exact pfn (system memory
+ physical page) into the area at a specific virtual address. Illegal to call
+ if the IOVMM area was originally created with lazy / demand-loading.
+
+tegra_iovmm_zap_vm - Called to mark all mappings in the IOVMM area as
+ invalid / no-access, but continues to consume the I/O virtual address space.
+ For lazy / demand-loaded IOVMM areas, a zapped region will not be reloaded
+ until it has been unzapped; DMA operations using the affected translations
+ may fault (if supported by the device).
+
+tegra_iovmm_unzap_vm - Called to re-enable lazy / demand-loading of pages
+ for a previously-zapped IOVMM area.
+
+tegra_iovmm_find_area_get - Called to find the IOVMM area object
+ corresponding to the specified I/O virtual address, or NULL if the address
+ is not allocated in the client's address space. Increases the reference count
+ on the IOVMM area object
+
+tegra_iovmm_area_get - Called to increase the reference count on the IOVMM
+ area object
+
+tegra_iovmm_area_put - Called to decrease the reference count on the IOVMM
+ area object
+
+
+IOVMM Device API
+================
+
+tegra_iovmm_register - Called to register a new IOVMM device with the IOVMM
+ manager
+
+tegra_iovmm_unregister - Called to remove an IOVMM device from the IOVMM
+ manager (unspecified behavior if called while a translation is active and / or
+ in-use)
+
+tegra_iovmm_domain_init - Called to initialize all of the IOVMM manager's
+ data structures (block trees, etc.) after allocating a new domain
+
+
+IOVMM Device HAL
+================
+
+map - Called to inform the device about a new lazy-mapped IOVMM area. Devices
+ may load the entire VM area when this is called, or at any time prior to
+ the completion of the first read or write operation using the translation.
+
+unmap - Called to zap or to decommit translations
+
+map_pfn - Called to insert a specific virtual-to-physical translation in the
+ IOVMM area
+
+lock_domain - Called to make a domain resident; should return 0 if the
+ domain was successfully context-switched, non-zero if the operation can
+ not be completed (e.g., all available simultaneous hardware translations are
+ locked). If the device can guarantee that every domain it allocates is
+ always usable, this function may be NULL.
+
+unlock_domain - Releases a domain from residency, allows the hardware
+ translation to be used by other domains.
+
+alloc_domain - Called to allocate a new domain; allowed to return an
+ existing domain
+
+free_domain - Called to free a domain.
+

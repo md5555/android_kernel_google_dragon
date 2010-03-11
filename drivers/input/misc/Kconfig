@@ -222,6 +222,11 @@ config INPUT_SGI_BTNS
 	  To compile this driver as a module, choose M here: the
 	  module will be called sgi_btns.
 
+config INPUT_GPIO
+	tristate "GPIO driver support"
+	help
+	  Say Y here if you want to support gpio based keys, wheels etc...
+
 config HP_SDC_RTC
 	tristate "HP SDC Real Time Clock"
 	depends on (GSC || HP300) && SERIO
@@ -269,4 +274,30 @@ config INPUT_DM355EVM
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called dm355evm_keys.
+
+config INPUT_KEYCHORD
+	tristate "Key chord input driver support"
+	help
+	  Say Y here if you want to enable the key chord driver
+	  accessible at /dev/keychord.  This driver can be used
+	  for receiving notifications when client specified key
+	  combinations are pressed.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called keychord.
+
+config INPUT_TEGRA_ODM_ACCEL
+	boolean "Accelerometer for NVIDIA Tegra ODM kit"
+	depends on ARCH_TEGRA && MACH_TEGRA_GENERIC
+	help
+	  Say Y here if you want to enable an accelerometer input device node
+	  using the NVIDIA Tegra ODM kit accelerometer adaptation interface
+
+config INPUT_TEGRA_ODM_SCROLL
+	boolean "Scrollwheel for NVIDIA Tegra ODM kit"
+	depends on ARCH_TEGRA && MACH_TEGRA_GENERIC
+	help
+	  Say Y here if you want to enable a scrollwheel input device node
+	  using the NVIDIA Tegra ODM kit scrollwheel adaptation interface
+
 endif

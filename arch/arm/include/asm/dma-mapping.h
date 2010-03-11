@@ -19,7 +19,7 @@
 #if !defined(CONFIG_HIGHMEM)
 static inline dma_addr_t page_to_dma(struct device *dev, struct page *page)
 {
-	return (dma_addr_t)__virt_to_bus((unsigned long)page_address(page));
+	return (dma_addr_t)__pfn_to_bus(page_to_pfn(page));
 }
 #elif defined(__pfn_to_bus)
 static inline dma_addr_t page_to_dma(struct device *dev, struct page *page)
@@ -43,6 +43,11 @@ static inline dma_addr_t virt_to_dma(struct device *dev, void *addr)
 static inline dma_addr_t page_to_dma(struct device *dev, struct page *page)
 {
 	return __arch_page_to_dma(dev, page);
+}
+
+static inline struct page *dma_to_page(struct device *dev, dma_addr_t addr)
+{
+	return __arch_dma_to_page(dev, addr);
 }
 
 static inline void *dma_to_virt(struct device *dev, dma_addr_t addr)
@@ -257,9 +262,11 @@ extern int dma_needs_bounce(struct device*, dma_addr_t, size_t);
  */
 extern dma_addr_t dma_map_single(struct device *, void *, size_t,
 		enum dma_data_direction);
+extern void dma_unmap_single(struct device *, dma_addr_t, size_t,
+		enum dma_data_direction);
 extern dma_addr_t dma_map_page(struct device *, struct page *,
 		unsigned long, size_t, enum dma_data_direction);
-extern void dma_unmap_single(struct device *, dma_addr_t, size_t,
+extern void dma_unmap_page(struct device *, dma_addr_t, size_t,
 		enum dma_data_direction);
 
 /*
@@ -303,7 +310,7 @@ static inline dma_addr_t dma_map_single(struct device *dev, void *cpu_addr,
 	BUG_ON(!valid_dma_direction(dir));
 
 	if (!arch_is_coherent())
-		dma_cache_maint(cpu_addr, size, dir);
+		__dma_cache_maint(cpu_addr, size, 1);
 
 	return virt_to_dma(dev, cpu_addr);
 }
@@ -350,9 +357,9 @@ static inline dma_addr_t dma_map_page(struct device *dev, struct page *page,
 static inline void dma_unmap_single(struct device *dev, dma_addr_t handle,
 		size_t size, enum dma_data_direction dir)
 {
-	/* nothing to do */
+	if (dir != DMA_TO_DEVICE)
+		__dma_cache_maint(dma_to_virt(dev, handle), size, 0);
 }
-#endif /* CONFIG_DMABOUNCE */
 
 /**
  * dma_unmap_page - unmap a buffer previously mapped through dma_map_page()
@@ -371,8 +378,11 @@ static inline void dma_unmap_single(struct device *dev, dma_addr_t handle,
 static inline void dma_unmap_page(struct device *dev, dma_addr_t handle,
 		size_t size, enum dma_data_direction dir)
 {
-	dma_unmap_single(dev, handle, size, dir);
+	if (dir != DMA_TO_DEVICE)
+		__dma_cache_maint_page(dma_to_page(dev, handle),
+			handle & ~PAGE_MASK, size, 0);
 }
+#endif /* CONFIG_DMABOUNCE */
 
 /**
  * dma_sync_single_range_for_cpu
@@ -398,7 +408,11 @@ static inline void dma_sync_single_range_for_cpu(struct device *dev,
 {
 	BUG_ON(!valid_dma_direction(dir));
 
-	dmabounce_sync_for_cpu(dev, handle, offset, size, dir);
+	if (!dmabounce_sync_for_cpu(dev, handle, offset, size, dir))
+		return;
+	
+	if (dir != DMA_TO_DEVICE)
+		__dma_cache_maint(dma_to_virt(dev, handle) + offset, size, 0);
 }
 
 static inline void dma_sync_single_range_for_device(struct device *dev,
@@ -411,7 +425,7 @@ static inline void dma_sync_single_range_for_device(struct device *dev,
 		return;
 
 	if (!arch_is_coherent())
-		dma_cache_maint(dma_to_virt(dev, handle) + offset, size, dir);
+		__dma_cache_maint(dma_to_virt(dev, handle) + offset, size, 1);
 }
 
 static inline void dma_sync_single_for_cpu(struct device *dev,

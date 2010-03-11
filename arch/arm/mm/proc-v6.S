@@ -30,10 +30,14 @@
 #define TTB_RGN_WT	(2 << 3)
 #define TTB_RGN_WB	(3 << 3)
 
+#ifdef CONFIG_ARCH_TEGRA_1x_SOC
+#define TTB_FLAGS	TTB_RGN_NC
+#else
 #ifndef CONFIG_SMP
 #define TTB_FLAGS	TTB_RGN_WBWA
 #else
 #define TTB_FLAGS	TTB_RGN_WBWA|TTB_S
+#endif
 #endif
 
 ENTRY(cpu_v6_proc_init)
@@ -78,11 +82,15 @@ ENTRY(cpu_v6_do_idle)
 	mov	pc, lr
 
 ENTRY(cpu_v6_dcache_clean_area)
+#ifdef CONFIG_ARCH_TEGRA_1x_SOC
+	bl	cpu_ap15_dcache_clean_area
+#else
 #ifndef TLB_CAN_READ_FROM_L1_CACHE
 1:	mcr	p15, 0, r0, c7, c10, 1		@ clean D entry
 	add	r0, r0, #D_CACHE_LINE_SIZE
 	subs	r1, r1, #D_CACHE_LINE_SIZE
 	bhi	1b
+#endif
 #endif
 	mov	pc, lr
 
@@ -120,12 +128,13 @@ ENTRY(cpu_v6_switch_mm)
  */
 	armv6_mt_table cpu_v6
 
+#if !(defined(CONFIG_ARCH_TEGRA_1x_SOC) && defined(CONFIG_CACHE_TEGRA_CMC))
 ENTRY(cpu_v6_set_pte_ext)
 #ifdef CONFIG_MMU
 	armv6_set_pte_ext cpu_v6
 #endif
 	mov	pc, lr
-
+#endif
 
 
 
@@ -176,6 +185,22 @@ __v6_setup:
 	mrc	p15, 0, r0, c1, c0, 0		@ read control register
 	bic	r0, r0, r5			@ clear bits them
 	orr	r0, r0, r6			@ set them
+#ifdef CONFIG_ARM_ERRATA_364296
+	/* Workaround for the 364296 ARM1136 r0pX errata (possible cache data
+	 * corruption with hit-under-miss enabled). The conditional code below
+	 * (setting the undocumented bit 31 in the auxiliary control register
+	 * and the FI bit in the control register) disables hit-under-miss
+	 * without putting the processor into full low interrupt latency mode.
+	 */
+	ldr	r6, =0x4107b360			@ id for ARM1136 r0pX
+	mrc	p15, 0, r5, c0, c0, 0		@ get processor id
+	bic	r5, r5, #0xf			@ mask out part bits [3:0]
+	teq	r5, r6				@ check for the faulty core
+	mrceq	p15, 0, r5, c1, c0, 1		@ load aux control reg
+	orreq	r5, r5, #(1 << 31)		@ set the undocumented bit 31
+	mcreq	p15, 0, r5, c1, c0, 1		@ write aux control reg
+	orreq	r0, r0, #(1 << 21)		@ low interrupt latency configuration
+#endif
 	mov	pc, lr				@ return to head.S:__ret
 
 	/*
@@ -186,7 +211,11 @@ __v6_setup:
 	 */
 	.type	v6_crval, #object
 v6_crval:
+#ifdef CONFIG_ARCH_TEGRA_1x_SOC
+	crval	clear=0x01ffffff, mmuset=0x00c0787f, ucset=0x00c0187c
+#else
 	crval	clear=0x01e0fb7f, mmuset=0x00c0387d, ucset=0x00c0187c
+#endif
 
 	.type	v6_processor_functions, #object
 ENTRY(v6_processor_functions)
@@ -219,6 +248,14 @@ cpu_elf_name:
 	 */
 	.type	__v6_proc_info, #object
 __v6_proc_info:
+#ifdef ARCH_TEGRA_1x_SOC
+	.long	0x410fb020
+	.long	0xfffffff0
+	.long   PMD_TYPE_SECT | \
+		PMD_SECT_WBWA | \
+		PMD_SECT_AP_WRITE | \
+		PMD_SECT_AP_READ
+#else
 	.long	0x0007b000
 	.long	0x0007f000
 	.long   PMD_TYPE_SECT | \
@@ -226,6 +263,7 @@ __v6_proc_info:
 		PMD_SECT_CACHEABLE | \
 		PMD_SECT_AP_WRITE | \
 		PMD_SECT_AP_READ
+#endif
 	.long   PMD_TYPE_SECT | \
 		PMD_SECT_XN | \
 		PMD_SECT_AP_WRITE | \

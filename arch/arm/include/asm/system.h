@@ -13,6 +13,7 @@
 #define CPU_ARCH_ARMv5TEJ	7
 #define CPU_ARCH_ARMv6		8
 #define CPU_ARCH_ARMv7		9
+#define CPU_ARCH_ARMv7M		10
 
 /*
  * CR1 bits (CP#15 CR1)
@@ -204,7 +205,9 @@ static inline void set_copro_access(unsigned int val)
  * so enable interrupts over the context switch to avoid high
  * latency.
  */
+#ifndef CONFIG_CPU_V7M
 #define __ARCH_WANT_INTERRUPTS_ON_CTXSW
+#endif
 
 /*
  * switch_to(prev, next) should switch from task `prev' to `next'
@@ -311,6 +314,8 @@ static inline unsigned long __xchg(unsigned long x, volatile void *ptr, int size
 	}
 	smp_mb();
 
+	smp_mb();
+
 	return ret;
 }
 
@@ -336,6 +341,56 @@ extern void enable_hlt(void);
 
 #ifndef CONFIG_SMP
 #include <asm-generic/cmpxchg.h>
+#elif __LINUX_ARM_ARCH__ >= 6
+extern void __bad_cmpxchg(volatile void *ptr, int size);
+
+static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
+				      unsigned long new, int size)
+{
+	unsigned long oldval, res;
+
+	switch (size) {
+	case 1:
+		do {
+			asm volatile("@ __cmpxchg1\n"
+			"	ldrexb	%1, [%2]\n"
+			"	mov	%0, #0\n"
+			"	teq	%1, %3\n"
+			"	it	eq\n"
+			"	strexeqb %0, %4, [%2]\n"
+				: "=&r" (res), "=&r" (oldval)
+				: "r" (ptr), "Ir" (old), "r" (new)
+				: "cc");
+		} while (res);
+		break;
+
+	case 4:
+		do {
+			asm volatile("@ __cmpxchg4\n"
+			"	ldrex	%1, [%2]\n"
+			"	mov	%0, #0\n"
+			"	teq	%1, %3\n"
+			"	it	eq\n"
+			"	strexeq %0, %4, [%2]\n"
+				: "=&r" (res), "=&r" (oldval)
+				: "r" (ptr), "Ir" (old), "r" (new)
+				: "cc");
+		} while (res);
+		break;
+
+	default:
+		__bad_cmpxchg(ptr, size);
+		oldval = 0;
+	}
+
+	return oldval;
+}
+
+#define cmpxchg(ptr,o,n)					\
+	((__typeof__(*(ptr)))__cmpxchg((ptr),			\
+				       (unsigned long)(o),	\
+				       (unsigned long)(n),	\
+				       sizeof(*(ptr))))
 #endif
 
 #else	/* __LINUX_ARM_ARCH__ >= 6 */

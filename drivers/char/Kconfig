@@ -88,6 +88,29 @@ config VT_HW_CONSOLE_BINDING
 	 information. For framebuffer console users, please refer to
 	 <file:Documentation/fb/fbcon.txt>.
 
+config TEGRA_SNOR_DPRAM
+	bool "Dual-ported RAM on NVIDIA Tegra SNOR interface"
+	depends on ARCH_TEGRA && !ARCH_TEGRA_1x_SOC
+	default n
+	select TEGRA_SNOR
+	help
+	  Adds character device support for accessing dual-ported memory
+	  devices attached to the SNOR interface on NVIDIA Tegra SoCs.
+
+
+config DEVMEM
+	bool "Memory device driver"
+	default y
+	help
+	  The memory driver provides two character devices, mem and kmem, which
+	  provide access to the system's memory. The mem device is a view of
+	  physical memory, and each byte in the device corresponds to the
+	  matching physical address. The kmem device is the same as mem, but
+	  the addresses correspond to the kernel's virtual address space rather
+	  than physical memory. These devices are standard parts of a Linux
+	  system and most users should say Y here. You might say N if very
+	  security conscience or memory is tight.
+
 config DEVKMEM
 	bool "/dev/kmem virtual device support"
 	default y
@@ -109,6 +132,34 @@ config BFIN_JTAG_COMM
 config BFIN_JTAG_COMM_CONSOLE
 	bool "Console on Blackfin JTAG"
 	depends on BFIN_JTAG_COMM=y
+
+config DEVNVMAP
+	bool "/dev/nvmap device support"
+	depends on ARCH_TEGRA && MACH_TEGRA_GENERIC
+	default y
+	help
+	  Say Y here if you want to support the /dev/nvmap device. This device
+	  is used by NVIDIA Tegra graphics and multimedia drivers for managing
+	  graphics memory.
+
+config DEVNVMAP_PARANOID
+	bool "Validate all user-provided /dev/nvmap object references"
+	depends on DEVNVMAP
+	default n
+	help
+	  Say Y here to enable additional process-level validations and
+	  permissions for /dev/nvmap object references provided via ioctls.
+	  May result in a decrease in performance.
+
+config DEVNVMAP_RECLAIM_UNPINNED_VM
+	bool "Allow /dev/nvmap to reclaim unpinned I/O virtual memory"
+	depends on DEVNVMAP && TEGRA_IOVMM
+	default n
+	help
+	  Say Y here to enable /dev/nvmap to reclaim I/O virtual memory after
+	  it has been unpinned, and re-use it for other objects. This can
+	  allow a larger virtual I/O VM space than would normally be
+	  supported by the hardware, at a slight cost in performance.
 
 config SERIAL_NONSTANDARD
 	bool "Non-standard serial port support"
@@ -1107,6 +1158,10 @@ config DEVPORT
 	depends on !M68K
 	depends on ISA || PCI
 	default y
+
+config DCC_TTY
+	tristate "DCC tty driver"
+	depends on ARM
 
 source "drivers/s390/char/Kconfig"
 

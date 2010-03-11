@@ -1187,7 +1187,14 @@ static struct sk_buff *smsc95xx_tx_fixup(struct usbnet *dev,
 	/* We do not advertise SG, so skbs should be already linearized */
 	BUG_ON(skb_shinfo(skb)->nr_frags);
 
-	if (skb_headroom(skb) < overhead) {
+/*
+ * This condition is commented since otherwise, it causes the driver to hang.
+ * The root cause is yet to be fixed, but if a new skb is always allocated, then
+ * the driver works fine without any problem.
+ */
+
+	// if (skb->len >= 382 || skb_headroom(skb) < overhead)
+	{
 		struct sk_buff *skb2 = skb_copy_expand(skb,
 			overhead, 0, flags);
 		dev_kfree_skb_any(skb);
@@ -1304,6 +1311,11 @@ static const struct usb_device_id products[] = {
 	{
 		/* SMSC9512/9514 USB Hub & Ethernet Device (Alternate ID) */
 		USB_DEVICE(0x0424, 0x9909),
+		.driver_info = (unsigned long) &smsc95xx_info,
+	},
+	{
+		/* SMSC9514 USB Ethernet Device */
+		USB_DEVICE(0x0424, 0xEC00),
 		.driver_info = (unsigned long) &smsc95xx_info,
 	},
 	{ },		/* END */

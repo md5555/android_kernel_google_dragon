@@ -1018,6 +1018,17 @@ int usbnet_start_xmit (struct sk_buff *skb,
 	unsigned long		flags;
 	int retval;
 
+#ifdef CONFIG_ARCH_TEGRA
+	// check and do the proper 32 byte alignment for sk buff
+	if ((int)skb->data & 0x0000001F) {
+		struct sk_buff *new_skb = skb_copy_expand(skb, 32, 0, GFP_ATOMIC);
+		if(unlikely(!(new_skb)))
+			return -1;
+		kfree_skb(skb);
+		skb = new_skb;
+	}
+#endif
+
 	// some devices want funky USB-level framing, for
 	// win32 driver (usually) and/or hardware quirks
 	if (info->tx_fixup) {

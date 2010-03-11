@@ -150,6 +150,7 @@ static struct usb_device_id usbtouch_devices[] = {
 	{USB_DEVICE(0x134c, 0x0002), .driver_info = DEVTYPE_PANJIT},
 	{USB_DEVICE(0x134c, 0x0003), .driver_info = DEVTYPE_PANJIT},
 	{USB_DEVICE(0x134c, 0x0004), .driver_info = DEVTYPE_PANJIT},
+	{USB_DEVICE(0x134c, 0x0100), .driver_info = DEVTYPE_PANJIT},
 #endif
 
 #ifdef CONFIG_TOUCHSCREEN_USB_3M

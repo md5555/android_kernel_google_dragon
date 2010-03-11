@@ -4,6 +4,7 @@
 
 obj-$(CONFIG_ARM_GIC)		+= gic.o
 obj-$(CONFIG_ARM_VIC)		+= vic.o
+obj-$(CONFIG_ARM_NVIC)		+= nvic.o
 obj-$(CONFIG_ICST525)		+= icst525.o
 obj-$(CONFIG_ICST307)		+= icst307.o
 obj-$(CONFIG_SA1111)		+= sa1111.o
@@ -17,3 +18,5 @@ obj-$(CONFIG_ARCH_IXP2000)	+= uengine.o
 obj-$(CONFIG_ARCH_IXP23XX)	+= uengine.o
 obj-$(CONFIG_PCI_HOST_ITE8152)  += it8152.o
 obj-$(CONFIG_COMMON_CLKDEV)	+= clkdev.o
+obj-$(CONFIG_DEBUG_RVIDCC)	+= rvidcc.o
+rvidcc-objs			:= rvidcc_common.o rvidcc_linux.o

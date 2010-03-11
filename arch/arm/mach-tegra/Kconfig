@@ -1,0 +1,106 @@
+if ARCH_TEGRA
+
+comment "NVIDIA Tegra options"
+
+choice
+	prompt "Select Tegra processor family for target system"
+
+config ARCH_TEGRA_1x_SOC
+	bool "Tegra APX 2x00 and Tegra 6x0 family"
+	select CPU_V6
+	help
+	  Support for NVIDIA Tegra AP15 and AP16 processors, based on the
+	  ARM11 MPCore CPU and a proprietary L2 cache controller
+
+
+config ARCH_TEGRA_2x_SOC
+	bool "Tegra 2 family"
+	select CPU_V7
+	select ARM_GIC
+	help
+	  Support for NVIDIA Tegra AP20 and T20 processors, based on the
+	  ARM CortexA9MP CPU and the ARM PL310 L2 cache controller
+
+endchoice
+
+choice
+	prompt "Select Tegra-based target product"
+
+config MACH_TEGRA_GENERIC
+	bool "Tegra development system board(s)"
+	depends on (ARCH_TEGRA_1x_SOC || ARCH_TEGRA_2x_SOC)
+	help
+	  Support generic Tegra ODM-kit based development systems, including
+	  the Whistler and Harmony T20 development systems
+
+endchoice
+
+config TEGRA_SYSTEM_DMA
+	bool "Enable system DMA driver for NVIDIA Tegra SoCs"
+	default y
+	help
+	  Adds system DMA functionality for NVIDIA Tegra SoCs, used by
+	  several Tegra device drivers
+
+config TEGRA_IOVMM_GART
+	bool "Enable I/O virtual memory manager for GART"
+	depends on ARCH_TEGRA_1x_SOC || ARCH_TEGRA_2x_SOC
+	default y
+	select TEGRA_IOVMM
+	help
+	  Enables support for remapping discontiguous physical memory
+	  shared with the operating system into contiguous I/O virtual
+	  space through the GART hardware included on Tegra and
+	  Tegra 2 SoCs
+
+config TEGRA_IOVMM
+	bool
+
+config MACH_TEGRA_GENERIC_DEBUG
+	bool "Enable debug logging for Tegra generic drivers"
+	depends on MACH_TEGRA_GENERIC
+	help
+	  Enables debug logging for the generic Tegra NvRm and NvOs drivers
+
+config TEGRA_ODM_RFKILL
+	bool "RF kill driver using NVIDIA Tegra ODM kit"
+	depends on MACH_TEGRA_GENERIC && RFKILL
+	help
+	  Adds support for rfkill for systems using NVIDIA's Tegra ODM kit
+
+config TEGRA_NVEC
+	bool "Include driver for Tegra NvEC embedded controller interface"
+	depends on MACH_TEGRA_GENERIC
+	help
+	  Adds support for the NVIDIA Tegra NvEC I2C-slave based protocol
+	  for communicating to embedded controllers.
+
+config TEGRA_NVEC_USER
+	bool "Enable user-land access to NvEc-based embedded controller"
+	depends on TEGRA_NVEC
+	help
+	  Enabling this option will expose a device node to enable user-land
+	  clients to access embedded controller features.
+
+config TEGRA_ODM_VIBRATE
+	boolean "System vibrator device driver using NVIDIA Tegra ODM kit"
+	depends on ANDROID_TIMED_OUTPUT && MACH_TEGRA_GENERIC
+	default n
+	help
+	  Adds a timed output vibrator device node for an NVIDIA Tegra ODM kit
+	  vibrator driver
+
+config TEGRA_PCI
+	boolean "PCIe host controller driver"
+	depends on !ARCH_TEGRA_1x_SOC
+	select PCI
+	default n
+	help
+		Adds PCIe Host controller driver for tegra2 based systems
+
+config TEGRA_SNOR
+	boolean
+
+source "arch/arm/mach-tegra/odm_kit/Kconfig"
+
+endif

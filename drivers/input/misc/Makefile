@@ -26,3 +26,7 @@ obj-$(CONFIG_INPUT_TWL4030_PWRBUTTON)	+= twl4030-pwrbutton.o
 obj-$(CONFIG_INPUT_UINPUT)		+= uinput.o
 obj-$(CONFIG_INPUT_WISTRON_BTNS)	+= wistron_btns.o
 obj-$(CONFIG_INPUT_YEALINK)		+= yealink.o
+obj-$(CONFIG_INPUT_GPIO)		+= gpio_event.o gpio_matrix.o gpio_input.o gpio_output.o gpio_axis.o
+obj-$(CONFIG_INPUT_KEYCHORD)	+= keychord.o
+obj-$(CONFIG_INPUT_TEGRA_ODM_ACCEL)	+= tegra_odm_accel.o
+obj-$(CONFIG_INPUT_TEGRA_ODM_SCROLL)	+= tegra_odm_scroll.o

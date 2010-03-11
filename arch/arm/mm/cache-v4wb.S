@@ -228,4 +228,6 @@ ENTRY(v4wb_cache_fns)
 	.long	v4wb_dma_inv_range
 	.long	v4wb_dma_clean_range
 	.long	v4wb_dma_flush_range
+	.long	v4wb_flush_kern_cache_all
+	.long	v4wb_flush_kern_cache_all
 	.size	v4wb_cache_fns, . - v4wb_cache_fns

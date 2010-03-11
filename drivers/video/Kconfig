@@ -959,6 +959,20 @@ config FB_ATMEL_STN
 
 	  If unsure, say N.
 
+config FB_TEGRA
+	boolean "NVIDIA Tegra dummy framebuffer driver"
+	depends on ARCH_TEGRA && FB
+	select FB_CFB_FILLRECT
+	select FB_CFB_COPYAREA
+	select FB_CFB_IMAGEBLIT
+	default FB
+	help
+	  This driver implements a dummy framebuffer device for systems based
+	  on the NVIDIA Tegra family of SoCs. Display initialization is
+	  expected to happen prior to the kernel start-up for this driver to
+	  function.
+
+
 config FB_NVIDIA
 	tristate "nVidia Framebuffer Support"
 	depends on FB && PCI

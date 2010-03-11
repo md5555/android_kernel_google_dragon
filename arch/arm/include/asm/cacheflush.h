@@ -130,6 +130,14 @@
 //# endif
 #endif
 
+#if defined(CONFIG_CPU_V7M)
+# ifdef _CACHE
+#  error "Multi-cache not supported on ARMv7-M"
+# else
+#  define _CACHE v7m
+# endif
+#endif
+
 #if !defined(_CACHE) && !defined(MULTI_CACHE)
 #error Unknown cache maintainence model
 #endif
@@ -216,12 +224,15 @@ struct cpu_cache_fns {
 	void (*dma_inv_range)(const void *, const void *);
 	void (*dma_clean_range)(const void *, const void *);
 	void (*dma_flush_range)(const void *, const void *);
+	void (*dma_clean_all)(void);
+	void (*dma_flush_all)(void);
 };
 
 struct outer_cache_fns {
 	void (*inv_range)(unsigned long, unsigned long);
 	void (*clean_range)(unsigned long, unsigned long);
 	void (*flush_range)(unsigned long, unsigned long);
+	void (*sync)(void);
 };
 
 /*
@@ -247,8 +258,28 @@ extern struct cpu_cache_fns cpu_cache;
 #define dmac_inv_range			cpu_cache.dma_inv_range
 #define dmac_clean_range		cpu_cache.dma_clean_range
 #define dmac_flush_range		cpu_cache.dma_flush_range
+#define dmac_clean_all			cpu_cache.dma_clean_all
+#define dmac_flush_all			cpu_cache.dma_flush_all
 
 #else
+
+#ifdef CONFIG_CPU_V7M
+
+static inline void v7m_flush_kern_all(void) { }
+static inline void v7m_flush_user_all(void) { }
+static inline void v7m_flush_user_range(unsigned long a, unsigned long b, unsigned int c) { }
+
+static inline void v7m_coherent_kern_range(unsigned long a, unsigned long b) { }
+static inline void v7m_coherent_user_range(unsigned long a, unsigned long b) { }
+static inline void v7m_flush_kern_dcache_page(void *a) { }
+
+static inline void v7m_dma_inv_range(const void *a, const void *b) { }
+static inline void v7m_dma_clean_range(const void *a, const void *b) { }
+static inline void v7m_dma_flush_range(const void *a, const void *b) { }
+static inline void v7m_dma_clean_all(void) { }
+static inline void v7m_dma_flush_all(void) { }
+
+#endif
 
 #define __cpuc_flush_kern_all		__glue(_CACHE,_flush_kern_cache_all)
 #define __cpuc_flush_user_all		__glue(_CACHE,_flush_user_cache_all)
@@ -273,11 +304,59 @@ extern void __cpuc_flush_dcache_page(void *);
 #define dmac_inv_range			__glue(_CACHE,_dma_inv_range)
 #define dmac_clean_range		__glue(_CACHE,_dma_clean_range)
 #define dmac_flush_range		__glue(_CACHE,_dma_flush_range)
+#define dmac_clean_all			__glue(_CACHE,_dma_clean_all)
+#define dmac_flush_all			__glue(_CACHE,_dma_flush_all)
 
 extern void dmac_inv_range(const void *, const void *);
 extern void dmac_clean_range(const void *, const void *);
 extern void dmac_flush_range(const void *, const void *);
+extern void dmac_clean_all(void);
+extern void dmac_flush_all(void);
 
+#endif
+
+#ifdef CONFIG_CPU_NO_CACHE_BCAST
+enum smp_dma_cache_type {
+	SMP_DMA_CACHE_INV,
+	SMP_DMA_CACHE_CLEAN,
+	SMP_DMA_CACHE_FLUSH,
+	SMP_DMA_CACHE_CLEAN_ALL,
+	SMP_DMA_CACHE_FLUSH_ALL,
+};
+
+extern void smp_dma_cache_op(int type, const void *start, const void *end);
+
+static inline void smp_dma_inv_range(const void *start, const void *end)
+{
+	smp_dma_cache_op(SMP_DMA_CACHE_INV, start, end);
+}
+
+static inline void smp_dma_clean_range(const void *start, const void *end)
+{
+	smp_dma_cache_op(SMP_DMA_CACHE_CLEAN, start, end);
+}
+
+static inline void smp_dma_flush_range(const void *start, const void *end)
+{
+	smp_dma_cache_op(SMP_DMA_CACHE_FLUSH, start, end);
+}
+
+static inline void smp_dma_clean_all(void)
+{
+	smp_dma_cache_op(SMP_DMA_CACHE_CLEAN_ALL, NULL, NULL);
+}
+
+static inline void smp_dma_flush_all(void)
+{
+	smp_dma_cache_op(SMP_DMA_CACHE_FLUSH_ALL, NULL, NULL);
+}
+
+#else
+#define smp_dma_inv_range		dmac_inv_range
+#define smp_dma_clean_range		dmac_clean_range
+#define smp_dma_flush_range		dmac_flush_range
+#define smp_dma_clean_all		dmac_clean_all
+#define smp_dma_flush_all		dmac_flush_all
 #endif
 
 #ifdef CONFIG_OUTER_CACHE
@@ -299,7 +378,11 @@ static inline void outer_flush_range(unsigned long start, unsigned long end)
 	if (outer_cache.flush_range)
 		outer_cache.flush_range(start, end);
 }
-
+static inline void outer_sync(void)
+{
+	if (outer_cache.sync)
+		outer_cache.sync();
+}
 #else
 
 static inline void outer_inv_range(unsigned long start, unsigned long end)
@@ -307,6 +390,8 @@ static inline void outer_inv_range(unsigned long start, unsigned long end)
 static inline void outer_clean_range(unsigned long start, unsigned long end)
 { }
 static inline void outer_flush_range(unsigned long start, unsigned long end)
+{ }
+static inline void outer_sync(void)
 { }
 
 #endif
@@ -417,6 +502,8 @@ static inline void __flush_icache_all(void)
 	asm("mcr	p15, 0, %0, c7, c5, 0	@ invalidate I-cache\n"
 	    :
 	    : "r" (0));
+	dsb();
+	isb();
 }
 
 #define ARCH_HAS_FLUSH_ANON_PAGE

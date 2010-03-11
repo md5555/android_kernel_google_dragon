@@ -117,4 +117,9 @@ config REGULATOR_LP3971
 	 Say Y here to support the voltage regulators and convertors
 	 on National Semiconductors LP3971 PMIC
 
+config REGULATOR_TEGRA
+	boolean "Regulator support on Nvidia Tegra SoCs"
+	depends on ARCH_TEGRA
+	help
+	 This enables the regulator interfaces in Nvidia Tegra SoCs.
 endif

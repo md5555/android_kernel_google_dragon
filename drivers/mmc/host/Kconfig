@@ -36,6 +36,17 @@ config MMC_SDHCI
 	  also need to enable an appropriate bus interface.
 
 	  If unsure, say N.
+config MMC_SDHCI_DYNAMIC_SDMEM_CLOCK
+	depends on MMC_SDHCI
+	bool "Dynamically control the card clock for SD memory devices"
+	default n
+	help
+	  On certain embedded devices, leaving the card clock enabled to
+	  SD memory devices with no active transactions can increase power
+	  consumption. Enable this option to automatically disable the card
+	  clock after transfers complete.
+
+	  If unsure, say N here.
 
 config MMC_SDHCI_IO_ACCESSORS
 	bool
@@ -54,6 +65,22 @@ config MMC_SDHCI_PCI
 	  If you have a controller with this interface, say Y or M here.
 
 	  If unsure, say N.
+
+config MMC_SDHCI_TEGRA
+	boolean "SDHCI support on NVIDIA Tegra SoCs"
+	depends on MMC_SDHCI && ARCH_TEGRA && !ARCH_TEGRA_1x_SOC
+	default MMC_SDHCI
+	help
+	  This enables the internal SDHCI-compatible interfaces in NVIDIA
+	  Tegra SoCs
+
+config MMC_TEGRA_SDIO
+	boolean "MMC support for SDIO interface on NVIDIA Tegra SoCs"
+	depends on ARCH_TEGRA_1x_SOC && MACH_TEGRA_GENERIC
+	help
+	  This enables the SDIO interface on NVIDIA Tegra SoCs
+
+
 
 config MMC_RICOH_MMC
 	tristate "Ricoh MMC Controller Disabler  (EXPERIMENTAL)"

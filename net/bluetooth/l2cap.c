@@ -211,6 +211,8 @@ static void __l2cap_chan_add(struct l2cap_conn *conn, struct sock *sk, struct so
 
 	conn->disc_reason = 0x13;
 
+	conn->disc_reason = 0x13;
+
 	l2cap_pi(sk)->conn = conn;
 
 	if (sk->sk_type == SOCK_SEQPACKET) {

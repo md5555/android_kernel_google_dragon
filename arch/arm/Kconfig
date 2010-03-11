@@ -46,10 +46,6 @@ config GENERIC_CLOCKEVENTS_BROADCAST
 	depends on GENERIC_CLOCKEVENTS
 	default y if SMP && !LOCAL_TIMERS
 
-config MMU
-	bool
-	default y
-
 config NO_IOPORT
 	bool
 
@@ -187,6 +183,13 @@ source "init/Kconfig"
 source "kernel/Kconfig.freezer"
 
 menu "System Type"
+
+config MMU
+	bool "MMU-based Paged Memory Management Support"
+	default y
+	help
+	  Select if you want MMU-based virtualised addressing space
+	  support by paged memory management. If unsure, say 'Y'.
 
 choice
 	prompt "ARM system type"
@@ -637,6 +640,47 @@ config ARCH_OMAP
 	help
 	  Support for TI's OMAP platform (OMAP1 and OMAP2).
 
+config ARCH_MSM
+	bool "Qualcomm MSM"
+	select CPU_V6
+	select GENERIC_TIME
+	select GENERIC_CLOCKEVENTS
+	help
+	  Support for Qualcomm MSM7K based systems.  This runs on the ARM11
+	  apps processor of the MSM7K and depends on a shared memory
+	  interface to the ARM9 modem processor which runs the baseband stack
+	  and controls some vital subsystems (clock and power control, etc).
+
+config ARCH_W90X900
+	bool "Nuvoton W90X900 CPU"
+	select CPU_ARM926T
+	help
+		Support for Nuvoton (Winbond logic dept.) ARM9 processor,You
+		can login www.mcuos.com or www.nuvoton.com to know more.
+
+config ARCH_MPS
+	bool "ARM Ltd. Microcontroller Prototyping System"
+	depends on !MMU
+	select ARM_AMBA
+	select HAVE_CLK
+	select COMMON_CLKDEV
+	select ICST307
+	select GENERIC_TIME
+	select GENERIC_CLOCKEVENTS
+	help
+	  This enables support for ARM Ltd. Microcontroller Prototyping
+	  System platform.
+
+config ARCH_TEGRA
+	bool "NVIDIA Tegra"
+	select GENERIC_TIME
+	select GENERIC_CLOCKEVENTS
+	select GENERIC_GPIO
+	select HAVE_CLK
+	help
+	  This enables support for NVIDIA Tegra based systems (Tegra APX,
+	  Tegra 6xx and Tegra 2 series).
+
 endchoice
 
 source "arch/arm/mach-clps711x/Kconfig"
@@ -677,6 +721,8 @@ source "arch/arm/plat-omap/Kconfig"
 source "arch/arm/mach-omap1/Kconfig"
 
 source "arch/arm/mach-omap2/Kconfig"
+
+source "arch/arm/mach-tegra/Kconfig"
 
 source "arch/arm/mach-orion5x/Kconfig"
 
@@ -729,6 +775,8 @@ source "arch/arm/mach-msm/Kconfig"
 source "arch/arm/mach-u300/Kconfig"
 
 source "arch/arm/mach-w90x900/Kconfig"
+
+source "arch/arm/mach-mps/Kconfig"
 
 # Definitions to make life easier
 config ARCH_ACORN
@@ -813,6 +861,118 @@ config ARM_ERRATA_460075
 	  ACTLR register. Note that setting specific bits in the ACTLR register
 	  may not be available in non-secure mode.
 
+config TEGRA_ERRATA_657451
+	bool "Store bit 20 of CP15 TLS register c13,3 in bit 0"
+	depends on ARCH_TEGRA_2x_SOC && HAS_TLS_REG
+	default y
+	help
+	  This option enables a workaround for the 657451 Tegra 2 errata
+	  which causes unreliable reads from bit 20 of the thread storage
+	  register c13, 3 (used by the __set_tls system call). It stores the
+	  value intended for bit 20 into bit 0 instead; in most user-space
+	  environments, the value saved by __set_tls is an aligned address,
+	  so repurposing bit 0 will not cause ill effects.
+
+
+config ARM_ERRATA_364296
+	bool "Enable partial low interrupt latency mode for ARM1136"
+	depends on CPU_V6 && !SMP
+	default n
+	help
+	  This options enables the workaround for the 364296 ARM1136
+	  r0pX errata (possible cache data corruption with
+	  hit-under-miss enabled). It sets the undocumented bit 31 in
+	  the auxiliary control register and the FI bit in the control
+	  register, thus disabling hit-under-miss without putting the
+	  processor into full low interrupt latency mode. ARM11MPCore
+	  is not affected.
+
+config ARM_ERRATA_411920
+	bool "Workaround for the global I cache invalidation on ARM1136"
+	depends on CPU_V6 && !SMP
+	default n
+	help
+	  Invalidation of the Instruction Cache operation can
+	  fail. This Erratum is present in 1136, 1156 and 1176. It
+	  does not affect the MPCore. This option enables the ARM Ltd.
+	  recommended workaround.
+
+config ARM_ERRATA_351422
+	bool "Spinlocks using LDREX and STREX instructions can livelock"
+	depends on CPU_V6 && SMP
+	default n
+	help
+	  According to the ARM11MPCore Erratum 351422 (r0p0), under
+	  extremely rare conditions, in an MPCore node consisting of
+	  at least 3 CPUs, two CPUs trying to perform a STREX to data
+	  on the same shared cache line can enter a livelock
+	  situation. This option adds variable spinning time to the
+	  locking routines.
+
+config ARM_ERRATA_430973
+	bool "Stale prediction on replaced interworking branch on Cortex-A8"
+	depends on CPU_V7
+	default n
+	help
+	  This option enables the workaround for the 430973 Cortex-A8
+	  (r1p0) erratum. If a code sequence containing an ARM/Thumb
+	  interworking branch is replaced with another code sequence
+	  at the same virtual address, whether due to self-modifying
+	  code or virtual to physical address re-mapping, Cortex-A8
+	  does not recover from the stale interworking branch
+	  prediction. This results in Cortex-A8 executing the new code
+	  sequence in the incorrect ARM or Thumb state.
+
+config ARM_ERRATA_458693
+	bool "Processor deadlock when a false hazard is created on Cortex-A8"
+	depends on CPU_V7
+	default n
+	help
+	  This option enables the workaround for the 458693 Cortex-A8
+	  (r2p0) erratum. For very specific sequences of memory
+	  operations, it is possible for a hazard condition intended
+	  for a cache line to instead be incorrectly associated with a
+	  different cache line. This false hazard might then cause a
+	  processor deadlock.
+
+config ARM_ERRATA_460075
+	bool "Data written to the L2 cache can be overwritten with stale data on Cortex-A8"
+	depends on CPU_V7
+	default n
+	help
+	  This option enables the workaround for the 458692 Cortex-A8
+	  (r2p0) erratum. Any asynchronous access to the L2 cache may
+	  encounter a situation in which recent store transactions to
+	  the L2 cache are lost and overwritten with stale memory
+	  contents from external memory.
+
+config ARM_ERRATUM_451034
+	bool "Enable workaround for ARM erratum 451034"
+	depends on VFPv3
+	help
+	  On Cortex-A8 r1p0 and r1p1, executing a NEON store with an integer
+	  store in the store buffer, can cause a processor deadlock under
+	  certain conditions.
+
+	  See ARM Cortex-A8 Errata Notice (PR120-PRDC-008070) for full details.
+
+	  Say Y to include a partial workaround.
+
+	  WARNING: Even with this option enabled, userspace code can trigger
+	  the deadlock.	 To safely run untrusted code, a different fix is
+	  required.
+
+config ARM_ERRATA_484863
+	bool "The Cache Sync operation does not guarantee that the the Eviction Buffer is empty"
+	depends on CACHE_L2X0
+	default n
+	help
+	  According to the L220 Erratum 484863, the actual behaviour of
+	  the L220 cache controller is that the Cache Sync operation
+	  only ensures that the Write Buffer and the Write Allocate
+	  Buffer are empty but not the Eviction Buffer. This option
+	  enables the first workaround from the Errata document.
+
 endmenu
 
 source "arch/arm/common/Kconfig"
@@ -881,7 +1041,7 @@ source "kernel/time/Kconfig"
 config SMP
 	bool "Symmetric Multi-Processing (EXPERIMENTAL)"
 	depends on EXPERIMENTAL && (REALVIEW_EB_ARM11MP || REALVIEW_EB_A9MP ||\
-		 MACH_REALVIEW_PB11MP || MACH_REALVIEW_PBX || ARCH_OMAP4)
+		 MACH_REALVIEW_PB11MP || MACH_REALVIEW_PBX || ARCH_OMAP4 || (ARCH_TEGRA && CPU_V7))
 	depends on GENERIC_CLOCKEVENTS
 	select USE_GENERIC_SMP_HELPERS
 	select HAVE_ARM_SCU if (ARCH_REALVIEW || ARCH_OMAP4)
@@ -953,9 +1113,10 @@ config HOTPLUG_CPU
 config LOCAL_TIMERS
 	bool "Use local timer interrupts"
 	depends on SMP && (REALVIEW_EB_ARM11MP || MACH_REALVIEW_PB11MP || \
-		REALVIEW_EB_A9MP || MACH_REALVIEW_PBX || ARCH_OMAP4)
+		REALVIEW_EB_A9MP || MACH_REALVIEW_PBX || ARCH_OMAP4 || \
+		ARCH_TEGRA)
 	default y
-	select HAVE_ARM_TWD if (ARCH_REALVIEW || ARCH_OMAP4)
+	select HAVE_ARM_TWD if (ARCH_REALVIEW || ARCH_OMAP4 || ARCH_TEGRA)
 	help
 	  Enable support for local timers on SMP platforms, rather then the
 	  legacy IPI broadcast method.  Local timers allows the system
@@ -983,6 +1144,23 @@ config HZ
 	default AT91_TIMER_HZ if ARCH_AT91
 	default 100
 
+config THUMB2_KERNEL
+	bool "Compile the kernel in Thumb-2 mode"
+	depends on (CPU_V7 || CPU_V7M) && EXPERIMENTAL
+	default n
+	select AEABI
+	select ARM_ASM_UNIFIED
+	help
+	  By enabling this option, the kernel will be compiled in
+	  Thumb-2 mode. A compiler/assembler that understand the unified
+	  ARM-Thumb syntax is needed.
+
+	  If unsure, say N.
+
+config ARM_ASM_UNIFIED
+	bool
+	default n
+
 config AEABI
 	bool "Use the ARM EABI to compile the kernel"
 	help
@@ -1000,7 +1178,7 @@ config AEABI
 
 config OABI_COMPAT
 	bool "Allow old ABI binaries to run with this kernel (EXPERIMENTAL)"
-	depends on AEABI && EXPERIMENTAL
+	depends on AEABI && !CPU_V7M && EXPERIMENTAL
 	default y
 	help
 	  This option preserves the old syscall interface along with the
@@ -1237,11 +1415,43 @@ config ATAGS_PROC
 	  Should the atags used to boot the kernel be exported in an "atags"
 	  file in procfs. Useful with kexec.
 
+config NAKED_BOOT
+	bool "Kernel image for naked booting environments"
+	depends on CMDLINE != ""
+	default n
+	help
+	  This produces a kernel binary that can simply be moved onto
+	  the target machine and jumped to without any sort of boot
+	  protocol from the bootloader.  This should only be used in
+	  cases where the bootloader fails to implement the required
+	  calling convention for executing the kernel as described in
+	  the file Documentation/arm/Booting.
+
+	  The use of this option imposes many restrictions on the kernel
+	  as it may not support more than one target machine, and all
+	  boot parameters such as memory size and root filesystem device
+	  have to be hardcoded in the default kernel command string (see
+	  CONFIG_CMDLINE).
+
+	  If dynamic ram configuration, multi-machine support or the
+	  ability for the user to specify a kernel command string at
+	  boot without the need for recompiling the kernel each time
+	  is required, then the bootloader must implement the boot
+	  protocol as described in Documentation/arm/Booting and this
+	  config option not be used.
+
+	  Please consider fixing your bootloader according to the
+	  documented boot protocol in all cases, or choose one
+	  from the many excellent open source bootloaders available
+	  on the net which already support the required boot protocol.
+
+	  If you're not sure what this is all about then say N.
+
 endmenu
 
 menu "CPU Power Management"
 
-if (ARCH_SA1100 || ARCH_INTEGRATOR || ARCH_OMAP || ARCH_PXA || ARCH_S3C64XX)
+if (ARCH_SA1100 || ARCH_INTEGRATOR || ARCH_OMAP || ARCH_IMX || ARCH_PXA || ARCH_S3C64XX || ARCH_REALVIEW || ARCH_TEGRA)
 
 source "drivers/cpufreq/Kconfig"
 
@@ -1275,6 +1485,15 @@ config CPU_FREQ_PXA
 config CPU_FREQ_S3C64XX
 	bool "CPUfreq support for Samsung S3C64XX CPUs"
 	depends on CPU_FREQ && CPU_S3C6410
+
+config CPU_FREQ_REALVIEW
+	tristate "CPUfreq driver for ARM RealView platform"
+	depends on CPU_FREQ && MACH_REALVIEW_PB1176
+	default y
+	help
+	  This enables the CPUfreq driver for ARM RealView platform.
+
+	  If in doubt, say Y.
 
 endif
 
@@ -1462,6 +1681,8 @@ source "drivers/memstick/Kconfig"
 source "drivers/accessibility/Kconfig"
 
 source "drivers/leds/Kconfig"
+
+source "drivers/switch/Kconfig"
 
 source "drivers/rtc/Kconfig"
 

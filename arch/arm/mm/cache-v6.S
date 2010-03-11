@@ -12,6 +12,7 @@
 #include <linux/linkage.h>
 #include <linux/init.h>
 #include <asm/assembler.h>
+#include <asm/unwind.h>
 
 #include "proc-macros.S"
 
@@ -121,11 +122,13 @@ ENTRY(v6_coherent_kern_range)
  *	- the Icache does not read data from the write buffer
  */
 ENTRY(v6_coherent_user_range)
-
+ UNWIND(.fnstart		)
 #ifdef HARVARD_CACHE
 	bic	r0, r0, #CACHE_LINE_SIZE - 1
-1:	mcr	p15, 0, r0, c7, c10, 1		@ clean D line
+1:
+ USER(	mcr	p15, 0, r0, c7, c10, 1	)	@ clean D line
 	add	r0, r0, #CACHE_LINE_SIZE
+2:
 	cmp	r0, r1
 	blo	1b
 #endif
@@ -141,6 +144,19 @@ ENTRY(v6_coherent_user_range)
 	mcr	p15, 0, r0, c7, c5, 6		@ invalidate BTB
 #endif
 	mov	pc, lr
+
+/*
+ * Fault handling for the cache operation above. If the virtual address in r0
+ * isn't mapped, just try the next page.
+ */
+9001:
+	mov	r0, r0, lsr #12
+	mov	r0, r0, lsl #12
+	add	r0, r0, #4096
+	b	2b
+ UNWIND(.fnend		)
+ENDPROC(v6_coherent_user_range)
+ENDPROC(v6_coherent_kern_range)
 
 /*
  *	v6_flush_kern_dcache_page(kaddr)
@@ -179,20 +195,7 @@ ENTRY(v6_flush_kern_dcache_page)
  *	- end     - virtual end address of region
  */
 ENTRY(v6_dma_inv_range)
-	tst	r0, #D_CACHE_LINE_SIZE - 1
 	bic	r0, r0, #D_CACHE_LINE_SIZE - 1
-#ifdef HARVARD_CACHE
-	mcrne	p15, 0, r0, c7, c10, 1		@ clean D line
-#else
-	mcrne	p15, 0, r0, c7, c11, 1		@ clean unified line
-#endif
-	tst	r1, #D_CACHE_LINE_SIZE - 1
-	bic	r1, r1, #D_CACHE_LINE_SIZE - 1
-#ifdef HARVARD_CACHE
-	mcrne	p15, 0, r1, c7, c14, 1		@ clean & invalidate D line
-#else
-	mcrne	p15, 0, r1, c7, c15, 1		@ clean & invalidate unified line
-#endif
 1:
 #ifdef HARVARD_CACHE
 	mcr	p15, 0, r0, c7, c6, 1		@ invalidate D line
@@ -232,6 +235,11 @@ ENTRY(v6_dma_clean_range)
  *	- end     - virtual end address of region
  */
 ENTRY(v6_dma_flush_range)
+#ifdef CONFIG_CACHE_FLUSH_RANGE_LIMIT
+	sub	r2, r1, r0
+	cmp	r2, #CONFIG_CACHE_FLUSH_RANGE_LIMIT
+	bhi	v6_dma_flush_dcache_all
+#endif
 	bic	r0, r0, #D_CACHE_LINE_SIZE - 1
 1:
 #ifdef HARVARD_CACHE
@@ -246,6 +254,48 @@ ENTRY(v6_dma_flush_range)
 	mcr	p15, 0, r0, c7, c10, 4		@ drain write buffer
 	mov	pc, lr
 
+#ifdef CONFIG_CACHE_FLUSH_RANGE_LIMIT
+v6_dma_flush_dcache_all:
+	mov	r0, #0
+#ifdef HARVARD_CACHE
+	mcr	p15, 0, r0, c7, c14, 0		@ D cache clean+invalidate
+#else
+	mcr	p15, 0, r0, c7, c15, 0		@ Cache clean+invalidate
+#endif
+	mcr	p15, 0, r0, c7, c10, 4		@ drain write buffer
+	mov	pc, lr
+#endif
+
+/*
+ *	v6_dma_clean_all()
+ *
+ *	cleans the entire L1 data cache
+ */
+ENTRY(v6_dma_clean_all)
+#ifdef HARVARD_CACHE
+	mcr	p15, 0, r0, c7, c10, 0		@ D cache clean
+#else
+	mcr	p15, 0, r0, c7, c15, 0		@ Cache clean+invalidate
+#endif
+	mcr	p15, 0, r0, c7, c10, 4		@ drain write buffer
+	mov	pc, lr
+
+/*
+ *	v6_dma_flush_all()
+ *
+ *	flushes the entire L1 data cache
+ */
+ENTRY(v6_dma_flush_all)
+#ifdef HARVARD_CACHE
+	mcr	p15, 0, r0, c7, c14, 0		@ D cache clean+invalidate
+#else
+	mcr	p15, 0, r0, c7, c15, 0		@ Cache clean+invalidate
+#endif
+	mcr	p15, 0, r0, c7, c10, 4		@ drain write buffer
+	mov	pc, lr
+
+
+
 	__INITDATA
 
 	.type	v6_cache_fns, #object
@@ -259,4 +309,6 @@ ENTRY(v6_cache_fns)
 	.long	v6_dma_inv_range
 	.long	v6_dma_clean_range
 	.long	v6_dma_flush_range
+	.long	v6_dma_clean_all
+	.long	v6_dma_flush_all
 	.size	v6_cache_fns, . - v6_cache_fns

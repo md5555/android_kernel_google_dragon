@@ -33,14 +33,7 @@ ret_fast_syscall:
 	/* perform architecture specific actions before user return */
 	arch_ret_to_user r1, lr
 
-	@ fast_restore_user_regs
-	ldr	r1, [sp, #S_OFF + S_PSR]	@ get calling cpsr
-	ldr	lr, [sp, #S_OFF + S_PC]!	@ get pc
-	msr	spsr_cxsf, r1			@ save in spsr_svc
-	ldmdb	sp, {r1 - lr}^			@ get calling r1 - lr
-	mov	r0, r0
-	add	sp, sp, #S_FRAME_SIZE - S_PC
-	movs	pc, lr				@ return & move spsr_svc into cpsr
+	restore_user_regs fast = 1, offset = S_OFF
  UNWIND(.fnend		)
 
 /*
@@ -73,14 +66,11 @@ no_work_pending:
 	/* perform architecture specific actions before user return */
 	arch_ret_to_user r1, lr
 
-	@ slow_restore_user_regs
-	ldr	r1, [sp, #S_PSR]		@ get calling cpsr
-	ldr	lr, [sp, #S_PC]!		@ get pc
-	msr	spsr_cxsf, r1			@ save in spsr_svc
-	ldmdb	sp, {r0 - lr}^			@ get calling r0 - lr
-	mov	r0, r0
-	add	sp, sp, #S_FRAME_SIZE - S_PC
-	movs	pc, lr				@ return & move spsr_svc into cpsr
+#ifdef CONFIG_ARM_ERRATUM_451034
+	dmb
+#endif
+
+	restore_user_regs fast = 0, offset = 0
 ENDPROC(ret_to_user)
 
 /*
@@ -180,14 +170,20 @@ ftrace_stub:
 
 	.align	5
 ENTRY(vector_swi)
+#ifdef CONFIG_CPU_V7M
+	v7m_exception_entry
+#else
 	sub	sp, sp, #S_FRAME_SIZE
 	stmia	sp, {r0 - r12}			@ Calling r0 - r12
-	add	r8, sp, #S_PC
-	stmdb	r8, {sp, lr}^			@ Calling sp, lr
+ ARM(	add	r8, sp, #S_PC		)
+ ARM(	stmdb	r8, {sp, lr}^		)	@ Calling sp, lr
+ THUMB(	mov	r8, sp			)
+ THUMB(	store_user_sp_lr r8, r10, S_SP	)	@ calling sp, lr
 	mrs	r8, spsr			@ called from non-FIQ mode, so ok.
 	str	lr, [sp, #S_PC]			@ Save calling PC
 	str	r8, [sp, #S_PSR]		@ Save CPSR
 	str	r0, [sp, #S_OLD_R0]		@ Save OLD_R0
+#endif
 	zero_fp
 
 	/*
@@ -202,6 +198,7 @@ ENTRY(vector_swi)
 	 */
 #ifdef CONFIG_ARM_THUMB
 	tst	r8, #PSR_T_BIT
+	ite	ne
 	movne	r10, #0				@ no thumb OABI emulation
 	ldreq	r10, [lr, #-4]			@ get SWI instruction
 #else
@@ -260,6 +257,7 @@ ENTRY(vector_swi)
 	 * get the old ABI syscall table address.
 	 */
 	bics	r10, r10, #0xff000000
+	itt	ne
 	eorne	scno, r10, #__NR_OABI_SYSCALL_BASE
 	ldrne	tbl, =sys_oabi_call_table
 #elif !defined(CONFIG_AEABI)
@@ -272,7 +270,8 @@ ENTRY(vector_swi)
 	bne	__sys_trace
 
 	cmp	scno, #NR_syscalls		@ check upper syscall limit
-	adr	lr, ret_fast_syscall		@ return address
+	adr	lr, BSYM(ret_fast_syscall)	@ return address
+	it	cc
 	ldrcc	pc, [tbl, scno, lsl #2]		@ call sys_* routine
 
 	add	r1, sp, #S_OFF
@@ -293,16 +292,23 @@ __sys_trace:
 	mov	r0, #0				@ trace entry [IP = 0]
 	bl	syscall_trace
 
-	adr	lr, __sys_trace_return		@ return address
+	adr	lr, BSYM(__sys_trace_return)	@ return address
 	mov	scno, r0			@ syscall number (possibly new)
-	add	r1, sp, #S_R0 + S_OFF		@ pointer to regs
+	add	r1, sp, #S_OFF			@ pointer to regs
 	cmp	scno, #NR_syscalls		@ check upper syscall limit
+	itt	cc
 	ldmccia	r1, {r0 - r3}			@ have to reload r0 - r3
 	ldrcc	pc, [tbl, scno, lsl #2]		@ call sys_* routine
 	b	2b
 
 __sys_trace_return:
+#ifdef CONFIG_CPU_V7M
+	@ S_R0 not at the beginning of struct pt_regs
+	add	sp, #S_OFF
+	str	r0, [sp, #S_R0]			@ save returned r0
+#else
 	str	r0, [sp, #S_R0 + S_OFF]!	@ save returned r0
+#endif
 	mov	r2, scno
 	mov	r1, sp
 	mov	r0, #1				@ trace exit [IP = 1]
@@ -342,11 +348,14 @@ ENTRY(sys_call_table)
 sys_syscall:
 		bic	scno, r0, #__NR_OABI_SYSCALL_BASE
 		cmp	scno, #__NR_syscall - __NR_SYSCALL_BASE
+		it	ne
 		cmpne	scno, #NR_syscalls	@ check range
+		itttt	lo
 		stmloia	sp, {r5, r6}		@ shuffle args
 		movlo	r0, r1
 		movlo	r1, r2
 		movlo	r2, r3
+		itt	lo
 		movlo	r3, r4
 		ldrlo	pc, [tbl, scno, lsl #2]
 		b	sys_ni_syscall
@@ -400,12 +409,14 @@ ENDPROC(sys_sigaltstack_wrapper)
 
 sys_statfs64_wrapper:
 		teq	r1, #88
+		it	eq
 		moveq	r1, #84
 		b	sys_statfs64
 ENDPROC(sys_statfs64_wrapper)
 
 sys_fstatfs64_wrapper:
 		teq	r1, #88
+		it	eq
 		moveq	r1, #84
 		b	sys_fstatfs64
 ENDPROC(sys_fstatfs64_wrapper)
@@ -417,6 +428,7 @@ ENDPROC(sys_fstatfs64_wrapper)
 sys_mmap2:
 #if PAGE_SHIFT > 12
 		tst	r5, #PGOFF_MASK
+		ittt	eq
 		moveq	r5, r5, lsr #PAGE_SHIFT - 12
 		streq	r5, [sp, #4]
 		beq	sys_mmap_pgoff
@@ -429,7 +441,9 @@ sys_mmap2:
 ENDPROC(sys_mmap2)
 
 ENTRY(pabort_ifar)
+#ifndef CONFIG_CPU_V7M
 		mrc	p15, 0, r0, cr6, cr0, 2
+#endif
 ENTRY(pabort_noifar)
 		mov	pc, lr
 ENDPROC(pabort_ifar)

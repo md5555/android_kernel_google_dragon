@@ -40,6 +40,13 @@ config W1_MASTER_MXC
 	help
 	  Say Y here to enable MXC 1-wire host
 
+config W1_MASTER_TEGRA
+	boolean "NVIDIA Tegra internal 1-wire controller"
+	depends on W1 && ARCH_TEGRA
+	help
+	  If you say yes to this option, support will be included for the
+          1-wire controller embedded in NVIDIA Tegra SOCs
+
 config W1_MASTER_DS1WM
 	tristate "Maxim DS1WM 1-wire busmaster"
 	depends on W1 && ARM && HAVE_CLK

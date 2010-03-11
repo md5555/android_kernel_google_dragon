@@ -57,7 +57,7 @@ ifeq ($(CONFIG_ZBOOT_ROM),y)
 ZTEXTADDR	:= $(CONFIG_ZBOOT_ROM_TEXT)
 ZBSSADDR	:= $(CONFIG_ZBOOT_ROM_BSS)
 else
-ZTEXTADDR	:= 0
+ZTEXTADDR	:= $(ZRELADDR)
 ZBSSADDR	:= ALIGN(4)
 endif
 
@@ -72,7 +72,9 @@ KBUILD_CFLAGS = $(subst -pg, , $(ORIG_CFLAGS))
 endif
 
 EXTRA_CFLAGS  := -fpic -fno-builtin
+ifneq ($(CONFIG_CPU_V7M),y)
 EXTRA_AFLAGS  := -Wa,-march=all
+endif
 
 # Supply ZRELADDR, INITRD_PHYS and PARAMS_PHYS to the decompressor via
 # linker symbols.  We only define initrd_phys and params_phys if the

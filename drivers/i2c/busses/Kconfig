@@ -181,6 +181,14 @@ config I2C_SIS630
 	  This driver can also be built as a module.  If so, the module
 	  will be called i2c-sis630.
 
+config I2C_TEGRA
+	boolean "NVIDIA Tegra internal I2C controller"
+	depends on ARCH_TEGRA
+	help
+	  If you say yes to this option, support will be included for the
+	  I2C controller embedded in NVIDIA Tegra SOCs
+
+
 config I2C_SIS96X
 	tristate "SiS 96x"
 	depends on PCI

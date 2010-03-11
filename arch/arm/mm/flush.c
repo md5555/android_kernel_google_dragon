@@ -15,6 +15,7 @@
 #include <asm/cachetype.h>
 #include <asm/system.h>
 #include <asm/tlbflush.h>
+#include <asm/smp_plat.h>
 
 #include "mm.h"
 
@@ -60,6 +61,7 @@ void flush_cache_mm(struct mm_struct *mm)
 		"	mcr	p15, 0, %0, c7, c10, 4\n"
 #ifndef CONFIG_ARM_ERRATA_411920
 		"	mcr	p15, 0, %0, c7, c5, 0\n"
+<<<<<<< HEAD
 #endif
 		    :
 		    : "r" (0)
@@ -67,6 +69,14 @@ void flush_cache_mm(struct mm_struct *mm)
 #ifdef CONFIG_ARM_ERRATA_411920
 		v6_icache_inval_all();
 #endif
+=======
+#else
+		"	bl	v6_icache_inval_all\n"
+#endif
+		    :
+		    : "r" (0)
+		    : "r0", "r1", "lr", "cc");
+>>>>>>> origin/android-tegra-2.6.29
 	}
 }
 
@@ -84,6 +94,7 @@ void flush_cache_range(struct vm_area_struct *vma, unsigned long start, unsigned
 		"	mcr	p15, 0, %0, c7, c10, 4\n"
 #ifndef CONFIG_ARM_ERRATA_411920
 		"	mcr	p15, 0, %0, c7, c5, 0\n"
+<<<<<<< HEAD
 #endif
 		    :
 		    : "r" (0)
@@ -91,6 +102,14 @@ void flush_cache_range(struct vm_area_struct *vma, unsigned long start, unsigned
 #ifdef CONFIG_ARM_ERRATA_411920
 		v6_icache_inval_all();
 #endif
+=======
+#else
+		"	bl	v6_icache_inval_all\n"
+#endif
+		    :
+		    : "r" (0)
+		    : "r0", "r1", "lr", "cc");
+>>>>>>> origin/android-tegra-2.6.29
 	}
 }
 
@@ -126,11 +145,11 @@ void flush_ptrace_access(struct vm_area_struct *vma, struct page *page,
 	}
 
 	/* VIPT non-aliasing cache */
-	if (cpu_isset(smp_processor_id(), vma->vm_mm->cpu_vm_mask) &&
-	    vma->vm_flags & VM_EXEC) {
+	if (vma->vm_flags & VM_EXEC) {
 		unsigned long addr = (unsigned long)kaddr;
 		/* only flushing the kernel mapping on non-aliasing VIPT */
 		__cpuc_coherent_kern_range(addr, addr + len);
+		__flush_icache_all();
 	}
 }
 #else
@@ -144,8 +163,28 @@ void __flush_dcache_page(struct address_space *mapping, struct page *page)
 	 * page.  This ensures that data in the physical page is mutually
 	 * coherent with the kernels mapping.
 	 */
-	__cpuc_flush_dcache_page(page_address(page));
+	void *vaddr;
 
+#ifdef CONFIG_HIGHMEM
+	/*
+	 * kmap_atomic() doesn't set the page virtual address, and
+	 * kunmap_atomic() takes care of cache flushing already; however,
+	 * the background PKMAP zero-ref TLB shootdown can race with
+	 * cache maintenance, so highmem mapping must be pinned in place.
+	 */
+	if (PageHighMem(page))
+		vaddr = kmap_high_get(page);
+	else
+#endif
+		vaddr = page_address(page);
+
+	if (vaddr) {
+		__cpuc_flush_dcache_page(vaddr);
+#ifdef CONFIG_HIGHMEM
+		if (PageHighMem(page))
+			kunmap_high(page);
+#endif
+	}
 	/*
 	 * If this is a page cache page, and we have an aliasing VIPT cache,
 	 * we only need to do one flush - which would be at the relevant
@@ -210,12 +249,15 @@ void flush_dcache_page(struct page *page)
 {
 	struct address_space *mapping = page_mapping(page);
 
+<<<<<<< HEAD
 #ifndef CONFIG_SMP
 	if (!PageHighMem(page) && mapping && !mapping_mapped(mapping))
+=======
+	if (!cache_ops_need_broadcast() &&
+	    !PageHighMem(page) && mapping && !mapping_mapped(mapping))
+>>>>>>> origin/android-tegra-2.6.29
 		set_bit(PG_dcache_dirty, &page->flags);
-	else
-#endif
-	{
+	else {
 		__flush_dcache_page(mapping, page);
 		if (mapping && cache_is_vivt())
 			__flush_dcache_aliases(mapping, page);

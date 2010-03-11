@@ -495,7 +495,13 @@ asmlinkage int arm_syscall(int no, struct pt_regs *regs)
 	case NR(set_tls):
 		thread->tp_value = regs->ARM_r0;
 #if defined(CONFIG_HAS_TLS_REG)
+#if defined(CONFIG_TEGRA_ERRATA_657451)
+		BUG_ON(regs->ARM_r0 & 0x1);
+		asm ("mcr p15, 0, %0, c13, c0, 3" : :
+			"r" ((regs->ARM_r0) | ((regs->ARM_r0>>20) & 0x1)));
+#else
 		asm ("mcr p15, 0, %0, c13, c0, 3" : : "r" (regs->ARM_r0) );
+#endif
 #elif !defined(CONFIG_TLS_REG_EMUL)
 		/*
 		 * User space must never try to access this directly.
@@ -639,6 +645,14 @@ void __bad_xchg(volatile void *ptr, int size)
 }
 EXPORT_SYMBOL(__bad_xchg);
 
+void __bad_cmpxchg(volatile void *ptr, int size)
+{
+	printk("cmpxchg: bad data size: pc 0x%p, ptr 0x%p, size %d\n",
+		__builtin_return_address(0), ptr, size);
+	BUG();
+}
+EXPORT_SYMBOL(__bad_cmpxchg);
+
 /*
  * A data abort trap was taken, but we did not handle the instruction.
  * Try to abort the user program, or panic if it was the kernel.
@@ -721,6 +735,7 @@ void __init trap_init(void)
 
 void __init early_trap_init(void)
 {
+#ifndef CONFIG_CPU_V7M
 	unsigned long vectors = CONFIG_VECTORS_BASE;
 	extern char __stubs_start[], __stubs_end[];
 	extern char __vectors_start[], __vectors_end[];
@@ -745,4 +760,5 @@ void __init early_trap_init(void)
 
 	flush_icache_range(vectors, vectors + PAGE_SIZE);
 	modify_domain(DOMAIN_USER, DOMAIN_CLIENT);
+#endif
 }

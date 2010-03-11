@@ -33,9 +33,11 @@
 #ifndef CONFIG_SMP
 /* PTWs cacheable, inner WB not shareable, outer WB not shareable */
 #define TTB_FLAGS	TTB_IRGN_WB|TTB_RGN_OC_WB
+#define PMD_FLAGS	PMD_SECT_WB
 #else
 /* PTWs cacheable, inner WBWA shareable, outer WBWA not shareable */
 #define TTB_FLAGS	TTB_IRGN_WBWA|TTB_S|TTB_NOS|TTB_RGN_OC_WBWA
+#define PMD_FLAGS	PMD_SECT_WBWA|PMD_SECT_S
 #endif
 
 ENTRY(cpu_v7_proc_init)
@@ -43,6 +45,55 @@ ENTRY(cpu_v7_proc_init)
 ENDPROC(cpu_v7_proc_init)
 
 ENTRY(cpu_v7_proc_fin)
+	stmfd	sp!, {r1-r4, lr}
+	cpsid	if
+
+#ifdef CONFIG_SMP
+	bl	smp_send_stop
+
+wait_for_other_cpus_to_halt:
+	ldr	r1, =cpu_online_mask
+	dmb
+	ldr	r1, [r1]
+	ldr	r1, [r1]
+	and	r1, r1, #0xff
+	sub	r2, r1, #1
+	and	r1, r1, r2
+	cmp	r1, #0
+	bne	wait_for_other_cpus_to_halt
+#endif
+
+#ifdef CONFIG_CACHE_L2X0
+	bl	l2x0_deinit	@ clean/invalidate L2 cache before L1
+#endif
+
+	/* Flush and disable the L1-caches.  Cache maintenance ops are
+	 * broadcast, so they should apply to the L1 caches of all cpus
+	 */
+	bl	v7_flush_kern_cache_all
+	mrc	p15, 0, r4, c1, c0, 0
+	bic	r4, r4, #(1<<2)
+	bic	r4, r4, #(1<<11)
+	bic	r4, r4, #(1<<12)
+	bic	r4, r4, #(1<<29)
+	bic	r4, r4, #(1<<23)
+	mcr	p15, 0, r4, c1, c0, 0
+	dsb
+
+	mcr	p15, 0, r4, c7, c5, 0	@ instruction cache invalidate
+	mcr	p15, 0, r4, c7, c5, 4	@ flush prefetch buffer
+	mcr	p15, 0, r4, c8, c7, 0	@ invalidate TLB
+	mcr	p15, 0, r4, c7, c10, 4
+	dsb
+
+#ifdef CONFIG_SMP
+	//Finally, turn off SMP
+	mrc	p15, 0, r4, c1, c0, 1
+	bic	r4, r4, #(1<<6)
+	bic	r4, r4, #(1<<0)
+	mcr	p15, 0, r4, c1, c0, 1
+#endif
+	ldmfd	sp!, {r1-r4, lr}
 	mov	pc, lr
 ENDPROC(cpu_v7_proc_fin)
 
@@ -110,6 +161,7 @@ ENTRY(cpu_v7_switch_mm)
 1:	mcr	p15, 0, r0, c2, c0, 0		@ set TTB 0
 	isb
 	mcr	p15, 0, r1, c13, c0, 1		@ set context ID
+	clrex
 	isb
 #endif
 	mov	pc, lr
@@ -127,7 +179,9 @@ ENDPROC(cpu_v7_switch_mm)
  */
 ENTRY(cpu_v7_set_pte_ext)
 #ifdef CONFIG_MMU
-	str	r1, [r0], #-2048		@ linux version
+ ARM(	str	r1, [r0], #-2048	)	@ linux version
+ THUMB(	str	r1, [r0]		)	@ linux version
+ THUMB(	sub	r0, r0, #2048		)
 
 	bic	r3, r1, #0x000003f0
 	bic	r3, r3, #PTE_TYPE_MASK
@@ -135,21 +189,26 @@ ENTRY(cpu_v7_set_pte_ext)
 	orr	r3, r3, #PTE_EXT_AP0 | 2
 
 	tst	r1, #1 << 4
+	it	ne
 	orrne	r3, r3, #PTE_EXT_TEX(1)
 
 	tst	r1, #L_PTE_WRITE
+	ite	ne
 	tstne	r1, #L_PTE_DIRTY
 	orreq	r3, r3, #PTE_EXT_APX
 
 	tst	r1, #L_PTE_USER
+	ittt	ne
 	orrne	r3, r3, #PTE_EXT_AP1
 	tstne	r3, #PTE_EXT_APX
 	bicne	r3, r3, #PTE_EXT_APX | PTE_EXT_AP0
 
 	tst	r1, #L_PTE_EXEC
+	it	eq
 	orreq	r3, r3, #PTE_EXT_XN
 
 	tst	r1, #L_PTE_YOUNG
+	ite	ne
 	tstne	r1, #L_PTE_PRESENT
 	moveq	r3, #0
 
@@ -182,9 +241,11 @@ cpu_v7_name:
  */
 __v7_setup:
 #ifdef CONFIG_SMP
-	mrc	p15, 0, r0, c1, c0, 1		@ Enable SMP/nAMP mode and
-	orr	r0, r0, #(1 << 6) | (1 << 0)	@ TLB ops broadcasting
-	mcr	p15, 0, r0, c1, c0, 1
+	mrc	p15, 0, r0, c1, c0, 1		@ Enable SMP/nAMP mode
+	tst	r0, #(0x1 << 6)			@ already enabled?
+	itt	eq
+	orreq	r0, r0, #(1 << 6) | (1 << 0)
+	mcreq	p15, 0, r0, c1, c0, 1
 #endif
 	adr	r12, __v7_setup_stack		@ the local stack
 	stmia	r12, {r0-r5, r7, r9, r11, lr}
@@ -261,10 +322,11 @@ __v7_setup:
 	 *   NS1 = PRRR[19] = 1		- normal shareable property
 	 *   NOS = PRRR[24+n] = 1	- not outer shareable
 	 */
-	ldr	r5, =0xff0a81a8			@ PRRR
-	ldr	r6, =0x40e040e0			@ NMRR
+	ldr	r5, =0xff0a89a8
+	ldr	r6, =0x40e044e0
 	mcr	p15, 0, r5, c10, c2, 0		@ write PRRR
 	mcr	p15, 0, r6, c10, c2, 1		@ write NMRR
+#endif
 	adr	r5, v7_crval
 	ldmia	r5, {r5, r6}
 #ifdef CONFIG_CPU_ENDIAN_BE8
@@ -284,7 +346,8 @@ ENDPROC(__v7_setup)
 	 */
 	.type	v7_crval, #object
 v7_crval:
-	crval	clear=0x0120c302, mmuset=0x10c03c7d, ucset=0x00c01c7c
+ ARM(	crval	clear=0x0120c302, mmuset=0x10c03c7d, ucset=0x00c01c7c	)
+ THUMB(	crval	clear=0x0120c302, mmuset=0x50c03c7d, ucset=0x40c01c7c	)
 
 __v7_setup_stack:
 	.space	4 * 11				@ 11 registers
@@ -323,10 +386,9 @@ __v7_proc_info:
 	.long	0x000f0000		@ Required ID value
 	.long	0x000f0000		@ Mask for ID
 	.long   PMD_TYPE_SECT | \
-		PMD_SECT_BUFFERABLE | \
-		PMD_SECT_CACHEABLE | \
 		PMD_SECT_AP_WRITE | \
-		PMD_SECT_AP_READ
+		PMD_SECT_AP_READ | \
+		PMD_FLAGS
 	.long   PMD_TYPE_SECT | \
 		PMD_SECT_XN | \
 		PMD_SECT_AP_WRITE | \

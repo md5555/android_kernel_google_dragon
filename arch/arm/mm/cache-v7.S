@@ -13,6 +13,7 @@
 #include <linux/linkage.h>
 #include <linux/init.h>
 #include <asm/assembler.h>
+#include <asm/unwind.h>
 
 #include "proc-macros.S"
 
@@ -21,23 +22,23 @@
  *
  *	Flush the whole D-cache.
  *
- *	Corrupted registers: r0-r5, r7, r9-r11
+ *	Corrupted registers: r0-r7, r9-r11 (r6 only in Thumb mode)
  *
  *	- mm    - mm_struct describing address space
  */
-ENTRY(v7_flush_dcache_all)
+	.macro v7_way_op, op
 	dmb					@ ensure ordering with previous memory accesses
 	mrc	p15, 1, r0, c0, c0, 1		@ read clidr
 	ands	r3, r0, #0x7000000		@ extract loc from clidr
 	mov	r3, r3, lsr #23			@ left align loc bit field
-	beq	finished			@ if loc is 0, then no need to clean
+	beq	50f				@ if loc is 0, then no need to clean
 	mov	r10, #0				@ start clean at cache level 0
-loop1:
+10:
 	add	r2, r10, r10, lsr #1		@ work out 3x current cache level
 	mov	r1, r0, lsr r2			@ extract cache type bits from clidr
 	and	r1, r1, #7			@ mask of the bits for current cache only
 	cmp	r1, #2				@ see what cache we have at this level
-	blt	skip				@ skip if no cache, or just i-cache
+	blt	40f				@ skip if no cache, or just i-cache
 	mcr	p15, 2, r10, c0, c0, 0		@ select current cache level in cssr
 	isb					@ isb to sych the new cssr&csidr
 	mrc	p15, 1, r1, c0, c0, 0		@ read the new csidr
@@ -48,27 +49,41 @@ loop1:
 	clz	r5, r4				@ find bit position of way size increment
 	ldr	r7, =0x7fff
 	ands	r7, r7, r1, lsr #13		@ extract max number of the index size
-loop2:
+20:
 	mov	r9, r4				@ create working copy of max way size
-loop3:
-	orr	r11, r10, r9, lsl r5		@ factor way and cache number into r11
-	orr	r11, r11, r7, lsl r2		@ factor index number into r11
-	mcr	p15, 0, r11, c7, c14, 2		@ clean & invalidate by set/way
+30:
+ ARM(	orr	r11, r10, r9, lsl r5	)	@ factor way and cache number into r11
+ THUMB(	lsl	r6, r9, r5		)
+ THUMB(	orr	r11, r10, r6		)	@ factor way and cache number into r11
+ ARM(	orr	r11, r11, r7, lsl r2	)	@ factor index number into r11
+ THUMB(	lsl	r6, r7, r2		)
+ THUMB(	orr	r11, r11, r6		)	@ factor index number into r11
+	mcr	p15, 0, r11, c7, \op , 2	@ clean & invalidate by set/way
 	subs	r9, r9, #1			@ decrement the way
-	bge	loop3
+	bge	30b
 	subs	r7, r7, #1			@ decrement the index
-	bge	loop2
-skip:
+	bge	20b
+40:
 	add	r10, r10, #2			@ increment cache number
 	cmp	r3, r10
-	bgt	loop1
-finished:
+	bgt	10b
+50:
 	mov	r10, #0				@ swith back to cache level 0
 	mcr	p15, 2, r10, c0, c0, 0		@ select current cache level in cssr
 	dsb
 	isb
+	.endm
+
+ENTRY(v7_flush_dcache_all)
+	v7_way_op c14
 	mov	pc, lr
 ENDPROC(v7_flush_dcache_all)
+
+
+ENTRY(v7_clean_dcache_all)
+	v7_way_op c10
+	mov	pc, lr
+ENDPROC(v7_clean_dcache_all)
 
 /*
  *	v7_flush_cache_all()
@@ -82,11 +97,13 @@ ENDPROC(v7_flush_dcache_all)
  *
  */
 ENTRY(v7_flush_kern_cache_all)
-	stmfd	sp!, {r4-r5, r7, r9-r11, lr}
+ ARM(	stmfd	sp!, {r4-r5, r7, r9-r11, lr}	)
+ THUMB(	stmfd	sp!, {r4-r7, r9-r11, lr}	)
 	bl	v7_flush_dcache_all
 	mov	r0, #0
 	mcr	p15, 0, r0, c7, c5, 0		@ I+BTB cache invalidate
-	ldmfd	sp!, {r4-r5, r7, r9-r11, lr}
+ ARM(	ldmfd	sp!, {r4-r5, r7, r9-r11, lr}	)
+ THUMB(	ldmfd	sp!, {r4-r7, r9-r11, lr}	)
 	mov	pc, lr
 ENDPROC(v7_flush_kern_cache_all)
 
@@ -147,13 +164,16 @@ ENTRY(v7_coherent_kern_range)
  *	- the Icache does not read data from the write buffer
  */
 ENTRY(v7_coherent_user_range)
+ UNWIND(.fnstart		)
 	dcache_line_size r2, r3
 	sub	r3, r2, #1
 	bic	r0, r0, r3
-1:	mcr	p15, 0, r0, c7, c11, 1		@ clean D line to the point of unification
+1:
+ USER(	mcr	p15, 0, r0, c7, c11, 1	)	@ clean D line to the point of unification
 	dsb
-	mcr	p15, 0, r0, c7, c5, 1		@ invalidate I line
+ USER(	mcr	p15, 0, r0, c7, c5, 1	)	@ invalidate I line
 	add	r0, r0, r2
+2:
 	cmp	r0, r1
 	blo	1b
 	mov	r0, #0
@@ -161,6 +181,17 @@ ENTRY(v7_coherent_user_range)
 	dsb
 	isb
 	mov	pc, lr
+
+/*
+ * Fault handling for the cache operation above. If the virtual address in r0
+ * isn't mapped, just try the next page.
+ */
+9001:
+	mov	r0, r0, lsr #12
+	mov	r0, r0, lsl #12
+	add	r0, r0, #4096
+	b	2b
+ UNWIND(.fnend		)
 ENDPROC(v7_coherent_kern_range)
 ENDPROC(v7_coherent_user_range)
 
@@ -197,13 +228,9 @@ ENDPROC(v7_flush_kern_dcache_page)
 ENTRY(v7_dma_inv_range)
 	dcache_line_size r2, r3
 	sub	r3, r2, #1
-	tst	r0, r3
 	bic	r0, r0, r3
-	mcrne	p15, 0, r0, c7, c14, 1		@ clean & invalidate D / U line
+	it	ne
 
-	tst	r1, r3
-	bic	r1, r1, r3
-	mcrne	p15, 0, r1, c7, c14, 1		@ clean & invalidate D / U line
 1:
 	mcr	p15, 0, r0, c7, c6, 1		@ invalidate D / U line
 	add	r0, r0, r2
@@ -249,6 +276,35 @@ ENTRY(v7_dma_flush_range)
 	mov	pc, lr
 ENDPROC(v7_dma_flush_range)
 
+/*
+ *	v7_dma_flush_all()
+ *
+ *	flushes the entire L1 data cache
+ */
+ENTRY(v7_dma_flush_all)
+ ARM(	stmfd	sp!, {r4-r5, r7, r9-r11, lr}	)
+ THUMB(	stmfd	sp!, {r4-r7, r9-r11, lr}	)
+	bl	v7_flush_dcache_all
+ ARM(	ldmfd	sp!, {r4-r5, r7, r9-r11, lr}	)
+ THUMB(	ldmfd	sp!, {r4-r7, r9-r11, lr}	)
+	mov	pc, lr
+ENDPROC(v7_dma_flush_all)
+
+/*
+ *	v7_dma_clean_all()
+ *
+ *	cleans the entire L1 data cache
+ */
+ENTRY(v7_dma_clean_all)
+ ARM(	stmfd	sp!, {r4-r5, r7, r9-r11, lr}	)
+ THUMB(	stmfd	sp!, {r4-r7, r9-r11, lr}	)
+	bl	v7_clean_dcache_all
+ ARM(	ldmfd	sp!, {r4-r5, r7, r9-r11, lr}	)
+ THUMB(	ldmfd	sp!, {r4-r7, r9-r11, lr}	)
+	mov	pc, lr
+ENDPROC(v7_dma_clean_all)
+
+
 	__INITDATA
 
 	.type	v7_cache_fns, #object
@@ -262,4 +318,6 @@ ENTRY(v7_cache_fns)
 	.long	v7_dma_inv_range
 	.long	v7_dma_clean_range
 	.long	v7_dma_flush_range
+	.long	v7_dma_clean_all
+	.long	v7_dma_flush_all
 	.size	v7_cache_fns, . - v7_cache_fns

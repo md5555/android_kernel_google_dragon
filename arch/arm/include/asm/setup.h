@@ -143,6 +143,14 @@ struct tag_memclk {
 	__u32 fmemclk;
 };
 
+#define ATAG_NVIDIA_TEGRA 0x41000801
+
+struct tag_nvidia_tegra {
+	__u32 bootarg_key;
+	__u32 bootarg_len;
+	char bootarg[1];
+};
+
 struct tag {
 	struct tag_header hdr;
 	union {
@@ -165,6 +173,11 @@ struct tag {
 		 * DC21285 specific
 		 */
 		struct tag_memclk	memclk;
+
+		/*
+		 * DC21285 specific
+		 */
+		struct tag_nvidia_tegra	tegra;
 	} u;
 };
 

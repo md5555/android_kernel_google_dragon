@@ -54,6 +54,8 @@ typedef struct user_fp elf_fpregset_t;
 #define R_ARM_PREL31		42
 #define R_ARM_MOVW_ABS_NC	43
 #define R_ARM_MOVT_ABS		44
+#define R_ARM_THM_JUMP24	30
+#define R_ARM_THM_CALL		10
 
 /*
  * These are used to set parameters in the core dumps.
@@ -86,6 +88,10 @@ extern char elf_platform[];
 
 struct elf32_hdr;
 
+struct task_struct;
+
+extern int dump_task_regs (struct task_struct *, elf_gregset_t *);
+
 /*
  * This is used to ensure we don't load something for the wrong architecture.
  */
@@ -112,5 +118,7 @@ extern int arm_elf_read_implies_exec(const struct elf32_hdr *, int);
 
 extern void elf_set_personality(const struct elf32_hdr *);
 #define SET_PERSONALITY(ex)	elf_set_personality(&(ex))
+
+#define ELF_CORE_COPY_TASK_REGS(tsk, elf_regs) dump_task_regs(tsk, elf_regs)
 
 #endif

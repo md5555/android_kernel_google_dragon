@@ -445,6 +445,34 @@ config SERIAL_CLPS711X_CONSOLE
 	  your boot loader (lilo or loadlin) about how to pass options to the
 	  kernel at boot time.)
 
+config SERIAL_TEGRA_DDK
+	boolean "High speed serial support (DDK-based) for NVIDIA Tegra SoCs"
+	depends on ARCH_TEGRA
+	select SERIAL_CORE
+	help
+	  Support for the on-chip UARTs on NVIDIA Tegra SoC, providing
+	  /dev/ttyHSx, using driver built on the NvDDK and NvOs architecture
+
+config SERIAL_TEGRA
+	boolean "High speed serial support for NVIDIA Tegra SoCs"
+	depends on ARCH_TEGRA && TEGRA_SYSTEM_DMA && !SERIAL_TEGRA_DDK
+	select SERIAL_CORE
+	help
+	  Support for the on-chip UARTs on NVIDIA Tegra SoC, providing
+	  /dev/ttyHSx, where x is determined by the number of UARTs on the
+	  platform
+
+config SERIAL_TEGRA_UARTS
+	int "Number of high-speed (DMA) UARTs"
+	depends on SERIAL_TEGRA && MACH_TEGRA_GENERIC
+	default 1
+	help
+	  When the Tegra RM is enabled (MACH_TEGRA_GENERIC), APB DMA
+	  channels must be reserved for the system DMA driver at compile-
+	  time; the number of reserved channels depends on the number of
+	  high-speed DMA UARTs which will be used by the system; 8250 PIO
+	  UARTs should not be counted toward this number.
+
 config SERIAL_SAMSUNG
 	tristate "Samsung SoC serial support"
 	depends on ARM && PLAT_S3C

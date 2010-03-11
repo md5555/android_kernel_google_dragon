@@ -163,6 +163,14 @@ config SPI_OMAP24XX
 	  SPI master controller for OMAP24xx/OMAP34xx Multichannel SPI
 	  (McSPI) modules.
 
+config SPI_TEGRA
+	boolean "SPI driver for NVIDIA Tegra SoCs"
+	depends on ARCH_TEGRA
+	help
+	  Enables the integrated SPI controllers on NVIDIA Tegra SoCs
+
+
+
 config SPI_ORION
 	tristate "Orion SPI master (EXPERIMENTAL)"
 	depends on PLAT_ORION && EXPERIMENTAL
