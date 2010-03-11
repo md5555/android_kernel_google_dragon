@@ -96,8 +96,8 @@ static const NvOdmTouchCapabilities TPK_Capabilities =
     2, //MaxNumberOfFingerCoordReported;
     0, //IsRelativeDataSupported
     1, //MaxNumberOfRelativeCoordReported
-    1, //MaxNumberOfWidthReported
-    1, //MaxNumberOfPressureReported
+    15, //MaxNumberOfWidthReported
+    255, //MaxNumberOfPressureReported
     (NvU32)NvOdmTouchGesture_Not_Supported, //Gesture
     1, //IsWidthSupported
     1, //IsPressureSupported
