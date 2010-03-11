@@ -478,6 +478,8 @@ static int nvmap_carveout_alloc(struct nvmap_carveout *co,
 #undef next_spare
 #undef prev_spare
 
+#define NVDA_POISON (('n'<<24) | ('v'<<16) | ('d'<<8) | ('a'))
+
 struct nvmap_handle {
 	struct rb_node node;
 	atomic_t ref;
@@ -797,7 +799,7 @@ static inline struct list_head *_nvmap_list(size_t size)
 
 static inline struct nvmap_handle *_nvmap_handle_get(struct nvmap_handle *h)
 {
-	if (unlikely(h->poison)) {
+	if (unlikely(h->poison!=NVDA_POISON)) {
 		pr_err("%s: %s getting poisoned handle\n", __func__,
 			current->group_leader->comm);
 		return NULL;
@@ -958,7 +960,7 @@ static struct tegra_iovmm_area *_nvmap_get_vm(struct nvmap_handle *h)
 			evict = list_first_entry(mru, struct nvmap_handle,
 				pgalloc.mru_list);
 
-			BUG_ON(atomic_read(&evict->pin)!=0);
+			BUG_ON(atomic_add_return(0, &evict->pin)!=0);
 			BUG_ON(!evict->pgalloc.area);
 			list_del(&evict->pgalloc.mru_list);
 			INIT_LIST_HEAD(&evict->pgalloc.mru_list);
@@ -986,10 +988,11 @@ void _nvmap_handle_free(struct nvmap_handle *h)
 	/* if 2 contexts call _get and _put simultaneously, the reference
 	 * count may drop to 0 and then increase to 1 before the handle
 	 * can be freed. */
-	if (atomic_read(&h->ref)>0) {
+	if (atomic_add_return(0, &h->ref)>0) {
 		spin_unlock(&nvmap_handle_lock);
 		return;
 	}
+	smp_rmb();
 	BUG_ON(atomic_read(&h->ref)<0);
 	BUG_ON(atomic_read(&h->pin)!=0);
 
@@ -1167,6 +1170,7 @@ static struct nvmap_handle *_nvmap_handle_create(
 	h->owner = owner;
 	h->size = h->orig_size = size;
 	h->flags = NVMEM_HANDLE_WRITE_COMBINE;
+	h->poison = NVDA_POISON;
 
 	spin_lock(&nvmap_handle_lock);
 	p = &nvmap_handles.rb_node;
@@ -1435,14 +1439,14 @@ static int _nvmap_handle_unpin(struct nvmap_handle *h)
 {
 	int ret = 0;
 
-	if (atomic_read(&h->pin)==0) {
+	if (atomic_add_return(0, &h->pin)==0) {
 		pr_err("%s: %s attempting to unpin an unpinned handle\n",
 			__func__, current->comm);
 		dump_stack();
 		return 0;
 	}
 
-	BUG_ON(!h->alloc || atomic_read(&h->pin)==0);
+	BUG_ON(!h->alloc);
 	if (!atomic_dec_return(&h->pin)) {
 		if (h->heap_pgalloc && h->pgalloc.area) {
 			/* if a secure handle is clean (i.e., mapped into
@@ -1502,11 +1506,11 @@ static int _nvmap_do_global_unpin(unsigned long ref)
 		return 0;
 	}
 
-	/*pr_err("%s: %s unpinning %s's %uB %s handle without local context\n",
+	pr_err("%s: %s unpinning %s's %uB %s handle without local context\n",
 		__func__, current->group_leader->comm,
 		(h->owner) ? h->owner->comm : "kernel", h->orig_size,
 		(h->heap_pgalloc && !h->pgalloc.contig) ? "iovmm" :
-		(h->heap_pgalloc) ? "sysmem" : "carveout");*/
+		(h->heap_pgalloc) ? "sysmem" : "carveout");
 
 	w = _nvmap_handle_unpin(h);
 	_nvmap_handle_put(h);
@@ -1567,10 +1571,10 @@ static int _nvmap_do_pin(struct nvmap_file_priv *priv,
 			ret = -EPERM;
 		else if (r) atomic_inc(&r->pin);
 		else {
-			/*pr_err("%s: %s pinning %s's %uB handle without "
+			pr_err("%s: %s pinning %s's %uB handle without "
 				"local context\n", __func__,
 				current->group_leader->comm,
-				h[i]->owner->comm, h[i]->orig_size);*/
+				h[i]->owner->comm, h[i]->orig_size);
                 }
 	}
 
@@ -1697,6 +1701,7 @@ static int nvmap_release(struct inode *inode, struct file *filp)
 	while ((n = rb_first(&priv->handle_refs))) {
 		r = rb_entry(n, struct nvmap_handle_ref, node);
 		rb_erase(&r->node, &priv->handle_refs);
+		smp_rmb();
 		pins = atomic_read(&r->pin);
 		atomic_set(&r->pin, 0);
 		while (pins--) do_wake |= _nvmap_handle_unpin(r->h);
@@ -1939,6 +1944,7 @@ static int _nvmap_do_free(struct nvmap_file_priv *priv, unsigned long href)
 
 	h = r->h;
 
+	smp_rmb();
 	if (!atomic_dec_return(&r->refs)) {
 		int pins = atomic_read(&r->pin);
 		rb_erase(&r->node, &priv->handle_refs);
@@ -2493,9 +2499,10 @@ static unsigned int _nvmap_do_get_param(struct nvmap_handle *h,
 		}
 	} else if (param==NVMEM_HANDLE_PARAM_BASE) {
 
-		WARN_ON(!h->alloc || !atomic_read(&h->pin));
-
-		if (!h->alloc || !atomic_read(&h->pin)) return ~0ul;
+		if (!h->alloc || !atomic_add_return(0, &h->pin)){
+			WARN_ON(1);
+			return ~0ul;
+		}
 
 		if (!h->heap_pgalloc)
 			return h->carveout.base;
@@ -2891,14 +2898,16 @@ NvU32 NvRmMemGetAddress(NvRmMemHandle hMem, NvU32 Offset)
 	struct nvmap_handle *h = (struct nvmap_handle *)hMem;
 	unsigned long addr;
 
-	if (unlikely(!atomic_read(&h->pin) || !h->alloc)) return ~0ul;
-	if (unlikely(Offset >= h->orig_size)) return ~0UL;
+	if (unlikely(!atomic_add_return(0, &h->pin) || !h->alloc ||
+	    Offset >= h->orig_size)) {
+		WARN_ON(1);
+		return ~0ul;
+	}
 
 	if (h->heap_pgalloc && h->pgalloc.contig)
 		addr = page_to_phys(h->pgalloc.pages[0]);
 	else if (h->heap_pgalloc) {
 		BUG_ON(!h->pgalloc.area);
-		BUG_ON(!atomic_read(&h->pin));
 		addr = h->pgalloc.area->iovm_start;
 	} else
 		addr = h->carveout.base;
@@ -2934,7 +2943,7 @@ void NvRmMemUnpinMult(NvRmMemHandle *hMems, NvU32 Count)
 
 	for (i=0; i<Count; i++) {
 		struct nvmap_handle *h = (struct nvmap_handle *)hMems[i];
-		BUG_ON(atomic_read(&h->pin)==0);
+		BUG_ON(atomic_add_return(0, &h->pin)==0);
 		do_wake |= _nvmap_handle_unpin(h);
 	}
 
@@ -3145,7 +3154,7 @@ NvRmHeap NvRmMemGetHeapType(NvRmMemHandle hMem, NvU32 *BaseAddr)
 
 	if (h->heap_pgalloc && h->pgalloc.contig)
 		*BaseAddr = (NvU32)page_to_phys(h->pgalloc.pages[0]);
-	else if (h->heap_pgalloc && atomic_read(&h->pin))
+	else if (h->heap_pgalloc && atomic_add_return(0, &h->pin))
 		*BaseAddr = h->pgalloc.area->iovm_start;
 	else if (h->heap_pgalloc)
 		*BaseAddr = ~0ul;
