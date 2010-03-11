@@ -165,16 +165,6 @@ static void suspend_test_finish(const char *label)
 	WARN(msec > (TEST_SUSPEND_SECONDS * 1000), "Component: %s\n", label);
 }
 
-#else
-
-static void suspend_test_start(void)
-{
-}
-
-static void suspend_test_finish(const char *label)
-{
-}
-
 #endif
 
 /* This is just an arbitrary number */

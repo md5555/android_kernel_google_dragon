@@ -16,7 +16,7 @@ config RFKILL_PM
 	default y
 
 config RFKILL_INPUT
-	tristate "Input layer to RF switch connector"
+	bool "Input layer to RF switch connector"
 	depends on RFKILL && INPUT
 	help
 	  Say Y here if you want kernel automatically toggle state
