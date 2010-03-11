@@ -1524,6 +1524,11 @@ void NvOsFreeLeak( void *ptr, const char *f, int l )
 }
 #endif
 
+void NvOsGetProcessInfo(char* buf, NvU32 len)
+{
+	NvOsSnprintf(buf,len, "(kernel pid=%d)", current->pid);
+}
+
 #if (NVOS_TRACE || NV_DEBUG)
 void NvOsSetResourceAllocFileLine(void* userptr, const char* file, int line)
 {

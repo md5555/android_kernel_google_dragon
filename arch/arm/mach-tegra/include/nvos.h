@@ -2368,12 +2368,12 @@ typedef enum
 typedef void (*NvOsDumpCallback)(void* context, const char* line);
 
 void NvOsDumpToDebugPrintf(void* context, const char* line);
+void NvOsGetProcessInfo(char* buf, NvU32 len);
 
 /* implemented by the OS-backend, for now CE and Linux only */
 #if (NVOS_IS_WINDOWS_CE || NVOS_IS_LINUX)
 NvCallstack* NvOsCreateCallstack      (NvOsCallstackType stackType);
 void         NvOsGetStackFrame        (char* buf, NvU32 len, NvCallstack* stack, NvU32 level);
-void         NvOsGetProcessInfo       (char* buf, NvU32 len);
 void         NvOsDestroyCallstack     (NvCallstack* callstack);
 NvU32        NvOsHashCallstack        (NvCallstack* stack);
 void         NvOsDumpCallstack        (NvCallstack* stack, NvU32 skip, NvOsDumpCallback callBack, void* context);
@@ -2383,7 +2383,6 @@ NvU32        NvOsCallstackGetNumLevels(NvCallstack* stack);
 static NV_INLINE NvCallstack* NvOsCreateCallstack (NvOsCallstackType stackType) { return NULL; }
 static NV_INLINE void NvOsGetStackFrame           (char* buf, NvU32 len, NvCallstack* stack, NvU32 level) { NvOsStrncpy(buf, "<stack>", len); }
 static NV_INLINE void NvOsDestroyCallstack        (NvCallstack* callstack) { }
-static NV_INLINE void NvOsGetProcessInfo          (char* buf, NvU32 len) {NvOsStrncpy(buf, "<procinfo>", len);}
 static NV_INLINE NvU32 NvOsHashCallstack          (NvCallstack* stack) { return 0; }
 static NV_INLINE void NvOsDumpCallstack           (NvCallstack* stack, NvU32 skip, NvOsDumpCallback callBack, void* context) { }
 static NvBool NV_INLINE NvOsCallstackContainsPid  (NvCallstack* stack, NvU32 pid) { return NV_FALSE; }
