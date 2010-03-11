@@ -776,8 +776,6 @@ source "arch/arm/mach-u300/Kconfig"
 
 source "arch/arm/mach-w90x900/Kconfig"
 
-source "arch/arm/mach-mps/Kconfig"
-
 # Definitions to make life easier
 config ARCH_ACORN
 	bool
