@@ -37,6 +37,7 @@ fw-shipped-$(CONFIG_BNX2) += bnx2/bnx2-mips-09-4.6.17.fw \
 			     bnx2/bnx2-rv2p-09-4.6.15.fw \
 			     bnx2/bnx2-mips-06-4.6.16.fw \
 			     bnx2/bnx2-rv2p-06-4.6.16.fw
+fw-shipped-$(CONFIG_BT_ATH3K) += ath3k-1.fw
 fw-shipped-$(CONFIG_CASSINI) += sun/cassini.bin
 fw-shipped-$(CONFIG_COMPUTONE) += intelliport2.bin
 fw-shipped-$(CONFIG_CHELSIO_T3) += cxgb3/t3b_psram-1.1.0.bin \
