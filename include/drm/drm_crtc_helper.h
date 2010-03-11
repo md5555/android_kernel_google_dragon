@@ -98,6 +98,7 @@ extern int drm_helper_probe_single_connector_modes(struct drm_connector *connect
 extern void drm_helper_disable_unused_functions(struct drm_device *dev);
 extern int drm_helper_hotplug_stage_two(struct drm_device *dev);
 extern bool drm_helper_initial_config(struct drm_device *dev);
+extern void drm_helper_initial_config_async(struct drm_device *dev);
 extern int drm_crtc_helper_set_config(struct drm_mode_set *set);
 extern bool drm_crtc_helper_set_mode(struct drm_crtc *crtc,
 				     struct drm_display_mode *mode,

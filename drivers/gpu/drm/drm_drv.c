@@ -49,6 +49,7 @@
 #include <linux/debugfs.h>
 #include "drmP.h"
 #include "drm_core.h"
+#include <linux/async.h>
 
 
 static int drm_version(struct drm_device *dev, void *data,
@@ -291,6 +292,9 @@ void drm_exit(struct drm_driver *driver)
 {
 	struct drm_device *dev, *tmp;
 	DRM_DEBUG("\n");
+
+	/* make sure all async DRM operations are finished */
+	async_synchronize_full_domain(&drm_async_list);
 
 	if (driver->driver_features & DRIVER_MODESET) {
 		pci_unregister_driver(&driver->pci_driver);

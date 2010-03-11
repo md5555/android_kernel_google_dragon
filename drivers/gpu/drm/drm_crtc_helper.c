@@ -29,6 +29,8 @@
  *      Jesse Barnes <jesse.barnes@intel.com>
  */
 
+#include <linux/async.h>
+
 #include "drmP.h"
 #include "drm_crtc.h"
 #include "drm_crtc_helper.h"
@@ -53,6 +55,8 @@ static void drm_mode_validate_flag(struct drm_connector *connector,
 
 	return;
 }
+
+LIST_HEAD(drm_async_list);
 
 /**
  * drm_helper_probe_connector_modes - get complete set of display modes
@@ -1002,6 +1006,7 @@ bool drm_helper_plugged_event(struct drm_device *dev)
 	/* FIXME: send hotplug event */
 	return true;
 }
+
 /**
  * drm_initial_config - setup a sane initial connector configuration
  * @dev: DRM device
@@ -1037,12 +1042,25 @@ bool drm_helper_initial_config(struct drm_device *dev)
 
 	drm_setup_crtcs(dev);
 
-	/* alert the driver fb layer */
 	dev->mode_config.funcs->fb_changed(dev);
-
 	return 0;
 }
 EXPORT_SYMBOL(drm_helper_initial_config);
+
+static void drm_helper_initial_config_helper(void *ptr, async_cookie_t cookie)
+{
+	struct drm_device *dev = ptr;
+	drm_helper_initial_config(dev);
+}
+
+void drm_helper_initial_config_async(struct drm_device *dev)
+{
+	async_schedule_domain(drm_helper_initial_config_helper,
+				dev, &drm_async_list);
+}
+EXPORT_SYMBOL(drm_helper_initial_config_async);
+
+
 
 static int drm_helper_choose_encoder_dpms(struct drm_encoder *encoder)
 {
