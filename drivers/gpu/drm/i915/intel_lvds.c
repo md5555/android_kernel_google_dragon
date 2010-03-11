@@ -765,6 +765,7 @@ static void intel_lvds_destroy(struct drm_connector *connector)
 		acpi_lid_notifier_unregister(&dev_priv->lid_notifier);
 	drm_sysfs_connector_remove(connector);
 	drm_connector_cleanup(connector);
+	kfree(intel_output->edid);
 	kfree(connector);
 }
 
@@ -1178,5 +1179,6 @@ failed:
 		intel_i2c_destroy(intel_output->ddc_bus);
 	drm_connector_cleanup(connector);
 	drm_encoder_cleanup(encoder);
+	kfree(intel_output->edid);
 	kfree(intel_output);
 }
