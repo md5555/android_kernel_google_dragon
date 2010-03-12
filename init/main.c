@@ -898,11 +898,13 @@ static int __init kernel_init(void * unused)
 
 	do_basic_setup();
 
+#ifdef CONFIG_BLK_DEV_INITRD
 	/*
 	 * We need to ensure that the filesystem is ready by this point, wait for
 	 * async_populate_rootfs to complete.
 	 */
 	async_synchronize_full_domain(&populate_rootfs_domain);
+#endif
 
 	/*
 	 * check if there is an early userspace init.  If yes, let it do all
