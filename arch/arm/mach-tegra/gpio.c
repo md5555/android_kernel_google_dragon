@@ -159,7 +159,7 @@ static void tegra_gpio_irq_unmask(unsigned int irq)
 static int tegra_gpio_irq_set_type(unsigned int irq, unsigned int type)
 {
 	int gpio = irq - INT_GPIO_BASE;
-	struct tegra_gpio_bank *bank = get_irq_data(irq);
+	struct tegra_gpio_bank *bank = get_irq_chip_data(irq);
 	int port = GPIO_PORT(gpio);
 	int lvl_type;
 	int val;
