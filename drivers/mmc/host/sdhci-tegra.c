@@ -24,6 +24,7 @@
 #include <linux/platform_device.h>
 #include <linux/irq.h>
 #include <linux/tegra_devices.h>
+#include <linux/mmc/card.h>
 
 #include "sdhci.h"
 #include "mach/nvrm_linux.h"
@@ -370,11 +371,51 @@ static int __devexit tegra_sdhci_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#if defined(CONFIG_PM)
+
+static int tegra_sdhci_suspend(struct platform_device *pdev, pm_message_t state)
+{
+	int ret = 0;
+	struct tegra_sdhci *t_sdhci;
+
+	t_sdhci = platform_get_drvdata(pdev);
+
+	if (t_sdhci->sdhost->card_type != MMC_TYPE_SDIO) {
+		ret = sdhci_suspend_host(t_sdhci->sdhost,state);
+		if (ret)
+			printk("sdhci_suspend_host failed with error %d\n", ret);
+	}
+
+	return ret;
+}
+
+static int tegra_sdhci_resume(struct platform_device *pdev)
+{
+	int ret = 0;
+	struct tegra_sdhci *t_sdhci;
+
+	t_sdhci = platform_get_drvdata(pdev);
+
+	if (t_sdhci->sdhost->card_type != MMC_TYPE_SDIO) {
+		ret = sdhci_resume_host(t_sdhci->sdhost);
+		if (ret)
+			printk("sdhci_resume_host failed with error %d\n", ret);
+	}
+
+	return ret;
+}
+#endif
+
 struct platform_driver tegra_sdhci_driver = {
 	.probe		= tegra_sdhci_probe,
 	.remove		= __devexit_p(tegra_sdhci_remove),
-	.suspend	= NULL,
-	.resume		= NULL,
+#if defined(CONFIG_PM)
+	.suspend = tegra_sdhci_suspend,
+	.resume = tegra_sdhci_resume,
+#else
+	.suspend = NULL,
+	.resume = NULL,
+#endif
 	.driver		= {
 		.name	= "tegra-sdhci",
 		.owner	= THIS_MODULE,

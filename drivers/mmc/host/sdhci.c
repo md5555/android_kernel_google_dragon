@@ -923,6 +923,11 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 	u16 clk;
 	unsigned long timeout;
 
+	if (host->card_type == SDHCI_CARD_UNKNKOWN) {
+		if (host->mmc->card != NULL)
+			host->card_type = host->mmc->card->type;
+	}
+
 	if (clock == host->clock)
 		return;
 
@@ -1608,7 +1613,7 @@ struct sdhci_host *sdhci_alloc_host(struct device *dev,
 
 	host = mmc_priv(mmc);
 	host->mmc = mmc;
-
+	host->card_type = SDHCI_CARD_UNKNKOWN;
 	return host;
 }
 

@@ -277,6 +277,9 @@ struct sdhci_host {
 
 	struct timer_list	timer;		/* Timer for timeouts */
 
+#define SDHCI_CARD_UNKNKOWN 0xFF
+	unsigned int card_type;
+
 #ifdef CONFIG_EMBEDDED_MMC_START_OFFSET
 	unsigned int		start_offset;	/* Zero-offset for MBR */
 #endif
