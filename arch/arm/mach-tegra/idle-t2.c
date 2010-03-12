@@ -50,10 +50,10 @@ extern struct wake_lock main_wake_lock;
 #define CPU_CONTEXT_SAVE_AREA_SIZE 4096
 #define TEMP_SAVE_AREA_SIZE 16
 #define ENABLE_LP2 1
-#define LP2_ROUNDTRIP_TIME_US	1
 #define LP2_PADDING_FACTOR	5
+#define LP2_ROUNDTRIP_TIME_US	1000ul
 //Let Max LP2 time wait be 71 min (Almost a wrap around)
-#define LP2_MAX_WAIT_TIME_US	(71 * 60 * 1000000)
+#define LP2_MAX_WAIT_TIME_US	(71*60*1000000ul)
 
 // When non-zero, collects and prints aggregate statistics about idle times
 static volatile NvU8 *s_pFlowCtrl = NULL;
@@ -69,8 +69,6 @@ extern void NvSpareTimerTrigger(unsigned long); /* timer.c */
 NvRmMemHandle s_hWarmboot = NULL;
 NvU32 g_AvpWarmbootEntry;
 NvU32 g_IramPA = 0;
-
-NvU32 lp2count = 0, lp3count = 0, lp2safe = 0;
 
 void __init NvAp20InitFlowController(void);
 
@@ -280,75 +278,53 @@ void cpu_ap20_do_idle(void)
 }
 
 void mach_tegra_idle(void)
-{ 
-	static NvU32 flag = 0;
-	static NvU64 cur_jiffies = 0, next_timer;
-	static NvU32 msec = 0;
-	NvU64 delta_jif = 0;
-	static NvU32 lp2_time = 0;
-	unsigned int before, after;
+{
+	bool lp2_ok = true;
+	unsigned long sleep_time;
 
 #ifdef CONFIG_WAKELOCK
-	//The wake lock api is ready if the main lock is ready
-	if (main_wake_lock.flags)
-	{
-		//Check if there are any IDLE locks pending
-		//If there are, then we do LP3. Else we do LP2
-		if (!has_wake_lock(WAKE_LOCK_IDLE) && flag)
-		{
-			flag = 0;
-#if ENABLE_LP2            
-			//Only attempt LP2 if the flow controller is ready
-			if (s_pFlowCtrl)
-			{
-				if (num_online_cpus() > 1)
-					lp2safe = 1;
-
-				if (num_online_cpus() == 1 && lp2safe) {
-					NvU32 dfs_low_corner = (NvRmPrivGetDfsFlags(s_hRmGlobal) &
-											NvRmDfsStatusFlags_Pause);
-
-					if (dfs_low_corner) {
-						lp2count++;
-						NvSpareTimerTrigger(lp2_time);
-						cpu_ap20_do_lp2();
-
-						before = NV_REGR(s_hRmGlobal, NvRmModuleID_Pmif, 0,
-								APBDEV_PMC_SCRATCH38_0);
-
-						after = NV_REGR(s_hRmGlobal, NvRmModuleID_Pmif, 0,
-								APBDEV_PMC_SCRATCH1_0);
-
-						lp2_time = after - before;
-						jiffies += msecs_to_jiffies(lp2_time / 1000);
-						NvRmPrivSetLp2TimeUS(s_hRmGlobal, lp2_time);
-						return;
-					}
-				}
-			}
+	if (!main_wake_lock.flags || has_wake_lock(WAKE_LOCK_IDLE))
+		lp2_ok = false;
 #endif
-		}
+
+#if !ENABLE_LP2
+	lp2_ok = false;
+#endif
+
+	if (!s_pFlowCtrl || num_online_cpus()>1 || !s_hRmGlobal ||
+	    !(NvRmPrivGetDfsFlags(s_hRmGlobal) & NvRmDfsStatusFlags_Pause))
+		lp2_ok = false;
+
+        if (lp2_ok) {
+		unsigned long long now, sleep_jiffies;
+
+		now = get_jiffies_64();
+		sleep_jiffies = get_next_timer_interrupt(now) - now;
+
+		sleep_time = jiffies_to_usecs(sleep_jiffies);
+
+		sleep_time = min_t(unsigned long, sleep_time,
+			LP2_MAX_WAIT_TIME_US);
+
+		if (sleep_time <= (LP2_ROUNDTRIP_TIME_US*LP2_PADDING_FACTOR))
+			lp2_ok = false;
 	}
-#endif // CONFIG_WAKELOCK
-	lp3count++;
-	cur_jiffies = get_jiffies_64();
-	next_timer = get_next_timer_interrupt(cur_jiffies);
-	delta_jif = next_timer - cur_jiffies;
-	msec = jiffies_to_msecs(delta_jif);
 
-	lp2_time = msec - LP2_ROUNDTRIP_TIME_US * LP2_PADDING_FACTOR;
+	if (lp2_ok) {
+		sleep_time -= LP2_ROUNDTRIP_TIME_US;
+		NvSpareTimerTrigger(sleep_time);
+		cpu_ap20_do_lp2();
+		/* add the actual amount of time spent in lp2 to the timers */
+		sleep_time = NV_REGR(s_hRmGlobal, NvRmModuleID_Pmif,
+			0, APBDEV_PMC_SCRATCH1_0);
+		sleep_time -= NV_REGR(s_hRmGlobal, NvRmModuleID_Pmif,
+			0, APBDEV_PMC_SCRATCH38_0);
 
-	if (lp2_time > 0 && lp2_time < LP2_MAX_WAIT_TIME_US)
-	{
-		if (num_online_cpus() > 1)
-			lp2safe = 1;
-		else
-			flag = 1;
+		jiffies += usecs_to_jiffies(sleep_time);
+		NvRmPrivSetLp2TimeUS(s_hRmGlobal, sleep_time);
+	} else
+		cpu_ap20_do_idle();
 
-		lp2_time *= 1000;
-	}
-
-	cpu_ap20_do_idle();
 }
 
 void mach_tegra_reset(void)
