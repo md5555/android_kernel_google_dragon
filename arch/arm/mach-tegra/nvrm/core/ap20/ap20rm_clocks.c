@@ -1169,14 +1169,6 @@ NvRmPrivAp20BasicReset( NvRmDeviceHandle rm )
     ClkOutH = NV_FLD_SET_DRF_DEF(CLK_RST_CONTROLLER, CLK_OUT_ENB_H,
                                  CLK_ENB_BSEA, DISABLE, ClkOutH);
 
-    // Take modules out of reset
-    NV_REGW( rm, NvRmPrivModuleID_ClockAndReset, 0,
-        CLK_RST_CONTROLLER_RST_DEV_L_CLR_0, 0xFFFFFFFF );
-    NV_REGW( rm, NvRmPrivModuleID_ClockAndReset, 0,
-        CLK_RST_CONTROLLER_RST_DEV_H_CLR_0, 0xFFFFFFFF );
-    NV_REGW( rm, NvRmPrivModuleID_ClockAndReset, 0,
-        CLK_RST_CONTROLLER_RST_DEV_U_CLR_0, 0x0000FFFF );
-
     // restore clock enable state (= disable those clocks that
     // were disabled on boot)
     NV_REGW( rm, NvRmPrivModuleID_ClockAndReset, 0,
