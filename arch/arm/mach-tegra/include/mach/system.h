@@ -31,7 +31,7 @@ static inline void arch_idle(void)
 	mach_tegra_idle();
 }
 
-static inline void arch_reset(char mode)
+static inline void arch_reset(char mode, const char *command)
 {
 	mach_tegra_reset();
 	for (;;) ;
