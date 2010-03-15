@@ -71,8 +71,8 @@ static inline dma_addr_t virt_to_dma(struct device *dev, void *addr)
  * platforms with CONFIG_DMABOUNCE.
  * Use the driver DMA support - see dma-mapping.h (dma_sync_*)
  */
-extern void dma_cache_maint(const void *kaddr, size_t size, int rw);
-extern void dma_cache_maint_page(struct page *page, unsigned long offset,
+extern void __dma_cache_maint(const void *kaddr, size_t size, int rw);
+extern void __dma_cache_maint_page(struct page *page, unsigned long offset,
 				 size_t size, int rw);
 
 /*
@@ -335,7 +335,7 @@ static inline dma_addr_t dma_map_page(struct device *dev, struct page *page,
 	BUG_ON(!valid_dma_direction(dir));
 
 	if (!arch_is_coherent())
-		dma_cache_maint_page(page, offset, size, dir);
+		__dma_cache_maint_page(page, offset, size, dir);
 
 	return page_to_dma(dev, page) + offset;
 }
