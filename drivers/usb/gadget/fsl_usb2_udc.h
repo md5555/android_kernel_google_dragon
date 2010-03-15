@@ -604,7 +604,7 @@ static inline void fsl_udc_clk_finalize(struct platform_device *pdev)
 }
 static inline void fsl_udc_clk_release(void)
 {
-#if 0 // Fish
+}
 
 #if defined(CONFIG_ARCH_MXC)
 #define _UDC_NAME fsl
@@ -649,8 +649,8 @@ static inline void platform_udc_clk_release(void)
 static inline bool platform_udc_charger_detection(void)
 {
 	return 0;
-#endif
 }
+#endif
 #endif
 
 #endif

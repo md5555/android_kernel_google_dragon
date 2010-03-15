@@ -20,7 +20,6 @@
 #ifdef __KERNEL__
 
 #define atomic_read(v)	((v)->counter)
-#define atomic_set(v,i)	(((v)->counter) = (i))
 
 #if __LINUX_ARM_ARCH__ >= 6
 

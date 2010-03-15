@@ -588,47 +588,6 @@ void __dma_cache_maint_page(struct page *page, unsigned long offset,
 }
 EXPORT_SYMBOL(__dma_cache_maint_page);
 
-static void dma_cache_maint_contiguous(struct page *page, unsigned long offset,
-				       size_t size, int direction)
-{
-	void *vaddr;
-	unsigned long paddr;
-	void (*inner_op)(const void *, const void *);
-	void (*outer_op)(unsigned long, unsigned long);
-
-	switch (direction) {
-	case DMA_FROM_DEVICE:		/* invalidate only */
-		inner_op = dmac_inv_range;
-		outer_op = outer_inv_range;
-		break;
-	case DMA_TO_DEVICE:		/* writeback only */
-		inner_op = dmac_clean_range;
-		outer_op = outer_clean_range;
-		break;
-	case DMA_BIDIRECTIONAL:		/* writeback and invalidate */
-		inner_op = dmac_flush_range;
-		outer_op = outer_flush_range;
-		break;
-	default:
-		BUG();
-	}
-
-	if (!PageHighMem(page)) {
-		vaddr = page_address(page) + offset;
-		inner_op(vaddr, vaddr + size);
-	} else {
-		vaddr = kmap_high_get(page);
-		if (vaddr) {
-			vaddr += offset;
-			inner_op(vaddr, vaddr + size);
-			kunmap_high(page);
-		}
-	}
-
-	paddr = page_to_phys(page) + offset;
-	outer_op(paddr, paddr + size);
-}
-
 void dma_cache_maint_page(struct page *page, unsigned long offset,
 			  size_t size, int dir)
 {

@@ -600,12 +600,6 @@ struct tlb_args {
 	unsigned long ta_end;
 };
 
-/* all SMP configurations have the extended CPUID registers */
-static inline int tlb_ops_need_broadcast(void)
-{
-	return ((read_cpuid_ext(CPUID_EXT_MMFR3) >> 12) & 0xf) < 2;
-}
-
 static inline void ipi_flush_tlb_all(void *ignored)
 {
 	local_flush_tlb_all();
