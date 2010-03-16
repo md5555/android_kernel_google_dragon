@@ -34,6 +34,8 @@
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
 #endif
+#include <linux/smp.h>
+#include <asm/smp_twd.h>
 #include <asm/cpu.h>
 #include "nvcommon.h"
 #include "nvassert.h"
@@ -44,6 +46,7 @@
 #include "linux/nvos_ioctl.h"
 #include "nvrm_power_private.h"
 #include "nvreftrack.h"
+#include "mach/timex.h"
 
 pid_t s_nvrm_daemon_pid = 0;
 int s_nvrm_daemon_sig = 0;
@@ -111,11 +114,23 @@ static void NvRmDfsThread(void *args)
 
     if (NvRmDfsGetState(hRm) > NvRmDfsRunState_Disabled)
     {
+        NvRmFreqKHz CpuKHz, f;
+        CpuKHz = NvRmPrivDfsGetCurrentKHz(NvRmDfsClockId_Cpu);
+        local_timer_rescale(CpuKHz);
+
         NvRmDfsSetState(hRm, NvRmDfsRunState_ClosedLoop);
 
         for (;;)
         {
             NvRmPmRequest Request = NvRmPrivPmThread();
+            f = NvRmPrivDfsGetCurrentKHz(NvRmDfsClockId_Cpu);
+            if (CpuKHz != f)
+            {
+                CpuKHz = f;
+                local_timer_rescale(CpuKHz);
+                twd_set_prescaler(NULL);
+                smp_call_function(twd_set_prescaler, NULL, NV_TRUE);
+            }
             if (Request & NvRmPmRequest_ExitFlag)
             {
                 break;
@@ -126,6 +141,7 @@ static void NvRmDfsThread(void *args)
                 printk("DFS requested CPU1 ON\n");
                 preset_lpj = per_cpu(cpu_data, 0).loops_per_jiffy;
                 cpu_up(1);
+                smp_call_function(twd_set_prescaler, NULL, NV_TRUE);
 #endif
             }
 

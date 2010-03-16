@@ -2029,6 +2029,13 @@ NvRmFreqKHz NvRmPrivDfsGetMinKHz(NvRmDfsClockId ClockId)
     return pDfs->DfsParameters[ClockId].MinKHz;
 }
 
+NvRmFreqKHz NvRmPrivDfsGetCurrentKHz(NvRmDfsClockId ClockId)
+{
+    NvRmDfs* pDfs = &s_Dfs;
+    NV_ASSERT((0 < ClockId) && (ClockId < NvRmDfsClockId_Num));
+    return pDfs->CurrentKHz.Domains[ClockId];
+}
+
 void NvRmPrivDfsSignal(NvRmDfsBusyHintSyncMode Mode)
 {
     NvRmDfs* pDfs = &s_Dfs;

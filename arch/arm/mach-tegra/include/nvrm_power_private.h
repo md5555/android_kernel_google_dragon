@@ -464,6 +464,15 @@ NvRmFreqKHz NvRmPrivDfsGetMaxKHz(NvRmDfsClockId ClockId);
 NvRmFreqKHz NvRmPrivDfsGetMinKHz(NvRmDfsClockId ClockId);
 
 /**
+ * Gets current frequency for the specified DFS clock domain.
+ *
+ * @param ClockId The DFS ID of the targeted clock domain.
+ *
+ * @return Current domain frequency in kHz
+ */
+NvRmFreqKHz NvRmPrivDfsGetCurrentKHz(NvRmDfsClockId ClockId);
+
+/**
  * Signals DFS clock control thread
  * 
  * @param Mode Synchronization mode. In synchronous mode this function returns
