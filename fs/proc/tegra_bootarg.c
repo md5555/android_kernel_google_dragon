@@ -111,7 +111,6 @@ static int __init tegra_bootarg_init(void)
 		pr_err("%s: mkdir _proc_bootarg failure\n", __func__);
 		return rv;
 	}
-	tegra_bootarg_dir->owner = THIS_MODULE;
 
 	/*build up a display boot argument directory*/
 	disp_dir = proc_mkdir(MODULE_DISP, tegra_bootarg_dir);
@@ -121,7 +120,6 @@ static int __init tegra_bootarg_init(void)
 		remove_proc_entry(BOOT_ARGUMENTS, NULL);
 		return rv;
 	}
-	disp_dir->owner = THIS_MODULE;
 
 	/*build up each field of display boot argument as a different file*/
 
@@ -137,7 +135,6 @@ static int __init tegra_bootarg_init(void)
 		remove_proc_entry(BOOT_ARGUMENTS, NULL);
 		return rv;
 	}
-	disp_arg_controller->owner = THIS_MODULE;
 
 	/* 2. DISP_DEV_INDEX*/
 	disp_arg_dev_index =
@@ -150,7 +147,6 @@ static int __init tegra_bootarg_init(void)
 		remove_proc_entry(BOOT_ARGUMENTS, NULL);
 		return rv;
 	}
-	disp_arg_dev_index->owner = THIS_MODULE;
 
 	/* 3. DISP_BENABLED*/
 	disp_arg_benabled =
@@ -163,7 +159,6 @@ static int __init tegra_bootarg_init(void)
 		remove_proc_entry(BOOT_ARGUMENTS, NULL);
 		return rv;
 	}
-	disp_arg_benabled->owner = THIS_MODULE;
 
 	/*If everything is OK, return zero*/
 	return 0;
