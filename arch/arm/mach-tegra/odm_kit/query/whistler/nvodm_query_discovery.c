@@ -772,6 +772,19 @@ NvIsFilteredPeripheral(const NvOdmPeripheralConnectivity* pConnectivity)
         }
     }
 
+    if (pConnectivity->Guid == NV_ODM_GUID('s','p','i',' ','_','i','p','c'))
+    {
+        if (ril == TEGRA_DEVKIT_BCT_CUSTOPT_0_RIL_IFX)
+        {
+            return NV_FALSE; // IFX supported - don't filter it
+        }
+        else
+        {
+            return NV_TRUE; // IFX not supported - filter it
+        }
+    }
+
+
     if (!Personality)
         Personality = TEGRA_DEVKIT_DEFAULT_PERSONALITY;
 

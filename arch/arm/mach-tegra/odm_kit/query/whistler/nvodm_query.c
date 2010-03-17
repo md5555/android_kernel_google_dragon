@@ -770,6 +770,9 @@ NvOdmQuerySpiGetDeviceInfo(
     static const NvOdmQuerySpiDeviceInfo s_Spi1Cs0Info_EmpRil =
         {NvOdmQuerySpiSignalMode_0, NV_TRUE, NV_TRUE};
 
+    static const NvOdmQuerySpiDeviceInfo s_Spi1Cs0Info_IfxRil =
+        {NvOdmQuerySpiSignalMode_1, NV_TRUE, NV_FALSE};
+
     static const NvOdmQuerySpiDeviceInfo s_Spi1Cs0Info =
         {NvOdmQuerySpiSignalMode_0, NV_TRUE, NV_FALSE};
 
@@ -786,6 +789,11 @@ NvOdmQuerySpiGetDeviceInfo(
         if ((OdmIoModule == NvOdmIoModule_Spi) &&
             (ControllerId == 0 ) && (ChipSelect == 0))
             return &s_Spi1Cs0Info_EmpRil;
+        break;
+    case TEGRA_DEVKIT_BCT_CUSTOPT_0_RIL_IFX:
+        if ((OdmIoModule == NvOdmIoModule_Spi) &&
+            (ControllerId == 0 ) && (ChipSelect == 0))
+            return &s_Spi1Cs0Info_IfxRil;
         break;
     }
 

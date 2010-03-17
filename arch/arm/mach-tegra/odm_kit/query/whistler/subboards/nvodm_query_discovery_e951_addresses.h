@@ -83,3 +83,14 @@ static const NvOdmIoAddress s_ffaEmpM570Addresses[] =
     { NvOdmIoModule_Gpio, 0x19, 0x0 },                      /* GPIO Port Z and Pin 0 AWR */
     { NvOdmIoModule_Gpio, 0x18, 0x6 },                      /* GPIO Port Y and Pin 6 CWR */
 };
+
+// IFX Modem module
+static const NvOdmIoAddress s_ffaInfnAddresses[] =
+{
+    { NvOdmIoModule_Spi, 0x0,  0x0 },                      /* Spi Controller 0 and Chip Select 0 */
+    { NvOdmIoModule_Gpio, 0x18, 0x6 },                      /* GPIO Port Y and Pin 6 SRDY */
+    { NvOdmIoModule_Gpio, 0x19, 0x0 },                      /* GPIO Port Z and Pin 0 MRDY */
+    { NvOdmIoModule_Gpio, 0x15, 0x0 },                      /* GPIO Port V and Pin 0 Reset */
+    { NvOdmIoModule_Gpio, 0x15, 0x1 }                      /* GPIO Port V and Pin 1 Power */
+};
+

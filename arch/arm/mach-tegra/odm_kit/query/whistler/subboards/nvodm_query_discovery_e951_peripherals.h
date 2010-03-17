@@ -71,4 +71,12 @@
     NvOdmPeripheralClass_Other
 },
 
+// IFX Modem on COMMs Module
+{
+    NV_ODM_GUID('s','p','i',' ','_','i','p','c'),
+    s_ffaInfnAddresses,
+    NV_ARRAY_SIZE(s_ffaInfnAddresses),
+    NvOdmPeripheralClass_Other
+},
+
 // NOTE: This list *must* end with a trailing comma.

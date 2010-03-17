@@ -386,6 +386,7 @@ static void __init register_enc28j60(void)
 }
 #endif
 
+
 #ifndef CONFIG_KEYBOARD_TEGRA
 #define kbc_init() do { } while (0)
 
@@ -448,6 +449,58 @@ fail:
 }
 #endif
 
+static struct spi_board_info tegra_spi_ipc_devices[] __initdata =
+{
+    {
+        .modalias = "spi_ipc",
+        .bus_num = 0,
+        .chip_select = 0,
+        .mode = SPI_MODE_1,
+        .max_speed_hz = 12000000,
+        .platform_data = NULL,
+        .irq = 0,
+    },
+};
+
+static void __init register_spi_ipc_devices(void)
+{
+    NvError err;
+    NvU32 irq;
+    NvU32 instance = 0xFFFF;
+    NvU32 cs = 0xFFFF;
+    const NvOdmPeripheralConnectivity *pConnectivity = NULL;
+    int i;
+
+    pConnectivity =
+        NvOdmPeripheralGetGuid(NV_ODM_GUID('s','p','i',' ','_','i','p','c'));
+    if (!pConnectivity)
+        return;
+
+    for (i = 0; i < pConnectivity->NumAddress; i++)
+    {
+        switch (pConnectivity->AddressList[i].Interface)
+        {
+            case NvOdmIoModule_Spi:
+                instance = pConnectivity->AddressList[i].Instance;
+                cs = pConnectivity->AddressList[i].Address;
+                break;
+            default:
+                break;
+        }
+    }
+
+    /* Infineon SPI Protocol driver needs one SPI info and a gpio for interrupt */
+    if (instance == 0xffff || cs == 0xffff)
+        return;
+
+    printk("Enabled Infineon IPC Protocol  driver\n");
+
+    tegra_spi_ipc_devices[0].bus_num = instance;
+    tegra_spi_ipc_devices[0].chip_select = cs;
+    spi_register_board_info(tegra_spi_ipc_devices, ARRAY_SIZE(tegra_spi_ipc_devices));
+}
+
+
 static void __init tegra_machine_init(void)
 {
 #if defined(CONFIG_USB_ANDROID) || defined(CONFIG_USB_ANDROID_MODULE)
@@ -481,6 +534,7 @@ static void __init tegra_machine_init(void)
 #endif
 
     register_enc28j60();
+    register_spi_ipc_devices();
 
     /* register the devices */
 #ifdef CONFIG_MTD_NAND_TEGRA
