@@ -47,6 +47,8 @@
 #define MAX_CLOCKS 3
 
 #define NVODM_PORT(x) ((x) - 'a')
+#define ULPI_RESET_PORT NVODM_PORT('v')
+#define ULPI_RESET_PIN 1
 
 
 #ifdef NV_DRIVER_DEBUG
@@ -60,45 +62,64 @@ typedef struct NvOdmUsbUlpiRec
      NvU64    CurrentGUID;
 } NvOdmUsbUlpi;
 
+static NvOdmServicesGpioHandle s_hGpio = NULL;
+static NvOdmGpioPinHandle s_hResetPin = NULL;
+
 NvOdmUsbUlpiHandle NvOdmUsbUlpiOpen(NvU32 Instance)
 {
     NvOdmUsbUlpi*pDevice = NULL;
     NvU32 ClockInstances[MAX_CLOCKS];
     NvU32 ClockFrequencies[MAX_CLOCKS];
     NvU32 NumClocks;
-    NvOdmServicesGpioHandle hGpio;
-    NvOdmGpioPinHandle hResetPin;
-    NvU32 Port = NVODM_PORT('v');
-    NvU32 Pin = 1;
 
     pDevice = NvOdmOsAlloc(sizeof(NvOdmUsbUlpi));
     if(pDevice == NULL)
-        goto ExitUlpiOdm;
+		return NULL;
     
-    if(!NvOdmExternalClockConfig(SMSC3317GUID, NV_FALSE, ClockInstances, ClockFrequencies, &NumClocks))
+    if(!NvOdmExternalClockConfig(SMSC3317GUID, NV_FALSE, ClockInstances,
+					ClockFrequencies, &NumClocks))
     {
-        NV_DRIVER_TRACE (("ERROR NvOdmUsbUlpiOpen: NvOdmExternalClockConfig fail\n"));
+        NV_DRIVER_TRACE (("ERROR NvOdmUsbUlpiOpen: "
+				"NvOdmExternalClockConfig fail\n"));
         goto ExitUlpiOdm;
     }
     NvOdmOsSleepMS(10);
+
+    if (!s_hGpio)
+        s_hGpio = NvOdmGpioOpen();
+    if (!s_hGpio)
+    {
+        NV_DRIVER_TRACE (("ERROR NvOdmUsbUlpiOpen: "
+				"Not able to open gpio handle\n"));
+        goto ExitUlpiOdm;
+    }
+
+    if (!s_hResetPin)
+        s_hResetPin = NvOdmGpioAcquirePinHandle(s_hGpio, ULPI_RESET_PORT,
+							ULPI_RESET_PIN);
+    if (!s_hResetPin)
+    {
+        NvOdmGpioClose(s_hGpio);
+        s_hGpio = NULL;
+        NV_DRIVER_TRACE (("ERROR NvOdmGpioAcquirePinHandle: "
+					"Not able to Acq pinhandle\n"));
+        goto ExitUlpiOdm;
+    }
+
     // Pull high on RESETB ( 22nd pin of smsc3315) 
-    hGpio = NvOdmGpioOpen();
-    hResetPin = NvOdmGpioAcquirePinHandle(hGpio, Port, Pin);
     // config as out put pin
-    NvOdmGpioConfig(hGpio,hResetPin, NvOdmGpioPinMode_Output);
+    NvOdmGpioConfig(s_hGpio,s_hResetPin, NvOdmGpioPinMode_Output);
     // Set low to write high on ULPI_RESETB pin
-    NvOdmGpioSetState(hGpio, hResetPin, 0x01);
-    NvOdmGpioSetState(hGpio, hResetPin, 0x0);
+    NvOdmGpioSetState(s_hGpio, s_hResetPin, 0x01);
+    NvOdmGpioSetState(s_hGpio, s_hResetPin, 0x0);
     NvOdmOsSleepMS(5);
-    NvOdmGpioSetState(hGpio, hResetPin, 0x01);
+    NvOdmGpioSetState(s_hGpio, s_hResetPin, 0x01);
 
     pDevice->CurrentGUID = SMSC3317GUID;
     return pDevice;
 
 ExitUlpiOdm:
     NvOdmOsFree(pDevice);
-    pDevice = NULL;
-    
     return NULL;
 }
 
@@ -107,7 +128,17 @@ void NvOdmUsbUlpiClose(NvOdmUsbUlpiHandle hOdmUlpi)
     if (hOdmUlpi)
     {
         NvOdmOsFree(hOdmUlpi);
-        hOdmUlpi = NULL;
     }
+    if (s_hResetPin)
+    {
+        NvOdmGpioReleasePinHandle(s_hGpio, s_hResetPin);
+        s_hResetPin = NULL;
+    }
+    if (s_hGpio)
+    {
+        NvOdmGpioClose(s_hGpio);
+        s_hGpio = NULL;
+    }
+
 }
 

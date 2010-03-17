@@ -21,13 +21,15 @@
  *
  */
 
+#include "nvrm_pmu.h"
+#include "nvos.h"
+#include "nvodm_query_discovery.h"
+
 #include <linux/init.h>
 #include <linux/irq.h>
 #include <linux/io.h>
-
 #include <asm/io.h>
 #include <asm/gpio.h>
-
 
 #define GPIO_BANK(x)        ((x) >> 5)
 #define GPIO_PORT(x)        (((x) >> 3) & 0x3)
@@ -278,7 +280,7 @@ static int __init tegra_gpio_init(void)
 	unsigned long phys;
 
 	phys = tegra_get_module_inst_base("gpio",0);
-	add_gpio_base = IO_ADDRESS(phys);
+	add_gpio_base = (unsigned long)IO_ADDRESS(phys);
 
 	for (i = 0; i < ARRAY_SIZE(tegra_gpio_banks); i++) {
 		for (j = 0; j < 4; j++) {
@@ -359,3 +361,355 @@ static int __init tegra_gpio_debuginit(void)
 }
 late_initcall(tegra_gpio_debuginit);
 #endif
+
+struct gpio_power_rail_info {
+	/* SoC power rail GUID */
+	NvU64 power_rail_guid;
+
+	/* Pmu rail address */
+	NvU32 power_rail_address;
+};
+
+static unsigned int is_gpio_rail_initailized  =  0;
+static struct gpio_power_rail_info gpio_power_rail_table[] = {
+	{.power_rail_guid = NV_VDD_SYS_ODM_ID,  .power_rail_address = 0},
+	{.power_rail_guid = NV_VDD_BB_ODM_ID,   .power_rail_address = 0},
+	{.power_rail_guid = NV_VDD_VI_ODM_ID,   .power_rail_address = 0},
+	{.power_rail_guid = NV_VDD_SDIO_ODM_ID, .power_rail_address = 0},
+	{.power_rail_guid = NV_VDD_LCD_ODM_ID,  .power_rail_address = 0},
+	{.power_rail_guid = NV_VDD_UART_ODM_ID, .power_rail_address = 0},
+};
+
+/* Initialize power rails for different gpios pins */
+static struct gpio_power_rail_info *gpio_power_rail_map[ARCH_NR_GPIOS] = {
+	/* Port a */
+	&gpio_power_rail_table[3],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[3],
+	&gpio_power_rail_table[3],
+
+	/* Port b */
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[4],
+	&gpio_power_rail_table[4],
+	&gpio_power_rail_table[3],
+	&gpio_power_rail_table[3],
+	&gpio_power_rail_table[3],
+	&gpio_power_rail_table[3],
+
+	/* Port c */
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[4],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[4],
+	&gpio_power_rail_table[5],
+
+	/* Port d */
+	&gpio_power_rail_table[3],
+	&gpio_power_rail_table[3],
+	&gpio_power_rail_table[3],
+	&gpio_power_rail_table[3],
+	&gpio_power_rail_table[3],
+	&gpio_power_rail_table[2],
+	&gpio_power_rail_table[2],
+	&gpio_power_rail_table[2],
+
+	/* Port e */
+	&gpio_power_rail_table[4],
+	&gpio_power_rail_table[4],
+	&gpio_power_rail_table[4],
+	&gpio_power_rail_table[4],
+	&gpio_power_rail_table[4],
+	&gpio_power_rail_table[4],
+	&gpio_power_rail_table[4],
+	&gpio_power_rail_table[4],
+
+	/* Port f */
+	&gpio_power_rail_table[4],
+	&gpio_power_rail_table[4],
+	&gpio_power_rail_table[4],
+	&gpio_power_rail_table[4],
+	&gpio_power_rail_table[4],
+	&gpio_power_rail_table[4],
+	&gpio_power_rail_table[4],
+	&gpio_power_rail_table[4],
+
+	/* Port g */
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+
+	/* Port h */
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+
+	/* Port i */
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+
+	/* Port j */
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[4],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[4],
+	&gpio_power_rail_table[4],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+
+	/* Port k */
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+
+	/* Port l */
+	&gpio_power_rail_table[2],
+	&gpio_power_rail_table[2],
+	&gpio_power_rail_table[2],
+	&gpio_power_rail_table[2],
+	&gpio_power_rail_table[2],
+	&gpio_power_rail_table[2],
+	&gpio_power_rail_table[2],
+	&gpio_power_rail_table[2],
+
+	/* Port m */
+	&gpio_power_rail_table[4],
+	&gpio_power_rail_table[4],
+	&gpio_power_rail_table[4],
+	&gpio_power_rail_table[4],
+	&gpio_power_rail_table[4],
+	&gpio_power_rail_table[4],
+	&gpio_power_rail_table[4],
+	&gpio_power_rail_table[4],
+
+	/* Port n */
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[4],
+	&gpio_power_rail_table[4],
+	&gpio_power_rail_table[4],
+	&gpio_power_rail_table[4],
+
+	/* Port o */
+	&gpio_power_rail_table[1],
+	&gpio_power_rail_table[1],
+	&gpio_power_rail_table[1],
+	&gpio_power_rail_table[1],
+	&gpio_power_rail_table[1],
+	&gpio_power_rail_table[1],
+	&gpio_power_rail_table[1],
+	&gpio_power_rail_table[1],
+
+	/* Port p */
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+
+	/* Port q */
+	&gpio_power_rail_table[0],
+	&gpio_power_rail_table[0],
+	&gpio_power_rail_table[0],
+	&gpio_power_rail_table[0],
+	&gpio_power_rail_table[0],
+	&gpio_power_rail_table[0],
+	&gpio_power_rail_table[0],
+	&gpio_power_rail_table[0],
+
+	/* Port r */
+	&gpio_power_rail_table[0],
+	&gpio_power_rail_table[0],
+	&gpio_power_rail_table[0],
+	&gpio_power_rail_table[0],
+	&gpio_power_rail_table[0],
+	&gpio_power_rail_table[0],
+	&gpio_power_rail_table[0],
+	&gpio_power_rail_table[0],
+
+	/* Port s */
+	&gpio_power_rail_table[0],
+	&gpio_power_rail_table[0],
+	&gpio_power_rail_table[0],
+	&gpio_power_rail_table[0],
+	&gpio_power_rail_table[0],
+	&gpio_power_rail_table[0],
+	&gpio_power_rail_table[0],
+	&gpio_power_rail_table[0],
+
+	/* Port t */
+	&gpio_power_rail_table[2],
+	&gpio_power_rail_table[2],
+	&gpio_power_rail_table[2],
+	&gpio_power_rail_table[2],
+	&gpio_power_rail_table[2],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+
+	/* Port u */
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+
+	/* Port v */
+	&gpio_power_rail_table[1],
+	&gpio_power_rail_table[1],
+	&gpio_power_rail_table[1],
+	&gpio_power_rail_table[1],
+	&gpio_power_rail_table[3],
+	&gpio_power_rail_table[3],
+	&gpio_power_rail_table[3],
+	&gpio_power_rail_table[4],
+
+	/* Port w */
+	&gpio_power_rail_table[4],
+	&gpio_power_rail_table[4],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+
+	/* Port x */
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+
+	/* Port y */
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+
+	/* Port z */
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+
+	/* Port AA */
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+
+	/* Port BB */
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5],
+	&gpio_power_rail_table[5]
+};
+
+static void discover_gpio_io_power_rail(NvRmDeviceHandle hRm)
+{
+	unsigned int i;
+	const NvOdmPeripheralConnectivity* connectivity = NULL;
+
+	for (i = 0; i < NV_ARRAY_SIZE(gpio_power_rail_table); i++) {
+		connectivity = NvOdmPeripheralGetGuid(
+				gpio_power_rail_table[i].power_rail_guid);
+		if (!connectivity || !connectivity->NumAddress)
+			continue;
+		gpio_power_rail_table[i].power_rail_address =
+				connectivity->AddressList[0].Address;
+	}
+}
+NvError tegra_gpio_io_power_config(NvRmDeviceHandle hRm, int port,
+				int pin, unsigned int enable)
+{
+	NvRmPmuVddRailCapabilities rail_caps;
+	NvU32 settling_time;
+	struct gpio_power_rail_info *gpio_io_power;
+	int gpio_nr;
+
+	if (!is_gpio_rail_initailized) {
+		discover_gpio_io_power_rail(hRm);
+		is_gpio_rail_initailized = 1;
+	}
+
+	gpio_nr = port * 8 + pin;
+	gpio_io_power = gpio_power_rail_map[gpio_nr];
+
+	/* Nothing to be done if there is no pmu rail
+	 * associated with this port */
+	if (gpio_io_power->power_rail_address == 0)
+		return NvSuccess;
+
+	if (enable) {
+		NvRmPmuGetCapabilities(hRm, gpio_io_power->power_rail_address,
+					&rail_caps);
+		NvRmPmuSetVoltage(hRm, gpio_io_power->power_rail_address,
+					rail_caps.requestMilliVolts,
+					&settling_time);
+	} else {
+		NvRmPmuSetVoltage(hRm, gpio_io_power->power_rail_address,
+					ODM_VOLTAGE_OFF, &settling_time);
+	}
+	if (settling_time)
+		NvOsWaitUS(settling_time);
+
+	return NvSuccess;
+}
