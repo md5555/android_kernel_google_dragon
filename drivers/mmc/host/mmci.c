@@ -484,7 +484,7 @@ static void mmci_check_status(unsigned long data)
 
 	status = host->plat->status(mmc_dev(host->mmc));
 	if (status ^ host->oldstat)
-		mmc_detect_change(host->mmc, (msecs_to_jiffies(500)));
+		mmc_detect_change(host->mmc, 0);
 
 	host->oldstat = status;
 	mod_timer(&host->timer, jiffies + HZ);

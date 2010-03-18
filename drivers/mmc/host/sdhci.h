@@ -64,7 +64,6 @@
 #define SDHCI_HOST_CONTROL 	0x28
 #define  SDHCI_CTRL_LED		0x01
 #define  SDHCI_CTRL_4BITBUS	0x02
-#define  SDHCI_CTRL_8BITBUS	0x20
 #define  SDHCI_CTRL_HISPD	0x04
 #define  SDHCI_CTRL_DMA_MASK	0x18
 #define   SDHCI_CTRL_SDMA	0x00
@@ -273,7 +272,7 @@ struct sdhci_host {
 	unsigned int		blocks;		/* remaining PIO blocks */
 
 	int			sg_count;	/* Mapped sg entries */
-	int			card_present;	/* Is Card Present */
+
 	u8			*adma_desc;	/* ADMA descriptor table */
 	u8			*align_buffer;	/* Bounce buffer */
 
@@ -284,11 +283,6 @@ struct sdhci_host {
 	struct tasklet_struct	finish_tasklet;
 
 	struct timer_list	timer;		/* Timer for timeouts */
-
-#ifdef CONFIG_EMBEDDED_MMC_START_OFFSET
-	unsigned int		start_offset;	/* Zero-offset for MBR */
-#endif
-	unsigned int		data_width;	/* Width of data transfers */
 
 	unsigned long		private[0] ____cacheline_aligned;
 };
@@ -407,7 +401,6 @@ static inline void *sdhci_priv(struct sdhci_host *host)
 
 extern int sdhci_add_host(struct sdhci_host *host);
 extern void sdhci_remove_host(struct sdhci_host *host, int dead);
-extern void sdhci_card_detect_callback(struct sdhci_host *host);
 
 #ifdef CONFIG_PM
 extern int sdhci_suspend_host(struct sdhci_host *host, pm_message_t state);
