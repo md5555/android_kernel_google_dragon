@@ -74,19 +74,12 @@ static struct fb_info tegra_fb_info = {
 	},
 };
 
-static unsigned long s_fb_disable = 0;
 unsigned long s_fb_addr;
 unsigned long s_fb_size;
 unsigned long s_fb_width;
 unsigned long s_fb_height;
 int s_fb_Bpp;
 NvRmMemHandle s_fb_hMem;
-
-int tegra_fb_control(void *in, void *out);
-
-#define DISPLAY_BASE (0x54200000)
-#define REGW( reg, val ) \
-	*((u32 *)s_fb_regs + (reg)) = (val)
 
 /* palette attary used by the fbcon */
 u32 pseudo_palette[16];
@@ -193,12 +186,6 @@ int tegra_fb_cursor(struct fb_info *info, struct fb_cursor *cursor)
 
 int tegra_fb_sync(struct fb_info *info)
 {
-	return 0;
-}
-
-int tegra_fb_control(void *in, void *out)
-{
-	s_fb_disable = 1;
 	return 0;
 }
 
