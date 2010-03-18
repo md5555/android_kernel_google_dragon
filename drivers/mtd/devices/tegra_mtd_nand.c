@@ -867,7 +867,6 @@ static int __devinit tegra_nand_probe(struct platform_device *pdev)
 	chip->curr_chip = -1;
 
 	mtd = &info->mtd;
-	mtd->name = pdev->dev.bus_id;
 	mtd->priv = &info->chip;
 	mtd->owner = THIS_MODULE;
 
