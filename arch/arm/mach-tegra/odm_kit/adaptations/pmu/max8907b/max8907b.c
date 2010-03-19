@@ -1793,6 +1793,13 @@ Max8907bSetVoltage(
         return NV_TRUE;
     }
 
+    if ((MilliVolts == ODM_VOLTAGE_ENABLE_EXT_ONOFF) ||
+        (MilliVolts == ODM_VOLTAGE_DISABLE_EXT_ONOFF))
+    {
+        return Max8907bPwrEnAttach(hDevice, (Max8907bPmuSupply)vddRail,
+            (MilliVolts == ODM_VOLTAGE_ENABLE_EXT_ONOFF));
+    }
+
     if ((MilliVolts == ODM_VOLTAGE_OFF) ||
         ((MilliVolts <=  Max8907bSupplyInfoTable[vddRail].cap.MaxMilliVolts) &&
          (MilliVolts >=  Max8907bSupplyInfoTable[vddRail].cap.MinMilliVolts)))
