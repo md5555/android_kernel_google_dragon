@@ -372,11 +372,11 @@ skip_cpu0_restore:
 	//Only get the timer for CPU0
 	bne	skip_lp2_time
 	//Get the microsecond count after LP2
-	str r11, [r5, #APBDEV_PMC_SCRATCH1_0]
+	str r11, [r5, #APBDEV_PMC_SCRATCH39_0]
 
 skip_lp2_time:
 	//Set lr to the resume function
-	ldr	lr, [r5, #APBDEV_PMC_SCRATCH33_0]
+	ldr	lr, [r5, #APBDEV_PMC_SCRATCH1_0]
 	bx	lr
 
 TempStoreArea:
@@ -667,7 +667,7 @@ is_auto:
 
 	//Store the LP1 exit time and restore return addr
 	ldr		lr, [r5, #APBDEV_PMC_SCRATCH1_0]
-	str		r11, [r5, #APBDEV_PMC_SCRATCH1_0]
+	str		r11, [r5, #APBDEV_PMC_SCRATCH39_0]
 	bx		lr
 lp1_literals:
 	.word	0x7000f400
@@ -703,11 +703,16 @@ exit_lp1_end:
 ENDPROC(exit_lp1)
 
 ENTRY(enter_lp0)
-	ldr		r4, [pc, #0xC8] //EMC base
-	ldr		r5, [pc, #0xC8] //PMC base
-	ldr		r6, [pc, #0xC8] //FLOW base
-	ldr		r7, [pc, #0xC8] //TIMERUS base
-	ldr		r8, [pc, #0xC8] //RTC base
+	add		r4, pc, #lp0_literals-(.+8)	//EMC base
+	ldr		r4, [r4]
+	add		r5, pc, #lp0_literals-(.+4)	//PMC base
+	ldr		r5, [r5]
+	add		r6, pc, #lp0_literals-(.+0)	//FLOW base
+	ldr		r6, [r6]
+	add		r7, pc, #lp0_literals-(.-4)	//TIMERUS base
+	ldr		r7, [r7]
+	add		r8, pc, #lp0_literals-(.-8)	//RTC base
+	ldr		r8, [r8]
 
 	//Flush the write buffer
 	dmb
@@ -740,14 +745,14 @@ is_self:
 	str		r2, [r5, #0x20]
 
 	//Set SIDE_EFFECT_LP0
-	ldr		r2, [r5]
-	orr		r2, r2, #1, 18
-	str		r2, [r5]
+	ldr		r2, [r5, #APBDEV_PMC_CNTRL_0]
+	orr		r2, r2, #0x4000
+	str		r2, [r5, #APBDEV_PMC_CNTRL_0]
 
 	//Set CPU island to power gate when halted
-	ldr		r2, [r6, #8]
+	ldr		r2, [r6, #FLOW_CTLR_CPU_CSR_0]
 	orr		r2, r2, #1
-	str		r2, [r6, #8]
+	str		r2, [r6, #FLOW_CTLR_CPU_CSR_0]
 
 	//r0 = RTC_BASE
 	mov r0, r8
@@ -772,21 +777,22 @@ rtc_idle3:
 	ldr r1, [r0, #0x4]
 	tst r1, #0x1
 	bne rtc_idle3
-	//Save the microsecond count before LP0
+	//Save the microsecond count before LP0 in SCRATCH38
 	ldr		r2, [r7]
-	str		r2, [r5, #0x134]
+	str		r2, [r5, #APBDEV_PMC_SCRATCH38_0]
 
 	//Halt the CPU without any wakeup events
 	mov		r2, #1, 2
 	str		r2, [r6]
 do_wfi:
 	dsb
-	wfi
+	wfe
 	b		do_wfi
-	andvc	pc, r0, r0, lsl #8
-	andvc	lr, r0, r0, lsl #8
-	andvs	r7, r0, r0
-	andvs	r5, r0, r0, lsl r0
+lp0_literals:
+	.word	0x7000f400
+	.word	0x7000e400
+	.word	0x60007000
+	.word	0x60005010
 	.word	0x7000e000
 enter_lp0_end:
 ENDPROC(enter_lp0)
@@ -835,7 +841,8 @@ ArmCortexA9PhysicalRestored:
 	ldr		r1, [r1]
 
 	//Read from LP0 exit time from SCRATCH1
-	ldr		r2, [r0, #0x54]
+	//The warmboot code filled this value in
+	ldr		r2, [r0, #APBDEV_PMC_SCRATCH1_0]
 	add		r2, r2, #300
 pll_wait:
 	ldr		r3, [r1]

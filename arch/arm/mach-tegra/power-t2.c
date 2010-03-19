@@ -67,6 +67,7 @@ void cpu_ap20_do_lp0(void)
 	//and exit immediately as soon the PMC samples it and the
 	//power good timer expires.
 	NvU32   Reg;
+	NvU32   StoreScratch1;
 	NvOdmPmuProperty	PmuProperty;
 	NvBool HasPmuProperty = NvOdmQueryGetPmuProperty(&PmuProperty);
 
@@ -90,6 +91,10 @@ void cpu_ap20_do_lp0(void)
 			CPUPWRREQ_OE, DISABLE, Reg);
 	}
 
+	//Store the scratch1 value first. This scratch is clobbered
+	//by LP0, but is still used by CPU hotplug
+	StoreScratch1 = NV_REGR(s_hRmGlobal, NvRmModuleID_Pmif, 0,
+						APBDEV_PMC_SCRATCH1_0);
 	//Enter low power LP0 mode
 	prepare_for_wb0();
 	shadow_lp0_scratch_regs();
@@ -97,6 +102,10 @@ void cpu_ap20_do_lp0(void)
 	enter_power_state(POWER_STATE_LP0, 0);
 	printk("LP0: Exited...\n");
 	shadow_runstate_scratch_regs();
+
+	//Restore the scratch1 register
+	NV_REGW(s_hRmGlobal, NvRmModuleID_Pmif, 0,
+		APBDEV_PMC_SCRATCH1_0, StoreScratch1);
 
 	if (HasPmuProperty && PmuProperty.CombinedPowerReq)
 	{
@@ -198,7 +207,7 @@ void cpu_ap20_do_lp2(void)
 
     //Save our context ptrs to scratch regs
     NV_REGW(s_hRmGlobal, NvRmModuleID_Pmif, 0,
-            APBDEV_PMC_SCRATCH33_0, g_resume);
+            APBDEV_PMC_SCRATCH1_0, g_resume);
     NV_REGW(s_hRmGlobal, NvRmModuleID_Pmif, 0,
             APBDEV_PMC_SCRATCH37_0, g_contextSavePA);
 

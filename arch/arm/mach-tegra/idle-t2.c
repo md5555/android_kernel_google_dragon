@@ -317,7 +317,7 @@ void mach_tegra_idle(void)
 		tegra_lp2_set_trigger(0);
 		/* add the actual amount of time spent in lp2 to the timers */
 		sleep_time = NV_REGR(s_hRmGlobal, NvRmModuleID_Pmif,
-			0, APBDEV_PMC_SCRATCH1_0);
+			0, APBDEV_PMC_SCRATCH39_0);
 		sleep_time -= NV_REGR(s_hRmGlobal, NvRmModuleID_Pmif,
 			0, APBDEV_PMC_SCRATCH38_0);
 
