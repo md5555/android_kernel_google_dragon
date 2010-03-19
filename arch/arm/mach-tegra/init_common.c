@@ -606,7 +606,8 @@ static void __init tegra_register_usb_host(void)
         struct platform_device *platdev = NULL;
 
         p = NvOdmQueryGetUsbProperty(NvOdmIoModule_Usb, i);
-        if (!p || (p->UsbMode & NvOdmUsbModeType_Device))
+        if (!p || !((p->UsbMode & NvOdmUsbModeType_Host) ||
+           (p->UsbMode & NvOdmUsbModeType_OTG)))
             continue;
 
         platdev = platform_device_alloc("tegra-ehci", i);
