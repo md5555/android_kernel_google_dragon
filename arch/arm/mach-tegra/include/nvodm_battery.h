@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009 NVIDIA Corporation.
+ * Copyright (c) 2009-2010 NVIDIA Corporation.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -35,8 +35,12 @@
  * <b>NVIDIA Tegra ODM Kit:
  *         Battery Interface</b>
  *
- * @b Description: Defines the ODM adaptation interface for battery.
- *
+ * @b Description: Defines the ODM adaptation interface for
+ *    Embedded Controller (EC) based battery interface.
+ *    Note that this doesn't use PMU interface.
+ *    EC Interface is used to get battery and power supply
+ *    information and configure for events.
+ *    Battery charging is taken care by EC firmware itself.
  */
 
 #ifndef INCLUDED_NVODM_BATTERY_H
@@ -82,20 +86,27 @@ typedef enum
 }NvOdmBatteryAcLineStatus;
 
 /**
- * Defines the Battery events.
+ * Defines the battery events.
  */
 typedef enum
 {
-    /// Specifies Battery Present State.
-    NvOdmBatteryEventType_Present,
+    /// Indicates battery present state.
+    NvOdmBatteryEventType_Present = 0x01,
 
-    /// Specifies Charging State.
-    NvOdmBatteryEventType_Charging,
+    /// Indicates idle state.
+    NvOdmBatteryEventType_Idle = 0x02,
 
-    /// Specifies Remaining Capacity Alarm.
-    NvOdmBatteryEventType_RemainingCapacityAlarm,
+    /// Indicates charging state.
+    NvOdmBatteryEventType_Charging = 0x04,
 
-    NvOdmBatteryEventType_Num,
+    /// Indicates disharging state.
+    NvOdmBatteryEventType_Disharging = 0x08,
+
+    /// Indicates remaining capacity alarm set.
+    NvOdmBatteryEventType_RemainingCapacityAlarm = 0x10,
+
+    NvOdmBatteryEventType_Num = 0x20,
+
     /// Ignore -- Forces compilers to make 32-bit enums.
     NvOdmBatteryEventType_Force32 = 0x7FFFFFFF
 }NvOdmBatteryEventType;
@@ -107,6 +118,9 @@ typedef enum
 #define NVODM_BATTERY_STATUS_LOW                0x02
 #define NVODM_BATTERY_STATUS_CRITICAL           0x04
 #define NVODM_BATTERY_STATUS_CHARGING           0x08
+#define NVODM_BATTERY_STATUS_DISCHARGING        0x10
+#define NVODM_BATTERY_STATUS_IDLE               0x20
+#define NVODM_BATTERY_STATUS_VERY_CRITICAL      0x40
 #define NVODM_BATTERY_STATUS_NO_BATTERY         0x80
 #define NVODM_BATTERY_STATUS_UNKNOWN            0xFF
 
@@ -162,13 +176,13 @@ typedef struct NvOdmBatteryDataRec
     /// Specifies battery temperature.
     NvU32 BatteryTemperature;
 
-    /// Specifies battery Remaining Capacity.
+    /// Specifies battery remaining capacity.
     NvU32 BatteryRemainingCapacity;
 
-    /// Specifies battery Last Charge Full Capacity.
+    /// Specifies battery last charge full capacity.
     NvU32 BatteryLastChargeFullCapacity;
 
-    /// Specifies battery Critical Capacity.
+    /// Specifies battery critical capacity.
     NvU32 BatteryCriticalCapacity;
 
 }NvOdmBatteryData;
@@ -205,7 +219,7 @@ typedef enum
  * Opens the handle for battery ODM.
  *
  * @param hDevice A pointer to the handle to the battery ODM.
- * @param hOdmSemaphore Battery events signals this registered semaphore.
+ * @param hOdmSemaphore Battery events signal this registered semaphore.
  *                      Can Pass NULL if events are not needed by client.
  * @return NV_TRUE if successful, or NV_FALSE otherwise.
  */
@@ -296,7 +310,7 @@ void NvOdmBatteryGetBatteryChemistry(
  * Gets the battery event.
  *
  * @param hDevice A handle to the EC.
- * @param pBatteryEvent Battery events
+ * @param pBatteryEvent A pointer to the battery events.
  * 
  */
 void NvOdmBatteryGetEvent(
@@ -305,11 +319,11 @@ void NvOdmBatteryGetEvent(
 
 
 /**
- * Gets the Battery Manufacturer.
+ * Gets the battery manufacturer.
  *
  * @param hDevice [IN] A handle to the EC.
  * @param BatteryInst [IN] The battery type.
- * @param pBatteryManufacturer [OUT] A pointer to the battery Manufacturer
+ * @param pBatteryManufacturer [OUT] A pointer to the battery manufacturer.
  */
 NvBool NvOdmBatteryGetManufacturer(
        NvOdmBatteryDeviceHandle hDevice,
@@ -317,11 +331,11 @@ NvBool NvOdmBatteryGetManufacturer(
        NvU8 *pBatteryManufacturer);
 
 /**
- * Gets the Battery Model.
+ * Gets the battery model.
  *
  * @param hDevice [IN] A handle to the EC.
  * @param BatteryInst [IN] The battery type.
- * @param pBatteryModel [OUT] A pointer to the battery model
+ * @param pBatteryModel [OUT] A pointer to the battery model.
  */
 NvBool NvOdmBatteryGetModel(
        NvOdmBatteryDeviceHandle hDevice,

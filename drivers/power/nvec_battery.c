@@ -30,6 +30,7 @@
 #include <linux/power_supply.h>
 #include <linux/wakelock.h>
 #include <linux/tegra_devices.h>
+#include <linux/pm.h>
 
 #include "nvcommon.h"
 #include "nvos.h"
@@ -39,8 +40,6 @@
 
 /* This defines the manufacturer name and model name length */
 #define BATTERY_INFO_NAME_LEN 30
-
-#define GET_CHARGER_STATUS 1
 
 #define NVBATTERY_POLLING_INTERVAL 30000 /* 30 Seconds */
 
@@ -74,17 +73,17 @@ static enum power_supply_property tegra_battery_properties[] = {
 	POWER_SUPPLY_PROP_CHARGE_FULL,
 	POWER_SUPPLY_PROP_CHARGE_EMPTY,
 	POWER_SUPPLY_PROP_TEMP,
-//    POWER_SUPPLY_PROP_MODEL_NAME,
-//    POWER_SUPPLY_PROP_MANUFACTURER,
+/*    POWER_SUPPLY_PROP_MODEL_NAME, */
+/*    POWER_SUPPLY_PROP_MANUFACTURER, */
 
 };
 
 static enum power_supply_property tegra_power_properties[] = {
-	    POWER_SUPPLY_PROP_ONLINE,
+	POWER_SUPPLY_PROP_ONLINE,
 };
 
 static char *supply_list[] = {
-        "battery",
+	"battery",
 };
 
 static int tegra_power_get_property(struct power_supply *psy,
@@ -125,6 +124,8 @@ static struct power_supply tegra_power_supplies[] = {
 struct tegra_battery_dev {
 	struct	timer_list	battery_poll_timer;
 	NvOdmBatteryDeviceHandle hOdmBattDev;
+	NvOsSemaphoreHandle		 hOdmSemaphore;
+	NvOsThreadHandle		 hBattEventThread;
 	NvU32	batt_id;
 	NvU32	voltage;		/* voltage */
 	NvU32	temp;			/* Temperature */
@@ -141,6 +142,7 @@ struct tegra_battery_dev {
 	NvU32	batt_status_poll_period;
 	NvBool	ac_status;
 	NvBool	present;
+	NvBool	exitThread;
 };
 
 static struct tegra_battery_dev *batt_dev;
@@ -173,6 +175,42 @@ static struct device_attribute tegra_battery_attr = {
 	.show = tegra_battery_show_property,
 	.store = tegra_battery_store_property,
 };
+
+void NvBatteryEventHandlerThread(void)
+{
+	NvU8	BatteryState = 0, BatteryEvent = 0;
+
+	for (;;) {
+		NvOsSemaphoreWait(batt_dev->hOdmSemaphore);
+
+		if (batt_dev->exitThread)
+			break;
+
+		NvOdmBatteryGetBatteryStatus(batt_dev->hOdmBattDev,
+			NvOdmBatteryInst_Main,
+			&BatteryState);
+
+		NvOdmBatteryGetEvent(batt_dev->hOdmBattDev, &BatteryEvent);
+
+		if ((BatteryState == NVODM_BATTERY_STATUS_UNKNOWN) ||
+			(BatteryEvent == NvOdmBatteryEventType_Num)) {
+			/* Do nothing */
+		} else {
+			if (BatteryEvent & NvOdmBatteryEventType_RemainingCapacityAlarm) {
+				if (BatteryState == (NVODM_BATTERY_STATUS_CRITICAL |
+					NVODM_BATTERY_STATUS_VERY_CRITICAL |
+					NVODM_BATTERY_STATUS_DISCHARGING)) {
+					/* device_power_down(PMSG_HIBERNATE); */
+				}
+			} else {
+				/* Update the battery and power supply info for other events */
+				power_supply_changed(&tegra_power_supplies[NvCharger_Type_Battery]);
+				power_supply_changed(&tegra_power_supplies[NvCharger_Type_USB]);
+				power_supply_changed(&tegra_power_supplies[NvCharger_Type_AC]);
+			}
+		}
+	}
+}
 
 static void tegra_get_battery_tech(int *val, NvOdmBatteryInstance inst)
 {
@@ -242,10 +280,11 @@ static void tegra_battery_convert(NvOdmBatteryData *data)
 static NvBool tegra_battery_data(NvOdmBatteryInstance NvBatteryInst)
 {
 	NvOdmBatteryData data = {0};
+	NvBool RetValue = NV_FALSE;
 
-	if (!NvOdmBatteryGetBatteryData(batt_dev->hOdmBattDev,
+	if (NvOdmBatteryGetBatteryData(batt_dev->hOdmBattDev,
 		NvBatteryInst, &data))
-		return NV_FALSE;
+		RetValue = NV_TRUE;
 
 	tegra_battery_convert(&data);
 
@@ -262,7 +301,7 @@ static NvBool tegra_battery_data(NvOdmBatteryInstance NvBatteryInst)
 		batt_dev->capacity_remain = data.BatteryRemainingCapacity;
 	}
 
-	return NV_TRUE;
+	return RetValue;
 }
 
 static int tegra_power_get_property(struct power_supply *psy,
@@ -315,8 +354,6 @@ static int tegra_battery_get_property(struct power_supply *psy,
 	switch (psp) {
 	case POWER_SUPPLY_PROP_STATUS:
 		val->intval = POWER_SUPPLY_STATUS_UNKNOWN;
-			/* TODO:Get Charger status here */
-#if GET_CHARGER_STATUS
 		if (!NvOdmBatteryGetBatteryStatus(batt_dev->hOdmBattDev,
 			NvOdmBatteryInst_Main, &state))
 			return -ENODEV;
@@ -330,18 +367,36 @@ static int tegra_battery_get_property(struct power_supply *psy,
 		} else if (state & NVODM_BATTERY_STATUS_CHARGING) {
 			batt_dev->present = NV_TRUE;
 			val->intval = POWER_SUPPLY_STATUS_CHARGING;
-			/* TODO:Get Charger status here */
-		} else if (state & NVODM_BATTERY_STATUS_HIGH) {
+		} else if (state & NVODM_BATTERY_STATUS_DISCHARGING) {
 			batt_dev->present = NV_TRUE;
-			val->intval = POWER_SUPPLY_STATUS_FULL;
-			/* TODO:Get Charger status here */
-		} else
-			val->intval = POWER_SUPPLY_STATUS_UNKNOWN;
-#endif
-		/* Getting the battery info once here so for the other property
-		 * requests there will not be lot of ec req */
-		if (!tegra_battery_data(NvOdmBatteryInst_Main)) {
-			; /* FIXME: return error? */
+			val->intval = POWER_SUPPLY_STATUS_DISCHARGING;
+		} else if (state & NVODM_BATTERY_STATUS_IDLE) {
+			batt_dev->present = NV_TRUE;
+			val->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
+		}
+
+		if (!batt_dev->present ) {
+			batt_dev->voltage = 0;
+			batt_dev->current_ma = 0;
+			batt_dev->current_avg  = 0;
+			batt_dev->temp = 0;
+			batt_dev->percent_remain = 0;
+			batt_dev->lifetime = 0;
+			batt_dev->consumed = 0;
+			batt_dev->capacity = 0;
+			batt_dev->capacity_crit = 0;
+			batt_dev->capacity_remain = 0;
+		}
+		else {
+			/*
+			 * Getting the battery info once here so for the other property
+			 * requests there will not be lot of ec req
+			 */
+			if (tegra_battery_data(NvOdmBatteryInst_Main)) {
+				if (batt_dev->percent_remain == 100) {
+					val->intval = POWER_SUPPLY_STATUS_FULL;
+				}
+			}
 		}
 		break;
 
@@ -350,7 +405,6 @@ static int tegra_battery_get_property(struct power_supply *psy,
 			val->intval = POWER_SUPPLY_HEALTH_GOOD;
 		else
 			val->intval = POWER_SUPPLY_HEALTH_UNKNOWN;
-
 		break;
 
 	case POWER_SUPPLY_PROP_PRESENT:
@@ -366,10 +420,13 @@ static int tegra_battery_get_property(struct power_supply *psy,
 				 batt_dev->present = NV_FALSE;
 				 val->intval = NV_FALSE;
 			}
+
 			if (state & (NVODM_BATTERY_STATUS_HIGH |
-				NVODM_BATTERY_STATUS_LOW |
-				NVODM_BATTERY_STATUS_CRITICAL |
-				NVODM_BATTERY_STATUS_CHARGING)) {
+					NVODM_BATTERY_STATUS_LOW |
+					NVODM_BATTERY_STATUS_CRITICAL |
+					NVODM_BATTERY_STATUS_CHARGING |
+					NVODM_BATTERY_STATUS_DISCHARGING |
+					NVODM_BATTERY_STATUS_IDLE)) {
 				batt_dev->present = NV_TRUE;
 				val->intval = NV_TRUE;
 			}
@@ -450,6 +507,7 @@ static void tegra_battery_poll_timer_func(unsigned long unused)
 static int nvec_battery_probe(struct nvec_device *pdev)
 {
 	int i, rc;
+	NvError ErrorStatus = NvSuccess;
 	NvBool result = NV_FALSE;
 
 	batt_dev = kzalloc(sizeof(struct tegra_battery_dev), GFP_KERNEL);
@@ -458,12 +516,26 @@ static int nvec_battery_probe(struct nvec_device *pdev)
 		return -ENOMEM;
 	}
 
-	result = NvOdmBatteryDeviceOpen(&(batt_dev->hOdmBattDev), NULL);
+	ErrorStatus = NvOsSemaphoreCreate(&batt_dev->hOdmSemaphore, 0);
+	if (NvSuccess != ErrorStatus) {
+		pr_err("NvOsSemaphoreCreate Failed!\n");
+		goto Cleanup;
+	}
+
+	batt_dev->exitThread = NV_FALSE;
+	ErrorStatus = NvOsThreadCreate(NvBatteryEventHandlerThread,
+					batt_dev,
+					&(batt_dev->hBattEventThread));
+	if (NvSuccess != ErrorStatus) {
+		pr_err("NvOsThreadCreate FAILED\n");
+		goto Cleanup;
+	}
+
+	result = NvOdmBatteryDeviceOpen(&(batt_dev->hOdmBattDev),
+		(NvOdmOsSemaphoreHandle *)&batt_dev->hOdmSemaphore);
 	if (!result || !batt_dev->hOdmBattDev) {
-		kfree(batt_dev);
-		batt_dev = NULL;
 		pr_err("NvOdmBatteryDeviceOpen FAILED\n");
-		return -1;
+		goto Cleanup;
 	}
 
 	for (i = 0; i < ARRAY_SIZE(tegra_power_supplies); i++) {
@@ -478,23 +550,38 @@ static int nvec_battery_probe(struct nvec_device *pdev)
 
 	rc = device_create_file(&pdev->dev, &tegra_battery_attr);
 	if (rc) {
-		NvOdmBatteryDeviceClose(batt_dev->hOdmBattDev);
-		batt_dev->hOdmBattDev = NULL;
-
 		for (i = 0; i < ARRAY_SIZE(tegra_power_supplies); i++) {
 			power_supply_unregister(&tegra_power_supplies[i]);
 		}
 
 		del_timer_sync(&(batt_dev->battery_poll_timer));
 
-		kfree(batt_dev);
-		batt_dev = NULL;
-
 		pr_err("nvec_battery_probe:device_create_file FAILED");
-		return rc;
+		goto Cleanup;
 	}
 
 	return 0;
+
+Cleanup:
+	batt_dev->exitThread = NV_TRUE;
+	if (batt_dev->hOdmSemaphore) {
+		NvOsSemaphoreSignal(batt_dev->hOdmSemaphore);
+		NvOsSemaphoreDestroy(batt_dev->hOdmSemaphore);
+		batt_dev->hOdmSemaphore = NULL;
+	}
+
+	if (batt_dev->hBattEventThread) {
+		NvOsThreadJoin(batt_dev->hBattEventThread);
+	}
+
+	if (batt_dev->hOdmBattDev) {
+		NvOdmBatteryDeviceClose(batt_dev->hOdmBattDev);
+		batt_dev->hOdmBattDev = NULL;
+	}
+
+	kfree(batt_dev);
+	batt_dev = NULL;
+	return -1;
 }
 
 static int nvec_battery_remove(struct nvec_device *pdev)
@@ -502,6 +589,17 @@ static int nvec_battery_remove(struct nvec_device *pdev)
 	unsigned int i = 0;
 
 	if (batt_dev) {
+		batt_dev->exitThread = NV_TRUE;
+		if (batt_dev->hOdmSemaphore) {
+			NvOsSemaphoreSignal(batt_dev->hOdmSemaphore);
+			NvOsSemaphoreDestroy(batt_dev->hOdmSemaphore);
+			batt_dev->hOdmSemaphore = NULL;
+		}
+
+		if (batt_dev->hBattEventThread) {
+			NvOsThreadJoin(batt_dev->hBattEventThread);
+		}
+
 		if (batt_dev->hOdmBattDev) {
 			device_remove_file(&pdev->dev, &tegra_battery_attr);
 

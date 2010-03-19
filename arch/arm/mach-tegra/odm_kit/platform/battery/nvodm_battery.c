@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009 NVIDIA Corporation.
+ * Copyright (c) 2009-2010 NVIDIA Corporation.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -47,6 +47,10 @@
  * Enable it to verify the these extra info with the EC firware
  */
 #define BATTERY_EXTRA_INFO    0
+
+/* Enable to wakeup the AP from suspend */
+#define NVODM_WAKEUP_FROM_BATTERY_EVENT 1
+#define NVODM_WAKEUP_FROM_AC_EVENT      1
 
 NvBool NvOdmBatteryPrivGetSlotStatusAndCapacityGuage(
        NvOdmBatteryDevice *pBattContext,
@@ -144,13 +148,16 @@ static void NvOdmBatteryEventHandler(void *args)
     NvOdmBatteryDevice *pBattContext = args;
     NvError NvStatus = NvError_Success;
     NvEcEvent EcEvent = {0};
+    NvU8      BattEvent = 0, ChargingState = 0;
 
     for (;;)
     {
         NvOdmOsSemaphoreWait(pBattContext->hBattEventSem);
 
-        NVODMBATTERY_PRINTF(("NvOdmBatteryEventHandler:hBattEventSem \
-                              signaled\n"));
+        if (pBattContext->ExitThread == NV_TRUE)
+            break;
+
+        NVODMBATTERY_PRINTF(("NvOdmBatteryEventHandler:hBattEventSem signaled\n"));
 
         if (pBattContext->hEcEventReg)
         {
@@ -168,11 +175,33 @@ static void NvOdmBatteryEventHandler(void *args)
                 continue;
             }
 
-            pBattContext->BatteryEvent = EcEvent.Payload[0];
+            /* EcEvent.Payload[0] is Slot number */
 
-            /* Signal the Battery Client for arrival of the event */
-            if (pBattContext->hClientBattEventSem)
-                NvOdmOsSemaphoreSignal(pBattContext->hClientBattEventSem);
+            /* EcEvent.Payload[1] has 4 lsb bits for battery events */
+            BattEvent = EcEvent.Payload[1] & NVODM_BATTERY_EVENT_MASK;
+
+            pBattContext->BatteryEvent = 0;
+            /* Read the Battery Slot status to set the proper event */
+            if (BattEvent & NVODM_BATTERY_PRESENT_IN_SLOT)
+                pBattContext->BatteryEvent |= NvOdmBatteryEventType_Present;
+
+            ChargingState = BattEvent >> NVODM_BATTERY_CHARGING_STATE_SHIFT;
+            ChargingState &= NVODM_BATTERY_CHARGING_STATE_MASK;
+            if (ChargingState == NVODM_BATTERY_CHARGING_STATE_IDLE)
+                pBattContext->BatteryEvent |= NvOdmBatteryEventType_Idle;
+            else if (ChargingState == NVODM_BATTERY_CHARGING_STATE_CHARGING)
+                pBattContext->BatteryEvent |= NvOdmBatteryEventType_Charging;
+            else if (ChargingState == NVODM_BATTERY_CHARGING_STATE_DISCHARGING)
+                pBattContext->BatteryEvent |= NvOdmBatteryEventType_Disharging;
+
+            ChargingState = BattEvent >> NVODM_BATTERY_REM_CAP_ALARM_SHIFT;
+            if (ChargingState == NVODM_BATTERY_REM_CAP_ALARM_IS_SET)
+                pBattContext->BatteryEvent |= NvOdmBatteryEventType_RemainingCapacityAlarm;
+
+            /* Signal the Battery Client for arrival of the valid event */
+            if ((pBattContext->hClientBattEventSem != 0) &&
+                (pBattContext->BatteryEvent != 0))
+                 NvOdmOsSemaphoreSignal(pBattContext->hClientBattEventSem);
         }
     }
 }
@@ -895,6 +924,8 @@ NvBool NvOdmBatteryDeviceOpen(NvOdmBatteryDeviceHandle *hDevice,
     NvError NvStatus = NvError_Success;
     NvEcEventType EventTypes[] = {NvEcEventType_Battery};
     NvS32    MajorVersion = 0, MinorVersion = 0;
+    NvEcRequest  EcRequest = {0};
+    NvEcResponse EcResponse = {0};
 
     NVODMBATTERY_PRINTF(("[ENTER] NvOdmBatteryDeviceOpen. \n"));
 
@@ -903,7 +934,7 @@ NvBool NvOdmBatteryDeviceOpen(NvOdmBatteryDeviceHandle *hDevice,
     if (!pBattContext)
     {
         NVODMBATTERY_PRINTF(("NvOdmOsAlloc failed to allocate pBattContext."));
-        goto Cleanup;
+        return NV_FALSE;
     }
 
     NvOdmOsMemset(pBattContext, 0, sizeof(NvOdmBatteryDevice));
@@ -916,6 +947,27 @@ NvBool NvOdmBatteryDeviceOpen(NvOdmBatteryDeviceHandle *hDevice,
         goto Cleanup;
     }
 
+    /* Get the EC Firmware version */
+    NvStatus = NvOdmBatteryPrivEcGetFirmwareVersion(pBattContext,
+                                                    &MajorVersion,
+                                                    &MinorVersion);
+    if (NvStatus != NvError_Success)
+    {
+        goto Cleanup;
+    }
+
+    /* Minor Version 2 is R01 */
+    if (MinorVersion == NVODM_BATTERY_EC_FIRMWARE_VER_R01)
+    {
+        pBattContext->FirmwareVersionR01 = NV_TRUE;
+        NVODMBATTERY_PRINTF(("EC Firmware Version is R01\n"));
+    }
+    else
+    {
+        pBattContext->FirmwareVersionR01 = NV_FALSE;
+        NVODMBATTERY_PRINTF(("EC Firmware Version is beyond R01\n"));
+    }
+
     if (hOdmSemaphore != NULL && *hOdmSemaphore != NULL)
     {
         pBattContext->hClientBattEventSem = *hOdmSemaphore;
@@ -925,6 +977,77 @@ NvBool NvOdmBatteryDeviceOpen(NvOdmBatteryDeviceHandle *hDevice,
         if (!pBattContext->hBattEventSem)
         {
             goto Cleanup;
+        }
+
+        /* Thread to handle Battery events */
+        pBattContext->hBattEventThread = NvOdmOsThreadCreate(
+                               (NvOdmOsThreadFunction)NvOdmBatteryEventHandler,
+                               (void *)pBattContext);
+        if (!pBattContext->hBattEventThread)
+        {
+            goto Cleanup;
+        }
+
+        if (MinorVersion >= NVODM_BATTERY_EC_FIRMWARE_VER_R04)
+        {
+#if NVODM_WAKEUP_FROM_BATTERY_EVENT
+           /* Configure the Batter present event as a wakeup */
+            EcRequest.PacketType = NvEcPacketType_Request;
+            EcRequest.RequestType = NvEcRequestResponseType_Battery;
+            EcRequest.RequestSubtype = (NvEcRequestResponseSubtype)
+                                  NvEcBatterySubtype_ConfigureWake;
+            EcRequest.NumPayloadBytes = 2;
+            EcRequest.Payload[0] = NVEC_BATTERY_REPORT_ENABLE_0_ACTION_ENABLE;
+            EcRequest.Payload[1] = NVODM_BATTERY_SET_PRESENT_EVENT;
+
+            NvStatus = NvEcSendRequest(pBattContext->hEc, &EcRequest, &EcResponse,
+                     sizeof(EcRequest), sizeof(EcResponse));
+            if (NvStatus != NvSuccess)
+                goto Cleanup;
+
+            if (EcResponse.Status != NvEcStatus_Success)
+                goto Cleanup;
+#endif
+
+#if NVODM_WAKEUP_FROM_AC_EVENT
+           /* Configure the AC present event  as a wakeup */
+            EcRequest.PacketType = NvEcPacketType_Request;
+            EcRequest.RequestType = NvEcRequestResponseType_System;
+            EcRequest.RequestSubtype = (NvEcRequestResponseSubtype)
+                                  NvEcSystemSubtype_ConfigureWake;
+            EcRequest.NumPayloadBytes = 2;
+            EcRequest.Payload[0] = NVEC_SYSTEM_REPORT_ENABLE_0_ACTION_ENABLE;
+            EcRequest.Payload[1] = NVEC_SYSTEM_STATE1_0_AC_PRESENT;
+
+            NvStatus = NvEcSendRequest(pBattContext->hEc, &EcRequest, &EcResponse,
+                     sizeof(EcRequest), sizeof(EcResponse));
+            if (NvStatus != NvSuccess)
+                goto Cleanup;
+
+            if (EcResponse.Status != NvEcStatus_Success)
+                goto Cleanup;
+#endif
+            /* Configure the Battery events */
+            EcRequest.PacketType = NvEcPacketType_Request;
+            EcRequest.RequestType = NvEcRequestResponseType_Battery;
+            EcRequest.RequestSubtype = (NvEcRequestResponseSubtype)
+                                  NvEcBatterySubtype_ConfigureEventReporting;
+            EcRequest.NumPayloadBytes = 2;
+            EcRequest.Payload[0] = NVEC_BATTERY_REPORT_ENABLE_0_ACTION_ENABLE;
+             /* Bit 0 = Present State event */
+             /* Bit 1 = Charging State event */
+             /* Bit 2 = Remaining Capacity Alaram event */
+            EcRequest.Payload[1] = NVODM_BATTERY_SET_PRESENT_EVENT |
+                                   NVODM_BATTERY_SET_CHARGING_EVENT|
+                                   NVODM_BATTERY_SET_REM_CAP_ALARM_EVENT;
+
+            NvStatus = NvEcSendRequest(pBattContext->hEc, &EcRequest, &EcResponse,
+                     sizeof(EcRequest), sizeof(EcResponse));
+            if (NvStatus != NvSuccess)
+                goto Cleanup;
+
+            if (EcResponse.Status != NvEcStatus_Success)
+                goto Cleanup;
         }
 
         /* Register for Battery events */
@@ -940,35 +1063,6 @@ NvBool NvOdmBatteryDeviceOpen(NvOdmBatteryDeviceHandle *hDevice,
         {
             goto Cleanup;
         }
-
-        /* Thread to handle Battery events */
-        pBattContext->hBattEventThread = \
-            NvOdmOsThreadCreate((NvOdmOsThreadFunction)NvOdmBatteryEventHandler,
-                                (void *)pBattContext);
-        if (!pBattContext->hBattEventThread)
-        {
-            goto Cleanup;
-        }
-    }
-
-    /* Get the EC Firmware version */
-    NvStatus = NvOdmBatteryPrivEcGetFirmwareVersion(pBattContext, &MajorVersion,
-                                      &MinorVersion);
-    if (NvStatus != NvError_Success)
-    {
-        goto Cleanup;
-    }
-
-    /* Minor Version 2 is R01 */
-    if (MinorVersion == 2)
-    {
-        pBattContext->FirmwareVersionR01 = NV_TRUE;
-        NVODMBATTERY_PRINTF(("EC Firmware Version is R01\n"));
-    }
-    else
-    {
-        pBattContext->FirmwareVersionR01 = NV_FALSE;
-        NVODMBATTERY_PRINTF(("EC Firmware Version is beyond R01\n"));
     }
 
     *hDevice = pBattContext;
@@ -976,27 +1070,7 @@ NvBool NvOdmBatteryDeviceOpen(NvOdmBatteryDeviceHandle *hDevice,
     return NV_TRUE;
 
 Cleanup:
-
-    if (pBattContext->hBattEventSem)
-    {
-        NvOdmOsSemaphoreDestroy(pBattContext->hBattEventSem);
-        pBattContext->hBattEventSem = NULL;
-    }
-
-    if (pBattContext->hEc)
-    {
-        if (pBattContext->hEcEventReg)
-        {
-            NvEcUnregisterForEvents(pBattContext->hEcEventReg);
-            pBattContext->hEcEventReg = NULL;
-        }
-
-        NvEcClose(pBattContext->hEc);
-        pBattContext->hEc = NULL;
-    }
-
-    if (pBattContext)
-        NvOdmOsFree(pBattContext);
+    NvOdmBatteryDeviceClose(pBattContext);
 
     return NV_FALSE;
 }
@@ -1005,7 +1079,7 @@ Cleanup:
  *  Closes the battery device
  *
  * @param hDevice [IN] handle to Battery Device.
- *
+ * 
  * @return void.
  */
 void NvOdmBatteryDeviceClose(NvOdmBatteryDeviceHandle hDevice)
@@ -1016,8 +1090,16 @@ void NvOdmBatteryDeviceClose(NvOdmBatteryDeviceHandle hDevice)
 
     if (pBattContext->hBattEventSem)
     {
+        pBattContext->ExitThread = NV_TRUE;
+        NvOdmOsSemaphoreSignal(pBattContext->hBattEventSem);
         NvOdmOsSemaphoreDestroy(pBattContext->hBattEventSem);
         pBattContext->hBattEventSem = NULL;
+    }
+
+    if (pBattContext->hBattEventThread)
+    {
+        NvOdmOsThreadJoin(pBattContext->hBattEventThread);
+        pBattContext->hBattEventThread = NULL;
     }
 
     if (pBattContext->hEc)
@@ -1026,12 +1108,6 @@ void NvOdmBatteryDeviceClose(NvOdmBatteryDeviceHandle hDevice)
         {
             NvEcUnregisterForEvents(pBattContext->hEcEventReg);
             pBattContext->hEcEventReg = NULL;
-        }
-
-        if (pBattContext->hBattEventThread)
-        {
-            NvOdmOsThreadJoin(pBattContext->hBattEventThread);
-            pBattContext->hBattEventThread = NULL;
         }
 
         NvEcClose(pBattContext->hEc);
@@ -1166,10 +1242,14 @@ NvBool NvOdmBatteryGetBatteryStatus(
         BattPresentState = BatterySlotStatus & NVODM_BATTERY_PRESENT_IN_SLOT;
             if (BattPresentState == NVODM_BATTERY_PRESENT_IN_SLOT)
             {
-                BattChargingState = \
-                    BatterySlotStatus >> NVODM_BATTERY_CHARGING_STATE_SHIFT;
+                BattChargingState = BatterySlotStatus >> NVODM_BATTERY_CHARGING_STATE_SHIFT;
+                BattChargingState &= NVODM_BATTERY_CHARGING_STATE_MASK;
                 if (BattChargingState == NVODM_BATTERY_CHARGING_STATE_CHARGING)
-                   *pStatus |= NVODM_BATTERY_STATUS_CHARGING;
+                    *pStatus |= NVODM_BATTERY_STATUS_CHARGING;
+                else if  (BattChargingState == NVODM_BATTERY_CHARGING_STATE_DISCHARGING)
+                    *pStatus |= NVODM_BATTERY_STATUS_DISCHARGING;
+                else if  (BattChargingState == NVODM_BATTERY_CHARGING_STATE_IDLE)
+                    *pStatus |= NVODM_BATTERY_STATUS_IDLE;
             }
             else
             {
@@ -1192,7 +1272,15 @@ NvBool NvOdmBatteryGetBatteryStatus(
             else if (BatteryVoltage >= NVODM_BATTERY_LOW_VOLTAGE_MV)
                 *pStatus |= NVODM_BATTERY_STATUS_LOW;
             else
+            {
                 *pStatus |= NVODM_BATTERY_STATUS_CRITICAL;
+                /*
+                 * Additional flag which tells battery is very critical
+                 * and needs system shutdown.
+                 */
+                if (BatteryVoltage <= NVODM_BATTERY_CRITICAL_VOLTAGE_MV)
+                    *pStatus |= NVODM_BATTERY_STATUS_VERY_CRITICAL;
+            }
         }
         else
         {
