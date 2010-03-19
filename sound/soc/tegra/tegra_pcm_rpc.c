@@ -26,7 +26,8 @@ static struct tegra_audio_data* tegra_snd_cx = NULL;
 
 static const struct snd_pcm_hardware tegra_pcm_hardware = {
 	.info = SNDRV_PCM_INFO_INTERLEAVED | SNDRV_PCM_INFO_PAUSE |\
-	        SNDRV_PCM_INFO_RESUME,
+	        SNDRV_PCM_INFO_RESUME | SNDRV_PCM_INFO_MMAP |\
+	        SNDRV_PCM_INFO_MMAP_VALID,
 	.rates = TEGRA_SAMPLE_RATES,
 	.formats = TEGRA_SAMPLE_FORMATS,
 	.channels_min = 1,
@@ -638,6 +639,35 @@ static int tegra_pcm_close(struct snd_pcm_substream *substream)
 	return 0;
 }
 
+static int tegra_pcm_mmap(struct snd_pcm_substream *substream,
+			  struct vm_area_struct *vma)
+{
+	int err = 0;
+	int size = 0;
+	char *vmalloc_area_ptr = NULL;
+	unsigned long start = 0;
+	unsigned long pfn = 0;
+
+	start = vma->vm_start;
+	vmalloc_area_ptr = substream->dma_buffer.area;
+	size = vma->vm_end - vma->vm_start;
+	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+
+	while (size > 0) {
+		pfn = vmalloc_to_pfn(vmalloc_area_ptr);
+		err = io_remap_pfn_range(vma, start, pfn,
+					 PAGE_SIZE, vma->vm_page_prot);
+		if (err < 0) {
+			snd_printk(KERN_ERR "io_remap_pfn_range failed \n");
+			return err;
+		}
+		start += PAGE_SIZE;
+		vmalloc_area_ptr += PAGE_SIZE;
+		size -= PAGE_SIZE;
+	}
+	return err;
+}
+
 static struct snd_pcm_ops tegra_pcm_ops = {
 	.open = tegra_pcm_open,
 	.close = tegra_pcm_close,
@@ -647,6 +677,7 @@ static struct snd_pcm_ops tegra_pcm_ops = {
 	.prepare = tegra_pcm_prepare,
 	.trigger = tegra_pcm_trigger,
 	.pointer = tegra_pcm_pointer,
+	.mmap    = tegra_pcm_mmap,
 };
 
 static int tegra_pcm_preallocate_dma_buffer(struct snd_pcm *pcm, int stream)
@@ -666,7 +697,7 @@ static int tegra_pcm_preallocate_dma_buffer(struct snd_pcm *pcm, int stream)
 		e = NvRmMemAlloc(tegra_snd_cx->mem_handle[stream],
 				     NULL,
 				     0,
-				     0x4,
+				     PAGE_SIZE,
 				     NvOsMemAttribute_Uncached);
 	}
 
