@@ -766,6 +766,11 @@ static void DfsParametersInit(NvRmDfs* pDfs)
             break;
     }
 
+    // Adjust minimum frequency boundary for EMC as required for
+    // particular SDRAM type
+    if (pDfs->hRm->ChipId.Id == 0x20)
+        NvRmPrivAp20EmcMinFreqSet(pDfs);
+
     // CPU clock H/w limits
     pClimits = NvRmPrivGetSocClockLimits(NvRmModuleID_Cpu);
     HwLimitsKHz[NvRmDfsClockId_Cpu] = *pClimits;

@@ -190,7 +190,7 @@ extern "C"
  */
 #define NVRM_DFS_PARAM_EMC_AP20 \
     NvRmFreqMaximum, /* Maximum domain frequency set to h/w limit */ \
-    50000,  /* Minimum domain frequency 50 MHz */ \
+    18000,  /* Minimum domain frequency 18 MHz (for all SDRAM types) */ \
     1000,   /* Frequency change upper band 1 MHz */ \
     1000,   /* Frequency change lower band 1 MHz */ \
     {          /* RT starvation control parameters */ \
@@ -207,6 +207,9 @@ extern "C"
     0,      /* Number of smaple intervals with NRT to trigger boost = 1 */ \
     1       /* NRT idle cycles threshold = 1 */ 
 
+// Defines minimum scaling limit for each supported SDRAM type
+#define NVRM_AP20_DDR2_MIN_KHZ (50000)
+#define NVRM_AP20_LPDDR2_MIN_KHZ (50000)
 
 /**
  * Defines CPU frequency threshold for slave CPU1 power management:
@@ -231,6 +234,14 @@ extern "C"
 #define NVRM_AP20_SUSPEND_CORE_MV (1000)
 
 /*****************************************************************************/
+
+/**
+ * Set minimum EMC frequency based on the SDRAM type selected by current EMC
+ * configuration.
+ *
+ * @param pDfs - A pointer to DFS structure.
+ */
+void NvRmPrivAp20EmcMinFreqSet(NvRmDfs* pDfs);
 
 /**
  * Initializes activity monitors within the DFS module. Only activity
