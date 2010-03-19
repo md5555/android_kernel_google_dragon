@@ -1091,6 +1091,10 @@ Ap15DisplayClockConfigure(
     NvRmFreqKHz PixelFreq = TargetFreq;
     NvRmFreqKHz SourceClockFreq = NvRmPrivGetClockSourceFreq(NvRmClockSource_ClkM);
 
+    // Clip target to maximum - we still may be able to configure frequency
+    // within tolearnce range
+    PixelFreq = TargetFreq = NV_MIN(TargetFreq, MaxFreq);
+
     /*
      * Display clock source selection policy:
      * - if MIPI flag is specified - use PLLD, and reconfigure it as necessary
