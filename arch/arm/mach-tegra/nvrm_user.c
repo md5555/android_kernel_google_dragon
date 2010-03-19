@@ -49,7 +49,6 @@
 #include "mach/timex.h"
 
 pid_t s_nvrm_daemon_pid = 0;
-int s_nvrm_daemon_sig = 0;
 
 NvError NvRm_Dispatch(void *InBuffer,
                       NvU32 InSize,
@@ -506,13 +505,13 @@ struct kobject *nvrm_kobj;
 
 char* nvrm_notifier;
 
-#define STRING_PM_NONE			  "none"			   // initial state
+#define STRING_PM_NONE		  "none"	       // initial state
 #define STRING_PM_SUSPEND_PREPARE "PM_SUSPEND_PREPARE" // notify to daemon
-#define STRING_PM_POST_SUSPEND	  "PM_POST_SUSPEND"	   // notify to daemon
-#define STRING_PM_DISPLAY_OFF	  "PM_DISPLAY_OFF"	   // notify to daemon
-#define STRING_PM_DISPLAY_ON	  "PM_DISPLAY_ON"	   // notify to daemon
-#define STRING_PM_CONTINUE		  "PM_CONTINUE"		   // reply from daemon
-#define STRING_PM_SIGNAL		  "PM_SIGNAL"		   // request signal
+#define STRING_PM_POST_SUSPEND	  "PM_POST_SUSPEND"    // notify to daemon
+#define STRING_PM_DISPLAY_OFF	  "PM_DISPLAY_OFF"     // notify to daemon
+#define STRING_PM_DISPLAY_ON	  "PM_DISPLAY_ON"      // notify to daemon
+#define STRING_PM_CONTINUE	  "PM_CONTINUE"	       // reply from daemon
+#define STRING_PM_SIGNAL	  "PM_SIGNAL"	       // request signal
 
 ssize_t
 nvrm_notifier_show(struct kobject *kobj, struct kobj_attribute *attr,
@@ -525,8 +524,6 @@ ssize_t
 nvrm_notifier_store(struct kobject *kobj, struct kobj_attribute *attr,
 			const char *buf, size_t count)
 {
-	printk(KERN_INFO "%s: /sys/power/nvrm/notifier=%s\n", __func__, buf);
-
 	if (!strcmp(buf, STRING_PM_CONTINUE)) {
 		// Wake up pm_notifier.
 		tegra_pm_notifier_continue_ok = 1;
@@ -534,14 +531,13 @@ nvrm_notifier_store(struct kobject *kobj, struct kobj_attribute *attr,
 	}
 	else if (!strncmp(buf, STRING_PM_SIGNAL, strlen(STRING_PM_SIGNAL))) {
 		s_nvrm_daemon_pid = 0;
-		s_nvrm_daemon_sig = 0;
-		sscanf(buf, STRING_PM_SIGNAL " %d %d",
-			   &s_nvrm_daemon_pid, &s_nvrm_daemon_sig);
-		printk(KERN_INFO "%s: nvrm_daemon=%d signal=%d\n",
-			   __func__, s_nvrm_daemon_pid, s_nvrm_daemon_sig);
+		sscanf(buf, STRING_PM_SIGNAL " %d",
+			   &s_nvrm_daemon_pid);
+		printk(KERN_INFO "%s: nvrm_daemon=%d\n",
+			   __func__, s_nvrm_daemon_pid);
 	}
 	else {
-		printk(KERN_ERR "%s: Wrong value '%s'.\n", __func__, buf);
+		printk(KERN_ERR "%s: wrong value '%s'\n", __func__, buf);
 	}
 
 	return count;
@@ -557,34 +553,24 @@ static struct kobj_attribute nvrm_notifier_attribute =
 static void notify_daemon(char* notice)
 {
 	long timeout = HZ * 30;
-	int err;
 
 	// In case daemon's pid is not reported, do not signal or wait.
 	if (!s_nvrm_daemon_pid) {
-		printk(KERN_ERR "%s: Don't know nvrm_daemon's PID.\n", __func__);
+		printk(KERN_ERR "%s: don't know nvrm_daemon's PID\n", __func__);
 		return;
 	}
 
 	// Clear before kicking nvrm_daemon.
 	tegra_pm_notifier_continue_ok = 0;
+
+	// Notify nvrm_daemon.
 	nvrm_notifier = notice;
 
-	// Send signal to nvrm_daemon.
-	printk(KERN_INFO "%s: Sending signal=%d to pid=%d.\n",
-		   __func__, s_nvrm_daemon_sig, s_nvrm_daemon_pid);
-
-	err = kill_pid(find_get_pid(s_nvrm_daemon_pid), s_nvrm_daemon_sig, 0);
-	if (err) {
-		printk(KERN_ERR "%s: Cannot send signal to nvrm_daemon (PID=%d).\n",
-			   __func__, s_nvrm_daemon_pid);
-	}
-	else {
-		// Wait for the reply from nvrm_daemon.
-		printk(KERN_INFO "%s: Wait for nvrm_daemon.\n", __func__);
-		if (wait_event_timeout(tegra_pm_notifier_wait,
-							   tegra_pm_notifier_continue_ok, timeout) == 0) {
-			printk(KERN_ERR "%s: Timed out. nvrm_daemon did not reply.\n", __func__);
-		}
+	// Wait for the reply from nvrm_daemon.
+	printk(KERN_INFO "%s: wait for nvrm_daemon\n", __func__);
+	if (wait_event_timeout(tegra_pm_notifier_wait,
+			       tegra_pm_notifier_continue_ok, timeout) == 0) {
+	    printk(KERN_ERR "%s: timed out. nvrm_daemon did not reply\n", __func__);
 	}
 
 	// Go back to the initial state.
@@ -594,7 +580,7 @@ static void notify_daemon(char* notice)
 int tegra_pm_notifier(struct notifier_block *nb,
 			  unsigned long event, void *nouse)
 {
-	printk(KERN_INFO "%s: event=%lx\n", __func__, event);
+	printk(KERN_INFO "%s: start processing event=%lx\n", __func__, event);
 
 	// Notify the event to nvrm_daemon.
 	if (event == PM_SUSPEND_PREPARE) {
@@ -610,11 +596,11 @@ int tegra_pm_notifier(struct notifier_block *nb,
 #endif
 	}
 	else {
-		printk(KERN_ERR "%s: Unknown event %ld.\n", __func__, event);
+		printk(KERN_ERR "%s: unknown event %ld\n", __func__, event);
 		return NOTIFY_DONE;
 	}
 
-	printk(KERN_INFO "%s: Woken up.\n", __func__);
+	printk(KERN_INFO "%s: finished processing event=%ld\n", __func__, event);
 	return NOTIFY_OK;
 }
 
