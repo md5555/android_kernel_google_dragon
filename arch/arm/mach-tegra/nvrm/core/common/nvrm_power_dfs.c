@@ -1185,23 +1185,20 @@ DfsGetTargetFrequencies(
          * and clip it to the domain limits. Check low power corner hit. Set
          * return value if clock update is necessary.
          */
+        *pDomainKHz = NV_MAX(pDomainSampler->BumpedAverageKHz,
+                             LowCornerDomainKHz);
         if (pDomainSampler->RtStarveBoostKHz >= pDomainSampler->NrtStarveBoostKHz)
         {
-            *pDomainKHz = pDomainSampler->BumpedAverageKHz +
-                pDomainSampler->RtStarveBoostKHz;
+            *pDomainKHz += pDomainSampler->RtStarveBoostKHz;
         }
         else
         {
-            *pDomainKHz = pDomainSampler->BumpedAverageKHz +
-              pDomainSampler->NrtStarveBoostKHz;
+            *pDomainKHz += pDomainSampler->NrtStarveBoostKHz;
         }
+
         if ((*pDomainKHz) < DomainBusyKHz)
         {
             (*pDomainKHz) = DomainBusyKHz;
-        }
-        if ((*pDomainKHz) < LowCornerDomainKHz)
-        {
-            *pDomainKHz = LowCornerDomainKHz;
         }
         if ((*pDomainKHz) > HighCornerDomainKHz)
         {
