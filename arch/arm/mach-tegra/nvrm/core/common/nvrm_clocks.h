@@ -1140,6 +1140,12 @@ const NvRmModuleClockLimits* NvRmPrivGetSocClockLimits(NvRmModuleID Module);
 void NvRmPrivLockSharedPll(void);
 void NvRmPrivUnlockSharedPll(void);
 
+/**
+ * Locks/Unclocks acces to module clock state
+ */
+void NvRmPrivLockModuleClockState(void);
+void NvRmPrivUnlockModuleClockState(void);
+
 /** 
  * Enable/Disable the clock source for the module. 
  *
@@ -1282,6 +1288,9 @@ NvRmPrivModuleReset(NvRmDeviceHandle hDevice, NvRmModuleID ModuleId, NvBool hold
  * @param pCstate Pointer to the targeted module clock state.
  * @param Enable NV_TRUE if module clock is about to be enabled;
  *  NV_FALSE if module clock has just been disabled.
+ * @param Preview NV_TRUE if scaling references should be preserved when
+ *  voltage increase is required, NV_FALSE if scaling references should
+ *  be updated in any case.
  * 
  * @return Core voltage level in mV required for the new module configuration.
  *  NvRmVoltsUnspecified is returned if module clock can be enabled without
@@ -1293,7 +1302,8 @@ NvRmPrivModuleVscaleAttach(
     NvRmDeviceHandle hRmDevice,
     const NvRmModuleClockInfo* pCinfo,
     NvRmModuleClockState* pCstate,
-    NvBool Enable);
+    NvBool Enable,
+    NvBool Preview);
 
 /**
  * Updates voltage scaling references, when the clock frequency for the
@@ -1304,10 +1314,14 @@ NvRmPrivModuleVscaleAttach(
  * @param pCstate Pointer to the targeted module clock state.
  * @param TargetModuleKHz Traget module frequency in kHz.
  * @param TargetSrcKHz Clock source frequency for the traget module in kHz.
- * 
+ * @param Preview NV_TRUE if scaling references should be preserved when
+ *  voltage increase is required, NV_FALSE if scaling references should
+ *  be updated in any case.
+ *
  * @return Core voltage level in mV required for new module configuration.
  *  NvRmVoltsUnspecified is returned if all specified frequencies can be
- *  configured without changing voltage requirements.
+ *  configured without changing voltage requirements. NvRmVoltsOff is returned
+ *  if new configuration may lower voltage requirements.
  */
 NvRmMilliVolts
 NvRmPrivModuleVscaleReAttach(
@@ -1315,7 +1329,21 @@ NvRmPrivModuleVscaleReAttach(
     const NvRmModuleClockInfo* pCinfo,
     NvRmModuleClockState* pCstate,
     NvRmFreqKHz TargetModuleKHz,
-    NvRmFreqKHz TargetSrcKHz);
+    NvRmFreqKHz TargetSrcKHz,
+    NvBool Preview);
+
+/**
+ * Updates target level, and reference count for pending voltage scaling
+ * transactions.
+ *
+ * @param hRmDevice The RM device handle.
+ * @param Set PendingMv pending transaction target; NvRmVoltsOff is used
+ *  to indicate completed transaction.
+ *
+ */
+void NvRmPrivModuleVscaleSetPending(
+    NvRmDeviceHandle hRmDevice,
+    NvRmMilliVolts PendingMv);
 
 /**
  * Sets voltage scaling attribute for the specified module clock.

@@ -2415,8 +2415,12 @@ void NvRmPrivVoltageScale(
     pDvs->DvsCorner.CpuMv = CpuMv;
     pDvs->DvsCorner.SystemMv = SystemMv;
     pDvs->DvsCorner.EmcMv = EmcMv;
-    pDvs->DvsCorner.ModulesMv = NvRmPrivModulesGetOperationalMV(pDfs->hRm);
-    TargetMv = pDvs->DvsCorner.ModulesMv;
+
+    NvRmPrivLockModuleClockState();
+    TargetMv = NvRmPrivModulesGetOperationalMV(pDfs->hRm);
+    NvRmPrivUnlockModuleClockState();
+    pDvs->DvsCorner.ModulesMv = TargetMv;
+
     if (!DedicatedCpuRail && (TargetMv < CpuMv))
         TargetMv = CpuMv;
     if (TargetMv < SystemMv)

@@ -1070,7 +1070,7 @@ Ap15PllDConfigure(
     pCstate->actual_freq =
         NvRmPrivGetClockSourceFreq(NvRmClockSource_PllD0);
     NvRmPrivModuleVscaleReAttach(hRmDevice,
-        pCinfo, pCstate, pCstate->actual_freq, pCstate->actual_freq);
+        pCinfo, pCstate, pCstate->actual_freq, pCstate->actual_freq, NV_FALSE);
 }
 
 /*****************************************************************************/

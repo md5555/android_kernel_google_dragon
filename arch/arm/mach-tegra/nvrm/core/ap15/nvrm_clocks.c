@@ -98,7 +98,7 @@ static NvU32 s_PllReferencesTableSize;
 static NvBool s_MipiPllVddOn = NV_FALSE;
 
 // Mutex for thread-safe access to clock control records and h/w
-static NvOsMutexHandle s_hClockMutex = NULL;
+static NvOsSpinMutexHandle s_hClockMutex = NULL;
 
 // Mutex for thread-safe access to shared PLLs
 static NvOsMutexHandle s_hPllMutex = NULL;
@@ -416,14 +416,14 @@ NvRmPrivExternalClockAttach(
         {
             // If ext clock is enabled - attach source (inc ref count)
             // If ext clock is disabled - detach source (dec ref count)
-            NvOsMutexLock(s_hClockMutex);
+            NvOsSpinMutexLock(s_hClockMutex);
             s_PllReferencesTable[i].ExternalClockRefCnt += (Enable ? 1 : (-1));
             NvRmPrivPllRefUpdate(hDevice, &s_PllReferencesTable[i], Enable);
 
             // Configure clock source if necessary (required for PLLA)
             if (SourceId == NvRmClockSource_PllA0)
                 NvRmPrivConfigureClockSource(hDevice, NvRmModuleID_I2s, Enable);
-            NvOsMutexUnlock(s_hClockMutex);
+            NvOsSpinMutexUnlock(s_hClockMutex);
         }
     }
 }
@@ -458,10 +458,15 @@ NvError NvRmPowerModuleClockControl(
 {
     NvRmModuleClockInfo *cinfo;
     NvRmModuleClockState *state;
-    NvRmMilliVolts v;
+    NvRmMilliVolts v = NvRmVoltsUnspecified;
     NvError err;
     ModuleClockState ClockState =
         Enable ? ModuleClockState_Enable : ModuleClockState_Disable;
+    NvRmModuleID ModuleName = NVRM_MODULE_ID_MODULE(ModuleId);
+    // Clock control/configurations shared between drivers and DVFS
+    NvBool SharedModule = ((ModuleName == NvRmModuleID_Display) ||
+                           (ModuleName == NvRmModuleID_Dsi) ||
+                           (ModuleName == NvRmModuleID_Vde));
 
     if (NvRmPrivIsDiagMode(ModuleId))
         return NvSuccess;
@@ -471,21 +476,47 @@ NvError NvRmPowerModuleClockControl(
     if (err != NvSuccess)
         return err;
 
-    // Check if voltage scaling is required before module clock is enabled.
-    // Core voltage access is shared with DVFS. PMU access transport must 
-    // *not* be scalable. 
-    if (state->Vscale)
+    // Protect access to clocks that shared control (directly, or via PLLs)
+    // with DVFS. Made sure DSI power rail is up if DSI clock is enabled.
+    if (SharedModule)
     {
         NvOsMutexLock(s_hPllMutex);
-        if (Enable)
+        if (Enable && (ModuleName == NvRmModuleID_Dsi))
+            NvRmPrivPllDPowerControl(hDevice, NV_TRUE, &s_MipiPllVddOn);
+    }
+    NvOsSpinMutexLock(s_hClockMutex);
+
+    // Check if voltage scaling is required before module clock is enabled.
+    // Core voltage access is shared with DVFS. PMU access transport must
+    // *not* be scalable.
+    if (Enable)
+    {
+        // Preview, don't update scaling ref counts if voltage going up
+        v = NvRmPrivModuleVscaleAttach(
+            hDevice, cinfo, state, Enable, NV_TRUE);
+
+        if ((v != NvRmVoltsUnspecified) &&
+            (v != NvRmVoltsOff))
         {
-            if (NVRM_MODULE_ID_MODULE(ModuleId) == NvRmModuleID_Dsi)
-                NvRmPrivPllDPowerControl(hDevice, NV_TRUE, &s_MipiPllVddOn);
-            v = NvRmPrivModuleVscaleAttach(hDevice, cinfo, state, NV_TRUE);
+            // Preview reported voltage increase - set target pending to
+            // prevent DVFS scaling down, while lock is released
+            NvRmPrivModuleVscaleSetPending(hDevice, v);
+
+            NvOsSpinMutexUnlock(s_hClockMutex);
+            if (!SharedModule)
+                NvOsMutexLock(s_hPllMutex);
             NvRmPrivDvsRequest(v);
+            if (!SharedModule)
+                NvOsMutexUnlock(s_hPllMutex);
+            NvOsSpinMutexLock(s_hClockMutex);
+
+            // Now, after voltage is increased - update scaling ref counts
+            // and cancel pending request
+            v = NvRmPrivModuleVscaleAttach(
+                hDevice, cinfo, state, Enable, NV_FALSE);
+            NvRmPrivModuleVscaleSetPending(hDevice, NvRmVoltsOff);
         }
     }
-    NvOsMutexLock(s_hClockMutex);
 
     // Restart reference counting if it is the 1st clock control call
     if (!state->FirstReference)
@@ -525,18 +556,22 @@ NvError NvRmPowerModuleClockControl(
     NvRmPrivModuleClockAttach(hDevice, cinfo, state, Enable);
     NvRmPrivEnableModuleClock(hDevice, ModuleId, ClockState);
 
+    // Check if voltage can be lowered after module clock is disabled.
+    if (!Enable)
+    {
+        v = NvRmPrivModuleVscaleAttach(
+            hDevice, cinfo, state, Enable, NV_FALSE);
+        if (v == NvRmVoltsOff)
+            NvRmPrivDvsRequest(v);  // No transaction, just set update flag
+    }
+
     // Common exit
 leave:
-    NvOsMutexUnlock(s_hClockMutex);
-    if (state->Vscale)
+    NvOsSpinMutexUnlock(s_hClockMutex);
+    if (SharedModule)
     {
-        if (!Enable)
-        {
-            if (NVRM_MODULE_ID_MODULE(ModuleId) == NvRmModuleID_Dsi)
-                NvRmPrivPllDPowerControl(hDevice, NV_FALSE, &s_MipiPllVddOn);
-            v = NvRmPrivModuleVscaleAttach(hDevice, cinfo, state, NV_FALSE);
-            NvRmPrivDvsRequest(v);
-        }
+        if (!Enable && (ModuleName == NvRmModuleID_Dsi))
+            NvRmPrivPllDPowerControl(hDevice, NV_FALSE, &s_MipiPllVddOn);
         NvOsMutexUnlock(s_hPllMutex);
     }
     return err;
@@ -880,8 +915,8 @@ static void ModuleClockStateInit(NvRmDeviceHandle hRmDevice)
             NvRmFreqKHz SourceClockFreq =
                 s_ClockSourceFreq[(cinfo->Sources[state->SourceClock])];
             NvRmPrivModuleSetScalingAttribute(hRmDevice, cinfo, state);
-            v = NvRmPrivModuleVscaleReAttach(
-                hRmDevice, cinfo, state, state->actual_freq, SourceClockFreq);
+            v = NvRmPrivModuleVscaleReAttach(hRmDevice,
+                cinfo, state, state->actual_freq, SourceClockFreq, NV_FALSE);
             (void)v;
         }
         else if ((cinfo->Module == NvRmModuleID_Cpu) ||
@@ -931,7 +966,7 @@ NvRmPrivClocksInit(NvRmDeviceHandle hRmDevice)
     NV_ASSERT(hRmDevice);
     env = NvRmPrivGetExecPlatform(hRmDevice);
 
-    NV_CHECK_ERROR_CLEANUP(NvOsMutexCreate(&s_hClockMutex));
+    NV_CHECK_ERROR_CLEANUP(NvOsSpinMutexCreate(&s_hClockMutex));
     NV_CHECK_ERROR_CLEANUP(NvOsMutexCreate(&s_hPllMutex));
 
     /*
@@ -1113,7 +1148,7 @@ fail:
     s_moduleClockState = NULL;
     NvOsMutexDestroy(s_hPllMutex);
     s_hPllMutex = NULL;
-    NvOsMutexDestroy(s_hClockMutex);
+    NvOsSpinMutexDestroy(s_hClockMutex);
     s_hClockMutex = NULL;
     return e;
 }
@@ -1131,7 +1166,7 @@ NvRmPrivClocksDeinit(NvRmDeviceHandle hRmDevice)
     s_moduleClockState = NULL;
     NvOsMutexDestroy(s_hPllMutex);
     s_hPllMutex = NULL;
-    NvOsMutexDestroy(s_hClockMutex);
+    NvOsSpinMutexDestroy(s_hClockMutex);
     s_hClockMutex = NULL;
 }
 
@@ -1359,6 +1394,41 @@ NvRmPrivModuleGetMaxSrcKHz(
     return SourceClockFreq;
 }
 
+static NvRmMilliVolts ModuleVscaleConfig(
+    NvRmDeviceHandle hRmDevice,
+    const NvRmModuleClockInfo* cinfo,
+    NvRmModuleClockState *state,
+    NvRmFreqKHz MaxFreq,
+    NvBool Preview)
+{
+    NvRmFreqKHz f, SourceClockFreq;
+    NvRmMilliVolts v = NvRmVoltsUnspecified;
+    NvRmModuleID ModuleName = cinfo->Module;
+
+    if (!state->Vscale)
+        return v;
+
+    // Find voltage level for the actually configured frequency. For Display,
+    // UART and USB use maximum requested frequency, instead (Display and UART
+    // actual clock configuration is completed outside CAR but it will not
+    // exceed maximum requested boundary level; actual USB frequency is always
+    // set to fixed PLLU output, but maximum boundary is used by driver to
+    // communicate scaled voltage requirements).
+    SourceClockFreq =
+        s_ClockSourceFreq[(cinfo->Sources[state->SourceClock])];
+
+    if ((ModuleName == NvRmModuleID_Display) ||
+        (ModuleName == NvRmModuleID_Uart) ||
+        (ModuleName == NvRmModuleID_Usb2Otg))
+        f = MaxFreq;
+    else
+        f = state->actual_freq;
+
+    v = NvRmPrivModuleVscaleReAttach(
+        hRmDevice, cinfo, state, f, SourceClockFreq, Preview);
+    return v;
+}
+
 NvError
 NvRmPowerModuleClockConfig (
     NvRmDeviceHandle hDevice,
@@ -1456,46 +1526,20 @@ NvRmPowerModuleClockConfig (
         state->DiagLock = NV_TRUE;
 #endif
 
-    /*
-     * Check if voltage scaling is required before module clock is configured.
-     * Core voltage access is shared with DVFS. Display clock configuration
-     * also affects PLLs shared with DVFS and involves PLLD power control. In
-     * any case PMU access transport must *not* be scalable (PMU transport API
-     * must be called outside clock mutex).
-     */
+    // Display/DSI clock configuration also affects PLLs shared with DVFS
+    // and involves PLLD power control. Always perform at nominal voltage.
+    // PMU access transport must *not* be scalable (PMU transport API must
+    // be called outside clock mutex).
     if (PrefFreqList && (!DiagMode) &&
         ((ModuleName == NvRmModuleID_Display) ||
-         (ModuleName == NvRmModuleID_Dsi) || state->Vscale))
+         (ModuleName == NvRmModuleID_Dsi)))
     {
         NvOsMutexLock(s_hPllMutex);
-
-        // Display configuration always at nominal voltage. UART divider is not
-        // in CAR, and clock state contains source, rather than UART frequency.
-        // Hence, get ready for fastest clock. Same for USB clock. For other
-        // modules use maximum of target and current frequency. Make sure that
-        // voltage is high enough for maximum module source frequency.
-        if ((ModuleName == NvRmModuleID_Display) ||
-            (ModuleName == NvRmModuleID_Dsi))
-        {
-            NvRmPrivPllDPowerControl(hDevice, NV_TRUE, &s_MipiPllVddOn);
-            v = NvRmVoltsMaximum;
-        }
-        else
-        {
-            if ((ModuleName == NvRmModuleID_Uart) ||
-                (ModuleName == NvRmModuleID_Usb2Otg))
-                f = NvRmFreqMaximum;
-            else
-                f = NV_MAX(MaxFreq, state->actual_freq);
-
-            SourceClockFreq = NvRmPrivModuleGetMaxSrcKHz(hDevice, cinfo);
-            v = NvRmPrivModuleVscaleReAttach(
-                hDevice, cinfo, state, f, SourceClockFreq);
-        }
-        NvRmPrivDvsRequest(v);
+        NvRmPrivPllDPowerControl(hDevice, NV_TRUE, &s_MipiPllVddOn);
+        NvRmPrivDvsRequest(NvRmVoltsMaximum);
     }
 
-    NvOsMutexLock(s_hClockMutex);
+    NvOsSpinMutexLock(s_hClockMutex);
     {
         if (env == ExecPlatform_Fpga || env == ExecPlatform_Qt)
         {
@@ -1533,6 +1577,45 @@ NvRmPowerModuleClockConfig (
                 goto leave;
             }
             NV_ASSERT(state->SourceClock <= cinfo->SourceFieldMask);
+
+            // For "shared" clocks (Display/DSI) voltage is already at max;
+            // just record new voltage requirements
+            if ((ModuleName == NvRmModuleID_Display) ||
+                (ModuleName == NvRmModuleID_Dsi))
+            {
+                NvRmPrivModuleVscaleSetPending(hDevice, NvRmVoltsMaximum);
+                v = ModuleVscaleConfig(
+                    hDevice, cinfo, state, MaxFreq, NV_FALSE);
+                NvRmPrivModuleVscaleSetPending(hDevice, NvRmVoltsOff);
+            }
+            else
+            {
+                // Preview, don't update scaling ref counts if voltage going up
+                v = ModuleVscaleConfig(
+                    hDevice, cinfo, state, MaxFreq, NV_TRUE);
+
+                if ((v != NvRmVoltsOff) &&
+                    (v != NvRmVoltsUnspecified))
+                {
+                    // Preview reported voltage increase - set target
+                    // pending to prevent DVFS scaling down
+                    NvRmPrivModuleVscaleSetPending(hDevice, v);
+
+                    NvOsSpinMutexUnlock(s_hClockMutex);
+                    NvOsMutexLock(s_hPllMutex);
+                    NvRmPrivDvsRequest(v);
+                    NvOsMutexUnlock(s_hPllMutex);
+                    NvOsSpinMutexLock(s_hClockMutex);
+
+                    // Now, after voltage is increased - update scaling counts
+                    // and cancel pending request
+                    v = ModuleVscaleConfig(
+                        hDevice, cinfo, state, MaxFreq, NV_FALSE);
+                    NvRmPrivModuleVscaleSetPending(hDevice, NvRmVoltsOff);
+                }
+            }
+
+            // Finally change clock configuration
             if ((ModuleName != NvRmModuleID_Dsi) &&
                 (ModuleName != NvRmModuleID_Usb2Otg))
             {
@@ -1549,6 +1632,9 @@ NvRmPowerModuleClockConfig (
                 NvRmPrivModuleClockReAttach(hDevice, cinfo, state);
                 NvRmPrivDisablePLLs(hDevice, cinfo, state);
             }
+            if (v == NvRmVoltsOff)
+                NvRmPrivDvsRequest(v); // No transaction, just set update flag
+
             // FIXME is this a hack just for the AP15 FPGA
             // Special treatment to the i2s on the fpga to do the workaround
             // for the i2s recording, the clock source to i2s should be less than
@@ -1659,42 +1745,13 @@ end:
         *CurrentFreq = state->actual_freq;
     }
 leave:
-    NvOsMutexUnlock(s_hClockMutex);
+    NvOsSpinMutexUnlock(s_hClockMutex);
     if (PrefFreqList && (!DiagMode) &&
         ((ModuleName == NvRmModuleID_Display) ||
-         (ModuleName == NvRmModuleID_Dsi) || state->Vscale))
+         (ModuleName == NvRmModuleID_Dsi)))
     {
-        // Tune voltage level to the actually configured frequency; for Display
-        // UART, and USB use maximum requested frequency. Make sure voltage is
-        // updated after display configuration, which may change DVFS clocks.
-        SourceClockFreq =
-            s_ClockSourceFreq[(cinfo->Sources[state->SourceClock])];
-        if (ModuleName == NvRmModuleID_Display)
-        {
-            NvRmPrivPllDPowerControl(hDevice, NV_FALSE, &s_MipiPllVddOn);
-            v = NvRmPrivModuleVscaleReAttach(
-                hDevice, cinfo, state, MaxFreq, SourceClockFreq);
-            v = NvRmVoltsOff;   // Guarantees voltage update
-        }
-        else if (ModuleName == NvRmModuleID_Dsi)
-        {
-            NvRmPrivPllDPowerControl(hDevice, NV_FALSE, &s_MipiPllVddOn);
-            f = state->actual_freq;
-            v = NvRmPrivModuleVscaleReAttach(
-                hDevice, cinfo, state, f, SourceClockFreq);
-            v = NvRmVoltsOff;   // Guarantees voltage update
-        }
-        else
-        {
-            if ((ModuleName == NvRmModuleID_Uart) ||
-                (ModuleName == NvRmModuleID_Usb2Otg))
-                f = MaxFreq;
-            else
-                f = state->actual_freq;
-            v = NvRmPrivModuleVscaleReAttach(
-                hDevice, cinfo, state, f, SourceClockFreq);
-        }
-        NvRmPrivDvsRequest(v);
+        NvRmPrivPllDPowerControl(hDevice, NV_FALSE, &s_MipiPllVddOn);
+        NvRmPrivDvsRequest(NvRmVoltsOff);
         NvOsMutexUnlock(s_hPllMutex);
     }
     return err;
@@ -2670,6 +2727,16 @@ void NvRmPrivUnlockSharedPll(void)
     NvOsMutexUnlock(s_hPllMutex);
 }
 
+void NvRmPrivLockModuleClockState(void)
+{
+    NvOsSpinMutexLock(s_hClockMutex);
+}
+
+void NvRmPrivUnlockModuleClockState(void)
+{
+    NvOsSpinMutexUnlock(s_hClockMutex);
+}
+
 /*****************************************************************************/
 /*****************************************************************************/
 
@@ -2923,8 +2990,8 @@ static void RestoreClockSource(
     {
         NvRmPrivEnableModuleClock(hRmDevice, ModuleId, ModuleClockState_Disable);
     }
-    NvRmPrivModuleVscaleReAttach(
-        hRmDevice, pCinfo, pCstate, pCstate->actual_freq, NewSourceFreq);
+    NvRmPrivModuleVscaleReAttach(hRmDevice,
+        pCinfo, pCstate, pCstate->actual_freq, NewSourceFreq, NV_FALSE);
 }
 
 static void BackupModuleClocks(

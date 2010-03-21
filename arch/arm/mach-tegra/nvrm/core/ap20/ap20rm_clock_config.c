@@ -966,9 +966,11 @@ Ap20VdeClockSourceFind(
 get_mv:
     // Finally update VDE v-scale references, get operational voltage for the
     // found source/divider settings, and store new domain frequency
+    NvRmPrivLockModuleClockState();
     pDfsSource->MinMv = NvRmPrivModuleVscaleReAttach(
         hRmDevice, s_Ap20VdeConfig.pVdeInfo, s_Ap20VdeConfig.pVdeState,
-        DomainKHz, SourceKHz);
+        DomainKHz, SourceKHz, NV_FALSE);
+    NvRmPrivUnlockModuleClockState();
     pDfsSource->SourceKHz = DomainKHz;
 }
 
@@ -1011,11 +1013,13 @@ Ap20VdeClockConfigure(
     }
 
     // Set new VDE clock state and update PLL references
+    NvRmPrivLockModuleClockState();
     pCstate->SourceClock = SourceIndex;
     pCstate->Divider = pDfsSource->DividerSetting;
     pCstate->actual_freq = pDfsSource->SourceKHz;
     NvRmPrivModuleClockSet(hRmDevice, pCinfo, pCstate);
     NvRmPrivModuleClockReAttach(hRmDevice, pCinfo, pCstate);
+    NvRmPrivUnlockModuleClockState();
 
     *pDomainKHz = pCstate->actual_freq;
 }
