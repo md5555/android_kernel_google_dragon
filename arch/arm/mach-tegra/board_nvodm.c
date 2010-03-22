@@ -33,6 +33,8 @@
 #include <asm/mach/arch.h>
 
 #include <mach/board.h>
+#include <mach/platform.h>
+#include <mach/kbc.h>
 
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/partitions.h>
@@ -151,14 +153,6 @@ static struct platform_device tegra_touch_device =
 static struct platform_device tegra_accelerometer_device =
 {
     .name = "tegra_accelerometer",
-    .id   = -1,
-};
-#endif
-
-#ifdef CONFIG_KEYBOARD_TEGRA
-static struct platform_device tegra_kbc_device =
-{
-    .name = "tegra_kbc",
     .id   = -1,
 };
 #endif
@@ -392,6 +386,68 @@ static void __init register_enc28j60(void)
 }
 #endif
 
+#ifndef CONFIG_KEYBOARD_TEGRA
+#define kbc_init() do { } while (0)
+
+#else
+extern struct tegra_kbc_plat *tegra_kbc_odm_to_plat(void);
+
+static void kbc_init(void)
+{
+    struct platform_device *dev = NULL;
+    struct tegra_kbc_plat *pdata = NULL;
+    static struct resource res[2];
+
+    dev = platform_device_alloc("tegra_kbc", -1);
+    if (!dev)
+        goto fail;
+
+    pdata = tegra_kbc_odm_to_plat();
+    if (!pdata) {
+        pr_err("tegra_kbc ODM kit to platform data translation failed\n");
+        goto fail;
+    }
+
+    res[0].flags = IORESOURCE_MEM;
+    res[0].start = tegra_get_module_inst_base("kbc", 0);
+    res[0].end = (res[0].start + tegra_get_module_inst_size("kbc", 0));
+    res[1].flags = IORESOURCE_IRQ;
+    res[1].start = res[1].end =
+        tegra_get_module_inst_irq("kbc", 0, 0);
+
+    if ((res[0].end <= res[0].start) || (res[1].start == NO_IRQ)) {
+        pr_err("no tegra_kbc module present\n");
+        goto fail;
+    }
+
+    if (platform_device_add_resources(dev, res, ARRAY_SIZE(res))) {
+        pr_err("failed to add resources to tegra_kbc device\n");
+        goto fail;
+    }
+
+    if (platform_device_add_data(dev, pdata, sizeof(*pdata))) {
+        pr_err("failed to add platform data to tegra_kbc device\n");
+        goto fail;
+    }
+
+    /* fixme: something about wakeup irq, here */
+
+    if (platform_device_add(dev)) {
+        pr_err("failed to add tegra_kbc device\n");
+        goto fail;
+    }
+
+    return;
+
+fail:
+    if (dev)
+        platform_device_del(dev);
+
+        kfree(pdata);
+    return;
+}
+#endif
+
 static void __init tegra_machine_init(void)
 {
 #if defined(CONFIG_USB_ANDROID) || defined(CONFIG_USB_ANDROID_MODULE)
@@ -436,9 +492,7 @@ static void __init tegra_machine_init(void)
     (void) platform_device_register(&tegra_rtc_device);
 #endif
 
-#ifdef CONFIG_KEYBOARD_TEGRA
-    (void) platform_device_register(&tegra_kbc_device);
-#endif
+    kbc_init();
 
 #if defined(CONFIG_BATTERY_TEGRA_ODM) || defined(CONFIG_TEGRA_BATTERY_NVEC)
     (void) platform_device_register(&tegra_battery_device);

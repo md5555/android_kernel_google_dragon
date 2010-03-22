@@ -164,10 +164,6 @@ static NvOsInterruptBlock *s_pIrqList[NVOS_MAX_SYSTEM_IRQS] = { NULL };
 
 static NvBootArgs s_BootArgs = { {0}, {0}, {0}, {0}, {0}, {0}, {{0}} };
 
-/* Defined in mach-tegra/irq.c.  Stores the number of native (non-GPIO) SoC
- * IRQs. */
-extern NvU32 g_NvNumSocIrqs;
-
 /*  The tasklet "data" parameter is a munging of the s_pIrqList index
  *  (just the IRQ number), and the InterruptBlock's IrqList index, to
  *  make interrupt handler lookups O(n)
@@ -1221,9 +1217,7 @@ NvError NvOsInterruptRegisterInternal(
 
         pNewBlock->IrqList[i].Irq = pIrqList[i];
 
-        /* HACK use threads for GPIO and tasklets for all other interrupts.
-         * g_NvNumSocIrqs is initialized and defined in mach-tegra/irq.c */
-
+        /* HACK use threads for GPIO and tasklets for all other interrupts. */
         if (IsUser)
         {
             pNewBlock->IrqList[i].pSem = pSemList[i];
@@ -1232,7 +1226,7 @@ NvError NvOsInterruptRegisterInternal(
         else
         {
             pNewBlock->IrqList[i].pHandler = pFnList[i];
-            if (pIrqList[i] >= g_NvNumSocIrqs)
+            if (pIrqList[i] >= INT_GPIO_BASE)
                 pNewBlock->Flags |= NVOS_IRQ_IS_KERNEL_THREAD;
             else
                 pNewBlock->Flags |= NVOS_IRQ_IS_TASKLET;

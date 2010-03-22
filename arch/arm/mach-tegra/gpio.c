@@ -28,6 +28,8 @@
 #include <linux/init.h>
 #include <linux/irq.h>
 #include <linux/io.h>
+#include <linux/interrupt.h>
+
 #include <asm/io.h>
 #include <asm/gpio.h>
 
@@ -68,6 +70,13 @@ struct tegra_gpio_bank {
 	int bank;
 	int irq;
 	spinlock_t lvl_lock[4];
+#ifdef CONFIG_PM
+	u32 cnf[4];
+	u32 out[4];
+	u32 oe[4];
+	u32 int_enb[4];
+	u32 int_lvl[4];
+#endif
 };
 
 static struct tegra_gpio_bank tegra_gpio_banks[] = {
@@ -121,12 +130,13 @@ static int tegra_gpio_direction_input(struct gpio_chip *chip, unsigned offset)
 	return 0;
 }
 
-static int tegra_gpio_direction_output(struct gpio_chip *chip, unsigned offset,
-									int value)
+static int tegra_gpio_direction_output(struct gpio_chip *chip,
+	unsigned offset, int value)
 {
 	tegra_gpio_mask_write(GPIO_MSK_OE(offset), offset, 1);
 	return 0;
 }
+
 static struct gpio_chip tegra_gpio_chip = {
 	.label              = "tegra-gpio",
 	.direction_input    = tegra_gpio_direction_input,
@@ -209,14 +219,77 @@ static int tegra_gpio_irq_set_type(unsigned int irq, unsigned int type)
 	return 0;
 }
 
+#ifdef CONFIG_PM
+void tegra_gpio_resume(void)
+{
+	unsigned long flags;
+	int b, p, i;
+
+	local_irq_save(flags);
+
+	for (b=0; b<ARRAY_SIZE(tegra_gpio_banks); b++) {
+		struct tegra_gpio_bank *bank = &tegra_gpio_banks[b];
+
+		for (p=0; p<ARRAY_SIZE(bank->oe); p++) {
+			unsigned int gpio = (b<<5) | (p<<3);
+			__raw_writel(bank->cnf[p], GPIO_CNF(gpio));
+			__raw_writel(bank->out[p], GPIO_OUT(gpio));
+			__raw_writel(bank->oe[p], GPIO_OE(gpio));
+			__raw_writel(bank->int_lvl[p], GPIO_INT_LVL(gpio));
+			__raw_writel(bank->int_enb[p], GPIO_INT_ENB(gpio));
+		}
+
+	}
+
+	local_irq_restore(flags);
+
+	for (i=INT_GPIO_BASE; i<(INT_GPIO_BASE+ARCH_NR_GPIOS); i++) {
+		struct irq_desc *desc = irq_to_desc(i);
+		if (!desc || (desc->status & IRQ_WAKEUP)) continue;
+		enable_irq(i);
+	}
+}
+
+void tegra_gpio_suspend(void)
+{
+	unsigned long flags;
+	int b, p, i;
+
+
+	for (i=INT_GPIO_BASE; i<(INT_GPIO_BASE+ARCH_NR_GPIOS); i++) {
+		struct irq_desc *desc = irq_to_desc(i);
+		if (!desc) continue;
+		if (desc->status & IRQ_WAKEUP) {
+			int gpio = i - INT_GPIO_BASE;
+			pr_debug("gpio %d.%d is wakeup\n", gpio/8, gpio&7);
+			continue;
+                }
+		disable_irq(i);
+	}
+
+	local_irq_save(flags);
+	for (b=0; b<ARRAY_SIZE(tegra_gpio_banks); b++) {
+		struct tegra_gpio_bank *bank = &tegra_gpio_banks[b];
+
+		for (p=0; p<ARRAY_SIZE(bank->oe); p++) {
+			unsigned int gpio = (b<<5) | (p<<3);
+			bank->cnf[p] = __raw_readl(GPIO_CNF(gpio));
+			bank->out[p] = __raw_readl(GPIO_OUT(gpio));
+			bank->oe[p] = __raw_readl(GPIO_OE(gpio));
+			bank->int_enb[p] = __raw_readl(GPIO_INT_ENB(gpio));
+			bank->int_lvl[p] = __raw_readl(GPIO_INT_LVL(gpio));
+		}
+
+	}
+	local_irq_restore(flags);
+}
+
 static int tegra_gpio_wake_enable(unsigned int irq, unsigned int enable)
 {
-	if (enable)
-		tegra_gpio_irq_unmask(irq);
-	else
-		tegra_gpio_irq_mask(irq);
-    return 0;
+	struct tegra_gpio_bank *bank = get_irq_chip_data(irq);
+	return set_irq_wake(bank->irq, enable);
 }
+#endif
 
 static struct irq_chip tegra_gpio_irq_chip = {
 	.name	   = "GPIO",
@@ -224,7 +297,9 @@ static struct irq_chip tegra_gpio_irq_chip = {
 	.mask       = tegra_gpio_irq_mask,
 	.unmask     = tegra_gpio_irq_unmask,
 	.set_type   = tegra_gpio_irq_set_type,
+#ifdef CONFIG_PM
 	.set_wake   = tegra_gpio_wake_enable,
+#endif
 };
 
 static void tegra_gpio_irq_handler(unsigned int irq, struct irq_desc *desc)

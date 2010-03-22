@@ -23,8 +23,6 @@
 #include "power.h"
 #include "linux/interrupt.h"
 
-extern void NvPrivAp20MaskIrq(unsigned int irq);
-extern void NvPrivAp20UnmaskIrq(unsigned int irq);
 extern int enter_power_state(PowerState state, unsigned int proc_id);
 extern void prepare_for_wb0(void);
 extern void prepare_for_wb1(void);
@@ -38,7 +36,6 @@ void enable_plls(NvBool enable);
 void do_suspend_prep(void);
 void reset_cpu(unsigned int cpu, unsigned int reset);
 static void init_lp0_scratch_registers(void);
-static void create_wakeup_irqs(void);
 void shadow_runstate_scratch_regs(void);
 void shadow_lp0_scratch_regs(void);
 
@@ -57,59 +54,11 @@ volatile void *g_pPMC, *g_pAHB, *g_pCLK_RST_CONTROLLER;
 volatile void *g_pEMC, *g_pMC, *g_pAPB_MISC, *g_pTimerus;
 volatile void *g_pIRAM;
 
-// Chip external specific wakeup events list
-static const struct wakeup_source s_WakeupSources[] =
-{
-	WAKEUP_EXTERNAL('o', 5),						//wake 0
-	WAKEUP_EXTERNAL('v', 3),						//wake 1
-	WAKEUP_EXTERNAL('l', 1),						//wake 2
-	WAKEUP_EXTERNAL('b', 6),						//wake 3
-	WAKEUP_EXTERNAL('n', 7),						//wake 4
-	WAKEUP_EXTERNAL('a', 0),						//wake 5
-	WAKEUP_EXTERNAL('u', 5),						//wake 6
-	WAKEUP_EXTERNAL('u', 6),						//wake 7
-	WAKEUP_EXTERNAL('c', 7),						//wake 8
-	WAKEUP_EXTERNAL('s', 2),						//wake 9
-	WAKEUP_EXTERNAL( aa, 1),						//wake 10
-	WAKEUP_EXTERNAL('w', 3),						//wake 11
-	WAKEUP_EXTERNAL('w', 2),						//wake 12
-	WAKEUP_EXTERNAL('y', 6),						//wake 13
-	WAKEUP_EXTERNAL('v', 6),						//wake 14
-	WAKEUP_EXTERNAL('j', 7),						//wake 15
-	WAKEUP_INTERNAL(NvRmModuleID_Rtc, 0, 0),		//wake 16
-	WAKEUP_INTERNAL(NvRmModuleID_Kbc, 0, 0),		//wake 17
-	WAKEUP_INTERNAL(NvRmPrivModuleID_PmuExt, 0, 0),	//wake 18
-	//TODO: Check if USB values are correct
-	WAKEUP_INTERNAL(NvRmModuleID_Usb2Otg, 0, 0),	//wake 19
-	WAKEUP_INTERNAL(NvRmModuleID_Usb2Otg, 0, 1),	//wake 20
-	WAKEUP_INTERNAL(NvRmModuleID_Usb2Otg, 1, 0),	//wake 21
-	WAKEUP_INTERNAL(NvRmModuleID_Usb2Otg, 1, 1),	//wake 22
-	WAKEUP_EXTERNAL('i', 5),						//wake 23
-	WAKEUP_EXTERNAL('v', 2),						//wake 24
-	WAKEUP_EXTERNAL('s', 4),						//wake 25
-	WAKEUP_EXTERNAL('s', 5),						//wake 26
-	WAKEUP_EXTERNAL('s', 0),						//wake 27
-	WAKEUP_EXTERNAL('q', 6),						//wake 28
-	WAKEUP_EXTERNAL('q', 7),						//wake 29
-	WAKEUP_EXTERNAL('n', 2),						//wake 30
-};
-
 #define WAKEUP_SOURCE_INT_RTC   16
 #define INVALID_IRQ				(0xFFFF)
 #define AP20_BASE_PA_BOOT_INFO	0x40000000
 #define MAX_IRQ_CONTROLLERS	4
 #define MAX_IRQ	(32*(MAX_IRQ_CONTROLLERS+1))
-
-//IRQs of external wake events.
-static NvIrqNumber s_WakeupIrqTable[NV_ARRAY_SIZE(s_WakeupSources)];
-
-//Extended table of external wakeup events. If the wakeup source
-//doesn't fall under the default 16 (chip specific) wakeup sources
-//add it to this list.
-static  const NvIrqNumber s_WakeupIrqTableEx[] =
-{
-	INVALID_IRQ
-};
 
 void cpu_ap20_do_lp0(void)
 {
@@ -171,55 +120,6 @@ void cpu_ap20_do_lp0(void)
 	//Interrupt, gpio, pin mux, clock management etc
 	perform_context_operation(PowerModuleContext_Restore);
 }
-void prepare_lp1_wake_events(NvBool entry)
-{
-	NvU32 irq_count, irq;
-
-	for (irq_count=0;irq_count<NV_ARRAY_SIZE(s_WakeupIrqTable);irq_count++)
-	{
-		irq = s_WakeupIrqTable[irq_count];
-
-		if (irq != INVALID_IRQ)
-		{
-			printk("irq = %d\n", s_WakeupIrqTable[irq_count]);
-
-			if (entry) {
-				if (irq < MAX_IRQ)
-					NvPrivAp20UnmaskIrq(irq);
-				else {
-					NvU32 irq_top;
-					irq_top = NvRmGetIrqForLogicalInterrupt(
-						s_hRmGlobal,
-						s_WakeupSources[irq_count].Module,
-						0xff);
-					NvPrivAp20UnmaskIrq(irq_top);
-					enable_irq_wake(irq);
-				}
-			} else {
-				/* resume path only nullifies gpio interrupt */
-				if (irq >= MAX_IRQ) {
-					disable_irq_wake(irq);
-				}
-			}
-		}
-	}
-
-	/* Exit if it is called after resume */
-	if (entry == NV_FALSE)
-		return;
-
-	for (irq_count=0;irq_count<NV_ARRAY_SIZE(s_WakeupIrqTableEx);irq_count++)
-	{
-		irq = s_WakeupIrqTableEx[irq_count];
-		if (irq != INVALID_IRQ)
-		{
-			if (irq < MAX_IRQ)
-				NvPrivAp20UnmaskIrq(irq);
-			else
-				pr_err("specific GPIO wakeups not supported\n");
-		}
-	}
-}
 
 void cpu_ap20_do_lp1(void)
 {
@@ -227,7 +127,6 @@ void cpu_ap20_do_lp1(void)
 	unsigned int proc_id = smp_processor_id();
 
 	prepare_for_wb1();
-	prepare_lp1_wake_events(NV_TRUE);
 
 	//Inform RM about entry to LP1 state
 	NvRmPrivPowerSetState(s_hRmGlobal, NvRmPowerState_LP1);
@@ -248,7 +147,7 @@ void cpu_ap20_do_lp1(void)
 	if (!proc_id)
 	{
 		//Disable the Statistics interrupt
-		NvPrivAp20MaskIrq(irq);
+		disable_irq(INT_SYS_STATS_MON);
 		do_suspend_prep();
 
 		// Set/save CPU power good count
@@ -266,7 +165,7 @@ void cpu_ap20_do_lp1(void)
 	if (!proc_id)
 	{
 		//We're back
-		NvPrivAp20UnmaskIrq(irq);
+		enable_irq(INT_SYS_STATS_MON);
 
 		g_NumActiveCPUs = num_online_cpus();
                 // Assembly LP1 code explicitly turn on PLLX,PLLM and PLLP so no need to enable it
@@ -290,19 +189,12 @@ void cpu_ap20_do_lp1(void)
 	NvOsMemcpy((void*)g_pIRAM, (void*)g_iramContextSaveVA,
 		AVP_CONTEXT_SAVE_AREA_SIZE);
 
-	prepare_lp1_wake_events(NV_FALSE);
-	//Restore the saved module(s) context
-	//Interrupt, gpio, pin mux, clock management etc
 	perform_context_operation(PowerModuleContext_RestoreLP1);
 }
 
 void cpu_ap20_do_lp2(void)
 {
-    NvU32 irq, moduleId;
     unsigned int proc_id = smp_processor_id();
-
-    moduleId = NVRM_MODULE_ID(NvRmModuleID_SysStatMonitor, 0);
-    irq = NvRmGetIrqForLogicalInterrupt(s_hRmGlobal, moduleId, 0);
 
     //Save our context ptrs to scratch regs
     NV_REGW(s_hRmGlobal, NvRmModuleID_Pmif, 0,
@@ -315,7 +207,7 @@ void cpu_ap20_do_lp2(void)
     if (!proc_id)
     {
         //Disable the Statistics interrupt
-        NvPrivAp20MaskIrq(irq);
+        disable_irq(INT_SYS_STATS_MON);
         do_suspend_prep();
     }
 
@@ -325,7 +217,7 @@ void cpu_ap20_do_lp2(void)
     if (!proc_id)
     {
         //We're back
-        NvPrivAp20UnmaskIrq(irq);
+        enable_irq(INT_SYS_STATS_MON);
     
         g_NumActiveCPUs = num_online_cpus();
         //Delay if needed
@@ -417,11 +309,6 @@ void power_lp0_init(void)
 	g_lp1CpuPwrGoodCnt =
 		(4096 * PmuProperty.CpuPowerGoodUs + 124999) / 125000;
 
-	//Create the list of wakeup IRQs.
-	create_wakeup_irqs();
-	return;
-fail:
-	printk("lp0 init failed!\n");
 }
 
 //Generate definitions of local variables to hold scratch register values.
@@ -505,62 +392,6 @@ void shadow_lp0_scratch_regs(void)
 	#define SHADOW_REG(s) NV_PMC_REGW(g_pPMC, s, s);
 	SHADOW_REGS()
 	#undef SHADOW_REG
-}
-
-static void create_wakeup_irqs(void)
-{
-	NvU32						WakeupTableSize;
-	NvU32						Count;
-	NvU32						PadNumber;
-	const NvOdmWakeupPadInfo*	pNvOdmWakeupPadInfo;
-	const NvOdmWakeupPadInfo*	pWakeupPad;
-
-	//Initialize the wakeup irq table.
-	for (Count = 0; Count < NV_ARRAY_SIZE(s_WakeupIrqTable); Count++)
-	{
-		s_WakeupIrqTable[Count] = INVALID_IRQ;
-	}
-
-	//Get the wakeup sources table from odm.
-	pNvOdmWakeupPadInfo = NvOdmQueryGetWakeupPadTable(&WakeupTableSize);
-	if (WakeupTableSize > NV_ARRAY_SIZE(s_WakeupSources))
-		goto fail;
-
-	//If there is a wakeup pad information table
-	if (pNvOdmWakeupPadInfo)
-	{
-		//Then for each pad ...
-		for (Count = 0; Count < WakeupTableSize; Count++)
-		{
-			//... get it's pad number.
-			pWakeupPad = &pNvOdmWakeupPadInfo[Count];
-			PadNumber = pWakeupPad->WakeupPadNumber;
-
-			if (PadNumber >= NV_ARRAY_SIZE(s_WakeupSources))
-				goto fail;
-
-			//If the pad is enabled as a wakeup source...
-			if (pWakeupPad->enable)
-			{
-				//... get it's IRQ number.
-				s_WakeupIrqTable[PadNumber] = NvRmGetIrqForLogicalInterrupt(
-						s_hRmGlobal,
-						s_WakeupSources[PadNumber].Module,
-						s_WakeupSources[PadNumber].Index);
-				if (s_WakeupIrqTable[PadNumber] == INVALID_IRQ)
-					goto fail;
-			}
-		}
-	}
-
-	// Create internal events those are transparent to ODM.
-	//These events will always be enabled.
-	//Nothing for now.
-
-	return;
-fail:
-	printk("Failed to create wakeup irqs\n");
-	return;
 }
 
 static NvU32 select_wakeup_pll(void)

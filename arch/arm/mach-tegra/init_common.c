@@ -26,7 +26,10 @@
 #include <linux/fsl_devices.h>
 #include <linux/dma-mapping.h>
 #include <linux/tegra_devices.h>
+#include <linux/gpio.h>
+#include <linux/interrupt.h>
 #include <mach/iovmm.h>
+#include <mach/gpio-names.h>
 #include "nvcommon.h"
 #include "nvrm_init.h"
 #include "nvrm_drf.h"
@@ -952,6 +955,46 @@ static void __init tegra_init_cpu(void)
 #error "Unrecognized Tegra SoC family"
 #endif
 
+#ifndef CONFIG_PM
+#define tegra_wake_init() do {} while (0)
+#else
+static void __init tegra_wake_init(void)
+{
+#ifdef CONFIG_ARCH_TEGRA_2x_SOC
+    const int wakepad_irq[] = {
+        gpio_to_irq(TEGRA_GPIO_PO5), gpio_to_irq(TEGRA_GPIO_PV3),
+        gpio_to_irq(TEGRA_GPIO_PL1), gpio_to_irq(TEGRA_GPIO_PB6),
+        gpio_to_irq(TEGRA_GPIO_PN7), gpio_to_irq(TEGRA_GPIO_PA0),
+        gpio_to_irq(TEGRA_GPIO_PA0), gpio_to_irq(TEGRA_GPIO_PU5),
+        gpio_to_irq(TEGRA_GPIO_PU6), gpio_to_irq(TEGRA_GPIO_PC7),
+        gpio_to_irq(TEGRA_GPIO_PAA1), gpio_to_irq(TEGRA_GPIO_PW3),
+        gpio_to_irq(TEGRA_GPIO_PW2), gpio_to_irq(TEGRA_GPIO_PY6),
+        gpio_to_irq(TEGRA_GPIO_PJ7), INT_RTC, INT_KBC,
+        /* FIXME: USB wake pad interrupt mapping may be wrong */
+        INT_EXTERNAL_PMU, INT_USB, INT_USB3, INT_USB, INT_USB3,
+        gpio_to_irq(TEGRA_GPIO_PI5), gpio_to_irq(TEGRA_GPIO_PV2),
+        gpio_to_irq(TEGRA_GPIO_PS4), gpio_to_irq(TEGRA_GPIO_PS5),
+        gpio_to_irq(TEGRA_GPIO_PS0), gpio_to_irq(TEGRA_GPIO_PQ6),
+        gpio_to_irq(TEGRA_GPIO_PQ7), gpio_to_irq(TEGRA_GPIO_PN2),
+    };
+#endif
+    const NvOdmWakeupPadInfo *wakeups;
+    NvU32 wake_num;
+
+    wakeups = NvOdmQueryGetWakeupPadTable(&wake_num);
+    if (!wakeups || !wake_num)
+        return;
+
+    while (--wake_num) {
+        if ((wakeups->WakeupPadNumber < ARRAY_SIZE(wakepad_irq)) &&
+            (wakeups->enable)) {
+            enable_irq_wake(wakepad_irq[wakeups->WakeupPadNumber]);
+        }
+        wakeups++;
+    }
+}
+#endif
+
 #ifdef CONFIG_TEGRA_SYSTEM_DMA
 extern int __init tegra_dma_init(void);
 #else
@@ -978,13 +1021,14 @@ void __init tegra_common_init(void)
     tegra_register_sdio();
     tegra_register_usb();
     tegra_register_w1();
+    tegra_wake_init();
 #ifdef CONFIG_PM
 #ifdef MACH_TEGRA_GENERIC_DEBUG
-	/* This is needed to get prints on UART
-	 * during suspend/resume */
-	console_suspend_enabled = 0;
+    /* This is needed to get prints on UART
+     * during suspend/resume */
+    console_suspend_enabled = 0;
 #endif
-	tegra_set_suspend_ops();
+    tegra_set_suspend_ops();
 #endif
 }
 
