@@ -37,7 +37,7 @@
  * @Description : Implementation of the odm KBC API
  */
 #include "nvodm_kbc.h"
-#include "../../query/nvodm_query_kbc_qwerty_def.h"
+#include "../../../query/harmony/nvodm_query_kbc_qwerty_def.h"
 
 NvU32
 NvOdmKbcFilterKeys(

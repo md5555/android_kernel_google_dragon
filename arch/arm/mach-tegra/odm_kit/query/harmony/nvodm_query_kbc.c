@@ -41,8 +41,8 @@
 #include "nvodm_query_kbc_gpio_def.h"
 #include "nvodm_query_kbc_qwerty_def.h"
 
-static NvU32 RowNumbers[] = {NvOdmKbcGpioPin_KBRow0, NvOdmKbcGpioPin_KBRow1};
-static NvU32 ColNumbers[] = {NvOdmKbcGpioPin_KBCol0, NvOdmKbcGpioPin_KBCol0};
+static NvU32 RowNumbers[] = {1, 15};
+static NvU32 ColNumbers[] = {7, 0};
 
 void
 NvOdmKbcGetParameter(
@@ -55,11 +55,11 @@ NvOdmKbcGetParameter(
     {
         case NvOdmKbcParameter_DebounceTime:
             pTempVar = (NvU32 *)pValue;
-            *pTempVar = 10;
+            *pTempVar = 2;
             break;
         case NvOdmKbcParameter_RepeatCycleTime:
             pTempVar = (NvU32 *)pValue;
-            *pTempVar = 100;
+            *pTempVar = 5;
             break;
         default:
             break;
