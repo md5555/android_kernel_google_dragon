@@ -35,6 +35,8 @@
 #define INT_GPIO2		(INT_SEC_BASE + 1)
 #define INT_GPIO3		(INT_SEC_BASE + 2)
 #define INT_GPIO4		(INT_SEC_BASE + 3)
+#define INT_TMR3		(INT_SEC_BASE + 9)
+#define INT_TMR4		(INT_SEC_BASE + 10)
 #define INT_SYS_STATS_MON	(INT_SEC_BASE + 22)
 #define INT_GPIO5		(INT_SEC_BASE + 23)
 

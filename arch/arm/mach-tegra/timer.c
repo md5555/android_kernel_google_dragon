@@ -27,257 +27,189 @@
 #include <linux/clockchips.h>
 #include <asm/mach/time.h>
 #include <asm/io.h>
+#include <mach/iomap.h>
 
-#include "ap15/artimer.h"
-#include "ap15/artimerus.h"
-#include "ap15/arclk_rst.h"
-#include "nvcommon.h"
-#include "nvrm_drf.h"
-#include "nvrm_init.h"
-#include "nvrm_module.h"
-#include "nvrm_interrupt.h"
-#include "nvrm_hardware_access.h"
-#include "mach/nvrm_linux.h"
-#include "nvos.h"
-#include "nvassert.h"
+struct tegra_timer {
+	void __iomem *mmio;
+	struct clock_event_device event;
+};
 
-/* CPU complex uses timer instance 2 */
-#define NV_CPU_TIMER_INSTANCE   2
-#define NV_CPU_SPARE_TIMER_INSTANCE  3 
+#define CLK_RST_CONTROLLER_OSC_CTRL_0 0x50
 
-static volatile NvU8 *s_NvTimerTick;
-static volatile NvU8 *s_NvTimerUsec;
+#define TIMER1_OFFS  0x00  /* reserved for AVP */
+#define TIMER2_OFFS  0x08  /* reserved for AVP */
+#define TIMER3_OFFS  0x50  /* used as OS CPU event timer */
+#define TIMER4_OFFS  0x58  /* reserved as LP2 wakeup trigger */
 
-static irqreturn_t NvTimerIntrHandler(
-    int irq,
-    void *dev_id)
+#define TIMER_TMR_PTV_0 0x0
+#define TIMER_TMR_PCR_0 0x4
+
+#define TIMERUS_OFFS 0x10
+#define TIMERUS_CNTR_1US_0 0x0
+#define TIMERUS_USEC_CFG_0 0x4
+
+static int tegra_event_set_next(unsigned long cycles,
+	struct clock_event_device *dev)
 {
-    struct clock_event_device *dev =
-        (struct clock_event_device *)dev_id;
-    NV_WRITE32(s_NvTimerTick + TIMER_TMR_PCR_0,
-               NV_DRF_NUM(TIMER, TMR_PCR, INTR_CLR, 1));
-    BUG_ON(dev == NULL);
-    dev->event_handler(dev);
-    return IRQ_HANDLED;
+	struct tegra_timer *tmr = container_of(dev, struct tegra_timer, event);
+	u32 reg;
+
+	reg = 0x80000000 | ((1000000/HZ)*(cycles+1)-1);
+	writel(reg, tmr->mmio + TIMER_TMR_PTV_0);
+
+	return 0;
 }
 
-static inline void NvTimerUpdateHardware(
-    unsigned long cycles,
-    int periodic)
+static void tegra_event_set_mode(enum clock_event_mode mode,
+	struct clock_event_device *dev)
 {
-    NvU32 v;
-    v  = NV_DRF_NUM(TIMER, TMR_PTV, TMR_PTV, cycles);
-    if (periodic) {
-        v |= NV_DRF_DEF(TIMER, TMR_PTV, PER, ENABLE);
-    }
-    v |= NV_DRF_DEF(TIMER, TMR_PTV, EN, ENABLE);
-    NV_WRITE32(s_NvTimerTick + TIMER_TMR_PTV_0, v);
-}
+	struct tegra_timer *tmr = container_of(dev, struct tegra_timer, event);
+	u32 reg;
 
-static inline int NvTimerSetEvent(
-    unsigned long cycles,
-    struct clock_event_device *dev)
-{
-    NvTimerUpdateHardware(cycles, 0);
-    return 0;
-}
+	writel(0, tmr->mmio + TIMER_TMR_PTV_0);
 
-static inline void NvTimerSetMode(
-    enum clock_event_mode mode,
-    struct clock_event_device *dev)
-{
- 
-    NV_WRITE32(s_NvTimerTick + TIMER_TMR_PTV_0, 0);
-
-    switch (mode) {
-        case CLOCK_EVT_MODE_PERIODIC:
-            NvTimerUpdateHardware((1000000/HZ)-1, 1);
-            break;
-        case CLOCK_EVT_MODE_ONESHOT:
-            break;
-        case CLOCK_EVT_MODE_RESUME:
-        case CLOCK_EVT_MODE_SHUTDOWN:
-        case CLOCK_EVT_MODE_UNUSED:
-            break;
+	switch (mode) {
+	case CLOCK_EVT_MODE_PERIODIC:
+		reg = 0xc0000000ul | ((1000000/HZ)-1);
+		writel(reg, tmr->mmio + TIMER_TMR_PTV_0);
+		break;
+	case CLOCK_EVT_MODE_ONESHOT:
+		break;
+	case CLOCK_EVT_MODE_RESUME:
+	case CLOCK_EVT_MODE_SHUTDOWN:
+	case CLOCK_EVT_MODE_UNUSED:
+		break;
     }
 }
 
-static cycle_t NvReadTimerUs(void)
+static struct tegra_timer tegra_clockevent = {
+	.mmio	= IO_ADDRESS(TEGRA_TMR1_BASE + TIMER3_OFFS),
+	.event	= {
+		.name	= "timer_event",
+		.rating	= 300,
+		.features = CLOCK_EVT_FEAT_ONESHOT | CLOCK_EVT_FEAT_PERIODIC,
+		.irq	= INT_TMR3,
+		.mult	= 16777,
+		.shift	= 24,
+		.set_next_event = tegra_event_set_next,
+		.set_mode	= tegra_event_set_mode,
+	},
+};
+
+static irqreturn_t tegra_clockevent_interrupt(int irq, void *dev_id)
 {
-    return (cycle_t) NV_READ32(s_NvTimerUsec + TIMERUS_CNTR_1US_0);
+	struct tegra_timer *tmr = (struct tegra_timer *)dev_id;
+
+	writel(1<<30, tmr->mmio + TIMER_TMR_PCR_0);
+	tmr->event.event_handler(&tmr->event);
+	return IRQ_HANDLED;
 }
 
-/* Timers on Tegra run at microsecond resolution, so the
- * best way to approximate a divide by 1000 (ns-to-cycle)
- * and maintain a decent amount of precision is to multiply
- * by 16777 and shift right by 24.  This causes 1000.01ns
- * in kernel time to represent 1000ns in actual time. */
-
-static struct clock_event_device s_NvTimer = {
-    .name           = "timer0",
-    .rating         = 300,
-    .features       = CLOCK_EVT_FEAT_ONESHOT,
-    .mult           = 16777,
-    .shift          = 24,
-    .set_next_event = NvTimerSetEvent,
-    .set_mode       = NvTimerSetMode,
+static struct irqaction tegra_clockevent_irq = {
+	.name		= "timer_event",
+	.irq		= INT_TMR3,
+	.flags		= IRQF_DISABLED | IRQF_TIMER | IRQF_TRIGGER_HIGH,
+	.handler	= tegra_clockevent_interrupt,
+	.dev_id		= &tegra_clockevent,
 };
 
-static struct irqaction s_NvTimerIrq = {
-    .name    = "timer0",
-    .flags   = IRQF_DISABLED | IRQF_TIMER | IRQF_TRIGGER_HIGH,
-    .handler = NvTimerIntrHandler,
-    .dev_id  = &s_NvTimer,
-};
-
-/*  Converting from clock-cycles to nanoseconds is trivial -
- *  just multiply by 1000 */
-static struct clocksource s_NvClockUs =
+static cycle_t tegra_clocksource_read(void)
 {
-    .name    = "timer_us",
-    .rating  = 300,
-    .read   = NvReadTimerUs,
-    .mask   = 0xFFFFFFFFUL,
-    .mult   = 1000,
-    .shift  = 0,
-    .flags  = CLOCK_SOURCE_IS_CONTINUOUS,
+	void __iomem *tmr = IO_ADDRESS(TEGRA_TMR1_BASE + TIMERUS_OFFS);
+	return (cycle_t) readl(tmr + TIMERUS_CNTR_1US_0);
+}
+
+static struct clocksource tegra_clocksource =
+{
+	.name	= "timer_us",
+	.rating	= 300,
+	.read	= tegra_clocksource_read,
+	.mask	= 0xFFFFFFFFUL,
+	.mult	= 1000,
+	.shift	= 0,
+	.flags	= CLOCK_SOURCE_IS_CONTINUOUS,
 };
 
-static void NvSpareTimerInit(void);
+static irqreturn_t tegra_lp2wake_interrupt(int irq, void *dev_id)
+{
+	void __iomem *tmr = (void __iomem *)dev_id;
+	writel(1<<30, tmr + TIMER_TMR_PCR_0);
+	return IRQ_HANDLED;
+}
+
+static struct irqaction tegra_lp2wake_irq = {
+	.name		= "timer_lp2wake",
+	.irq		= INT_TMR4,
+	.flags		= IRQF_DISABLED,
+	.handler	= tegra_lp2wake_interrupt,
+	.dev_id		= IO_ADDRESS(TEGRA_TMR1_BASE + TIMER4_OFFS),
+};
+
+void tegra_lp2_set_trigger(unsigned long cycles)
+{
+	void __iomem *tmr = (void __iomem*)tegra_lp2wake_irq.dev_id;
+
+	writel(0, tmr + TIMER_TMR_PTV_0);
+	if (cycles) {
+		u32 reg = 0x80000000ul | min(0x1ffffffful, cycles);
+		writel(reg, tmr + TIMER_TMR_PTV_0);
+	}
+}
+
+static unsigned long measure_input_freq(unsigned int *m, unsigned int *n)
+{
+	void __iomem *clk_rst = IO_ADDRESS(TEGRA_CLK_RESET_BASE);
+	unsigned long osc = readl(clk_rst + CLK_RST_CONTROLLER_OSC_CTRL_0);
+	osc >>= 30;
+
+	switch (osc) {
+	case 0: if (m && n) { *m=1; *n=13; } return 13000;
+	case 1: if (m && n) { *m=5; *n=96; } return 19200;
+	case 2: if (m && n) { *m=1; *n=12; } return 12000;
+	case 3: if (m && n) { *m=1; *n=26; } return 26000;
+	}
+	return 0;
+}
 
 static void __init tegra_timer_init(void)
 {
-    NvRmPhysAddr Phys;
-    NvU32 Len;
-    volatile NvU8 *pCar = NULL;
-    NvU32 OscFreq;
+	void __iomem *tmr;
+	unsigned int m, n;
+	unsigned long val;
 
-    NvRmModuleGetBaseAddress(s_hRmGlobal,
-        NVRM_MODULE_ID(NvRmPrivModuleID_ClockAndReset, 0), &Phys, &Len);
-    if (NvRmPhysicalMemMap(Phys, Len, NVOS_MEM_READ_WRITE,
-            NvOsMemAttribute_Uncached, (void **)&pCar)!=NvSuccess)
-    {
-        NV_ASSERT(!"Error: Unable to get clock controller base address\n");
-    }
+	tmr = IO_ADDRESS(TEGRA_TMR1_BASE + TIMERUS_OFFS);
+	val = measure_input_freq(&m, &n);
 
-    OscFreq = NV_READ32(pCar + CLK_RST_CONTROLLER_OSC_CTRL_0);
+	val = ((m-1)<<8) | (n-1);
 
-    NvRmModuleGetBaseAddress(s_hRmGlobal, 
-        NVRM_MODULE_ID(NvRmModuleID_TimerUs, 0), &Phys, &Len);
+	writel(val, tmr + TIMERUS_USEC_CFG_0);
 
-    if (NvRmPhysicalMemMap(Phys, Len, NVOS_MEM_READ_WRITE,
-            NvOsMemAttribute_Uncached, (void **)&s_NvTimerUsec)!=NvSuccess)
-    {
-        NV_ASSERT(!"ERROR: Unable to get microsecod timer base address\n");
-    }
+	if (clocksource_register(&tegra_clocksource)) {
+		pr_err("Failed to register clocksource\n");
+		BUG();
+	}
 
-    switch (NV_DRF_VAL(CLK_RST_CONTROLLER, OSC_CTRL, OSC_FREQ, OscFreq))
-    {
-    case 0:  // 13MHz
-        NV_WRITE32(s_NvTimerUsec + TIMERUS_USEC_CFG_0,
-                   NV_DRF_NUM(TIMERUS, USEC_CFG, USEC_DIVIDEND, 0) |
-                   NV_DRF_NUM(TIMERUS, USEC_CFG, USEC_DIVISOR, 12));
-        break;
-    case 1:  // 19.2 MHz
-        NV_WRITE32(s_NvTimerUsec + TIMERUS_USEC_CFG_0,
-                   NV_DRF_NUM(TIMERUS, USEC_CFG, USEC_DIVIDEND, 4) |
-                   NV_DRF_NUM(TIMERUS, USEC_CFG, USEC_DIVISOR, 95));
-        break;
-    case 2: // 12 MHz
-        NV_WRITE32(s_NvTimerUsec + TIMERUS_USEC_CFG_0,
-                   NV_DRF_NUM(TIMERUS, USEC_CFG, USEC_DIVIDEND, 0) |
-                   NV_DRF_NUM(TIMERUS, USEC_CFG, USEC_DIVISOR, 11));
-        break;
-    case 3:  // 26 MHz
-    default:
-        NV_WRITE32(s_NvTimerUsec + TIMERUS_USEC_CFG_0,
-                   NV_DRF_NUM(TIMERUS, USEC_CFG, USEC_DIVIDEND, 0) |
-                   NV_DRF_NUM(TIMERUS, USEC_CFG, USEC_DIVISOR, 25));
-        break;
-    }
-    if (clocksource_register(&s_NvClockUs)) {
-        NV_ASSERT(!"ERROR: Could not register microsecond timer\n");
-    }
+	tegra_clockevent.event.max_delta_ns =
+		clockevent_delta2ns(0x1ffffffful, &tegra_clockevent.event);
 
-    NvRmModuleGetBaseAddress(s_hRmGlobal,
-        NVRM_MODULE_ID(NvRmModuleID_Timer, NV_CPU_TIMER_INSTANCE), &Phys, &Len);
-    if (NvRmPhysicalMemMap(Phys, Len, NVOS_MEM_READ_WRITE,
-            NvOsMemAttribute_Uncached,
-            (void **)&s_NvTimerTick)!=NvSuccess) {
-        NV_ASSERT(!"ERROR: Unable to get tick-timer base address\n");
-    }
+	tegra_clockevent.event.min_delta_ns =
+		clockevent_delta2ns(1, &tegra_clockevent.event);
 
-    s_NvTimerIrq.irq = NvRmGetIrqForLogicalInterrupt(s_hRmGlobal,
-         NVRM_MODULE_ID(NvRmModuleID_Timer, NV_CPU_TIMER_INSTANCE), 0);
+	tegra_clockevent.event.cpumask = cpu_all_mask;
 
-    if (setup_irq(s_NvTimerIrq.irq, &s_NvTimerIrq)) {
-        NV_ASSERT(!"ERROR: Could not configure timer IRQ\n");
-    }
+	if (setup_irq(tegra_clockevent_irq.irq, &tegra_clockevent_irq)) {
+		pr_err("Failed to register clockevent IRQ\n");
+		BUG();
+	}
+	if (setup_irq(tegra_lp2wake_irq.irq, &tegra_lp2wake_irq)) {
+		pr_err("Failed to register LP2 wakeup timer IRQ\n");
+		BUG();
+	}
 
-
-    s_NvTimer.max_delta_ns =
-        clockevent_delta2ns(TIMER_TMR_PTV_0_TMR_PTV_DEFAULT_MASK,
-                            &s_NvTimer);
-    s_NvTimer.min_delta_ns = clockevent_delta2ns(1, &s_NvTimer);
-    s_NvTimer.cpumask = cpu_all_mask;
-    s_NvTimer.irq = s_NvTimerIrq.irq;
-    clockevents_register_device(&s_NvTimer);
-
-    NvSpareTimerInit();
+	clockevents_register_device(&tegra_clockevent.event);
 }
 
-struct sys_timer tegra_timer = 
-{
-    .init = tegra_timer_init,
+struct sys_timer tegra_timer = {
+	.init	= tegra_timer_init,
 };
-
-static volatile NvU8 *s_NvSpareTimerTick;
-
-static irqreturn_t NvSpareTimerIntrHandler(
-    int irq,
-    void *driver_data)
-{
-    NV_WRITE32(s_NvSpareTimerTick + TIMER_TMR_PCR_0, 
-        NV_DRF_NUM(TIMER, TMR_PCR, INTR_CLR, 1));
-
-    return IRQ_HANDLED;
-}
-
-static struct irqaction s_SpareTimerIrq = {
-    .name    = "spare_timer",
-    .flags   = IRQF_DISABLED,
-    .handler = NvSpareTimerIntrHandler,
-    .dev_id  = &s_NvSpareTimerTick,
-};
-
-void NvSpareTimerTrigger(unsigned long cycles)
-{
-    NvU32 v;
-    v  = NV_DRF_NUM(TIMER, TMR_PTV, TMR_PTV, cycles);
-    v |= NV_DRF_DEF(TIMER, TMR_PTV, EN, ENABLE);
-    NV_WRITE32(s_NvSpareTimerTick + TIMER_TMR_PTV_0, v);
-}
-
-static void NvSpareTimerInit(void)
-{
-    int irq;
-    NvRmPhysAddr Phys;
-    NvU32 Len;
-
-    NvRmModuleGetBaseAddress(s_hRmGlobal,
-        NVRM_MODULE_ID(NvRmModuleID_Timer, NV_CPU_SPARE_TIMER_INSTANCE), &Phys, &Len);
-
-    if (NvRmPhysicalMemMap(Phys, Len, NVOS_MEM_READ_WRITE,
-            NvOsMemAttribute_Uncached,
-            (void **)&s_NvSpareTimerTick)!=NvSuccess) {
-        NV_ASSERT(!"ERROR: Unable to get tick-timer base address\n");
-    }
-
-    irq = NvRmGetIrqForLogicalInterrupt(s_hRmGlobal,
-         NVRM_MODULE_ID(NvRmModuleID_Timer, NV_CPU_SPARE_TIMER_INSTANCE), 0);
-
-    if (setup_irq(irq, &s_SpareTimerIrq)) {
-        NV_ASSERT(!"ERROR: Could not configure timer IRQ\n");
-    }
-}
 

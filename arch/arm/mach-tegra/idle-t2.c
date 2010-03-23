@@ -65,7 +65,7 @@ extern void enter_lp2(NvU32, NvU32);
 extern void exit_power_state(void);
 extern void module_context_init(void);
 extern void power_lp0_init(void);
-extern void NvSpareTimerTrigger(unsigned long); /* timer.c */
+extern void tegra_lp2_set_trigger(unsigned long);
 NvRmMemHandle s_hWarmboot = NULL;
 NvU32 g_AvpWarmbootEntry;
 NvU32 g_IramPA = 0;
@@ -312,8 +312,9 @@ void mach_tegra_idle(void)
 
 	if (lp2_ok) {
 		sleep_time -= LP2_ROUNDTRIP_TIME_US;
-		NvSpareTimerTrigger(sleep_time);
+		tegra_lp2_set_trigger(sleep_time);
 		cpu_ap20_do_lp2();
+		tegra_lp2_set_trigger(0);
 		/* add the actual amount of time spent in lp2 to the timers */
 		sleep_time = NV_REGR(s_hRmGlobal, NvRmModuleID_Pmif,
 			0, APBDEV_PMC_SCRATCH1_0);
