@@ -46,6 +46,8 @@ static NvRmModuleID tegra_map_name_to_mod(const char *name, int inst)
 		return NVRM_MODULE_ID(NvRmPrivModuleID_Gart, inst);
 	else if (!strcmp(name, "iram"))
 		return NVRM_MODULE_ID(NvRmPrivModuleID_Iram, inst);
+	else if (!strcmp(name, "kbc"))
+		return NVRM_MODULE_ID(NvRmModuleID_Kbc, 0);
 
 	return (NvRmModuleID) 0;
 }
