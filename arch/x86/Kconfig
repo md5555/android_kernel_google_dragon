@@ -2089,8 +2089,6 @@ source "drivers/Kconfig"
 
 source "ubuntu/Kconfig"
 
-source "chromeos/drivers/Kconfig"
-
 source "drivers/firmware/Kconfig"
 
 source "fs/Kconfig"
