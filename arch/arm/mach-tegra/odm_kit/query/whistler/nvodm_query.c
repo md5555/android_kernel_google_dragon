@@ -1201,6 +1201,7 @@ const NvOdmUsbProperty*
 NvOdmQueryGetUsbProperty(NvOdmIoModule OdmIoModule,
                          NvU32 Instance)
 {
+
     static const NvOdmUsbProperty Usb1Property =
     {
         NvOdmUsbInterfaceType_Utmi,
@@ -1283,13 +1284,12 @@ NvOdmQueryGetUsbProperty(NvOdmIoModule OdmIoModule,
 
     if (OdmIoModule == NvOdmIoModule_Usb && Instance == 2)
     {
-#if NVODM_ENABLE_EMC_DVFS
-        if (NvOdmIsE1108Hynix())
+        NvOdmBoardInfo BoardInfo;
+        if (NvOdmPeripheralGetBoardInfo(BOARD_ID_WHISTLER_E1108, &BoardInfo))
         {
             return &(Usb3Property_E1108);
         }
         else
-#endif
         {
             return &(Usb3Property);
         }
