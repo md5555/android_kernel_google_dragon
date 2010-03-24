@@ -128,7 +128,7 @@ EXPORT_SYMBOL_GPL(arm_pm_restart);
  * This is our default idle handler.  We need to disable
  * interrupts here to ensure we don't miss a wakeup call.
  */
-static void default_idle(void)
+void default_idle(void)
 {
 	if (hlt_counter)
 		cpu_relax();
@@ -139,6 +139,7 @@ static void default_idle(void)
 		local_irq_enable();
 	}
 }
+EXPORT_SYMBOL(default_idle);
 
 /*
  * The idle thread.  We try to conserve power, while trying to keep
@@ -173,6 +174,19 @@ void cpu_idle(void)
 		preempt_disable();
 	}
 }
+
+#if defined(CONFIG_ARCH_HAS_CPU_IDLE_WAIT)
+static void do_nothing(void *unused)
+{
+}
+
+void cpu_idle_wait(void)
+{
+	smp_mb();
+	smp_call_function(do_nothing, NULL, 1);
+}
+#endif
+
 
 static char reboot_mode = 'h';
 
