@@ -1207,7 +1207,11 @@ NvOdmQueryGetUsbProperty(NvOdmIoModule OdmIoModule,
         (NvOdmUsbChargerType_SE0 | NvOdmUsbChargerType_SE1 | NvOdmUsbChargerType_SK),
         20,
         NV_TRUE,
+#ifdef CONFIG_USB_TEGRA_OTG
         NvOdmUsbModeType_OTG,
+#else
+        NvOdmUsbModeType_Device,
+#endif
         NvOdmUsbIdPinType_CableId,
         NvOdmUsbConnectorsMuxType_None,
         NV_FALSE
