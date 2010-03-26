@@ -167,10 +167,6 @@ static struct sdhci_ops tegra_sdhci_ops = {
 #endif
 };
 
-struct sdioCaps {
-	NvBool EnableDmaSupport;
-};
-
 int __init tegra_sdhci_probe(struct platform_device *pdev)
 {
 	struct sdhci_host *sdhost;
@@ -187,18 +183,8 @@ int __init tegra_sdhci_probe(struct platform_device *pdev)
 #endif
 	NvRmModuleSdmmcInterfaceCaps SdioInterfaceCaps;
 
-	struct sdioCaps sdioCapsArray[2];
-	struct sdioCaps *pSdioCaps = NULL;
-	NvRmModuleCapability sdioAllChipCaps[] = {
-		{1, 0, 0, &sdioCapsArray[0]},
-		{2, 0, 0, &sdioCapsArray[1]},
-	};
 	const NvOdmGpioPinInfo *gp_info;
 	NvU32 PinCount;
-
-	/* Only enable DMA support on AP2x chips */
-	sdioCapsArray[0].EnableDmaSupport = NV_FALSE;
-	sdioCapsArray[1].EnableDmaSupport = NV_TRUE;
 
 	if (pdev->id == -1)
 		return -ENODEV;
@@ -275,11 +261,6 @@ int __init tegra_sdhci_probe(struct platform_device *pdev)
 	NvRmModuleReset(s_hRmGlobal, ModId);
 	NvOdmSdioResume(host->hSdioHandle);
 
-	NvRmModuleGetCapabilities(s_hRmGlobal,
-		NVRM_MODULE_ID(NvRmModuleID_Sdio, pdev->id),
-		sdioAllChipCaps, NV_ARRAY_SIZE(sdioAllChipCaps),
-		(void**)&pSdioCaps);
-
 	sdhost->hw_name = "tegra";
 	sdhost->ops = &tegra_sdhci_ops;
 	sdhost->irq = irq;
@@ -297,12 +278,14 @@ int __init tegra_sdhci_probe(struct platform_device *pdev)
 	SDHCI_QUIRK_PRESENT_STATE_REGISTER_INVALID |
 	SDHCI_QUIRK_BROKEN_CTRL_HISPD;
 
-	if (!pSdioCaps->EnableDmaSupport)
-		sdhost->quirks |= SDHCI_QUIRK_BROKEN_DMA;
-	else {
-		sdhost->quirks |= SDHCI_QUIRK_BROKEN_SPEC_VERSION;
-		sdhost->quirks |= SDHCI_QUIRK_32KB_MAX_ADMA_SIZE;
-	}
+#ifdef CONFIG_ARCH_TEGRA_1x_SOC
+	sdhost->quirks |= SDHCI_QUIRK_BROKEN_DMA;
+#elif  CONFIG_ARCH_TEGRA_2x_SOC
+	sdhost->quirks |= SDHCI_QUIRK_BROKEN_SPEC_VERSION |
+		SDHCI_QUIRK_32KB_MAX_ADMA_SIZE;
+#else
+#error "Not defined for this processor"
+#endif
 
 	err1 = NvRmGetModuleInterfaceCapabilities(s_hRmGlobal,
 		NVRM_MODULE_ID(NvRmModuleID_Sdio, pdev->id),
