@@ -307,7 +307,7 @@ void power_lp0_init(void)
 	g_lp1CpuPwrGoodCnt = HasPmuProperty ?
 		 PmuProperty.CpuPowerGoodUs : 2000;	// Use 2ms by default
 	g_lp1CpuPwrGoodCnt =
-		(4096 * PmuProperty.CpuPowerGoodUs + 124999) / 125000;
+		(4096 * g_lp1CpuPwrGoodCnt + 124999) / 125000;
 
 }
 
