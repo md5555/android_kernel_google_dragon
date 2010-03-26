@@ -91,7 +91,7 @@ static int tegra_spi_setup(struct spi_device *pSpiDevice)
 			pSpiDevice->mode & ~NV_SUPPORTED_MODE_BITS);
 	}
 
-	pShimSpi->Mode = pSpiDevice->mode & ~NV_SUPPORTED_MODE_BITS;
+	pShimSpi->Mode = pSpiDevice->mode & NV_SUPPORTED_MODE_BITS;
 	switch (pShimSpi->Mode) {
 	case SPI_MODE_0:
 		pShimSpi->Mode = NvOdmQuerySpiSignalMode_0;
