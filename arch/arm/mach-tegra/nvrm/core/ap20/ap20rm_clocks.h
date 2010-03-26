@@ -57,6 +57,9 @@ extern const NvU32 g_Ap20ModuleClockTableSize;
 // Defines maximum APB frequency (bug 559823)
 #define NVRM_AP20_APB_MAX_KHZ (125000)
 
+// Defines graphics Host frequency
+#define NVRM_AP20_HOST_KHZ (108000)
+
 /**
  * Defines frequency steps derived from PLLP0 fixed output to be used as System
  * clock source frequency. The frequency specified in kHz, and it will be rounded

@@ -2758,6 +2758,7 @@ static const NvRmModuleID s_Ap20PllC0UsagePolicy[] =
     NvRmModuleID_Tvo,
     NvRmModuleID_3D,
     NvRmModuleID_2D,
+    NvRmModuleID_Epp,
     NvRmModuleID_Mpe,
     NvRmModuleID_Hdmi,
     NvRmModuleID_Vde

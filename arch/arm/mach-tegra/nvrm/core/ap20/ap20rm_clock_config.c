@@ -774,13 +774,16 @@ NvRmPrivAp20GetEmcSyncFreq(
     {
         case NvRmModuleID_2D:
         case NvRmModuleID_Epp:
-            // TODO: establish scales after Ap20 bring-up
+            // Scale down 2D/EPP whith EMC clock (set 2D/EPP frequency at
+            // 50% of max when EMC clock is at or below 50% of max)
             FreqKHz = NvRmPrivGetSocClockLimits(Module)->MaxKHz;
+            if ((0 < s_Ap20EmcConfig.Index) &&
+                (s_Ap20EmcConfig.Index < NVRM_AP20_DFS_EMC_FREQ_STEPS))
+                FreqKHz >>= 1;
             break;
 
         case NvRmModuleID_GraphicsHost:
-            // TODO: establish level after Ap20 bring-up
-            FreqKHz = NvRmPrivGetSocClockLimits(Module)->MaxKHz;
+            FreqKHz = NVRM_AP20_HOST_KHZ;
             break;
 
         default:
