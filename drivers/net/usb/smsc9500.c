@@ -983,6 +983,9 @@ static int smsc9500_rx_setmulticastlist(struct usbnet *dev)
 
 	PADAPTER_DATA adapterData=(PADAPTER_DATA)(dev->data[0]);
 
+	if (dev->suspendFlag) {
+		return 0;
+	}
 	if(down_interruptible(&adapterData->RxFilterLock)){
        return -EINTR;
     }
@@ -1091,6 +1094,7 @@ static int Phy_GetLinkMode(struct usbnet *dev)
 
 	PADAPTER_DATA adapterData=(PADAPTER_DATA)(dev->data[0]);
 	SMSC_TRACE(DBG_LINK, "---------->in Phy_GetLinkMode");
+	CHECK_RETURN_STATUS(smsc9500_read_phy(dev,PHY_BSR,&dwTemp));
 	CHECK_RETURN_STATUS(smsc9500_read_phy(dev,PHY_BSR,&dwTemp));
 
 	wRegBSR=LOWORD(dwTemp);
@@ -4106,6 +4110,7 @@ static int SetWakeupEvents(struct net_device *netdev)
 
 			// If there's currently no link we can use Suspend1
 			CHECK_RETURN_STATUS(smsc9500_read_phy(dev, PHY_BSR, &Value32));
+			CHECK_RETURN_STATUS(smsc9500_read_phy(dev, PHY_BSR, &Value32));
 			wValue=(u16)Value32;
 			if (!(wValue & PHY_BSR_LINK_STATUS_))
 			{
@@ -4690,6 +4695,7 @@ static int Smsc9500AutoSuspend (struct usb_interface *intf, pm_message_t state)
 	{
 		adapterData->wakeupOptsBackup = adapterData->WolWakeupOpts;
 
+		smsc9500_read_phy(dev, PHY_BSR, &Value32);
 		if(smsc9500_read_phy(dev, PHY_BSR, &Value32) < 0){
 			return SMSC9500_FAIL;
 		}
@@ -4746,16 +4752,18 @@ static int Smsc9500AutoSuspend (struct usb_interface *intf, pm_message_t state)
 					adapterData->dynamicSuspendPHYEvent = PHY_INT_MASK_LINK_DOWN_;
 					ret = EnablePHYWakeupInterrupt(dev, adapterData->dynamicSuspendPHYEvent);
 				}
-			}else{// if(suspendFlag & AUTOSUSPEND_LINKDOWN){//Resume immediately
+			}else{
 				ret = SMSC9500_FAIL;
 			}
 		}
 
 		if(ret != SMSC9500_SUCCESS){
-			SMSC_WARNING("Failed to suspend device\n");
+			//SMSC_WARNING("Failed to suspend device\n");
 			dev->suspendFlag = 0;
 			if(!dev->pmLock){//Resume immediately
 				smscusbnet_defer_myevent(dev, EVENT_IDLE_RESUME);
+				Tx_WakeQueue(dev,0x04UL);
+				tasklet_schedule (&dev->bh);
 			}
 			goto _SUSPEND_EXIT;
 		}else{
