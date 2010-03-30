@@ -80,7 +80,7 @@ extern "C"
  */
 #define NVRM_DFS_PARAM_AVP_AP20 \
     NvRmFreqMaximum, /* Maximum domain frequency set to h/w limit */ \
-    24000,  /* Minimum domain frequency 24 MHz */ \
+    36000,  /* Minimum domain frequency 36 MHz */ \
     1000,   /* Frequency change upper band 1 MHz */ \
     1000,   /* Frequency change lower band 1 MHz */ \
     {          /* RT starvation control parameters */ \
@@ -89,12 +89,12 @@ extern "C"
         128,   /* Proportional frequency boost decrease 128/256 ~ 50% */  \
     },\
     {          /* NRT starvation control parameters */ \
-        1000,  /* Fixed frequency NRT boost increase 1 MHz */ \
+        2000,  /* Fixed frequency NRT boost increase 2 MHz */ \
         255,   /* Proportional frequency boost increase 255/256 ~ 100% */ \
         128,   /* Proportional frequency boost decrease 128/256 ~ 50% */  \
     },\
     3,      /* Relative adjustement of average freqiency 1/2^3 ~ 12% */ \
-    2,      /* Number of smaple intervals with NRT to trigger boost = 3 */ \
+    3,      /* Number of smaple intervals with NRT to trigger boost = 4 */ \
     1       /* NRT idle cycles threshold = 1 */ 
 
 /**
@@ -209,7 +209,7 @@ extern "C"
 
 // Defines minimum scaling limit for each supported SDRAM type
 #define NVRM_AP20_DDR2_MIN_KHZ (50000)
-#define NVRM_AP20_LPDDR2_MIN_KHZ (50000)
+#define NVRM_AP20_LPDDR2_MIN_KHZ (18000)
 
 /**
  * Defines CPU frequency threshold for slave CPU1 power management:

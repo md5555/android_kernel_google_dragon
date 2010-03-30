@@ -1206,13 +1206,24 @@ DfsGetTargetFrequencies(
         }
 
         /*
-         * Domain frequency is above low limit with tolerance band, or frequency
-         * is above low limit and it was not in low corner (hysteresis) - clear
-         * low corner hit
+         * Determine if low corner is hit in this domain - clear hit indicator
+         * if new target domain frequency is above low limit (with hysteresis
+         * equal to the 1st NRT starvation step). For platform with dedicated
+         * CPU partition reduce activity margin by half when there is no busy
+         * or starvation requirements
          */
+        if (NvRmPrivIsCpuRailDedicated(pDfs->hRm) &&
+            (DomainBusyKHz <= LowCornerDomainKHz) &&
+            ((*pDomainKHz) == pDomainSampler->BumpedAverageKHz))
+        {
+            // Multiplying threshold has the same effect as dividing target
+            // to reduce margin
+            LowCornerDomainKHz +=
+                (LowCornerDomainKHz >> (pDomainParam->RelAdjustBits + 1));
+        }
         if ( ((*pDomainKHz) > 
-              (LowCornerDomainKHz + pDomainParam->UpperBandKHz)) ||
-             (((*pDomainKHz) > LowCornerDomainKHz) && (!pDfs->LowCornerHit))
+              (LowCornerDomainKHz + pDomainParam->NrtStarveParam.BoostStepKHz))
+             || (((*pDomainKHz) > LowCornerDomainKHz) && (!pDfs->LowCornerHit))
             )
         {
             LowCornerHit = NV_FALSE;
