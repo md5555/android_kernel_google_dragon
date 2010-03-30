@@ -493,42 +493,64 @@ static struct platform_driver nvrm_driver =
 //
 
 wait_queue_head_t tegra_pm_notifier_wait;
+wait_queue_head_t sys_nvrm_notifier_wait;
+
 int tegra_pm_notifier_continue_ok;
 
 struct kobject *nvrm_kobj;
 
-char* nvrm_notifier;
+const char* sys_nvrm_notifier;
 
-#define STRING_PM_NONE		  "none"	       // initial state
-#define STRING_PM_SUSPEND_PREPARE "PM_SUSPEND_PREPARE" // notify to daemon
-#define STRING_PM_POST_SUSPEND	  "PM_POST_SUSPEND"    // notify to daemon
-#define STRING_PM_DISPLAY_OFF	  "PM_DISPLAY_OFF"     // notify to daemon
-#define STRING_PM_DISPLAY_ON	  "PM_DISPLAY_ON"      // notify to daemon
-#define STRING_PM_CONTINUE	  "PM_CONTINUE"	       // reply from daemon
-#define STRING_PM_SIGNAL	  "PM_SIGNAL"	       // request signal
+static const char *STRING_PM_SUSPEND_PREPARE = "PM_SUSPEND_PREPARE";
+static const char *STRING_PM_POST_SUSPEND    = "PM_POST_SUSPEND";
+static const char *STRING_PM_DISPLAY_OFF     = "PM_DISPLAY_OFF";
+static const char *STRING_PM_DISPLAY_ON      = "PM_DISPLAY_ON";
+static const char *STRING_PM_CONTINUE        = "PM_CONTINUE";
+static const char *STRING_PM_SIGNAL          = "PM_SIGNAL";
 
-ssize_t
+// Reading blocks if the value is not available.
+static ssize_t
 nvrm_notifier_show(struct kobject *kobj, struct kobj_attribute *attr,
 		   char *buf)
 {
-	return sprintf(buf, "%s\n", nvrm_notifier);
+	int nchar;
+
+	// Block if the value is not available yet.
+	if (! sys_nvrm_notifier)
+	{
+	    printk(KERN_INFO "%s: blocking\n", __func__);
+	    wait_event_interruptible(sys_nvrm_notifier_wait, sys_nvrm_notifier);
+	}
+
+	// In case of false wakeup, return "".
+	if (! sys_nvrm_notifier)
+	{
+	    printk(KERN_INFO "%s: false wakeup, returning with '\\n'\n", __func__);
+	    nchar = sprintf(buf, "\n");
+	    return nchar;
+	}
+
+	// Return the value, and clear.
+	printk(KERN_INFO "%s: returning with '%s'\n", __func__, sys_nvrm_notifier);
+	nchar = sprintf(buf, "%s\n", sys_nvrm_notifier);
+	sys_nvrm_notifier = NULL;
+	return nchar;
 }
 
-ssize_t
+// Writing is no blocking.
+static ssize_t
 nvrm_notifier_store(struct kobject *kobj, struct kobj_attribute *attr,
 			const char *buf, size_t count)
 {
-	if (!strcmp(buf, STRING_PM_CONTINUE)) {
+	if (!strncmp(buf, STRING_PM_CONTINUE, strlen(STRING_PM_CONTINUE))) {
 		// Wake up pm_notifier.
 		tegra_pm_notifier_continue_ok = 1;
 		wake_up(&tegra_pm_notifier_wait);
 	}
 	else if (!strncmp(buf, STRING_PM_SIGNAL, strlen(STRING_PM_SIGNAL))) {
 		s_nvrm_daemon_pid = 0;
-		sscanf(buf, STRING_PM_SIGNAL " %d",
-			   &s_nvrm_daemon_pid);
-		printk(KERN_INFO "%s: nvrm_daemon=%d\n",
-			   __func__, s_nvrm_daemon_pid);
+		sscanf(buf, "%*s %d", &s_nvrm_daemon_pid);
+		printk(KERN_INFO "%s: nvrm_daemon=%d\n", __func__, s_nvrm_daemon_pid);
 	}
 	else {
 		printk(KERN_ERR "%s: wrong value '%s'\n", __func__, buf);
@@ -544,7 +566,7 @@ static struct kobj_attribute nvrm_notifier_attribute =
 // PM notifier
 //
 
-static void notify_daemon(char* notice)
+static void notify_daemon(const char* notice)
 {
 	long timeout = HZ * 30;
 
@@ -558,7 +580,8 @@ static void notify_daemon(char* notice)
 	tegra_pm_notifier_continue_ok = 0;
 
 	// Notify nvrm_daemon.
-	nvrm_notifier = notice;
+	sys_nvrm_notifier = notice;
+	wake_up(&sys_nvrm_notifier_wait);
 
 	// Wait for the reply from nvrm_daemon.
 	printk(KERN_INFO "%s: wait for nvrm_daemon\n", __func__);
@@ -568,7 +591,7 @@ static void notify_daemon(char* notice)
 	}
 
 	// Go back to the initial state.
-	nvrm_notifier = STRING_PM_NONE;
+	sys_nvrm_notifier = NULL;
 }
 
 int tegra_pm_notifier(struct notifier_block *nb,
@@ -626,6 +649,7 @@ static int __init nvrm_init(void)
 	#if defined(CONFIG_PM)
 	// Register PM notifier.
 	pm_notifier(tegra_pm_notifier, 0);
+	tegra_pm_notifier_continue_ok = 0;
 	init_waitqueue_head(&tegra_pm_notifier_wait);
 
 	#if defined(CONFIG_HAS_EARLYSUSPEND)
@@ -635,7 +659,8 @@ static int __init nvrm_init(void)
 	// Create /sys/power/nvrm/notifier.
 	nvrm_kobj = kobject_create_and_add("nvrm", power_kobj);
 	sysfs_create_file(nvrm_kobj, &nvrm_notifier_attribute.attr);
-	nvrm_notifier = STRING_PM_NONE;
+	sys_nvrm_notifier = NULL;
+	init_waitqueue_head(&sys_nvrm_notifier_wait);
 	#endif
 
 	// Register NvRm platform driver.
