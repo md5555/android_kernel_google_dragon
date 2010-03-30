@@ -47,7 +47,7 @@ for arch in $archs; do
 	echo "***************************************"
 	echo "* Processing $arch ($kernarch) ... "
 	archconfdir=$confdir/$arch
-	flavourconfigs=$(cd $archconfdir && ls config.flavour.*)
+	flavourconfigs=$(cd $archconfdir && ls config.flavour.*[^~])
 
 	# Merge configs
 	# We merge config.common.ubuntu + config.common.<arch> +

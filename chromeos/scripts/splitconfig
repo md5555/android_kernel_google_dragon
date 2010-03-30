@@ -11,6 +11,9 @@ for config in os.listdir("."):
     # Only config.*
     if not config.startswith("config."):
         continue
+    # Ignore emacs backups
+    if config.endswith("~"):
+        continue
     # Nothing that is disabled, or remnant
     if re.search("\.(default|disabled|stub)$", config):
         continue
