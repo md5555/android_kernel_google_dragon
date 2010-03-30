@@ -1026,6 +1026,7 @@ typedef struct NvEcSleepGlobalConfigureEventReportingRequestPayloadRec
 typedef enum
 {
     NvEcKeyboardSubtype_ConfigureWake = 0x3,
+    NvEcKeyboardSubtype_ConfigureWakeKeyReport,
 
     NvEcKeyboardSubtype_Reset = 0xff,
     NvEcKeyboardSubtype_Enable = 0xf4,
