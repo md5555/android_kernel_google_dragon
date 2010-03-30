@@ -1,5 +1,7 @@
+
+
 /*
- * Copyright (c) 2009 NVIDIA Corporation.
+ * Copyright (c) 2010 NVIDIA Corporation.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -60,5 +62,13 @@ static const NvOdmIoAddress s_SdioAddresses[] =
 static const NvOdmIoAddress s_VibAddresses[] =
 {
     { NvOdmIoModule_Vdd, 0x0, Max8907bPmuSupply_LDO16},
+};
+
+static const NvOdmIoAddress s_AcceleroAddresses[] =
+{
+    { NvOdmIoModule_I2c, 0x0, 0x3A }, /* I2C address (7-bit) 0x1D < 1 = 0x3A (8-bit) */
+    { NvOdmIoModule_Gpio, 0x1A, 0x1 }, /* Gpio port AA[1] = (A=0, Z=25) thus AA = 26 = 0x1A */
+    { NvOdmIoModule_Vdd, 0x0, Max8907bPmuSupply_LX_V3 }, /* VDDIO_UART = V3 */
+    { NvOdmIoModule_Vdd, 0x0, Max8907bPmuSupply_LDO1 }, /* VCORE_ACC = VOUT1 = 2.8v */
 };
 
