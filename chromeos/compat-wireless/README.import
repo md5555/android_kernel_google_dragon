@@ -1,0 +1,32 @@
+This is almost stock compat-wireless; the only difference should be that the
+top-level Makefile uses this:
+
+NOSTDINC_FLAGS := -I$(M)/include/ -include $(M)/include/linux/compat-2.6.h
+
+instead of this:
+
+NOSTDINC_FLAGS := -I$(M)/include/ -include $(M)/include/linux/compat-2.6.h $(CFLAGS)
+
+To import updated versions use the following recipe:
+
+cd compat-wireless
+tar xf <somewhere>/compat-wireless-2.6.34-rc4.tar.bz2 \
+    --strip 1 -X ChromeOS-Xlist
+<...edit Makefile for the change noted above...>
+
+Be sure to check for files add/removed; it's a good idea to diff the
+imported tree against the original tarball contents.
+
+----
+This code is built as part of the kernel ebuild when IUSE=compat_wireless
+(the default).  Beware the ebuild work does configuration normally
+done through the compat-wireless scripts.  In particular if you want to
+add/change the supported drivers you need to change:
+
+chromium-overlay/chromeos-base/kernel/kernel-*.ebuild
+
+(look for the list of config options in compat_wireless_config in that file).
+
+----
+The udev helper scripts for loading compat-wireless firmware are
+integreated ibnto the udev ebuild; look in chromium-overlay/sys-fs/udev.

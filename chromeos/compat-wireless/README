@@ -1,0 +1,248 @@
+
+Linux Wireless compatibility package
+=====================================
+
+This is a Linux wireless compatibility package which provides the latest
+Linux wireless subsystem enhancements for kernels 2.6.25 and above.
+It is technically possible to support kernels < 2.6.25 but more
+work is required for that.
+It also provides Linux bluetooth subsystem enhancements for kernels 2.6.27 and above.
+
+If you'd like to keep the wireless-testing git repository local as well,
+please read out git-guide which explains how to achieve this:
+
+http://wireless.kernel.org/en/developers/git-guide
+
+With a local git repository you can update the compatibility package yourself. 
+For more information on how to do this please refer the Developers section below.
+
+Documentation
+------------
+
+This package is also documented online and has more-up-to date
+information online than on this README file. You should read the wiki page
+and not rely on this README:
+
+http://wireless.kernel.org/en/users/Download
+
+Subscribe to the wiki page to get updates on the documentation.
+
+Where to get the latest
+-----------------------
+
+This package lets you build your own 'latest', all you need is a local git repository
+checkout of wireless-testing.git. However since not many users are expected to keep
+a local git repository of wireless-testing we provide daily snapshots of this
+package + the wireless subsystem code. You can find the latest snapshot at:
+
+http://wireless.kernel.org/en/users/Download
+
+Selecting your driver
+---------------------
+
+If you know the driver you want you can select it with our
+helper script:
+
+./scripts/driver-select
+
+Run that script to see more information.
+
+Building, and installing
+------------------------
+
+Build: build the latest linux wireless subsystem
+
+	make
+
+Install:
+
+We use the updates/ directory so your distribution's drivers are left intact.
+
+	sudo make install
+
+Uninstall:
+
+This nukes our changes to updates/ so you can go back to using your
+distribution's supported drivers.
+
+	sudo make uninstall
+
+Load:
+
+Reboot unless you know what you are doing.
+
+
+Bluetooth modules can be seperately compiled and installed using below commands
+
+Build:
+	make bt
+
+Install:
+	sudo make btinstall
+
+Uninstall:
+	sudo make btuninstall
+
+Load:
+	sudo make btload
+
+Unload:
+	sudo make btunload
+
+Drivers
+-------
+
+This is the list of drivers this package provides. It adds
+all new drivers or drivers which keep being updated which you might
+be interested in.
+
+Driver
+adm8211
+ath5k
+ath9h
+ar9170
+b43
+b43legacy
+iwl3945
+iwlagn
+ipw2100
+ipw2200
+libertas_cs (Libertas)
+ub8xxx      (Libertas)
+p54pci
+p54usb
+rt2400pci (rt2x00)
+rt2500pci (rt2x00)
+rt2500usb (rt2x00)
+rt61pci	  (rt2x00)
+rt73usb	  (rt2x00)
+rtl8180	(Realtek)
+rtl8187	(Realtek)
+zd1211rw
+
+This package also provides more drivers which may be documented here
+
+For a complete list see:
+
+http://wireless.kernel.org/en/users/Download
+
+Non-wireless drivers
+--------------------
+
+To support b43 ssb is also provided, and since ssb is also provided
+we provide b44 (the ethernet driverl).
+
+The new rfkill drivers also provided and backported.
+
+Bluetooth drivers:
+bluetooth
+btusb
+hci_uart
+btsdio
+btuart_cs
+bluecard_cs
+bfusb
+
+Firmware:
+---------
+
+If your driver needs firmware please be sure to check the driver page
+for that driver here:
+
+http://wireless.kernel.org/en/users/Drivers
+
+Why?
+----
+
+For users or developers stuck on older kernels that want to help test or 
+patch wireless work. Additionally if you're on a recent kernel this lets
+you get the latest and greatest wireless-testing git work without much effort.
+This may mean new drivers for some users. Last but not least we hope this
+will encourage vendors and developers to post patches upstream first
+rather than forking or maintaining their own mac80211 releases with
+their own patches for their own drivers.
+
+Building for external kernels
+----------------------------------
+
+If you have a kernel you do not have installed but yet want to build the
+compat-wireless-2.6 drivers for it you can use this syntax:
+
+make KLIB=/home/mcgrof/kernels/linux-2.6.23.9 KLIB_BUILD=/home/mcgrof/kernels/linux-2.6.23.9
+
+If you have a kernel installed, which is not your currently running kernel (e.g. via
+distro updates; plus its corresponding kernel-dev package), you can use this syntax:
+
+make  KLIB=/lib/modules/2.6.30.6-53.fc11.x86_64
+
+  and to install to your system's root path for the non-running kernel:
+
+make  KLIB=/lib/modules/2.6.30.6-53.fc11.x86_64 KMODPATH_ARG='INSTALL_MOD_PATH=' install
+
+Bugs
+-----
+
+If you've found a bug please report it to our linux-wireless mailing list:
+
+linux-wireless@vger.kernel.org
+
+Report the bug because you are working with the latest and greatest.
+If your bug is compatibility-related then we should still try to fix
+it within the compat.[ch] work.
+
+ChangeLog
+---------
+
+Here you see the list of changes to all wireless drivers, the wireless core and mac80211.
+
+http://git.kernel.org/?p=linux/kernel/git/linville/wireless-testing.git;a=log;
+
+This views all the changes on the 'everything' branch of wireless-testing.git.
+
+License
+-------
+
+This work is a subset of the Linux kernel as such we keep the kernel's
+Copyright practice. Some files have their own copyright and in those
+cases the license is mentioned in the file. All additional work made
+to building this package is licensed under the GPLv2.
+
+Developers
+----------
+
+Compatibility work goes into compat/compat.[ch]. If using those files do 
+not suffice additional actual code changes can go into compat/compat.diff.
+
+If you have your own wireless-testing git tree, before running admin-update.sh
+be sure to set your GIT_TREE variable. For example:
+
+export GIT_TREE=/home/mcgrof/wireless-testing/
+
+scripts/admin-clean.sh		- Cleans the compat-wireless-2.6 tree
+scripts/admin-update.sh		- Updates compat-wireless-2.6 with your git tree
+scripts/admin-refresh.sh	- Does the above two
+
+TODO
+----
+
+* Compatibilty work for 2.6.18 --> 2.6.21
+
+Patches for compatibility work
+------------------------------
+
+Please send patches against:
+
+git://git.kernel.org/pub/scm/linux/kernel/git/mcgrof/compat-wireless-2.6.git
+
+To: Luis R. Rodriguez <mcgrof@winlab.rutgers.edu>
+CC: linux-wireless@vger.kernel.org
+Subject: [PATCH] compat-2.6: backport foo
+
+Patches for drivers
+-------------------
+
+If you'd like to send patches for a driver though you can send it using our 
+Submitting Patches guideline:
+
+http://wireless.kernel.org/en/developers/SubmittingPatches
+
