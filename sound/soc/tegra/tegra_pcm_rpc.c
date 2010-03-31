@@ -234,6 +234,11 @@ static int rec_thread( void *arg )
 			prtd->state = NVALSA_INVALID_STATE;
 			break;
 		case SNDRV_PCM_TRIGGER_STOP:
+			while (buffer_in_queue > 0) {
+				down(&prtd->buf_done_sem);
+				buffer_in_queue--;
+			}
+
 			state = NvAudioFxState_Stop;
 			tegra_snd_cx->xrt_fxn.SetProperty(
 						 prtd->stdinpath->Stream,
@@ -308,10 +313,6 @@ static int rec_thread( void *arg )
 		}
 	}
 EXIT:
-	while (buffer_in_queue > 0) {
-		down(&prtd->buf_done_sem);
-		buffer_in_queue--;
-	}
 
 	while (!kthread_should_stop()) {
 	}
@@ -460,14 +461,16 @@ static int pcm_common_close(struct snd_pcm_substream *substream)
 	if (!prtd)
 		snd_printk(KERN_ERR "pcm_close called with prtd = NULL\n");
 
-	prtd->shutdown_thrd = 1;
-	up(&prtd->buf_done_sem);
+	prtd->state = SNDRV_PCM_TRIGGER_STOP;
 
 	if (prtd->play_thread)
 		kthread_stop(prtd->play_thread);
 
 	if (prtd->rec_thread)
 		kthread_stop(prtd->rec_thread);
+
+	prtd->shutdown_thrd = 1;
+	up(&prtd->buf_done_sem);
 
 	if (tegra_snd_cx->m_FxNotifier.Event & NvAudioFxEventBufferDone) {
 
