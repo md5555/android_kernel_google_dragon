@@ -267,7 +267,7 @@ NvRmPrivAp15BasicReset( NvRmDeviceHandle rm )
     {
         /*
          * For peripheral modules that are not taken from reset, yet,
-         * use oscillator as a safe clock 
+         * use oscillator as a safe clock
          */
         NVRM_SET_OSC_CLOCK(I2S1, I2S1, L);
         NVRM_SET_OSC_CLOCK(I2S2, I2S2, L);
@@ -498,7 +498,7 @@ NvRmPrivCheckBondOut( NvRmDeviceHandle hDevice )
                 val = val >> 1;     // Use ARM's clz?
                 if ( !val )
                 {
-                    i = (i + 7) & ~7;       // skip till next byte
+                    i = (i + 8) & ~7;       // skip to next byte
                     break;
                 }
                 i++;
