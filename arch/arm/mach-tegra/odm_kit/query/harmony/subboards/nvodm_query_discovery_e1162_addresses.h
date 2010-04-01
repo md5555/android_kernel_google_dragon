@@ -235,7 +235,8 @@ static const NvOdmIoAddress s_VddSocAddresses[]=
 static const NvOdmIoAddress s_VddPexClkAddresses[] = 
 {
     { NvOdmIoModule_Vdd, 0x00, TPS6586xPmuSupply_LDO0 }, /* VDDIO_PEX_CLK -> LDO0 */
-    { NvOdmIoModule_Vdd, 0x00, Ext_TPS62290PmuSupply_BUCK } /* AVDD_PLLE -> VDD_1V05 */
+    { NvOdmIoModule_Vdd, 0x00, Ext_TPS62290PmuSupply_BUCK }, /* AVDD_PLLE -> VDD_1V05 */
+    { NvOdmIoModule_Vdd, 0x00, Ext_TPS74201PmuSupply_LDO }, /* PMU_GPIO-1 -> VDD_1V5 */
 };
 
 // PMU0
