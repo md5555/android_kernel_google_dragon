@@ -64,7 +64,16 @@ static int tegra_generic_codec_set_dai_sysclk(struct snd_soc_dai *codec_dai,
 	return 0;
 }
 
-struct snd_soc_dai dit_stub_dai = {
+static struct snd_soc_dai_ops tegra_generic_codec_dai_ops = {
+	.hw_params	= tegra_generic_codec_hw_params,
+	.digital_mute	= tegra_generic_codec_mute,
+	.set_fmt	= tegra_generic_codec_set_dai_fmt,
+	.set_clkdiv	= tegra_generic_codec_set_dai_clkdiv,
+	.set_pll	= tegra_generic_codec_set_dai_pll,
+	.set_sysclk	= tegra_generic_codec_set_dai_sysclk,
+};
+
+struct snd_soc_dai tegra_generic_codec_dai = {
 	.name = "tegra-codec-rpc",
 	.playback = {
 		.stream_name    = "Playback",
@@ -80,25 +89,18 @@ struct snd_soc_dai dit_stub_dai = {
 		.rates          = TEGRA_SAMPLE_RATES,
 		.formats        = TEGRA_SAMPLE_FORMATS,
 	},
-	.ops = {
-		.hw_params = tegra_generic_codec_hw_params,
-		.digital_mute = tegra_generic_codec_mute,
-		.set_fmt = tegra_generic_codec_set_dai_fmt,
-		.set_clkdiv = tegra_generic_codec_set_dai_clkdiv,
-		.set_pll = tegra_generic_codec_set_dai_pll,
-		.set_sysclk = tegra_generic_codec_set_dai_sysclk,
-	},
+	.ops = &tegra_generic_codec_dai_ops,
 };
-EXPORT_SYMBOL_GPL(dit_stub_dai);
+EXPORT_SYMBOL_GPL(tegra_generic_codec_dai);
 
 static int __init dit_modinit(void)
 {
-	return snd_soc_register_dai(&dit_stub_dai);
+	return snd_soc_register_dai(&tegra_generic_codec_dai);
 }
 
 static void __exit dit_exit(void)
 {
-	snd_soc_unregister_dai(&dit_stub_dai);
+	snd_soc_unregister_dai(&tegra_generic_codec_dai);
 }
 
 module_init(dit_modinit);
@@ -110,16 +112,16 @@ static int codec_soc_probe(struct platform_device *pdev)
 	struct snd_soc_codec *codec;
 	int ret = 0;
 
-	socdev->codec = kzalloc(sizeof(struct snd_soc_codec), GFP_KERNEL);
-	if (!socdev->codec)
+	socdev->card->codec = kzalloc(sizeof(struct snd_soc_codec), GFP_KERNEL);
+	if (!socdev->card->codec)
 		return -ENOMEM;
 
-	codec = socdev->codec;
+	codec = socdev->card->codec;
 	mutex_init(&codec->mutex);
 
 	codec->name = "tegra-generic-codec";
 	codec->owner = THIS_MODULE;
-	codec->dai = &dit_stub_dai;
+	codec->dai = &tegra_generic_codec_dai;
 	codec->num_dai = 1;
 	codec->write = NULL;
 	codec->read = NULL;
@@ -143,7 +145,7 @@ static int codec_soc_probe(struct platform_device *pdev)
 card_err:
 	snd_soc_free_pcms(socdev);
 pcm_err:
-	kfree(socdev->codec);
+	kfree(socdev->card->codec);
 
 	return ret;
 }
@@ -151,13 +153,13 @@ pcm_err:
 static int codec_soc_remove(struct platform_device *pdev)
 {
 	struct snd_soc_device *socdev = platform_get_drvdata(pdev);
-	struct snd_soc_codec *codec = socdev->codec;
+	struct snd_soc_codec *codec = socdev->card->codec;
 
 	if (!codec)
 		return 0;
 
 	snd_soc_free_pcms(socdev);
-	kfree(socdev->codec);
+	kfree(socdev->card->codec);
 
 	return 0;
 }

@@ -68,6 +68,10 @@ static int tegra_i2s_rpc_probe(struct platform_device *pdev,
 	return 0;
 }
 
+static struct snd_soc_dai_ops tegra_i2s_rpc_dai_ops = {
+	.hw_params	= tegra_i2s_rpc_hw_params,
+};
+
 struct snd_soc_dai tegra_i2s_rpc_dai = {
 	.name = "tegra-i2s-rpc",
 	.id = 0,
@@ -84,9 +88,7 @@ struct snd_soc_dai tegra_i2s_rpc_dai = {
 		.rates = TEGRA_SAMPLE_RATES,
 		.formats = TEGRA_SAMPLE_FORMATS,
 	},
-	.ops = {
-	.hw_params = tegra_i2s_rpc_hw_params,
-	},
+	.ops = &tegra_i2s_rpc_dai_ops,
 };
 EXPORT_SYMBOL_GPL(tegra_i2s_rpc_dai);
 
