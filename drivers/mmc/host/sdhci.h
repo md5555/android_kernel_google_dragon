@@ -64,6 +64,7 @@
 #define SDHCI_HOST_CONTROL 	0x28
 #define  SDHCI_CTRL_LED		0x01
 #define  SDHCI_CTRL_4BITBUS	0x02
+#define  SDHCI_CTRL_8BITBUS	0x20
 #define  SDHCI_CTRL_HISPD	0x04
 #define  SDHCI_CTRL_DMA_MASK	0x18
 #define   SDHCI_CTRL_SDMA	0x00
@@ -232,6 +233,16 @@ struct sdhci_host {
 #define SDHCI_QUIRK_FORCE_1_BIT_DATA			(1<<22)
 /* Controller needs 10ms delay between applying power and clock */
 #define SDHCI_QUIRK_DELAY_AFTER_POWER			(1<<23)
+/* Controller write protect bit is broken. Assume no write protection */
+#define SDHCI_QUIRK_BROKEN_WRITE_PROTECT		(1<<24)
+/* Controller needs INTERRUPT_AT_BLOCK_GAP enabled to detect card interrupts */
+#define SDHCI_QUIRK_ENABLE_INTERRUPT_AT_BLOCK_GAP	(1<<25)
+/* Controller should not program HIGH_SPEED_EN after switching to high speed */
+#define SDHCI_QUIRK_BROKEN_CTRL_HISPD			(1<<26)
+/* Controller provides an incorrect SPECIFICATION_VERSION_NUMBER */
+#define SDHCI_QUIRK_BROKEN_SPEC_VERSION                        (1<<27)
+/* Controller supports maximum ADMA size of 32 Kilo bytes. */
+#define SDHCI_QUIRK_32KB_MAX_ADMA_SIZE			(1<<28)
 
 	int			irq;		/* Device IRQ */
 	void __iomem *		ioaddr;		/* Mapped address */
@@ -261,6 +272,8 @@ struct sdhci_host {
 	unsigned int		timeout_clk;	/* Timeout freq (KHz) */
 
 	unsigned int		clock;		/* Current clock (MHz) */
+	unsigned int		last_clock;	/* Last used clock (MHz)*/
+
 	u8			pwr;		/* Current voltage */
 
 	struct mmc_request	*mrq;		/* Current request */
@@ -272,7 +285,7 @@ struct sdhci_host {
 	unsigned int		blocks;		/* remaining PIO blocks */
 
 	int			sg_count;	/* Mapped sg entries */
-
+	int			card_present;	/* Is Card Present */
 	u8			*adma_desc;	/* ADMA descriptor table */
 	u8			*align_buffer;	/* Bounce buffer */
 
@@ -283,6 +296,11 @@ struct sdhci_host {
 	struct tasklet_struct	finish_tasklet;
 
 	struct timer_list	timer;		/* Timer for timeouts */
+
+#ifdef CONFIG_EMBEDDED_MMC_START_OFFSET
+	unsigned int		start_offset;	/* Zero-offset for MBR */
+#endif
+	unsigned int		data_width;	/* Width of data transfers */
 
 	unsigned long		private[0] ____cacheline_aligned;
 };
@@ -298,9 +316,20 @@ struct sdhci_ops {
 	void		(*writeb)(struct sdhci_host *host, u8 val, int reg);
 #endif
 
-	void	(*set_clock)(struct sdhci_host *host, unsigned int clock);
+	//void	(*set_clock)(struct sdhci_host *host, unsigned int clock); // TODO: why removed?
 
 	int		(*enable_dma)(struct sdhci_host *host);
+	/* returns card read-only status in a host-specific way if
+	 * SDHCI_QUIRK_BROKEN_WRITE_PROTECT is set */
+	int 		(*get_ro)(struct sdhci_host *host);
+	/* returns the maximum host controller frequency, in megahertz */
+	unsigned int	(*get_maxclock)(struct sdhci_host *host);
+	/* returns internal divider (1 <= v <= 256) if the clock change request
+	 * was successful, 0 on failure */
+	int		(*set_clock)(struct sdhci_host *host, unsigned int hz);
+#ifdef CONFIG_EMBEDDED_MMC_START_OFFSET
+	unsigned int	(*get_startoffset)(struct sdhci_host *host);
+#endif
 	unsigned int	(*get_max_clock)(struct sdhci_host *host);
 	unsigned int	(*get_min_clock)(struct sdhci_host *host);
 	unsigned int	(*get_timeout_clock)(struct sdhci_host *host);
@@ -401,6 +430,7 @@ static inline void *sdhci_priv(struct sdhci_host *host)
 
 extern int sdhci_add_host(struct sdhci_host *host);
 extern void sdhci_remove_host(struct sdhci_host *host, int dead);
+extern void sdhci_card_detect_callback(struct sdhci_host *host);
 
 #ifdef CONFIG_PM
 extern int sdhci_suspend_host(struct sdhci_host *host, pm_message_t state);
