@@ -2943,8 +2943,10 @@ void NvRmMemUnpinMult(NvRmMemHandle *hMems, NvU32 Count)
 
 	for (i=0; i<Count; i++) {
 		struct nvmap_handle *h = (struct nvmap_handle *)hMems[i];
-		BUG_ON(atomic_add_return(0, &h->pin)==0);
-		do_wake |= _nvmap_handle_unpin(h);
+		if (h) {
+			BUG_ON(atomic_add_return(0, &h->pin)==0);
+			do_wake |= _nvmap_handle_unpin(h);
+		}
 	}
 
 	if (do_wake) wake_up(&nvmap_pin_wait);
