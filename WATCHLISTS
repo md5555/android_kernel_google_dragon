@@ -7,8 +7,16 @@
     'all': {
       'filepath': '.',
     },
+    'chromeos': {
+      'filepath': 'chromeos/',
+    },
+    'networking': {
+      'filepath': 'net/',
+    },
   },
   'WATCHLISTS': {
     'all': ['mbligh@chromium.org', 'msb@chromium.org'],
+    'chromeos': ['sleffler+cc@chromium.org'],
+    'networking': ['sleffler+cc@chromium.org'],
   },
 }
