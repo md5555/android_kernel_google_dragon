@@ -323,7 +323,7 @@ config MOUSE_SYNAPTICS_I2C
 
 config MOUSE_TEGRA_NVEC
 	boolean "NVIDIA Tegra NvEc compliant mouse/touchpad device"
-	depends on TEGRA_NVEC
+	depends on ARCH_TEGRA && TEGRA_NVEC
 	default y
 	help
 	  Say Y here to enable mouse support for mouse and touchpad devices
