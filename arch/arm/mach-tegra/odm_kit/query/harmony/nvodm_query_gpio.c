@@ -153,6 +153,11 @@ static const NvOdmGpioPinInfo s_WakeFromKeyBoard[] = {
     {NVODM_PORT('a'), 0, NvOdmGpioPinActiveState_Low}   // EC Keyboard Wakeup
 };
 
+static const NvOdmGpioPinInfo s_Battery[] = {
+    // Low Battery
+    {NVODM_PORT('w'), 3, NvOdmGpioPinActiveState_Low},
+};
+
 const NvOdmGpioPinInfo *NvOdmQueryGpioPinMap(NvOdmGpioPinGroup Group,
     NvU32 Instance, NvU32 *pCount)
 {
@@ -223,6 +228,10 @@ const NvOdmGpioPinInfo *NvOdmQueryGpioPinMap(NvOdmGpioPinGroup Group,
         case NvOdmGpioPinGroup_WakeFromECKeyboard:
             *pCount = NVODM_ARRAY_SIZE(s_WakeFromKeyBoard);
             return s_WakeFromKeyBoard;
+
+        case NvOdmGpioPinGroup_Battery:
+            *pCount = NVODM_ARRAY_SIZE(s_Battery);
+            return s_Battery;
 
         default:
             *pCount = 0;

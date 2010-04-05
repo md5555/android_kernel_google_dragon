@@ -33,6 +33,8 @@
 #ifndef INCLUDED_NVODM_BATTERY_INT_H
 #define INCLUDED_NVODM_BATTERY_INT_H
 
+#include "nvodm_query_gpio.h"
+#include "nvrm_gpio.h"
 #include "nvodm_services.h"
 #include "nvec.h"
 
@@ -49,6 +51,30 @@
 extern "C"
 {
 #endif
+
+/****************************************************************************/
+/*
+ * Macro to disable EC calls for battery operations
+ * until EC firware supports it
+ */
+#define NVEC_BATTERY_DISABLED 0
+/*
+ * Some extra battery info added which is not yet part of the
+ * BatteryData struct.
+ * Enable it to verify the these extra info with the EC firware
+ */
+#define BATTERY_EXTRA_INFO    0
+
+/* Enable to wakeup the AP from suspend */
+#define NVODM_WAKEUP_FROM_BATTERY_EVENT 1
+#define NVODM_WAKEUP_FROM_AC_EVENT      1
+
+/* Enable the Low Battery GPIO Interrupt */
+#define NVODM_LOWBATTERY_GPIO_INT       1
+
+/* Enable low capacity alarm wakeup */
+#define NVODM_BATTERY_LOW_CAPACITY_ALARM 1
+/****************************************************************************/
 
 #define NVODM_BATTERY_NUM_BATTERY_SLOTS_MASK 0x0F
 
@@ -94,8 +120,8 @@ extern "C"
 /* Threshold for battery status.*/
 #define NVODM_BATTERY_FULL_VOLTAGE_MV      12600
 #define NVODM_BATTERY_HIGH_VOLTAGE_MV      10200
-#define NVODM_BATTERY_LOW_VOLTAGE_MV        9400
-#define NVODM_BATTERY_CRITICAL_VOLTAGE_MV   8800
+#define NVODM_BATTERY_LOW_VOLTAGE_MV       10000
+#define NVODM_BATTERY_CRITICAL_VOLTAGE_MV   9500
 
 #define NVODM_BATTERY_EC_FIRMWARE_VER_R01 2
 #define NVODM_BATTERY_EC_FIRMWARE_VER_R04 8
@@ -129,13 +155,20 @@ typedef struct NvOdmBatteryDeviceRec
 {
     NvEcHandle     hEc;
     NvEcEventRegistrationHandle hEcEventReg;
-    NvOdmOsSemaphoreHandle hBattEventSem;
-    NvOdmOsSemaphoreHandle hClientBattEventSem;
-    NvOdmOsThreadHandle    hBattEventThread;
-    NvU8           BatteryEvent;
-    NvU8           NumBatterySlots;
-    NvBool         FirmwareVersionR01;
-    NvBool         ExitThread;
+    NvOdmOsSemaphoreHandle      hBattEventSem;
+    NvOdmOsSemaphoreHandle      hClientBattEventSem;
+    NvOdmOsThreadHandle         hBattEventThread;
+#if NVODM_LOWBATTERY_GPIO_INT
+    const NvOdmGpioPinInfo      *pGpioPinInfo;
+    NvRmGpioPinHandle           hPin;
+    NvRmGpioInterruptHandle     GpioIntrHandle;
+    NvU32                       PinCount;
+    NvRmDeviceHandle            hRm;
+    NvRmGpioHandle              hGpio;
+#endif
+    NvU8                        BatteryEvent;
+    NvU8                        ECVersion;
+    NvBool                      ExitThread;
 } NvOdmBatteryDevice;
 
 #if defined(__cplusplus)
@@ -145,3 +178,4 @@ typedef struct NvOdmBatteryDeviceRec
 /** @} */
 
 #endif /* INCLUDED_NVODM_BATTERY_INT_H */
+

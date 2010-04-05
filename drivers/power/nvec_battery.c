@@ -30,7 +30,7 @@
 #include <linux/power_supply.h>
 #include <linux/wakelock.h>
 #include <linux/tegra_devices.h>
-#include <linux/pm.h>
+#include <linux/reboot.h>
 
 #include "nvcommon.h"
 #include "nvos.h"
@@ -186,6 +186,9 @@ void NvBatteryEventHandlerThread(void)
 		if (batt_dev->exitThread)
 			break;
 
+		if (!batt_dev->hOdmBattDev)
+			continue;
+
 		NvOdmBatteryGetBatteryStatus(batt_dev->hOdmBattDev,
 			NvOdmBatteryInst_Main,
 			&BatteryState);
@@ -200,7 +203,8 @@ void NvBatteryEventHandlerThread(void)
 				if (BatteryState == (NVODM_BATTERY_STATUS_CRITICAL |
 					NVODM_BATTERY_STATUS_VERY_CRITICAL |
 					NVODM_BATTERY_STATUS_DISCHARGING)) {
-					/* device_power_down(PMSG_HIBERNATE); */
+					pr_info("nvec_battery:calling kernel_power_off...\n");
+					kernel_power_off();
 				}
 			} else {
 				/* Update the battery and power supply info for other events */
