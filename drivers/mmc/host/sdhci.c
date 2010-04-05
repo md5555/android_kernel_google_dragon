@@ -179,10 +179,15 @@ static void sdhci_init(struct sdhci_host *host)
 	sdhci_reset(host, SDHCI_RESET_ALL);
 
 	sdhci_clear_set_irqs(host, SDHCI_INT_ALL_MASK,
-		SDHCI_INT_BUS_POWER | SDHCI_INT_DATA_END_BIT |
+		SDHCI_INT_BUS_POWER | SDHCI_INT_DATA_END_BIT | 
 		SDHCI_INT_DATA_CRC | SDHCI_INT_DATA_TIMEOUT | SDHCI_INT_INDEX |
 		SDHCI_INT_END_BIT | SDHCI_INT_CRC | SDHCI_INT_TIMEOUT |
-		SDHCI_INT_DATA_END | SDHCI_INT_RESPONSE);
+		SDHCI_INT_CARD_REMOVE | SDHCI_INT_CARD_INSERT |	
+		SDHCI_INT_DATA_AVAIL | SDHCI_INT_SPACE_AVAIL |
+		SDHCI_INT_DMA_END | SDHCI_INT_DATA_END | SDHCI_INT_RESPONSE |
+		SDHCI_INT_ADMA_ERROR);
+
+	host->last_clock = 0;
 }
 
 static void sdhci_reinit(struct sdhci_host *host)
@@ -603,7 +608,7 @@ static u8 sdhci_calc_timeout(struct sdhci_host *host, struct mmc_data *data)
 	 * longer to time out, but that's much better than having a too-short
 	 * timeout value.
 	 */
-	if (host->quirks & SDHCI_QUIRK_BROKEN_TIMEOUT_VAL)
+	if ((host->quirks & SDHCI_QUIRK_BROKEN_TIMEOUT_VAL))
 		return 0xE;
 
 	/* timeout in us */
@@ -780,7 +785,7 @@ static void sdhci_prepare_data(struct sdhci_host *host, struct mmc_data *data)
 	 * (e.g. JMicron) can't do PIO properly when the selection
 	 * is ADMA.
 	 */
-	if (host->version >= SDHCI_SPEC_200 ||
+	if ((host->version >= SDHCI_SPEC_200) ||
 		(host->quirks & SDHCI_QUIRK_BROKEN_SPEC_VERSION)) {
 		ctrl = sdhci_readb(host, SDHCI_HOST_CONTROL);
 		ctrl &= ~SDHCI_CTRL_DMA_MASK;
@@ -917,7 +922,17 @@ static void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 
 	sdhci_prepare_data(host, cmd->data);
 
+#ifdef CONFIG_EMBEDDED_MMC_START_OFFSET
+	if (cmd->data) {
+		/* It is assumed that the device is block addressed. */
+		sdhci_writel(host, cmd->arg + (host->start_offset >> 9),
+				SDHCI_ARGUMENT);
+	} else {
+		sdhci_writel(host, cmd->arg, SDHCI_ARGUMENT);
+	}
+#else
 	sdhci_writel(host, cmd->arg, SDHCI_ARGUMENT);
+#endif
 
 	sdhci_set_transfer_mode(host, cmd->data);
 
@@ -987,14 +1002,13 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 	u16 clk;
 	unsigned long timeout;
 
+	if (host->card_type == SDHCI_CARD_UNKNKOWN) {
+		if (host->mmc->card != NULL)
+			host->card_type = host->mmc->card->type;
+	}
+
 	if (clock == host->clock)
 		return;
-
-	if (host->ops->set_clock) {
-		host->ops->set_clock(host, clock);
-		if (host->quirks & SDHCI_QUIRK_NONSTANDARD_CLOCK)
-			return;
-	}
 
 	sdhci_writew(host, 0, SDHCI_CLOCK_CONTROL);
 
@@ -1004,8 +1018,11 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 	host->last_clock = clock;
 
 	div = 0;
-	if (host->ops->set_clock)
+	if (host->ops->set_clock) {
 		div = host->ops->set_clock(host, clock);
+		if (host->quirks & SDHCI_QUIRK_NONSTANDARD_CLOCK)
+			return;
+	}
 
 	if (!div) {
 		for (div = 1;div < 256;div *= 2) {
@@ -1044,35 +1061,15 @@ static void sdhci_set_power(struct sdhci_host *host, unsigned short power)
 {
 	u8 pwr;
 
-	if (power == (unsigned short)-1)
-		pwr = 0;
-	else {
-		switch (1 << power) {
-		case MMC_VDD_165_195:
-			pwr = SDHCI_POWER_180;
-			break;
-		case MMC_VDD_29_30:
-		case MMC_VDD_30_31:
-			pwr = SDHCI_POWER_300;
-			break;
-		case MMC_VDD_32_33:
-		case MMC_VDD_33_34:
-			pwr = SDHCI_POWER_330;
-			break;
-		default:
-			BUG();
-		}
-	}
-
-	if (host->pwr == pwr)
+	if (host->pwr == power)
 		return;
 
-	host->pwr = pwr;
+	host->pwr = power;
 
-	if (pwr == 0) {
+	if (power == (unsigned short)-1) {
 		sdhci_writeb(host, 0, SDHCI_POWER_CONTROL);
 		return;
-	}
+	};
 
 	/*
 	 * Spec says that we should clear the power reg before setting
@@ -1081,14 +1078,30 @@ static void sdhci_set_power(struct sdhci_host *host, unsigned short power)
 	if (!(host->quirks & SDHCI_QUIRK_SINGLE_POWER_WRITE))
 		sdhci_writeb(host, 0, SDHCI_POWER_CONTROL);
 
+	pwr = SDHCI_POWER_ON;
+	
+	switch (1 << power) {
+	case MMC_VDD_165_195:
+		pwr |= SDHCI_POWER_180;
+		break;
+	case MMC_VDD_29_30:
+	case MMC_VDD_30_31:
+		pwr |= SDHCI_POWER_300;
+		break;
+	case MMC_VDD_32_33:
+	case MMC_VDD_33_34:
+		pwr |= SDHCI_POWER_330;
+		break;
+	default:
+		BUG();
+	}
+
 	/*
 	 * At least the Marvell CaFe chip gets confused if we set the voltage
 	 * and set turn on power at the same time, so set the voltage first.
 	 */
 	if (host->quirks & SDHCI_QUIRK_NO_SIMULT_VDD_AND_POWER)
 		sdhci_writeb(host, pwr, SDHCI_POWER_CONTROL);
-
-	pwr |= SDHCI_POWER_ON;
 
 	sdhci_writeb(host, pwr, SDHCI_POWER_CONTROL);
 
@@ -1131,7 +1144,7 @@ static void sdhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 		present = sdhci_readl(host, SDHCI_PRESENT_STATE) &
 				SDHCI_CARD_PRESENT;
 
-	if (!present || host->flags & SDHCI_DEVICE_DEAD) {
+	if (!present || (host->flags & SDHCI_DEVICE_DEAD)) {
 		host->mrq->cmd->error = -ENOMEDIUM;
 		tasklet_schedule(&host->finish_tasklet);
 	} else
@@ -1215,20 +1228,25 @@ static int sdhci_get_ro(struct mmc_host *mmc)
 
 	if (host->flags & SDHCI_DEVICE_DEAD)
 		present = 0;
-	else
+	else if (!(host->quirks & SDHCI_QUIRK_BROKEN_WRITE_PROTECT)) {
 		present = sdhci_readl(host, SDHCI_PRESENT_STATE);
+		present = !(present & SDHCI_WRITE_PROTECT);
+	}
+	else if (host->ops->get_ro)
+		present = host->ops->get_ro(host);
+	else
+		present = 0;
 
 	spin_unlock_irqrestore(&host->lock, flags);
 
-	if (host->quirks & SDHCI_QUIRK_INVERTED_WRITE_PROTECT)
-		return !!(present & SDHCI_WRITE_PROTECT);
-	return !(present & SDHCI_WRITE_PROTECT);
+	return present;
 }
 
 static void sdhci_enable_sdio_irq(struct mmc_host *mmc, int enable)
 {
 	struct sdhci_host *host;
 	unsigned long flags;
+	u32 ier;
 
 	host = mmc_priv(mmc);
 
@@ -1237,10 +1255,23 @@ static void sdhci_enable_sdio_irq(struct mmc_host *mmc, int enable)
 	if (host->flags & SDHCI_DEVICE_DEAD)
 		goto out;
 
+	ier = sdhci_readl(host, SDHCI_INT_ENABLE);
+
+	ier &= ~SDHCI_INT_CARD_INT;
 	if (enable)
-		sdhci_unmask_irqs(host, SDHCI_INT_CARD_INT);
-	else
-		sdhci_mask_irqs(host, SDHCI_INT_CARD_INT);
+		ier |= SDHCI_INT_CARD_INT;
+
+	sdhci_clear_set_irqs(host, SDHCI_INT_ALL_MASK, ier);
+	
+	if (host->quirks & SDHCI_QUIRK_ENABLE_INTERRUPT_AT_BLOCK_GAP) {
+		u8 gap_ctrl = sdhci_readb(host, SDHCI_BLOCK_GAP_CONTROL);
+		if (enable)
+			gap_ctrl |= 0x8;
+		else
+			gap_ctrl &= ~0x8;
+		sdhci_writeb(host, gap_ctrl, SDHCI_BLOCK_GAP_CONTROL);
+	}
+
 out:
 	mmiowb();
 
@@ -1706,7 +1737,7 @@ struct sdhci_host *sdhci_alloc_host(struct device *dev,
 
 	host = mmc_priv(mmc);
 	host->mmc = mmc;
-
+	host->card_type = SDHCI_CARD_UNKNKOWN;
 	return host;
 }
 
@@ -1807,18 +1838,27 @@ int sdhci_add_host(struct sdhci_host *host)
 		mmc_dev(host->mmc)->dma_mask = &host->dma_mask;
 	}
 
-	host->max_clk =
-		(caps & SDHCI_CLOCK_BASE_MASK) >> SDHCI_CLOCK_BASE_SHIFT;
-	host->max_clk *= 1000000;
+#ifdef CONFIG_EMBEDDED_MMC_START_OFFSET
+	if (host->ops->get_startoffset) 
+		host->start_offset = host->ops->get_startoffset(host);
+	else
+		host->start_offset = 0;
+#endif	
+
+	host->max_clk = 0;
+	if (host->ops->get_maxclock)
+		host->max_clk = host->ops->get_maxclock(host);
+
+	if (host->max_clk == 0)	
+		host->max_clk =
+			(caps & SDHCI_CLOCK_BASE_MASK) >> SDHCI_CLOCK_BASE_SHIFT;
+
 	if (host->max_clk == 0) {
-		if (!host->ops->get_max_clock) {
-			printk(KERN_ERR
-			       "%s: Hardware doesn't specify base clock "
-			       "frequency.\n", mmc_hostname(mmc));
-			return -ENODEV;
-		}
-		host->max_clk = host->ops->get_max_clock(host);
+		printk(KERN_ERR "%s: Hardware doesn't specify base clock "
+			"frequency.\n", mmc_hostname(mmc));
+		return -ENODEV;
 	}
+	host->max_clk *= 1000000;
 
 	host->timeout_clk =
 		(caps & SDHCI_TIMEOUT_CLK_MASK) >> SDHCI_TIMEOUT_CLK_SHIFT;
@@ -1843,13 +1883,16 @@ int sdhci_add_host(struct sdhci_host *host)
 	else
 		mmc->f_min = host->max_clk / 256;
 	mmc->f_max = host->max_clk;
-	mmc->caps = MMC_CAP_SDIO_IRQ;
-
-	if (!(host->quirks & SDHCI_QUIRK_FORCE_1_BIT_DATA))
-		mmc->caps |= MMC_CAP_4_BIT_DATA;
+	mmc->caps = MMC_CAP_4_BIT_DATA | MMC_CAP_SDIO_IRQ;
 
 	if (caps & SDHCI_CAN_DO_HISPD)
 		mmc->caps |= MMC_CAP_SD_HIGHSPEED;
+
+	if (host->data_width >= 8)
+		mmc->caps |= MMC_CAP_8_BIT_DATA;
+#ifdef CONFIG_MMC_SDHCI_DYNAMIC_SDMEM_CLOCK
+	mmc->caps |= MMC_CAP_DISABLE;
+#endif
 
 	if (host->quirks & SDHCI_QUIRK_BROKEN_CARD_DETECTION)
 		mmc->caps |= MMC_CAP_NEEDS_POLL;
