@@ -344,19 +344,25 @@ fail:
 	return NULL;
 }
 
+#ifdef CONFIG_PM
 extern void tegra_irq_suspend(void);
 extern void tegra_irq_resume(void);
+#endif
 static NvU32* save_intc_context(PowerModuleContext Context,
 	struct power_context *pAnchor, NvU32 *pCM)
 {
 	switch (Context) {
 	case PowerModuleContext_Save:
 	case PowerModuleContext_SaveLP1:
+#ifdef CONFIG_PM
 		tegra_irq_suspend();
+#endif
 		break;
 	case PowerModuleContext_Restore:
 	case PowerModuleContext_RestoreLP1:
+#ifdef CONFIG_PM
 		tegra_irq_resume();
+#endif
 		break;
 	default:
 		break;
@@ -479,8 +485,10 @@ fail:
 	return NULL;
 }
 
+#ifdef CONFIG_PM
 extern void tegra_gpio_resume(void);
 extern void tegra_gpio_suspend(void);
+#endif
 
 static NvU32* save_gpio_context(PowerModuleContext Context,
 	struct power_context *pAnchor, NvU32 *pCM)
@@ -488,11 +496,15 @@ static NvU32* save_gpio_context(PowerModuleContext Context,
 	switch (Context) {
 	case PowerModuleContext_RestoreLP1:
 	case PowerModuleContext_Restore:
+#ifdef CONFIG_PM
 		tegra_gpio_resume();
+#endif
 		break;
 	case PowerModuleContext_SaveLP1:
 	case PowerModuleContext_Save:
+#ifdef CONFIG_PM
 		tegra_gpio_suspend();
+#endif
 		break;
 	default:
 		break;
