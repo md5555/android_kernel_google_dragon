@@ -11,8 +11,7 @@ endif
 obj-y					+= clock.o
 obj-y					+= io.o
 obj-y					+= irq.o
-obj-y					+= irq_dma.o
-obj-y					+= irq_gpio.o
+obj-y					+= gpio.o
 obj-y					+= timer.o
 obj-y					+= tegra_sysmap.o
 
@@ -28,6 +27,7 @@ obj-y					+= tegra_exports.o
 
 # Linux CPU frequency scaling interface
 obj-$(CONFIG_CPU_FREQ)			+= cpufreq.o
+obj-$(CONFIG_CPU_IDLE)			+= cpuidle.o
 
 # Dynamic voltage and frequency scaling support
 obj-$(CONFIG_ARCH_TEGRA_2x_SOC)		+= idle-t2.o
@@ -39,13 +39,9 @@ obj-$(CONFIG_SMP)			+= platsmp.o
 
 obj-$(CONFIG_LOCAL_TIMERS)		+= localtimer.o
 
-# CPU hotplug support
-ifeq ($(CONFIG_HOTPLUG_CPU),y)
-obj-y					+= hotplug.o
 obj-$(CONFIG_ARCH_TEGRA_2x_SOC)		+= power-t2.o
 obj-$(CONFIG_ARCH_TEGRA_2x_SOC)		+= power-context-t2.o
 obj-$(CONFIG_ARCH_TEGRA_2x_SOC)		+= power-lp.o
-endif
 
 # System DMA
 obj-$(CONFIG_TEGRA_SYSTEM_DMA)		+= dma.o
@@ -62,6 +58,7 @@ obj-$(CONFIG_MACH_TEGRA_GENERIC)	+= nvos_user.o
 obj-$(CONFIG_MACH_TEGRA_GENERIC)	+= nvrm_user.o
 obj-$(CONFIG_MACH_TEGRA_GENERIC)	+= init_common.o
 obj-$(CONFIG_MACH_TEGRA_GENERIC)	+= board_nvodm.o
+obj-$(CONFIG_MACH_TEGRA_GENERIC)	+= odm_to_plat.o
 
 # Misc drivers
 obj-$(CONFIG_TEGRA_ODM_RFKILL)		+= tegra_rfkill_odm.o

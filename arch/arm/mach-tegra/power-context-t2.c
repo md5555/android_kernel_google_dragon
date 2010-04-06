@@ -344,146 +344,25 @@ fail:
 	return NULL;
 }
 
-static NvU32* save_intc_context(
-		PowerModuleContext Context,
-		struct power_context *pAnchor,
-		NvU32 *pCM)
+extern void tegra_irq_suspend(void);
+extern void tegra_irq_resume(void);
+static NvU32* save_intc_context(PowerModuleContext Context,
+	struct power_context *pAnchor, NvU32 *pCM)
 {
-	NvU32			Aperture;		//Register base address
-	NvU32			ApertureSize;	//Register set size
-	NvRmModuleID	ModuleId;		//Composite module id & instance
-	NvU32			Instance;		//Interrupt Controller Instance
-	NvU32			Instances;		//Total number of ictlr instances
-	NvU32*			pBase;			//Ptr to list of register base addresses
-
-	//NOTE: This controller has multiple instances. Therefore,
-	//pAnchor->interrupt.pBase is a pointer to a list of
-	//controller instance base addresses and not the controller's
-	//base address itself.
-
-	//Get the number of interrupt controller instances.
-	Instances = NvRmModuleGetNumInstances(s_hRmGlobal,
-					NvRmPrivModuleID_Interrupt);
-
-	//Get a pointer to the base address list.
-	pBase = pAnchor->interrupt.pBase;
-
 	switch (Context) {
-	case PowerModuleContext_Init:
-		//Already initialized?
-		if (pBase == NULL)
-		{
-			//Anchor the starting point for the list of
-			//instance base addresses.
-			pAnchor->interrupt.pBase = pCM;
-
-			//For each instance...
-			for (Instance = 0; Instance < Instances; ++Instance)
-			{
-				//Generate the composite module id and instance.
-				ModuleId = NVRM_MODULE_ID(NvRmPrivModuleID_Interrupt,
-								Instance);
-
-				//Retrieve the register base PA
-				NvRmModuleGetBaseAddress(s_hRmGlobal, ModuleId,
-						&Aperture, &ApertureSize);
-
-				//Get the corresponding VA
-				if (NvOsPhysicalMemMap(Aperture,
-						ApertureSize,
-						NvOsMemAttribute_Uncached,
-						NVOS_MEM_READ_WRITE,
-						(void*)pCM))
-				{
-					printk("Failed to map the context save area!\n");
-					goto fail;
-				}
-				pCM++;
-			}
-		}
-		break;
-
 	case PowerModuleContext_Save:
 	case PowerModuleContext_SaveLP1:
-		//Register base address list must have been
-		//set by PowerModuleContext_Init.
-		if (pBase == NULL)
-			goto fail;
-
-		//Anchor the starting point for this controller's context.
-		pAnchor->interrupt.pContext = pCM;
-
-		//For each instance...
-		for (Instance = 0; Instance < Instances; ++Instance, ++pBase)
-		{
-			//Register base address must have been
-			//set by PowerModuleContext_Init.
-			if (*pBase == 0)
-				goto fail;
-
-			//Save module registers...
-			*pCM++ = NV_ICTLR_REGR(*pBase, CPU_IER);
-			*pCM++ = NV_ICTLR_REGR(*pBase, CPU_IEP_CLASS);
-			*pCM++ = NV_ICTLR_REGR(*pBase, COP_IER);
-			*pCM++ = NV_ICTLR_REGR(*pBase, COP_IEP_CLASS);
-		}
+		tegra_irq_suspend();
 		break;
-
-		case PowerModuleContext_Restore:
-		case PowerModuleContext_RestoreLP1:
-		//Register base address list must have been
-		//set by PowerModuleContext_Init.
-		if (pBase == NULL)
-			goto fail;
-
-		//We should be at the same place in the context
-		//as when we saved things.
-		if (pCM != pAnchor->interrupt.pContext)
-			goto fail;
-
-		//Retrieve the anchored starting point for this controller's context.
-		pCM = pAnchor->interrupt.pContext;
-
-		if (pCM == NULL)
-			goto fail;
-
-		//For each instance...
-		for (Instance = 0; Instance < Instances; ++Instance, ++pBase)
-		{
-			//Register base address must have been
-			//set by PowerModuleContext_Init.
-			if (*pBase == 0)
-				goto fail;
-
-			//Restore module registers...
-			NV_ICTLR_REGW(*pBase, CPU_IER_SET,   *pCM++);
-			NV_ICTLR_REGW(*pBase, CPU_IEP_CLASS, *pCM++);
-			NV_ICTLR_REGW(*pBase, COP_IER_SET,   *pCM++);
-			NV_ICTLR_REGW(*pBase, COP_IEP_CLASS, *pCM++);
-		}
+	case PowerModuleContext_Restore:
+	case PowerModuleContext_RestoreLP1:
+		tegra_irq_resume();
 		break;
-
-	case PowerModuleContext_DisableInterrupt:
-		//For each instance...
-		for (Instance = 0; Instance < Instances; ++Instance, ++pBase)
-		{
-			if (*pBase == 0)
-				goto fail;
-
-			//Disable module interrupts.
-			NV_ICTLR_REGW(*pBase, CPU_IER_CLR, ~0);
-			NV_ICTLR_REGW(*pBase, COP_IER_CLR, ~0);
-		}
-		break;
-
 	default:
 		break;
 	}
 
 	return pCM;
-
-fail:
-	return NULL;
 }
 
 static NvU32* save_misc_context(
@@ -600,243 +479,26 @@ fail:
 	return NULL;
 }
 
-static NvU32* save_gpio_context(
-		PowerModuleContext Context,
-		struct power_context *pAnchor,
-		NvU32 *pCM)
+extern void tegra_gpio_resume(void);
+extern void tegra_gpio_suspend(void);
+
+static NvU32* save_gpio_context(PowerModuleContext Context,
+	struct power_context *pAnchor, NvU32 *pCM)
 {
-	NvU32			Aperture;		// Register base address
-	NvU32			ApertureSize;	// Register set size
-	NvRmModuleID	ModuleId;		// Composite module id & instance
-	NvU8			Instance;		// GPIO Instance
-	NvU32			Instances;		// Total number of gpio instances
-	NvU32*			pBase;			// Ptr to list of register base addresses
-
-	//NOTE: This controller has multiple instances.
-	//Therefore, pAnchor->Gpio.pBase is a pointer to a list
-	//of controller instance base addresses and not the
-	//controller's base address itself.
-
-	//Get the number of GPIO controller instances.
-	Instances = NvRmModuleGetNumInstances(s_hRmGlobal, NvRmPrivModuleID_Gpio);
-
-	//Get a pointer to the base address list.
-	pBase = pAnchor->gpio.pBase;
-
 	switch (Context) {
-	case PowerModuleContext_Init:
-		//Already initialized?
-		if (pBase == NULL)
-		{
-			//Anchor the starting point for the list
-			//of instance base addresses.
-			pAnchor->gpio.pBase = pCM;
-
-			//For each instance...
-			for (Instance = 0; Instance < Instances; ++Instance)
-			{
-				//Generate the composite module id and instance.
-				ModuleId = NVRM_MODULE_ID(NvRmPrivModuleID_Gpio, Instance);
-
-				//Retrieve the register base PA
-				NvRmModuleGetBaseAddress(s_hRmGlobal, ModuleId,
-						&Aperture, &ApertureSize);
-
-				//Get the corresponding VA
-				if (NvOsPhysicalMemMap(Aperture,
-						ApertureSize,
-						NvOsMemAttribute_Uncached,
-						NVOS_MEM_READ_WRITE,
-						(void*)pCM))
-			   {
-					printk("Failed to map the context save area!\n");
-					goto fail;
-			   }
-				pCM++;
-			}
-		}
-		break;
-	case PowerModuleContext_Save:
-		//Register base address list must have been
-		//set by PowerModuleContext_Init.
-		if (pBase == NULL)
-			goto fail;
-
-		//Anchor the starting point for this controller's context.
-		pAnchor->gpio.pContext = pCM;
-
-		//For each instance...
-		for (Instance = 0; Instance < Instances; ++Instance, ++pBase)
-		{
-			//Register base address must have been
-			//set by PowerModuleContext_Init.
-			if (*pBase == 0)
-				goto fail;
-
-			//Save the GPIO configuration.
-			*pCM++ = NV_GPIO_REGR(*pBase, CNF_0);
-			*pCM++ = NV_GPIO_REGR(*pBase, CNF_1);
-			*pCM++ = NV_GPIO_REGR(*pBase, CNF_2);
-			*pCM++ = NV_GPIO_REGR(*pBase, CNF_3);
-
-			//Save the GPIO output settings.
-			*pCM++ = NV_GPIO_REGR(*pBase, OUT_0);
-			*pCM++ = NV_GPIO_REGR(*pBase, OUT_1);
-			*pCM++ = NV_GPIO_REGR(*pBase, OUT_2);
-			*pCM++ = NV_GPIO_REGR(*pBase, OUT_3);
-
-			//Save the GPIO output enable settings.
-			*pCM++ = NV_GPIO_REGR(*pBase, OE_0);
-			*pCM++ = NV_GPIO_REGR(*pBase, OE_1);
-			*pCM++ = NV_GPIO_REGR(*pBase, OE_2);
-			*pCM++ = NV_GPIO_REGR(*pBase, OE_3);
-
-			//Save the GPIO level enables.
-			*pCM++ = NV_GPIO_REGR(*pBase, INT_ENB_0);
-			*pCM++ = NV_GPIO_REGR(*pBase, INT_ENB_1);
-			*pCM++ = NV_GPIO_REGR(*pBase, INT_ENB_2);
-			*pCM++ = NV_GPIO_REGR(*pBase, INT_ENB_3);
-
-			//Save the GPIO
-			*pCM++ = NV_GPIO_REGR(*pBase, INT_LVL_0);
-			*pCM++ = NV_GPIO_REGR(*pBase, INT_LVL_1);
-			*pCM++ = NV_GPIO_REGR(*pBase, INT_LVL_2);
-			*pCM++ = NV_GPIO_REGR(*pBase, INT_LVL_3);
-		}
-		break;
+	case PowerModuleContext_RestoreLP1:
 	case PowerModuleContext_Restore:
-		//Register base address list must have been
-		//set by PowerModuleContext_Init.
-		if (pBase == NULL)
-			goto fail;
-
-		//We should be at the same place in the context
-		//as when we saved things.
-		if (pCM != pAnchor->gpio.pContext)
-			goto fail;
-
-		//Retrieve the anchored starting point for this controller's context.
-		pCM = pAnchor->gpio.pContext;
-		if (pCM == NULL)
-			goto fail;
-
-		//For each instance...
-		for (Instance = 0; Instance < Instances; ++Instance, ++pBase)
-		{
-			//Register base address must have been
-			//set by PowerModuleContext_Init.
-			if (*pBase == 0)
-				goto fail;
-
-			//Restore the GPIO configuration.
-			NV_GPIO_REGW(*pBase, CNF_0, *pCM++);
-			NV_GPIO_REGW(*pBase, CNF_1, *pCM++);
-			NV_GPIO_REGW(*pBase, CNF_2, *pCM++);
-			NV_GPIO_REGW(*pBase, CNF_3, *pCM++);
-
-			//Restore the GPIO output settings.
-			NV_GPIO_REGW(*pBase, OUT_0, *pCM++);
-			NV_GPIO_REGW(*pBase, OUT_1, *pCM++);
-			NV_GPIO_REGW(*pBase, OUT_2, *pCM++);
-			NV_GPIO_REGW(*pBase, OUT_3, *pCM++);
-
-			//Restore the GPIO output enable settings.
-			NV_GPIO_REGW(*pBase, OE_0, *pCM++);
-			NV_GPIO_REGW(*pBase, OE_1, *pCM++);
-			NV_GPIO_REGW(*pBase, OE_2, *pCM++);
-			NV_GPIO_REGW(*pBase, OE_3, *pCM++);
-
-			//Restore the GPIO level enables.
-			NV_GPIO_REGW(*pBase, INT_ENB_0, *pCM++);
-			NV_GPIO_REGW(*pBase, INT_ENB_1, *pCM++);
-			NV_GPIO_REGW(*pBase, INT_ENB_2, *pCM++);
-			NV_GPIO_REGW(*pBase, INT_ENB_3, *pCM++);
-
-			//Restore the shadowed GPIO level settings.
-			NV_GPIO_REGW(*pBase, INT_LVL_0, *pCM++);
-			NV_GPIO_REGW(*pBase, INT_LVL_1, *pCM++);
-			NV_GPIO_REGW(*pBase, INT_LVL_2, *pCM++);
-			NV_GPIO_REGW(*pBase, INT_LVL_3, *pCM++);
-		}
+		tegra_gpio_resume();
 		break;
 	case PowerModuleContext_SaveLP1:
-		//Register base address list must have been
-		//set by PowerModuleContext_Init.
-		if (pBase == NULL)
-			goto fail;
-
-		//Anchor the starting point for this controller's context.
-		pAnchor->gpio.pContext = pCM;
-
-		//For each instance...
-		for (Instance = 0; Instance < Instances; ++Instance, ++pBase)
-		{
-			//Register base address must have been
-			//set by PowerModuleContext_Init.
-			if (*pBase == 0)
-				goto fail;
-
-			//Save the GPIO enables.
-			*pCM++ = NV_GPIO_REGR(*pBase, INT_ENB_0);
-			*pCM++ = NV_GPIO_REGR(*pBase, INT_ENB_1);
-			*pCM++ = NV_GPIO_REGR(*pBase, INT_ENB_2);
-			*pCM++ = NV_GPIO_REGR(*pBase, INT_ENB_3);
-		}
-		break;
-	case PowerModuleContext_RestoreLP1:
-		//Register base address list must have been
-		//set by PowerModuleContext_Init.
-		if (pBase == NULL)
-			goto fail;
-
-		//We should be at the same place in the context
-		//as when we saved things.
-		if (pCM != pAnchor->gpio.pContext)
-			goto fail;
-
-		//For each instance...
-		for (Instance = 0; Instance < Instances; ++Instance, ++pBase)
-		{
-			//Register base address must have been
-			//set by PowerModuleContext_Init.
-			if (*pBase == 0)
-				goto fail;
-
-			// Restore the GPIO enables.
-			NV_GPIO_REGW(*pBase, INT_ENB_0, *pCM++);
-			NV_GPIO_REGW(*pBase, INT_ENB_1, *pCM++);
-			NV_GPIO_REGW(*pBase, INT_ENB_2, *pCM++);
-			NV_GPIO_REGW(*pBase, INT_ENB_3, *pCM++);
-		}
-		break;
-	case PowerModuleContext_DisableInterrupt:
-		//Register base address list must have been
-		//set by PowerModuleContext_Init.
-		if (pBase == NULL)
-			goto fail;
-
-		//For each instance...
-		for (Instance = 0; Instance < Instances; ++Instance, ++pBase)
-		{
-			//Register base address must have been
-			//set by PowerModuleContext_Init.
-			if (*pBase == 0)
-				goto fail;
-
-			//Disable module interrupts.
-			NV_GPIO_REGW(*pBase, INT_ENB_0, 0);
-			NV_GPIO_REGW(*pBase, INT_ENB_1, 0);
-			NV_GPIO_REGW(*pBase, INT_ENB_2, 0);
-			NV_GPIO_REGW(*pBase, INT_ENB_3, 0);
-		}
+	case PowerModuleContext_Save:
+		tegra_gpio_suspend();
 		break;
 	default:
 		break;
 	}
 
 	return pCM;
-fail:
-	return NULL;
 }
 
 static NvU32* save_apbdma_context(

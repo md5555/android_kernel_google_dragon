@@ -28,6 +28,7 @@
 #include "ap20/arevp.h"
 #include "ap20/arapbpm.h"
 #include "ap20/aremc.h"
+#include "ap20/arapb_misc.h"
 #include "nvrm_drf.h"
 
 #if defined(CONFIG_ARCH_TEGRA_2x_SOC)
@@ -38,13 +39,14 @@
 #define CLK_RST_PA_BASE 0x60006000
 #define EVP_PA_BASE 0x6000f000
 #define CSITE_PA_BASE 0x70040000
+#define APB_MISC_BASE 0x70000000
 #define TEMP_RESET_VECTOR 8
 #define TEMP_SCLK_BURST_POLICY 16
 #define TEMP_CCLK_BURST_POLICY 20
 #define TEMP_PLLX_BASE 12
 #define CSITE_CPUDBG0_LAR_0 0x10fb0
 #define CSITE_CPUDBG1_LAR_0 0x12fb0
-#define TEMP_AREA_SIZE 16
+#define TEMP_AREA_SIZE 32
 #define DEBUG_FORCE_RTC_WAKEUP 5
 #else
 #error "Unrecognized Tegra SoC Family"
@@ -370,11 +372,11 @@ skip_cpu0_restore:
 	//Only get the timer for CPU0
 	bne	skip_lp2_time
 	//Get the microsecond count after LP2
-	str r11, [r5, #APBDEV_PMC_SCRATCH1_0]
+	str r11, [r5, #APBDEV_PMC_SCRATCH39_0]
 
 skip_lp2_time:
 	//Set lr to the resume function
-	ldr	lr, [r5, #APBDEV_PMC_SCRATCH33_0]
+	ldr	lr, [r5, #APBDEV_PMC_SCRATCH1_0]
 	bx	lr
 
 TempStoreArea:
@@ -439,6 +441,21 @@ is_self1:
 	teq		r0, r2
 	bne		is_self1
 
+	// Save SDRAM pad configuration, replace it with min power settings
+	// (every lp1 entry loads settings, hence we can overwrite them)
+	add		r0, pc, #lp1_ddrpad_addr-(.+8)
+	add		r1, pc, #lp1_ddrpad_setting-(.+8)
+pad_susp_next:
+	ldr		r3, [r0], #4
+	cmp		r3, #0
+	beq		pad_susp_end
+	ldr		r11, [r3]
+	ldr		r2, [r1]
+	str		r2, [r3]
+	str		r11, [r1], #4
+	b		pad_susp_next
+pad_susp_end:
+
 	//Make sure SIDE_EFFECT_LP0 is not set
 	ldr		r2, [r5, #APBDEV_PMC_CNTRL_0]
 	//Unset the SIDE_EFFECT bit
@@ -456,9 +473,13 @@ is_self1:
 	str		r2, [r8, #CLK_RST_CONTROLLER_SCLK_BURST_POLICY_0]
 
 	//2 uSec delay for System Clock Switching
-	mov		r2, #0x1
+	mov		r2, #0x2
 	orr		r2, r2, #(1<<25)  //STOP_UNTIL_Event
 	str		r2, [r6, #FLOW_CTLR_HALT_CPU_EVENTS_0]
+clk_delay:
+	ldr		r2, [r6, #FLOW_CTLR_HALT_CPU_EVENTS_0]
+	tst		r2, #0xFF
+	bne		clk_delay
 
 	//Powergate the cpu by setting the ENABLE bit
 	ldr		r2, [r6, #FLOW_CTLR_CPU_CSR_0]
@@ -580,11 +601,26 @@ reset_poll1:
 	ldr		r2, [r12, #TEMP_RESET_VECTOR]
 	str		r2, [r9, #EVP_CPU_RESET_VECTOR_0]
 
+	// Restore SDRAM pad configuration
+	add		r0, pc, #lp1_ddrpad_addr-(.+8)
+	add		r1, pc, #lp1_ddrpad_setting-(.+8)
+pad_wake_next:
+	ldr		r3, [r0], #4
+	cmp		r3, #0
+	beq		pad_wake_end
+	ldr		r2, [r1], #4
+	str		r2, [r3]
+	b		pad_wake_next
+pad_wake_end: 		// 4us delay after restoration - covered by PLL delay
 
 	//Explicit delay of 255 uSec for pll stabilization
-	mov		r2, #0xfe
+	mov		r2, #0xFF
 	orr		r2, r2, #(1<<25)  //STOP_UNTIL_Event
 	str		r2, [r6, #FLOW_CTLR_HALT_CPU_EVENTS_0]
+pll_delay:
+	ldr		r2, [r6, #FLOW_CTLR_HALT_CPU_EVENTS_0]
+	tst		r2, #0xFF
+	bne		pll_delay
 
 	//Restore the system and CPU burst, csite, clksrc registers
 	ldr		r1, [r12, #TEMP_SCLK_BURST_POLICY]
@@ -631,7 +667,7 @@ is_auto:
 
 	//Store the LP1 exit time and restore return addr
 	ldr		lr, [r5, #APBDEV_PMC_SCRATCH1_0]
-	str		r11, [r5, #APBDEV_PMC_SCRATCH1_0]
+	str		r11, [r5, #APBDEV_PMC_SCRATCH39_0]
 	bx		lr
 lp1_literals:
 	.word	0x7000f400
@@ -646,15 +682,37 @@ TemporaryStore:
 	//after the MMU has been turned off, so we need
 	//some PC relative scratch space
 	.space TEMP_AREA_SIZE
+lp1_ddrpad_addr:
+	.word	((APB_MISC_BASE)+(APB_MISC_GP_XM2CFGCPADCTRL_0))
+	.word	((APB_MISC_BASE)+(APB_MISC_GP_XM2CFGDPADCTRL_0))
+	.word	((APB_MISC_BASE)+(APB_MISC_GP_XM2CLKCFGPADCTRL_0))
+	.word	((APB_MISC_BASE)+(APB_MISC_GP_XM2COMPPADCTRL_0))
+	.word	((APB_MISC_BASE)+(APB_MISC_GP_XM2VTTGENPADCTRL_0))
+	.word	((APB_MISC_BASE)+(APB_MISC_GP_XM2CFGCPADCTRL2_0))
+	.word	((APB_MISC_BASE)+(APB_MISC_GP_XM2CFGDPADCTRL2_0))
+	.word	0
+lp1_ddrpad_setting:
+	.word	0x00000008
+	.word	0x00000008
+	.word	0x00000000
+	.word	0x00000008
+	.word	0x00005500
+	.word	0x08080040
+	.word	0x00000000
 exit_lp1_end:
 ENDPROC(exit_lp1)
 
 ENTRY(enter_lp0)
-	ldr		r4, [pc, #0xC8] //EMC base
-	ldr		r5, [pc, #0xC8] //PMC base
-	ldr		r6, [pc, #0xC8] //FLOW base
-	ldr		r7, [pc, #0xC8] //TIMERUS base
-	ldr		r8, [pc, #0xC8] //RTC base
+	add		r4, pc, #lp0_literals-(.+8)	//EMC base
+	ldr		r4, [r4]
+	add		r5, pc, #lp0_literals-(.+4)	//PMC base
+	ldr		r5, [r5]
+	add		r6, pc, #lp0_literals-(.+0)	//FLOW base
+	ldr		r6, [r6]
+	add		r7, pc, #lp0_literals-(.-4)	//TIMERUS base
+	ldr		r7, [r7]
+	add		r8, pc, #lp0_literals-(.-8)	//RTC base
+	ldr		r8, [r8]
 
 	//Flush the write buffer
 	dmb
@@ -687,14 +745,14 @@ is_self:
 	str		r2, [r5, #0x20]
 
 	//Set SIDE_EFFECT_LP0
-	ldr		r2, [r5]
-	orr		r2, r2, #1, 18
-	str		r2, [r5]
+	ldr		r2, [r5, #APBDEV_PMC_CNTRL_0]
+	orr		r2, r2, #0x4000
+	str		r2, [r5, #APBDEV_PMC_CNTRL_0]
 
 	//Set CPU island to power gate when halted
-	ldr		r2, [r6, #8]
+	ldr		r2, [r6, #FLOW_CTLR_CPU_CSR_0]
 	orr		r2, r2, #1
-	str		r2, [r6, #8]
+	str		r2, [r6, #FLOW_CTLR_CPU_CSR_0]
 
 	//r0 = RTC_BASE
 	mov r0, r8
@@ -719,21 +777,22 @@ rtc_idle3:
 	ldr r1, [r0, #0x4]
 	tst r1, #0x1
 	bne rtc_idle3
-	//Save the microsecond count before LP0
+	//Save the microsecond count before LP0 in SCRATCH38
 	ldr		r2, [r7]
-	str		r2, [r5, #0x134]
+	str		r2, [r5, #APBDEV_PMC_SCRATCH38_0]
 
 	//Halt the CPU without any wakeup events
 	mov		r2, #1, 2
 	str		r2, [r6]
 do_wfi:
 	dsb
-	wfi
+	wfe
 	b		do_wfi
-	andvc	pc, r0, r0, lsl #8
-	andvc	lr, r0, r0, lsl #8
-	andvs	r7, r0, r0
-	andvs	r5, r0, r0, lsl r0
+lp0_literals:
+	.word	0x7000f400
+	.word	0x7000e400
+	.word	0x60007000
+	.word	0x60005010
 	.word	0x7000e000
 enter_lp0_end:
 ENDPROC(enter_lp0)
@@ -782,7 +841,8 @@ ArmCortexA9PhysicalRestored:
 	ldr		r1, [r1]
 
 	//Read from LP0 exit time from SCRATCH1
-	ldr		r2, [r0, #0x54]
+	//The warmboot code filled this value in
+	ldr		r2, [r0, #APBDEV_PMC_SCRATCH1_0]
 	add		r2, r2, #300
 pll_wait:
 	ldr		r3, [r1]

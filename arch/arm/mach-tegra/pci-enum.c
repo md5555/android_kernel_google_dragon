@@ -274,7 +274,7 @@ next_device:
 		/* Bridge device */
 
 		/* Temporarily assign 0xff for the subordinate bus number as
-		 * we don't * know how many devices are preset behind this
+		 * we don't * know how many devices are present behind this
 		 * bridge.
 		 * */
 		subordinate_bus = 0xff;
@@ -354,21 +354,31 @@ static void pci_tegra_enumerate_root_port(int rp)
 	pci_tegra_rp_writew(reg>>16, PCI_IO_LIMIT_UPPER16, rp);
 
 	/* Memory base and limits */
-	reg = root->res[PCI_BRIDGE_MEM_RES].start;
-	reg = ALIGN(reg, 0x100000);
-	pci_tegra_rp_writew(reg >> 16, PCI_MEMORY_BASE, rp);
-	reg = root->res[PCI_BRIDGE_MEM_RES].end;
-	reg = ALIGN(reg, 0x100000);
-	pci_tegra_rp_writew(reg >> 16, PCI_MEMORY_LIMIT, rp);
+	if (root->res[PCI_BRIDGE_MEM_RES].start != root->res[PCI_BRIDGE_MEM_RES].end) {
+		reg = root->res[PCI_BRIDGE_MEM_RES].start;
+		reg = ALIGN(reg, 0x100000);
+		pci_tegra_rp_writew(reg >> 16, PCI_MEMORY_BASE, rp);
+		reg = root->res[PCI_BRIDGE_MEM_RES].end;
+		reg = ALIGN(reg, 0x100000);
+		pci_tegra_rp_writew(reg >> 16, PCI_MEMORY_LIMIT, rp);
+	} else {
+		pci_tegra_rp_writew(0xffff, PCI_MEMORY_BASE, rp);
+		pci_tegra_rp_writew(0x0000, PCI_MEMORY_LIMIT, rp);
+	}
 
 	/* Prefetch base and limit - 32 bit addressing */
-	reg = root->res[PCI_BRIDGE_PREFETCH_RES].start;
-	reg = ALIGN(reg, 0x100000);
-	pci_tegra_rp_writew(reg >> 16, PCI_PREF_MEMORY_BASE, rp);
+	if (root->res[PCI_BRIDGE_PREFETCH_RES].start != root->res[PCI_BRIDGE_PREFETCH_RES].end) {
+		reg = root->res[PCI_BRIDGE_PREFETCH_RES].start;
+		reg = ALIGN(reg, 0x100000);
+		pci_tegra_rp_writew(reg >> 16, PCI_PREF_MEMORY_BASE, rp);
+		reg = root->res[PCI_BRIDGE_PREFETCH_RES].end;
+		reg = ALIGN(reg, 0x100000);
+		pci_tegra_rp_writew(reg >> 16, PCI_PREF_MEMORY_LIMIT, rp);
+	} else {
+		pci_tegra_rp_writew(0xffff, PCI_PREF_MEMORY_BASE, rp);
+		pci_tegra_rp_writew(0, PCI_PREF_MEMORY_LIMIT, rp);
+	}
 	pci_tegra_rp_writel(0, PCI_PREF_BASE_UPPER32, rp);
-	reg = root->res[PCI_BRIDGE_PREFETCH_RES].end;
-	reg = ALIGN(reg, 0x100000);
-	pci_tegra_rp_writew(reg >> 16, PCI_PREF_MEMORY_LIMIT, rp);
 	pci_tegra_rp_writel(0, PCI_PREF_LIMIT_UPPER32, rp);
 
 	reg = 0;
@@ -406,26 +416,36 @@ static void pci_tegra_setup_pci_bridge(struct pci_tegra_device *dev)
 	pci_conf_write16(dev->bus, dev->devfn, PCI_IO_LIMIT_UPPER16, reg>>16);
 
 	/* Memory base and limits */
-	reg = dev->res[PCI_BRIDGE_MEM_RES].start;
-	reg = ALIGN(reg, 0x100000);
-	pci_conf_write16(dev->bus, dev->devfn, PCI_MEMORY_BASE, reg >> 16);
+	if (dev->res[PCI_BRIDGE_MEM_RES].start != dev->res[PCI_BRIDGE_MEM_RES].end) {
+		reg = dev->res[PCI_BRIDGE_MEM_RES].start;
+		reg = ALIGN(reg, 0x100000);
+		pci_conf_write16(dev->bus, dev->devfn, PCI_MEMORY_BASE, reg >> 16);
 
-	reg = dev->res[PCI_BRIDGE_MEM_RES].end;
-	reg = ALIGN(reg, 0x100000);
-	pci_conf_write16(dev->bus, dev->devfn, PCI_MEMORY_LIMIT, reg >> 16);
+		reg = dev->res[PCI_BRIDGE_MEM_RES].end;
+		reg = ALIGN(reg, 0x100000);
+		pci_conf_write16(dev->bus, dev->devfn, PCI_MEMORY_LIMIT, reg >> 16);
+	} else {
+		pci_conf_write16(dev->bus, dev->devfn, PCI_MEMORY_BASE, 0xffff);
+		pci_conf_write16(dev->bus, dev->devfn, PCI_MEMORY_LIMIT, 0);
+	}
 
 	/* Prefetch base and limit - 32 bit addressing */
-	reg = dev->res[PCI_BRIDGE_PREFETCH_RES].start;
-	reg = ALIGN(reg, 0x100000);
-	pci_conf_write16(dev->bus, dev->devfn, PCI_PREF_MEMORY_BASE,
-		reg >> 16);
-	pci_conf_write16(dev->bus, dev->devfn, PCI_PREF_BASE_UPPER32, 0);
+	if (dev->res[PCI_BRIDGE_PREFETCH_RES].start != dev->res[PCI_BRIDGE_PREFETCH_RES].end) {
+		reg = dev->res[PCI_BRIDGE_PREFETCH_RES].start;
+		reg = ALIGN(reg, 0x100000);
+		pci_conf_write16(dev->bus, dev->devfn, PCI_PREF_MEMORY_BASE,
+			reg >> 16);
+		pci_conf_write16(dev->bus, dev->devfn, PCI_PREF_BASE_UPPER32, 0);
 
-	reg = dev->res[PCI_BRIDGE_PREFETCH_RES].end;
-	reg = ALIGN(reg, 0x100000);
-	pci_conf_write16(dev->bus, dev->devfn, PCI_PREF_MEMORY_LIMIT,
-		reg >> 16);
-	pci_conf_write16(dev->bus, dev->devfn, PCI_PREF_LIMIT_UPPER32, 0);
+		reg = dev->res[PCI_BRIDGE_PREFETCH_RES].end;
+		reg = ALIGN(reg, 0x100000);
+		pci_conf_write16(dev->bus, dev->devfn, PCI_PREF_MEMORY_LIMIT,
+			reg >> 16);
+		pci_conf_write16(dev->bus, dev->devfn, PCI_PREF_LIMIT_UPPER32, 0);
+	} else {
+		pci_conf_write16(dev->bus, dev->devfn, PCI_PREF_MEMORY_BASE, 0xffff);
+		pci_conf_write16(dev->bus, dev->devfn, PCI_PREF_MEMORY_LIMIT, 0);
+	}
 
 	reg = 0;
 	reg |= PCI_COMMAND_IO;

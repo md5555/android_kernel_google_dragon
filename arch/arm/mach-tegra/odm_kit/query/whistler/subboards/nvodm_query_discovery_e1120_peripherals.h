@@ -63,4 +63,13 @@
     NV_ARRAY_SIZE(s_VibAddresses),
     NvOdmPeripheralClass_Other,
 },
+
+// Accelerometer Module
+{
+    NV_ODM_GUID('a','c','c','e','l','e','r','o'),
+    s_AcceleroAddresses,
+    NV_ARRAY_SIZE(s_AcceleroAddresses),
+    NvOdmPeripheralClass_Other,
+},
+
 // NOTE: This list *must* end with a trailing comma.

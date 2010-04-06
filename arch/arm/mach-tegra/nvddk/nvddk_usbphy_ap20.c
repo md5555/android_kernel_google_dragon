@@ -45,7 +45,7 @@
 #include "ap20/arapb_misc.h"
 #include "nvrm_hardware_access.h"
 #include "nvddk_usbphy_priv.h"
-
+#include "nvodm_query.h"
 
 /* Defines for USB register read and writes */
 #define USB_REG_RD(reg)\
@@ -553,6 +553,17 @@ static void
 Ap20UsbPhyUlpiNullModeConfigure(
     NvDdkUsbPhy *pUsbPhy)
 {
+    // default trimmer values for ap20
+    NvOdmUsbTrimmerCtrl trimmerCtrl = {0, 0, 4, 4};
+
+    if (pUsbPhy->pProperty->TrimmerCtrl.UlpiShadowClkDelay ||
+        pUsbPhy->pProperty->TrimmerCtrl.UlpiClockOutDelay ||
+        pUsbPhy->pProperty->TrimmerCtrl.UlpiDataTrimmerSel ||
+        pUsbPhy->pProperty->TrimmerCtrl.UlpiStpDirNxtTrimmerSel)
+    {
+        // update the trimmer values if they are specified in nvodm_query
+        NvOsMemcpy(&trimmerCtrl, &pUsbPhy->pProperty->TrimmerCtrl, sizeof(NvOdmUsbTrimmerCtrl));
+    }
 
     // Put the UHSIC in the reset
     USB_IF_REG_UPDATE_DEF(SUSP_CTRL, UHSIC_RESET, ENABLE);
@@ -574,8 +585,8 @@ Ap20UsbPhyUlpiNullModeConfigure(
                     ULPI_IF_DRF_DEF(TIMING_CTRL_0, ULPI_OUTPUT_PINMUX_BYP, ENABLE) |
                     ULPI_IF_DRF_DEF(TIMING_CTRL_0, ULPI_CLKOUT_PINMUX_BYP, ENABLE) |
                     ULPI_IF_DRF_DEF(TIMING_CTRL_0, ULPI_LBK_PAD_EN, OUTPUT) |
-                    ULPI_IF_DRF_NUM(TIMING_CTRL_0, ULPI_SHADOW_CLK_DELAY, 0) |
-                    ULPI_IF_DRF_NUM(TIMING_CTRL_0, ULPI_CLOCK_OUT_DELAY, 0) |
+                    ULPI_IF_DRF_NUM(TIMING_CTRL_0, ULPI_SHADOW_CLK_DELAY, trimmerCtrl.UlpiShadowClkDelay) |
+                    ULPI_IF_DRF_NUM(TIMING_CTRL_0, ULPI_CLOCK_OUT_DELAY, trimmerCtrl.UlpiClockOutDelay) |
                     ULPI_IF_DRF_NUM(TIMING_CTRL_0, ULPI_LBK_PAD_E_INPUT_OR, 0));
 
     // Set all the trimmers to 0 at the start
@@ -613,9 +624,9 @@ Ap20UsbPhyUlpiNullModeConfigure(
     // Set the trimmer values
     ULPI_IF_REG_WR(TIMING_CTRL_1, 
                     ULPI_IF_DRF_NUM(TIMING_CTRL_1, ULPI_DATA_TRIMMER_LOAD, 0) |
-                    ULPI_IF_DRF_NUM(TIMING_CTRL_1, ULPI_DATA_TRIMMER_SEL, 4) |
+                    ULPI_IF_DRF_NUM(TIMING_CTRL_1, ULPI_DATA_TRIMMER_SEL, trimmerCtrl.UlpiDataTrimmerSel) |
                     ULPI_IF_DRF_NUM(TIMING_CTRL_1, ULPI_STPDIRNXT_TRIMMER_LOAD, 0) |
-                    ULPI_IF_DRF_NUM(TIMING_CTRL_1, ULPI_STPDIRNXT_TRIMMER_SEL, 4) |
+                    ULPI_IF_DRF_NUM(TIMING_CTRL_1, ULPI_STPDIRNXT_TRIMMER_SEL, trimmerCtrl.UlpiStpDirNxtTrimmerSel) |
                     ULPI_IF_DRF_NUM(TIMING_CTRL_1, ULPI_DIR_TRIMMER_LOAD, 0) |
                     ULPI_IF_DRF_NUM(TIMING_CTRL_1, ULPI_DIR_TRIMMER_SEL, 4));
 
@@ -625,9 +636,9 @@ Ap20UsbPhyUlpiNullModeConfigure(
     //Load the trimmers by toggling the load bits
     ULPI_IF_REG_WR(TIMING_CTRL_1, 
                     ULPI_IF_DRF_NUM(TIMING_CTRL_1, ULPI_DATA_TRIMMER_LOAD, 1) |
-                    ULPI_IF_DRF_NUM(TIMING_CTRL_1, ULPI_DATA_TRIMMER_SEL, 4) |
+                    ULPI_IF_DRF_NUM(TIMING_CTRL_1, ULPI_DATA_TRIMMER_SEL, trimmerCtrl.UlpiDataTrimmerSel) |
                     ULPI_IF_DRF_NUM(TIMING_CTRL_1, ULPI_STPDIRNXT_TRIMMER_LOAD, 1) |
-                    ULPI_IF_DRF_NUM(TIMING_CTRL_1, ULPI_STPDIRNXT_TRIMMER_SEL, 4) |
+                    ULPI_IF_DRF_NUM(TIMING_CTRL_1, ULPI_STPDIRNXT_TRIMMER_SEL, trimmerCtrl.UlpiStpDirNxtTrimmerSel) |
                     ULPI_IF_DRF_NUM(TIMING_CTRL_1, ULPI_DIR_TRIMMER_LOAD, 1) |
                     ULPI_IF_DRF_NUM(TIMING_CTRL_1, ULPI_DIR_TRIMMER_SEL, 4));
 

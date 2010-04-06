@@ -766,6 +766,11 @@ static void DfsParametersInit(NvRmDfs* pDfs)
             break;
     }
 
+    // Adjust minimum frequency boundary for EMC as required for
+    // particular SDRAM type
+    if (pDfs->hRm->ChipId.Id == 0x20)
+        NvRmPrivAp20EmcMinFreqSet(pDfs);
+
     // CPU clock H/w limits
     pClimits = NvRmPrivGetSocClockLimits(NvRmModuleID_Cpu);
     HwLimitsKHz[NvRmDfsClockId_Cpu] = *pClimits;
@@ -1180,23 +1185,20 @@ DfsGetTargetFrequencies(
          * and clip it to the domain limits. Check low power corner hit. Set
          * return value if clock update is necessary.
          */
+        *pDomainKHz = NV_MAX(pDomainSampler->BumpedAverageKHz,
+                             LowCornerDomainKHz);
         if (pDomainSampler->RtStarveBoostKHz >= pDomainSampler->NrtStarveBoostKHz)
         {
-            *pDomainKHz = pDomainSampler->BumpedAverageKHz +
-                pDomainSampler->RtStarveBoostKHz;
+            *pDomainKHz += pDomainSampler->RtStarveBoostKHz;
         }
         else
         {
-            *pDomainKHz = pDomainSampler->BumpedAverageKHz +
-              pDomainSampler->NrtStarveBoostKHz;
+            *pDomainKHz += pDomainSampler->NrtStarveBoostKHz;
         }
+
         if ((*pDomainKHz) < DomainBusyKHz)
         {
             (*pDomainKHz) = DomainBusyKHz;
-        }
-        if ((*pDomainKHz) < LowCornerDomainKHz)
-        {
-            *pDomainKHz = LowCornerDomainKHz;
         }
         if ((*pDomainKHz) > HighCornerDomainKHz)
         {
@@ -1204,13 +1206,24 @@ DfsGetTargetFrequencies(
         }
 
         /*
-         * Domain frequency is above low limit with tolerance band, or frequency
-         * is above low limit and it was not in low corner (hysteresis) - clear
-         * low corner hit
+         * Determine if low corner is hit in this domain - clear hit indicator
+         * if new target domain frequency is above low limit (with hysteresis
+         * equal to the 1st NRT starvation step). For platform with dedicated
+         * CPU partition reduce activity margin by half when there is no busy
+         * or starvation requirements
          */
+        if (NvRmPrivIsCpuRailDedicated(pDfs->hRm) &&
+            (DomainBusyKHz <= LowCornerDomainKHz) &&
+            ((*pDomainKHz) == pDomainSampler->BumpedAverageKHz))
+        {
+            // Multiplying threshold has the same effect as dividing target
+            // to reduce margin
+            LowCornerDomainKHz +=
+                (LowCornerDomainKHz >> (pDomainParam->RelAdjustBits + 1));
+        }
         if ( ((*pDomainKHz) > 
-              (LowCornerDomainKHz + pDomainParam->UpperBandKHz)) ||
-             (((*pDomainKHz) > LowCornerDomainKHz) && (!pDfs->LowCornerHit))
+              (LowCornerDomainKHz + pDomainParam->NrtStarveParam.BoostStepKHz))
+             || (((*pDomainKHz) > LowCornerDomainKHz) && (!pDfs->LowCornerHit))
             )
         {
             LowCornerHit = NV_FALSE;
@@ -2029,6 +2042,13 @@ NvRmFreqKHz NvRmPrivDfsGetMinKHz(NvRmDfsClockId ClockId)
     return pDfs->DfsParameters[ClockId].MinKHz;
 }
 
+NvRmFreqKHz NvRmPrivDfsGetCurrentKHz(NvRmDfsClockId ClockId)
+{
+    NvRmDfs* pDfs = &s_Dfs;
+    NV_ASSERT((0 < ClockId) && (ClockId < NvRmDfsClockId_Num));
+    return pDfs->CurrentKHz.Domains[ClockId];
+}
+
 void NvRmPrivDfsSignal(NvRmDfsBusyHintSyncMode Mode)
 {
     NvRmDfs* pDfs = &s_Dfs;
@@ -2403,8 +2423,12 @@ void NvRmPrivVoltageScale(
     pDvs->DvsCorner.CpuMv = CpuMv;
     pDvs->DvsCorner.SystemMv = SystemMv;
     pDvs->DvsCorner.EmcMv = EmcMv;
-    pDvs->DvsCorner.ModulesMv = NvRmPrivModulesGetOperationalMV(pDfs->hRm);
-    TargetMv = pDvs->DvsCorner.ModulesMv;
+
+    NvRmPrivLockModuleClockState();
+    TargetMv = NvRmPrivModulesGetOperationalMV(pDfs->hRm);
+    NvRmPrivUnlockModuleClockState();
+    pDvs->DvsCorner.ModulesMv = TargetMv;
+
     if (!DedicatedCpuRail && (TargetMv < CpuMv))
         TargetMv = CpuMv;
     if (TargetMv < SystemMv)

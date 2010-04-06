@@ -101,9 +101,16 @@ typedef struct NvOdmPmuVddRailCapabilitiesRec
     NvU32 requestMilliVolts;
 } NvOdmPmuVddRailCapabilities;
 
-/// Special level to indicate voltage plane is disabled.
+/// Special level to indicate voltage plane is turned off.
 #define ODM_VOLTAGE_OFF (0UL)
 
+/// Special level to enable voltage plane on/off control
+///  by the external signal (e.g., low power request from SoC).
+#define ODM_VOLTAGE_ENABLE_EXT_ONOFF (0xFFFFFFFFUL)
+
+/// Special level to disable voltage plane on/off control
+///  by the external signal (e.g., low power request from SoC).
+#define ODM_VOLTAGE_DISABLE_EXT_ONOFF (0xFFFFFFFEUL)
 
 /**
  * Gets capabilities for the specified PMU voltage.
@@ -142,7 +149,11 @@ NvOdmPmuGetVoltage(
  * @param hDevice A handle to the PMU.
  * @param vddId The ODM-defined PMU rail ID.
  * @param MilliVolts The new voltage level to be set in millivolts (mV).
- *  Set to ::ODM_VOLTAGE_OFF to turn off the target voltage.
+ * - Set to ::ODM_VOLTAGE_OFF to turn off the target voltage.
+ * - Set to ::ODM_VOLTAGE_ENABLE_EXT_ONOFF to enable external control of
+ *   target voltage.
+ * - Set to ::ODM_VOLTAGE_DISABLE_EXT_ONOFF to disable external control of
+ *   target voltage.
  * @param pSettleMicroSeconds A pointer to the settling time in microseconds (uS),
  *  which is the time for supply voltage to settle after this function 
  *  returns; this may or may not include PMU control interface transaction time, 

@@ -1070,7 +1070,7 @@ Ap15PllDConfigure(
     pCstate->actual_freq =
         NvRmPrivGetClockSourceFreq(NvRmClockSource_PllD0);
     NvRmPrivModuleVscaleReAttach(hRmDevice,
-        pCinfo, pCstate, pCstate->actual_freq, pCstate->actual_freq);
+        pCinfo, pCstate, pCstate->actual_freq, pCstate->actual_freq, NV_FALSE);
 }
 
 /*****************************************************************************/
@@ -1090,6 +1090,10 @@ Ap15DisplayClockConfigure(
     NvRmClockSource SourceId;
     NvRmFreqKHz PixelFreq = TargetFreq;
     NvRmFreqKHz SourceClockFreq = NvRmPrivGetClockSourceFreq(NvRmClockSource_ClkM);
+
+    // Clip target to maximum - we still may be able to configure frequency
+    // within tolearnce range
+    PixelFreq = TargetFreq = NV_MIN(TargetFreq, MaxFreq);
 
     /*
      * Display clock source selection policy:

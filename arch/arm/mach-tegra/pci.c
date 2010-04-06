@@ -43,6 +43,8 @@
 
 void __iomem * volatile pci_tegra_regs;
 static bool pci_tegra_device_attached = false;
+static bool pci_tegra_rp0_up = false;
+static bool pci_tegra_rp1_up = false;
 static unsigned int pci_tegra_powerid;
 
 static int __init pcie_tegra_init(void);
@@ -75,6 +77,31 @@ unsigned long pci_tegra_get_base(char *aperture)
 		return (unsigned long)-1;
 }
 
+static inline bool pci_tegra_is_within_rp_range(u32 bus_number, int rp)
+{
+	bool ret=false;
+	u8 primary;
+	u8 secondary;
+	u8 subordinate;
+	u32 busrange;
+
+	busrange = pci_tegra_rp_readl(PCI_PRIMARY_BUS, rp);
+
+	primary = (u8)((busrange & 0x000000ff)>>0);
+	secondary = (u8)((busrange & 0x0000ff00)>>8);
+	subordinate = (u8)((busrange & 0x00ff0000)>>16);
+
+	if (((rp==0) && pci_tegra_rp0_up) || ((rp==1) && pci_tegra_rp1_up)) {
+		if(primary != subordinate) {
+			//otherwise it's not configured
+			if((bus_number >= secondary) && (bus_number <= subordinate))
+				ret=true;
+		}
+	}
+
+	return ret;
+}
+
 static int pci_tegra_read_conf(struct pci_bus *bus, u32 devfn,
 	int where, int size, u32 *val)
 {
@@ -98,9 +125,19 @@ static int pci_tegra_read_conf(struct pci_bus *bus, u32 devfn,
 		v = pci_tegra_rp_readl(where & ~3, rp);
 	} else  {
 		void __iomem *addr;
+		bool is_rp_firstdev;
+		bool is_valid_dev;
+
+		/*Make sure the bus falls within one of the root ports*/
+		is_valid_dev = pci_tegra_is_within_rp_range(bus->number, 0)
+				 || pci_tegra_is_within_rp_range(bus->number, 1);
+		if (! is_valid_dev) goto fail;
 
 		/* Root is only attached to one device/bridge */
-		if (bus->number == 1 && PCI_SLOT(devfn) != 0) goto fail;
+		is_rp_firstdev =  pci_tegra_is_rp_first_dev(bus->number, 0)
+		                || pci_tegra_is_rp_first_dev(bus->number, 1);
+		if (is_rp_firstdev && PCI_SLOT(devfn) != 0) goto fail;
+
 		addr = pci_tegra_config_addr(bus->number, devfn, where & ~3);
 		v = readl(addr);
 	}
@@ -159,8 +196,18 @@ static int pci_tegra_write_conf(struct pci_bus *bus, u32 devfn,
 		if (rp == 1) addr += NV_PCIE_AXI_RP_T0C1_OFFSET;
 		addr += where;
 	} else  {
+		bool is_rp_firstdev;
+		bool is_valid_dev;
+
+		/*Make sure the bus falls within one of the root ports*/
+		is_valid_dev = pci_tegra_is_within_rp_range(bus->number, 0)
+				 || pci_tegra_is_within_rp_range(bus->number, 1);
+		if (!is_valid_dev) goto fail;
+
 		/* Root is only attached to one device/bridge */
-		if (bus->number == 1 && PCI_SLOT(devfn) != 0) goto fail;
+		is_rp_firstdev =  pci_tegra_is_rp_first_dev(bus->number, 0)
+				 || pci_tegra_is_rp_first_dev(bus->number, 1);
+		if (is_rp_firstdev && PCI_SLOT(devfn) != 0) goto fail;
 
 		addr = pci_tegra_config_addr(bus->number, devfn, where);
 	}
@@ -204,7 +251,8 @@ static int __init pci_tegra_setup(int nr, struct pci_sys_data *data)
 	u32 volatile reg;
 	unsigned int irq;
 
-	if (nr != 0) return 0;
+	if ((nr == 1) && pci_tegra_device_attached) return 1;
+	else if (nr >= 1) return 0;
 
 	if (NvRmSetModuleTristate(s_hRmGlobal,
 		NVRM_MODULE_ID(NvRmPrivModuleID_Pcie, 0), NV_FALSE)
@@ -356,7 +404,11 @@ static int __init pci_tegra_setup(int nr, struct pci_sys_data *data)
 	reg = reg | AFI_CONFIGURATION_0_EN_FPCI_DEFAULT_MASK;
 	pci_tegra_afi_writel(reg, AFI_CONFIGURATION_0);
 
-	if (!pci_tegra_check_rp(0) && !pci_tegra_check_rp(1)) {
+	pci_tegra_rp0_up = pci_tegra_check_rp(0);
+	pci_tegra_rp1_up = pci_tegra_check_rp(1);
+
+	if(!pci_tegra_rp0_up && !pci_tegra_rp1_up)
+	{
 		pci_tegra_device_attached = false;
 		NvRmPowerVoltageControl(s_hRmGlobal, NvRmPrivModuleID_Pcie,
 			pci_tegra_powerid, NvRmVoltsOff, NvRmVoltsOff, NULL,
@@ -397,7 +449,7 @@ fail:
 static struct pci_bus __init *pci_tegra_scan_bus(int nr,
 	struct pci_sys_data *sys)
 {
-	if (nr == 0)
+	if ((nr == 0) || (nr == 1))
 		return pci_scan_bus(sys->busnr, &pci_tegra_ops, sys);
 
 	return NULL;
@@ -417,7 +469,7 @@ static struct hw_pci pci_tegra_data __initdata = {
 	.setup			= pci_tegra_setup,
 	.scan			= pci_tegra_scan_bus,
 	.swizzle		= pci_std_swizzle,
-	.map_irq 		= pci_tegra_map_irq,
+	.map_irq		= pci_tegra_map_irq,
 };
 
 late_initcall(pcie_tegra_init);
@@ -581,11 +633,12 @@ retry:
 	}
 
 	if (retry_count != 0) {
-		u32 offset;
+		u32 offset=0;
 
 		/* Reset before retrying again. */
 		if (rp == 0) offset = AFI_PEX0_CTRL_0;
-		if (rp == 1) offset = AFI_PEX1_CTRL_0;
+		else if (rp == 1) offset = AFI_PEX1_CTRL_0;
+		else BUG();
 
 		BUG_ON(AFI_PEX0_CTRL_0_PEX0_RST_L_SHIFT !=
 			AFI_PEX1_CTRL_0_PEX1_RST_L_SHIFT);

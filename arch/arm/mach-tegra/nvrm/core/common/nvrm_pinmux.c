@@ -139,10 +139,10 @@ typedef struct
         NvRmDeviceHandle hDevice,
         NvRmStrapGroup StrapGroup,
         NvU32* pStrapValue);
+    void
+    (*pfnSetDefaultTristate)(
+        NvRmDeviceHandle hDevice);
 } NvPinmuxPrivMethods;
-
-static NvPinmuxPrivMethods* NvRmPrivGetPinmuxMethods(
-    NvRmDeviceHandle hDevice);
 
 static NvPinmuxPrivMethods* NvRmPrivGetPinmuxMethods(NvRmDeviceHandle hDevice)
 {
@@ -159,7 +159,8 @@ static NvPinmuxPrivMethods* NvRmPrivGetPinmuxMethods(NvRmDeviceHandle hDevice)
         NvRmPrivAp15GetModuleInterfaceCaps,
         NvRmPrivAp15EnableExternalClockSource,
         NvRmPrivAp15GetExternalClockSourceFreq,
-        NvRmAp15GetStraps
+        NvRmAp15GetStraps,
+        NvRmAp15SetDefaultTristate
     };
     static NvPinmuxPrivMethods s_Ap16Methods =
     {
@@ -173,7 +174,8 @@ static NvPinmuxPrivMethods* NvRmPrivGetPinmuxMethods(NvRmDeviceHandle hDevice)
         NvRmPrivAp16GetModuleInterfaceCaps,
         NvRmPrivAp15EnableExternalClockSource,
         NvRmPrivAp15GetExternalClockSourceFreq,
-        NvRmAp15GetStraps
+        NvRmAp15GetStraps,
+        NvRmAp15SetDefaultTristate
     };
     static NvPinmuxPrivMethods s_Ap20Methods =
     {
@@ -187,7 +189,8 @@ static NvPinmuxPrivMethods* NvRmPrivGetPinmuxMethods(NvRmDeviceHandle hDevice)
         NvRmPrivAp20GetModuleInterfaceCaps,
         NvRmPrivAp20EnableExternalClockSource,
         NvRmPrivAp20GetExternalClockSourceFreq,
-        NvRmAp20GetStraps
+        NvRmAp20GetStraps,
+        NvRmAp20SetDefaultTristate
     };
 
     NV_ASSERT(hDevice);
@@ -292,6 +295,8 @@ void NvRmInitPinMux(
     NvBool First)
 {
     NvPinmuxPrivMethods *p = NvRmPrivGetPinmuxMethods(hDevice);
+    if (First)
+        (p->pfnSetDefaultTristate)(hDevice);
 
     if (!hDevice->PinMuxTable)
     {

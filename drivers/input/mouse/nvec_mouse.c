@@ -441,13 +441,27 @@ static struct nvec_device nvec_mouse_device = {
 
 static int __init nvec_mouse_init(void)
 {
-	int err;
+	int err = 0;
+	struct nvec_mouse *mouse;
+
+	mouse = kzalloc(sizeof(struct nvec_mouse), GFP_KERNEL);
+	if (!mouse) {
+		pr_err("**nvec_mouse_init: kzalloc for mouse: fail\n");
+		err = -ENOMEM;
+		return err;
+	}
+
+	if (!NvOdmMouseDeviceOpen(&mouse->hDevice)) {
+		pr_err("NvOdmMouseDeviceOpen failed\n");
+		err = -ENODEV;
+		goto fail;
+	}
 
 	err = nvec_register_driver(&nvec_mouse);
 	if (err)
 	{
 		pr_err("**nvec_mouse_init: nvec_register_driver: fail\n");
-		return err;
+		goto fail_register;
 	}
 
 	err = nvec_register_device(&nvec_mouse_device);
@@ -455,10 +469,15 @@ static int __init nvec_mouse_init(void)
 	{
 		pr_err("**nvec_mouse_init: nvec_device_add: fail\n");
 		nvec_unregister_driver(&nvec_mouse);
-		return err;
+		goto fail_register;
 	}
 
-	return 0;
+fail_register:
+	NvOdmMouseDeviceClose(mouse->hDevice);
+fail:
+	kfree(mouse);
+	mouse = NULL;
+	return err;
 }
 
 static void __exit nvec_mouse_exit(void)

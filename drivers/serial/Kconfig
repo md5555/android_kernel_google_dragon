@@ -445,17 +445,9 @@ config SERIAL_CLPS711X_CONSOLE
 	  your boot loader (lilo or loadlin) about how to pass options to the
 	  kernel at boot time.)
 
-config SERIAL_TEGRA_DDK
-	boolean "High speed serial support (DDK-based) for NVIDIA Tegra SoCs"
-	depends on ARCH_TEGRA
-	select SERIAL_CORE
-	help
-	  Support for the on-chip UARTs on NVIDIA Tegra SoC, providing
-	  /dev/ttyHSx, using driver built on the NvDDK and NvOs architecture
-
 config SERIAL_TEGRA
 	boolean "High speed serial support for NVIDIA Tegra SoCs"
-	depends on ARCH_TEGRA && TEGRA_SYSTEM_DMA && !SERIAL_TEGRA_DDK
+	depends on ARCH_TEGRA && TEGRA_SYSTEM_DMA
 	select SERIAL_CORE
 	help
 	  Support for the on-chip UARTs on NVIDIA Tegra SoC, providing

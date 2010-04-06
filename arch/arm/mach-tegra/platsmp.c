@@ -3,7 +3,7 @@
  *
  * SMP management routines for SMP Tegra SoCs
  *
- * Copyright (c) 2009, NVIDIA Corporation.
+ * Copyright (c) 2010, NVIDIA Corporation.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,259 +24,164 @@
 #include <linux/smp.h>
 #include <asm/cacheflush.h>
 #include <asm/localtimer.h>
-
-#include "mach/nvrm_linux.h"
-#include "nvrm_module.h"
-#include "nvrm_init.h"
-#include "nvrm_drf.h"
-#include "nvrm_hardware_access.h"
-#include "nvcommon.h"
-#include "ap20/arscu.h"
-#include "ap20/arevp.h"
-#include "ap20/arclk_rst.h"
-#include "ap20/arfic_proc_if.h"
-#include "ap20/arflow_ctlr.h"
+#include <linux/io.h>
+#include <mach/iomap.h>
 
 static DEFINE_SPINLOCK(boot_lock);
-
 extern void exit_lp2(void);
+extern void tegra_secondary_startup(void);
 
-static inline volatile NvU8 *TegraScuAddress(void)
-{
-    NvRmPhysAddr Pa;
-    NvU32 Len;
-    volatile NvU8 *pScu = NULL;
-    NvRmModuleGetBaseAddress(s_hRmGlobal,
-        NVRM_MODULE_ID(NvRmPrivModuleID_ArmPerif, 0), &Pa, &Len);
+#define SCU_CONTROL_0 0x0
+#define SCU_CONFIG_0 0x4
 
-    if (Pa==0xffffffffUL || !Len) {
-        printk("TegraSMP: No SCU present\n");
-        return NULL;
-    }
+#define EVP_CPU_RESET_VECTOR_0 0x100
 
-    NvRmPhysicalMemMap(Pa, Len, NVOS_MEM_READ_WRITE, 
-        NvOsMemAttribute_Uncached, (void**)&pScu);
-    return pScu;
-}
+/* takes cpu out of reset */
+#define CLK_RST_CONTROLLER_RST_CPU_CMPLX_CLR_0 0x344
+#define CPU_RESET(cpu)    (0x1011ul<<(cpu))
 
-#if 0
-#define TegraCoreCount() 1
-#else
-static unsigned int __init TegraCoreCount(void)
-{
-    volatile NvU8 *pScu = TegraScuAddress();
-    unsigned int Cores = 1;
-    if (pScu) {
-        Cores = NV_READ32(pScu + SCU_CONFIG_0);
-        Cores = NV_DRF_VAL(SCU, CONFIG, CPU_NUM, Cores) + 1;
-    }
+/* used as mask to enable clock to cpu */
+#define CLK_RST_CONTROLLER_CLK_CPU_CMPLX_0 0x4c
+#define CPU_CLK_STOP(cpu) (0x1<<(8+cpu))
 
-    if (Cores>NR_CPUS) {
-        printk("TegraSMP: Kernel configured for fewer NR_CPUS than hardware\n");
-        Cores = NR_CPUS;
-    }
-    return Cores;
-}
-#endif
+/* write 0 to take cpu out of flow controlled state */
+#define FLOW_CTRL_HALT_CPUx_EVENTS(cpu) ((cpu)?((cpu-1)*0x8 + 0x14) : 0x0)
+
+static DECLARE_BITMAP(cpu_init_bits, CONFIG_NR_CPUS) __read_mostly;
+const struct cpumask *const cpu_init_mask = to_cpumask(cpu_init_bits);
+#define cpu_init_map (*(cpumask_t *)cpu_init_mask)
+
+static u32 orig_reset;
 
 void platform_secondary_init(unsigned int cpu)
 {
-    NvRmPhysAddr Pa;
-    NvU32 Len;
-    volatile NvU8* pArm = NULL;
-    static unsigned int first_init = 1;
-    
-    if (first_init == 0)
-        return;
+	if (cpumask_test_cpu(cpu, cpu_init_mask))
+		return;
 
-    trace_hardirqs_off();
+	trace_hardirqs_off();
+	spin_lock(&boot_lock);
+	cpu_set(cpu, cpu_init_map);
+	spin_unlock(&boot_lock);
 
-    spin_lock(&boot_lock);
-    spin_unlock(&boot_lock);
-
-    NvRmModuleGetBaseAddress(s_hRmGlobal,
-        NVRM_MODULE_ID(NvRmPrivModuleID_ArmPerif,0), &Pa, &Len);
-    BUG_ON(Pa==-1UL || !Len);
-    NvRmPhysicalMemMap(Pa, Len, NVOS_MEM_READ_WRITE, 
-        NvOsMemAttribute_Uncached, (void**)&pArm);
-    BUG_ON(!pArm);
-
-    gic_cpu_init(0, (void __iomem*)pArm + FIC_PROC_IF_CONTROL_0);
-    
-    first_init = 0;
+	gic_cpu_init(0, IO_ADDRESS(TEGRA_GIC_PROC_IF_BASE));
 }
 
-void __init smp_init_cpus(void)
+void __init smp_init_cpus()
 {
-    unsigned int i;
-    unsigned int Cores = TegraCoreCount();
+	unsigned int cfg;
+	unsigned int cpus;
+	void __iomem *evp = IO_ADDRESS(TEGRA_EXCEPTION_VECTORS_BASE);
 
-    for (i=0; i<Cores; i++)
-        cpu_set(i, cpu_possible_map);
+	cfg = __raw_readl(IO_ADDRESS(TEGRA_SCU_BASE) + SCU_CONFIG_0);
+
+	cpus = min_t(unsigned int, NR_CPUS, (cfg & 3) + 1);
+
+	while (cpus--)
+		cpu_set(cpus, cpu_possible_map);
+
+	orig_reset = __raw_readl(evp + EVP_CPU_RESET_VECTOR_0);
 }
 
-void __init smp_prepare_cpus(unsigned int Max)
+void __init smp_prepare_cpus(unsigned int max)
 {
-    unsigned int Cores = TegraCoreCount();
-    unsigned int Cpu = smp_processor_id();
-    volatile NvU8 *pScu = NULL;
-    unsigned int i;
+	unsigned int cpu;
 
-    smp_store_cpu_info(Cpu);
+	smp_store_cpu_info(smp_processor_id());
+	for_each_possible_cpu(cpu)
+		cpu_set(cpu, cpu_present_map);
 
+	if (num_present_cpus()>1) {
+		u32 ctrl;
 
-    pScu = TegraScuAddress();
-    if (!pScu)
-        Cores = 1;
-
-    Max = NV_MIN(Max, Cores);
-
-    for (i=0; i<Max; i++)
-        cpu_set(i, cpu_present_map);
-
-    if (Max > 1)
-    {
-        /*
-         * Enable the local timer or broadcast device for the
-         * boot CPU, but only if we have more than one CPU.
-         */
-        percpu_timer_setup();
-
-        NvU32 v = NV_READ32(pScu + SCU_CONTROL_0);
-        v = NV_FLD_SET_DRF_NUM(SCU, CONTROL, SCU_ENABLE, 1, v);
-        NV_WRITE32(pScu + SCU_CONTROL_0, v);
-    }
+		percpu_timer_setup();
+		ctrl = __raw_readl(IO_ADDRESS(TEGRA_SCU_BASE) + SCU_CONTROL_0);
+		ctrl |= 1;
+		__raw_writel(ctrl, IO_ADDRESS(TEGRA_SCU_BASE) + SCU_CONTROL_0);
+	}
 }
 
-#define CHECK_ADDR(P,L,N)                                   \
-    do {                                                    \
-        if ((P)==-1UL || !(L))                              \
-        {                                                   \
-            printk("TegraSMP: No %s module present\n", #N); \
-            return -ENOSYS;                                 \
-        }                                                   \
-    } while (0);
+static inline void bwritel(unsigned long v, void __iomem *a)
+{
+	__raw_writel(v, a);
+	dsb();
+	isb();
+}
 
 int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 {
-    volatile NvU8 *pEvp = NULL;
-    volatile NvU8 *pFlowCtrl = NULL;
-    volatile NvU8 *pClkRst = NULL;
-    NvUPtr BootFunc;
-    NvRmPhysAddr Pa;
-    NvU32 Len;
-    NvU32 HaltAddr;
-    NvU32 ResetVal;
-    NvU32 ClkEnable;
-    NvU32 OldReset;
-    NvU32 v, Msg;
-    extern void tegra_secondary_startup(void);
-#ifdef CONFIG_HOTPLUG_CPU
-    extern void TegraHotplugStartup(void);
-    static NvU32 EnabledCores = 0;
-#endif
-    unsigned long timeout;
+	void __iomem *clk = IO_ADDRESS(TEGRA_CLK_RESET_BASE);
+	void __iomem *flow = IO_ADDRESS(TEGRA_FLOW_CTRL_BASE);
+	void __iomem *evp = IO_ADDRESS(TEGRA_EXCEPTION_VECTORS_BASE);
+	unsigned long boot;
+	unsigned long timeout;
+	u32 r;
 
-    spin_lock(&boot_lock);
+	spin_lock(&boot_lock);
 
-    /*  Map exception vector, flow controller and clock & reset module */
-    NvRmModuleGetBaseAddress(s_hRmGlobal,
-        NVRM_MODULE_ID(NvRmModuleID_ExceptionVector, 0), &Pa, &Len);
-    CHECK_ADDR(Pa, Len, EVP);
-    NvRmPhysicalMemMap(Pa, Len, NVOS_MEM_READ_WRITE, 
-        NvOsMemAttribute_Uncached, (void**)&pEvp);
-    NvRmModuleGetBaseAddress(s_hRmGlobal,
-        NVRM_MODULE_ID(NvRmModuleID_FlowCtrl, 0), &Pa, &Len);
-    CHECK_ADDR(Pa, Len, FlowCtrl);
-    NvRmPhysicalMemMap(Pa, Len, NVOS_MEM_READ_WRITE,
-        NvOsMemAttribute_Uncached, (void**)&pFlowCtrl);
-    NvRmModuleGetBaseAddress(s_hRmGlobal,
-        NVRM_MODULE_ID(NvRmPrivModuleID_ClockAndReset,0), &Pa, &Len);
-    CHECK_ADDR(Pa, Len, ClockReset);
-    NvRmPhysicalMemMap(Pa, Len, NVOS_MEM_READ_WRITE,
-        NvOsMemAttribute_Uncached, (void**)&pClkRst);
+	if (likely(cpumask_test_cpu(cpu, cpu_init_mask)))
+		boot = virt_to_phys((void *)exit_lp2);
+	else
+		boot = virt_to_phys((void *)tegra_secondary_startup);
 
-    if (!pClkRst || !pFlowCtrl || !pEvp)
-    {
-        printk("TegraSMP: Unable to map necessary modules for SMP start-up\n");
-        return -ENOSYS;
-    }
+	flush_cache_all();
+	smp_wmb();
 
-    ResetVal =
-        NV_DRF_NUM(CLK_RST_CONTROLLER, RST_CPU_CMPLX_CLR, CLR_CPURESET0, 1)|
-        NV_DRF_NUM(CLK_RST_CONTROLLER, RST_CPU_CMPLX_CLR, CLR_DBGRESET0, 1)|
-        NV_DRF_NUM(CLK_RST_CONTROLLER, RST_CPU_CMPLX_CLR, CLR_DERESET0, 1);
-    ResetVal <<= cpu;
+	bwritel(boot, evp + EVP_CPU_RESET_VECTOR_0);
 
-    switch (cpu) {
-    case 0:
-        //  Kernel should never call this, since master CPU will always be up
-        HaltAddr = FLOW_CTLR_HALT_CPU_EVENTS_0;
-        ClkEnable = 
-            ~NV_DRF_NUM(CLK_RST_CONTROLLER, CLK_CPU_CMPLX, CPU0_CLK_STP, 1);
-        break;
-    case 1:
-        HaltAddr = FLOW_CTLR_HALT_CPU1_EVENTS_0;
-        ClkEnable = 
-            ~NV_DRF_NUM(CLK_RST_CONTROLLER, CLK_CPU_CMPLX, CPU1_CLK_STP, 1);
-        break;
-    default:
-        panic("Unsupported cpu ID: %u\n", cpu);
-    }
+	bwritel(0, flow + FLOW_CTRL_HALT_CPUx_EVENTS(cpu));
 
-#ifdef CONFIG_HOTPLUG_CPU
-    if (EnabledCores & (1<<cpu)) {
-        BootFunc = virt_to_phys((void*)exit_lp2);
-    }
-    else
-#endif
-    {
-        BootFunc = virt_to_phys((void*)tegra_secondary_startup);
-    }
-    OldReset = NV_READ32(pEvp + EVP_CPU_RESET_VECTOR_0);
-    smp_wmb();
-    flush_cache_all();
-    
-    NV_WRITE32(pEvp + EVP_CPU_RESET_VECTOR_0, BootFunc);
-    dsb();
-    isb();
-    NV_WRITE32(pFlowCtrl + HaltAddr,
-        NV_DRF_DEF(FLOW_CTLR, HALT_CPU_EVENTS, MODE, FLOW_MODE_NONE));
-    v = NV_READ32(pClkRst + CLK_RST_CONTROLLER_CLK_CPU_CMPLX_0);
-    dsb();
-    isb();
-    v &= ClkEnable;
-    NV_WRITE32(pClkRst + CLK_RST_CONTROLLER_CLK_CPU_CMPLX_0, v);
-    dsb();
-    isb();
-    NV_WRITE32(pClkRst + CLK_RST_CONTROLLER_RST_CPU_CMPLX_CLR_0, ResetVal);
-    dsb();
-    isb();
+	r = __raw_readl(clk + CLK_RST_CONTROLLER_CLK_CPU_CMPLX_0);
+	r &= ~CPU_CLK_STOP(cpu);
+	bwritel(r, clk + CLK_RST_CONTROLLER_CLK_CPU_CMPLX_0);
 
-    timeout = jiffies + (10 * HZ);
-    do {
-        /* The slave CPU will put its ID into the reset vector register after
-         * it initializes its cache */
-        Msg = NV_READ32(pEvp + EVP_CPU_RESET_VECTOR_0);
-        if (Msg != BootFunc)
-            break;
-    } while (time_before(jiffies, timeout));
+	bwritel(CPU_RESET(cpu), clk + CLK_RST_CONTROLLER_RST_CPU_CMPLX_CLR_0);
 
-    /* Restore the original reset vector, after either the slave processor
-     * wakes up, or we timeout waiting for it */
-    NV_WRITE32(pEvp + EVP_CPU_RESET_VECTOR_0, OldReset);
+	timeout = jiffies + 10*HZ;
 
-    spin_unlock(&boot_lock);
-    if (Msg == BootFunc) {
-        printk(KERN_INFO "TegraSMP: Failed to init CPU %u\n", cpu);
-        return -ENOSYS;
-    }
+	do {
+		r = __raw_readl(evp + EVP_CPU_RESET_VECTOR_0);
+		if (r!=boot)
+			break;
+		cpu_relax();
+	} while (time_before(jiffies, timeout));
 
-    printk(KERN_INFO "TegraSMP: CPU %u responded with \"0x%08x\"\n", cpu, Msg);
+	__raw_writel(orig_reset, evp + EVP_CPU_RESET_VECTOR_0);
+	spin_unlock(&boot_lock);
 
-#ifdef CONFIG_HOTPLUG_CPU
-    EnabledCores |= (1<<cpu);
-#endif
+	if (r==boot) {
+		pr_err("failed to initialize CPU %u\n", cpu);
+		return -EIO;
+	}
 
-    return 0;
+	return 0;
 }
+
+#ifdef CONFIG_HOTPLUG_CPU
+
+static DECLARE_COMPLETION(cpu_killed);
+extern void cpu_ap20_do_lp2(void);
+
+int platform_cpu_kill(unsigned int cpu)
+{
+	return wait_for_completion_timeout(&cpu_killed, 5000);
+}
+
+void platform_cpu_die(unsigned int cpu)
+{
+	flush_cache_all();
+	preempt_enable_no_resched();
+	complete(&cpu_killed);
+	cpu_ap20_do_lp2();
+}
+
+int mach_cpu_disable(unsigned int cpu)
+{
+	WARN_ON(!cpu);
+	if (!cpu)
+		return -EPERM;
+
+	return 0;
+}
+
+
+#endif

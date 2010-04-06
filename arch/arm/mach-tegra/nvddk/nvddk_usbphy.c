@@ -404,8 +404,11 @@ NvDdkUsbPhyHelperThread(
         /* wait for the signal to turn on/off the busy hints and vbus */
         NvOsSemaphoreWaitTimeout(hUsbPhy->HelperThreadSema, NV_WAIT_INFINITE);
 
-        /* Turn on/off the USB busy hints */
-        UsbPhyDfsBusyHint(hUsbPhy, hUsbPhy->IsPhyPoweredUp, NV_WAIT_INFINITE);
+        if (!(hUsbPhy->IsPhyPoweredUp && hUsbPhy->IsHostMode))
+        {
+                /* Turn on/off the USB busy hints */
+                UsbPhyDfsBusyHint(hUsbPhy, hUsbPhy->IsPhyPoweredUp, NV_WAIT_INFINITE);
+        }
         /* Turn on/off the vbus for host mode */
         if (hUsbPhy->IsHostMode)
         {
@@ -557,9 +560,12 @@ NvDdkUsbPhyOpen(
         // Open the H/W interface
         UsbPhyOpenHwInterface(pUsbPhy);
 
-        /* enable the busy hints for USB */
-        UsbPhyDfsBusyHint(pUsbPhy, NV_TRUE, NV_WAIT_INFINITE);
-
+        /* Enable the busy hints for USB device mode, for host mode     *
+         * transaction based busy hints are on/off mechanism is present */
+        if (pUsbPhy->pProperty->UsbMode != NvOdmUsbModeType_Host)
+        {
+            UsbPhyDfsBusyHint(pUsbPhy, NV_TRUE, NV_WAIT_INFINITE);
+        }
         // Initialize the USB Phy
         NV_CHECK_ERROR_CLEANUP(UsbPhyInitialize(pUsbPhy));
     }

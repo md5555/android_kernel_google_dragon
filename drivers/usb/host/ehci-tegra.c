@@ -45,6 +45,33 @@
 #define TEGRA_USB_USBMODE_REG_OFFSET		(0x1a8)
 #define TEGRA_USB_USBMODE_HOST			(3)
 
+/*
+ * Work thread function for setting the usb busy hints.
+ *
+ * This work thread is created to avoid the pre-emption from the ISR context.
+ * Busy hints are controlled based on the USB transcations on the bus .
+ * Busy hints function cannot be called from ISR as NvRmPowerBusyHintMulti()
+ * uses vfree and vmalloc functions which are not supposed to call from the
+ * ISR context
+ */
+
+static void tegra_ehci_busy_hint_work(struct work_struct* work)
+{
+        struct tegra_hcd_platform_data *pdata =
+                container_of(work, struct tegra_hcd_platform_data, work);
+        NvDdkUsbPhyIoctl_UsbBusyHintsOnOffInputArgs busyhint;
+        busyhint.OnOff = NV_TRUE;
+
+        /* USB transfers will be done with in 1 sec, this need to be *
+         * fine tuned (if required). with safe limit set to 2 sec    */
+        busyhint.BoostDurationMs = 2000;
+        NvDdkUsbPhyIoctl(
+                pdata->hUsbPhy,
+                NvDdkUsbPhyIoctlType_UsbBusyHintsOnOff,
+                &busyhint,
+                NULL);
+}
+
 static void tegra_ehci_power_up(struct usb_hcd *hcd)
 {
 	struct ehci_hcd	*ehci = hcd_to_ehci(hcd);
@@ -357,6 +384,44 @@ static int tegra_ehci_bus_resume(struct usb_hcd *hcd)
 }
 #endif
 
+
+static int tegra_ehci_urb_enqueue(
+        struct usb_hcd  *hcd,
+        struct urb      *urb,
+        gfp_t           mem_flags
+) {
+        struct tegra_hcd_platform_data *pdata;
+        int xfertype;
+        int transfer_buffer_length;
+
+        pdata = hcd->self.controller->platform_data;
+
+        xfertype = usb_endpoint_type(&urb->ep->desc);
+        transfer_buffer_length = urb->transfer_buffer_length;
+         /* Turn on the USB busy hints */
+        switch (xfertype) {
+        case USB_ENDPOINT_XFER_INT:
+                if (transfer_buffer_length < 255) {
+                        /* Do nothing for interrupt buffers < 255 */
+                } else {
+                        // signal to set the busy hints
+                        schedule_work(&pdata->work);
+                }
+                break;
+        case USB_ENDPOINT_XFER_ISOC:
+        case USB_ENDPOINT_XFER_BULK:
+                // signal to set the busy hints
+                schedule_work(&pdata->work);
+                break;
+        case USB_ENDPOINT_XFER_CONTROL:
+        default:
+                /* Do nothing special here */
+                break;
+        }
+
+        return ehci_urb_enqueue(hcd, urb, mem_flags);
+}
+
 static const struct hc_driver tegra_ehci_hc_driver = {
 	.description		= hcd_name,
 	.product_desc		= "Tegra Ehci host controller",
@@ -370,7 +435,7 @@ static const struct hc_driver tegra_ehci_hc_driver = {
 	.start			= ehci_run,
 	.stop			= ehci_stop,
 	.shutdown		= tegra_ehci_shutdown,
-	.urb_enqueue		= ehci_urb_enqueue,
+	.urb_enqueue		= tegra_ehci_urb_enqueue,
 	.urb_dequeue		= ehci_urb_dequeue,
 	.endpoint_disable	= ehci_endpoint_disable,
 	.get_frame_number	= ehci_get_frame,
@@ -432,6 +497,8 @@ static int tegra_ehci_probe(struct platform_device *pdev)
 	} else {
 
 	}
+
+	INIT_WORK(&pdata->work, tegra_ehci_busy_hint_work);
 
 	/* Init the tegra USB phy */
 	e = tegra_ehci_reinit(hcd);

@@ -774,13 +774,16 @@ NvRmPrivAp20GetEmcSyncFreq(
     {
         case NvRmModuleID_2D:
         case NvRmModuleID_Epp:
-            // TODO: establish scales after Ap20 bring-up
+            // Scale down 2D/EPP whith EMC clock (set 2D/EPP frequency at
+            // 50% of max when EMC clock is at or below 50% of max)
             FreqKHz = NvRmPrivGetSocClockLimits(Module)->MaxKHz;
+            if ((0 < s_Ap20EmcConfig.Index) &&
+                (s_Ap20EmcConfig.Index < NVRM_AP20_DFS_EMC_FREQ_STEPS))
+                FreqKHz >>= 1;
             break;
 
         case NvRmModuleID_GraphicsHost:
-            // TODO: establish level after Ap20 bring-up
-            FreqKHz = NvRmPrivGetSocClockLimits(Module)->MaxKHz;
+            FreqKHz = NVRM_AP20_HOST_KHZ;
             break;
 
         default:
@@ -878,8 +881,8 @@ Ap20VdeClockSourceFind(
     NvRmFreqKHz DomainKHz,
     NvRmDfsSource* pDfsSource)
 {
-    NvU32 c, m;
-    NvRmFreqKHz SourceKHz, ReachedKHzP, ReachedKHzC, ReachedKHzM;
+    NvU32 c, m, p;
+    NvRmFreqKHz SourceKHz, ReachedKHzP, ReachedKHzC, ReachedKHzM, BestKHz;
     NV_ASSERT(DomainKHz <= MaxKHz);
 
     // VDE clock is disabled - can not change configuration at all,
@@ -901,19 +904,27 @@ Ap20VdeClockSourceFind(
         goto get_mv;
     }
 
-    // 2nd option - PLLP0 through VDE divider 
+    // 2nd option - PLLP0 through VDE divider selected unconditionally if
+    // target is below half of PLLP0 output (divider granularity is "fair"
+    ReachedKHzP = DomainKHz;
     SourceKHz = NvRmPrivGetClockSourceFreq(NvRmClockSource_PllP0);
-    if (DomainKHz <= SourceKHz)
+    p = NvRmPrivFindFreqMinAbove(
+        s_Ap20VdeConfig.pVdeInfo->Divider, SourceKHz, MaxKHz, &ReachedKHzP);
+    if (DomainKHz <= (SourceKHz >> 1))
     {
         pDfsSource->SourceId = NvRmClockSource_PllP0;
-        pDfsSource->DividerSetting = NvRmPrivFindFreqMinAbove(
-            s_Ap20VdeConfig.pVdeInfo->Divider, SourceKHz, MaxKHz, &DomainKHz);
+        pDfsSource->DividerSetting = p;
+        DomainKHz = ReachedKHzP;
         goto get_mv;
     }
 
-    // PLLP0 does not "cover" the target - nevertheless, check it against
-    // PLLC0 and PLLM0  - it may still provide the best approximation
-    ReachedKHzP = SourceKHz;    
+    /*
+     * For high target frequencies add 3rd and 4th options - PLLC0, or PLLM0
+     * through VDE divider, respectively. Select the option that provides
+     * minimum output frequency equal or above the target, if all output
+     * frequencies within domain maximum limit are below the target, select
+     * the option with maximum output frequency.
+     */
     ReachedKHzC = ReachedKHzM = DomainKHz;
     SourceKHz = NvRmPrivGetClockSourceFreq(NvRmClockSource_PllC0);
     c = NvRmPrivFindFreqMinAbove(
@@ -922,53 +933,44 @@ Ap20VdeClockSourceFind(
     m = NvRmPrivFindFreqMinAbove(
         s_Ap20VdeConfig.pVdeInfo->Divider, SourceKHz, MaxKHz, &ReachedKHzM);
 
-    if ((ReachedKHzC <= ReachedKHzP) && (ReachedKHzM <= ReachedKHzP))
-    {
-        pDfsSource->SourceId = NvRmClockSource_PllP0;
-        pDfsSource->DividerSetting = 0;
-        SourceKHz = DomainKHz = ReachedKHzP;
-        goto get_mv;
-    }
+    BestKHz = NV_MAX(NV_MAX(ReachedKHzP, ReachedKHzC), ReachedKHzM);
+    if ((DomainKHz <= ReachedKHzP) && (ReachedKHzP < BestKHz))
+        BestKHz = ReachedKHzP;
+    if ((DomainKHz <= ReachedKHzC) && (ReachedKHzC < BestKHz))
+        BestKHz = ReachedKHzC;
+    // PLLM0 may be selected as the last resort if two others are below target
 
-    /*
-     * 3rd option - PLLC0 through VDE divider or 4th option - PLLM0 through
-     * VDE divider. Option selection is based  on the following rule: select
-     * the divider with smaller frequency if it is equal or above the target
-     * frequency, otherwise select the divider with bigger output frequency.
-     */
-    if (ReachedKHzM > ReachedKHzC)
+    // Set souce clock parameters for selected option
+    if (BestKHz == ReachedKHzP)
     {
-        if (ReachedKHzC >= DomainKHz)
-        {
-            SourceKHz = NvRmPrivGetClockSourceFreq(NvRmClockSource_PllC0);
-            pDfsSource->SourceId = NvRmClockSource_PllC0;
-            pDfsSource->DividerSetting = c;
-            DomainKHz = ReachedKHzC;             // use PLLC0 as source
-            goto get_mv;
-        }
+        SourceKHz = NvRmPrivGetClockSourceFreq(NvRmClockSource_PllP0);
+        pDfsSource->SourceId = NvRmClockSource_PllP0;
+        pDfsSource->DividerSetting = p;
+        DomainKHz = ReachedKHzP;             // use PLLP0 as source
     }
-    else // ReachedKHzM <= ReachedKHzC
+    else if (BestKHz == ReachedKHzC)
     {
-        if (ReachedKHzM < DomainKHz)
-        {
-            SourceKHz = NvRmPrivGetClockSourceFreq(NvRmClockSource_PllC0);
-            pDfsSource->SourceId = NvRmClockSource_PllC0;
-            pDfsSource->DividerSetting = c;
-            DomainKHz = ReachedKHzC;             // use PLLC0 as source
-            goto get_mv;
-        }
+        SourceKHz = NvRmPrivGetClockSourceFreq(NvRmClockSource_PllC0);
+        pDfsSource->SourceId = NvRmClockSource_PllC0;
+        pDfsSource->DividerSetting = c;
+        DomainKHz = ReachedKHzC;             // use PLLC0 as source
     }
-    SourceKHz = NvRmPrivGetClockSourceFreq(NvRmClockSource_PllM0);
-    pDfsSource->SourceId = NvRmClockSource_PllM0;
-    pDfsSource->DividerSetting = m;
-    DomainKHz = ReachedKHzM;                    // use PLLM0 as source
+    else
+    {
+        SourceKHz = NvRmPrivGetClockSourceFreq(NvRmClockSource_PllM0);
+        pDfsSource->SourceId = NvRmClockSource_PllM0;
+        pDfsSource->DividerSetting = m;
+        DomainKHz = ReachedKHzM;            // use PLLM0 as source
+    }
 
 get_mv:
     // Finally update VDE v-scale references, get operational voltage for the
     // found source/divider settings, and store new domain frequency
+    NvRmPrivLockModuleClockState();
     pDfsSource->MinMv = NvRmPrivModuleVscaleReAttach(
         hRmDevice, s_Ap20VdeConfig.pVdeInfo, s_Ap20VdeConfig.pVdeState,
-        DomainKHz, SourceKHz);
+        DomainKHz, SourceKHz, NV_FALSE);
+    NvRmPrivUnlockModuleClockState();
     pDfsSource->SourceKHz = DomainKHz;
 }
 
@@ -1011,11 +1013,13 @@ Ap20VdeClockConfigure(
     }
 
     // Set new VDE clock state and update PLL references
+    NvRmPrivLockModuleClockState();
     pCstate->SourceClock = SourceIndex;
     pCstate->Divider = pDfsSource->DividerSetting;
     pCstate->actual_freq = pDfsSource->SourceKHz;
     NvRmPrivModuleClockSet(hRmDevice, pCinfo, pCstate);
     NvRmPrivModuleClockReAttach(hRmDevice, pCinfo, pCstate);
+    NvRmPrivUnlockModuleClockState();
 
     *pDomainKHz = pCstate->actual_freq;
 }
@@ -1165,8 +1169,8 @@ Ap20SetCpuPowerGoodDelay(
     NV_ASSERT(s_Ap20CpuConfig.CpuPowerGoodUs);
 
     // AP20 CPU power good delay is counted by h/w in APB clocks (use 
-    // 1/1000 ~ 5/4096 with 20% margin)
-    reg = ((ApbKHz * 5) >> 12) * s_Ap20CpuConfig.CpuPowerGoodUs;
+    // 1/1000 ~ 17/16384 with 3% margin)
+    reg = ((ApbKHz * 17) >> 14) * s_Ap20CpuConfig.CpuPowerGoodUs;
     reg = NV_DRF_NUM(APBDEV_PMC, CPUPWRGOOD_TIMER, DATA, reg);
     NV_REGW(hRmDevice, NvRmModuleID_Pmif, 0,
             APBDEV_PMC_CPUPWRGOOD_TIMER_0, reg);

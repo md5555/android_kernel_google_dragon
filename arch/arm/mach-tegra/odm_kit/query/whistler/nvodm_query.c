@@ -770,6 +770,9 @@ NvOdmQuerySpiGetDeviceInfo(
     static const NvOdmQuerySpiDeviceInfo s_Spi1Cs0Info_EmpRil =
         {NvOdmQuerySpiSignalMode_0, NV_TRUE, NV_TRUE};
 
+    static const NvOdmQuerySpiDeviceInfo s_Spi1Cs0Info_IfxRil =
+        {NvOdmQuerySpiSignalMode_1, NV_TRUE, NV_FALSE};
+
     static const NvOdmQuerySpiDeviceInfo s_Spi1Cs0Info =
         {NvOdmQuerySpiSignalMode_0, NV_TRUE, NV_FALSE};
 
@@ -786,6 +789,11 @@ NvOdmQuerySpiGetDeviceInfo(
         if ((OdmIoModule == NvOdmIoModule_Spi) &&
             (ControllerId == 0 ) && (ChipSelect == 0))
             return &s_Spi1Cs0Info_EmpRil;
+        break;
+    case TEGRA_DEVKIT_BCT_CUSTOPT_0_RIL_IFX:
+        if ((OdmIoModule == NvOdmIoModule_Spi) &&
+            (ControllerId == 0 ) && (ChipSelect == 0))
+            return &s_Spi1Cs0Info_IfxRil;
         break;
     }
 
@@ -887,7 +895,7 @@ NvOdmQueryDapPortGetConnectionTable(
 {
     static const NvOdmQueryDapPortConnection s_Property[] =
     {
-        { NvOdmDapConnectionIndex_Music_Path, 
+        { NvOdmDapConnectionIndex_Music_Path,
           2, { {NvOdmDapPort_I2s1, NvOdmDapPort_Dap1, NV_FALSE},
                {NvOdmDapPort_Dap1, NvOdmDapPort_I2s1, NV_TRUE} } },
     };
@@ -896,7 +904,7 @@ NvOdmQueryDapPortGetConnectionTable(
         { NvOdmDapConnectionIndex_Music_Path,
           2, { {NvOdmDapPort_I2s1, NvOdmDapPort_Dap1, NV_FALSE},
                {NvOdmDapPort_Dap1, NvOdmDapPort_I2s1, NV_TRUE} } },
-        
+
         // Voicecall without Bluetooth
         { NvOdmDapConnectionIndex_VoiceCall_NoBlueTooth,
           3, { {NvOdmDapPort_Dap3, NvOdmDapPort_Dap2, NV_FALSE},
@@ -916,7 +924,7 @@ NvOdmQueryDapPortGetConnectionTable(
     {
     case TEGRA_DEVKIT_BCT_CUSTOPT_0_RIL_EMP_RAINBOW:
         {
-            for( TableIndex = 0; 
+            for( TableIndex = 0;
                  TableIndex < NV_ARRAY_SIZE(s_Property_Ril_Emp_Rainbow); TableIndex++)
             {
                 if (s_Property_Ril_Emp_Rainbow[TableIndex].UseIndex == ConnectionIndex)
@@ -1061,13 +1069,18 @@ const NvU8* NvOdmQueryProjectName(void)
  // Pin attributes
  static const NvOdmPinAttrib s_pin_config_attributes[] = {
 
+   { NvOdmPinRegister_Ap20_PullUpDown_A,
+     NVODM_QUERY_PIN_AP20_PULLUPDOWN_A(0x2, 0x2, 0x2, 0x0, 0x0, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x0, 0x1, 0x0) },
     // Pull ups for the kbc pins
-    { NvOdmPinRegister_Ap20_PullUpDown_B,
-     NVODM_QUERY_PIN_AP20_PULLUPDOWN_B(0x0, 0x0, 0x0, 0x0, 0x2, 0x2, 0x2, 0x2, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0) },
+   { NvOdmPinRegister_Ap20_PullUpDown_B,
+     NVODM_QUERY_PIN_AP20_PULLUPDOWN_B(0x0, 0x0, 0x2, 0x0, 0x2, 0x2, 0x2, 0x2, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0) },
+
+   { NvOdmPinRegister_Ap20_PullUpDown_C,
+     NVODM_QUERY_PIN_AP20_PULLUPDOWN_C(0x1, 0x1, 0x1, 0x1, 0x2, 0x1, 0x2, 0x1, 0x2, 0x2, 0x2, 0x2, 0x2, 0x0, 0x0) },
 
     // Pull ups for the kbc pins
     { NvOdmPinRegister_Ap20_PullUpDown_E,
-     NVODM_QUERY_PIN_AP20_PULLUPDOWN_E(0x2, 0x2, 0x0, 0x0, 0x0, 0x0, 0x2, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x2, 0x2) },
+      NVODM_QUERY_PIN_AP20_PULLUPDOWN_E(0x2, 0x2, 0x0, 0x0, 0x0, 0x0, 0x2, 0x0, 0x0, 0x0, 0x0, 0x2, 0x2, 0x2, 0x2, 0x2) },
 
     // Set pad control for the sdio2 - - AOCFG1 and AOCFG2 pad control register
     { NvOdmPinRegister_Ap20_PadCtrl_AOCFG1PADCTRL,
@@ -1196,20 +1209,25 @@ const NvOdmUsbProperty*
 NvOdmQueryGetUsbProperty(NvOdmIoModule OdmIoModule,
                          NvU32 Instance)
 {
+
     static const NvOdmUsbProperty Usb1Property =
     {
         NvOdmUsbInterfaceType_Utmi,
         (NvOdmUsbChargerType_SE0 | NvOdmUsbChargerType_SE1 | NvOdmUsbChargerType_SK),
         20,
         NV_TRUE,
+#ifdef CONFIG_USB_TEGRA_OTG
         NvOdmUsbModeType_OTG,
+#else
+        NvOdmUsbModeType_Device,
+#endif
         NvOdmUsbIdPinType_CableId,
         NvOdmUsbConnectorsMuxType_None,
         NV_FALSE
     };
 
-     static const NvOdmUsbProperty Usb2Property =
-     {
+    static const NvOdmUsbProperty Usb2Property =
+    {
         NvOdmUsbInterfaceType_UlpiExternalPhy,
         NvOdmUsbChargerType_UsbHost,
         20,
@@ -1218,6 +1236,19 @@ NvOdmQueryGetUsbProperty(NvOdmIoModule OdmIoModule,
         NvOdmUsbIdPinType_None,
         NvOdmUsbConnectorsMuxType_None,
         NV_FALSE
+    };
+
+    static const NvOdmUsbProperty Usb2NullPhyProperty =
+    {
+        NvOdmUsbInterfaceType_UlpiNullPhy,
+        NvOdmUsbChargerType_UsbHost,
+        20,
+        NV_TRUE,
+        NvOdmUsbModeType_Host,
+        NvOdmUsbIdPinType_None,
+        NvOdmUsbConnectorsMuxType_None,
+        NV_FALSE,
+        {10, 1, 1, 1}
     };
 
     static const NvOdmUsbProperty Usb3Property =
@@ -1232,14 +1263,45 @@ NvOdmQueryGetUsbProperty(NvOdmIoModule OdmIoModule,
         NV_FALSE
     };
 
+    /* E1108 has no ID pin for USB3, so disable USB3 Host */
+    static const NvOdmUsbProperty Usb3Property_E1108 =
+    {
+        NvOdmUsbInterfaceType_Utmi,
+        NvOdmUsbChargerType_UsbHost,
+        20,
+        NV_TRUE,
+        NvOdmUsbModeType_None,
+        NvOdmUsbIdPinType_None,
+        NvOdmUsbConnectorsMuxType_None,
+        NV_FALSE
+    };
+
     if (OdmIoModule == NvOdmIoModule_Usb && Instance == 0)
         return &(Usb1Property);
 
     if (OdmIoModule == NvOdmIoModule_Usb && Instance == 1)
-        return &(Usb2Property);
+    {
+        NvU32 CustOpt = GetBctKeyValue();
+
+        if (NV_DRF_VAL(TEGRA_DEVKIT, BCT_CUSTOPT, RIL, CustOpt) ==
+            TEGRA_DEVKIT_BCT_CUSTOPT_0_RIL_EMP_RAINBOW_ULPI)
+            return &(Usb2NullPhyProperty);
+        else
+            return &(Usb2Property);
+    }
 
     if (OdmIoModule == NvOdmIoModule_Usb && Instance == 2)
-        return &(Usb3Property);
+    {
+        NvOdmBoardInfo BoardInfo;
+        if (NvOdmPeripheralGetBoardInfo(BOARD_ID_WHISTLER_E1108, &BoardInfo))
+        {
+            return &(Usb3Property_E1108);
+        }
+        else
+        {
+            return &(Usb3Property);
+        }
+    }
 
     return (const NvOdmUsbProperty *)NULL;
 }

@@ -206,8 +206,9 @@ NvOdmMouseDeviceOpen(
              (NV_DRF_NUM(NVEC,SUBTYPE,AUX_PORT_ID,hMouseDev->ValidMousePorts[i]))) |
              (NvEcRequestResponseSubtype)
              NvEcAuxDeviceSubtype_ConfigureWake;
-        Request.NumPayloadBytes = 1;
+        Request.NumPayloadBytes = 2;
         Request.Payload[0] = NVEC_AUX_DEVICE_WAKE_ENABLE_0_ACTION_ENABLE;
+        Request.Payload[1] = NVEC_AUX_DEVICE_EVENT_TYPE_0_ANY_EVENT_ENABLE;
 
         err = NvEcSendRequest(
                     hMouseDev->hEc,

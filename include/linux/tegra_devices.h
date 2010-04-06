@@ -50,6 +50,7 @@ struct tegra_hcd_platform_data {
 	 */
 	NvU32			phyPowerRail;
 	NvDdkUsbPhyHandle	hUsbPhy;
+        struct work_struct      work;
 };
 
 /* Platform data for USB OTG driver */

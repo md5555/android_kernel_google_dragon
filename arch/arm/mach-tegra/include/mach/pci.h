@@ -294,6 +294,21 @@ static inline bool pci_tegra_is_rp(u32 bus_number, int *rp)
 		return false;
 }
 
+// return true if this is the first device on an (active) rootport
+static inline bool pci_tegra_is_rp_first_dev(u32 bus_number, int rp)
+{
+	u8 primary, secondary;
+
+	BUG_ON((rp != 0) && (rp != 1));
+
+	primary = pci_tegra_rp_readb(PCI_PRIMARY_BUS, rp);
+	secondary = pci_tegra_rp_readb(PCI_SECONDARY_BUS, rp);
+	if ((primary < secondary) && (bus_number == secondary))
+		return true;
+
+	return false;
+}
+
 /*
  *	Given the bus number, devfn and the offset this API returns the mapped
  *	address of the config space.

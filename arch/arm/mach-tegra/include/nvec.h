@@ -635,8 +635,8 @@ typedef enum
     NvEcBatterySubtype_GetManufacturer,
     NvEcBatterySubtype_GetModel,
     NvEcBatterySubtype_GetType,
-    NvEcBatterySubtype_GetRemainingCapacityAlarm,
     NvEcBatterySubtype_SetRemainingCapacityAlarm,
+    NvEcBatterySubtype_GetRemainingCapacityAlarm,
     NvEcBatterySubtype_SetConfiguration,
     NvEcBatterySubtype_GetConfiguration,
     NvEcBatterySubtype_ConfigureEventReporting,
@@ -1026,6 +1026,7 @@ typedef struct NvEcSleepGlobalConfigureEventReportingRequestPayloadRec
 typedef enum
 {
     NvEcKeyboardSubtype_ConfigureWake = 0x3,
+    NvEcKeyboardSubtype_ConfigureWakeKeyReport,
 
     NvEcKeyboardSubtype_Reset = 0xff,
     NvEcKeyboardSubtype_Enable = 0xf4,

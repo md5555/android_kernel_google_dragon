@@ -29,14 +29,16 @@
  * POSSIBILITY OF SUCH DAMAGE.
  *
  */
-
 #include "ap15/ap15rm_gpio_vi.h"
-#include "nvrm_gpio_private.h"
-#include "nvassert.h"
-#include "nvos.h"
-#include "ap15/arvi.h"
-#include "nvodm_query_discovery.h"
 #include "nvrm_pmu.h"
+#include "nvrm_gpio.h"
+#include "nvos.h"
+#include "ap15/ap15rm_private.h"
+#include "ap15/arvi.h"
+#include "nvrm_structure.h"
+#include "nvrm_hwintf.h"
+#include "nvodm_query_discovery.h"
+#include "nvassert.h"
 
 #define NV_ENABLE_VI_POWER_RAIL 1
 

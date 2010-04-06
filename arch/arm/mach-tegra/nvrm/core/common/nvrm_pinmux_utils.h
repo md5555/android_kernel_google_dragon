@@ -310,6 +310,10 @@ NvRmPrivAp15SetGpioTristate(
     NvU32 Pin,
     NvBool EnableTristate);
 
+void NvRmAp15SetDefaultTristate (NvRmDeviceHandle hDevice);
+
+void NvRmAp20SetDefaultTristate (NvRmDeviceHandle hDevice);
+
 #ifdef __cplusplus
 }
 #endif  /* __cplusplus */

@@ -1517,6 +1517,7 @@ acquirelock:
 		 * Wait till all the CPUs have quit
 		 * from the debugger.
 		 */
+		smp_mb();
 		for_each_online_cpu(i) {
 			while (atomic_read(&cpu_in_kgdb[i]))
 				cpu_relax();

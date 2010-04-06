@@ -447,7 +447,7 @@ static struct platform_driver tegra_acc_driver = {
 	.probe	= tegra_acc_probe,
 	.remove	= tegra_acc_remove,
 	.driver	= {
-		.name = "tegra_acc",
+		.name = "tegra_accelerometer",
 	},
 };
 

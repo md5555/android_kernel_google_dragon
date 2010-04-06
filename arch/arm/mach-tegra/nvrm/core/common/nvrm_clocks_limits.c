@@ -82,7 +82,10 @@ static NvRmModuleClockLimits s_ClockRangeLimits[NvRmClkLimitsExtID_Num];
 static const NvRmFreqKHz* s_pClockScales[NvRmClkLimitsExtID_Num];
 
 // Reference counts of clocks that require the respective core voltage to run
-static NvU32 s_VoltageStepRefCounts[NVRM_VOLTAGE_STEPS];
+// (appended with pending voltage change reference count)
+static NvU32 s_VoltageStepRefCounts[NVRM_VOLTAGE_STEPS + 1];
+static NvU32 s_VoltagePendingMv = 0;
+#define NVRM_VOLTAGE_PENDING_STEP (NVRM_VOLTAGE_STEPS)
 
 // Chip shmoo data records
 static NvRmChipFlavor s_ChipFlavor;
@@ -355,7 +358,7 @@ NvRmPrivModulesGetOperationalMV(NvRmDeviceHandle hRmDevice)
         if (s_VoltageStepRefCounts[i])
             break;
     }
-    return NvRmPrivGetStepMV(hRmDevice, i);
+    return NV_MAX(NvRmPrivGetStepMV(hRmDevice, i), s_VoltagePendingMv);
 }
 
 NvRmMilliVolts
@@ -417,11 +420,15 @@ NvRmPrivModuleVscaleAttach(
     NvRmDeviceHandle hRmDevice,
     const NvRmModuleClockInfo* pCinfo,
     NvRmModuleClockState* pCstate,
-    NvBool Enable)
+    NvBool Enable,
+    NvBool Preview)
 {
     NvBool Enabled;
-    NvU32 reg, vstep1, vstep2;
+    NvU32 reg, vstep1, vstep2, VstepMax;
     NvRmMilliVolts VoltageRequirement = NvRmVoltsUnspecified;
+    NvBool CheckSubclock = ((pCinfo->Module == NvRmModuleID_Spdif) ||
+                            (pCinfo->Module == NvRmModuleID_Vi) ||
+                            (pCinfo->Module == NvRmModuleID_Tvo));
 
     NV_ASSERT(hRmDevice);
     NV_ASSERT(pCinfo && pCstate);
@@ -439,9 +446,42 @@ NvRmPrivModuleVscaleAttach(
     if (Enabled)
         return VoltageRequirement;
 
-    // Update ref counts for module clock and subclock if any
-    // (subclock state are located immediately after main one)
+    // Find maximum operational voltage step for all already attached modules,
+    // and voltage steps for this module including subclock if any (subclock
+    // state is located immediately after main one)
+    for (VstepMax = s_ChipFlavor.pSocShmoo->ShmooVmaxIndex;
+          VstepMax != 0; VstepMax--)
+    {
+        if (s_VoltageStepRefCounts[VstepMax])
+            break;
+    }
     vstep1 = pCstate->Vstep;
+    if (CheckSubclock)
+        vstep2 = pCstate[1].Vstep;
+    else
+        vstep2 = 0;
+
+    // Specify new required voltage if module clock is to be enabled and need
+    // voltage increase, leave requirements unspecified if current operational
+    // voltage is enough, return "Off" indicator if module is to be disabled.
+    if (Enable)
+    {
+        if (VstepMax < NV_MAX(vstep1, vstep2))
+        {
+            VstepMax = NV_MAX(vstep1, vstep2);
+            VoltageRequirement = NvRmPrivGetStepMV(hRmDevice, VstepMax);
+
+            // If preview and voltage increase - return without count update
+            if (Preview)
+                return VoltageRequirement;
+        }
+    }
+    else
+    {
+        VoltageRequirement = NvRmVoltsOff;
+    }
+
+    // Update ref counts for module clock and subclock if any
     if (Enable)
     {
         s_VoltageStepRefCounts[vstep1]++;
@@ -464,15 +504,11 @@ NvRmPrivModuleVscaleAttach(
             s_VoltageStepRefCounts[vstep1]--;
         }
     }
-    if ((pCinfo->Module == NvRmModuleID_Spdif) ||
-        (pCinfo->Module == NvRmModuleID_Vi) ||
-        (pCinfo->Module == NvRmModuleID_Tvo))
+    if (CheckSubclock)
     {
-        vstep2 = pCstate[1].Vstep;
         if (Enable)
         {
             s_VoltageStepRefCounts[vstep2]++;
-            vstep1 = NV_MAX(vstep1, vstep2);
         }
         else
         {
@@ -480,13 +516,6 @@ NvRmPrivModuleVscaleAttach(
             s_VoltageStepRefCounts[vstep2]--;
         }
     }
-
-    // Set new voltage requirements if module is to be enabled;
-    // voltage can be turned Off if module was disabled.
-    if (Enable)
-        VoltageRequirement = NvRmPrivGetStepMV(hRmDevice, vstep1);
-    else
-        VoltageRequirement = NvRmVoltsOff;
     return VoltageRequirement;
 }
 
@@ -497,9 +526,10 @@ NvRmPrivModuleVscaleReAttach(
     const NvRmModuleClockInfo* pCinfo,
     NvRmModuleClockState* pCstate,
     NvRmFreqKHz TargetModuleKHz,
-    NvRmFreqKHz TargetSrcKHz)
+    NvRmFreqKHz TargetSrcKHz,
+    NvBool Preview)
 {
-    NvU32 i, j, reg;
+    NvU32 i, j, reg, VstepMax;
     const NvRmFreqKHz* pScale;
     NvRmFreqKHz FreqKHz;
     NvRmMilliVolts VoltageRequirement = NvRmVoltsUnspecified;
@@ -510,6 +540,14 @@ NvRmPrivModuleVscaleReAttach(
     // No scaling for this module - exit
     if (!pCstate->Vscale)
         return VoltageRequirement;
+
+    // Find current maximum module voltage step
+    for (VstepMax = s_ChipFlavor.pSocShmoo->ShmooVmaxIndex;
+          VstepMax != 0; VstepMax--)
+    {
+        if (s_VoltageStepRefCounts[VstepMax])
+            break;
+    }
 
     // Clip target frequency to module clock limits and find voltage step for
     // running at target frequency
@@ -546,14 +584,51 @@ NvRmPrivModuleVscaleReAttach(
             pCinfo->ClkEnableOffset);
         if ((reg & pCinfo->ClkEnableField) == pCinfo->ClkEnableField)
         {
+            // Specify new required voltage if module clock is enabled and need
+            // voltage increase, return "Off" indicator if module operational
+            // volatge is going down; otherwise leave requirements unspecified
+            if (i > VstepMax)
+            {
+                VoltageRequirement = NvRmPrivGetStepMV(hRmDevice, i);
+
+                // If preview and voltage increase - return without count update
+                if (Preview)
+                    return VoltageRequirement;
+            }
+            else if ((i < pCstate->Vstep) && (VstepMax == pCstate->Vstep))
+            {
+                VoltageRequirement = NvRmVoltsOff;
+            }
+
+            // Update ref counts
             NV_ASSERT(s_VoltageStepRefCounts[pCstate->Vstep]);
             s_VoltageStepRefCounts[pCstate->Vstep]--;
             s_VoltageStepRefCounts[i]++;
-            VoltageRequirement = NvRmPrivGetStepMV(hRmDevice, i);
         }
         pCstate->Vstep = i;
     }
     return VoltageRequirement;
+}
+
+void NvRmPrivModuleVscaleSetPending(
+    NvRmDeviceHandle hRmDevice,
+    NvRmMilliVolts PendingMv)
+{
+    if (PendingMv != NvRmVoltsOff)
+    {
+        s_VoltageStepRefCounts[NVRM_VOLTAGE_PENDING_STEP]++;
+        s_VoltagePendingMv = NV_MAX(s_VoltagePendingMv, PendingMv);
+
+    }
+    else
+    {
+        NV_ASSERT(s_VoltageStepRefCounts[NVRM_VOLTAGE_PENDING_STEP]);
+        if (s_VoltageStepRefCounts[NVRM_VOLTAGE_PENDING_STEP])
+            s_VoltageStepRefCounts[NVRM_VOLTAGE_PENDING_STEP]--;
+
+        if (s_VoltageStepRefCounts[NVRM_VOLTAGE_PENDING_STEP] == 0)
+            s_VoltagePendingMv = NvRmVoltsOff;
+    }
 }
 
 void

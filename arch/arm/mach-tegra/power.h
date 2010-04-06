@@ -143,6 +143,17 @@ extern NvRmDeviceHandle s_hRmGlobal;
 		NV_SDRF_NUM(s,d,r,f,n))
 
 
+/****SCRATCH REGISTER USAGE FOR POWER STATES****
+ *            |  Scratch1   |   Scatch37   | Scratch38   | Scratch39   |
+ * -----------|-----------  |--------------|-------------|-------------|
+ *      LP2   | CpuResumePtr| CtxtSaveAddr | LP2EnterTime| LP2ExitTime |
+ * -----------|-------------|--------------|-------------|-------------|
+ *      LP1   | CpuResumePtr| CtxtSaveAddr | LP1EnterTime| LP1ExitTime |
+ * -----------|-------------|--------------|-------------|-------------|
+ *      LP0   | LP0ExitTime | CtxtSaveAddr | LP0EnterTime| AvpResumePtr|
+ * -----------|-------------|--------------|-------------|-------------|
+ */
+
 /** SHADOW_REGS() - Shadowed PMC scratch registers that must be saved/restored
 					across low power transitions because they are used by RM
 					for other purposes.

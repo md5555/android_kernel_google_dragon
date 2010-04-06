@@ -24,6 +24,7 @@
 #include <linux/platform_device.h>
 #include <linux/irq.h>
 #include <linux/tegra_devices.h>
+#include <linux/mmc/card.h>
 
 #include "sdhci.h"
 #include "mach/nvrm_linux.h"
@@ -166,10 +167,6 @@ static struct sdhci_ops tegra_sdhci_ops = {
 #endif
 };
 
-struct sdioCaps {
-	NvBool EnableDmaSupport;
-};
-
 int __init tegra_sdhci_probe(struct platform_device *pdev)
 {
 	struct sdhci_host *sdhost;
@@ -186,18 +183,8 @@ int __init tegra_sdhci_probe(struct platform_device *pdev)
 #endif
 	NvRmModuleSdmmcInterfaceCaps SdioInterfaceCaps;
 
-	struct sdioCaps sdioCapsArray[2];
-	struct sdioCaps *pSdioCaps = NULL;
-	NvRmModuleCapability sdioAllChipCaps[] = {
-		{1, 0, 0, &sdioCapsArray[0]},
-		{2, 0, 0, &sdioCapsArray[1]},
-	};
 	const NvOdmGpioPinInfo *gp_info;
 	NvU32 PinCount;
-
-	/* Only enable DMA support on AP2x chips */
-	sdioCapsArray[0].EnableDmaSupport = NV_FALSE;
-	sdioCapsArray[1].EnableDmaSupport = NV_TRUE;
 
 	if (pdev->id == -1)
 		return -ENODEV;
@@ -274,11 +261,6 @@ int __init tegra_sdhci_probe(struct platform_device *pdev)
 	NvRmModuleReset(s_hRmGlobal, ModId);
 	NvOdmSdioResume(host->hSdioHandle);
 
-	NvRmModuleGetCapabilities(s_hRmGlobal,
-		NVRM_MODULE_ID(NvRmModuleID_Sdio, pdev->id),
-		sdioAllChipCaps, NV_ARRAY_SIZE(sdioAllChipCaps),
-		(void**)&pSdioCaps);
-
 	sdhost->hw_name = "tegra";
 	sdhost->ops = &tegra_sdhci_ops;
 	sdhost->irq = irq;
@@ -296,12 +278,14 @@ int __init tegra_sdhci_probe(struct platform_device *pdev)
 	SDHCI_QUIRK_BROKEN_CARD_DETECTION |
 	SDHCI_QUIRK_BROKEN_CTRL_HISPD;
 
-	if (!pSdioCaps->EnableDmaSupport)
-		sdhost->quirks |= SDHCI_QUIRK_BROKEN_DMA;
-	else {
-		sdhost->quirks |= SDHCI_QUIRK_BROKEN_SPEC_VERSION;
-		sdhost->quirks |= SDHCI_QUIRK_32KB_MAX_ADMA_SIZE;
-	}
+#ifdef CONFIG_ARCH_TEGRA_1x_SOC
+	sdhost->quirks |= SDHCI_QUIRK_BROKEN_DMA;
+#elif  CONFIG_ARCH_TEGRA_2x_SOC
+	sdhost->quirks |= SDHCI_QUIRK_BROKEN_SPEC_VERSION |
+		SDHCI_QUIRK_32KB_MAX_ADMA_SIZE;
+#else
+#error "Not defined for this processor"
+#endif
 
 	err1 = NvRmGetModuleInterfaceCapabilities(s_hRmGlobal,
 		NVRM_MODULE_ID(NvRmModuleID_Sdio, pdev->id),
@@ -382,13 +366,13 @@ static int tegra_sdhci_suspend(struct platform_device *pdev, pm_message_t state)
 	if (t_sdhci->sdhost->card_type != MMC_TYPE_SDIO) {
 		ret = sdhci_suspend_host(t_sdhci->sdhost,state);
 		if (ret)
-			printk("sdhci_suspend_host failed with error %d\n",ret);
+			printk("sdhci_suspend_host failed with error %d\n", ret);
 	}
 
 	return ret;
 }
 
-static int tegra_sdhci_resume(struct plaform_device *pdev)
+static int tegra_sdhci_resume(struct platform_device *pdev)
 {
 	int ret = 0;
 	struct tegra_sdhci *t_sdhci;
@@ -397,8 +381,8 @@ static int tegra_sdhci_resume(struct plaform_device *pdev)
 
 	if (t_sdhci->sdhost->card_type != MMC_TYPE_SDIO) {
 		ret = sdhci_resume_host(t_sdhci->sdhost);
-		if (ret) 
-			printk("sdhci_resume_host failed with error %d\n",ret);
+		if (ret)
+			printk("sdhci_resume_host failed with error %d\n", ret);
 	}
 
 	return ret;
@@ -408,12 +392,12 @@ static int tegra_sdhci_resume(struct plaform_device *pdev)
 struct platform_driver tegra_sdhci_driver = {
 	.probe		= tegra_sdhci_probe,
 	.remove		= __devexit_p(tegra_sdhci_remove),
-#if defined (CONFIG_PM)
-	.suspend 	= tegra_sdhci_suspend,
-	.resume		= tegra_sdhci_resume,
+#if defined(CONFIG_PM)
+	.suspend = tegra_sdhci_suspend,
+	.resume = tegra_sdhci_resume,
 #else
-	.suspend	= NULL,
-	.resume		= NULL,
+	.suspend = NULL,
+	.resume = NULL,
 #endif
 	.driver		= {
 		.name	= "tegra-sdhci",

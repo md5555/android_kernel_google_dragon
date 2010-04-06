@@ -60,6 +60,30 @@
 // EMC MODULE INTERFACES
 /*****************************************************************************/
 
+void NvRmPrivAp20EmcMinFreqSet(NvRmDfs* pDfs)
+{
+    NvRmFreqKHz f;
+    NvU32 RegValue = NV_REGR(pDfs->hRm,
+        NvRmPrivModuleID_ExternalMemoryController, 0, EMC_FBIO_CFG5_0);
+
+    switch (NV_DRF_VAL(EMC, FBIO_CFG5, DRAM_TYPE, RegValue))
+    {
+        case EMC_FBIO_CFG5_0_DRAM_TYPE_LPDDR2:
+            f = NVRM_AP20_LPDDR2_MIN_KHZ;
+            break;
+
+        case EMC_FBIO_CFG5_0_DRAM_TYPE_DDR2:
+            f = NVRM_AP20_DDR2_MIN_KHZ;
+            break;
+
+        default:
+            f = 0;
+            NV_ASSERT(!"Not supported DRAM type");
+    }
+    pDfs->DfsParameters[NvRmDfsClockId_Emc].MinKHz =
+        NV_MAX(pDfs->DfsParameters[NvRmDfsClockId_Emc].MinKHz, f);
+}
+
 NvError NvRmPrivAp20EmcMonitorsInit(NvRmDfs* pDfs)
 {
     NvU32 RegValue;

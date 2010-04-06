@@ -176,16 +176,39 @@ NvBool NvOdmKeyboardInit(void)
 	Request.RequestType = NvEcRequestResponseType_Keyboard;
 	Request.RequestSubtype = (NvEcRequestResponseSubtype)
 	NvEcKeyboardSubtype_ConfigureWake;
-	Request.NumPayloadBytes = 1;
+	Request.NumPayloadBytes = 2;
 	Request.Payload[0] = NVEC_KEYBOARD_WAKE_ENABLE_0_ACTION_ENABLE;
+	Request.Payload[1] = NVEC_KEYBOARD_EVENT_TYPE_0_ANY_KEY_PRESS_ENABLE;
 
 	NvStatus = NvEcSendRequest(s_NvEcHandle,
 		&Request,
 		&Response,
 		sizeof(Request),
 		sizeof(Response));
-	if (NvStatus != NvError_Success)
+	if (NvStatus != NvError_Success) {
 		goto cleanup;
+        }
+
+	if (Response.Status != NvEcStatus_Success) {
+		goto cleanup;
+	}
+
+        /* enable key reporting on wake up */
+	Request.PacketType = NvEcPacketType_Request;
+	Request.RequestType = NvEcRequestResponseType_Keyboard;
+	Request.RequestSubtype = (NvEcRequestResponseSubtype)
+	NvEcKeyboardSubtype_ConfigureWakeKeyReport;
+	Request.NumPayloadBytes = 1;
+	Request.Payload[0] = NVEC_KEYBOARD_REPORT_WAKE_KEY_0_ACTION_ENABLE;
+
+	NvStatus = NvEcSendRequest(s_NvEcHandle,
+		&Request,
+		&Response,
+		sizeof(Request),
+		sizeof(Response));
+	if (NvStatus != NvError_Success) {
+		goto cleanup;
+        }
 
 	if (Response.Status != NvEcStatus_Success) {
 		goto cleanup;

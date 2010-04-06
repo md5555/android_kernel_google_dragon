@@ -48,9 +48,9 @@
 
 
 static const NvU32 s_NvOdmPinMuxConfig_Uart_Hsi_Ulpi[] = {
-    0, // Instance 0: UART-A //UAA and UAB are needed by Mipi Hsi or ULPI
+    NvOdmUartPinMap_Config7,    // Instance 0: UART-A is mapped to SDIO1 pins when ULPI is used
     NvOdmUartPinMap_Config1,    // Instance 1: UART-B
-    NvOdmUartPinMap_Config1,     // Instance 2: UART-C
+    NvOdmUartPinMap_Config1,    // Instance 2: UART-C
     0, // UART-D function disabled: pins used by BB (SPI1)
     0, // UART-E function disabled: pins used by WiFi (SDIO1)
 };
@@ -331,9 +331,7 @@ NvOdmQueryPinMux(
         break;
 
     case NvOdmIoModule_Uart:
-        if ((Personality == TEGRA_DEVKIT_BCT_CUSTOPT_0_PERSONALITY_71) ||
-            (Personality == TEGRA_DEVKIT_BCT_CUSTOPT_0_PERSONALITY_01) ||
-            (Personality == TEGRA_DEVKIT_BCT_CUSTOPT_0_PERSONALITY_11))
+        if (Ril == TEGRA_DEVKIT_BCT_CUSTOPT_0_RIL_EMP_RAINBOW_ULPI)
         {
             *pPinMuxConfigTable = s_NvOdmPinMuxConfig_Uart_Hsi_Ulpi;
             *pCount = NV_ARRAY_SIZE(s_NvOdmPinMuxConfig_Uart_Hsi_Ulpi);

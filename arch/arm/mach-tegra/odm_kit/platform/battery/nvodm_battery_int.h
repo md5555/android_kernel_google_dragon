@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009 NVIDIA Corporation.
+ * Copyright (c) 2009-2010 NVIDIA Corporation.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -33,6 +33,8 @@
 #ifndef INCLUDED_NVODM_BATTERY_INT_H
 #define INCLUDED_NVODM_BATTERY_INT_H
 
+#include "nvodm_query_gpio.h"
+#include "nvrm_gpio.h"
 #include "nvodm_services.h"
 #include "nvec.h"
 
@@ -49,6 +51,30 @@
 extern "C"
 {
 #endif
+
+/****************************************************************************/
+/*
+ * Macro to disable EC calls for battery operations
+ * until EC firware supports it
+ */
+#define NVEC_BATTERY_DISABLED 0
+/*
+ * Some extra battery info added which is not yet part of the
+ * BatteryData struct.
+ * Enable it to verify the these extra info with the EC firware
+ */
+#define BATTERY_EXTRA_INFO    0
+
+/* Enable to wakeup the AP from suspend */
+#define NVODM_WAKEUP_FROM_BATTERY_EVENT 1
+#define NVODM_WAKEUP_FROM_AC_EVENT      1
+
+/* Enable the Low Battery GPIO Interrupt */
+#define NVODM_LOWBATTERY_GPIO_INT       1
+
+/* Enable low capacity alarm wakeup */
+#define NVODM_BATTERY_LOW_CAPACITY_ALARM 1
+/****************************************************************************/
 
 #define NVODM_BATTERY_NUM_BATTERY_SLOTS_MASK 0x0F
 
@@ -69,11 +95,17 @@ extern "C"
 #define NVODM_BATTERY_PRESENT_IN_SLOT  0x01
 
 #define NVODM_BATTERY_CHARGING_STATE_SHIFT  1
+#define NVODM_BATTERY_CHARGING_STATE_MASK   0x03
+
 /* Battery Slot Status : Bits 1-2 = Charging state */
 #define NVODM_BATTERY_CHARGING_STATE_IDLE         0x00
 #define NVODM_BATTERY_CHARGING_STATE_CHARGING     0x01
-#define NVODM_BATTERY_CHARGING_STATE_DISCHARGING  0x10
-#define NVODM_BATTERY_CHARGING_STATE_RESERVED     0x11
+#define NVODM_BATTERY_CHARGING_STATE_DISCHARGING  0x02
+#define NVODM_BATTERY_CHARGING_STATE_RESERVED     0x03
+
+/* Remaining capacity alarm bit is 3rd in slot status */
+#define NVODM_BATTERY_REM_CAP_ALARM_SHIFT 3
+#define NVODM_BATTERY_REM_CAP_ALARM_IS_SET 1
 
 /* Response System Status : Data Byte 3 System State Bits 7-0 */
 #define NVODM_BATTERY_SYSTEM_STATE_DATA1 0
@@ -87,9 +119,26 @@ extern "C"
 
 /* Threshold for battery status.*/
 #define NVODM_BATTERY_FULL_VOLTAGE_MV      12600
-#define NVODM_BATTERY_HIGH_VOLTAGE_MV      10000
-#define NVODM_BATTERY_LOW_VOLTAGE_MV       9000
-#define NVODM_BATTERY_CRITICAL_VOLTAGE_MV  8500
+#define NVODM_BATTERY_HIGH_VOLTAGE_MV      10200
+#define NVODM_BATTERY_LOW_VOLTAGE_MV       10000
+#define NVODM_BATTERY_CRITICAL_VOLTAGE_MV   9500
+
+#define NVODM_BATTERY_EC_FIRMWARE_VER_R01 2
+#define NVODM_BATTERY_EC_FIRMWARE_VER_R04 8
+
+/* Bit 0 = Present State event */
+/* Bit 1 = Charging State event */
+/* Bit 2 = Remaining Capacity Alaram event */
+#define NVODM_BATTERY_SET_PRESENT_EVENT       0x01
+#define NVODM_BATTERY_SET_CHARGING_EVENT      0x02
+#define NVODM_BATTERY_SET_REM_CAP_ALARM_EVENT 0x04
+
+/*
+ * Bit 0   => 0=Not Present, 1=Present
+ * Bit 1:2 => 00=Idle, 01=Charging,10=Discharging, 11=Reserved
+ * Bit 3   => 1=Remaining Capacity Alaram set
+ */
+#define NVODM_BATTERY_EVENT_MASK 0x0F
 
 typedef enum
 {
@@ -106,12 +155,20 @@ typedef struct NvOdmBatteryDeviceRec
 {
     NvEcHandle     hEc;
     NvEcEventRegistrationHandle hEcEventReg;
-    NvOdmOsSemaphoreHandle hBattEventSem;
-    NvOdmOsSemaphoreHandle hClientBattEventSem;
-    NvOdmOsThreadHandle    hBattEventThread;
-    NvU8           BatteryEvent;
-    NvU8           NumBatterySlots;
-    NvBool         FirmwareVersionR01;
+    NvOdmOsSemaphoreHandle      hBattEventSem;
+    NvOdmOsSemaphoreHandle      hClientBattEventSem;
+    NvOdmOsThreadHandle         hBattEventThread;
+#if NVODM_LOWBATTERY_GPIO_INT
+    const NvOdmGpioPinInfo      *pGpioPinInfo;
+    NvRmGpioPinHandle           hPin;
+    NvRmGpioInterruptHandle     GpioIntrHandle;
+    NvU32                       PinCount;
+    NvRmDeviceHandle            hRm;
+    NvRmGpioHandle              hGpio;
+#endif
+    NvU8                        BatteryEvent;
+    NvU8                        ECVersion;
+    NvBool                      ExitThread;
 } NvOdmBatteryDevice;
 
 #if defined(__cplusplus)
@@ -121,3 +178,4 @@ typedef struct NvOdmBatteryDeviceRec
 /** @} */
 
 #endif /* INCLUDED_NVODM_BATTERY_INT_H */
+
