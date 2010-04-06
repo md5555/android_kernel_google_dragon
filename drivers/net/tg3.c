@@ -940,6 +940,7 @@ static void tg3_mdio_config_5785(struct tg3 *tp)
 	phydev = tp->mdio_bus->phy_map[PHY_ADDR];
 	switch (phydev->drv->phy_id & phydev->drv->phy_id_mask) {
 	case TG3_PHY_ID_BCM50610:
+	case TG3_PHY_ID_BCM50610M:
 		val = MAC_PHYCFG2_50610_LED_MODES;
 		break;
 	case TG3_PHY_ID_BCMAC131:
@@ -1098,6 +1099,7 @@ static int tg3_mdio_init(struct tg3 *tp)
 		phydev->interface = PHY_INTERFACE_MODE_GMII;
 		break;
 	case TG3_PHY_ID_BCM50610:
+	case TG3_PHY_ID_BCM50610M:
 		if (tp->tg3_flags3 & TG3_FLG3_RGMII_STD_IBND_DISABLE)
 			phydev->dev_flags |= PHY_BRCM_STD_IBND_DISABLE;
 		if (tp->tg3_flags3 & TG3_FLG3_RGMII_EXT_IBND_RX_EN)
@@ -1363,8 +1365,11 @@ static void tg3_adjust_link(struct net_device *dev)
 
 		if (phydev->speed == SPEED_100 || phydev->speed == SPEED_10)
 			mac_mode |= MAC_MODE_PORT_MODE_MII;
-		else
+		else if (phydev->speed == SPEED_1000 ||
+			 GET_ASIC_REV(tp->pci_chip_rev_id) != ASIC_REV_5785)
 			mac_mode |= MAC_MODE_PORT_MODE_GMII;
+		else
+			mac_mode |= MAC_MODE_PORT_MODE_MII;
 
 		if (phydev->duplex == DUPLEX_HALF)
 			mac_mode |= MAC_MODE_HALF_DUPLEX;
@@ -7121,8 +7126,7 @@ static int tg3_reset_hw(struct tg3 *tp, int reset_phy)
 		tg3_abort_hw(tp, 1);
 	}
 
-	if (reset_phy &&
-	    !(tp->tg3_flags3 & TG3_FLG3_USE_PHYLIB))
+	if (reset_phy)
 		tg3_phy_reset(tp);
 
 	err = tg3_chip_reset(tp);
@@ -7601,6 +7605,9 @@ static int tg3_reset_hw(struct tg3 *tp, int reset_phy)
 	/* Enable host coalescing bug fix */
 	if (tp->tg3_flags3 & TG3_FLG3_5755_PLUS)
 		val |= WDMAC_MODE_STATUS_TAG_FIX;
+
+	if (GET_ASIC_REV(tp->pci_chip_rev_id) == ASIC_REV_5785)
+		val |= WDMAC_MODE_BURST_ALL_DATA;
 
 	tw32_f(WDMAC_MODE, val);
 	udelay(40);
@@ -10297,8 +10304,12 @@ static int tg3_run_loopback(struct tg3 *tp, int loopback_mode)
 
 		mac_mode = tp->mac_mode & ~MAC_MODE_PORT_MODE_MASK;
 		if (tp->tg3_flags3 & TG3_FLG3_PHY_IS_FET) {
-			if (GET_ASIC_REV(tp->pci_chip_rev_id) == ASIC_REV_5906)
-				tg3_writephy(tp, MII_TG3_FET_PTEST, 0x1800);
+			tg3_writephy(tp, MII_TG3_FET_PTEST,
+				     MII_TG3_FET_PTEST_FRC_TX_LINK |
+				     MII_TG3_FET_PTEST_FRC_TX_LOCK);
+			/* The write needs to be flushed for the AC131 */
+			if (GET_ASIC_REV(tp->pci_chip_rev_id) == ASIC_REV_5785)
+				tg3_readphy(tp, MII_TG3_FET_PTEST, &val);
 			mac_mode |= MAC_MODE_PORT_MODE_MII;
 		} else
 			mac_mode |= MAC_MODE_PORT_MODE_GMII;
