@@ -122,6 +122,7 @@ CONFIG_NEW_LEDS=y
 # CONFIG_NFS_FS is not set
 # CONFIG_NLS is not set
 # CONFIG_PACKET is not set
+# CONFIG_PARTITION_ADVANCED is not set
 CONFIG_PM=y
 # CONFIG_POSIX_MQUEUE is not set
 # CONFIG_POWER_SUPPLY is not set
