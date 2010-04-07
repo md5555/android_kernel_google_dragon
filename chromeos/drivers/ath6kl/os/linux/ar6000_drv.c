@@ -1571,10 +1571,12 @@ ar6000_avail_ev(void *context, void *hif_handle)
                     break;
                 }
 
+                rtnl_lock();
                 if ((ar6000_init(dev)) < A_OK) {
                     AR_DEBUG_PRINTF(ATH_DEBUG_ERR,("ar6000_avail: ar6000_init\n"));
                     status = A_ERROR;
                 }
+                rtnl_unlock();
             } while (FALSE);
 
             if (status != A_OK) {
