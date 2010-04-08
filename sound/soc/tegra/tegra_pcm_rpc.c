@@ -463,6 +463,9 @@ static int pcm_common_close(struct snd_pcm_substream *substream)
 
 	prtd->state = SNDRV_PCM_TRIGGER_STOP;
 
+	if (completion_done(&prtd->thread_comp) == 0)
+		complete(&prtd->thread_comp);
+
 	if (prtd->play_thread)
 		kthread_stop(prtd->play_thread);
 
