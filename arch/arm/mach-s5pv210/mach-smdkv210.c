@@ -94,5 +94,5 @@ MACHINE_START(SMDKV210, "SMDKV210")
 	.init_irq	= s5pv210_init_irq,
 	.map_io		= smdkv210_map_io,
 	.init_machine	= smdkv210_machine_init,
-	.timer		= &s3c24xx_timer,
+	.timer		= &s5p_systimer,
 MACHINE_END

@@ -23,3 +23,10 @@ config PLAT_S5P
 	select SAMSUNG_IRQ_UART
 	help
 	  Base platform code for Samsung's S5P series SoC.
+
+config SYSTIMER_S5P
+	bool
+	depends on (ARCH_S5P6442 || ARCH_S5PV210)
+	default y
+	help
+	  Support System Timer for S5P Series

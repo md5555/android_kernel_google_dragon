@@ -87,5 +87,5 @@ MACHINE_START(SMDK6442, "SMDK6442")
 	.init_irq	= s5p6442_init_irq,
 	.map_io		= smdk6442_map_io,
 	.init_machine	= smdk6442_machine_init,
-	.timer		= &s3c24xx_timer,
+	.timer		= &s5p_systimer,
 MACHINE_END
