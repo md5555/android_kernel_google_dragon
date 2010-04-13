@@ -876,11 +876,12 @@ intel_g4x_find_best_PLL(const intel_limit_t *limit, struct drm_crtc *crtc,
 {
 	struct drm_device *dev = crtc->dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
-	intel_clock_t clock;
+	intel_clock_t clock, last_resort_clock;
 	int max_n;
 	bool found;
 	/* approximately equals target * 0.00488 */
 	int err_most = (target >> 8) + (target >> 10);
+	int last_resort_error = -1;
 	found = false;
 
 	if (intel_pipe_has_type(crtc, INTEL_OUTPUT_LVDS)) {
@@ -902,6 +903,7 @@ intel_g4x_find_best_PLL(const intel_limit_t *limit, struct drm_crtc *crtc,
 			clock.p2 = limit->p2.p2_fast;
 	}
 
+	memset(&last_resort_clock, 0, sizeof(last_resort_clock));
 	memset(best_clock, 0, sizeof(*best_clock));
 	max_n = limit->n.max;
 	/* based on hardware requriment prefer smaller n to precision */
@@ -924,10 +926,24 @@ intel_g4x_find_best_PLL(const intel_limit_t *limit, struct drm_crtc *crtc,
 						err_most = this_err;
 						max_n = clock.n;
 						found = true;
+					} else if (last_resort_error < 0 ||
+						   this_err <
+						   last_resort_error) {
+						last_resort_error = this_err;
+						last_resort_clock = clock;
 					}
 				}
 			}
 		}
+	}
+
+	if (!found && last_resort_error >= 0) {
+		/* We haven't found a clock within err_most tolerance, but
+		   we did find at least one intel_PLL_is_valid clock so we
+		   use the one with the least error. */
+		printk(KERN_WARNING "i915 LVDS: using last_resort_clock.");
+		*best_clock = last_resort_clock;
+		found = true;
 	}
 	return found;
 }
