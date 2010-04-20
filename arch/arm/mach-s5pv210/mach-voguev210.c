@@ -40,6 +40,21 @@
 				 S5PV210_UFCON_TXTRIG4 |	\
 				 S5PV210_UFCON_RXTRIG4)
 
+extern void s5pv210_reserve_bootmem(void);
+
+struct membank s3c_meminfo[] __initdata = {
+	[0] = {
+		.start = 0x20000000,
+		.size = 512 * SZ_1M,
+		.node = 0,
+	},
+	[1] = {
+		.start = 0x40000000,
+		.size = 512 * SZ_1M,
+		.node = 0,
+	},
+};
+
 static struct s3c2410_uartcfg voguev210_uartcfgs[] __initdata = {
 	[0] = {
 		.hwport		= 0,
@@ -74,11 +89,24 @@ static struct s3c2410_uartcfg voguev210_uartcfgs[] __initdata = {
 static struct platform_device *voguev210_devices[] __initdata = {
 };
 
+static void __init voguev210_fixup(struct machine_desc *desc,
+				   struct tag *tags, char **cmdline,
+				   struct meminfo *mi)
+{
+	u32 i = 0;
+
+	for (i = 0; i < ARRAY_SIZE(s3c_meminfo); i++)
+		mi->bank[i] = s3c_meminfo[i];
+
+	mi->nr_banks = ARRAY_SIZE(s3c_meminfo);
+}
+
 static void __init voguev210_map_io(void)
 {
 	s5p_init_io(NULL, 0, S5P_VA_CHIPID);
 	s3c24xx_init_clocks(24000000);
 	s3c24xx_init_uarts(voguev210_uartcfgs, ARRAY_SIZE(voguev210_uartcfgs));
+	s5pv210_reserve_bootmem();
 }
 
 static void __init voguev210_machine_init(void)
@@ -91,6 +119,7 @@ MACHINE_START(VOGUEV210, "VOGUEV210")
 	.phys_io	= S3C_PA_UART & 0xfff00000,
 	.io_pg_offst	= (((u32)S3C_VA_UART) >> 18) & 0xfffc,
 	.boot_params	= S5P_PA_SDRAM + 0x100,
+	.fixup		= voguev210_fixup,
 	.init_irq	= s5pv210_init_irq,
 	.map_io		= voguev210_map_io,
 	.init_machine	= voguev210_machine_init,
