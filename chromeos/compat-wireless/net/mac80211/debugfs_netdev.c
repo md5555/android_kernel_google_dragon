@@ -84,6 +84,15 @@ static ssize_t ieee80211_if_fmt_##name(					\
 #define IEEE80211_IF_FMT_SIZE(name, field)				\
 		IEEE80211_IF_FMT(name, field, "%zd\n")
 
+#define IEEE80211_IF_FMT_BOOL(name, field)				\
+static ssize_t ieee80211_if_fmt_##name(					\
+	const struct ieee80211_sub_if_data *sdata, char *buf,		\
+	int buflen)							\
+{									\
+	return scnprintf(buf, buflen, "%s\n", sdata->field ?		\
+			"true" : "false");				\
+}
+
 #define IEEE80211_IF_FMT_ATOMIC(name, field)				\
 static ssize_t ieee80211_if_fmt_##name(					\
 	const struct ieee80211_sub_if_data *sdata,			\
@@ -140,6 +149,11 @@ IEEE80211_IF_FILE(rc_rateidx_mask_5ghz, rc_rateidx_mask[IEEE80211_BAND_5GHZ],
 /* STA attributes */
 IEEE80211_IF_FILE(bssid, u.mgd.bssid, MAC);
 IEEE80211_IF_FILE(aid, u.mgd.aid, DEC);
+IEEE80211_IF_FILE(dtim_period, local->hw.conf.ps_dtim_period, DEC);
+IEEE80211_IF_FILE(beacon_int, vif.bss_conf.beacon_int, DEC);
+IEEE80211_IF_FILE(cts_prot, vif.bss_conf.use_cts_prot, BOOL);
+IEEE80211_IF_FILE(short_preamble, vif.bss_conf.use_short_preamble, BOOL);
+IEEE80211_IF_FILE(short_slot, vif.bss_conf.use_short_slot, BOOL);
 
 static int ieee80211_set_smps(struct ieee80211_sub_if_data *sdata,
 			      enum ieee80211_smps_mode smps_mode)
@@ -277,6 +291,11 @@ static void add_sta_files(struct ieee80211_sub_if_data *sdata)
 	DEBUGFS_ADD(bssid);
 	DEBUGFS_ADD(aid);
 	DEBUGFS_ADD_MODE(smps, 0600);
+	DEBUGFS_ADD(dtim_period);
+	DEBUGFS_ADD(beacon_int);
+	DEBUGFS_ADD(cts_prot);
+	DEBUGFS_ADD(short_preamble);
+	DEBUGFS_ADD(short_slot);
 }
 
 static void add_ap_files(struct ieee80211_sub_if_data *sdata)
