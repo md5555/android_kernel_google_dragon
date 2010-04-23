@@ -84,8 +84,8 @@ A_UINT8 sioctl_filter[] = {
 (INFRA_NETWORK | ADHOC_NETWORK),                /* SIOCGIWRETRY    0x8B29   */
 (INFRA_NETWORK | ADHOC_NETWORK | AP_NETWORK),   /* SIOCSIWENCODE   0x8B2A   */
 (INFRA_NETWORK | ADHOC_NETWORK | AP_NETWORK),   /* SIOCGIWENCODE   0x8B2B   */
-(INFRA_NETWORK | ADHOC_NETWORK),                /* SIOCSIWPOWER    0x8B2C   */
-(INFRA_NETWORK | ADHOC_NETWORK),                /* SIOCGIWPOWER    0x8B2D   */
+(INFRA_NETWORK | ADHOC_NETWORK | AP_NETWORK),   /* SIOCSIWPOWER    0x8B2C   */
+(INFRA_NETWORK | ADHOC_NETWORK | AP_NETWORK),   /* SIOCGIWPOWER    0x8B2D   */
 };
 
 
@@ -103,7 +103,7 @@ A_UINT8 pioctl_filter[] = {
 (0),                                            /*                                      (SIOCIWFIRSTPRIV+9)     */
 (0),                                            /* IEEE80211_IOCTL_LASTONE              (SIOCIWFIRSTPRIV+10)    */
 (0xFF),                                         /* AR6000_IOCTL_WMI_GETREV              (SIOCIWFIRSTPRIV+11)    */
-(INFRA_NETWORK | ADHOC_NETWORK),                /* AR6000_IOCTL_WMI_SETPWR              (SIOCIWFIRSTPRIV+12)    */
+(INFRA_NETWORK | ADHOC_NETWORK | AP_NETWORK),   /* AR6000_IOCTL_WMI_SETPWR              (SIOCIWFIRSTPRIV+12)    */
 (INFRA_NETWORK | ADHOC_NETWORK),                /* AR6000_IOCTL_WMI_SETSCAN             (SIOCIWFIRSTPRIV+13)    */
 (INFRA_NETWORK | ADHOC_NETWORK),                /* AR6000_IOCTL_WMI_SETLISTENINT        (SIOCIWFIRSTPRIV+14)    */
 (INFRA_NETWORK | ADHOC_NETWORK),                /* AR6000_IOCTL_WMI_SETBSSFILTER        (SIOCIWFIRSTPRIV+15)    */
@@ -161,7 +161,7 @@ A_UINT8 xioctl_filter[] = {
 (INFRA_NETWORK | ADHOC_NETWORK),                /* AR6000_XIOCTL_WMI_GET_ROAM_TBL                  31   */
 (INFRA_NETWORK | ADHOC_NETWORK),                /* AR6000_XIOCTL_WMI_SET_ROAM_CTRL                 32   */
 (INFRA_NETWORK | ADHOC_NETWORK),                /* AR6000_XIOCTRL_WMI_SET_POWERSAVE_TIMERS         33   */
-(INFRA_NETWORK | ADHOC_NETWORK),                /* AR6000_XIOCTRL_WMI_GET_POWER_MODE               34   */
+(INFRA_NETWORK | ADHOC_NETWORK | AP_NETWORK),   /* AR6000_XIOCTRL_WMI_GET_POWER_MODE               34   */
 (INFRA_NETWORK | ADHOC_NETWORK),                /* AR6000_XIOCTRL_WMI_SET_WLAN_STATE               35   */
 (INFRA_NETWORK | ADHOC_NETWORK),                /* AR6000_XIOCTL_WMI_GET_ROAM_DATA                 36   */
 (0xFF),                                         /* AR6000_XIOCTL_WMI_SETRETRYLIMITS                37   */

@@ -16,6 +16,7 @@
 //==============================================================================
 // Author(s): ="Atheros"
 //==============================================================================
+
 #include "a_config.h"
 #include "athdefs.h"
 #include "a_types.h"
@@ -479,7 +480,7 @@ A_STATUS ar6000_reset_device(HIF_DEVICE *hifDevice, A_UINT32 TargetType, A_BOOL 
 }
 
 #define REG_DUMP_COUNT_AR6001   38  /* WORDs, derived from AR600x_regdump.h */
-#define REG_DUMP_COUNT_AR6002   32
+#define REG_DUMP_COUNT_AR6002   60
 #define REG_DUMP_COUNT_AR6003   60
 #define REGISTER_DUMP_LEN_MAX   60
 #if REG_DUMP_COUNT_AR6001 > REGISTER_DUMP_LEN_MAX
@@ -551,9 +552,16 @@ void ar6000_dump_target_assert_info(HIF_DEVICE *hifDevice, A_UINT32 TargetType)
         AR_DEBUG_PRINTF(ATH_DEBUG_ERR,("AR6K: Register Dump: \n"));
 
         for (i = 0; i < regDumpCount; i++) {
+            //ATHR_DISPLAY_MSG (_T(" %d :  0x%8.8X \n"), i, regDumpValues[i]);
             AR_DEBUG_PRINTF(ATH_DEBUG_ERR,(" %d :  0x%8.8X \n",i, regDumpValues[i]));
+
 #ifdef UNDER_CE
-            logPrintf(ATH_DEBUG_ERR," %d:  0x%8.8X \n",i, regDumpValues[i]);
+        /*
+         * For Every logPrintf() Open the File so that in case of Crashes
+         * We will have until the Last Message Flushed on to the File
+         * So use logPrintf Sparingly..!!
+         */
+        tgtassertPrintf (ATH_DEBUG_TRC," %d:  0x%8.8X \n",i, regDumpValues[i]);
 #endif
         }
 

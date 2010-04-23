@@ -97,13 +97,13 @@ typedef enum {
 
 
 /*
- * Macros for operating on WMI_DATA_HDR (info) field 
+ * Macros for operating on WMI_DATA_HDR (info) field
  */
 
 #define WMI_DATA_HDR_MSG_TYPE_MASK  0x03
 #define WMI_DATA_HDR_MSG_TYPE_SHIFT 0
 #define WMI_DATA_HDR_UP_MASK        0x07
-#define WMI_DATA_HDR_UP_SHIFT       2   
+#define WMI_DATA_HDR_UP_SHIFT       2
 /* In AP mode, the same bit (b5) is used to indicate Power save state in
  * the Rx dir and More data bit state in the tx direction.
  */
@@ -179,7 +179,7 @@ typedef PREPACK struct {
 /*
  *  TX META VERSION DEFINITIONS
  */
-#define WMI_MAX_TX_META_SZ  (12) 
+#define WMI_MAX_TX_META_SZ  (12)
 #define WMI_MAX_TX_META_VERSION (7)
 #define WMI_META_VERSION_1 (0x01)
 #define WMI_META_VERSION_2 (0X02)
@@ -194,7 +194,7 @@ typedef PREPACK struct {
 
 typedef PREPACK struct {
     A_UINT8     pktID;           /* The packet ID to identify the tx request */
-    A_UINT8     ratePolicyID;    /* The rate policy to be used for the tx of this frame */    
+    A_UINT8     ratePolicyID;    /* The rate policy to be used for the tx of this frame */
 } POSTPACK WMI_TX_META_V1;
 
 
@@ -212,8 +212,8 @@ typedef PREPACK struct {
  */
 /* if RX meta data is present at all then the meta data field
  *  will consume WMI_MAX_RX_META_SZ bytes of space between the
- *  WMI_DATA_HDR and the payload. How much of the available 
- *  Meta data is actually used depends on which meta data 
+ *  WMI_DATA_HDR and the payload. How much of the available
+ *  Meta data is actually used depends on which meta data
  *  version is active. */
 #define WMI_MAX_RX_META_SZ  (12)
 #define WMI_MAX_RX_META_VERSION (7)
@@ -227,7 +227,11 @@ typedef PREPACK struct {
 #define WMI_RX_FlAGS_STBC           0x0002 /* used STBC */
 #define WMI_RX_FLAGS_SGI            0x0004 /* used SGI */
 #define WMI_RX_FLAGS_HT             0x0008 /* is HT packet */
+/* the flags field is also used to store the CRYPTO_TYPE of the frame
+ * that value is shifted by WMI_RX_FLAGS_CRYPTO_SHIFT */
 #define WMI_RX_FLAGS_CRYPTO_SHIFT   4
+#define WMI_RX_FLAGS_CRYPTO_MASK    0x1f
+#define WMI_RX_META_GET_CRYPTO(flags) (((flags) >> WMI_RX_FLAGS_CRYPTO_SHIFT) & WMI_RX_FLAGS_CRYPTO_MASK)
 
 #if 0 /* removed to prevent compile errors for WM.. */
 typedef PREPACK struct {
@@ -259,13 +263,13 @@ typedef PREPACK struct {
  */
 typedef PREPACK struct {
     A_UINT16    commandId;
-/* 
+/*
  * info1 - 16 bits
  * b03:b00 - id
  * b15:b04 - unused
  */
-    A_UINT16    info1;         
-                                
+    A_UINT16    info1;
+
     A_UINT16    reserved;      /* For alignment */
 } POSTPACK WMI_CMD_HDR;        /* used for commands and events */
 
@@ -330,18 +334,17 @@ typedef enum {
     WMI_SET_REASSOC_MODE_CMDID,
     WMI_SET_WMM_CMDID,
     WMI_SET_WMM_TXOP_CMDID,
-    WMI_SET_QOS_SUPP_CMDID,
     WMI_TEST_CMDID,
     /* COEX AR6002 only*/
-    WMI_SET_BT_STATUS_CMDID,
-    WMI_SET_BT_PARAMS_CMDID,                 /* 60 */
-    
+    WMI_SET_BT_STATUS_CMDID,                
+    WMI_SET_BT_PARAMS_CMDID,                /* 60 */
+
     WMI_SET_KEEPALIVE_CMDID,
     WMI_GET_KEEPALIVE_CMDID,
     WMI_SET_APPIE_CMDID,
     WMI_GET_APPIE_CMDID,
     WMI_SET_WSC_STATUS_CMDID,
- 
+
     /* Wake on Wireless */
     WMI_SET_HOST_SLEEP_MODE_CMDID,
     WMI_SET_WOW_MODE_CMDID,
@@ -351,7 +354,8 @@ typedef enum {
 
     WMI_SET_FRAMERATES_CMDID,
     WMI_SET_AP_PS_CMDID,
-    /* WMI_THIN_RESERVED_... mark the start and end 
+    WMI_SET_QOS_SUPP_CMDID,
+    /* WMI_THIN_RESERVED_... mark the start and end
      * values for WMI_THIN_RESERVED command IDs. These
      * command IDs can be found in wmi_thin.h */
     WMI_THIN_RESERVED_START = 0x8000,
@@ -363,7 +367,7 @@ typedef enum {
     WMI_GET_BITRATE_CMDID,
     WMI_SET_WHALPARAM_CMDID,
 
-    
+
     /*Should add the new command to the tail for compatible with
      * etna.
      */
@@ -390,7 +394,7 @@ typedef enum {
     WMI_AP_SET_PVB_CMDID,
     WMI_AP_CONN_INACT_CMDID,
     WMI_AP_PROT_SCAN_TIME_CMDID,
-    WMI_AP_SET_COUNTRY_CMDID, 
+    WMI_AP_SET_COUNTRY_CMDID,
     WMI_AP_SET_DTIM_CMDID,
     WMI_AP_MODE_STAT_CMDID,
 
@@ -406,13 +410,13 @@ typedef enum {
     WMI_SET_HT_OP_CMDID,
     WMI_SET_TX_SELECT_RATES_CMDID,
     WMI_SET_TX_SGI_PARAM_CMDID,
-    WMI_SET_RATE_POLICY_CMDID,        
+    WMI_SET_RATE_POLICY_CMDID,
 
     WMI_HCI_CMD_CMDID,
     WMI_RX_FRAME_FORMAT_CMDID,
-    WMI_SET_THIN_MODE_CMDID,    
+    WMI_SET_THIN_MODE_CMDID,
     WMI_SET_BT_WLAN_CONN_PRECEDENCE_CMDID,
-    
+
     WMI_AP_SET_11BG_RATESET_CMDID,
     WMI_SET_PMK_CMDID,
     WMI_MCAST_FILTER_CMDID,
@@ -438,7 +442,7 @@ typedef enum {
     WMI_FRAME_PROBE_RESP,
     WMI_FRAME_ASSOC_REQ,
     WMI_FRAME_ASSOC_RESP,
-    WMI_NUM_MGMT_FRAME 
+    WMI_NUM_MGMT_FRAME
 } WMI_MGMT_FRAME_TYPE;
 
 /*
@@ -458,7 +462,7 @@ typedef enum {
 } DOT11_AUTH_MODE;
 
 typedef enum {
-    NONE_AUTH           = 0x01, 
+    NONE_AUTH           = 0x01,
     WPA_AUTH            = 0x02,
     WPA2_AUTH           = 0x04,
     WPA_PSK_AUTH        = 0x08,
@@ -563,7 +567,7 @@ typedef enum {
 #endif /* WAPI_ENABLE */
 
 #define KEY_OP_INIT_VAL     0x03     /* Default Initialise the TSC & RSC */
-#define KEY_OP_VALID_MASK   0x03     
+#define KEY_OP_VALID_MASK   0x03
 
 typedef PREPACK struct {
     A_UINT8     keyIndex;
@@ -610,8 +614,8 @@ typedef PREPACK struct {
 #define WMI_PMKID_LEN 16
 
 typedef enum {
-   PMKID_DISABLE = 0, 
-   PMKID_ENABLE  = 1, 
+   PMKID_DISABLE = 0,
+   PMKID_ENABLE  = 1,
 } PMKID_ENABLE_FLG;
 
 typedef PREPACK struct {
@@ -629,7 +633,7 @@ typedef enum {
 } WMI_SCAN_TYPE;
 
 typedef PREPACK struct {
-    A_BOOL   forceFgScan;           
+    A_BOOL   forceFgScan;
     A_BOOL   isLegacy;        /* For Legacy Cisco AP compatibility */
     A_UINT32 homeDwellTime;   /* Maximum duration in the home channel(milliseconds) */
     A_UINT32 forceScanInterval;    /* Time interval between scans (milliseconds)*/
@@ -642,6 +646,10 @@ typedef PREPACK struct {
  * WMI_SET_SCAN_PARAMS_CMDID
  */
 #define WMI_SHORTSCANRATIO_DEFAULT      3
+/* 
+ *  Warning: ScanCtrlFlag value of 0xFF is used to disable all flags in WMI_SCAN_PARAMS_CMD 
+ *  Do not add any more flags to WMI_SCAN_CTRL_FLAG_BITS
+ */
 typedef enum {
     CONNECT_SCAN_CTRL_FLAGS = 0x01,    /* set if can scan in the Connect cmd */
     SCAN_CONNECTED_CTRL_FLAGS = 0x02,  /* set if scan for the SSID it is */
@@ -652,7 +660,6 @@ typedef enum {
     ENABLE_AUTO_CTRL_FLAGS = 0x20,      /* if disabled, target doesn't
                                           scan after a disconnect event  */
     ENABLE_SCAN_ABORT_EVENT = 0x40      /* Scan complete event with canceled status will be generated when a scan is prempted before it gets completed */
-
 } WMI_SCAN_CTRL_FLAGS_BITS;
 
 #define CAN_SCAN_IN_CONNECT(flags)      (flags & CONNECT_SCAN_CTRL_FLAGS)
@@ -673,7 +680,7 @@ typedef PREPACK struct {
     A_UINT16    maxact_chdwell_time;    /* msec */
     A_UINT16    pas_chdwell_time;       /* msec */
     A_UINT8     shortScanRatio;         /* how many shorts scan for one long */
-    A_UINT8     scanCtrlFlags;         
+    A_UINT8     scanCtrlFlags;
     A_UINT16    minact_chdwell_time;    /* msec */
     A_UINT16    maxact_scan_per_ssid;   /* max active scans per ssid */
     A_UINT32    max_dfsch_act_time;  /* msecs */
@@ -800,9 +807,9 @@ typedef enum {
     TX_DONT_WAKEUP_UPON_SLEEP = 2
 } WMI_TX_WAKEUP_POLICY_UPON_SLEEP;
 
-/* 
- * Policy to determnine whether power save failure event should be sent to 
- * host during scanning 
+/*
+ * Policy to determnine whether power save failure event should be sent to
+ * host during scanning
  */
 typedef enum {
     SEND_POWER_SAVE_FAIL_EVENT_ALWAYS = 1,
@@ -827,10 +834,10 @@ typedef enum {
 } WMI_ADHOC_PS_TYPE;
 
 typedef PREPACK struct {
-    A_UINT8    power_saving;            
+    A_UINT8    power_saving;
     A_UINT8    ttl; /* number of beacon periods */
     A_UINT16   atim_windows;          /* msec */
-    A_UINT16   timeout_value;         /* msec */ 
+    A_UINT16   timeout_value;         /* msec */
 } POSTPACK WMI_IBSS_PM_CAPS_CMD;
 
 /* AP power save types */
@@ -840,7 +847,7 @@ typedef enum {
 } WMI_AP_PS_TYPE;
 
 typedef PREPACK struct {
-    A_UINT32   idle_time;   /* in msec */        
+    A_UINT32   idle_time;   /* in msec */
     A_UINT32   ps_period;   /* in usec */
     A_UINT8    sleep_period; /* in ps periods */
     A_UINT8    psType;
@@ -913,7 +920,7 @@ typedef enum {
  */
 typedef PREPACK struct {
     A_UINT8 dataSyncMap;
-} POSTPACK WMI_SYNC_CMD; 
+} POSTPACK WMI_SYNC_CMD;
 
 /*
  * WMI_CREATE_PSTREAM_CMDID
@@ -941,7 +948,7 @@ typedef PREPACK struct {
     A_UINT8         voicePSCapability;       /* VOICEPS_CAP_TYPE */
     A_UINT8         tsid;
     A_UINT8         userPriority;            /* 802.1D user priority */
-    A_UINT8         nominalPHY;              /* nominal phy rate */ 
+    A_UINT8         nominalPHY;              /* nominal phy rate */
 } POSTPACK WMI_CREATE_PSTREAM_CMD;
 
 /*
@@ -959,13 +966,11 @@ typedef PREPACK struct {
  * WMI_SET_CHANNEL_PARAMS_CMDID
  */
 typedef enum {
-    WMI_DEFAULT_MODE = 0x0,
     WMI_11A_MODE  = 0x1,
     WMI_11G_MODE  = 0x2,
     WMI_11AG_MODE = 0x3,
     WMI_11B_MODE  = 0x4,
-    WMI_11GONLY_MODE = 0x5,
-    WMI_11GHT20_MODE = 0x6,
+    WMI_11GONLY_MODE = 0x5,    
 } WMI_PHY_MODE;
 
 #define WMI_MAX_CHANNELS        32
@@ -981,7 +986,7 @@ typedef PREPACK struct {
 
 /*
  *  WMI_RSSI_THRESHOLD_PARAMS_CMDID
- *  Setting the polltime to 0 would disable polling. 
+ *  Setting the polltime to 0 would disable polling.
  *  Threshold values are in the ascending order, and should agree to:
  *  (lowThreshold_lowerVal < lowThreshold_upperVal < highThreshold_lowerVal
  *      < highThreshold_upperVal)
@@ -1007,7 +1012,7 @@ typedef PREPACK struct WMI_RSSI_THRESHOLD_PARAMS{
 
 /*
  *  WMI_SNR_THRESHOLD_PARAMS_CMDID
- *  Setting the polltime to 0 would disable polling. 
+ *  Setting the polltime to 0 would disable polling.
  */
 
 typedef PREPACK struct WMI_SNR_THRESHOLD_PARAMS{
@@ -1063,7 +1068,7 @@ typedef PREPACK struct {
  *  WMI_TARGET_ERROR_REPORT_BITMASK_CMDID
  *  Sets the error reporting event bitmask in target. Target clears it
  *  upon an error. Subsequent errors are counted, but not reported
- *  via event, unless the bitmask is set again. 
+ *  via event, unless the bitmask is set again.
  */
 typedef PREPACK struct {
     A_UINT32    bitmask;
@@ -1078,14 +1083,14 @@ typedef PREPACK struct {
 
 /*
  * WMI_SET_ASSOC_INFO_CMDID
- * 
+ *
  * A maximum of 2 private IEs can be sent in the [Re]Assoc request.
  * A 3rd one, the CCX version IE can also be set from the host.
  */
 #define WMI_MAX_ASSOC_INFO_TYPE    2
 #define WMI_CCX_VER_IE             2 /* ieType to set CCX Version IE */
 
-#define WMI_MAX_ASSOC_INFO_LEN     240 
+#define WMI_MAX_ASSOC_INFO_LEN     240
 
 typedef PREPACK struct {
     A_UINT8     ieType;
@@ -1129,6 +1134,7 @@ typedef PREPACK struct {
     A_UINT8  eCWmin;
     A_UINT8  eCWmax;
     A_UINT8  aifsn;
+    A_UINT8  ac;
 } POSTPACK WMI_SET_ACCESS_PARAMS_CMD;
 
 
@@ -1191,7 +1197,7 @@ typedef enum {
 
 typedef PREPACK struct {
         A_UINT8 bssid[ATH_MAC_LEN];
-        A_INT8  bias; 
+        A_INT8  bias;
 } POSTPACK WMI_BSS_BIAS;
 
 typedef PREPACK struct {
@@ -1212,7 +1218,7 @@ typedef PREPACK struct {
         A_UINT8 bssid[ATH_MAC_LEN]; /* WMI_FORCE_ROAM */
         A_UINT8 roamMode;           /* WMI_SET_ROAM_MODE  */
         WMI_BSS_BIAS_INFO bssBiasInfo; /* WMI_SET_HOST_BIAS */
-        WMI_LOWRSSI_SCAN_PARAMS lrScanParams;   
+        WMI_LOWRSSI_SCAN_PARAMS lrScanParams;
     } POSTPACK info;
     A_UINT8   roamCtrlType ;
 } POSTPACK WMI_SET_ROAM_CTRL_CMD;
@@ -1286,7 +1292,8 @@ typedef enum {
     BT_ANT_TYPE_UNDEF=0,
     BT_ANT_TYPE_DUAL,
     BT_ANT_TYPE_SPLITTER,
-    BT_ANT_TYPE_SWITCH
+    BT_ANT_TYPE_SWITCH,
+    BT_ANT_TYPE_HIGH_ISO_DUAL
 } BT_ANT_FRONTEND_CONFIG;
 
 typedef enum {
@@ -1311,9 +1318,9 @@ typedef enum {
 #define BT_SCO_ALLOW_CLOSE_RANGE_OPT    (1 << 0)
 #define BT_SCO_FORCE_AWAKE_OPT          (1 << 1)
 #define BT_SCO_SET_RSSI_OVERRIDE(flags)        ((flags) |= (1 << 2))
-#define BT_SCO_GET_RSSI_OVERRIDE(flags)        (((flags) >> 2) & 0x1) 
+#define BT_SCO_GET_RSSI_OVERRIDE(flags)        (((flags) >> 2) & 0x1)
 #define BT_SCO_SET_RTS_OVERRIDE(flags)   ((flags) |= (1 << 3))
-#define BT_SCO_GET_RTS_OVERRIDE(flags)   (((flags) >> 3) & 0x1) 
+#define BT_SCO_GET_RTS_OVERRIDE(flags)   (((flags) >> 3) & 0x1)
 #define BT_SCO_GET_MIN_LOW_RATE_CNT(flags)     (((flags) >> 8) & 0xFF)
 #define BT_SCO_GET_MAX_LOW_RATE_CNT(flags)     (((flags) >> 16) & 0xFF)
 #define BT_SCO_SET_MIN_LOW_RATE_CNT(flags,val) (flags) |= (((val) & 0xFF) << 8)
@@ -1329,7 +1336,7 @@ typedef PREPACK struct {
     A_UINT32 scoOptFlags;               /* SCO Options Flags :
                                             bits:     meaning:
                                              0        Allow Close Range Optimization
-                                             1        Force awake during close range 
+                                             1        Force awake during close range
                                              2        If set use host supplied RSSI for OPT
                                              3        If set use host supplied RTS COUNT for OPT
                                              4..7     Unused
@@ -1346,30 +1353,30 @@ typedef PREPACK struct {
                                            additional ps-polls
                                            can be queued */
     A_UINT8 noSCOSlots;                 /* Number of SCO Tx/Rx slots.
-                                           HVx, EV3, 2EV3 = 2 */                
+                                           HVx, EV3, 2EV3 = 2 */
     A_UINT8 noIdleSlots;                /* Number of Bluetooth idle slots between
                                            consecutive SCO Tx/Rx slots
                                            HVx, EV3 = 4
-                                           2EV3 = 10 */                                  
+                                           2EV3 = 10 */
     A_UINT8 scoOptOffRssi;/*RSSI value below which we go to ps poll*/
     A_UINT8 scoOptOnRssi; /*RSSI value above which we reenter opt mode*/
-    A_UINT8 scoOptRtsCount;                                     
+    A_UINT8 scoOptRtsCount;
 } POSTPACK BT_PARAMS_SCO;
 
 #define BT_A2DP_ALLOW_CLOSE_RANGE_OPT  (1 << 0)
 #define BT_A2DP_FORCE_AWAKE_OPT        (1 << 1)
 #define BT_A2DP_SET_RSSI_OVERRIDE(flags)        ((flags) |= (1 << 2))
-#define BT_A2DP_GET_RSSI_OVERRIDE(flags)        (((flags) >> 2) & 0x1) 
+#define BT_A2DP_GET_RSSI_OVERRIDE(flags)        (((flags) >> 2) & 0x1)
 #define BT_A2DP_SET_RTS_OVERRIDE(flags)   ((flags) |= (1 << 3))
-#define BT_A2DP_GET_RTS_OVERRIDE(flags)   (((flags) >> 3) & 0x1) 
+#define BT_A2DP_GET_RTS_OVERRIDE(flags)   (((flags) >> 3) & 0x1)
 #define BT_A2DP_GET_MIN_LOW_RATE_CNT(flags)     (((flags) >> 8) & 0xFF)
 #define BT_A2DP_GET_MAX_LOW_RATE_CNT(flags)     (((flags) >> 16) & 0xFF)
 #define BT_A2DP_SET_MIN_LOW_RATE_CNT(flags,val) (flags) |= (((val) & 0xFF) << 8)
 #define BT_A2DP_SET_MAX_LOW_RATE_CNT(flags,val) (flags) |= (((val) & 0xFF) << 16)
 
 typedef PREPACK struct {
-    A_UINT32 a2dpWlanUsageLimit; /* MAX time firmware uses the medium for 
-                                    wlan, after it identifies the idle time 
+    A_UINT32 a2dpWlanUsageLimit; /* MAX time firmware uses the medium for
+                                    wlan, after it identifies the idle time
                                     default (30 msecs) */
     A_UINT32 a2dpBurstCntMin;   /* Minimum number of bluetooth data frames
                                    to replenish Wlan Usage  limit (default 3) */
@@ -1377,7 +1384,7 @@ typedef PREPACK struct {
     A_UINT32 a2dpOptFlags;      /* A2DP Option flags:
                                        bits:    meaning:
                                         0       Allow Close Range Optimization
-                                        1       Force awake during close range 
+                                        1       Force awake during close range
                                         2        If set use host supplied RSSI for OPT
                                         3        If set use host supplied RTS COUNT for OPT
                                         4..7    Unused
@@ -1431,8 +1438,10 @@ typedef PREPACK struct {
  * AR6003 enables coexistence and antenna switching based on the configuration.
  */
 typedef enum {
+    WMI_BTCOEX_NOT_ENABLED = 0,
     WMI_BTCOEX_FE_ANT_SINGLE =1,
-    WMI_BTCOEX_FE_ANT_DUAL=2, /* (not implemented )*/
+    WMI_BTCOEX_FE_ANT_DUAL=2,
+    WMI_BTCOEX_FE_ANT_DUAL_HIGH_ISO=3,
     WMI_BTCOEX_FE_ANT_TYPE_MAX
 }WMI_BTCOEX_FE_ANT_TYPE;
 
@@ -1505,6 +1514,7 @@ typedef PREPACK struct {
 										  bits:	   meaning:
  										  0   Allow Close Range Optimization
  										  1   Is EDR capable or Not
+ 										  2       IS Co-located Bt role Master
 							  			 */
 
     A_UINT32 linkId;                      /* applicable to STE-BT - not used */
@@ -1584,6 +1594,7 @@ typedef PREPACK struct {
                		            0       Allow Close Range Optimization
        	                     	1       IS EDR capable
        	                     	2       IS Co-located Bt role Master
+                                3       a2dp traffic is high priority
                              */
 	A_UINT32 linkId;         /* Applicable only to STE-BT - not used */
 
@@ -1663,12 +1674,14 @@ typedef PREPACK struct {
 
 	 A_UINT32 aclmaxPktCnt;		   /* No of ACL pkts to receive before
 								      enabling ACL coex
+                                      default = 9
                                    */
 
 	A_UINT32 aclCoexFlags;			/* A2DP Option flags:
 		  	                          bits:    meaning:
        		                          0       Allow Close Range Optimization
                     		          1       disable Firmware detection
+                                      (Currently supported configuration is aclCoexFlags =0)
                       			 	*/
 	A_UINT32 linkId;                /* Applicable only for STE-BT - not used */
 
@@ -1888,6 +1901,12 @@ typedef enum {
 #endif
 	WMI_REPORT_BTCOEX_STATS_EVENTID,
 	WMI_REPORT_BTCOEX_CONFIG_EVENTID,
+	
+	WMI_THIN_RESERVED_START_EVENTID = 0x8000,
+	/* Events in this range are reserved for thinmode 
+	 * See wmi_thin.h for actual definitions */
+    WMI_THIN_RESERVED_END_EVENTID = 0x8fff,
+
 } WMI_EVENT_ID;
 
 
@@ -2134,19 +2153,19 @@ typedef PREPACK struct {
  * Reporting statistics.
  */
 typedef PREPACK struct {
-    A_UINT32   tx_packets;           
-    A_UINT32   tx_bytes;             
-    A_UINT32   tx_unicast_pkts;      
-    A_UINT32   tx_unicast_bytes;     
-    A_UINT32   tx_multicast_pkts;    
-    A_UINT32   tx_multicast_bytes;   
-    A_UINT32   tx_broadcast_pkts;    
-    A_UINT32   tx_broadcast_bytes;   
+    A_UINT32   tx_packets;
+    A_UINT32   tx_bytes;
+    A_UINT32   tx_unicast_pkts;
+    A_UINT32   tx_unicast_bytes;
+    A_UINT32   tx_multicast_pkts;
+    A_UINT32   tx_multicast_bytes;
+    A_UINT32   tx_broadcast_pkts;
+    A_UINT32   tx_broadcast_bytes;
     A_UINT32   tx_rts_success_cnt;
     A_UINT32   tx_packet_per_ac[4];
     A_UINT32   tx_errors_per_ac[4];
 
-    A_UINT32   tx_errors;            
+    A_UINT32   tx_errors;
     A_UINT32   tx_failed_cnt;
     A_UINT32   tx_retry_cnt;
     A_UINT32   tx_mult_retry_cnt;
@@ -2155,20 +2174,20 @@ typedef PREPACK struct {
 }POSTPACK tx_stats_t;
 
 typedef PREPACK struct {
-    A_UINT32   rx_packets;           
-    A_UINT32   rx_bytes;             
-    A_UINT32   rx_unicast_pkts;      
-    A_UINT32   rx_unicast_bytes;     
-    A_UINT32   rx_multicast_pkts;    
-    A_UINT32   rx_multicast_bytes;   
-    A_UINT32   rx_broadcast_pkts;    
-    A_UINT32   rx_broadcast_bytes;   
+    A_UINT32   rx_packets;
+    A_UINT32   rx_bytes;
+    A_UINT32   rx_unicast_pkts;
+    A_UINT32   rx_unicast_bytes;
+    A_UINT32   rx_multicast_pkts;
+    A_UINT32   rx_multicast_bytes;
+    A_UINT32   rx_broadcast_pkts;
+    A_UINT32   rx_broadcast_bytes;
     A_UINT32   rx_fragment_pkt;
 
-    A_UINT32   rx_errors;            
-    A_UINT32   rx_crcerr;            
-    A_UINT32   rx_key_cache_miss;    
-    A_UINT32   rx_decrypt_err;       
+    A_UINT32   rx_errors;
+    A_UINT32   rx_crcerr;
+    A_UINT32   rx_key_cache_miss;
+    A_UINT32   rx_decrypt_err;
     A_UINT32   rx_duplicate_frames;
     A_INT32    rx_unicast_rate;
 }POSTPACK rx_stats_t;
@@ -2177,7 +2196,7 @@ typedef PREPACK struct {
     A_UINT32   tkip_local_mic_failure;
     A_UINT32   tkip_counter_measures_invoked;
     A_UINT32   tkip_replays;
-    A_UINT32   tkip_format_errors; 
+    A_UINT32   tkip_format_errors;
     A_UINT32   ccmp_format_errors;
     A_UINT32   ccmp_replays;
 }POSTPACK tkip_ccmp_stats_t;
@@ -2234,7 +2253,7 @@ typedef PREPACK struct {
 
 /*
  * WMI_RSSI_THRESHOLD_EVENTID.
- * Indicate the RSSI events to host. Events are indicated when we breach a 
+ * Indicate the RSSI events to host. Events are indicated when we breach a
  * thresold value.
  */
 typedef enum{
@@ -2442,32 +2461,32 @@ typedef PREPACK struct {
  */
 #define FIX_RATE_1Mb            ((A_UINT32)0x1)
 #define FIX_RATE_2Mb            ((A_UINT32)0x2)
-#define FIX_RATE_5_5Mb          ((A_UINT32)0x4) 
-#define FIX_RATE_11Mb           ((A_UINT32)0x8) 
-#define FIX_RATE_6Mb            ((A_UINT32)0x10) 
-#define FIX_RATE_9Mb            ((A_UINT32)0x20) 
-#define FIX_RATE_12Mb           ((A_UINT32)0x40) 
-#define FIX_RATE_18Mb           ((A_UINT32)0x80) 
-#define FIX_RATE_24Mb           ((A_UINT32)0x100) 
-#define FIX_RATE_36Mb           ((A_UINT32)0x200) 
-#define FIX_RATE_48Mb           ((A_UINT32)0x400) 
-#define FIX_RATE_54Mb           ((A_UINT32)0x800) 
-#define FIX_RATE_MCS_0_20       ((A_UINT32)0x1000) 
-#define FIX_RATE_MCS_1_20       ((A_UINT32)0x2000) 
-#define FIX_RATE_MCS_2_20       ((A_UINT32)0x4000) 
-#define FIX_RATE_MCS_3_20       ((A_UINT32)0x8000) 
+#define FIX_RATE_5_5Mb          ((A_UINT32)0x4)
+#define FIX_RATE_11Mb           ((A_UINT32)0x8)
+#define FIX_RATE_6Mb            ((A_UINT32)0x10)
+#define FIX_RATE_9Mb            ((A_UINT32)0x20)
+#define FIX_RATE_12Mb           ((A_UINT32)0x40)
+#define FIX_RATE_18Mb           ((A_UINT32)0x80)
+#define FIX_RATE_24Mb           ((A_UINT32)0x100)
+#define FIX_RATE_36Mb           ((A_UINT32)0x200)
+#define FIX_RATE_48Mb           ((A_UINT32)0x400)
+#define FIX_RATE_54Mb           ((A_UINT32)0x800)
+#define FIX_RATE_MCS_0_20       ((A_UINT32)0x1000)
+#define FIX_RATE_MCS_1_20       ((A_UINT32)0x2000)
+#define FIX_RATE_MCS_2_20       ((A_UINT32)0x4000)
+#define FIX_RATE_MCS_3_20       ((A_UINT32)0x8000)
 #define FIX_RATE_MCS_4_20       ((A_UINT32)0x10000)
-#define FIX_RATE_MCS_5_20       ((A_UINT32)0x20000) 
-#define FIX_RATE_MCS_6_20       ((A_UINT32)0x40000) 
-#define FIX_RATE_MCS_7_20       ((A_UINT32)0x80000) 
-#define FIX_RATE_MCS_0_40       ((A_UINT32)0x100000) 
-#define FIX_RATE_MCS_1_40       ((A_UINT32)0x200000) 
-#define FIX_RATE_MCS_2_40       ((A_UINT32)0x400000) 
-#define FIX_RATE_MCS_3_40       ((A_UINT32)0x800000) 
+#define FIX_RATE_MCS_5_20       ((A_UINT32)0x20000)
+#define FIX_RATE_MCS_6_20       ((A_UINT32)0x40000)
+#define FIX_RATE_MCS_7_20       ((A_UINT32)0x80000)
+#define FIX_RATE_MCS_0_40       ((A_UINT32)0x100000)
+#define FIX_RATE_MCS_1_40       ((A_UINT32)0x200000)
+#define FIX_RATE_MCS_2_40       ((A_UINT32)0x400000)
+#define FIX_RATE_MCS_3_40       ((A_UINT32)0x800000)
 #define FIX_RATE_MCS_4_40       ((A_UINT32)0x1000000)
-#define FIX_RATE_MCS_5_40       ((A_UINT32)0x2000000) 
-#define FIX_RATE_MCS_6_40       ((A_UINT32)0x4000000) 
-#define FIX_RATE_MCS_7_40       ((A_UINT32)0x8000000) 
+#define FIX_RATE_MCS_5_40       ((A_UINT32)0x2000000)
+#define FIX_RATE_MCS_6_40       ((A_UINT32)0x4000000)
+#define FIX_RATE_MCS_7_40       ((A_UINT32)0x8000000)
 
 typedef PREPACK struct {
     A_UINT32      fixRateMask;          /* see WMI_BIT_RATE */
@@ -2571,7 +2590,7 @@ typedef PREPACK struct {
     A_UINT8 ieInfo[1];
 } POSTPACK WMI_SET_APPIE_CMD;
 
-/* 
+/*
  * Notify the WSC registration status to the target
  */
 #define WSC_REG_ACTIVE     1
@@ -2613,7 +2632,7 @@ typedef PREPACK struct {
     A_UINT8 wow_valid_list;
     A_UINT8 wow_list_id;
     A_UINT8 wow_num_filters;
-    A_UINT8 wow_total_list_size; 
+    A_UINT8 wow_total_list_size;
     WOW_FILTER list[WOW_MAX_FILTERS_PER_LIST];
 } POSTPACK WOW_FILTER_LIST;
 
@@ -2679,7 +2698,7 @@ typedef PREPACK struct {
     A_UINT8 macaddr[ATH_MAC_LEN];
 } POSTPACK WMI_SET_MAC_ADDRESS_CMD;
 
-/* 
+/*
  * WMI_SET_AKMP_PARAMS_CMD
  */
 
@@ -2738,7 +2757,7 @@ typedef PREPACK struct {
     A_UINT16    amsdu_sz;       /* Three values: Not supported(0), 3839, 8k */
 } POSTPACK WMI_ADDBA_RESP_EVENT;
 
-/* WMI_DELBA_EVENTID 
+/* WMI_DELBA_EVENTID
  * f/w received a DELBA for peer and processed it.
  * Host is notified of this
  */
@@ -2768,7 +2787,7 @@ typedef PREPACK struct {
     A_UINT16    rx_allow_aggr;  /* 16-bit mask to allow donwlink ADDBA negotiation - bit position indicates tid*/
 } POSTPACK WMI_ALLOW_AGGR_CMD;
 
-/* WMI_ADDBA_REQ_CMDID 
+/* WMI_ADDBA_REQ_CMDID
  * f/w starts performing ADDBA negotiations with peer
  * on the given tid
  */
@@ -2783,7 +2802,7 @@ typedef PREPACK struct {
 typedef PREPACK struct {
     A_UINT8     tid;
     A_UINT8     is_sender_initiator;
-    
+
 } POSTPACK WMI_DELBA_REQ_CMD;
 
 #define PEER_NODE_JOIN_EVENT 0x00
@@ -2801,8 +2820,8 @@ typedef PREPACK struct {
 /*
  * Transmit complete event data structure(s)
  */
- 
- 
+
+
 typedef PREPACK struct {
 #define TX_COMPLETE_STATUS_SUCCESS 0
 #define TX_COMPLETE_STATUS_RETRIES 1
@@ -2821,7 +2840,7 @@ typedef PREPACK struct {
 } POSTPACK TX_COMPLETE_MSG_V1; /* version 1 of tx complete msg */
 
 typedef PREPACK struct {
-    A_UINT8 numMessages; /* number of tx comp msgs following this struct */        
+    A_UINT8 numMessages; /* number of tx comp msgs following this struct */
     A_UINT8 msgLen; /* length in bytes for each individual msg following this struct */
     A_UINT8 msgType; /* version of tx complete msg data following this struct */
     A_UINT8 reserved; /* individual messages follow this header */
@@ -2923,7 +2942,7 @@ typedef PREPACK struct {
 
 typedef PREPACK struct {
     A_UINT32 period_min;
-    A_UINT32 dwell_ms;    
+    A_UINT32 dwell_ms;
 } POSTPACK WMI_AP_PROT_SCAN_TIME_CMD;
 
 typedef PREPACK struct {
@@ -2942,6 +2961,8 @@ typedef PREPACK struct {
 } POSTPACK WMI_AP_SET_DTIM_CMD;
 
 typedef PREPACK struct {
+    A_UINT8  band; /* specifies which band to apply these values */
+    A_UINT8  enable; /* allows 11n to be disabled on a per band basis */    
     A_UINT8  chan_width_40M_supported;
     A_UINT8  short_GI_20MHz;
     A_UINT8  short_GI_40MHz;

@@ -26,6 +26,9 @@
 #include "athstartpack.h"
 #endif
 
+    /* alignment to 4-bytes */
+#define EPPING_ALIGNMENT_PAD  (((sizeof(HTC_FRAME_HDR) + 3) & (~0x3)) - sizeof(HTC_FRAME_HDR))
+
 #define A_OFFSETOF(type,field) (int)(&(((type *)NULL)->field))
 
 #define EPPING_RSVD_FILL                  0xCC

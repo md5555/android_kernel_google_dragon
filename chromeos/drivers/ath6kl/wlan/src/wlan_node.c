@@ -484,3 +484,86 @@ wlan_node_remove(struct ieee80211_node_table *nt, A_UINT8 *bssid)
     IEEE80211_NODE_UNLOCK(nt);
     return NULL;
 }
+
+bss_t *
+wlan_find_matching_Ssidnode (struct ieee80211_node_table *nt, A_UCHAR *pSsid,
+                    A_UINT32 ssidLength, A_UINT32 dot11AuthMode, A_UINT32 authMode,
+                   A_UINT32 pairwiseCryptoType, A_UINT32 grpwiseCryptoTyp)
+{
+    bss_t   *ni = NULL;
+    bss_t   *best_ni = NULL;
+    A_UCHAR *pIESsid = NULL;
+
+    IEEE80211_NODE_LOCK (nt);
+
+    for (ni = nt->nt_node_first; ni; ni = ni->ni_list_next) {
+        pIESsid = ni->ni_cie.ie_ssid;
+        if (pIESsid[1] <= 32) {
+
+            // Step 1 : Check SSID
+            if (0x00 == memcmp (pSsid, &pIESsid[2], ssidLength)) {
+
+                if (ni->ni_cie.ie_capInfo & 0x10)
+                {
+
+                    if ((NULL != ni->ni_cie.ie_rsn) && (WPA2_PSK_AUTH == authMode))
+                    {
+                        /* WPA2 */
+                        if (NULL == best_ni)
+                        {
+                            best_ni = ni;
+                        }
+                        else if (ni->ni_rssi > best_ni->ni_rssi)
+                        {
+                            best_ni = ni;
+                        }
+                    }
+                    else if ((NULL != ni->ni_cie.ie_wpa) && (WPA_PSK_AUTH == authMode))
+                    {
+                        /* WPA */
+                        if (NULL == best_ni)
+                        {
+                            best_ni = ni;
+                        }
+                        else if (ni->ni_rssi > best_ni->ni_rssi)
+                        {
+                            best_ni = ni;
+                        }
+                    }
+                    else if (WEP_CRYPT == pairwiseCryptoType)
+                    {
+                        /* WEP */
+                        if (NULL == best_ni)
+                        {
+                            best_ni = ni;
+                        }
+                        else if (ni->ni_rssi > best_ni->ni_rssi)
+                        {
+                            best_ni = ni;
+                        }
+                    }
+                }
+                else
+                {
+                    /* open AP */
+                    if ((OPEN_AUTH == authMode) && (NONE_CRYPT == pairwiseCryptoType))
+                    {
+                        if (NULL == best_ni)
+                        {
+                            best_ni = ni;
+                        }
+                        else if (ni->ni_rssi > best_ni->ni_rssi)
+                        {
+                            best_ni = ni;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    IEEE80211_NODE_UNLOCK (nt);
+
+    return best_ni;
+}
+

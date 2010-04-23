@@ -143,19 +143,19 @@ typedef struct _HTC_SERVICE_CONNECT_REQ {
     HTC_EP_CALLBACKS EpCallbacks;               /* endpoint callbacks */
     int              MaxSendQueueDepth;         /* maximum depth of any send queue */
     A_UINT32         LocalConnectionFlags;      /* HTC flags for the host-side (local) connection */
-    int              MaxSendMsgSize;            /* override max message size in send direction */
+    unsigned int     MaxSendMsgSize;            /* override max message size in send direction */
 } HTC_SERVICE_CONNECT_REQ;
 
 #define HTC_LOCAL_CONN_FLAGS_ENABLE_SEND_BUNDLE_PADDING (1 << 0)  /* enable send bundle padding for this endpoint */
 
 /* service connection response information */
 typedef struct _HTC_SERVICE_CONNECT_RESP {
-    A_UINT8     *pMetaData;             /* caller supplied buffer to optional meta-data */
-    A_UINT8     BufferLength;           /* length of caller supplied buffer */
-    A_UINT8     ActualLength;           /* actual length of meta data */
+    A_UINT8         *pMetaData;         /* caller supplied buffer to optional meta-data */
+    A_UINT8         BufferLength;       /* length of caller supplied buffer */
+    A_UINT8         ActualLength;       /* actual length of meta data */
     HTC_ENDPOINT_ID Endpoint;           /* endpoint to communicate over */
-    int         MaxMsgLength;           /* max length of all messages over this endpoint */
-    A_UINT8     ConnectRespCode;        /* connect response code from target */
+    unsigned int    MaxMsgLength;       /* max length of all messages over this endpoint */
+    A_UINT8         ConnectRespCode;    /* connect response code from target */
 } HTC_SERVICE_CONNECT_RESP;
 
 /* endpoint distribution structure */
@@ -193,7 +193,7 @@ typedef struct _HTC_ENDPOINT_CREDIT_DIST {
                                               */
 } HTC_ENDPOINT_CREDIT_DIST;
 
-#define HTC_EP_ACTIVE                            ((A_UINT32) (1 << 31))
+#define HTC_EP_ACTIVE                            ((A_UINT32) (1u << 31))
 
 /* macro to check if an endpoint has gone active, useful for credit
  * distributions */

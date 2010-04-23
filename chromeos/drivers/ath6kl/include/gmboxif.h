@@ -62,6 +62,7 @@ typedef PREPACK struct {
 #define MBOX_SIG_HCI_BRIDGE_MAX      8
 #define MBOX_SIG_HCI_BRIDGE_BT_ON    0
 #define MBOX_SIG_HCI_BRIDGE_BT_OFF   1
+#define MBOX_SIG_HCI_BRIDGE_BAUD_SET 2
 
 
 #ifndef ATH_TARGET

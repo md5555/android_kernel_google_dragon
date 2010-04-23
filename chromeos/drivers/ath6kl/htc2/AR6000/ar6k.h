@@ -75,7 +75,7 @@ typedef PREPACK struct _AR6K_GMBOX_CTRL_REGISTERS {
 #define TO_DMA_BUFFER   FALSE
 #define AR6K_SCATTER_ENTRIES_PER_REQ            16
 #define AR6K_MAX_TRANSFER_SIZE_PER_SCATTER      16*1024
-#define AR6K_SCATTER_REQS                       2
+#define AR6K_SCATTER_REQS                       4
 #define AR6K_LEGACY_MAX_WRITE_LENGTH            2048
 
 /* buffers for ASYNC I/O */

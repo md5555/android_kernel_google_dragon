@@ -24,7 +24,11 @@
 extern "C" {
 #endif
 
-#define TCMD_MAX_RATES 20
+#ifdef AR6002_REV2
+#define TCMD_MAX_RATES 12
+#else
+#define TCMD_MAX_RATES 28
+#endif
 
 typedef enum {
     ZEROES_PATTERN = 0,
@@ -66,6 +70,12 @@ typedef enum {
     TCMD_CONT_TX_TX100
 } TCMD_CONT_TX_MODE;
 
+typedef enum {
+    TCMD_WLAN_MODE_HT20 = 0,
+    TCMD_WLAN_MODE_HT40PLUS = 1,
+    TCMD_WLAN_MODE_HT40MINUS = 2,
+} TCMD_WLAN_MODE;
+
 typedef PREPACK struct {
     A_UINT32                testCmdId;
     A_UINT32                mode;
@@ -80,6 +90,7 @@ typedef PREPACK struct {
     A_UINT16                txPattern;
     A_UINT32                shortGuard;
     A_UINT32                numPackets;
+    A_UINT32                wlanMode;
 } POSTPACK TCMD_CONT_TX;
 
 #define TCMD_TXPATTERN_ZERONE                 0x1
@@ -115,14 +126,15 @@ typedef PREPACK struct {
         struct PREPACK TCMD_CONT_RX_PARA {
             A_UINT32    freq;
             A_UINT32    antenna;
+            A_UINT32    wlanMode;
         } POSTPACK para;
         struct PREPACK TCMD_CONT_RX_REPORT {
             A_UINT32    totalPkt;
-            A_INT32    rssiInDBm;
-	    A_UINT32 crcErrPkt;
-	    A_UINT32 secErrPkt;
-           A_UINT16 rateCnt[TCMD_MAX_RATES];
-           A_UINT16 rateCntShortGuard[TCMD_MAX_RATES];
+            A_INT32     rssiInDBm;
+            A_UINT32    crcErrPkt;
+            A_UINT32    secErrPkt;
+            A_UINT16    rateCnt[TCMD_MAX_RATES];
+            A_UINT16    rateCntShortGuard[TCMD_MAX_RATES];
         } POSTPACK report;
         struct PREPACK TCMD_CONT_RX_MAC {
             A_UCHAR    addr[ATH_MAC_LEN];
@@ -144,7 +156,7 @@ typedef enum {
 } TCMD_PM_MODE;
 
 typedef PREPACK struct {
-	A_UINT32  testCmdId;
+    A_UINT32  testCmdId;
     A_UINT32  mode;
 } POSTPACK TCMD_PM;
 

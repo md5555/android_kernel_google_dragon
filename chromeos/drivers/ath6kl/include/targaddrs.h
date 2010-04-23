@@ -1,6 +1,6 @@
 //------------------------------------------------------------------------------
 // <copyright file="targaddrs.h" company="Atheros">
-//    Copyright (c) 2004-2007 Atheros Corporation.  All rights reserved.
+//    Copyright (c) 2010 Atheros Corporation.  All rights reserved.
 // 
 // This program is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License version 2 as
@@ -26,7 +26,7 @@
 #include "AR6002/addrs.h"
 #endif
 
-/* 
+/*
  * AR6K option bits, to enable/disable various features.
  * By default, all option bits are 0.
  * These bits can be set in LOCAL_SCRATCH register 0.
@@ -64,7 +64,7 @@
 struct register_dump_s;
 struct dbglog_hdr_s;
 
-/* 
+/*
  * These are items that the Host may need to access
  * via BMI or via the Diagnostic Window. The position
  * of items in this structure must remain constant
@@ -161,7 +161,7 @@ struct host_interest_s {
         /* NOTE: byte [0] = tx pin, [1] = rx pin, [2] = rts pin, [3] = cts pin */
     A_UINT32               hi_hci_uart_baud_scale_val;                /* 0x90 */
     A_UINT32               hi_hci_uart_baud_step_val;                 /* 0x94 */
-      
+
     A_UINT32               hi_allocram_start;                         /* 0x98 */
     A_UINT32               hi_allocram_sz;                            /* 0x9c */
     A_UINT32               hi_hci_bridge_flags;                       /* 0xa0 */
@@ -217,9 +217,12 @@ struct host_interest_s {
         (((TargetType) == TARGET_TYPE_AR6002) ? AR6002_VTOP(vaddr) : AR6003_VTOP(vaddr)))
 
 /* override REV2 ROM's app start address */
-//#define AR6002_REV2_APP_START_OVERRIDE  0x914800
-#define AR6002_REV2_APP_START_OVERRIDE  0x911A00
-#define AR6003_REV1_APP_START_OVERRIDE  0x944c00
+#define AR6002_REV2_APP_START_OVERRIDE    0x911A00
+#define AR6003_REV1_APP_START_OVERRIDE    0x944c00
+#define AR6003_REV1_OTP_DATA_ADDRESS      0x542800
+#define AR6003_REV2_APP_START_OVERRIDE    0x945000
+#define AR6003_REV2_OTP_DATA_ADDRESS      0x543800
+
 
 /* # of A_UINT32 entries in targregs, used by DIAG_FETCH_TARG_REGS */
 #define AR6003_FETCH_TARG_REGS_COUNT 64

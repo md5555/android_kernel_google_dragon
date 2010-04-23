@@ -22,11 +22,7 @@
 #include "htc.h"
 #include <linux/fs.h>
 
-#include "AR6002/hw2.0/hw/apb_map.h"
 #include "AR6002/hw2.0/hw/gpio_reg.h"
-#ifndef ANDROID_ENV
-#include "AR6002/hw2.0/hw/rtc_reg.h"
-#endif
 #include "AR6002/hw2.0/hw/si_reg.h"
 
 //

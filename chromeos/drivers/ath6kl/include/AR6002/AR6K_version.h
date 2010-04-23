@@ -22,7 +22,7 @@
 #define __VER_PATCH_ 0
 
 /* The makear6ksdk script (used for release builds) modifies the following line. */
-#define __BUILD_NUMBER_ 34
+#define __BUILD_NUMBER_ 1052
 
 
 /* Format of the version number. */

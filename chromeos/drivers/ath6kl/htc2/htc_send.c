@@ -146,11 +146,11 @@ static INLINE void GetHTCSendPackets(HTC_TARGET        *target,
                                      HTC_ENDPOINT      *pEndpoint, 
                                      HTC_PACKET_QUEUE  *pQueue)
 {
-    int         creditsRequired;
-    int         remainder;
-    A_UINT8     sendFlags;
-    HTC_PACKET  *pPacket;
-    int         transferLength;
+    int          creditsRequired;
+    int          remainder;
+    A_UINT8      sendFlags;
+    HTC_PACKET   *pPacket;
+    unsigned int transferLength;
 
     /****** NOTE : the TX lock is held when this function is called *****************/
     AR_DEBUG_PRINTF(ATH_DEBUG_SEND,("+GetHTCSendPackets \n"));
@@ -311,10 +311,10 @@ static void HTCIssueSendBundle(HTC_ENDPOINT      *pEndpoint,
                                int               *pTotalBundlesPkts)
 {
     int                 pktsToScatter;
-    int                 scatterSpaceRemaining;
+    unsigned int        scatterSpaceRemaining;
     HIF_SCATTER_REQ     *pScatterReq = NULL;
     int                 i, packetsInScatterReq;
-    int                 transferLength;
+    unsigned int        transferLength;
     HTC_PACKET          *pPacket;
     A_BOOL              done = FALSE;
     int                 bundlesSent = 0;
@@ -400,7 +400,7 @@ static void HTCIssueSendBundle(HTC_ENDPOINT      *pEndpoint,
                 break;    
             }         
                
-            if ((scatterSpaceRemaining - transferLength) < 0) {
+            if (scatterSpaceRemaining < transferLength) {
                     /* exceeds what we can transfer */
                 break;    
             }

@@ -43,6 +43,7 @@ A_STATUS    (*_HCI_TransportEnableDisableAsyncRecv)(HCI_TRANSPORT_HANDLE HciTran
 A_STATUS    (*_HCI_TransportRecvHCIEventSync)(HCI_TRANSPORT_HANDLE HciTrans, 
                                           HTC_PACKET           *pPacket,
                                           int                  MaxPollMS);
+A_STATUS    (*_HCI_TransportSetBaudRate)(HCI_TRANSPORT_HANDLE HciTrans, A_UINT32 Baud);
 
 extern HCI_TRANSPORT_CALLBACKS ar6kHciTransCallbacks;
 
@@ -58,6 +59,7 @@ A_STATUS ar6000_register_hci_transport(HCI_TRANSPORT_CALLBACKS *hciTransCallback
     _HCI_TransportStart = HCI_TransportStart;
     _HCI_TransportEnableDisableAsyncRecv = HCI_TransportEnableDisableAsyncRecv;
     _HCI_TransportRecvHCIEventSync = HCI_TransportRecvHCIEventSync;
+    _HCI_TransportSetBaudRate = HCI_TransportSetBaudRate;
 
     return A_OK;
 }
@@ -114,3 +116,4 @@ EXPORT_SYMBOL(_HCI_TransportStop);
 EXPORT_SYMBOL(_HCI_TransportStart);
 EXPORT_SYMBOL(_HCI_TransportEnableDisableAsyncRecv);
 EXPORT_SYMBOL(_HCI_TransportRecvHCIEventSync);
+EXPORT_SYMBOL(_HCI_TransportSetBaudRate);

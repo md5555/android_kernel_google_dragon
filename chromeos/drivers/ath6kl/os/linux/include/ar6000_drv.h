@@ -25,11 +25,14 @@
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,17)
 #include <linux/config.h>
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(2,6,33)
 #include <linux/autoconf.h>
+#else
+#include <generated/autoconf.h>
 #endif
 #include <linux/init.h>
 #include <linux/kernel.h>
+#include <linux/sched.h>
 #include <linux/spinlock.h>
 #include <linux/skbuff.h>
 #include <linux/if_ether.h>
@@ -43,13 +46,10 @@
 #else
 #include <linux/semaphore.h>
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
-#include <linux/sched.h>
-#endif
 #include <linux/wireless.h>
-#ifdef CONFIG_CFG80211
+#ifdef ATH6K_CONFIG_CFG80211
 #include <net/cfg80211.h>
-#endif /* CONFIG_CFG80211 */
+#endif /* ATH6K_CONFIG_CFG80211 */
 #include <linux/module.h>
 #include <asm/io.h>
 
@@ -94,6 +94,7 @@
 #include "hw/apb_map.h"
 #include "hw/rtc_reg.h"
 #include "hw/mbox_reg.h"
+#include "hw/gpio_reg.h"
 
 #define  ATH_DEBUG_DBG_LOG       ATH_DEBUG_MAKE_MODULE_MASK(0)
 #define  ATH_DEBUG_WLAN_CONNECT  ATH_DEBUG_MAKE_MODULE_MASK(1)
@@ -174,6 +175,8 @@ extern "C" {
 #define AR6000_HB_CHALLENGE_RESP_FREQ_DEFAULT        1
 #define AR6000_HB_CHALLENGE_RESP_MISS_THRES_DEFAULT  1
 #define A_DISCONNECT_TIMER_INTERVAL       10 * 1000
+#define A_DEFAULT_LISTEN_INTERVAL         100
+#define A_MAX_WOW_LISTEN_INTERVAL         1000
 
 enum {
     DRV_HB_CHALLENGE = 0,
@@ -187,37 +190,129 @@ enum {
     WLAN_INIT_MODE_DRV
 };
 
-#define AR6003_HW10_CONFIG       "AR6003_HW10_CONFIG"
+typedef enum _AR6K_BIN_FILE {
+    AR6K_OTP_FILE,
+    AR6K_FIRMWARE_FILE,
+    AR6K_PATCH_FILE,
+    AR6K_BOARD_DATA_FILE,
+} AR6K_BIN_FILE;
+
+#ifdef SETUPHCI_ENABLED
+#define SETUPHCI_DEFAULT           1
+#else
+#define SETUPHCI_DEFAULT           0
+#endif /* SETUPHCI_ENABLED */
+
+#ifdef SETUPBTDEV_ENABLED
+#define SETUPBTDEV_DEFAULT         1
+#else
+#define SETUPBTDEV_DEFAULT         0
+#endif /* SETUPBTDEV_ENABLED */
+
+#ifdef BMIENABLE_SET
+#define BMIENABLE_DEFAULT          1
+#else
+#define BMIENABLE_DEFAULT          0
+#endif /* BMIENABLE_SET */
+
+#ifdef ENABLEUARTPRINT_SET
+#define ENABLEUARTPRINT_DEFAULT    1
+#else
+#define ENABLEUARTPRINT_DEFAULT    0
+#endif /* ENABLEARTPRINT_SET */
+
+#ifdef ATH6K_CONFIG_HIF_VIRTUAL_SCATTER
+#define NOHIFSCATTERSUPPORT_DEFAULT    1
+#else /* ATH6K_CONFIG_HIF_VIRTUAL_SCATTER */
+#define NOHIFSCATTERSUPPORT_DEFAULT    0
+#endif /* ATH6K_CONFIG_HIF_VIRTUAL_SCATTER */
+
+#ifdef AR600x_BT_AR3001
+#define AR3KHCIBAUD_DEFAULT        3000000
+#define HCIUARTSCALE_DEFAULT       1
+#define HCIUARTSTEP_DEFAULT        8937
+#else
+#define AR3KHCIBAUD_DEFAULT        0
+#define HCIUARTSCALE_DEFAULT       0
+#define HCIUARTSTEP_DEFAULT        0
+#endif /* AR600x_BT_AR3001 */
 
 #ifdef INIT_MODE_DRV_ENABLED
-#ifdef AR6003
-#ifdef HW10
-#define DATA_DOWNLOAD_ADDRESS    0x542800
-#define PATCH_DOWNLOAD_ADDRESS   0x57ea6c
-#define AR6K_OTP_DATA_FILE       "ath6k/AR6003/hw1.0/otp.data"
-#define AR6K_OTP_BIN_FILE        "ath6k/AR6003/hw1.0/otp.bin"
-#define AR6K_FIRMWARE_FILE       "ath6k/AR6003/hw1.0/athwlan.bin.z77"
-#define AR6K_PATCH_FILE          "ath6k/AR6003/hw1.0/data.patch.bin"
-#ifdef AR600x_SD31_XXX
-#define AR6K_BOARD_DATA_FILE     "ath6k/AR6003/hw1.0/bdata.SD31.bin"
-#elif defined(AR600x_SD32_XXX)
-#define AR6K_BOARD_DATA_FILE     "ath6k/AR6003/hw1.0/bdata.SD32.bin"
-#elif defined(AR600x_WB31_XXX)
-#define AR6K_BOARD_DATA_FILE     "ath6k/AR6003/hw1.0/bdata.WB31.bin"
-#elif defined(AR600x_CUSTOM_XXX)
-#define AR6K_BOARD_DATA_FILE     "ath6k/AR6003/hw1.0/bdata.CUSTOM.bin"
+#define WLAN_INIT_MODE_DEFAULT     WLAN_INIT_MODE_DRV
 #else
-#error Board Data File Not Specified
-#endif /* Board Data File */
-#elif defined(HW20)
-#error Chip Revision Not Supported
-#else
-#error Chip Revision Not Supported
-#endif /* Chip Revision */
-#else
-#error Chip Generation Not Supported
-#endif /* Chip Generation */
+#define WLAN_INIT_MODE_DEFAULT     WLAN_INIT_MODE_USR
 #endif /* INIT_MODE_DRV_ENABLED */
+
+#define AR6K_PATCH_DOWNLOAD_ADDRESS(_param, _ver) do { \
+    if ((_ver) == AR6003_REV1_VERSION) { \
+        (_param) = AR6003_REV1_PATCH_DOWNLOAD_ADDRESS; \
+    } else if ((_ver) == AR6003_REV2_VERSION) { \
+        (_param) = AR6003_REV2_PATCH_DOWNLOAD_ADDRESS; \
+    } else { \
+       AR_DEBUG_PRINTF(ATH_DEBUG_ERR, ("Unknown Version: %d\n", _ver)); \
+       A_ASSERT(0); \
+    } \
+} while (0)
+
+#define AR6K_DATA_DOWNLOAD_ADDRESS(_param, _ver) do { \
+    if ((_ver) == AR6003_REV1_VERSION) { \
+        (_param) = AR6003_REV1_DATA_DOWNLOAD_ADDRESS; \
+    } else if ((_ver) == AR6003_REV2_VERSION) { \
+        (_param) = AR6003_REV2_DATA_DOWNLOAD_ADDRESS; \
+    } else { \
+       AR_DEBUG_PRINTF(ATH_DEBUG_ERR, ("Unknown Version: %d\n", _ver)); \
+       A_ASSERT(0); \
+    } \
+} while (0)
+
+#define AR6K_APP_START_OVERRIDE_ADDRESS(_param, _ver) do { \
+    if ((_ver) == AR6003_REV1_VERSION) { \
+        (_param) = AR6003_REV1_APP_START_OVERRIDE; \
+    } else if ((_ver) == AR6003_REV2_VERSION) { \
+        (_param) = AR6003_REV2_APP_START_OVERRIDE; \
+    } else { \
+       AR_DEBUG_PRINTF(ATH_DEBUG_ERR, ("Unknown Version: %d\n", _ver)); \
+       A_ASSERT(0); \
+    } \
+} while (0)
+
+/* AR6003 1.0 definitions */
+#define AR6003_REV1_VERSION                 0x300002ba
+#define AR6003_REV1_DATA_DOWNLOAD_ADDRESS   AR6003_REV1_OTP_DATA_ADDRESS
+#define AR6003_REV1_PATCH_DOWNLOAD_ADDRESS  0x57ea6c
+#define AR6003_REV1_OTP_FILE                "ath6k/AR6003/hw1.0/otp.bin.z77"
+#define AR6003_REV1_FIRMWARE_FILE           "ath6k/AR6003/hw1.0/athwlan.bin.z77"
+#define AR6003_REV1_TCMD_FIRMWARE_FILE      "ath6k/AR6003/hw1.0/athtcmd_ram.bin"
+#define AR6003_REV1_ART_FIRMWARE_FILE       "ath6k/AR6003/hw1.0/device.bin"
+#define AR6003_REV1_PATCH_FILE              "ath6k/AR6003/hw1.0/data.patch.bin"
+#ifdef AR600x_SD31_XXX
+#define AR6003_REV1_BOARD_DATA_FILE         "ath6k/AR6003/hw1.0/bdata.SD31.bin"
+#elif defined(AR600x_SD32_XXX)
+#define AR6003_REV1_BOARD_DATA_FILE         "ath6k/AR6003/hw1.0/bdata.SD32.bin"
+#elif defined(AR600x_WB31_XXX)
+#define AR6003_REV1_BOARD_DATA_FILE         "ath6k/AR6003/hw1.0/bdata.WB31.bin"
+#else
+#define AR6003_REV1_BOARD_DATA_FILE         "ath6k/AR6003/hw1.0/bdata.CUSTOM.bin"
+#endif /* Board Data File */
+
+/* AR6003 2.0 definitions */
+#define AR6003_REV2_VERSION                 0x30000384 
+#define AR6003_REV2_DATA_DOWNLOAD_ADDRESS   AR6003_REV2_OTP_DATA_ADDRESS
+#define AR6003_REV2_PATCH_DOWNLOAD_ADDRESS  0x57e918
+#define AR6003_REV2_OTP_FILE                "ath6k/AR6003/hw2.0/otp.bin.z77"
+#define AR6003_REV2_FIRMWARE_FILE           "ath6k/AR6003/hw2.0/athwlan.bin.z77"
+#define AR6003_REV2_TCMD_FIRMWARE_FILE      "ath6k/AR6003/hw2.0/athtcmd_ram.bin"
+#define AR6003_REV2_ART_FIRMWARE_FILE       "ath6k/AR6003/hw2.0/device.bin"
+#define AR6003_REV2_PATCH_FILE              "ath6k/AR6003/hw2.0/data.patch.bin"
+#ifdef AR600x_SD31_XXX
+#define AR6003_REV2_BOARD_DATA_FILE         "ath6k/AR6003/hw2.0/bdata.SD31.bin"
+#elif defined(AR600x_SD32_XXX)
+#define AR6003_REV2_BOARD_DATA_FILE         "ath6k/AR6003/hw2.0/bdata.SD32.bin"
+#elif defined(AR600x_WB31_XXX)
+#define AR6003_REV2_BOARD_DATA_FILE         "ath6k/AR6003/hw2.0/bdata.WB31.bin"
+#else
+#define AR6003_REV2_BOARD_DATA_FILE         "ath6k/AR6003/hw2.0/bdata.CUSTOM.bin"
+#endif /* Board Data File */
 
 /* HTC RAW streams */
 typedef enum _HTC_RAW_STREAM_ID {
@@ -261,7 +356,7 @@ struct ar_wep_key {
     A_UINT8                 arKey[64];
 } ;
 
-#ifdef CONFIG_CFG80211
+#ifdef ATH6K_CONFIG_CFG80211
 struct ar_key {
     A_UINT8     key[WLAN_MAX_KEY_LEN];
     A_UINT8     key_len;
@@ -269,7 +364,7 @@ struct ar_key {
     A_UINT8     seq_len;
     A_UINT32    cipher;
 };
-#endif /* CONFIG_CFG80211 */
+#endif /* ATH6K_CONFIG_CFG80211 */
 
 
 struct ar_node_mapping {
@@ -322,6 +417,19 @@ typedef struct {
     A_NETBUF_QUEUE_T        psq;    /* power save q */
     A_MUTEX_T               psqLock;
 } sta_t;
+
+typedef struct ar6_raw_htc {
+    HTC_ENDPOINT_ID         arRaw2EpMapping[HTC_RAW_STREAM_NUM_MAX];
+    HTC_RAW_STREAM_ID       arEp2RawMapping[ENDPOINT_MAX];
+    struct semaphore        raw_htc_read_sem[HTC_RAW_STREAM_NUM_MAX];
+    struct semaphore        raw_htc_write_sem[HTC_RAW_STREAM_NUM_MAX];
+    wait_queue_head_t       raw_htc_read_queue[HTC_RAW_STREAM_NUM_MAX];
+    wait_queue_head_t       raw_htc_write_queue[HTC_RAW_STREAM_NUM_MAX];
+    raw_htc_buffer          raw_htc_read_buffer[HTC_RAW_STREAM_NUM_MAX][RAW_HTC_READ_BUFFERS_NUM];
+    raw_htc_buffer          raw_htc_write_buffer[HTC_RAW_STREAM_NUM_MAX][RAW_HTC_WRITE_BUFFERS_NUM];
+    A_BOOL                  write_buffer_available[HTC_RAW_STREAM_NUM_MAX];
+    A_BOOL                  read_buffer_available[HTC_RAW_STREAM_NUM_MAX];
+} AR_RAW_HTC_T;
 
 typedef struct ar6_softc {
     struct net_device       *arNetDev;    /* net_device pointer */
@@ -401,16 +509,7 @@ typedef struct ar6_softc {
     A_UINT8                 arEp2AcMapping[ENDPOINT_MAX];
     HTC_ENDPOINT_ID         arControlEp;
 #ifdef HTC_RAW_INTERFACE
-    HTC_ENDPOINT_ID         arRaw2EpMapping[HTC_RAW_STREAM_NUM_MAX];
-    HTC_RAW_STREAM_ID       arEp2RawMapping[ENDPOINT_MAX];
-    struct semaphore        raw_htc_read_sem[HTC_RAW_STREAM_NUM_MAX];
-    struct semaphore        raw_htc_write_sem[HTC_RAW_STREAM_NUM_MAX];
-    wait_queue_head_t       raw_htc_read_queue[HTC_RAW_STREAM_NUM_MAX];
-    wait_queue_head_t       raw_htc_write_queue[HTC_RAW_STREAM_NUM_MAX];
-    raw_htc_buffer          raw_htc_read_buffer[HTC_RAW_STREAM_NUM_MAX][RAW_HTC_READ_BUFFERS_NUM];
-    raw_htc_buffer          raw_htc_write_buffer[HTC_RAW_STREAM_NUM_MAX][RAW_HTC_WRITE_BUFFERS_NUM];
-    A_BOOL                  write_buffer_available[HTC_RAW_STREAM_NUM_MAX];
-    A_BOOL                  read_buffer_available[HTC_RAW_STREAM_NUM_MAX];
+    AR_RAW_HTC_T            *arRawHtc;
 #endif
     A_BOOL                  arNetQueueStopped;
     A_BOOL                  arRawIfInit;
@@ -461,11 +560,17 @@ typedef struct ar6_softc {
 	WMI_BTCOEX_STATS_EVENT  arBtcoexStats;
     A_INT32                 (*exitCallback)(void *config);  /* generic callback at AR6K exit */
     HIF_DEVICE_OS_DEVICE_INFO   osDevInfo;
-#ifdef CONFIG_CFG80211
+#ifdef ATH6K_CONFIG_CFG80211
     struct wireless_dev *wdev;
     struct cfg80211_scan_request    *scan_request;
     struct ar_key   keys[WMI_MAX_KEY_INDEX + 1];
-#endif /* CONFIG_CFG80211 */
+#endif /* ATH6K_CONFIG_CFG80211 */
+#if CONFIG_PM
+    A_UINT16                arOsPowerCtrl;
+    A_UINT16                arWowState;
+#endif
+    A_BOOL                  scan_complete;
+    WMI_SCAN_PARAMS_CMD     scParams;
 } AR_SOFTC_T;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0)
@@ -475,14 +580,14 @@ static inline void *ar6k_priv(struct net_device *dev)
     return(dev->priv);
 }
 #else
-#ifdef CONFIG_CFG80211
+#ifdef ATH6K_CONFIG_CFG80211
 static inline void *ar6k_priv(struct net_device *dev)
 {
     return (wdev_priv(dev->ieee80211_ptr));
 }
 #else
 #define ar6k_priv   netdev_priv
-#endif /* CONFIG_CFG80211 */
+#endif /* ATH6K_CONFIG_CFG80211 */
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0) */
 
 #define arAc2EndpointID(ar,ac)          (ar)->arAc2EpMapping[(ac)]
@@ -492,11 +597,11 @@ static inline void *ar6k_priv(struct net_device *dev)
 #define arEndpoint2Ac(ar,ep)           (ar)->arEp2AcMapping[(ep)]
 
 #define arRawIfEnabled(ar) (ar)->arRawIfInit
-#define arRawStream2EndpointID(ar,raw)          (ar)->arRaw2EpMapping[(raw)]
+#define arRawStream2EndpointID(ar,raw)          (ar)->arRawHtc->arRaw2EpMapping[(raw)]
 #define arSetRawStream2EndpointIDMap(ar,raw,ep)  \
-{  (ar)->arRaw2EpMapping[(raw)] = (ep); \
-   (ar)->arEp2RawMapping[(ep)] = (raw); }
-#define arEndpoint2RawStreamID(ar,ep)           (ar)->arEp2RawMapping[(ep)]
+{  (ar)->arRawHtc->arRaw2EpMapping[(raw)] = (ep); \
+   (ar)->arRawHtc->arEp2RawMapping[(ep)] = (raw); }
+#define arEndpoint2RawStreamID(ar,ep)           (ar)->arRawHtc->arEp2RawMapping[(ep)]
 
 struct ar_giwscan_param {
     char    *current_ev;

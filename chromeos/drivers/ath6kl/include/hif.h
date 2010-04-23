@@ -224,6 +224,8 @@ typedef struct {
     A_UINT32    ExtendedSize;
 } HIF_MBOX_PROPERTIES;
 
+#define HIF_MBOX_FLAG_NO_BUNDLING   (1 << 0)   /* do not allow bundling over the mailbox */
+
 typedef struct {
     A_UINT32 MboxAddresses[4];  /* must be first element for legacy HIFs that return the address in  
                                    and ARRAY of 32-bit words */
@@ -234,6 +236,7 @@ typedef struct {
          * here, some interfaces cannot support the GMBOX address range and not set this */
     A_UINT32 GMboxAddress;  
     A_UINT32 GMboxSize;
+    A_UINT32 Flags;             /* flags to describe mbox behavior or usage */
 } HIF_DEVICE_MBOX_INFO;
 
 typedef enum {

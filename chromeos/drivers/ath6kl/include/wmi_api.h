@@ -200,7 +200,7 @@ A_STATUS wmi_deleteBadAp_cmd(struct wmi_t *wmip, A_UINT8 apIndex);
 A_STATUS wmi_set_tkip_countermeasures_cmd(struct wmi_t *wmip, A_BOOL en);
 A_STATUS wmi_setPmkid_cmd(struct wmi_t *wmip, A_UINT8 *bssid, A_UINT8 *pmkId,
                           A_BOOL set);
-A_STATUS wmi_set_access_params_cmd(struct wmi_t *wmip, A_UINT16 txop,
+A_STATUS wmi_set_access_params_cmd(struct wmi_t *wmip, A_UINT8 ac, A_UINT16 txop,
                                    A_UINT8 eCWmin, A_UINT8 eCWmax,
                                    A_UINT8 aifsn);
 A_STATUS wmi_set_retry_limits_cmd(struct wmi_t *wmip, A_UINT8 frameType,
@@ -384,9 +384,7 @@ A_STATUS
 wmi_ap_set_rateset(struct wmi_t *wmip, A_UINT8 rateset);
 
 A_STATUS
-wmi_set_ht_cap_cmd(struct wmi_t *wmip, A_UINT8 chan_width_40M_supported,
-                   A_UINT8 short_GI_20MHz, A_UINT8 short_GI_40MHz,
-                   A_UINT8 intolerance_40MHz, A_UINT8 max_ampdu_len_exp);
+wmi_set_ht_cap_cmd(struct wmi_t *wmip, WMI_SET_HT_CAP_CMD *cmd);
 
 A_STATUS
 wmi_set_ht_op_cmd(struct wmi_t *wmip, A_UINT8 sta_chan_width);
@@ -417,6 +415,18 @@ wmi_set_wlan_conn_precedence_cmd(struct wmi_t *wmip, BT_WLAN_CONN_PRECEDENCE pre
 
 A_STATUS
 wmi_set_pmk_cmd(struct wmi_t *wmip, A_UINT8 *pmk);
+
+A_UINT16
+wmi_ieee2freq (int chan);
+
+A_UINT32
+wmi_freq2ieee (A_UINT16 freq);
+
+bss_t *
+wmi_find_matching_Ssidnode (struct wmi_t *wmip, A_UCHAR *pSsid,
+                   A_UINT32 ssidLength,
+                   A_UINT32 dot11AuthMode, A_UINT32 authMode,
+                   A_UINT32 pairwiseCryptoType, A_UINT32 grpwiseCryptoTyp);
 
 #ifdef __cplusplus
 }

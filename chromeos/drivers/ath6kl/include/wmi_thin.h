@@ -42,6 +42,8 @@ typedef enum {
     WMI_THIN_SET_MIB_CMDID,
     WMI_THIN_GET_MIB_CMDID,
     WMI_THIN_JOIN_CMDID,
+    /* add new CMDID's here */
+    WMI_THIN_RESERVED_END_CMDID = 0x8fff // WMI_THIN_RESERVED_END
 } WMI_THIN_COMMAND_ID;
 
 typedef enum{
@@ -311,6 +313,28 @@ typedef PREPACK struct {
     A_UINT16 dtim; /* dtim interval in num beacons */
     A_UINT16 aid; /* 80211 AID from Assoc resp */   
 } POSTPACK WMI_THIN_POST_ASSOC_CMD;
+
+typedef enum {
+    WMI_THIN_EVENTID_RESERVED_START           = 0x8000,
+    WMI_THIN_GET_MIB_EVENTID,
+    WMI_THIN_JOIN_EVENTID,
+    
+    /* Add new THIN EVENTID's here */
+    WMI_THIN_EVENTID_RESERVED_END           = 0x8fff    
+} WMI_THIN_EVENT_ID;
+
+/* Possible values for WMI_THIN_JOIN_EVENT.result */
+typedef enum {
+    WMI_THIN_JOIN_RES_SUCCESS = 0, // device has joined the network
+    WMI_THIN_JOIN_RES_FAIL, // device failed for unspecified reason
+    WMI_THIN_JOIN_RES_TIMEOUT, // device failed due to no beacon rx in time limit
+    WMI_THIN_JOIN_RES_BAD_PARAM, // device failed due to bad cmd param.
+}WMI_THIN_JOIN_RESULT;
+
+typedef PREPACK struct {
+    A_UINT8 result; /* the result of the join cmd. one of WMI_THIN_JOIN_RESULT */
+    A_UINT8 reserved[3]; /* alignment */
+} POSTPACK WMI_THIN_JOIN_EVENT;
 
 #ifdef __cplusplus
 }

@@ -1,6 +1,6 @@
 //------------------------------------------------------------------------------
 // <copyright file="common_drv.h" company="Atheros">
-//    Copyright (c) 2004-2008 Atheros Corporation.  All rights reserved.
+//    Copyright (c) 2010 Atheros Corporation.  All rights reserved.
 // 
 // This program is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License version 2 as
@@ -40,7 +40,7 @@ typedef struct {
 
 typedef struct {
    void *netDevice;
-   void *hifDevice; 
+   void *hifDevice;
    void *htcHandle;
 } HCI_TRANSPORT_MISC_HANDLES;
 
@@ -50,6 +50,8 @@ typedef struct {
 
 #define AR6002_VERSION_REV1     0x20000086
 #define AR6002_VERSION_REV2     0x20000188
+#define AR6003_VERSION_REV1     0x300002ba
+#define AR6003_VERSION_REV2     0x30000384
 
 #ifdef __cplusplus
 extern "C" {

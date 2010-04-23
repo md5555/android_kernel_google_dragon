@@ -13,18 +13,7 @@ ccflags-y += -I$(obj)/wlan/include
 ccflags-y += -I$(obj)/os/linux/include
 ccflags-y += -I$(obj)/os
 ccflags-y += -I$(obj)/bmi/include
-
-ifeq ($(CONFIG_AR6003_HW10),y)
 ccflags-y += -I$(obj)/include/AR6002/hw4.0
-ccflags-y += -DAR6003
-ccflags-y += -DHW10
-endif
-
-ifeq ($(CONFIG_AR6003_HW20),y)
-ccflags-y += -I$(obj)/include/AR6002/hw4.0
-ccflags-y += -DAR6003
-ccflags-y += -DHW20
-endif
 
 ifeq ($(CONFIG_AR600x_SD31_XXX),y)
 ccflags-y += -DAR600x_SD31_XXX
@@ -42,9 +31,35 @@ ifeq ($(CONFIG_AR600x_CUSTOM_XXX),y)
 ccflags-y += -DAR600x_CUSTOM_XXX
 endif
 
+ifeq ($(CONFIG_ATH6KL_ENABLE_COEXISTENCE),y)
+ccflags-y += -DENABLE_COEXISTENCE
+endif
+
+ifeq ($(CONFIG_AR600x_DUAL_ANTENNA),y)
+ccflags-y += -DAR600x_DUAL_ANTENNA
+endif
+
+ifeq ($(CONFIG_AR600x_SINGLE_ANTENNA),y)
+ccflags-y += -DAR600x_SINGLE_ANTENNA
+endif
+
+ifeq ($(CONFIG_AR600x_BT_QCOM),y)
+ccflags-y += -DAR600x_BT_QCOM
+endif
+
+ifeq ($(CONFIG_AR600x_BT_CSR),y)
+ccflags-y += -DAR600x_BT_CSR
+endif
+
+ifeq ($(CONFIG_AR600x_BT_AR3001),y)
+ccflags-y += -DAR600x_BT_AR3001
+endif
+
 ifeq ($(CONFIG_ATH6KL_HCI_BRIDGE),y)
 ccflags-y += -DATH_AR6K_ENABLE_GMBOX
 ccflags-y += -DHCI_TRANSPORT_SDIO
+ccflags-y += -DSETUPHCI_ENABLED
+ccflags-y += -DSETUPBTDEV_ENABLED
 ath6kl-y += htc2/AR6000/ar6k_gmbox.o
 ath6kl-y += htc2/AR6000/ar6k_gmbox_hciuart.o
 ath6kl-y += miscdrv/ar3kconfig.o
@@ -52,8 +67,12 @@ ath6kl-y += miscdrv/ar3kps/ar3kpsconfig.o
 ath6kl-y += miscdrv/ar3kps/ar3kpsparser.o
 endif
 
+ifeq ($(CONFIG_ATH6KL_CONFIG_GPIO_BT_RESET),y)
+ccflags-y += -DATH6KL_CONFIG_GPIO_BT_RESET
+endif
+
 ifeq ($(CONFIG_ATH6KL_CFG80211),y)
-ccflags-y += -DCONFIG_CFG80211
+ccflags-y += -DATH6K_CONFIG_CFG80211
 ath6kl-y += os/linux/cfg80211.o
 endif
 
@@ -61,8 +80,20 @@ ifeq ($(CONFIG_ATH6KL_HTC_RAW_INTERFACE),y)
 ccflags-y += -DHTC_RAW_INTERFACE
 endif
 
-ifeq ($(CONFIG_ATH6KL_DEBUG),y)
+ifeq ($(CONFIG_ATH6KL_ENABLE_HOST_DEBUG),y)
 ccflags-y += -DDEBUG
+endif
+
+ifeq ($(CONFIG_ATH6KL_ENABLE_TARGET_DEBUG_PRINTS),y)
+ccflags-y += -DENABLEUARTPRINT_SET
+endif
+
+ifeq ($(CONFIG_ATH6KL_DISABLE_TARGET_DBGLOGS),y)
+ccflags-y += -DATH6KL_DISABLE_TARGET_DBGLOGS
+endif
+
+ifeq ($(CONFIG_ATH6KL_VIRTUAL_SCATTER_GATHER),y)
+ccflags-y += -DATH6K_CONFIG_HIF_VIRTUAL_SCATTER
 endif
 
 ccflags-y += -DLINUX -DKERNEL_2_6
@@ -76,6 +107,7 @@ ccflags-y += -DWAPI_ENABLE
 ccflags-y += -DCHECKSUM_OFFLOAD
 ccflags-y += -DWLAN_HEADERS
 ccflags-y += -DINIT_MODE_DRV_ENABLED
+ccflags-y += -DBMIENABLE_SET
 
 obj-$(CONFIG_ATH6K_LEGACY) := ath6kl.o
 ath6kl-y += htc2/AR6000/ar6k.o

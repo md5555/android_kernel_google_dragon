@@ -189,6 +189,18 @@ extern unsigned int panic_on_assert;
 #define A_ASSERT(expr)
 #endif /* DEBUG */
 
+#ifdef ANDROID_ENV
+struct firmware;
+int android_request_firmware(const struct firmware **firmware_p, const char *filename,
+                     struct device *device);
+void android_release_firmware(const struct firmware *firmware);
+#define A_REQUEST_FIRMWARE(_ppf, _pfile, _dev) android_request_firmware(_ppf, _pfile, _dev)
+#define A_RELEASE_FIRMWARE(_pf) android_release_firmware(_pf)
+#else
+#define A_REQUEST_FIRMWARE(_ppf, _pfile, _dev) request_firmware(_ppf, _pfile, _dev)
+#define A_RELEASE_FIRMWARE(_pf) release_firmware(_pf)
+#endif 
+
 /*
  * Initialization of the network buffer subsystem
  */
@@ -331,6 +343,19 @@ static inline void *A_ALIGN_TO_CACHE_LINE(void *ptr) {
 #define A_MEMCMP(addr1, addr2, len)     memcmp((addr1), (addr2), (len))
 #define A_MALLOC(size)                  malloc(size)
 #define A_FREE(addr)                    free(addr)
+
+#ifdef ANDROID
+#ifndef err
+#include <errno.h>
+#define err(_s, args...) do { \
+    fprintf(stderr, "%s: line %d ", __FILE__, __LINE__); \
+    fprintf(stderr, args); fprintf(stderr, ": %d\n", errno); \
+    exit(_s); } while (0)
+#endif
+#else
+#include <err.h>
+#endif
+
 #endif /* __KERNEL__ */
 
 #endif /* _OSAPI_LINUX_H_ */

@@ -18,6 +18,7 @@
 //
 // Author(s): ="Atheros"
 //==============================================================================
+
 #include "a_config.h"
 #include "athdefs.h"
 #include "a_types.h"
@@ -134,8 +135,8 @@ A_STATUS DevPollMboxMsgRecv(AR6K_DEVICE *pDev,
         }
 
             /* delay a little  */
-         A_MDELAY(DELAY_PER_INTERVAL_MS);
-         AR_DEBUG_PRINTF(ATH_DEBUG_RECV,("  Retry Mbox Poll : %d \n",timeout));
+        A_MDELAY(DELAY_PER_INTERVAL_MS);
+        AR_DEBUG_PRINTF(ATH_DEBUG_RECV,("  Retry Mbox Poll : %d \n",timeout));
     }
 
     AR_DEBUG_PRINTF(ATH_DEBUG_RECV,("-DevPollMboxMsgRecv \n"));
@@ -642,8 +643,12 @@ static A_STATUS ProcessPendingIRQs(AR6K_DEVICE *pDev, A_BOOL *pDone, A_BOOL *pAS
         /* an optimization to bypass reading the IRQ status registers unecessarily which can re-wake
          * the target, if upper layers determine that we are in a low-throughput mode, we can
          * rely on taking another interrupt rather than re-checking the status registers which can
-         * re-wake the target */
-    if (!(*pASyncProcessing) && (pDev->RecheckIRQStatusCnt == 0)) {
+         * re-wake the target.
+         * 
+         * NOTE : for host interfaces that use the special GetPendingEventsFunc, this optimization cannot
+         * be used due to possible side-effects.  For example, SPI requires the host to drain all
+         * messages from the mailbox before exiting the ISR routine. */
+    if (!(*pASyncProcessing) && (pDev->RecheckIRQStatusCnt == 0) && (pDev->GetPendingEventsFunc == NULL)) {
         AR_DEBUG_PRINTF(ATH_DEBUG_IRQ,("Bypassing IRQ Status re-check, forcing done \n"));
         *pDone = TRUE;
     }

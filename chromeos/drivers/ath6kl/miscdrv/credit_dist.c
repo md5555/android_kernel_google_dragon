@@ -16,6 +16,7 @@
 //==============================================================================
 // Author(s): ="Atheros"
 //==============================================================================
+
 #include "a_config.h"
 #include "athdefs.h"
 #include "a_types.h"
@@ -272,15 +273,19 @@ static void SeekCredits(COMMON_CREDIT_STATE_INFO *pCredInfo,
         }
 
         if (pEPDist->ServiceID == WMI_DATA_VI_SVC) {
-            if (pEPDist->TxCreditsAssigned >= pEPDist->TxCreditsNorm) {
+            if ((pEPDist->TxCreditsAssigned >= pEPDist->TxCreditsNorm) ||
+                (pCredInfo->CurrentFreeCredits <= pEPDist->TxCreditsPerMaxMsg)) {
                  /* limit VI service from oversubscribing */
+                 /* at least one free credit will not be used by VI */
                  break;
             }
         }
  
         if (pEPDist->ServiceID == WMI_DATA_VO_SVC) {
-            if (pEPDist->TxCreditsAssigned >= pEPDist->TxCreditsNorm) {
+            if ((pEPDist->TxCreditsAssigned >= pEPDist->TxCreditsNorm) ||
+                (pCredInfo->CurrentFreeCredits <= pEPDist->TxCreditsPerMaxMsg)) {
                  /* limit VO service from oversubscribing */
+                 /* at least one free credit will not be used by VO */
                 break;
             }
         }

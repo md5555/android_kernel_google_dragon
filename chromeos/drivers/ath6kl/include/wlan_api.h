@@ -21,6 +21,7 @@
 #ifndef _HOST_WLAN_API_H_
 #define _HOST_WLAN_API_H_
 
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -108,6 +109,11 @@ void
 wlan_node_return (struct ieee80211_node_table *nt, bss_t *ni);
 
 bss_t *wlan_node_remove(struct ieee80211_node_table *nt, A_UINT8 *bssid);
+
+bss_t *
+wlan_find_matching_Ssidnode (struct ieee80211_node_table *nt, A_UCHAR *pSsid,
+                    A_UINT32 ssidLength, A_UINT32 dot11AuthMode, A_UINT32 authMode,
+                   A_UINT32 pairwiseCryptoType, A_UINT32 grpwiseCryptoTyp);
 
 #ifdef __cplusplus
 }

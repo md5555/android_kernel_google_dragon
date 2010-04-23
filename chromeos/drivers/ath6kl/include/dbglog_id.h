@@ -118,6 +118,7 @@ extern "C" {
 #define TXRX_RXBUF_QUEUE_EMPTY_QUEUE_TO_WLAN         7
 #define TXRX_RXBUF_SEND_TO_RECV_MGMT                 8
 #define TXRX_RXBUF_SEND_TO_IEEE_LAYER                9
+#define TXRX_RXBUF_REQUEUE_ERROR                     10
 #define TXRX_RXBUF_DBGID_DEFINITION_END
 
 #define TXRX_MGMTBUF_DBGID_DEFINITION_START 
@@ -145,6 +146,7 @@ extern "C" {
 #define TXRX_MGMTBUF_TEAR_DOWN_BA					 22
 #define TXRX_MGMTBUF_PROCESS_ADDBA_REQ				 23
 #define TXRX_MGMTBUF_PROCESS_DELBA					 24
+#define TXRX_MGMTBUF_PERFORM_BA                      25
 #define TXRX_MGMTBUF_DBGID_DEFINITION_END
 
 /* PM (Power Module) debug identifier definitions */
@@ -242,6 +244,7 @@ extern "C" {
 #define WHAL_ERROR_XMIT_BADTYPE                    28
 #define WHAL_ERROR_XMIT_STOPDMA                    29
 #define WHAL_ERROR_INTERRUPT_BB_PANIC              30 
+#define WHAL_ERROR_RESET_TXIQCAL                   31 
 #define WHAL_DBGID_DEFINITION_END
 
 /* DC debug identifier definitions */
@@ -425,15 +428,15 @@ extern "C" {
 #define BTCOEX_UPLINK_AGGR_SEQ						70
 #define BTCOEX_DBG_TX_COMP_SEQ_NO					71
 #define BTCOEX_DBG_MAX_AGGR_PAUSE_STATE				72
-#define BTCOEX_TXQ_DETAILS							73
+#define BTCOEX_DBG_ACL_TRAFFIC                      73
 #define BTCOEX_CURR_AGGR_PROP						74
 #define BTCOEX_CREAT_AGGR							75
 #define BTCOEX_PSPOLL_PROCESS						76
 #define BTCOEX_RETURN_FROM_MAC						77
 #define BTCOEX_FREED_REQUEUED_CNT					78
-#define BTCOEX_IS_SEQNO_IN_CURR_WIN					79
-#define BTCOEX_RETURN_FROM_MAC_ST_END				80
-#define BTCOEX_RETURN_FROM_MAC_HW_RETURN_SEQNO		81
+#define BTCOEX_DBG_TOGGLE_LOW_RATES					79
+#define BTCOEX_MAC_GOES_TO_SLEEP    				80
+#define BTCOEX_DBG_A2DP_NO_SYNC                     81
 #define BTCOEX_RETURN_FROM_MAC_HOLD_Q_INFO			82
 #define BTCOEX_RETURN_FROM_MAC_AC					83
 #define BTCOEX_CREAT_AGGR_AC						84
@@ -443,14 +446,14 @@ extern "C" {
 #define BTCOEX_UPLINK_DESC							89
 #define BTCOEX_DBG_TXQ_DETAILS						90
 #define BTCOEX_DBG_RECV_ACK							94
-#define BTCOEX_DBG_TX_COMP_DESC_TXC2_TXC4			95
+#define BTCOEX_DBG_ADDBA_INDICATION                 95
 #define BTCOEX_TX_COMPLETE_EOL_FAILED				96
-#define BTCOEX_TX_COMPLETE_END_DESC_TXS1			97
-#define BTCOEX_TX_COMPLETE_END_DESC_TXS9			98
-#define BTCOEX_TX_COMPLETE_END_DESC_TXC2_TXC4		99
-#define BTCOEX_FORM_AGGR_LEN_SUBFRAME			   100
+#define BTCOEX_DBG_A2DP_USAGE_COMPLETE  			97
+#define BTCOEX_DBG_A2DP_STOMP_FOR_BCN_HANDLER		98
+#define BTCOEX_DBG_A2DP_SYNC_INTR                   99
+#define BTCOEX_DBG_A2DP_STOMP_FOR_BCN_RECEPTION	   100
 #define BTCOEX_FORM_AGGR_CURR_AGGR				   101
-#define BTCOEX_FILL_AGGR_FIRST_SUBFRAME			   102
+#define BTCOEX_DBG_TOGGLE_A2DP_BURST_CNT           102
 #define BTCOEX_DBG_BT_TRAFFIC   				   103
 #define BTCOEX_DBG_STOMP_BT_TRAFFIC 			   104
 #define BTCOEX_RECV_NULL                           105
@@ -462,7 +465,7 @@ extern "C" {
 #define BTCOEX_DBG_A2DP_PKT						   111
 #define BTCOEX_DBG_A2DP_PSPOLL_DATA_RECV		   112
 #define BTCOEX_DBG_A2DP_NULL					   113
-#define BTCOEX_DBG_UPLINK_DATA					   114	
+#define BTCOEX_DBG_UPLINK_DATA					   114
 #define BTCOEX_DBG_A2DP_STOMP_LOW_PRIO_NULL		   115
 #define BTCOEX_DBG_ADD_BA_RESP_TIMEOUT			   116
 #define BTCOEX_DBG_TXQ_STATE					   117
@@ -479,7 +482,7 @@ extern "C" {
 #define BTCOEX_DBG_DATA_RECV_WAKEUP_TIM			   135
 #define BTCOEX_DBG_SECOND_BMISS					   136
 #define BTCOEX_DBG_SET_WLAN_STATE				   138
-#define BTCOEX_BDG_FIRST_BMISS					   139	
+#define BTCOEX_BDG_FIRST_BMISS					   139
 #define BTCOEX_DBG_A2DP_CHAN_OP					   140
 #define BTCOEX_DBG_A2DP_INTR					   141
 #define BTCOEX_DBG_BT_INQUIRY					   142
@@ -510,6 +513,14 @@ extern "C" {
 #define BTCOEX_DBG_GET_STATS					   171
 #define BTCOEX_DBG_BT_OPERATING_STATUS			   172
 #define BTCOEX_DBG_PERFORM_RECONNECT               173
+#define BTCOEX_DBG_ACL_WLAN_MED                    175
+#define BTCOEX_DBG_ACL_BT_MED                      176
+#define BTCOEX_DBG_WLAN_CONNECT                    177
+#define BTCOEX_DBG_A2DP_DUAL_START                 178
+#define BTCOEX_DBG_PMAWAKE_NOTIFY                  179
+#define BTCOEX_DBG_BEACON_SCAN_ENABLE              180
+#define BTCOEX_DBG_BEACON_SCAN_DISABLE             181
+#define BTCOEX_DBG_RX_NOTIFY                       182
 #define BTCOEX_DBGID_DEFINITION_END
 
 #ifdef __cplusplus

@@ -223,6 +223,19 @@ A_STATUS    HCI_TransportRecvHCIEventSync(HCI_TRANSPORT_HANDLE HciTrans,
                                           HTC_PACKET           *pPacket,
                                           int                  MaxPollMS);
 
+/*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  @desc: Set the desired baud rate for the underlying transport layer
+  @function name: HCI_TransportSetBaudRate
+  @input:  HciTrans - hci transport handle 
+           Baud - baud rate in bps
+  @output: 
+  @return: A_OK on success
+  @notes: This API should be used only after HCI device initialization
+  @example:
+  @see also: 
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
+A_STATUS    HCI_TransportSetBaudRate(HCI_TRANSPORT_HANDLE HciTrans, A_UINT32 Baud);
+
 #ifdef __cplusplus
 }
 #endif

@@ -24,6 +24,8 @@
 
 #ifdef __KERNEL__
 #include <linux/types.h>
+#else
+#include <sys/types.h>
 #endif
 
 typedef int8_t      A_INT8;

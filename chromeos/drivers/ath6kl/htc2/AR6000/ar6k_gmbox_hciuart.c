@@ -28,6 +28,9 @@
 #include "ar6k.h"
 #include "hci_transport_api.h"
 #include "gmboxif.h"
+#include "ar6000_diag.h"
+#include "hw/apb_map.h"
+#include "hw/mbox_reg.h"
 
 #ifdef ATH_AR6K_ENABLE_GMBOX
 #define HCI_UART_COMMAND_PKT 0x01
@@ -46,6 +49,7 @@
 #define HCI_DELAY_PER_INTERVAL_MS 10 
 #define BTON_TIMEOUT_MS           500
 #define BTOFF_TIMEOUT_MS          500
+#define BAUD_TIMEOUT_MS           1
 
 typedef struct {
     HCI_TRANSPORT_CONFIG_INFO   HCIConfig;
@@ -547,6 +551,7 @@ static A_STATUS SeekCreditsSynch(GMBOX_PROTO_HCI_UART *pProt)
         }
         LOCK_HCI_TX(pProt);
         pProt->CreditsAvailable += credits;        
+        pProt->CreditsConsumed -= credits;        
         if (pProt->CreditsAvailable >= pProt->CreditsCurrentSeek) {
             pProt->CreditsCurrentSeek = 0;
             UNLOCK_HCI_TX(pProt);
@@ -1208,6 +1213,39 @@ A_STATUS HCI_TransportRecvHCIEventSync(HCI_TRANSPORT_HANDLE HciTrans,
     if (MaxPollMS == 0) {
         AR_DEBUG_PRINTF(ATH_DEBUG_ERR,("HCI recv poll timeout! \n"));
         status = A_ERROR;    
+    }
+    
+    return status;
+}
+
+#define LSB_SCRATCH_IDX     4
+#define MSB_SCRATCH_IDX     5
+A_STATUS HCI_TransportSetBaudRate(HCI_TRANSPORT_HANDLE HciTrans, A_UINT32 Baud)
+{
+    GMBOX_PROTO_HCI_UART  *pProt = (GMBOX_PROTO_HCI_UART *)HciTrans;
+    HIF_DEVICE *pHIFDevice = (HIF_DEVICE *)(pProt->pDev->HIFDevice);
+    A_UINT32 scaledBaud, scratchAddr;
+    A_STATUS status = A_OK;
+
+    /* Divide the desired baud rate by 100
+     * Store the LSB in the local scratch register 4 and the MSB in the local
+     * scratch register 5 for the target to read
+     */
+    scratchAddr = MBOX_BASE_ADDRESS | (LOCAL_SCRATCH_ADDRESS + 4 * LSB_SCRATCH_IDX);
+    scaledBaud = (Baud / 100) & LOCAL_SCRATCH_VALUE_MASK;
+    status = ar6000_WriteRegDiag(pHIFDevice, &scratchAddr, &scaledBaud);                     
+    scratchAddr = MBOX_BASE_ADDRESS | (LOCAL_SCRATCH_ADDRESS + 4 * MSB_SCRATCH_IDX);
+    scaledBaud = ((Baud / 100) >> (LOCAL_SCRATCH_VALUE_MSB+1)) & LOCAL_SCRATCH_VALUE_MASK;
+    status |= ar6000_WriteRegDiag(pHIFDevice, &scratchAddr, &scaledBaud);                     
+    if (A_OK != status) {
+        AR_DEBUG_PRINTF(ATH_DEBUG_ERR, ("Failed to set up baud rate in scratch register!"));            
+        return status;
+    }
+
+    /* Now interrupt the target to tell it about the baud rate */
+    status = DevGMboxSetTargetInterrupt(pProt->pDev, MBOX_SIG_HCI_BRIDGE_BAUD_SET, BAUD_TIMEOUT_MS);
+    if (A_OK != status) {
+        AR_DEBUG_PRINTF(ATH_DEBUG_ERR, ("Failed to tell target to change baud rate!"));            
     }
     
     return status;

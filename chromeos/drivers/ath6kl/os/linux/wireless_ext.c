@@ -44,7 +44,7 @@ encode_ie(void *buf, size_t bufsize,
     p += leader_len;
     for (i = 0; i < ielen && bufsize > 2; i++)
     {
-        p += sprintf(p, "%02x", ie[i]);
+        p += sprintf((char*)p, "%02x", ie[i]);
         bufsize -= 2;
     }
     return (i == ielen ? p - (u_int8_t *)buf : 0);
@@ -100,7 +100,7 @@ ar6000_scan_node(void *arg, bss_t *ni)
                           param->info,
 #endif
                           current_ev, end_buf, &iwe,
-                          &cie->ie_ssid[2]);
+                          (char*)&cie->ie_ssid[2]);
     }
     param->bytes_needed += data_len;
 
@@ -241,7 +241,7 @@ ar6000_scan_node(void *arg, bss_t *ni)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27)
                           param->info,
 #endif
-                          current_ev, end_buf, &iwe, cie->ie_wpa);
+                          current_ev, end_buf, &iwe, (char*)cie->ie_wpa);
         }
         param->bytes_needed += data_len;
     }
@@ -257,7 +257,7 @@ ar6000_scan_node(void *arg, bss_t *ni)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27)
                           param->info,
 #endif
-                          current_ev, end_buf, &iwe, cie->ie_rsn);
+                          current_ev, end_buf, &iwe, (char*)cie->ie_rsn);
         }
         param->bytes_needed += data_len;
     }
@@ -439,7 +439,7 @@ ar6000_scan_node(void *arg, bss_t *ni)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27)
                           param->info,
 #endif
-                          current_ev, end_buf, &iwe, cie->ie_wsc);
+                          current_ev, end_buf, &iwe, (char*)cie->ie_wsc);
         }
         param->bytes_needed += data_len;
     }
@@ -609,7 +609,8 @@ ar6000_ioctl_siwessid(struct net_device *dev,
     ar->arNetworkType = ar->arNextMode;
 
 
-    if ((prevMode != AP_NETWORK) && ((ar->arSsidLen) || (!data->flags)))
+    if ((prevMode != AP_NETWORK) &&
+        ((ar->arSsidLen) || ((ar->arSsidLen == 0) && ar->arConnected) || (!data->flags)))
     {
         if ((!data->flags) ||
             (A_MEMCMP(ar->arSsid, ssid, ar->arSsidLen) != 0) ||
@@ -674,61 +675,9 @@ ar6000_ioctl_siwessid(struct net_device *dev,
     ar->arSsidLen = data->length - 1;
     A_MEMCPY(ar->arSsid, ssid, ar->arSsidLen);
 
-    /* The ssid length check prevents second "essid off" from the user,
-       to be treated as a connect cmd. The second "essid off" is ignored.
-    */
-    if((ar->arWmiReady == TRUE) && (ar->arSsidLen > 0) )
-    {
-        if((ADHOC_NETWORK != ar->arNetworkType) &&
-           (NONE_AUTH==ar->arAuthMode)          &&
-           (WEP_CRYPT==ar->arPairwiseCrypto)) {
-                ar6000_install_static_wep_keys(ar);
-        }
-
-        if (!ar->arUserBssFilter) {
-            if (wmi_bssfilter_cmd(ar->arWmi, ALL_BSS_FILTER, 0) != A_OK) {
-                up(&ar->arSem);
-                return -EIO;
-            }
-        }
-#ifdef WAPI_ENABLE
-        if (ar->arWapiEnable)  {
-            ar->arPairwiseCrypto = WAPI_CRYPT;
-            ar->arPairwiseCryptoLen = 0;
-            ar->arGroupCrypto = WAPI_CRYPT;
-            ar->arGroupCryptoLen = 0;
-            ar->arAuthMode = NONE_AUTH;
-            ar->arConnectCtrlFlags |= CONNECT_IGNORE_WPAx_GROUP_CIPHER;
-        }
-#endif
-        AR_DEBUG_PRINTF(ATH_DEBUG_WLAN_CONNECT,("Connect called with authmode %d dot11 auth %d"\
-                        " PW crypto %d PW crypto Len %d GRP crypto %d"\
-                        " GRP crypto Len %d\n",
-                        ar->arAuthMode, ar->arDot11AuthMode,
-                        ar->arPairwiseCrypto, ar->arPairwiseCryptoLen,
-                        ar->arGroupCrypto, ar->arGroupCryptoLen));
-        reconnect_flag = 0;
-        status = wmi_connect_cmd(ar->arWmi, ar->arNetworkType,
-                                 ar->arDot11AuthMode, ar->arAuthMode,
-                                 ar->arPairwiseCrypto, ar->arPairwiseCryptoLen,
-                                 ar->arGroupCrypto,ar->arGroupCryptoLen,
-                                 ar->arSsidLen, ar->arSsid,
-                                 ar->arReqBssid, ar->arChannelHint,
-                                 ar->arConnectCtrlFlags);
-
-        if ((!(ar->arConnectCtrlFlags & CONNECT_DO_WPA_OFFLOAD)) &&
-            ((WPA_PSK_AUTH == ar->arAuthMode) || (WPA2_PSK_AUTH == ar->arAuthMode)))
-        {
-            A_TIMEOUT_MS(&ar->disconnect_timer, A_DISCONNECT_TIMER_INTERVAL, 0);
-        }
-
-        ar->arConnectCtrlFlags &= ~CONNECT_DO_WPA_OFFLOAD;
+    if (ar6000_connect_to_ap(ar)!= A_OK) {
         up(&ar->arSem);
-
-        if (status != A_OK) {
-            return -EIO;
-        }
-        ar->arConnectPending = TRUE;
+        return -EIO;
     }else{
       up(&ar->arSem);
     }
@@ -1525,7 +1474,7 @@ ar6000_ioctl_giwauth(struct net_device *dev,
                 if (ar->arPairwiseCryptoLen == 13) {
                     data->value |= IW_AUTH_CIPHER_WEP104;
                 } else {
-                    data->value |= IW_AUTH_CIPHER_WEP104;
+                    data->value |= IW_AUTH_CIPHER_WEP40;
                 }
             } else if (ar->arPairwiseCrypto == TKIP_CRYPT) {
                 data->value |= IW_AUTH_CIPHER_TKIP;
@@ -1542,7 +1491,7 @@ ar6000_ioctl_giwauth(struct net_device *dev,
                 if (ar->arGroupCryptoLen == 13) {
                     data->value |= IW_AUTH_CIPHER_WEP104;
                 } else {
-                    data->value |= IW_AUTH_CIPHER_WEP104;
+                    data->value |= IW_AUTH_CIPHER_WEP40;
                 }
             } else if (ar->arGroupCrypto == TKIP_CRYPT) {
                 data->value |= IW_AUTH_CIPHER_TKIP;
@@ -1633,12 +1582,15 @@ ar6000_ioctl_siwpmksa(struct net_device *dev,
 
     switch (pmksa->cmd) {
         case IW_PMKSA_ADD:
-            status = wmi_setPmkid_cmd(ar->arWmi, pmksa->bssid.sa_data, pmksa->pmkid, TRUE);
+            status = wmi_setPmkid_cmd(ar->arWmi, (A_UINT8*)pmksa->bssid.sa_data, pmksa->pmkid, TRUE);
             break;
         case IW_PMKSA_REMOVE:
-            status = wmi_setPmkid_cmd(ar->arWmi, pmksa->bssid.sa_data, pmksa->pmkid, FALSE);
+            status = wmi_setPmkid_cmd(ar->arWmi, (A_UINT8*)pmksa->bssid.sa_data, pmksa->pmkid, FALSE);
             break;
         case IW_PMKSA_FLUSH:
+            if (ar->arConnected == TRUE) {
+                status = wmi_setPmkid_cmd(ar->arWmi, ar->arBssid, NULL, 0);
+            }
             break;
         default:
             ret=-1;
@@ -1801,7 +1753,7 @@ ar6000_ioctl_siwencodeext(struct net_device *dev,
                     return -EIO;
                 }
 
-                // Check whether it is static wep
+                /* Check whether it is static wep. */
                 if (!ar->arConnected) {
                     A_MEMZERO(ar->arWepKeyList[index].arKey,
                           sizeof(ar->arWepKeyList[index].arKey));
@@ -1860,7 +1812,7 @@ ar6000_ioctl_siwencodeext(struct net_device *dev,
          status = wmi_addKey_cmd(ar->arWmi, index, keyType, keyUsage,
                             keyLen, keyRsc,
                             keyData, KEY_OP_INIT_VAL,
-                            ext->addr.sa_data,
+                            (A_UINT8*)ext->addr.sa_data,
                             SYNC_BOTH_WMIFLAG);
          if (status != A_OK) {
             return -EIO;
@@ -1920,6 +1872,10 @@ static int ar6000_ioctl_siwpower(struct net_device *dev,
     AR_SOFTC_T *ar = (AR_SOFTC_T *)ar6k_priv(dev);
     WMI_POWER_MODE power_mode;
 
+    if (ar->arWmiReady == FALSE) {
+        return -EIO;
+    }
+
     if (ar->arWlanState == WLAN_DISABLED) {
         return -EIO;
     }
@@ -1939,15 +1895,24 @@ static int ar6000_ioctl_giwpower(struct net_device *dev,
                  union iwreq_data *wrqu, char *extra)
 {
     AR_SOFTC_T *ar = (AR_SOFTC_T *)ar6k_priv(dev);
+    WMI_POWER_MODE power_mode;
+
+    if (ar->arWmiReady == FALSE) {
+        return -EIO;
+    }
 
     if (ar->arWlanState == WLAN_DISABLED) {
         return -EIO;
     }
 
-    if(!ar->arWmi){
-        return -EIO;
-    }
-    return wmi_get_power_mode_cmd(ar->arWmi);
+    power_mode = wmi_get_power_mode_cmd(ar->arWmi);
+
+    if (power_mode == MAX_PERF_POWER)
+        wrqu->power.disabled = 1;
+    else
+        wrqu->power.disabled = 0;
+
+    return 0;
 }
 #endif // WIRELESS_EXT > 20
 
@@ -2435,17 +2400,8 @@ ar6000_ioctl_siwmlme(struct net_device *dev,
         return -EIO;
     }
 
-    if (ar->arNetworkType == AP_NETWORK) {
-        return -EINVAL;
-    }
-
     if (down_interruptible(&ar->arSem)) {
         return -ERESTARTSYS;
-    }
-
-    if (ar->bIsDestroyProgress) {
-        up(&ar->arSem);
-        return -EBUSY;
     }
 
     if (data->pointer && data->length == sizeof(struct iw_mlme)) {
@@ -2459,9 +2415,7 @@ ar6000_ioctl_siwmlme(struct net_device *dev,
         switch (mlme.cmd) {
 
             case IW_MLME_DEAUTH:
-                /* ignore it */
-                break;
-
+                /* fall through */
             case IW_MLME_DISASSOC:
                 if ((ar->arConnected != TRUE) ||
                     (memcmp(ar->arBssid, mlme.addr.sa_data, 6) != 0)) {
@@ -2536,7 +2490,7 @@ ar6000_ioctl_siwscan(struct net_device *dev,
     }
 
     if (!ar->arUserBssFilter) {
-        if (wmi_bssfilter_cmd(ar->arWmi, (ar->arConnected ? ALL_BUT_BSS_FILTER : ALL_BSS_FILTER), 0) != A_OK) {
+        if (wmi_bssfilter_cmd(ar->arWmi, ALL_BSS_FILTER, 0) != A_OK) {
             return -EIO;
         }
     }
@@ -2571,11 +2525,15 @@ ar6000_ioctl_siwscan(struct net_device *dev,
             return -EIO;
     }
 #endif
-#endif
+#endif /* ANDROID_ENV */
 
     if (wmi_startscan_cmd(ar->arWmi, WMI_LONG_SCAN, FALSE, FALSE, \
                           0, 0, 0, NULL) != A_OK) {
         ret = -EIO;
+    }
+
+    if (ret == 0) {
+        ar->scan_complete = 0;
     }
 
     return ret;

@@ -1,3 +1,9 @@
+#ifndef BTCOEX_GPIO_H_
+#define BTCOEX_GPIO_H_
+
+
+
+#ifdef FPGA
 #define GPIO_A      (15)
 #define GPIO_B      (16)
 #define GPIO_C      (17)
@@ -5,6 +11,15 @@
 #define GPIO_E      (19)
 #define GPIO_F      (21)
 #define GPIO_G      (21)
+#else
+#define GPIO_A      (0)
+#define GPIO_B      (5)
+#define GPIO_C      (6)
+#define GPIO_D      (7)
+#define GPIO_E      (7)
+#define GPIO_F      (7)
+#define GPIO_G      (7)
+#endif
 
 
 
@@ -40,4 +55,14 @@
 
 extern void btcoexDbgPulseWord(A_UINT32 gpioPinMask);
 extern void btcoexDbgPulse(A_UINT32 pin);
+
+#ifdef CONFIG_BTCOEX_ENABLE_GPIO_DEBUG
+#define BTCOEX_DBG_PULSE_WORD(gpioPinMask)  (btcoexDbgPulseWord(gpioPinMask))
+#define BTCOEX_DBG_PULSE(pin)               (btcoexDbgPulse(pin))
+#else
+#define BTCOEX_DBG_PULSE_WORD(gpioPinMask)
+#define BTCOEX_DBG_PULSE(pin)
+
+#endif
+#endif
 

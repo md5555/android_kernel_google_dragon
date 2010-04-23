@@ -18,6 +18,7 @@
 //
 // Author(s): ="Atheros"
 //==============================================================================
+
 #include "a_config.h"
 #include "athdefs.h"
 #include "a_types.h"
@@ -746,7 +747,12 @@ static A_STATUS DevSetupVirtualScatterSupport(AR6K_DEVICE *pDev)
 A_STATUS DevSetupMsgBundling(AR6K_DEVICE *pDev, int MaxMsgsPerTransfer)
 {
     A_STATUS status;    
-        
+    
+    if (pDev->MailBoxInfo.Flags & HIF_MBOX_FLAG_NO_BUNDLING) {
+        AR_DEBUG_PRINTF(ATH_DEBUG_WARN, ("HIF requires bundling disabled\n"));     
+        return A_ENOTSUP;    
+    }
+    
     status = HIFConfigureDevice(pDev->HIFDevice, 
                                 HIF_CONFIGURE_QUERY_SCATTER_REQUEST_SUPPORT,
                                 &pDev->HifScatterInfo, 

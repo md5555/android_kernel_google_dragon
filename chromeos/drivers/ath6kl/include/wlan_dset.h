@@ -18,7 +18,7 @@
 //==============================================================================
 
 #ifndef __WLAN_DSET_H__
-#define __WKAN_DSET_H__
+#define __WLAN_DSET_H__
 
 typedef PREPACK struct wow_config_dset {
 

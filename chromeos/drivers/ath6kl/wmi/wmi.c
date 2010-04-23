@@ -19,6 +19,7 @@
 //
 // Author(s): ="Atheros"
 //==============================================================================
+
 #include <a_config.h>
 #include <athdefs.h>
 #include <a_types.h>
@@ -205,36 +206,37 @@ extern unsigned int processDot11Hdr;
 #endif
 
 int wps_enable;
-static const A_INT32 wmi_rateTable[] = {
-    1000,
-    2000,
-    5500,
-    11000,
-    6000,
-    9000,
-    12000,
-    18000,
-    24000,
-    36000,
-    48000,
-    54000,
-    6500,
-    13000,
-    19500,
-    26000,
-    39000,
-    52000,
-    58500,
-    65000,
-    13500,
-    27000,
-    40500,
-    54000,
-    81000,
-    108000,
-    121500,
-    135000,
-    0};
+static const A_INT32 wmi_rateTable[][2] = {
+  //{W/O SGI, with SGI}
+    {1000, 1000},
+    {2000, 2000},
+    {5500, 5500},
+    {11000, 11000},
+    {6000, 6000},
+    {9000, 9000},
+    {12000, 12000},
+    {18000, 18000},
+    {24000, 24000},
+    {36000, 36000},
+    {48000, 48000},
+    {54000, 54000},
+    {6500, 7200},
+    {13000, 14400},
+    {19500, 21700},
+    {26000, 28900},
+    {39000, 43300},
+    {52000, 57800},
+    {58500, 65000},
+    {65000, 72200},
+    {13500, 15000},
+    {27000, 30000},
+    {40500, 45000},
+    {54000, 60000},
+    {81000, 90000},
+    {108000, 120000},
+    {121500, 135000},
+    {135000, 150000},
+    {0, 0}};
 
 #define MODE_A_SUPPORT_RATE_START       ((A_INT32) 4)
 #define MODE_A_SUPPORT_RATE_STOP        ((A_INT32) 11)
@@ -248,7 +250,10 @@ static const A_INT32 wmi_rateTable[] = {
 #define MODE_G_SUPPORT_RATE_START       ((A_INT32) 0)
 #define MODE_G_SUPPORT_RATE_STOP        ((A_INT32) 11)
 
-#define MAX_NUMBER_OF_SUPPORT_RATES     (MODE_G_SUPPORT_RATE_STOP + 1)
+#define MODE_GHT20_SUPPORT_RATE_START   ((A_INT32) 0)
+#define MODE_GHT20_SUPPORT_RATE_STOP    ((A_INT32) 19)
+
+#define MAX_NUMBER_OF_SUPPORT_RATES     (MODE_GHT20_SUPPORT_RATE_STOP + 1)
 
 /* 802.1d to AC mapping. Refer pg 57 of WMM-test-plan-v1.2 */
 const A_UINT8 up_to_ac[]= {
@@ -471,10 +476,7 @@ A_STATUS wmi_meta_add(struct wmi_t *wmip, void *osbuf, A_UINT8 *pVersion,void *p
     }
 }
 
-/*
- * Adds a WMI data header
- * Assumes there is enough room in the buffer to add header.
- */
+/* Adds a WMI data header */
 A_STATUS
 wmi_data_hdr_add(struct wmi_t *wmip, void *osbuf, A_UINT8 msgType, A_BOOL bMoreData,
                     WMI_DATA_HDR_DATA_TYPE data_type,A_UINT8 metaVersion, void *pTxMetaS)
@@ -809,7 +811,6 @@ wmi_control_rx_xtnd(struct wmi_t *wmip, void *osbuf)
     if (A_NETBUF_LEN(osbuf) < sizeof(WMIX_CMD_HDR)) {
         A_DPRINTF(DBG_WMI, (DBGFMT "bad packet 1\n", DBGARG));
         wmip->wmi_stats.cmd_len_err++;
-        A_NETBUF_FREE(osbuf);
         return A_ERROR;
     }
 
@@ -819,7 +820,6 @@ wmi_control_rx_xtnd(struct wmi_t *wmip, void *osbuf)
     if (A_NETBUF_PULL(osbuf, sizeof(WMIX_CMD_HDR)) != A_OK) {
         A_DPRINTF(DBG_WMI, (DBGFMT "bad packet 2\n", DBGARG));
         wmip->wmi_stats.cmd_len_err++;
-        A_NETBUF_FREE(osbuf);
         return A_ERROR;
     }
 
@@ -887,9 +887,9 @@ wmi_control_rx(struct wmi_t *wmip, void *osbuf)
 
     A_ASSERT(osbuf != NULL);
     if (A_NETBUF_LEN(osbuf) < sizeof(WMI_CMD_HDR)) {
+        A_NETBUF_FREE(osbuf);
         A_DPRINTF(DBG_WMI, (DBGFMT "bad packet 1\n", DBGARG));
         wmip->wmi_stats.cmd_len_err++;
-        A_NETBUF_FREE(osbuf);
         return A_ERROR;
     }
 
@@ -897,9 +897,9 @@ wmi_control_rx(struct wmi_t *wmip, void *osbuf)
     id = cmd->commandId;
 
     if (A_NETBUF_PULL(osbuf, sizeof(WMI_CMD_HDR)) != A_OK) {
+        A_NETBUF_FREE(osbuf);
         A_DPRINTF(DBG_WMI, (DBGFMT "bad packet 2\n", DBGARG));
         wmip->wmi_stats.cmd_len_err++;
-        A_NETBUF_FREE(osbuf);
         return A_ERROR;
     }
 
@@ -1167,7 +1167,6 @@ wmi_simple_cmd(struct wmi_t *wmip, WMI_COMMAND_ID cmdid)
     void *osbuf;
 
     osbuf = A_NETBUF_ALLOC(0);
-
     if (osbuf == NULL) {
         return A_NO_MEMORY;
     }
@@ -1185,7 +1184,6 @@ wmi_simple_cmd_xtnd(struct wmi_t *wmip, WMIX_COMMAND_ID cmdid)
     void *osbuf;
 
     osbuf = A_NETBUF_ALLOC(0);
-
     if (osbuf == NULL) {
         return A_NO_MEMORY;
     }
@@ -1614,6 +1612,7 @@ wmi_bitrate_reply_rx(struct wmi_t *wmip, A_UINT8 *datap, int len)
 {
     WMI_BIT_RATE_REPLY *reply;
     A_INT32 rate;
+    A_UINT32 sgi,index;
     /* 54149:
      * WMI_BIT_RATE_CMD structure is changed to WMI_BIT_RATE_REPLY.
      * since there is difference in the length and to avoid returning
@@ -1629,7 +1628,10 @@ wmi_bitrate_reply_rx(struct wmi_t *wmip, A_UINT8 *datap, int len)
     if (reply->rateIndex == (A_INT8) RATE_AUTO) {
         rate = RATE_AUTO;
     } else {
-        rate = wmi_rateTable[(A_UINT32) reply->rateIndex];
+        // the SGI state is stored as the MSb of the rateIndex
+        index = reply->rateIndex & 0x7f;
+        sgi = (reply->rateIndex & 0x80)? 1:0;
+        rate = wmi_rateTable[index][sgi];
     }
 
     A_WMI_BITRATE_RX(wmip->wmi_devt, rate);
@@ -1639,12 +1641,12 @@ wmi_bitrate_reply_rx(struct wmi_t *wmip, A_UINT8 *datap, int len)
 static A_STATUS
 wmi_ratemask_reply_rx(struct wmi_t *wmip, A_UINT8 *datap, int len)
 {
-    WMI_FIX_RATES_CMD *reply;
+    WMI_FIX_RATES_REPLY *reply;
 
     if (len < sizeof(WMI_FIX_RATES_REPLY)) {
         return A_EINVAL;
     }
-    reply = (WMI_FIX_RATES_CMD *)datap;
+    reply = (WMI_FIX_RATES_REPLY *)datap;
     A_DPRINTF(DBG_WMI,
         (DBGFMT "Enter - fixed rate mask %x\n", DBGARG, reply->fixRateMask));
 
@@ -2220,7 +2222,7 @@ wmi_dbglog_event_rx(struct wmi_t *wmip, A_UINT8 *datap, int len)
     dropped = *((A_UINT32 *)datap);
     datap += sizeof(dropped);
     len -= sizeof(dropped);
-    A_WMI_DBGLOG_EVENT(wmip->wmi_devt, dropped, datap, len);
+    A_WMI_DBGLOG_EVENT(wmip->wmi_devt, dropped, (A_INT8*)datap, len);
     return A_OK;
 }
 
@@ -2272,6 +2274,7 @@ A_STATUS
 wmi_cmd_send(struct wmi_t *wmip, void *osbuf, WMI_COMMAND_ID cmdId,
                WMI_SYNC_FLAG syncflag)
 {
+    A_STATUS status;
 #define IS_OPT_TX_CMD(cmdId) ((cmdId == WMI_OPT_TX_FRAME_CMDID))
     WMI_CMD_HDR         *cHdr;
     HTC_ENDPOINT_ID     eid  = wmip->wmi_endpoint_id;
@@ -2279,6 +2282,7 @@ wmi_cmd_send(struct wmi_t *wmip, void *osbuf, WMI_COMMAND_ID cmdId,
     A_ASSERT(osbuf != NULL);
 
     if (syncflag >= END_WMIFLAG) {
+        A_NETBUF_FREE(osbuf);
         return A_EINVAL;
     }
 
@@ -2291,6 +2295,7 @@ wmi_cmd_send(struct wmi_t *wmip, void *osbuf, WMI_COMMAND_ID cmdId,
     }
 
     if (A_NETBUF_PUSH(osbuf, sizeof(WMI_CMD_HDR)) != A_OK) {
+        A_NETBUF_FREE(osbuf);
         return A_NO_MEMORY;
     }
 
@@ -2302,7 +2307,10 @@ wmi_cmd_send(struct wmi_t *wmip, void *osbuf, WMI_COMMAND_ID cmdId,
      * Only for OPT_TX_CMD, use BE endpoint.
      */
     if (IS_OPT_TX_CMD(cmdId)) {
-        wmi_data_hdr_add(wmip, osbuf, OPT_MSGTYPE, FALSE, FALSE,0,NULL);
+        if ((status=wmi_data_hdr_add(wmip, osbuf, OPT_MSGTYPE, FALSE, FALSE,0,NULL)) != A_OK) {
+            A_NETBUF_FREE(osbuf);
+            return status;
+        }
         eid = A_WMI_Ac2EndpointID(wmip->wmi_devt, WMM_AC_BE);
     }
     A_WMI_CONTROL_TX(wmip->wmi_devt, osbuf, eid);
@@ -2325,6 +2333,7 @@ wmi_cmd_send_xtnd(struct wmi_t *wmip, void *osbuf, WMIX_COMMAND_ID cmdId,
     WMIX_CMD_HDR     *cHdr;
 
     if (A_NETBUF_PUSH(osbuf, sizeof(WMIX_CMD_HDR)) != A_OK) {
+        A_NETBUF_FREE(osbuf);
         return A_NO_MEMORY;
     }
 
@@ -2344,13 +2353,6 @@ wmi_connect_cmd(struct wmi_t *wmip, NETWORK_TYPE netType,
 {
     void *osbuf;
     WMI_CONNECT_CMD *cc;
-    struct ieee80211_node_table *nt;
-
-    /* Do not allow a connect until a scan has been done. This will allow a host initiated scan to take precedence over a connect */
-    nt = &wmip->wmi_scan_table;
-    if (!(netType & ADHOC_NETWORK) && (nt->nt_node_first == NULL)) {
-        return A_EINVAL;
-    }
 
     if ((pairwiseCrypto == NONE_CRYPT) && (groupCrypto != NONE_CRYPT)) {
         return A_EINVAL;
@@ -2388,10 +2390,7 @@ wmi_connect_cmd(struct wmi_t *wmip, NETWORK_TYPE netType,
     if (bssid != NULL) {
         A_MEMCPY(cc->bssid, bssid, ATH_MAC_LEN);
     }
-    if (wmi_set_keepalive_cmd(wmip, wmip->wmi_keepaliveInterval) != A_OK) {
-        return(A_ERROR);
-    }
-
+   
     wmip->wmi_pair_crypto_type  = pairwiseCrypto;
     wmip->wmi_grp_crypto_type   = groupCrypto;
 
@@ -2830,7 +2829,6 @@ wmi_add_krk_cmd(struct wmi_t *wmip, A_UINT8 *krk)
     WMI_ADD_KRK_CMD *cmd;
 
     osbuf = A_NETBUF_ALLOC(sizeof(*cmd));
-
     if (osbuf == NULL) {
         return A_NO_MEMORY;
     }
@@ -2963,7 +2961,6 @@ wmi_set_pmkid_list_cmd(struct wmi_t *wmip,
              pmkInfo->numPMKID * sizeof(WMI_PMKID);
 
     osbuf = A_NETBUF_ALLOC(cmdLen);
-
     if (osbuf == NULL) {
         return A_NO_MEMORY;
     }
@@ -3253,6 +3250,7 @@ wmi_delete_pstream_cmd(struct wmi_t *wmip, A_UINT8 trafficClass, A_UINT8 tsid)
         /* Check if the tsid was created & exists */
     if (!(activeTsids & (1<<tsid))) {
 
+        A_NETBUF_FREE(osbuf);
         A_DPRINTF(DBG_WMI,
         (DBGFMT "TSID %d does'nt exist for trafficClass: %d\n", DBGARG, tsid, trafficClass));
             /* TODO: return a more appropriate err code */
@@ -3405,14 +3403,11 @@ wmi_is_bitrate_index_valid(struct wmi_t *wmip, A_INT32 rateIndex)
             break;
 
         case WMI_11G_MODE:
-        case WMI_11AG_MODE:
-        case WMI_DEFAULT_MODE:
-        case WMI_11GHT20_MODE:
+        case WMI_11AG_MODE:        
             if ((rateIndex < MODE_G_SUPPORT_RATE_START) || (rateIndex > MODE_G_SUPPORT_RATE_STOP)) {
                 isValid = FALSE;
             }
-            break;
-
+            break;        
         default:
             A_ASSERT(FALSE);
             break;
@@ -3429,10 +3424,10 @@ wmi_validate_bitrate(struct wmi_t *wmip, A_INT32 rate)
     {
         for (i=0;;i++)
         {
-            if (wmi_rateTable[(A_UINT32) i] == 0) {
+            if (wmi_rateTable[(A_UINT32) i][0] == 0) {
                 return A_EINVAL;
             }
-            if (wmi_rateTable[(A_UINT32) i] == rate) {
+            if (wmi_rateTable[(A_UINT32) i][0] == rate) {
                 break;
             }
         }
@@ -4327,14 +4322,14 @@ wmi_gpio_intr_ack(struct wmi_t *wmip,
 #endif /* CONFIG_HOST_GPIO_SUPPORT */
 
 A_STATUS
-wmi_set_access_params_cmd(struct wmi_t *wmip, A_UINT16 txop, A_UINT8 eCWmin,
+wmi_set_access_params_cmd(struct wmi_t *wmip, A_UINT8 ac,  A_UINT16 txop, A_UINT8 eCWmin,
                           A_UINT8 eCWmax, A_UINT8 aifsn)
 {
     void *osbuf;
     WMI_SET_ACCESS_PARAMS_CMD *cmd;
 
     if ((eCWmin > WMI_MAX_CW_ACPARAM) || (eCWmax > WMI_MAX_CW_ACPARAM) ||
-        (aifsn > WMI_MAX_AIFSN_ACPARAM))
+        (aifsn > WMI_MAX_AIFSN_ACPARAM) || (ac >= WMM_NUM_AC))
     {
         return A_EINVAL;
     }
@@ -4351,6 +4346,7 @@ wmi_set_access_params_cmd(struct wmi_t *wmip, A_UINT16 txop, A_UINT8 eCWmin,
     cmd->eCWmin = eCWmin;
     cmd->eCWmax = eCWmax;
     cmd->aifsn  = aifsn;
+    cmd->ac = ac;
 
     return (wmi_cmd_send(wmip, osbuf, WMI_SET_ACCESS_PARAMS_CMDID,
                          NO_SYNC_WMIFLAG));
@@ -5276,7 +5272,7 @@ wmi_get_rate(A_INT8 rateindex)
     if (rateindex == RATE_AUTO) {
         return 0;
     } else {
-        return(wmi_rateTable[(A_UINT32) rateindex]);
+        return(wmi_rateTable[(A_UINT32) rateindex][0]);
     }
 }
 
@@ -5453,6 +5449,7 @@ wmi_dset_data_reply(struct wmi_t *wmip,
 
     if (status == A_OK) {
         if (a_copy_from_user(data_reply->buf, user_buf, length)) {
+            A_NETBUF_FREE(osbuf);
             return A_ERROR;
         }
     }
@@ -6277,9 +6274,7 @@ wmi_ap_set_rateset(struct wmi_t *wmip, A_UINT8 rateset)
 
 #ifdef ATH_AR6K_11N_SUPPORT
 A_STATUS
-wmi_set_ht_cap_cmd(struct wmi_t *wmip, A_UINT8 chan_width_40M_supported,
-              A_UINT8 short_GI_20MHz, A_UINT8 short_GI_40MHz,
-              A_UINT8 intolerance_40MHz, A_UINT8 max_ampdu_len_exp)
+wmi_set_ht_cap_cmd(struct wmi_t *wmip, WMI_SET_HT_CAP_CMD *cmd)
 {
     void *osbuf;
     WMI_SET_HT_CAP_CMD *htCap;
@@ -6293,12 +6288,8 @@ wmi_set_ht_cap_cmd(struct wmi_t *wmip, A_UINT8 chan_width_40M_supported,
 
     htCap = (WMI_SET_HT_CAP_CMD *)(A_NETBUF_DATA(osbuf));
     A_MEMZERO(htCap, sizeof(*htCap));
-    htCap->chan_width_40M_supported  = chan_width_40M_supported;
-    htCap->short_GI_20MHz    = short_GI_20MHz;
-    htCap->short_GI_40MHz    = short_GI_40MHz;
-    htCap->intolerance_40MHz = intolerance_40MHz;
-    htCap->max_ampdu_len_exp = max_ampdu_len_exp;
-
+    A_MEMCPY(htCap, cmd, sizeof(*htCap));
+    
     return (wmi_cmd_send(wmip, osbuf, WMI_SET_HT_CAP_CMDID,
                          NO_SYNC_WMIFLAG));
 }
@@ -6514,3 +6505,32 @@ wmi_set_pmk_cmd(struct wmi_t *wmip, A_UINT8 *pmk)
     return (wmi_cmd_send(wmip, osbuf, WMI_SET_PMK_CMDID, NO_SYNC_WMIFLAG));
 }
 
+bss_t *
+wmi_find_matching_Ssidnode (struct wmi_t *wmip, A_UCHAR *pSsid,
+                   A_UINT32 ssidLength,
+                   A_UINT32 dot11AuthMode, A_UINT32 authMode,
+                   A_UINT32 pairwiseCryptoType, A_UINT32 grpwiseCryptoTyp)
+{
+    bss_t *node = NULL;
+    node = wlan_find_matching_Ssidnode (&wmip->wmi_scan_table, pSsid,
+                               ssidLength, dot11AuthMode, authMode, pairwiseCryptoType, grpwiseCryptoTyp);
+
+    return node;
+}
+
+A_UINT16
+wmi_ieee2freq (int chan)
+{
+    A_UINT16 freq = 0;
+    freq = wlan_ieee2freq (chan);
+    return freq;
+
+}
+
+A_UINT32
+wmi_freq2ieee (A_UINT16 freq)
+{
+    A_UINT16 chan = 0;
+    chan = wlan_freq2ieee (freq);
+    return chan;
+}

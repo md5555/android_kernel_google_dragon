@@ -144,8 +144,8 @@ a_netbuf_put(void *bufPtr, A_INT32 len)
 A_STATUS
 a_netbuf_put_data(void *bufPtr, char *srcPtr, A_INT32 len)
 {
-    char *start = ((struct sk_buff *)bufPtr)->data +
-        ((struct sk_buff *)bufPtr)->len;
+    char *start = (char*)(((struct sk_buff *)bufPtr)->data +
+        ((struct sk_buff *)bufPtr)->len);
     skb_put((struct sk_buff *)bufPtr, len);
     A_MEMCPY(start, srcPtr, len);
 
@@ -181,8 +181,8 @@ a_netbuf_trim(void *bufPtr, A_INT32 len)
 A_STATUS
 a_netbuf_trim_data(void *bufPtr, char *dstPtr, A_INT32 len)
 {
-    char *start = ((struct sk_buff *)bufPtr)->data +
-        (((struct sk_buff *)bufPtr)->len - len);
+    char *start = (char*)(((struct sk_buff *)bufPtr)->data +
+        (((struct sk_buff *)bufPtr)->len - len));
     
     A_MEMCPY(dstPtr, start, len);
     skb_trim((struct sk_buff *)bufPtr, ((struct sk_buff *)bufPtr)->len - len);

@@ -36,5 +36,15 @@
  */
 #define WLAN_CONFIG_IGNORE_POWER_SAVE_FAIL_EVENT_DURING_SCAN 0
 
+/*
+ * This configuration item enable/disable keepalive support.
+ * Keepalive support: In the absence of any data traffic to AP, null 
+ * frames will be sent to the AP at periodic interval, to keep the association
+ * active. This configuration item defines the periodic interval.
+ * Use value of zero to disable keepalive support
+ * Default: 60 seconds
+ */
+#define WLAN_CONFIG_KEEP_ALIVE_INTERVAL 60 
+
 
 #endif /* _HOST_WLAN_CONFIG_H_ */

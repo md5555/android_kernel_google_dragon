@@ -980,7 +980,8 @@ static A_STATUS HTCIssueRecvPacketBundle(HTC_TARGET        *target,
     int             pktsToScatter;
     HTC_PACKET      *pPacket;
     A_BOOL          asyncMode = (pSyncCompletionQueue == NULL) ? TRUE : FALSE;
-    
+    int             scatterSpaceRemaining = DEV_GET_MAX_BUNDLE_RECV_LENGTH(&target->Device);
+        
     pktsToScatter = HTC_PACKET_QUEUE_DEPTH(pRecvPktQueue);
     pktsToScatter = min(pktsToScatter, target->MaxMsgPerBundle);
         
@@ -1018,9 +1019,21 @@ static A_STATUS HTCIssueRecvPacketBundle(HTC_TARGET        *target,
                    
             /* convert HTC packets to scatter list */                   
         for (i = 0; i < pktsToScatter; i++) {
+            int paddedLength;
+            
             pPacket = HTC_PACKET_DEQUEUE(pRecvPktQueue);
             A_ASSERT(pPacket != NULL);
             
+            paddedLength = DEV_CALC_RECV_PADDED_LEN(&target->Device, pPacket->ActualLength);
+     
+            if ((scatterSpaceRemaining - paddedLength) < 0) {
+                    /* exceeds what we can transfer, put the packet back */  
+                HTC_PACKET_ENQUEUE_TO_HEAD(pRecvPktQueue,pPacket);
+                break;    
+            }
+                        
+            scatterSpaceRemaining -= paddedLength;
+                       
             if (PartialBundle || (i < (pktsToScatter - 1))) {
                     /* packet 0..n-1 cannot be checked for look-aheads since we are fetching a bundle
                      * the last packet however can have it's lookahead used */
@@ -1030,8 +1043,7 @@ static A_STATUS HTCIssueRecvPacketBundle(HTC_TARGET        *target,
             /* note: 1 HTC packet per scatter entry */           
                 /* setup packet into */   
             pScatterReq->ScatterList[i].pBuffer = pPacket->pBuffer;
-            pScatterReq->ScatterList[i].Length = 
-                                DEV_CALC_RECV_PADDED_LEN(&target->Device, pPacket->ActualLength);
+            pScatterReq->ScatterList[i].Length = paddedLength;
             
             pPacket->PktInfo.AsRx.HTCRxFlags |= HTC_RX_PKT_PART_OF_BUNDLE;
             
@@ -1048,7 +1060,7 @@ static A_STATUS HTCIssueRecvPacketBundle(HTC_TARGET        *target,
         }            
         
         pScatterReq->TotalLength = totalLength;
-        pScatterReq->ValidScatterEntries = pktsToScatter;
+        pScatterReq->ValidScatterEntries = i;
         
         if (asyncMode) {
             pScatterReq->CompletionRoutine = HTCAsyncRecvScatterCompletion;
@@ -1058,7 +1070,7 @@ static A_STATUS HTCIssueRecvPacketBundle(HTC_TARGET        *target,
         status = DevSubmitScatterRequest(&target->Device, pScatterReq, DEV_SCATTER_READ, asyncMode);
         
         if (A_SUCCESS(status)) {
-            *pNumPacketsFetched = pktsToScatter;    
+            *pNumPacketsFetched = i;    
         }
         
         if (!asyncMode) {

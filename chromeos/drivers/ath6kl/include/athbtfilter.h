@@ -58,7 +58,9 @@ typedef void   (*ATHBT_INDICATE_STATE_FN)(void *pContext, ATHBT_STATE_INDICATION
 typedef struct _ATHBT_FILTER_INSTANCE {
 #ifdef UNDER_CE
     WCHAR                       *pWlanAdapterName;  /* filled in by user */
-#endif
+#else
+    A_CHAR                      *pWlanAdapterName;  /* filled in by user */
+#endif /* UNDER_CE */
     int                         FilterEnabled;      /* filtering is enabled */
     int                         Attached;           /* filter library is attached */
     void                        *pContext;          /* private context for filter library */

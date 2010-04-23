@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (c) 2009 Atheros Communications Inc.
+ * Copyright (c) 2010 Atheros Communications Inc.
  * All rights reserved.
  *
  * 
@@ -23,6 +23,7 @@
 #include <athdefs.h>
 #include <a_types.h>
 #include <a_osapi.h>
+#include <a_debug.h>
 #include "pkt_log.h"
 #include "aggr_recv_api.h"
 #include "aggr_rx_internal.h"
@@ -35,7 +36,7 @@ static void
 aggr_slice_amsdu(AGGR_INFO *p_aggr, RXTID *rxtid, void **osbuf);
 
 static void
-aggr_timeout(unsigned long arg);
+aggr_timeout(A_ATH_TIMER arg);
 
 static void
 aggr_deque_frms(AGGR_INFO *p_aggr, A_UINT8 tid, A_UINT16 seq_no, A_UINT8 order);
@@ -55,7 +56,7 @@ aggr_init(ALLOC_NETBUFS netbuf_allocator)
     A_STATUS status = A_OK;
 
     A_PRINTF("In aggr_init..\n");
-    
+
     do {
         p_aggr = A_MALLOC(sizeof(AGGR_INFO));
         if(!p_aggr) {
@@ -100,28 +101,28 @@ aggr_delete_tid_state(AGGR_INFO *p_aggr, A_UINT8 tid)
 {
     RXTID *rxtid;
     RXTID_STATS *stats;
-    
+
     A_ASSERT(tid < NUM_OF_TIDS && p_aggr);
-    
+
     rxtid = AGGR_GET_RXTID(p_aggr, tid);
     stats = AGGR_GET_RXTID_STATS(p_aggr, tid);
-    
+
     if(rxtid->aggr) {
         aggr_deque_frms(p_aggr, tid, 0, ALL_SEQNO);
     }
-    
+
     rxtid->aggr = FALSE;
     rxtid->progress = FALSE;
     rxtid->timerMon = FALSE;
     rxtid->win_sz = 0;
     rxtid->seq_next = 0;
     rxtid->hold_q_sz = 0;
-    
+
     if(rxtid->hold_q) {
         A_FREE(rxtid->hold_q);
         rxtid->hold_q = NULL;
     }
-       
+
     A_MEMZERO(stats, sizeof(RXTID_STATS));
 }
 
@@ -131,16 +132,15 @@ aggr_module_destroy(void *cntxt)
     AGGR_INFO *p_aggr = (AGGR_INFO *)cntxt;
     RXTID *rxtid;
     A_UINT8 i, k;
-
-    A_PRINTF("%s(): aggr = %p\n",__func__, p_aggr);
+    A_PRINTF("%s(): aggr = %p\n",_A_FUNCNAME_, p_aggr);
     A_ASSERT(p_aggr);
-    
-    if(p_aggr) {    
+
+    if(p_aggr) {
         if(p_aggr->timerScheduled) {
             A_UNTIMEOUT(&p_aggr->timer);
             p_aggr->timerScheduled = FALSE;
         }
-        
+
         for(i = 0; i < NUM_OF_TIDS; i++) {
             rxtid = AGGR_GET_RXTID(p_aggr, i);
             /* Free the hold q contents and hold_q*/
@@ -207,8 +207,7 @@ aggr_recv_addba_req_evt(void *cntxt, A_UINT8 tid, A_UINT16 seq_no, A_UINT8 win_s
     rxtid = AGGR_GET_RXTID(p_aggr, tid);
     stats = AGGR_GET_RXTID_STATS(p_aggr, tid);
 
-    A_PRINTF("%s(): win_sz = %d aggr %d\n", __func__, win_sz, rxtid->aggr);
-
+    A_PRINTF("%s(): win_sz = %d aggr %d\n", _A_FUNCNAME_, win_sz, rxtid->aggr);
     if(win_sz < AGGR_WIN_SZ_MIN || win_sz > AGGR_WIN_SZ_MAX) {
         A_PRINTF("win_sz %d, tid %d\n", win_sz, tid);
     }
@@ -219,9 +218,9 @@ aggr_recv_addba_req_evt(void *cntxt, A_UINT8 tid, A_UINT16 seq_no, A_UINT8 win_s
          */
         aggr_delete_tid_state(p_aggr, tid);
     }
-    
+
     rxtid->seq_next = seq_no;
-    /* create these queues, only upon receiving of ADDBA for a 
+    /* create these queues, only upon receiving of ADDBA for a
      * tid, reducing memory requirement
      */
     rxtid->hold_q = A_MALLOC(HOLD_Q_SZ(win_sz));
@@ -233,7 +232,7 @@ aggr_recv_addba_req_evt(void *cntxt, A_UINT8 tid, A_UINT16 seq_no, A_UINT8 win_s
 
     /* Update rxtid for the window sz */
     rxtid->win_sz = win_sz;
-    /* hold_q_sz inicates the depth of holding q - which  is 
+    /* hold_q_sz inicates the depth of holding q - which  is
      * a factor of win_sz. Compute once, as it will be used often
      */
     rxtid->hold_q_sz = TID_WINDOW_SZ(win_sz);
@@ -246,23 +245,23 @@ aggr_recv_addba_req_evt(void *cntxt, A_UINT8 tid, A_UINT16 seq_no, A_UINT8 win_s
         A_ASSERT(0);
     }
 
-    rxtid->aggr = TRUE;  
+    rxtid->aggr = TRUE;
 }
 
 void
 aggr_recv_delba_req_evt(void *cntxt, A_UINT8 tid)
 {
     AGGR_INFO *p_aggr = (AGGR_INFO *)cntxt;
-    RXTID *rxtid;    
+    RXTID *rxtid;
 
     A_ASSERT(p_aggr);
-    A_PRINTF("%s(): tid %d\n", __func__, tid);
+    A_PRINTF("%s(): tid %d\n", _A_FUNCNAME_, tid);
 
     rxtid = AGGR_GET_RXTID(p_aggr, tid);
-    
+
     if(rxtid->aggr) {
         aggr_delete_tid_state(p_aggr, tid);
-    }    
+    }
 }
 
 static void
@@ -294,7 +293,7 @@ aggr_deque_frms(AGGR_INFO *p_aggr, A_UINT8 tid, A_UINT16 seq_no, A_UINT8 order)
      */
     seq_end = (seq_no) ? seq_no : rxtid->seq_next;
     idx_end = AGGR_WIN_IDX(seq_end, rxtid->hold_q_sz);
-    
+
     /* Critical section begins */
     A_MUTEX_LOCK(&rxtid->lock);
     do {
@@ -304,7 +303,7 @@ aggr_deque_frms(AGGR_INFO *p_aggr, A_UINT8 tid, A_UINT16 seq_no, A_UINT8 order)
         if((order == CONTIGUOUS_SEQNO) && (!node->osbuf))
             break;
 
-        /* chain frames and deliver frames bcos: 
+        /* chain frames and deliver frames bcos:
          *  1. either the frames are in order and window is contiguous, OR
          *  2. we need to deque frames, irrespective of holes
          */
@@ -325,7 +324,7 @@ aggr_deque_frms(AGGR_INFO *p_aggr, A_UINT8 tid, A_UINT16 seq_no, A_UINT8 order)
     } while(idx != idx_end);
     /* Critical section ends */
     A_MUTEX_UNLOCK(&rxtid->lock);
-    
+
     stats->num_delivered += A_NETBUF_QUEUE_SIZE(&rxtid->q);
     aggr_dispatch_frames(p_aggr, &rxtid->q);
 }
@@ -335,8 +334,8 @@ aggr_get_osbuf(AGGR_INFO *p_aggr)
 {
     void *buf = NULL;
 
-    /* Starving for buffers?  get more from OS 
-     *  check for low netbuffers( < 1/4 AGGR_NUM_OF_FREE_NETBUFS) : 
+    /* Starving for buffers?  get more from OS
+     *  check for low netbuffers( < 1/4 AGGR_NUM_OF_FREE_NETBUFS) :
      *      re-allocate bufs if so
      * allocate a free buf from freeQ
      */
@@ -347,7 +346,7 @@ aggr_get_osbuf(AGGR_INFO *p_aggr)
     if (A_NETBUF_QUEUE_SIZE(&p_aggr->freeQ)) {
         buf = A_NETBUF_DEQUEUE(&p_aggr->freeQ);
     }
-    
+
     return buf;
 }
 
@@ -409,7 +408,7 @@ aggr_slice_amsdu(AGGR_INFO *p_aggr, RXTID *rxtid, void **osbuf)
             break;
         }
 
-        /* Add the length of A-MSDU subframe padding bytes - 
+        /* Add the length of A-MSDU subframe padding bytes -
          * Round to nearest word.
          */
         frame_8023_len = ((frame_8023_len + 3) & ~3);
@@ -428,7 +427,7 @@ aggr_process_recv_frm(void *cntxt, A_UINT8 tid, A_UINT16 seq_no, A_BOOL is_amsdu
     AGGR_INFO *p_aggr = (AGGR_INFO *)cntxt;
     RXTID *rxtid;
     RXTID_STATS *stats;
-    A_UINT16 idx, st, cur, end; 
+    A_UINT16 idx, st, cur, end;
     A_UINT16 *log_idx;
     OSBUF_HOLD_Q *node;
     PACKET_LOG *log;
@@ -438,7 +437,7 @@ aggr_process_recv_frm(void *cntxt, A_UINT8 tid, A_UINT16 seq_no, A_BOOL is_amsdu
 
     rxtid = AGGR_GET_RXTID(p_aggr, tid);
     stats = AGGR_GET_RXTID_STATS(p_aggr, tid);
-    
+
     stats->num_into_aggr++;
 
     if(!rxtid->aggr) {
@@ -462,7 +461,7 @@ aggr_process_recv_frm(void *cntxt, A_UINT8 tid, A_UINT16 seq_no, A_BOOL is_amsdu
     log->info[*log_idx].end = end;
     *log_idx = IEEE80211_NEXT_SEQ_NO(*log_idx);
 
-    if(((st < end) && (cur < st || cur > end)) || 
+    if(((st < end) && (cur < st || cur > end)) ||
       ((st > end) && (cur > end) && (cur < st))) {
         /* the cur frame is outside the window. Since we know
          * our target would not do this without reason it must
@@ -470,50 +469,50 @@ aggr_process_recv_frm(void *cntxt, A_UINT8 tid, A_UINT16 seq_no, A_BOOL is_amsdu
          * Therefore, we dequeue all frames and start fresh.
          */
         A_UINT16 extended_end;
-       
+
         extended_end = (end + rxtid->hold_q_sz-1) & IEEE80211_MAX_SEQ_NO;
-         
-        if(((end < extended_end) && (cur < end || cur > extended_end)) || 
+
+        if(((end < extended_end) && (cur < end || cur > extended_end)) ||
            ((end > extended_end) && (cur > extended_end) && (cur < end))) {
-            // dequeue all frames in queue and shift window to new frame 
+            // dequeue all frames in queue and shift window to new frame
             aggr_deque_frms(p_aggr, tid, 0, ALL_SEQNO);
             //set window start so that new frame is last frame in window
             if(cur >= rxtid->hold_q_sz-1) {
                 rxtid->seq_next = cur - (rxtid->hold_q_sz-1);
             }else{
                 rxtid->seq_next = IEEE80211_MAX_SEQ_NO - (rxtid->hold_q_sz-2 - cur);
-            }            
+            }
         } else {
             // dequeue only those frames that are outside the new shifted window
-            if(cur >= rxtid->hold_q_sz-1) {                      
+            if(cur >= rxtid->hold_q_sz-1) {
                 st = cur - (rxtid->hold_q_sz-1);
-            }else{            
+            }else{
                 st = IEEE80211_MAX_SEQ_NO - (rxtid->hold_q_sz-2 - cur);
             }
-            
+
             aggr_deque_frms(p_aggr, tid, st, ALL_SEQNO);
-        }          
-        
-        stats->num_oow++;              
-    }   
+        }
+
+        stats->num_oow++;
+    }
 
     idx = AGGR_WIN_IDX(seq_no, rxtid->hold_q_sz);
-    
+
     /*enque the frame, in hold_q */
     node = &rxtid->hold_q[idx];
 
     A_MUTEX_LOCK(&rxtid->lock);
     if(node->osbuf) {
-        /* Is the cur frame duplicate or something beyond our 
+        /* Is the cur frame duplicate or something beyond our
          * window(hold_q -> which is 2x, already)?
          * 1. Duplicate is easy - drop incoming frame.
          * 2. Not falling in current sliding window.
-         *  2a. is the frame_seq_no preceding current tid_seq_no? 
+         *  2a. is the frame_seq_no preceding current tid_seq_no?
          *      -> drop the frame. perhaps sender did not get our ACK.
          *         this is taken care of above.
          *  2b. is the frame_seq_no beyond window(st, TID_WINDOW_SZ);
          *      -> Taken care of it above, by moving window forward.
-         * 
+         *
          */
         A_NETBUF_FREE(node->osbuf);
         stats->num_dups++;
@@ -531,13 +530,13 @@ aggr_process_recv_frm(void *cntxt, A_UINT8 tid, A_UINT16 seq_no, A_BOOL is_amsdu
 
     *osbuf = NULL;
     aggr_deque_frms(p_aggr, tid, 0, CONTIGUOUS_SEQNO);
-    
+
     if(p_aggr->timerScheduled) {
         rxtid->progress = TRUE;
     }else{
         for(idx=0 ; idx<rxtid->hold_q_sz ; idx++) {
             if(rxtid->hold_q[idx].osbuf) {
-                /* there is a frame in the queue and no timer so 
+                /* there is a frame in the queue and no timer so
                  * start a timer to ensure that the frame doesn't remain
                  * stuck forever. */
                 p_aggr->timerScheduled = TRUE;
@@ -546,23 +545,23 @@ aggr_process_recv_frm(void *cntxt, A_UINT8 tid, A_UINT16 seq_no, A_BOOL is_amsdu
                 rxtid->timerMon = TRUE;
                 break;
             }
-        }                
+        }
     }
 }
 
-/* 
+/*
  * aggr_reset_state -- Called when it is deemed necessary to clear the aggregate
- *  hold Q state.  Examples include when a Connect event or disconnect event is 
- *  received. 
+ *  hold Q state.  Examples include when a Connect event or disconnect event is
+ *  received.
  */
 void
 aggr_reset_state(void *cntxt)
 {
     A_UINT8 tid;
     AGGR_INFO *p_aggr = (AGGR_INFO *)cntxt;
-    
+
     A_ASSERT(p_aggr);
-    
+
     for(tid=0 ; tid<NUM_OF_TIDS ; tid++) {
         aggr_delete_tid_state(p_aggr, tid);
     }
@@ -570,37 +569,37 @@ aggr_reset_state(void *cntxt)
 
 
 static void
-aggr_timeout(unsigned long arg)
+aggr_timeout(A_ATH_TIMER arg)
 {
-    A_UINT16 i,j;
+    A_UINT8 i,j;
     AGGR_INFO *p_aggr = (AGGR_INFO *)arg;
     RXTID   *rxtid;
     RXTID_STATS *stats;
-    /* 
-     * If the q for which the timer was originally started has 
-     * not progressed then it is necessary to dequeue all the 
+    /*
+     * If the q for which the timer was originally started has
+     * not progressed then it is necessary to dequeue all the
      * contained frames so that they are not held forever.
      */
-    for(i = 0; i < NUM_OF_TIDS; i++) {        
+    for(i = 0; i < NUM_OF_TIDS; i++) {
         rxtid = AGGR_GET_RXTID(p_aggr, i);
         stats = AGGR_GET_RXTID_STATS(p_aggr, i);
-        
-        if(rxtid->aggr == FALSE || 
-           rxtid->timerMon == FALSE || 
+
+        if(rxtid->aggr == FALSE ||
+           rxtid->timerMon == FALSE ||
            rxtid->progress == TRUE) {
             continue;
         }
         // dequeue all frames in for this tid
         stats->num_timeouts++;
         A_PRINTF("TO: st %d end %d\n", rxtid->seq_next, ((rxtid->seq_next + rxtid->hold_q_sz-1) & IEEE80211_MAX_SEQ_NO));
-        aggr_deque_frms(p_aggr, i, 0, ALL_SEQNO);        
+        aggr_deque_frms(p_aggr, i, 0, ALL_SEQNO);
     }
-    
+
     p_aggr->timerScheduled = FALSE;
     // determine whether a new timer should be started.
-    for(i = 0; i < NUM_OF_TIDS; i++) {        
+    for(i = 0; i < NUM_OF_TIDS; i++) {
         rxtid = AGGR_GET_RXTID(p_aggr, i);
-        
+
         if(rxtid->aggr == TRUE && rxtid->hold_q) {
             for(j = 0 ; j < rxtid->hold_q_sz ; j++)
             {
@@ -612,18 +611,18 @@ aggr_timeout(unsigned long arg)
                     break;
                 }
             }
-            
+
             if(j >= rxtid->hold_q_sz) {
-                rxtid->timerMon = FALSE;                
+                rxtid->timerMon = FALSE;
             }
-        }        
+        }
     }
-    
+
     if(p_aggr->timerScheduled) {
         /* Rearm the timer*/
         A_TIMEOUT_MS(&p_aggr->timer, AGGR_RX_TIMEOUT, 0);
     }
-    
+
 }
 
 static void
@@ -645,17 +644,17 @@ aggr_dump_stats(void *cntxt, PACKET_LOG **log_buf)
     A_UINT8 i;
 
     *log_buf = &p_aggr->pkt_log;
-    A_PRINTF("\n\n================================================\n");    
+    A_PRINTF("\n\n================================================\n");
     A_PRINTF("tid: num_into_aggr, dups, oow, mpdu, amsdu, delivered, timeouts, holes, bar, seq_next\n");
     for(i = 0; i < NUM_OF_TIDS; i++) {
         stats = AGGR_GET_RXTID_STATS(p_aggr, i);
         rxtid = AGGR_GET_RXTID(p_aggr, i);
-        A_PRINTF("%d: %d %d %d %d %d %d %d %d %d : %d\n", i, stats->num_into_aggr, stats->num_dups, 
+        A_PRINTF("%d: %d %d %d %d %d %d %d %d %d : %d\n", i, stats->num_into_aggr, stats->num_dups,
                     stats->num_oow, stats->num_mpdu,
-                    stats->num_amsdu, stats->num_delivered, stats->num_timeouts, 
+                    stats->num_amsdu, stats->num_delivered, stats->num_timeouts,
                     stats->num_hole, stats->num_bar,
                     rxtid->seq_next);
-    }   
+    }
     A_PRINTF("================================================\n\n");
 
 }

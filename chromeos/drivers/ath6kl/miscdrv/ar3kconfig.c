@@ -212,11 +212,6 @@ static A_STATUS AR3KConfigureHCIBaud(AR3K_CONFIG_INFO *pConfig)
     A_UINT16    baudVal; 
     A_UINT8     *pEvent = NULL;
     A_UINT8     *pBufferToFree = NULL;
-#ifndef EXPORT_HCI_BRIDGE_INTERFACE
-    A_UINT32    regAddress;
-    A_UINT32    regVal;
-#endif
-    
     
     do {
         
@@ -253,16 +248,9 @@ static A_STATUS AR3KConfigureHCIBaud(AR3K_CONFIG_INFO *pConfig)
         }
         
         if (pConfig->Flags & AR3K_CONFIG_FLAG_SET_AR6K_SCALE_STEP) {
-#ifdef EXPORT_HCI_BRIDGE_INTERFACE
-            status = ar6000_set_uart_config(pConfig->pHIFDevice,
-                                            pConfig->AR6KScale,
-                                            pConfig->AR6KStep);                     
-#else
-            regAddress = 0xc008;
-            regVal = ((A_UINT32)pConfig->AR6KScale << 16) | pConfig->AR6KStep;
-                /* change the HCI UART scale/step values through the diagnostic window */
-            status = ar6000_WriteRegDiag(pConfig->pHIFDevice,&regAddress,&regVal);                     
-#endif
+            /* Tell target to change UART baud rate for AR6K */
+            status = HCI_TransportSetBaudRate(pConfig->pHCIDev, pConfig->AR3KBaudRate);
+
             if (A_FAILED(status)) {
                 AR_DEBUG_PRINTF(ATH_DEBUG_ERR,
                     ("AR3K Config: failed to set scale and step values: %d \n", status));
@@ -270,8 +258,7 @@ static A_STATUS AR3KConfigureHCIBaud(AR3K_CONFIG_INFO *pConfig)
             }
     
             AR_DEBUG_PRINTF(ATH_DEBUG_ANY,
-                    ("AR3K Config: UART Bridge scale:%d, step:%d set \n",
-                        pConfig->AR6KScale, pConfig->AR6KStep));            
+                    ("AR3K Config: Baud changed to %d for AR6K\n", pConfig->AR3KBaudRate));            
         }
                 
     } while (FALSE);

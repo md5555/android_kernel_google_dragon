@@ -30,6 +30,7 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* Header files */
+
 #include "a_config.h"
 #include "athdefs.h"
 #include "a_types.h"
@@ -113,7 +114,7 @@ typedef struct _HTC_TARGET {
     HTC_CREDIT_INIT_CALLBACK    InitCredits;
     void                       *pCredDistContext;
     int                         TargetCredits;
-    int                         TargetCreditSize;
+    unsigned int                TargetCreditSize;
     A_MUTEX_T                   HTCLock;
     A_MUTEX_T                   HTCRxLock;
     A_MUTEX_T                   HTCTxLock;
