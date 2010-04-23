@@ -156,8 +156,10 @@
 #define S5P_SLEEP_CFG_USBOSC_EN		(1 << 1)
 
 /* OTHERS Resgister */
+#define S5P_OTHERS_RET_IO		(1 << 31)
+#define S5P_OTHERS_RET_MMC		(1 << 29)
+#define S5P_OTHERS_RET_UART		(1 << 28)
 #define S5P_OTHERS_USB_SIG_MASK		(1 << 16)
-#define S5P_OTHERS_MIPI_DPHY_EN		(1 << 28)
 
 /* MIPI */
 #define S5P_MIPI_DPHY_EN		(3)
