@@ -19,3 +19,7 @@ obj-y				+= irq.o
 obj-y				+= bootmem.o
 obj-y				+= setup-i2c0.o
 obj-$(CONFIG_SYSTIMER_S5P)	+= systimer-s5p.o
+
+obj-$(CONFIG_PM)		+= pm.o
+obj-$(CONFIG_PM)		+= irq-pm.o
+obj-$(CONFIG_PM)		+= sleep.o
