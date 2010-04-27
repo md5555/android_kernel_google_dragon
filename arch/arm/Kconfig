@@ -748,6 +748,16 @@ config ARCH_BCMRING
 	help
 	  Support for Broadcom's BCMRing platform.
 
+config ARCH_TEGRA
+	bool "NVIDIA Tegra"
+	select GENERIC_TIME
+	select GENERIC_CLOCKEVENTS
+	select GENERIC_GPIO
+	select HAVE_CLK
+	help
+	  This enables support for NVIDIA Tegra based systems (Tegra APX,
+	  Tegra 6xx and Tegra2 series).
+
 endchoice
 
 source "arch/arm/mach-clps711x/Kconfig"
@@ -827,6 +837,8 @@ source "arch/arm/mach-s5pv210/Kconfig"
 source "arch/arm/mach-lh7a40x/Kconfig"
 
 source "arch/arm/mach-h720x/Kconfig"
+
+source "arch/arm/mach-tegra/Kconfig"
 
 source "arch/arm/mach-versatile/Kconfig"
 
