@@ -82,7 +82,6 @@ CONFIG_HW_RANDOM=y
 CONFIG_HZ=200
 # CONFIG_I2C_DESIGNWARE is not set
 # CONFIG_I2C_GPIO is not set
-# CONFIG_IKCONFIG is not set
 # CONFIG_INET6_AH is not set
 # CONFIG_INET6_ESP is not set
 # CONFIG_INET6_IPCOMP is not set
