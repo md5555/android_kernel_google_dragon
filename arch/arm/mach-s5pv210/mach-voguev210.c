@@ -26,6 +26,10 @@
 #include <plat/devs.h>
 #include <plat/cpu.h>
 
+#if defined(CONFIG_PM)
+#include <mach/pm.h>
+#endif
+
 /* Following are default values for UCON, ULCON and UFCON UART registers */
 #define S5PV210_UCON_DEFAULT	(S3C2410_UCON_TXILEVEL |	\
 				 S3C2410_UCON_RXILEVEL |	\
@@ -111,6 +115,11 @@ static void __init voguev210_map_io(void)
 
 static void __init voguev210_machine_init(void)
 {
+#if defined(CONFIG_PM)
+	s3c_pm_init();
+	s3c_irq_wake(IRQ_RTC_ALARM, 1);
+#endif
+
 	platform_add_devices(voguev210_devices, ARRAY_SIZE(voguev210_devices));
 }
 

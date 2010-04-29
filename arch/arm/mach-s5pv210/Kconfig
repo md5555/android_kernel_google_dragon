@@ -12,6 +12,7 @@ if ARCH_S5PV210
 config CPU_S5PV210
 	bool
 	select PLAT_S5P
+	select S5PV210_PM if PM
 	help
 	  Enable S5PV210 CPU support
 
@@ -42,5 +43,10 @@ config MACH_VOGUEV210
 	  Machine support for Samsung VOGUEV210
 
 endchoice
+
+config S5PV210_PM
+	bool
+	help
+	  Power Management code common to S5PV210
 
 endif

@@ -13,6 +13,7 @@ obj-				:=
 # Core support for S5PV210 system
 
 obj-$(CONFIG_CPU_S5PV210)	+= cpu.o init.o clock.o gpio.o irq-eint-group.o
+obj-$(CONFIG_S5PV210_PM)	+= pm.o
 
 # machine support
 
