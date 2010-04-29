@@ -134,10 +134,16 @@
 #define IRQ_MDNIE3		S5P_IRQ_VIC3(8)
 #define IRQ_VIC_END		S5P_IRQ_VIC3(31)
 
-#define S5P_IRQ_EINT_BASE	(IRQ_VIC_END + 1)
+/* EINT */
 
+#define S5P_IRQ_EINT_BASE	(IRQ_VIC_END + 1)
 #define S5P_EINT(x)		((x) + S5P_IRQ_EINT_BASE)
 #define IRQ_EINT(x)		S5P_EINT(x)
+
+#define S5P_EINT_SET0(x)	S5PV210_GPH0(x)
+#define S5P_EINT_SET1(x)	S5PV210_GPH1(x)
+#define S5P_EINT_SET2(x)	S5PV210_GPH2(x)
+#define S5P_EINT_SET3(x)	S5PV210_GPH3(x)
 
 /* Next the external interrupt groups. These are similar to the IRQ_EINT(x)
  * that they are sourced from the GPIO pins but with a different scheme for
