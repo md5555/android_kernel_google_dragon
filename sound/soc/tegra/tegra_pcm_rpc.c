@@ -78,7 +78,7 @@ static int play_thread( void *arg)
 	rtbuffersize = frames_to_bytes(runtime, runtime->buffer_size);
 	buffer_to_prime  = (rtbuffersize / TEGRA_DEFAULT_BUFFER_SIZE);
 
-	while (!prtd->shutdown_thrd) {
+	for (;;) {
 		switch (prtd->state) {
 		case SNDRV_PCM_TRIGGER_START:
 			state = NvAudioFxState_Run;
@@ -97,10 +97,12 @@ static int play_thread( void *arg)
 						 sizeof(NvAudioFxState),
 						 &state);
 			prtd->state = NVALSA_INVALID_STATE;
-			goto EXIT;
 		default:
 			;
 		}
+
+		if (kthread_should_stop())
+			break;
 
 		if (prtd->audiofx_frames < runtime->control->appl_ptr) {
 			memset(&abd, 0, sizeof(NvAudioFxBufferDescriptor));
@@ -131,9 +133,16 @@ static int play_thread( void *arg)
 								size);
 		}
 
+		if (buffer_in_queue == 0) {
+			DEFINE_WAIT(wq);
+			prepare_to_wait(&prtd->buf_wait, &wq, TASK_INTERRUPTIBLE);
+			schedule();
+			finish_wait(&prtd->buf_wait, &wq);
+			continue;
+		}
+
 		if ((buffer_to_prime == buffer_in_queue) ||
-			(prtd->audiofx_frames >=
-			runtime->control->appl_ptr)) {
+			(prtd->audiofx_frames >= runtime->control->appl_ptr)) {
 			down(&prtd->buf_done_sem);
 
 			buffer_in_queue--;
@@ -167,13 +176,9 @@ static int play_thread( void *arg)
 			}
 		}
 	}
-EXIT:
 	while (buffer_in_queue > 0) {
 		down(&prtd->buf_done_sem);
 		buffer_in_queue--;
-	}
-
-	while (!kthread_should_stop()) {
 	}
 	return 0;
 }
@@ -466,6 +471,8 @@ static int pcm_common_close(struct snd_pcm_substream *substream)
 	if (completion_done(&prtd->thread_comp) == 0)
 		complete(&prtd->thread_comp);
 
+	wake_up_all(&prtd->buf_wait);
+
 	if (prtd->play_thread)
 		kthread_stop(prtd->play_thread);
 
@@ -537,6 +544,7 @@ static int tegra_pcm_open(struct snd_pcm_substream *substream)
 		goto fail;
 
 	init_completion(&prtd->thread_comp);
+	init_waitqueue_head(&prtd->buf_wait);
 	sema_init(&prtd->buf_done_sem, 0);
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK){
@@ -674,6 +682,14 @@ static int tegra_pcm_mmap(struct snd_pcm_substream *substream,
 	return err;
 }
 
+static int tegra_pcm_ack(struct snd_pcm_substream *substream)
+{
+	struct pcm_runtime_data *prtd = substream->runtime->private_data;
+
+	wake_up(&prtd->buf_wait);
+	return 0;
+}
+
 static struct snd_pcm_ops tegra_pcm_ops = {
 	.open = tegra_pcm_open,
 	.close = tegra_pcm_close,
@@ -683,7 +699,8 @@ static struct snd_pcm_ops tegra_pcm_ops = {
 	.prepare = tegra_pcm_prepare,
 	.trigger = tegra_pcm_trigger,
 	.pointer = tegra_pcm_pointer,
-	.mmap    = tegra_pcm_mmap,
+	.mmap = tegra_pcm_mmap,
+	.ack = tegra_pcm_ack,
 };
 
 static int tegra_pcm_preallocate_dma_buffer(struct snd_pcm *pcm, int stream)
