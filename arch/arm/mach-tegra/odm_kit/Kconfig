@@ -17,4 +17,9 @@ config TEGRA_ODM_CONCORDE
 
 endchoice
 
+config TEGRA_PMU_TPS6586X_LD05_VOLTAGE
+	int "Voltage for the TPS6586x LD05 power rail"
+	depends on TEGRA_ODM_HARMONY
+	default "2850"
+
 endif

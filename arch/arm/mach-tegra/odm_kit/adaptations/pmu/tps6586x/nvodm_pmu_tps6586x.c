@@ -1612,8 +1612,7 @@ NvBool Tps6586xSetup(NvOdmPmuDeviceHandle hDevice)
         hPmu->DeviceAddr = I2cAddress;
         hPmu->hOdmPmuSevice = NvOdmServicesPmuOpen();
 #if defined(CONFIG_TEGRA_ODM_HARMONY)
-        //if (NV_FALSE == Tps6586xWriteVoltageReg(hDevice, TPS6586xPmuSupply_LDO5, 3300, NULL))
-        if (NV_FALSE == Tps6586xWriteVoltageReg(hDevice, TPS6586xPmuSupply_LDO5, 2850, NULL))
+        if (NV_FALSE == Tps6586xWriteVoltageReg(hDevice, TPS6586xPmuSupply_LDO5, CONFIG_TEGRA_PMU_TPS6586X_LD05_VOLTAGE, NULL))
             NVODMPMU_PRINTF(("TPS: Fail to set the NVDDIO_NAND to 2.85V\n"));
         else
             NVODMPMU_PRINTF(("TPS: set the NVDDIO_NAND to 2.85V\n"));
