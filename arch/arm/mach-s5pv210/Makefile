@@ -21,3 +21,5 @@ obj-$(CONFIG_S5PV210_PM)	+= pm.o
 obj-$(CONFIG_MACH_SMDKV210)	+= mach-smdkv210.o
 obj-$(CONFIG_MACH_SMDKC110)	+= mach-smdkc110.o
 obj-$(CONFIG_MACH_VOGUEV210)	+= mach-voguev210.o
+
+obj-$(CONFIG_S5PV210_SETUP_FB_S3C)	+= setup-fb.o
