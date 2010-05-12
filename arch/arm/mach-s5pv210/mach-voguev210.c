@@ -25,6 +25,7 @@
 #include <plat/s5pv210.h>
 #include <plat/devs.h>
 #include <plat/cpu.h>
+#include <plat/fb.h>
 
 #if defined(CONFIG_PM)
 #include <mach/pm.h>
@@ -91,6 +92,9 @@ static struct s3c2410_uartcfg voguev210_uartcfgs[] __initdata = {
 };
 
 static struct platform_device *voguev210_devices[] __initdata = {
+#ifdef CONFIG_FB_S3C
+	&s3c_device_fb,
+#endif
 };
 
 static void __init voguev210_fixup(struct machine_desc *desc,
@@ -118,6 +122,10 @@ static void __init voguev210_machine_init(void)
 #if defined(CONFIG_PM)
 	s3c_pm_init();
 	s3c_irq_wake(IRQ_RTC_ALARM, 1);
+#endif
+
+#ifdef CONFIG_FB_S3C
+	s3cfb_set_platdata(NULL);
 #endif
 
 	platform_add_devices(voguev210_devices, ARRAY_SIZE(voguev210_devices));
