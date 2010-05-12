@@ -1,0 +1,1398 @@
+diff -ruN 3240.org/drivers/mmc/core/core.c 3240.new/drivers/mmc/core/core.c
+--- 3240.org/drivers/mmc/core/core.c	2009-12-06 00:00:32.000000000 +0800
++++ 3240.new/drivers/mmc/core/core.c	2009-12-06 00:01:11.000000000 +0800
+@@ -54,7 +54,11 @@
+ static int mmc_schedule_delayed_work(struct delayed_work *work,
+ 				     unsigned long delay)
+ {
++/* ATHENV */
++#if 0
+ 	wake_lock(&mmc_delayed_work_wake_lock);
++#endif
++/* ATHENV */
+ 	return queue_delayed_work(workqueue, work, delay);
+ }
+ 
+@@ -353,16 +357,32 @@
+ 	while (1) {
+ 		set_current_state(TASK_UNINTERRUPTIBLE);
+ 		stop = abort ? atomic_read(abort) : 0;
++/* ATHENV */
++#if 0
+ 		if (stop || !host->claimed)
++#else
++		if (stop || !host->claimed || host->claimer == current)
++#endif
++/* ATHENV */
+ 			break;
+ 		spin_unlock_irqrestore(&host->lock, flags);
+ 		schedule();
+ 		spin_lock_irqsave(&host->lock, flags);
+ 	}
+ 	set_current_state(TASK_RUNNING);
++/* ATHENV */
++#if 0 
+ 	if (!stop)
+ 		host->claimed = 1;
+ 	else
++#else
++	if (!stop) {
++		host->claimed = 1;
++		host->claimer = current;
++		host->claim_cnt += 1;
++	} else
++#endif 
++/* ATHENV */
+ 		wake_up(&host->wq);
+ 	spin_unlock_irqrestore(&host->lock, flags);
+ 	remove_wait_queue(&host->wq, &wait);
+@@ -385,10 +405,23 @@
+ 	WARN_ON(!host->claimed);
+ 
+ 	spin_lock_irqsave(&host->lock, flags);
++/* ATHENV */
++#if 0
+ 	host->claimed = 0;
+ 	spin_unlock_irqrestore(&host->lock, flags);
+ 
+-	wake_up(&host->wq);
++	wake_up(&host->wq)
++#else
++	if (--host->claim_cnt) {
++		spin_unlock_irqrestore(&host->lock, flags);
++	} else {
++		host->claimed = 0;
++		host->claimer = NULL;
++		spin_unlock_irqrestore(&host->lock, flags);
++		wake_up(&host->wq);
++	}
++#endif 
++/* ATHENV */
+ }
+ 
+ EXPORT_SYMBOL(mmc_release_host);
+@@ -662,6 +695,9 @@
+ 
+ int mmc_resume_bus(struct mmc_host *host)
+ {
++/* ATHENV */
++    int err = 0;
++/* ATHENV */
+ 	if (!mmc_bus_needs_resume(host))
+ 		return -EINVAL;
+ 
+@@ -669,17 +705,39 @@
+ 	host->bus_resume_flags &= ~MMC_BUSRESUME_NEEDS_RESUME;
+ 	mmc_bus_get(host);
+ 	if (host->bus_ops && !host->bus_dead) {
+-		mmc_power_up(host);
++	    mmc_power_up(host);
+ 		BUG_ON(!host->bus_ops->resume);
++/* ATHENV */
++#if 0 
+ 		host->bus_ops->resume(host);
++#else
++		err = host->bus_ops->resume(host);
++		if (err) {
++ 			printk(KERN_WARNING "%s: error %d during resume "
++					    "(card was removed?)\n",
++					    mmc_hostname(host), err);
++			if (host->bus_ops->remove)
++				host->bus_ops->remove(host);
++			mmc_claim_host(host);
++			mmc_detach_bus(host);
++			mmc_release_host(host);
++			/* no need to bother upper layers */
++			err = 0;
++		}
++#endif
++/* ATHENV */
+ 	}
+-
+ 	if (host->bus_ops->detect && !host->bus_dead)
+ 		host->bus_ops->detect(host);
+ 
+ 	mmc_bus_put(host);
+ 	printk("%s: Deferred resume completed\n", mmc_hostname(host));
++/* ATHENV */
++#if 0 
+ 	return 0;
++#else
++	return err;
++#endif
+ }
+ 
+ EXPORT_SYMBOL(mmc_resume_bus);
+@@ -782,6 +840,9 @@
+ 	mmc_bus_put(host);
+ 
+ 
++/* ATHENV */
++	wake_lock(&mmc_delayed_work_wake_lock);
++/* ATHENV */
+ 	mmc_bus_get(host);
+ 
+ 	/* if there still is a card present, stop here */
+@@ -895,6 +956,9 @@
+  */
+ int mmc_suspend_host(struct mmc_host *host, pm_message_t state)
+ {
++/* ATHENV */
++	int err = 0;
++/* ATHENV */
+ 	if (mmc_bus_needs_resume(host))
+ 		return 0;
+ 
+@@ -903,6 +967,8 @@
+ 
+ 	mmc_bus_get(host);
+ 	if (host->bus_ops && !host->bus_dead) {
++/* ATHENV */
++#if 0
+ 		if (host->bus_ops->suspend)
+ 			host->bus_ops->suspend(host);
+ 		if (!host->bus_ops->resume) {
+@@ -913,12 +979,38 @@
+ 			mmc_detach_bus(host);
+ 			mmc_release_host(host);
+ 		}
++#else
++		if (host->bus_ops->suspend)
++			err = host->bus_ops->suspend(host);
++		if (err == -ENOSYS || !host->bus_ops->resume) {
++			/*
++			 * We simply "remove" the card in this case.
++			 * It will be redetected on resume.
++			 */
++			if (host->bus_ops->remove)
++				host->bus_ops->remove(host);
++
++			mmc_claim_host(host);
++			mmc_detach_bus(host);
++			mmc_release_host(host);
++			err = 0;
++		}
++#endif 
++/* ATHENV */
+ 	}
+ 	mmc_bus_put(host);
+-
++/* ATHENV */
++#if 0
+ 	mmc_power_off(host);
+ 
+ 	return 0;
++#else
++	if (!err)
++	    mmc_power_off(host);
++	host->last_suspend_error = err;
++
++	return err;
++#endif 
+ }
+ 
+ EXPORT_SYMBOL(mmc_suspend_host);
+@@ -929,6 +1021,9 @@
+  */
+ int mmc_resume_host(struct mmc_host *host)
+ {
++/* ATHENV */
++	int err = 0;
++/* ATHENV */
+ 	mmc_bus_get(host);
+ 	if (host->bus_resume_flags & MMC_BUSRESUME_MANUAL_RESUME) {
+ 		host->bus_resume_flags |= MMC_BUSRESUME_NEEDS_RESUME;
+@@ -940,7 +1035,25 @@
+ 		mmc_power_up(host);
+ 		mmc_select_voltage(host, host->ocr);
+ 		BUG_ON(!host->bus_ops->resume);
++/* ATHENV */
++#if 0
+ 		host->bus_ops->resume(host);
++#else
++		err = host->bus_ops->resume(host);
++		if (err) {
++ 			printk(KERN_WARNING "%s: error %d during resume "
++					    "(card was removed?)\n",
++					    mmc_hostname(host), err);
++			if (host->bus_ops->remove)
++				host->bus_ops->remove(host);
++			mmc_claim_host(host);
++			mmc_detach_bus(host);
++			mmc_release_host(host);
++			/* no need to bother upper layers */
++			err = 0;
++		}
++#endif 
++/* ATHENV */
+ 	}
+ 	mmc_bus_put(host);
+ 
+@@ -949,8 +1062,13 @@
+ 	 * in parallel.
+ 	 */
+ 	mmc_detect_change(host, 1);
+-
++/* ATHENV */
++#if 0
+ 	return 0;
++#else
++	return err;
++#endif 
++/* ATHENV */
+ }
+ 
+ EXPORT_SYMBOL(mmc_resume_host);
+diff -ruN 3240.org/drivers/mmc/core/core.h 3240.new/drivers/mmc/core/core.h
+--- 3240.org/drivers/mmc/core/core.h	2009-12-06 00:00:32.000000000 +0800
++++ 3240.new/drivers/mmc/core/core.h	2009-12-06 00:01:11.000000000 +0800
+@@ -18,8 +18,15 @@
+ struct mmc_bus_ops {
+ 	void (*remove)(struct mmc_host *);
+ 	void (*detect)(struct mmc_host *);
++/* ATHENV */
++#if 0
+ 	void (*suspend)(struct mmc_host *);
+ 	void (*resume)(struct mmc_host *);
++#else
++	int (*suspend)(struct mmc_host *);
++	int (*resume)(struct mmc_host *);
++#endif 
++/* ATHENV */
+ };
+ 
+ void mmc_attach_bus(struct mmc_host *host, const struct mmc_bus_ops *ops);
+diff -ruN 3240.org/drivers/mmc/core/mmc.c 3240.new/drivers/mmc/core/mmc.c
+--- 3240.org/drivers/mmc/core/mmc.c	2009-12-06 00:00:32.000000000 +0800
++++ 3240.new/drivers/mmc/core/mmc.c	2009-12-06 00:01:11.000000000 +0800
+@@ -512,7 +512,13 @@
+ /*
+  * Suspend callback from host.
+  */
++/* ATHENV */
++#if 0
+ static void mmc_suspend(struct mmc_host *host)
++#else
++static int mmc_suspend(struct mmc_host *host)
++#endif 
++/* ATHENV */
+ {
+ 	BUG_ON(!host);
+ 	BUG_ON(!host->card);
+@@ -522,6 +528,9 @@
+ 		mmc_deselect_cards(host);
+ 	host->card->state &= ~MMC_STATE_HIGHSPEED;
+ 	mmc_release_host(host);
++/* ATHENV */
++	return 0;
++/* ATHENV */
+ }
+ 
+ /*
+@@ -530,7 +539,13 @@
+  * This function tries to determine if the same card is still present
+  * and, if so, restore all state to it.
+  */
++/* ATHENV */
++#if 0
+ static void mmc_resume(struct mmc_host *host)
++#else
++static int mmc_resume(struct mmc_host *host)
++#endif 
++/* ATHENV */
+ {
+ 	int err;
+ 
+@@ -540,7 +555,8 @@
+ 	mmc_claim_host(host);
+ 	err = mmc_init_card(host, host->ocr, host->card);
+ 	mmc_release_host(host);
+-
++/* ATHENV */
++#if 0
+ 	if (err) {
+ 		mmc_remove(host);
+ 
+@@ -548,7 +564,10 @@
+ 		mmc_detach_bus(host);
+ 		mmc_release_host(host);
+ 	}
+-
++#else
++	return err;
++#endif 
++/* ATHENV */
+ }
+ 
+ #else
+diff -ruN 3240.org/drivers/mmc/core/sd.c 3240.new/drivers/mmc/core/sd.c
+--- 3240.org/drivers/mmc/core/sd.c	2009-12-06 00:00:32.000000000 +0800
++++ 3240.new/drivers/mmc/core/sd.c	2009-12-06 00:01:11.000000000 +0800
+@@ -601,7 +601,13 @@
+ /*
+  * Suspend callback from host.
+  */
++/* ATHENV */
++#if 0
+ static void mmc_sd_suspend(struct mmc_host *host)
++#else
++static int mmc_sd_suspend(struct mmc_host *host)
++#endif 
++/* ATHENV */
+ {
+ 	BUG_ON(!host);
+ 	BUG_ON(!host->card);
+@@ -611,6 +617,9 @@
+ 		mmc_deselect_cards(host);
+ 	host->card->state &= ~MMC_STATE_HIGHSPEED;
+ 	mmc_release_host(host);
++/* ATHENV */
++	return 0;
++/* ATHENV */
+ }
+ 
+ /*
+@@ -619,7 +628,12 @@
+  * This function tries to determine if the same card is still present
+  * and, if so, restore all state to it.
+  */
++/* ATHENV */
++#if 0
+ static void mmc_sd_resume(struct mmc_host *host)
++#else
++static int mmc_sd_resume(struct mmc_host *host)
++#endif 
+ {
+ 	int err;
+ #ifdef CONFIG_MMC_PARANOID_SD_INIT
+@@ -648,7 +662,8 @@
+ 	err = mmc_sd_init_card(host, host->ocr, host->card);
+ #endif
+ 	mmc_release_host(host);
+-
++/* ATHENV */
++#if 0
+ 	if (err) {
+ 		mmc_sd_remove(host);
+ 
+@@ -656,7 +671,10 @@
+ 		mmc_detach_bus(host);
+ 		mmc_release_host(host);
+ 	}
+-
++#else
++	return err;
++#endif 
++/* ATHENV */
+ }
+ 
+ #else
+diff -ruN 3240.org/drivers/mmc/core/sdio.c 3240.new/drivers/mmc/core/sdio.c
+--- 3240.org/drivers/mmc/core/sdio.c	2009-12-06 00:00:32.000000000 +0800
++++ 3240.new/drivers/mmc/core/sdio.c	2009-12-06 00:01:11.000000000 +0800
+@@ -198,6 +198,168 @@
+ 	return 0;
+ }
+ 
++/* ATHENV */
++/*
++ * Handle the detection and initialisation of a card.
++ *
++ * In the case of a resume, "oldcard" will contain the card
++ * we're trying to reinitialise.
++ */
++static int mmc_sdio_init_card(struct mmc_host *host, u32 ocr,
++			      struct mmc_card *oldcard)
++{	
++	struct mmc_card *card;
++	int err;
++
++	BUG_ON(!host);
++	WARN_ON(!host->claimed);
++
++	{
++		struct mmc_card tempcard;
++		tempcard.host = host;
++		mmc_io_rw_direct(&tempcard, 1, 0, SDIO_CCCR_ABORT, 0x08, NULL);
++	}
++
++	/*
++	 * Since we're changing the OCR value, we seem to
++	 * need to tell some cards to go back to the idle
++	 * state.  We wait 1ms to give cards time to
++	 * respond.
++	 */
++	mmc_go_idle(host);
++
++	/*
++	 * Inform the card of the voltage
++	 */
++	err = mmc_send_io_op_cond(host, host->ocr, &ocr);
++	if (err)
++		goto err;
++
++	/*
++	 * For SPI, enable CRC as appropriate.
++	 */
++	if (mmc_host_is_spi(host)) {
++		err = mmc_spi_set_crc(host, use_spi_crc);
++		if (err)
++			goto err;
++	}
++
++	/*
++	 * Allocate card structure.
++	 */
++	card = mmc_alloc_card(host, NULL);
++	if (IS_ERR(card)) {
++		err = PTR_ERR(card);
++		goto err;
++	}
++
++	card->type = MMC_TYPE_SDIO;
++
++	/*
++	 * For native busses:  set card RCA and quit open drain mode.
++	 */
++	if (!mmc_host_is_spi(host)) {		
++		err = mmc_send_relative_addr(host, &card->rca);
++		if (err)
++			goto remove;
++
++		mmc_set_bus_mode(host, MMC_BUSMODE_PUSHPULL);
++	}
++
++	/*
++	 * Select card, as all following commands rely on that.
++	 */
++	if (!mmc_host_is_spi(host)) {
++		err = mmc_select_card(card);
++		if (err)
++			goto remove;
++	}
++
++	/*
++	 * Read the common registers.
++	 */
++#ifdef CONFIG_MMC_EMBEDDED_SDIO
++	if (host->embedded_sdio_data.cccr)
++		memcpy(&card->cccr, host->embedded_sdio_data.cccr, sizeof(struct sdio_cccr));
++	else {
++#endif
++	err = sdio_read_cccr(card);
++	if (err) 
++		goto remove;
++
++#ifdef CONFIG_MMC_EMBEDDED_SDIO
++	}
++#endif
++
++#ifdef CONFIG_MMC_EMBEDDED_SDIO
++	if (host->embedded_sdio_data.cis)
++		memcpy(&card->cis, host->embedded_sdio_data.cis, sizeof(struct sdio_cis));
++	else {
++#endif
++	/*
++	 * Read the common CIS tuples.
++	 */
++	err = sdio_read_common_cis(card);
++	if (err) 
++		goto remove;
++
++#ifdef CONFIG_MMC_EMBEDDED_SDIO
++	}
++#endif
++
++	if (oldcard) {
++		int same = (card->cis.vendor == oldcard->cis.vendor &&
++			    card->cis.device == oldcard->cis.device);
++		mmc_remove_card(card);
++		if (!same) {
++			err = -ENOENT;
++			goto err;
++		}
++		card = oldcard;
++	}
++
++	/*
++	 * Switch to high-speed (if supported).
++	 */
++	err = sdio_enable_hs(card);
++	if (err)
++		goto remove;
++
++	/*
++	 * Change to the card's maximum speed.
++	 */
++	if (mmc_card_highspeed(card)) {
++		/*
++		 * The SDIO specification doesn't mention how
++		 * the CIS transfer speed register relates to
++		 * high-speed, but it seems that 50 MHz is
++		 * mandatory.
++		 */
++		mmc_set_clock(host, 50000000);
++	} else {
++		mmc_set_clock(host, card->cis.max_dtr);
++	}
++
++	/*
++	 * Switch to wider bus (if supported).
++	 */
++	err = sdio_enable_wide(card);
++	if (err)
++		goto remove;
++
++	if (!oldcard)
++		host->card = card;
++	return 0;
++
++remove:
++	if (!oldcard)
++		mmc_remove_card(card);
++
++err:
++	return err;
++}
++/* ATHENV */
++
+ /*
+  * Host is being removed. Free up the current card.
+  */
+@@ -247,10 +409,81 @@
+ 	}
+ }
+ 
++/* ATHENV */
++/*
++ * SDIO suspend.  We need to suspend all functions separately.
++ * Therefore all registered functions must have drivers with suspend
++ * and resume methods.  Failing that we simply remove the whole card.
++ */
++static int mmc_sdio_suspend(struct mmc_host *host)
++{
++	int i, err = 0;
++	const struct dev_pm_ops *pmops;
++	for (i = 0; i < host->card->sdio_funcs; i++) {
++		struct sdio_func *func = host->card->sdio_func[i];
++		if (func && sdio_func_present(func) && func->dev.driver) {
++			pmops = func->dev.driver->pm;
++			if (!pmops || !pmops->suspend || !pmops->resume) {
++				/* force removal of entire card in that case */
++				err = -ENOSYS;
++			} else
++				err = pmops->suspend(&func->dev);
++			if (err) 
++				break;
++		}
++	}
++	while (err && --i >= 0) {
++		struct sdio_func *func = host->card->sdio_func[i];
++		if (func && sdio_func_present(func) && func->dev.driver) {
++			pmops = func->dev.driver->pm;
++			pmops->resume(&func->dev);
++		}
++	}
++
++	return err;
++}
++
++static int mmc_sdio_resume(struct mmc_host *host)
++{
++	int i, err;
++	const struct dev_pm_ops *pmops;
++	BUG_ON(!host);
++	BUG_ON(!host->card);
++
++	/* Basic card reinitialization. */
++	mmc_claim_host(host);
++	err = mmc_sdio_init_card(host, host->ocr, host->card);
++	mmc_release_host(host);
++
++/*
++	 * If the card looked to be the same as before suspending, then
++	 * we proceed to resume all card functions.  If one of them returns
++	 * an error then we simply return that error to the core and the
++	 * card will be redetected as new.  It is the responsibility of
++	 * the function driver to perform further tests with the extra
++	 * knowledge it has of the card to confirm the card is indeed the
++	 * same as before suspending (same MAC address for network cards,
++	 * etc.) and return an error otherwise.
++ */
++	for (i = 0; !err && i < host->card->sdio_funcs; i++) {
++		struct sdio_func *func = host->card->sdio_func[i];
++		if (func && sdio_func_present(func) && func->dev.driver) {
++			pmops = func->dev.driver->pm;
++			err = pmops->resume(&func->dev);
++		}
++	}
++
++	return err;
++}
++/* ATHENV */
+ 
+ static const struct mmc_bus_ops mmc_sdio_ops = {
+ 	.remove = mmc_sdio_remove,
+ 	.detect = mmc_sdio_detect,
++/* ATHENV */
++	.suspend = mmc_sdio_suspend,
++	.resume = mmc_sdio_resume,
++/* ATHENV */
+ };
+ 
+ 
+@@ -295,7 +528,8 @@
+ 		err = -EINVAL;
+ 		goto err;
+ 	}
+-
++/* ATHENV */
++#if 0 
+ 	/*
+ 	 * Inform the card of the voltage
+ 	 */
+@@ -311,17 +545,34 @@
+ 		if (err)
+ 			goto err;
+ 	}
++#else
++	/*
++	 * Detect and init the card.
++	 */
++	err = mmc_sdio_init_card(host, host->ocr, NULL);
++	if (err)
++		goto err;
++	card = host->card;
++#endif 
++/* ATHENV */
+ 
+ 	/*
+ 	 * The number of functions on the card is encoded inside
+ 	 * the ocr.
+ 	 */
++/* ATHENV */
++#if 0 
+ 	funcs = (ocr & 0x70000000) >> 28;
+-
++#else
++	card->sdio_funcs = funcs = (ocr & 0x70000000) >> 28;
++#endif 
++/* ATHENV */
+ #ifdef CONFIG_MMC_EMBEDDED_SDIO
+ 	if (host->embedded_sdio_data.funcs)
+ 		funcs = host->embedded_sdio_data.num_funcs;
+ #endif
++/* ATHENV */
++#if 0
+ 
+ 	/*
+ 	 * Allocate card structure.
+@@ -416,6 +667,8 @@
+ 	if (err)
+ 		goto remove;
+ 
++#endif 
++/* ATHENV */
+ 	/*
+ 	 * Initialize (but don't add) all present functions.
+ 	 */
+@@ -533,7 +786,7 @@
+ 		goto err;
+ 	mmc_release_host(host);
+ 	return 0;
+-err:
++ err:
+ 	printk("%s: Error resetting SDIO communications (%d)\n",
+ 	       mmc_hostname(host), err);
+ 	mmc_release_host(host);
+diff -ruN 3240.org/drivers/mmc/core/sdio_irq.c 3240.new/drivers/mmc/core/sdio_irq.c
+--- 3240.org/drivers/mmc/core/sdio_irq.c	2009-12-06 00:00:32.000000000 +0800
++++ 3240.new/drivers/mmc/core/sdio_irq.c	2009-12-06 00:01:11.000000000 +0800
+@@ -180,7 +180,19 @@
+ 
+ 	if (!--host->sdio_irqs) {
+ 		atomic_set(&host->sdio_irq_thread_abort, 1);
++/* ATHENV */
++#if 0
+ 		kthread_stop(host->sdio_irq_thread);
++#else
++		if (host->claimed) {
++			mmc_release_host(host);
++			kthread_stop(host->sdio_irq_thread);
++			mmc_claim_host(host);
++		} else {
++			kthread_stop(host->sdio_irq_thread);
++		}
++#endif
++/* ATHENV */
+ 	}
+ 
+ 	return 0;
+@@ -211,6 +223,13 @@
+ 		return -EBUSY;
+ 	}
+ 
++/* ATHENV */
++	func->irq_handler = handler;
++	ret = sdio_card_irq_get(func->card);
++	if (ret)
++		func->irq_handler = NULL;
++
++/* ATHENV */
+ 	ret = mmc_io_rw_direct(func->card, 0, 0, SDIO_CCCR_IENx, 0, &reg);
+ 	if (ret)
+ 		return ret;
+@@ -223,11 +242,15 @@
+ 	if (ret)
+ 		return ret;
+ 
++/* ATHENV */
++#if 0
+ 	func->irq_handler = handler;
+ 	ret = sdio_card_irq_get(func->card);
+ 	if (ret)
+ 		func->irq_handler = NULL;
+ 
++#endif
++/* ATHENV */
+ 	return ret;
+ }
+ EXPORT_SYMBOL_GPL(sdio_claim_irq);
+@@ -248,11 +271,15 @@
+ 
+ 	pr_debug("SDIO: Disabling IRQ for %s...\n", sdio_func_id(func));
+ 
++/* ATHENV */
++#if 0
+ 	if (func->irq_handler) {
+ 		func->irq_handler = NULL;
+ 		sdio_card_irq_put(func->card);
+ 	}
+ 
++#endif
++/* ATHENV */
+ 	ret = mmc_io_rw_direct(func->card, 0, 0, SDIO_CCCR_IENx, 0, &reg);
+ 	if (ret)
+ 		return ret;
+@@ -267,6 +294,13 @@
+ 	if (ret)
+ 		return ret;
+ 
++/* ATHENV */
++	if (func->irq_handler) {
++		func->irq_handler = NULL;
++		sdio_card_irq_put(func->card);
++	}
++
++/* ATHENV */
+ 	return 0;
+ }
+ EXPORT_SYMBOL_GPL(sdio_release_irq);
+diff -ruN 3240.org/drivers/mmc/host/msm_sdcc.c 3240.new/drivers/mmc/host/msm_sdcc.c
+--- 3240.org/drivers/mmc/host/msm_sdcc.c	2009-12-06 00:00:32.000000000 +0800
++++ 3240.new/drivers/mmc/host/msm_sdcc.c	2009-12-06 00:01:11.000000000 +0800
+@@ -44,6 +44,12 @@
+ #include <mach/dma.h>
+ #include <mach/htc_pwrsink.h>
+ 
++// Atheros +++
++#define ATH_PATCH
++#ifdef ATH_PATCH
++#define ATH_WLAN_SLOT	2
++#endif
++// Atheros ---
+ 
+ #include "msm_sdcc.h"
+ 
+@@ -65,7 +71,13 @@
+ static unsigned int msmsdcc_fmid = 24576000;
+ static unsigned int msmsdcc_temp = 25000000;
+ static unsigned int msmsdcc_fmax = 49152000;
++// Atheros +++
++#ifdef ATH_PATCH
++static unsigned int msmsdcc_pwrsave = 0;
++#else
+ static unsigned int msmsdcc_pwrsave = 1;
++#endif
++// Atheros ---
+ #ifdef CONFIG_MMC_MSM_SDIO_SUPPORT
+ static unsigned int msmsdcc_sdioirq = 1;
+ #else
+@@ -542,7 +554,7 @@
+ #if IRQ_DEBUG
+ 	msmsdcc_print_status(host, "irq1-r", status);
+ #endif
+- 
++
+ 	do {
+ 		unsigned long flags;
+ 		unsigned int remain, len;
+@@ -550,7 +562,7 @@
+ 
+ 		if (!(status & (MCI_TXFIFOHALFEMPTY | MCI_RXDATAAVLBL))) {
+ 			if (host->curr.xfer_remain == 0 || !msmsdcc_piopoll)
+-				break;
++			break;
+ 
+ 			if (msmsdcc_spin_on_status(host,
+ 						   (MCI_TXFIFOHALFEMPTY |
+@@ -583,17 +595,17 @@
+ 
+ 		if (remain == 0) {
+ 			/* This sg page is full - do some housekeeping */
+-			if (status & MCI_RXACTIVE && host->curr.user_pages)
+-				flush_dcache_page(sg_page(host->pio.sg));
++		if (status & MCI_RXACTIVE && host->curr.user_pages)
++			flush_dcache_page(sg_page(host->pio.sg));
+ 
+-			if (!--host->pio.sg_len) {
+-				memset(&host->pio, 0, sizeof(host->pio));
+-				break;
+-			}
++		if (!--host->pio.sg_len) {
++			memset(&host->pio, 0, sizeof(host->pio));
++			break;
++		}
+ 
+-			/* Advance to next sg */
+-			host->pio.sg++;
+-			host->pio.sg_off = 0;
++		/* Advance to next sg */
++		host->pio.sg++;
++		host->pio.sg_off = 0;
+ 		}
+ 
+ 		status = readl(base + MMCISTATUS);
+@@ -603,7 +615,22 @@
+ 		writel(MCI_RXDATAAVLBLMASK, base + MMCIMASK1);
+ 
+ 	if (!host->curr.xfer_remain)
++/* ATHENV */
++#ifdef ATH_PATCH
++	{
++		if (host->pdev_id == ATH_WLAN_SLOT) {
++			if ( readl(host->base + MMCIMASK0) & MCI_SDIOINTOPERMASK )
++				writel(MCI_SDIOINTOPERMASK, base + MMCIMASK1);
++			else
++				writel(0, base + MMCIMASK1);
++		} else {
++		writel(0, base + MMCIMASK1);
++		}
++	}
++#else
+ 		writel(0, base + MMCIMASK1);
++#endif
++/* ATHENV */
+ 
+ 	return IRQ_HANDLED;
+ }
+@@ -654,6 +681,11 @@
+ 	u32			status;
+ 	int			ret = 0;
+ 	int			cardint = 0;
++/* ATHENV */
++#ifdef ATH_PATCH
++	u32		  sdio_int_oper;
++#endif
++/* ATHENV */
+ 
+ 	spin_lock(&host->lock);
+ 
+@@ -665,6 +697,12 @@
+ 		msmsdcc_print_status(host, "irq0-r", status);
+ #endif
+ 
++/* ATHENV */
++#ifdef ATH_PATCH
++		sdio_int_oper = status & MCI_SDIOINTOPER;
++#endif
++/* ATHENV */
++
+ 		status &= (readl(base + MMCIMASK0) |
+ 					      MCI_DATABLOCKENDMASK);
+ 		writel(status, base + MMCICLEAR);
+@@ -742,12 +780,29 @@
+ 		if (status & (MCI_CMDSENT | MCI_CMDRESPEND | MCI_CMDCRCFAIL |
+ 			      MCI_CMDTIMEOUT) && host->curr.cmd) {
+ 			msmsdcc_do_cmdirq(host, status);
+-		}
+-
++			}
++/* ATHENV */
++#ifdef ATH_PATCH
++		if (host->pdev_id == ATH_WLAN_SLOT){
++			if (sdio_int_oper) {
++					if (readl(base + MMCIMASK0) & MCI_SDIOINTOPER) {
++                        cardint = 1;
++			            status &= ~MCI_SDIOINTOPER;
++					}
++			}
++		} else {
++		    if (status & MCI_SDIOINTOPER) {
++			    cardint = 1;
++			    status &= ~MCI_SDIOINTOPER;
++		    }
++        }
++#else
+ 		if (status & MCI_SDIOINTOPER) {
+ 			cardint = 1;
+ 			status &= ~MCI_SDIOINTOPER;
+ 		}
++#endif
++/* ATHENV */
+ 		ret = 1;
+ 	} while (status);
+ 
+@@ -760,10 +815,80 @@
+ 	if (cardint) {
+ 		mmc_signal_sdio_irq(host->mmc);
+ 	}
+-
++/* ATHENV */
++#ifdef ATH_PATCH
++	if (host->pdev_id == ATH_WLAN_SLOT && sdio_int_oper){
++		    writel(MCI_SDIOINTOPER, base + MMCICLEAR);
++    }
++#endif
++/* ATHENV */ 
+ 	return IRQ_RETVAL(ret);
+ }
+ 
++/* ATHENV */
++#ifdef ATH_PATCH
++static int
++msmsdcc_wait_prog_done(struct msmsdcc_host *host)
++{
++#define MSMSDCC_POLLING_RETRIES		10000000
++	unsigned int		i = 0;
++	unsigned int		status = 0;
++
++	while (i++< MSMSDCC_POLLING_RETRIES) {
++		status = readl(host->base + MMCISTATUS);
++		if ( status & MCI_CMDSENT)
++			printk("command is sent out\n");
++		if (status & MCI_PROGDONE)
++			break;
++	}
++	if (i >= MSMSDCC_POLLING_RETRIES) {
++		printk("wait PROG_DONE fail\n");
++		return -1;
++	}
++	return 0;
++}
++
++static int
++msmsdcc_send_dummy_cmd52_read(struct msmsdcc_host *host)
++{
++	unsigned int retries = MSMSDCC_POLLING_RETRIES;
++	void __iomem *base = host->base;
++	unsigned int status = 0;
++
++	writel(MCI_PROGDONECLR, host->base + MMCICLEAR);
++
++	if (readl(base + MMCICOMMAND) & MCI_CPSM_ENABLE) {
++		writel(0, base + MMCICOMMAND);
++		udelay(2 + ((5 * 1000000)/ host->clk_rate));
++	}
++
++	writel(0,base + MMCIARGUMENT);
++	writel(52 | MCI_CPSM_ENABLE | MCI_CPSM_RESPONSE | MCI_CPSM_PROGENA, base + MMCICOMMAND);
++
++	msmsdcc_wait_prog_done(host);
++
++	while(retries) {
++		status = readl(host->base + MMCISTATUS);
++
++		if (status & MCI_CMDCRCFAIL) {
++			printk("Sending dummy SD CMD52 failed: -EILSEQ\n");
++			return -EILSEQ;
++		}
++		if (status & MCI_CMDTIMEOUT) {
++			printk("Sending dummy SD CMD52 failed: -ETIMEDOUT\n");
++		  return -ETIMEDOUT;
++		}
++		if (status & (MCI_CMDSENT | MCI_CMDRESPEND))
++			return 0;
++		retries --;
++	}
++
++	printk("Sending dummy SD CMD52 failed: -ETIMEDOUT\n");
++	return -ETIMEDOUT;
++}
++#endif
++/* ATHENV */
++
+ static void
+ msmsdcc_request(struct mmc_host *mmc, struct mmc_request *mrq)
+ {
+@@ -793,6 +918,26 @@
+ 
+ 	host->curr.mrq = mrq;
+ 
++/* ATHENV */
++#ifdef ATH_PATCH
++	if (host->pdev_id == ATH_WLAN_SLOT) {
++		if (host->pre_cmd_with_data) {
++			if (mrq->data) {
++				writel(0, host->base + MMCIMASK0);
++				writel(0x018007FF, host->base + MMCICLEAR);
++				msmsdcc_send_dummy_cmd52_read(host);
++				writel(0x18007ff, host->base + MMCICLEAR);
++                writel(host->saved_irq0mask, host->base + MMCIMASK0);
++			}
++			host->pre_cmd_with_data = 0;
++		}
++		if (mrq->data) {
++			host->pre_cmd_with_data = 1;
++		}
++	}
++#endif
++/* ATHENV */
++
+ 	if (mrq->data && mrq->data->flags & MMC_DATA_READ)
+ 		msmsdcc_start_data(host, mrq->data);
+ 
+@@ -808,7 +953,7 @@
+ 		host->stats.cmdpoll_hits++;
+ 	} else {
+ 		host->stats.cmdpoll_misses++;
+-		mod_timer(&host->command_timer, jiffies + HZ);
++	mod_timer(&host->command_timer, jiffies + HZ);
+ 	}
+ 	spin_unlock_irqrestore(&host->lock, flags);
+ }
+@@ -852,11 +997,32 @@
+ 	else
+ 		clk |= MCI_CLK_WIDEBUS_1;
+ 
++/* ATHENV */
++#ifdef ATH_PATCH
++  if (host->pdev_id != ATH_WLAN_SLOT) {
++	if (ios->clock > 400000 && msmsdcc_pwrsave)
++		clk |= MCI_CLK_PWRSAVE;
++	} else {
++		  clk &= ~((u32)MCI_CLK_PWRSAVE);
++	}
++#else
+ 	if (ios->clock > 400000 && msmsdcc_pwrsave)
+ 		clk |= MCI_CLK_PWRSAVE;
++#endif
++/* ATHENV */
+ 
+ 	clk |= MCI_CLK_FLOWENA;
++/* ATHENV */
++#ifdef ATH_PATCH
++	if (host->pdev_id != ATH_WLAN_SLOT) {
++		clk |= MCI_CLK_SELECTIN; /* feedback clock */
++	} else {
++		  clk &= ~((u32)MCI_CLK_SELECTIN);
++	}
++#else
+ 	clk |= MCI_CLK_SELECTIN; /* feedback clock */
++#endif
++/* ATHENV */
+ 
+ 	if (host->plat->translate_vdd)
+ 		pwr |= host->plat->translate_vdd(mmc_dev(mmc), ios->vdd);
+@@ -1071,6 +1237,9 @@
+ 		mmc_detect_change(host->mmc, 0);
+ 	} else {
+ 		mmc->caps &= ~MMC_CAP_NEEDS_POLL;
++/* ATHENV */
++		cancel_delayed_work(&mmc->detect);
++/* ATHENV */
+ 	}
+ #ifdef CONFIG_HAS_EARLYSUSPEND
+ 	host->polling_enabled = mmc->caps & MMC_CAP_NEEDS_POLL;
+@@ -1185,6 +1354,15 @@
+ 	host->pio_irqres = pio_irqres;
+ 	host->memres = memres;
+ 	host->dmares = dmares;
++/* ATHENV */
++#ifdef ATH_PATCH
++	if (host->pdev_id == ATH_WLAN_SLOT) {
++		//mmc->caps |= MMC_CAP_NEEDS_POLL;
++		host->pre_cmd_with_data = 0;
++	}
++#endif
++/* ATHENV */
++
+ 	spin_lock_init(&host->lock);
+ 
+ #ifdef CONFIG_MMC_EMBEDDED_SDIO
+@@ -1256,7 +1434,7 @@
+ 	mmc->caps |= plat->mmc_bus_width;
+ 
+ 	if (msmsdcc_sdioirq)
+-		mmc->caps |= MMC_CAP_SDIO_IRQ;
++	mmc->caps |= MMC_CAP_SDIO_IRQ;
+ 	mmc->caps |= MMC_CAP_MMC_HIGHSPEED | MMC_CAP_SD_HIGHSPEED;
+ 
+ 	mmc->max_phys_segs = NR_SG;
+@@ -1325,10 +1503,21 @@
+ 	mmc_add_host(mmc);
+ 
+ #ifdef CONFIG_HAS_EARLYSUSPEND
++/* ATHENV */
++#ifdef ATH_PATCH
++	if (host->pdev_id != ATH_WLAN_SLOT) {
+ 	host->early_suspend.suspend = msmsdcc_early_suspend;
+ 	host->early_suspend.resume  = msmsdcc_late_resume;
+ 	host->early_suspend.level   = EARLY_SUSPEND_LEVEL_DISABLE_FB;
+ 	register_early_suspend(&host->early_suspend);
++	}
++#else
++	host->early_suspend.suspend = msmsdcc_early_suspend;
++	host->early_suspend.resume  = msmsdcc_late_resume;
++	host->early_suspend.level   = EARLY_SUSPEND_LEVEL_DISABLE_FB;
++	register_early_suspend(&host->early_suspend);
++#endif
++/* ATHENV */
+ #endif
+ 
+ 	printk(KERN_INFO
+@@ -1429,13 +1618,60 @@
+ 	mmc_free_host(mmc);
+ 
+ #ifdef CONFIG_HAS_EARLYSUSPEND
++/* ATHENV */
++#ifdef ATH_PATCH
++	if (host->pdev_id != ATH_WLAN_SLOT) {
+ 	unregister_early_suspend(&host->early_suspend);
++	}
++#else
++	unregister_early_suspend(&host->early_suspend);
++#endif
++/* ATHENV */
+ #endif
+ 
+ 	return 0;
+ }
+ 
+ #ifdef CONFIG_PM
++/* ATHENV */
++struct msmsdcc_host *wlan_host;
++void plat_disable_wlan_slot(void)
++{
++	struct msmsdcc_host *host = wlan_host;
++
++	if (host->stat_irq)
++		disable_irq(host->stat_irq);
++	printk("Disable host controller WLAN slot IRQ.\n");
++	writel(0, host->base + MMCIMASK0);
++	if (host->clks_on) {
++		printk("Disable host controller WLAN slot clock.\n");
++		clk_disable(host->clk);
++		clk_disable(host->pclk);
++		host->clks_on = 0;
++	}
++}
++
++void plat_enable_wlan_slot(void)
++{
++	struct msmsdcc_host *host = wlan_host;
++	unsigned long flags;
++
++	spin_lock_irqsave(&host->lock, flags);
++	if (!host->clks_on) {
++		printk("Enable host controller WLAN slot clock.\n");
++		clk_enable(host->pclk);
++		clk_enable(host->clk);
++		host->clks_on = 1;
++	}
++	printk("Enable host controller WLAN slot IRQ.\n");
++	writel(host->saved_irq0mask, host->base + MMCIMASK0);
++	spin_unlock_irqrestore(&host->lock, flags);
++	if (host->stat_irq)
++		enable_irq(host->stat_irq);
++}
++EXPORT_SYMBOL(plat_disable_wlan_slot);
++EXPORT_SYMBOL(plat_enable_wlan_slot);
++/* ATHENV */
+ static int
+ msmsdcc_suspend(struct platform_device *dev, pm_message_t state)
+ {
+@@ -1444,12 +1680,34 @@
+ 
+ 	if (mmc) {
+ 		struct msmsdcc_host *host = mmc_priv(mmc);
+-
++/* ATHENV */
++#ifdef ATH_PATCH
++		if (host->pdev_id == ATH_WLAN_SLOT && mmc->last_suspend_error) 
++			return 0;
++#endif 
++/* ATHENV */
+ 		if (host->stat_irq)
+ 			disable_irq(host->stat_irq);
+ 
++/* ATHENV */
++#ifdef ATH_PATCH
++		if (host->pdev_id == ATH_WLAN_SLOT) {
++			if (mmc->card)
++				rc = mmc_suspend_host(mmc, state);
++            if (!rc)
++				host->mmc->caps &= ~MMC_CAP_NEEDS_POLL;
++			else if (host->stat_irq) {
++				enable_irq(host->stat_irq);
++			}
++		} else {
++			if (mmc->card && mmc->card->type != MMC_TYPE_SDIO)
++				rc = mmc_suspend_host(mmc, state);
++		}
++#else
+ 		if (mmc->card && mmc->card->type != MMC_TYPE_SDIO)
+ 			rc = mmc_suspend_host(mmc, state);
++#endif
++/* ATHENV */
+ 		if (!rc) {
+ 			writel(0, host->base + MMCIMASK0);
+ 
+@@ -1459,6 +1717,17 @@
+ 				host->clks_on = 0;
+ 			}
+ 		}
++/* ATHENV */
++#ifdef ATH_PATCH
++		if (host->pdev_id == ATH_WLAN_SLOT) {
++			/* cut off WIFI chip power */
++			if (mmc->last_suspend_error) {
++				wlan_host = host;
++				return 0;
++			}
++		}
++#endif
++/* ATHENV */
+ 	}
+ 	return rc;
+ }
+@@ -1471,8 +1740,23 @@
+ 
+ 	if (mmc) {
+ 		struct msmsdcc_host *host = mmc_priv(mmc);
+-
++/* ATHENV */
++        if (mmc->last_suspend_error) {
++		printk("%s: WLAN slot with non-cut-power case\n", __func__);
++		wlan_host = host;
++		mmc->last_suspend_error = 0;
++		return 0;
++        }
++/* ATHENV */
+ 		spin_lock_irqsave(&host->lock, flags);
++/* ATHENV */
++#ifdef ATH_PATCH
++	if (host->pdev_id == ATH_WLAN_SLOT) {
++		/* power WIFI chip */
++		host->mmc->caps |= MMC_CAP_NEEDS_POLL;
++	}
++#endif
++/* ATHENV */
+ 
+ 		if (!host->clks_on) {
+ 			clk_enable(host->pclk);
+@@ -1484,7 +1768,14 @@
+ 
+ 		spin_unlock_irqrestore(&host->lock, flags);
+ 
++/* ATHENV */
++#ifdef ATH_PATCH
++        if ( (host->pdev_id != ATH_WLAN_SLOT && mmc->card && mmc->card->type != MMC_TYPE_SDIO) ||
++             (host->pdev_id == ATH_WLAN_SLOT &&  (mmc->card)))
++#else /* ATH_PATCH */
+ 		if (mmc->card && mmc->card->type != MMC_TYPE_SDIO)
++#endif 
++/* ATHENV */
+ #ifdef CONFIG_MMC_MSM7X00A_RESUME_IN_WQ
+ 			schedule_work(&host->resume_task);
+ #else
+@@ -1494,7 +1785,7 @@
+ #endif
+ 		else if (host->stat_irq)
+ 			enable_irq(host->stat_irq);
+-	}
++    }
+ 	return 0;
+ }
+ #else
+@@ -1636,7 +1927,7 @@
+ 
+ 		i += scnprintf(buf + i, max - i,
+ 			       "CurrentCmd : opcode %d, arg 0x%.8x, flags 0x%.8x\n",
+-			       cmd->opcode, cmd->arg, cmd->flags);
++			      cmd->opcode, cmd->arg, cmd->flags);
+ 	}
+ 
+ 	if (host->curr.data) {
+diff -ruN 3240.org/drivers/mmc/host/msm_sdcc.h 3240.new/drivers/mmc/host/msm_sdcc.h
+--- 3240.org/drivers/mmc/host/msm_sdcc.h	2009-12-06 00:00:32.000000000 +0800
++++ 3240.new/drivers/mmc/host/msm_sdcc.h	2009-12-06 00:01:11.000000000 +0800
+@@ -108,14 +108,30 @@
+ #define MCI_SDIOINTRCLR		(1 << 22)
+ #define MCI_PROGDONECLR		(1 << 23)
+ #define MCI_ATACMDCOMPLCLR	(1 << 24)
++/* ATHENV */
++#ifdef ATH_PATCH
++#define MCI_SDIOINTOPERCLR  (1 << 25)
++#endif
++
+ #define MCI_CCSTIMEOUTCLR 	(1 << 26)
+ 
++/* ATHENV */
++#ifdef ATH_PATCH
++#define MCI_CLEAR_STATIC_MASK	\
++	(MCI_CMDCRCFAILCLR|MCI_DATACRCFAILCLR|MCI_CMDTIMEOUTCLR|\
++	MCI_DATATIMEOUTCLR|MCI_TXUNDERRUNCLR|MCI_RXOVERRUNCLR|  \
++	MCI_CMDRESPENDCLR|MCI_CMDSENTCLR|MCI_DATAENDCLR|	\
++	MCI_STARTBITERRCLR|MCI_DATABLOCKENDCLR|MCI_SDIOINTRCLR|MCI_SDIOINTOPERCLR| \
++	MCI_PROGDONECLR|MCI_ATACMDCOMPLCLR|MCI_CCSTIMEOUTCLR)
++#else
+ #define MCI_CLEAR_STATIC_MASK	\
+ 	(MCI_CMDCRCFAILCLR|MCI_DATACRCFAILCLR|MCI_CMDTIMEOUTCLR|\
+ 	MCI_DATATIMEOUTCLR|MCI_TXUNDERRUNCLR|MCI_RXOVERRUNCLR|  \
+ 	MCI_CMDRESPENDCLR|MCI_CMDSENTCLR|MCI_DATAENDCLR|	\
+ 	MCI_STARTBITERRCLR|MCI_DATABLOCKENDCLR|MCI_SDIOINTRCLR| \
+ 	MCI_PROGDONECLR|MCI_ATACMDCOMPLCLR|MCI_CCSTIMEOUTCLR)
++#endif
++/* ATHENV */
+ 
+ #define MMCIMASK0		0x03c
+ #define MCI_CMDCRCFAILMASK	(1 << 0)
+@@ -247,6 +263,11 @@
+ 	unsigned int		oldstat;
+ 
+ 	struct msmsdcc_dma_data	dma;
++/* ATHENV */
++#ifdef ATH_PATCH
++	unsigned int		pre_cmd_with_data;
++#endif
++/* ATHENV */
+ 	struct msmsdcc_pio_data	pio;
+ 	int			cmdpoll;
+ 	struct msmsdcc_stats	stats;
+diff -ruN 3240.org/include/linux/mmc/host.h 3240.new/include/linux/mmc/host.h
+--- 3240.org/include/linux/mmc/host.h	2009-12-06 00:00:32.000000000 +0800
++++ 3240.new/include/linux/mmc/host.h	2009-12-06 00:01:11.000000000 +0800
+@@ -145,7 +145,10 @@
+ 	struct mmc_card		*card;		/* device attached to this host */
+ 
+ 	wait_queue_head_t	wq;
+-
++/* ATHENV */
++	struct task_struct	*claimer;	/* task that has host claimed */
++	int			claim_cnt;	/* "claim" nesting count */
++/* ATHEVN */
+ 	struct delayed_work	detect;
+ 
+ 	const struct mmc_bus_ops *bus_ops;	/* current bus driver */
+@@ -173,7 +176,9 @@
+ 		int				num_funcs;
+ 	} embedded_sdio_data;
+ #endif
+-
++/* ATHENV*/
++    int    last_suspend_error;
++/* ATHENV*/
+ 	unsigned long		private[0] ____cacheline_aligned;
+ };
+ 

@@ -1,0 +1,124 @@
+diff -ruN linux-2.6.32.org/drivers/mmc/core/core.c linux-2.6.32.new/drivers/mmc/core/core.c
+--- linux-2.6.32.org/drivers/mmc/core/core.c	2009-12-06 00:02:03.000000000 +0800
++++ linux-2.6.32.new/drivers/mmc/core/core.c	2009-12-06 00:15:01.000000000 +0800
+@@ -1264,7 +1264,7 @@
+ 
+ 	if (!err)
+ 		mmc_power_off(host);
+-
++	host->last_suspend_error = err;
+ 	return err;
+ }
+ 
+diff -ruN linux-2.6.32.org/drivers/mmc/core/sdio.c linux-2.6.32.new/drivers/mmc/core/sdio.c
+--- linux-2.6.32.org/drivers/mmc/core/sdio.c	2009-12-06 00:02:03.000000000 +0800
++++ linux-2.6.32.new/drivers/mmc/core/sdio.c	2009-12-06 00:06:40.000000000 +0800
+@@ -232,6 +232,20 @@
+ 	BUG_ON(!host);
+ 	WARN_ON(!host->claimed);
+ 
++	{
++		struct mmc_card tempcard;
++		tempcard.host = host;
++		mmc_io_rw_direct(&tempcard, 1, 0, SDIO_CCCR_ABORT, 0x08, NULL);
++	}
++
++	/*
++	 * Since we're changing the OCR value, we seem to
++	 * need to tell some cards to go back to the idle
++	 * state.  We wait 1ms to give cards time to
++	 * respond.
++	 */
++	mmc_go_idle(host);
++
+ 	/*
+ 	 * Inform the card of the voltage
+ 	 */
+@@ -302,7 +316,7 @@
+ 			goto err;
+ 		}
+ 		card = oldcard;
+-		return 0;
++        /* continue to setup high speed, wide and clock rate */
+ 	}
+ 
+ 	/*
+diff -ruN linux-2.6.32.org/drivers/mmc/host/msm_sdcc.c linux-2.6.32.new/drivers/mmc/host/msm_sdcc.c
+--- linux-2.6.32.org/drivers/mmc/host/msm_sdcc.c	2009-12-06 00:02:03.000000000 +0800
++++ linux-2.6.32.new/drivers/mmc/host/msm_sdcc.c	2009-12-06 00:13:18.000000000 +0800
+@@ -1212,10 +1212,13 @@
+ 	if (mmc) {
+ 		struct msmsdcc_host *host = mmc_priv(mmc);
+ 
++		if (mmc->last_suspend_error) 
++			return 0;
++
+ 		if (host->stat_irq)
+ 			disable_irq(host->stat_irq);
+ 
+-		if (mmc->card && mmc->card->type != MMC_TYPE_SDIO)
++		if (mmc->card)
+ 			rc = mmc_suspend_host(mmc, state);
+ 		if (!rc) {
+ 			writel(0, host->base + MMCIMASK0);
+@@ -1225,7 +1228,11 @@
+ 				clk_disable(host->pclk);
+ 				host->clks_on = 0;
+ 			}
++		} else if (host->stat_irq) {
++			enable_irq(host->stat_irq);
+ 		}
++		if (mmc->last_suspend_error) 
++			return 0;
+ 	}
+ 	return rc;
+ }
+@@ -1238,7 +1245,10 @@
+ 
+ 	if (mmc) {
+ 		struct msmsdcc_host *host = mmc_priv(mmc);
+-
++		if (mmc->last_suspend_error) {
++			mmc->last_suspend_error = 0;
++			return 0;
++		}
+ 		spin_lock_irqsave(&host->lock, flags);
+ 
+ 		if (!host->clks_on) {
+diff -ruN linux-2.6.32.org/drivers/mmc/host/sdhci.c linux-2.6.32.new/drivers/mmc/host/sdhci.c
+--- linux-2.6.32.org/drivers/mmc/host/sdhci.c	2009-12-06 00:16:13.000000000 +0800
++++ linux-2.6.32.new/drivers/mmc/host/sdhci.c	2009-12-06 00:22:07.000000000 +0800
+@@ -1587,7 +1587,7 @@
+ 
+ 	ret = mmc_suspend_host(host->mmc, state);
+ 	if (ret)
+-		return ret;
++		return 0;
+ 
+ 	free_irq(host->irq, host);
+ 
+@@ -1599,7 +1599,11 @@
+ int sdhci_resume_host(struct sdhci_host *host)
+ {
+ 	int ret;
+-
++	if (host->mmc->last_suspend_error) {
++		host->mmc->last_suspend_error = 0;
++		sdhci_enable_card_detection(host);
++		return 0;
++	}
+ 	if (host->flags & (SDHCI_USE_SDMA | SDHCI_USE_ADMA)) {
+ 		if (host->ops->enable_dma)
+ 			host->ops->enable_dma(host);
+diff -ruN linux-2.6.32.org/include/linux/mmc/host.h linux-2.6.32.new/include/linux/mmc/host.h
+--- linux-2.6.32.org/include/linux/mmc/host.h	2009-12-06 00:02:03.000000000 +0800
++++ linux-2.6.32.new/include/linux/mmc/host.h	2009-12-06 00:14:08.000000000 +0800
+@@ -203,6 +203,8 @@
+ 
+ 	struct dentry		*debugfs_root;
+ 
++    int    last_suspend_error;
++
+ 	unsigned long		private[0] ____cacheline_aligned;
+ };
+ 

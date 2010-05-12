@@ -1,0 +1,18 @@
+config ATH6002
+	tristate "Atheros 6002 wireless cards support"
+	depends on MMC && WLAN_80211	
+	---help---
+	  This module adds support for wireless adapters based on
+	  Atheros 6002 chipset.
+
+	  This driver uses wirelsss extension.
+
+	  If you choose to build a module, it'll be called ar6000. Say M if
+	  unsure.
+
+config ATH6002_BUILD_ANDROID
+	bool "Enable android specific features"
+	depends on ATH6002
+	---help---
+	  Enable android specfic features.
+
