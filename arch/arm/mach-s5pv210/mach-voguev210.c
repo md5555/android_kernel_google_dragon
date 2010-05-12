@@ -124,6 +124,12 @@ static struct platform_device *voguev210_devices[] __initdata = {
 #ifdef CONFIG_FB_S3C
 	&s3c_device_fb,
 #endif
+
+#ifdef CONFIG_VIDEO_TV20
+	&s5p_device_tvout,
+	&s5p_device_cec,
+	&s5p_device_hpd,
+#endif
 };
 
 static void __init voguev210_fixup(struct machine_desc *desc,
