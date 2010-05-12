@@ -62,6 +62,10 @@ extern struct platform_device s3c_device_nand;
 extern struct platform_device s3c_device_usbgadget;
 extern struct platform_device s3c_device_usb_hsotg;
 
+extern struct platform_device s5p_device_tvout;
+extern struct platform_device s5p_device_cec;
+extern struct platform_device s5p_device_hpd;
+
 /* s3c2440 specific devices */
 
 #ifdef CONFIG_CPU_S3C2440
