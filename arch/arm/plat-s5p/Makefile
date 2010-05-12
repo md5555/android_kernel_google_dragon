@@ -12,7 +12,7 @@ obj-				:=
 
 # Core files
 
-obj-y				+= dev-uart.o
+obj-y				+= dev-uart.o devs.o
 obj-y				+= cpu.o
 obj-y				+= clock.o
 obj-y				+= irq.o irq-eint.o
