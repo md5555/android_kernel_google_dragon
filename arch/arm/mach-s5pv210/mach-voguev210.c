@@ -25,6 +25,7 @@
 #include <plat/s5pv210.h>
 #include <plat/devs.h>
 #include <plat/cpu.h>
+#include <plat/iic.h>
 #include <plat/fb.h>
 
 #if defined(CONFIG_PM)
@@ -91,7 +92,35 @@ static struct s3c2410_uartcfg voguev210_uartcfgs[] __initdata = {
 	},
 };
 
+#ifdef CONFIG_I2C_S3C2410
+/* I2C0 */
+static struct i2c_board_info i2c_devs0[] __initdata = {
+};
+
+#ifdef CONFIG_S3C_DEV_I2C1
+/* I2C1 */
+static struct i2c_board_info i2c_devs1[] __initdata = {
+};
+#endif
+
+#ifdef CONFIG_S3C_DEV_I2C2
+/* I2C2 */
+static struct i2c_board_info i2c_devs2[] __initdata = {
+};
+#endif
+#endif
+
 static struct platform_device *voguev210_devices[] __initdata = {
+#ifdef CONFIG_I2C_S3C2410
+	&s3c_device_i2c0,
+#ifdef CONFIG_S3C_DEV_I2C1
+	&s3c_device_i2c1,
+#endif
+#ifdef CONFIG_S3C_DEV_I2C2
+	&s3c_device_i2c2,
+#endif
+#endif
+
 #ifdef CONFIG_FB_S3C
 	&s3c_device_fb,
 #endif
@@ -119,6 +148,19 @@ static void __init voguev210_map_io(void)
 
 static void __init voguev210_machine_init(void)
 {
+#ifdef CONFIG_I2C_S3C2410
+	s3c_i2c0_set_platdata(NULL);
+	i2c_register_board_info(0, i2c_devs0, ARRAY_SIZE(i2c_devs0));
+#ifdef CONFIG_S3C_DEV_I2C1
+	s3c_i2c1_set_platdata(NULL);
+	i2c_register_board_info(1, i2c_devs1, ARRAY_SIZE(i2c_devs1));
+#endif
+#ifdef CONFIG_S3C_DEV_I2C2
+	s3c_i2c2_set_platdata(NULL);
+	i2c_register_board_info(2, i2c_devs2, ARRAY_SIZE(i2c_devs2));
+#endif
+#endif
+
 #if defined(CONFIG_PM)
 	s3c_pm_init();
 	s3c_irq_wake(IRQ_RTC_ALARM, 1);
