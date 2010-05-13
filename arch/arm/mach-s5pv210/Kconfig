@@ -55,4 +55,16 @@ config S5PV210_SETUP_FB_S3C
 	help
 	  Setup code for S5PV210 FIMD
 
+config S5PV210_SETUP_I2C1
+	bool
+	default y
+	help
+	  Common setup code for i2c bus 1.
+
+config S5PV210_SETUP_I2C2
+	bool
+	default y
+	help
+	  Common setup code for i2c bus 2.
+
 endif
