@@ -125,6 +125,10 @@ static struct platform_device *voguev210_devices[] __initdata = {
 	&s3c_device_fb,
 #endif
 
+#ifdef CONFIG_S3C2410_WATCHDOG
+	&s3c_device_wdt,
+#endif
+
 #ifdef CONFIG_VIDEO_TV20
 	&s5p_device_tvout,
 	&s5p_device_cec,
