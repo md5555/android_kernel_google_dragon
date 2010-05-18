@@ -71,11 +71,11 @@ static struct pci_tegra_device *pci_root;
 
 static u32 pci_tegra_io_base;
 static u32 pci_tegra_mem_base;
-static u32 pci_tegra_prefetech_base;
+static u32 pci_tegra_prefetch_base;
 
 static u32 pci_tegra_io_limt;
 static u32 pci_tegra_mem_limit;
-static u32 pci_tegra_prefetech_limit;
+static u32 pci_tegra_prefetch_limit;
 
 static void pci_tegra_print_device_tree(struct pci_tegra_device *dev);
 static void pcie_scanbus(struct pci_tegra_device *dev_parent);
@@ -348,7 +348,7 @@ static void pci_tegra_enumerate_root_port(int rp)
 	pci_tegra_rp_writew(reg>>16, PCI_IO_BASE_UPPER16, rp);
 
 	reg = root->res[PCI_BRIDGE_IO_RES].end;
-	reg = ALIGN(reg, 0x1000);
+	reg = ALIGN(reg, 0x1000) - 1;
 	pci_tegra_rp_writeb((((reg & 0xf000) >> 8) | PCI_IO_RANGE_TYPE_32),
 		PCI_IO_LIMIT, rp);
 	pci_tegra_rp_writew(reg>>16, PCI_IO_LIMIT_UPPER16, rp);
@@ -359,7 +359,7 @@ static void pci_tegra_enumerate_root_port(int rp)
 		reg = ALIGN(reg, 0x100000);
 		pci_tegra_rp_writew(reg >> 16, PCI_MEMORY_BASE, rp);
 		reg = root->res[PCI_BRIDGE_MEM_RES].end;
-		reg = ALIGN(reg, 0x100000);
+		reg = ALIGN(reg, 0x100000) - 1;
 		pci_tegra_rp_writew(reg >> 16, PCI_MEMORY_LIMIT, rp);
 	} else {
 		pci_tegra_rp_writew(0xffff, PCI_MEMORY_BASE, rp);
@@ -396,7 +396,7 @@ static void pci_tegra_setup_pci_bridge(struct pci_tegra_device *dev)
 	dev->res[PCI_BRIDGE_IO_RES].end = pci_tegra_io_base;
 	dev->res[PCI_BRIDGE_MEM_RES].end = pci_tegra_mem_base;
 	dev->res[PCI_BRIDGE_PREFETCH_RES].end =
-		pci_tegra_prefetech_base;
+		pci_tegra_prefetch_base;
 
 	/* Only set here for the non-root port devices */
 	if (dev->root_port)
@@ -520,9 +520,9 @@ static void pci_tegra_setup_pci_device(struct pci_tegra_device *dev)
 
 				pci_tegra_mem_base = addr + size;
 			} else {
-				addr = ALIGN(pci_tegra_prefetech_base, size);
+				addr = ALIGN(pci_tegra_prefetch_base, size);
 
-				if (addr + size > pci_tegra_prefetech_limit) {
+				if (addr + size > pci_tegra_prefetch_limit) {
 					pr_err("pci_tegra: "
 						"Cannot asign prefetch res\n");
 					continue;
@@ -533,7 +533,7 @@ static void pci_tegra_setup_pci_device(struct pci_tegra_device *dev)
 				dev->res[bar_index].start = addr;
 				dev->res[bar_index].end = addr + size - 1;
 
-				pci_tegra_prefetech_base = addr + size;
+				pci_tegra_prefetch_base = addr + size;
 			}
 		}
 		pci_conf_write32(dev->bus, dev->devfn, bar_index * 4
@@ -609,7 +609,7 @@ static void pci_tegra_allocate_resources(struct pci_tegra_device *dev)
 		dev->res[PCI_BRIDGE_PREFETCH_RES].flags =
 			IORESOURCE_MEM | IORESOURCE_PREFETCH;
 		dev->res[PCI_BRIDGE_PREFETCH_RES].start =
-			pci_tegra_prefetech_base;
+			pci_tegra_prefetch_base;
 
 		dev->res[PCI_BRIDGE_MEM_RES].flags = IORESOURCE_MEM;
 		dev->res[PCI_BRIDGE_MEM_RES].start = pci_tegra_mem_base;
@@ -622,8 +622,13 @@ static void pci_tegra_allocate_resources(struct pci_tegra_device *dev)
 
 	if (dev->sub_bus)
 		pci_tegra_setup_pci_bridge(dev);
-	else
+	else {
 		pci_tegra_setup_pci_device(dev);
+		pci_tegra_io_base = ALIGN(pci_tegra_io_base, 0x1000);
+		pci_tegra_mem_base = ALIGN(pci_tegra_mem_base, 0x1000000);
+		pci_tegra_prefetch_base =
+			ALIGN(pci_tegra_prefetch_base, 0x1000000);
+	}
 }
 
 void pci_tegra_enumerate(void)
@@ -645,8 +650,8 @@ void pci_tegra_enumerate(void)
 	pci_tegra_mem_limit = FPCI_NON_PREFETCH_MEMORY_OFFSET
 		+ PCIE_NON_PREFETCH_MEMORY_SIZE;
 
-	pci_tegra_prefetech_base = FPCI_PREFETCH_MEMORY_OFFSET;
-	pci_tegra_prefetech_limit = FPCI_PREFETCH_MEMORY_OFFSET
+	pci_tegra_prefetch_base = FPCI_PREFETCH_MEMORY_OFFSET;
+	pci_tegra_prefetch_limit = FPCI_PREFETCH_MEMORY_OFFSET
 		+ PCIE_PREFETCH_MEMORY_SIZE;
 
 	/* Enumerate only if the Link is UP. */
