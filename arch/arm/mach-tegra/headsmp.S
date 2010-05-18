@@ -70,8 +70,17 @@ ENDPROC(v7_invalidate_l1)
 
 ENTRY(tegra_secondary_startup)
 	msr	cpsr_fsxc, #0xd3
+	mov	r0, #0
+	mcr	p15, 0, r0, c7, c5, 0	@ invalidate i-cache
+	mcr	p15, 0, r0, c7, c5, 6	@ flusth btac
+	mcr	p15, 0, r0, c8, c7, 0	@ invalidate unified TLBs
+	mcr	p15, 0, r0, c7, c10, 4	@ dsb
+	mcr	p15, 0, r0, c7, c5, 4	@ isb
+	mrc	p15, 0, r0, c1, c0, 0	@ sctlr
+	orr	r0, r0, #0x1800		@ sctlr.i | sctlr.z
+	mcr	p15, 0, r0, c1, c0, 0	@ sctlr
 	bl	v7_invalidate_l1
-	mrc	p15, 0, r0, c0, c0, 5
+	mrc	p15, 0, r0, c0, c0, 5	@ mpidr
 	and	r0, r0, #15
 #if defined(CONFIG_ARCH_TEGRA_2x_SOC)
 	ldr	r1, =0x6000f100
