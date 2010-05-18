@@ -407,6 +407,15 @@ NvRmPrivPowerGroupGetVoltage(
     NvRmDeviceHandle hRmDeviceHandle,
     NvU32 PowerGroup);
 
+
+/**
+ * Gate/ungate power groups on entry/exit to/from low power state.
+ *
+ * @param hRmDeviceHandle The RM device handle.
+ */
+void NvRmPrivPowerGroupSuspend(NvRmDeviceHandle hRmDeviceHandle);
+void NvRmPrivPowerGroupResume(NvRmDeviceHandle hRmDeviceHandle);
+
 /**
  * Controls power state and clamping for PCIEXCLK/PLLE (chip-specific).
  *

@@ -688,8 +688,11 @@ PowerEventNotify(
                 }
                 else if (Event == NvRmPowerEvent_WakeLP1)
                 {
-                    // LP1: core power is preserved; modules in powered down
-                    // groups are tracked via RecordPowerCycle()
+                    // LP1: core power is preserved; but all  power groups
+                    // except AO and NPG group are power gated
+                    if ((pVoltageReq->PowerGroup != NV_POWERGROUP_AO) &&
+                        (pVoltageReq->PowerGroup != NV_POWERGROUP_NPG))
+                        pVoltageReq->PowerCycled = NV_TRUE;
                 }
                 pVoltageReq = pVoltageReq->pNext;
             }
@@ -1476,6 +1479,7 @@ NvRmKernelPowerSuspend( NvRmDeviceHandle hRmDeviceHandle )
 
     NvRmPrivPmuInterruptMask(hRmDeviceHandle, NV_TRUE);
     NvRmPrivDfsSuspend(NvOdmQueryLowestSocPowerState()->LowestPowerState);
+    NvRmPrivPowerGroupSuspend(hRmDeviceHandle);
 
 #if NVRM_POWER_DEBUG_SUSPEND_ENTRY
     NvOsMutexLock(s_hPowerClientMutex);
@@ -1522,6 +1526,7 @@ NvError
 NvRmKernelPowerResume( NvRmDeviceHandle hRmDeviceHandle )
 {
     NvRmPrivPmuInterruptMask(hRmDeviceHandle, NV_FALSE);
+    NvRmPrivPowerGroupResume(hRmDeviceHandle);
     return NvSuccess;
 }
 

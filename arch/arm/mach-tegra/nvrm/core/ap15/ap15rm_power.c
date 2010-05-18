@@ -75,10 +75,11 @@
 
 // Power Group -to- Power Gating Ids mapping
 static const NvU32* s_PowerGroupIds = NULL;
+static NvBool s_UngateOnResume[NV_POWERGROUP_MAX] = {0};
 
 /*****************************************************************************/
 
-static NvBool IsPowerGateSupported(NvU32 PowerGroup)
+static NvBool IsRunTimePowerGateSupported(NvU32 PowerGroup)
 {
     // 1st check h/w support capabilities
     NV_ASSERT(s_PowerGroupIds);
@@ -96,6 +97,27 @@ static NvBool IsPowerGateSupported(NvU32 PowerGroup)
             return NV_POWER_GATE_VDE;
         case NV_POWERGROUP_MPE:
             return NV_POWER_GATE_MPE;
+        default:
+            return NV_FALSE;
+    }
+}
+
+static NvBool IsSuspendPowerGateForced(NvU32 PowerGroup)
+{
+    // 1st check h/w support capabilities
+    NV_ASSERT(s_PowerGroupIds);
+    if (s_PowerGroupIds[PowerGroup] == NV_POWERGROUP_INVALID)
+        return NV_FALSE;
+
+    // now check s/w support
+    switch (PowerGroup)
+    {
+        case NV_POWERGROUP_TD:
+        case NV_POWERGROUP_PCIE:
+        case NV_POWERGROUP_VDE:
+        case NV_POWERGROUP_VE:
+        case NV_POWERGROUP_MPE:
+            return NV_TRUE;
         default:
             return NV_FALSE;
     }
@@ -125,6 +147,12 @@ static void PowerGroupResetControl(
             break;
         case NV_POWERGROUP_VDE:
             NvRmModuleResetWithHold(hRmDeviceHandle, NvRmModuleID_Vde, Assert);
+            break;
+        case NV_POWERGROUP_VE:
+            NvRmModuleResetWithHold(hRmDeviceHandle, NvRmModuleID_Vi, Assert);
+            NvRmModuleResetWithHold(hRmDeviceHandle, NvRmModuleID_Csi, Assert);
+            NvRmModuleResetWithHold(hRmDeviceHandle, NvRmModuleID_Isp, Assert);
+            NvRmModuleResetWithHold(hRmDeviceHandle, NvRmModuleID_Epp, Assert);
             break;
         case NV_POWERGROUP_MPE:
             NvRmModuleResetWithHold(hRmDeviceHandle, NvRmModuleID_Mpe, Assert);
@@ -156,6 +184,16 @@ static void  PowerGroupClockControl(
             NvRmPrivEnableModuleClock(
                 hRmDeviceHandle, NvRmModuleID_Vde, ClockState);
             break;
+        case NV_POWERGROUP_VE:
+            NvRmPrivEnableModuleClock(
+                hRmDeviceHandle, NvRmModuleID_Vi, ClockState);
+            NvRmPrivEnableModuleClock(
+                hRmDeviceHandle, NvRmModuleID_Csi, ClockState);
+            NvRmPrivEnableModuleClock(
+                hRmDeviceHandle, NvRmModuleID_Isp, ClockState);
+            NvRmPrivEnableModuleClock(
+                hRmDeviceHandle, NvRmModuleID_Epp, ClockState);
+            break;
         case NV_POWERGROUP_MPE:
             NvRmPrivEnableModuleClock(
                 hRmDeviceHandle, NvRmModuleID_Mpe, ClockState);
@@ -165,25 +203,17 @@ static void  PowerGroupClockControl(
     }
 }
 
-void
-NvRmPrivPowerGroupControl(
+static void
+PowerGroupPowerControl(
     NvRmDeviceHandle hRmDeviceHandle,
     NvU32 PowerGroup,
     NvBool Enable)
 {
     NvU32 reg, Id, Mask, Status;
-    NVRM_POWER_PRINTF(("%s Power Group %d\n",
-                       (Enable ? "Enable" : "Disable"), PowerGroup));
 
     // Do nothing if not SoC platform
     NV_ASSERT(hRmDeviceHandle);
     if (NvRmPrivGetExecPlatform(hRmDeviceHandle) != ExecPlatform_Soc)
-        return;
-
-    // Do nothing if power gating is not supported for this group
-    if (PowerGroup >= NV_POWERGROUP_MAX)
-        return;             // "virtual" groups are always On
-    if (!IsPowerGateSupported(PowerGroup))
         return;
 
     // Do nothing if power group is already in requested state
@@ -250,6 +280,25 @@ NvRmPrivPowerGroupControl(
     }
 }
 
+void
+NvRmPrivPowerGroupControl(
+    NvRmDeviceHandle hRmDeviceHandle,
+    NvU32 PowerGroup,
+    NvBool Enable)
+{
+    NVRM_POWER_PRINTF(("%s Power Group %d\n",
+                       (Enable ? "Enable" : "Disable"), PowerGroup));
+
+    // Do nothing if dynamic power gating is not supported for this group
+    if (PowerGroup >= NV_POWERGROUP_MAX)
+        return;             // "virtual" groups are always On
+    if (!IsRunTimePowerGateSupported(PowerGroup))
+        return;
+
+    // Gate/ungate the group
+    PowerGroupPowerControl(hRmDeviceHandle, PowerGroup, Enable);
+}
+
 NvRmMilliVolts
 NvRmPrivPowerGroupGetVoltage(
     NvRmDeviceHandle hRmDeviceHandle,
@@ -271,6 +320,37 @@ NvRmPrivPowerGroupGetVoltage(
         }
     }
     return Voltage;
+}
+
+void NvRmPrivPowerGroupSuspend(NvRmDeviceHandle hRmDeviceHandle)
+{
+    NvU32 i;
+
+    // On suspend entry power gate core group that is still On, but must be Off
+    for (i = 0; i < NV_POWERGROUP_MAX; i++)
+    {
+        if (!IsSuspendPowerGateForced(i) ||
+            (NvRmPrivPowerGroupGetVoltage(hRmDeviceHandle, i) == NvRmVoltsOff))
+        {
+            s_UngateOnResume[i] = NV_FALSE;
+            continue;
+        }
+
+        s_UngateOnResume[i] = NV_TRUE;
+        PowerGroupPowerControl(hRmDeviceHandle, i, NV_FALSE);
+    }
+}
+
+void NvRmPrivPowerGroupResume(NvRmDeviceHandle hRmDeviceHandle)
+{
+    NvU32 i;
+
+    // On resume ungate core group that was forcefully gated on suspend entry
+    for (i = 0; i < NV_POWERGROUP_MAX; i++)
+    {
+        if (s_UngateOnResume[i] == NV_TRUE)
+            PowerGroupPowerControl(hRmDeviceHandle, i, NV_TRUE);
+    }
 }
 
 void NvRmPrivPowerGroupControlInit(NvRmDeviceHandle hRmDeviceHandle)
