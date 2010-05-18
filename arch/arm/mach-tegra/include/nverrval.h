@@ -90,6 +90,8 @@ NVERROR(DispAuthenticationFailed,           0x00020008, "display authenication f
 NVERROR(DispNotAttached,                    0x00020009, "display not attached")
 NVERROR(DispSamePwrState,                   0x0002000A, "display already in requested power state")
 NVERROR(DispEdidFailure,                    0x0002000B, "edid read/parsing failure")
+NVERROR(DispDsiReadAckError,                0x0002000C, "DSI display read ack error report")
+NVERROR(DispDsiReadInvalidResp,             0x0002000D, "DSI display invalid read response")
 
 /* NvOs error codes */
 NVERROR(FileWriteFailed,                    0x00030000, "the file write operation failed")
