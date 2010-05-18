@@ -1616,12 +1616,6 @@ NvBool Tps6586xSetup(NvOdmPmuDeviceHandle hDevice)
             NVODMPMU_PRINTF(("TPS: Fail to set the NVDDIO_NAND to 2.85V\n"));
         else
             NVODMPMU_PRINTF(("TPS: set the NVDDIO_NAND to 2.85V\n"));
-        //FIXME: turn on the rail for the VDAC at the beginning for now
-        //if (NV_FALSE == Tps6586xWriteVoltageReg(hDevice, TPS6586xPmuSupply_LDO8, 2800, NULL))
-        if (NV_FALSE == Tps6586xWriteVoltageReg(hDevice, TPS6586xPmuSupply_LDO0, 3300, NULL))
-            NVODMPMU_PRINTF(("TPS: Fail to Turn on the VDAC\n"));
-        else
-            NVODMPMU_PRINTF(("TPS: Turn on the VDAC\n"));
 #endif
     }   
     else
