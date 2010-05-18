@@ -54,7 +54,7 @@ static int tegra_event_set_next(unsigned long cycles,
 	struct tegra_timer *tmr = container_of(dev, struct tegra_timer, event);
 	u32 reg;
 
-	reg = 0x80000000 | ((1000000/HZ)*(cycles+1)-1);
+	reg = 0x80000000 | ((cycles > 1) ? (cycles-1) : 0);
 	writel(reg, tmr->mmio + TIMER_TMR_PTV_0);
 
 	return 0;
