@@ -30,6 +30,9 @@
 #include <linux/io.h>
 #include <linux/interrupt.h>
 
+#include <mach/nvrm_linux.h>
+#include "nvrm_pinmux_utils.h"
+
 #include <asm/io.h>
 #include <asm/gpio.h>
 
@@ -66,6 +69,9 @@ static unsigned long add_gpio_base = 0;
 #define GPIO_INT_LVL_LEVEL_LOW      0x000000
 
 #define MAX_GPIO_INSTANCES  10
+
+int tegra_gpio_io_power_config(int gpio_nr, unsigned int enable);
+
 struct tegra_gpio_bank {
 	int bank;
 	int irq;
@@ -114,6 +120,36 @@ void tegra_gpio_disable(int gpio)
 	tegra_gpio_mask_write(GPIO_MSK_CNF(gpio), gpio, 0);
 }
 
+static int tegra_gpio_request(struct gpio_chip *chip, unsigned offset)
+{
+	int port;
+	int pin;
+	int status;
+	port = GPIO_BANK(offset) * 4 + GPIO_PORT(offset);
+	pin = GPIO_BIT(offset);
+
+	status = tegra_gpio_io_power_config(offset, true);
+	if (unlikely(status != 0)) {
+		return -1;
+	}
+
+	tegra_gpio_mask_write(GPIO_MSK_CNF(offset), offset, 1);
+	NvRmSetGpioTristate(s_hRmGlobal, port, pin, NV_FALSE);
+	return 0;
+}
+
+static void tegra_gpio_free(struct gpio_chip *chip, unsigned offset)
+{
+	int port;
+	int pin;
+	port = GPIO_BANK(offset) * 4 + GPIO_PORT(offset);
+	pin = GPIO_BIT(offset);
+
+	tegra_gpio_io_power_config(offset, false);
+	tegra_gpio_mask_write(GPIO_MSK_CNF(offset), offset, 0);
+	NvRmSetGpioTristate(s_hRmGlobal, port, pin, NV_TRUE);
+}
+
 static void tegra_gpio_set(struct gpio_chip *chip, unsigned offset, int value)
 {
 	tegra_gpio_mask_write(GPIO_MSK_OUT(offset), offset, value);
@@ -139,6 +175,8 @@ static int tegra_gpio_direction_output(struct gpio_chip *chip,
 
 static struct gpio_chip tegra_gpio_chip = {
 	.label              = "tegra-gpio",
+	.request            = tegra_gpio_request,
+	.free               = tegra_gpio_free,
 	.direction_input    = tegra_gpio_direction_input,
 	.get                = tegra_gpio_get,
 	.direction_output   = tegra_gpio_direction_output,
@@ -738,7 +776,7 @@ static struct gpio_power_rail_info *gpio_power_rail_map[ARCH_NR_GPIOS] = {
 	&gpio_power_rail_table[5]
 };
 
-static void discover_gpio_io_power_rail(NvRmDeviceHandle hRm)
+static void discover_gpio_io_power_rail(void)
 {
 	unsigned int i;
 	const NvOdmPeripheralConnectivity* connectivity = NULL;
@@ -752,39 +790,36 @@ static void discover_gpio_io_power_rail(NvRmDeviceHandle hRm)
 				connectivity->AddressList[0].Address;
 	}
 }
-NvError tegra_gpio_io_power_config(NvRmDeviceHandle hRm, int port,
-				int pin, unsigned int enable)
+int tegra_gpio_io_power_config(int gpio_nr, unsigned int enable)
 {
 	NvRmPmuVddRailCapabilities rail_caps;
 	NvU32 settling_time;
 	struct gpio_power_rail_info *gpio_io_power;
-	int gpio_nr;
 
 	if (!is_gpio_rail_initailized) {
-		discover_gpio_io_power_rail(hRm);
+		discover_gpio_io_power_rail();
 		is_gpio_rail_initailized = 1;
 	}
 
-	gpio_nr = port * 8 + pin;
 	gpio_io_power = gpio_power_rail_map[gpio_nr];
 
 	/* Nothing to be done if there is no pmu rail
 	 * associated with this port */
 	if (gpio_io_power->power_rail_address == 0)
-		return NvSuccess;
+		return 0;
 
 	if (enable) {
-		NvRmPmuGetCapabilities(hRm, gpio_io_power->power_rail_address,
+		NvRmPmuGetCapabilities(s_hRmGlobal, gpio_io_power->power_rail_address,
 					&rail_caps);
-		NvRmPmuSetVoltage(hRm, gpio_io_power->power_rail_address,
+		NvRmPmuSetVoltage(s_hRmGlobal, gpio_io_power->power_rail_address,
 					rail_caps.requestMilliVolts,
 					&settling_time);
 	} else {
-		NvRmPmuSetVoltage(hRm, gpio_io_power->power_rail_address,
+		NvRmPmuSetVoltage(s_hRmGlobal, gpio_io_power->power_rail_address,
 					ODM_VOLTAGE_OFF, &settling_time);
 	}
 	if (settling_time)
 		NvOsWaitUS(settling_time);
 
-	return NvSuccess;
+	return 0;
 }

@@ -154,7 +154,6 @@ NvRmI2cOpen(
     NvOsMutexHandle hThreadSaftyMutex = NULL;
     const NvU32 *pOdmConfigs;
     NvU32 NumOdmConfigs;
-    NvU32 scl, sda;
 
 
     NV_ASSERT(hRmDevice);
@@ -263,31 +262,12 @@ NvRmI2cOpen(
             goto fail_1;
         }
 
-        /* Initalize the GPIO handles */
+        /* Initalize the GPIO handles only */
         if (c->GetGpioPins)
         {
             status = NvRmGpioOpen(c->hRmDevice, &c->hGpio);
             if(status)
                 goto fail_1;
-            if (c->PinMapConfig != NvOdmI2cPinMap_Multiplexed)
-            {
-                if ((c->GetGpioPins)(c, c->PinMapConfig, &scl, &sda))
-                {
-                    status = NvRmGpioAcquirePinHandle(c->hGpio, (scl >> 16),
-                        (scl & 0xFFFF), &c->hSclPin);
-                    if(!status)
-                    {
-                        status = NvRmGpioAcquirePinHandle(c->hGpio, (sda >> 16),
-                            (sda & 0xFFFF), &c->hSdaPin);
-                        if(status)
-                        {
-                            NvRmGpioReleasePinHandles(c->hGpio, &c->hSclPin, 1);
-                            c->hSclPin = 0;
-                            goto fail_1;
-                        }
-                    }
-                }
-            }
         }
         status = NvRmPowerRegister(hRmDevice, NULL, &c->I2cPowerClientId);
         if (status != NvSuccess)
@@ -487,6 +467,7 @@ NvError NvRmI2cTransaction(
     NvU32 Index;
     NvU32 RSCount  = 0; // repeat start count
     NvS32 StartTransIndex = -1;
+    NvU32 scl, sda;
 
     Index = ((NvU32)hI2c) & 0x7FFFFFFF;
 
@@ -552,7 +533,50 @@ NvError NvRmI2cTransaction(
     if ((Transaction[0].Flags & NVRM_I2C_SOFTWARE_CONTROLLER) ||
                             (useGpioI2c == NV_TRUE))
     {
-        status = NvRmGpioI2cTransaction(c, I2cPinMap, Data, DataLength,
+        if (c->hGpio == NULL)
+        {
+            status = NvRmGpioOpen(c->hRmDevice, &c->hGpio);
+            if(status)
+            {
+                 NvOsMutexUnlock(c->I2cThreadSafetyMutex);
+                 return status;
+            }
+        }
+        /* Initalize the GPIO pin handles if it is not done */
+        if (c->GetGpioPins)
+        {
+            if (c->PinMapConfig != NvOdmI2cPinMap_Multiplexed)
+	    {
+	         if ((c->hSclPin == 0) || (c->hSdaPin == 0))
+                 {
+                      if ((c->GetGpioPins)(c, c->PinMapConfig, &scl, &sda))
+                      {
+                           status = NvRmGpioAcquirePinHandle(c->hGpio,
+                                          (scl >> 16), (scl & 0xFFFF),
+                                           &c->hSclPin);
+                            if(!status)
+                            {
+                                 status = NvRmGpioAcquirePinHandle(c->hGpio,
+                                           (sda >> 16), (sda & 0xFFFF),
+                                           &c->hSdaPin);
+                                 if(status)
+                                 {
+                                      NvRmGpioReleasePinHandles(c->hGpio,
+                                           &c->hSclPin, 1);
+                                      c->hSclPin = 0;
+                                 }
+                            }
+                       }
+                  }
+            }
+        }
+        else
+        {
+            status = NvError_NotSupported;
+        }
+
+        if (status == NvSuccess)
+            status = NvRmGpioI2cTransaction(c, I2cPinMap, Data, DataLength,
                                         Transaction, NumOfTransactions);
         NvOsMutexUnlock(c->I2cThreadSafetyMutex);
         return status;

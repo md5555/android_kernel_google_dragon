@@ -66,8 +66,7 @@
 #define NVRM_GPIO_CAP_FEAT_EDGE_INTR  0x000000001
 #define GPIO_ARCH_FEATURE  (NVRM_GPIO_CAP_FEAT_EDGE_INTR)
 
-extern NvError tegra_gpio_io_power_config(NvRmDeviceHandle hRm, int port,
-                                  int pin, unsigned int enable);
+extern int tegra_gpio_io_power_config(int gpio_nr, unsigned int enable);
 
 typedef struct NvRmGpioPinInfoRec {
 	NvBool used;
@@ -470,16 +469,16 @@ NvError NvRmGpioConfigPins(NvRmGpioHandle hGpio,
 		if ((!s_hGpio->pPinInfo[gpio_nr].used)
 		    && (Mode != NvRmGpioPinMode_Inactive)) {
 #if NV_ENABLE_GPIO_POWER_RAIL
-			err = tegra_gpio_io_power_config(hGpio->hRm,
-					alphaPort, pin, true);
+			ret_status = tegra_gpio_io_power_config(gpio_nr, true);
+			err = (NvError)ret_status;
 #endif
 			NvRmSetGpioTristate(hGpio->hRm,
 					 alphaPort, pin, NV_FALSE);
 		} else if ((s_hGpio->pPinInfo[gpio_nr].used)
 			   && (Mode == NvRmGpioPinMode_Inactive)) {
 #if NV_ENABLE_GPIO_POWER_RAIL
-			err = tegra_gpio_io_power_config(hGpio->hRm,
-					 alphaPort, pin, false);
+			ret_status = tegra_gpio_io_power_config(gpio_nr, false);
+			err = (NvError)ret_status;
 #endif
 			NvRmSetGpioTristate(hGpio->hRm,
 				 	alphaPort, pin, NV_TRUE);

@@ -6,6 +6,8 @@ ccflags-y += -DNV_DEBUG=1
 else
 ccflags-y += -DNV_DEBUG=0
 endif
+ccflags-y += -Iarch/arm/mach-tegra/nvrm/core/common
+
 
 # Mandatory components
 obj-y					+= clock.o
