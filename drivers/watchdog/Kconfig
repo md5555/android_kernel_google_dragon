@@ -147,7 +147,7 @@ config KS8695_WATCHDOG
 
 config S3C2410_WATCHDOG
 	tristate "S3C2410 Watchdog"
-	depends on ARCH_S3C2410
+	depends on ARCH_S3C2410 || ARCH_S5PV210
 	help
 	  Watchdog timer block in the Samsung S3C2410 chips. This will
 	  reboot the system when the timer expires with the watchdog

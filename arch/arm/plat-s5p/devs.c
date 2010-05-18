@@ -31,6 +31,26 @@
 #include <plat/irqs.h>
 #include <plat/fb.h>
 
+static struct resource s3c_wdt_resource[] = {
+	[0] = {
+		.start	= S5P_PA_WDT,
+		.end	= S5P_PA_WDT + S5P_SZ_WDT - 1,
+		.flags	= IORESOURCE_MEM,
+	},
+	[1] = {
+		.start	= IRQ_WDT,
+		.end	= IRQ_WDT,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device s3c_device_wdt = {
+	.name		= "s3c2410-wdt",
+	.id		= -1,
+	.num_resources	= ARRAY_SIZE(s3c_wdt_resource),
+	.resource	= s3c_wdt_resource,
+};
+
 static struct resource s3cfb_resource[] = {
 	[0] = {
 		.start	= S5P_PA_LCD,
