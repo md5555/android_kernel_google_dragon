@@ -29,6 +29,7 @@
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
 #include <linux/wakelock.h>
+#include <linux/tick.h>
 #include "nvos.h"
 
 extern NvRmDeviceHandle s_hRmGlobal;
@@ -51,7 +52,7 @@ extern struct wake_lock main_wake_lock;
 #define TEMP_SAVE_AREA_SIZE 16
 #define ENABLE_LP2 1
 #define LP2_PADDING_FACTOR	5
-#define LP2_ROUNDTRIP_TIME_US	1000ul
+#define LP2_ROUNDTRIP_TIME_US	2500ul
 //Let Max LP2 time wait be 71 min (Almost a wrap around)
 #define LP2_MAX_WAIT_TIME_US	(71*60*1000000ul)
 
@@ -295,18 +296,29 @@ void mach_tegra_idle(void)
 	    !(NvRmPrivGetDfsFlags(s_hRmGlobal) & NvRmDfsStatusFlags_Pause))
 		lp2_ok = false;
 
-        if (lp2_ok) {
-		unsigned long long now, sleep_jiffies;
+	if (lp2_ok) {
+		struct tick_sched *ts =
+			tick_get_tick_sched(smp_processor_id());
+		if (!ts->tick_stopped)
+			lp2_ok = false;
+	}
 
-		now = get_jiffies_64();
+        if (lp2_ok) {
+		unsigned long now, sleep_jiffies;
+
+		now = (unsigned long)get_jiffies_64();
 		sleep_jiffies = get_next_timer_interrupt(now) - now;
 
-		sleep_time = jiffies_to_usecs(sleep_jiffies);
+		if (sleep_jiffies > 1) {
+			sleep_time = jiffies_to_usecs(sleep_jiffies - 1);
 
-		sleep_time = min_t(unsigned long, sleep_time,
-			LP2_MAX_WAIT_TIME_US);
+			sleep_time = min_t(unsigned long, sleep_time,
+				LP2_MAX_WAIT_TIME_US);
 
-		if (sleep_time <= (LP2_ROUNDTRIP_TIME_US*LP2_PADDING_FACTOR))
+			if (sleep_time <=
+				(LP2_ROUNDTRIP_TIME_US*LP2_PADDING_FACTOR))
+				lp2_ok = false;
+		} else
 			lp2_ok = false;
 	}
 
@@ -315,13 +327,15 @@ void mach_tegra_idle(void)
 		tegra_lp2_set_trigger(sleep_time);
 		cpu_ap20_do_lp2();
 		tegra_lp2_set_trigger(0);
+
 		/* add the actual amount of time spent in lp2 to the timers */
 		sleep_time = NV_REGR(s_hRmGlobal, NvRmModuleID_Pmif,
 			0, APBDEV_PMC_SCRATCH39_0);
 		sleep_time -= NV_REGR(s_hRmGlobal, NvRmModuleID_Pmif,
 			0, APBDEV_PMC_SCRATCH38_0);
 
-		jiffies += usecs_to_jiffies(sleep_time);
+		// jiffies += usecs_to_jiffies(sleep_time);
+		// jiffies updated by tick_nohz_restart_sched_tick() after exit
 		NvRmPrivSetLp2TimeUS(s_hRmGlobal, sleep_time);
 	} else
 		cpu_ap20_do_idle();
