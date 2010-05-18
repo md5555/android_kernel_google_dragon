@@ -283,8 +283,6 @@ static int nvmap_grow_blocks(struct nvmap_carveout *co)
 	}
 	blocks[co->num_blocks].prev = -1;
 	blocks[i-1].next = -1;
-	blocks[i].next_free = -1;
-	blocks[i].prev_free = -1;
 	co->spare_index = co->num_blocks;
 	co->num_blocks *= 2;
 	return 0;
