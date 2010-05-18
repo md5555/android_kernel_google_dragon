@@ -203,7 +203,7 @@ extern "C"
         255,   /* Proportional frequency boost increase 255/256 ~ 100% */ \
         128,   /* Proportional frequency boost decrease 128/256 ~ 50% */  \
     },\
-    0,      /* Relative adjustement of average freqiency 1/2^0 ~ 100% */ \
+    1,      /* Relative adjustement of average freqiency 1/2^1 ~ 50% */ \
     0,      /* Number of smaple intervals with NRT to trigger boost = 1 */ \
     1       /* NRT idle cycles threshold = 1 */ 
 
