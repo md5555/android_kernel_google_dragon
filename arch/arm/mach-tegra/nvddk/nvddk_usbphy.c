@@ -244,17 +244,31 @@ UsbPhyDfsBusyHint(
     NvRmDfsBusyHint pUsbHintOn[] =
     {
         { NvRmDfsClockId_Emc, NV_WAIT_INFINITE, USB_HW_MIN_SYSTEM_FREQ_KH, NV_TRUE },
-        { NvRmDfsClockId_Ahb, NV_WAIT_INFINITE, USB_HW_MIN_SYSTEM_FREQ_KH, NV_TRUE }
+        { NvRmDfsClockId_Ahb, NV_WAIT_INFINITE, USB_HW_MIN_SYSTEM_FREQ_KH, NV_TRUE },
+        { NvRmDfsClockId_Cpu, NV_WAIT_INFINITE, USB_HW_MIN_CPU_FREQ_KH, NV_TRUE }
     };
     NvRmDfsBusyHint pUsbHintOff[] =
     {
         { NvRmDfsClockId_Emc, 0, 0, NV_TRUE },
-        { NvRmDfsClockId_Ahb, 0, 0, NV_TRUE }
+        { NvRmDfsClockId_Ahb, 0, 0, NV_TRUE },
+        { NvRmDfsClockId_Cpu, 0, 0, NV_TRUE }
     };
     NvError e = NvSuccess;
+    NvU32 NumHints;
+
+    if (hUsbPhy->IsHostMode)
+    {
+        // Do not enable busy hints for cpu clock in host mode
+        NumHints = NV_ARRAY_SIZE(pUsbHintOn) - 1;
+    }
+    else
+    {
+        NumHints = NV_ARRAY_SIZE(pUsbHintOn);
+    }
 
     pUsbHintOn[0].BoostDurationMs = BoostDurationMs;
     pUsbHintOn[1].BoostDurationMs = BoostDurationMs;
+    pUsbHintOn[2].BoostDurationMs = BoostDurationMs;
 
     if (DfsOn)
     {
@@ -274,7 +288,7 @@ UsbPhyDfsBusyHint(
         return NvRmPowerBusyHintMulti(hUsbPhy->hRmDevice,
                                       hUsbPhy->RmPowerClientId,
                                       pUsbHintOn,
-                                      NV_ARRAY_SIZE(pUsbHintOn),
+                                      NumHints,
                                       NvRmDfsBusyHintSyncMode_Async);
     }
     else
@@ -293,7 +307,7 @@ UsbPhyDfsBusyHint(
         return NvRmPowerBusyHintMulti(hUsbPhy->hRmDevice,
                                       hUsbPhy->RmPowerClientId,
                                       pUsbHintOff,
-                                      NV_ARRAY_SIZE(pUsbHintOff),
+                                      NumHints,
                                       NvRmDfsBusyHintSyncMode_Async);
     }
 
