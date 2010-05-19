@@ -298,6 +298,7 @@ void power_lp0_init(void)
 			//Enable clock request signal if supported and it's polarity.
 			Reg = NV_FLD_SET_DRF_DEF(APBDEV_PMC, CNTRL,
 				SYSCLK_OE, ENABLE, Reg);
+
 			if (PmuProperty.SysClockReqPolarity == NvOdmSysClockReqPolarity_Low)
 			{
 				Reg = NV_FLD_SET_DRF_DEF(APBDEV_PMC, CNTRL,
@@ -305,6 +306,10 @@ void power_lp0_init(void)
 			}
 
 			NV_PMC_REGW(g_pPMC,CNTRL,Reg);
+			//Add a 2ms delay to ensure that writes to
+			//the control register (which is in the 32KHz domain)
+			//take place in-order.
+			NvOsWaitUS(2000);
 
 			//Enable CORE power request output if it is connected separately
 			//to PMU; keep it tristated if it is combined with CPU request -
