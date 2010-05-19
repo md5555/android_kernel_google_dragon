@@ -50,6 +50,9 @@ extern NvRmDeviceHandle s_hRmGlobal;
 #define WAKE_PAD_MIN_LATCH_TIME_US 130
 #define WAKE_PAD_MIN_SAMPLE_TIME_US 70
 
+//Workaround for spurious KBC wake event
+#define NV_KBC_INTERRUPT_WORKAROUND 1
+
 #define NV_CAR_REGR(pBase, reg)\
 		NV_READ32( (((NvUPtr)(pBase)) + CLK_RST_CONTROLLER_##reg##_0))
 #define NV_CAR_REGW(pBase, reg, val)\

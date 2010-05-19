@@ -56,6 +56,10 @@ extern struct wake_lock main_wake_lock;
 //Let Max LP2 time wait be 71 min (Almost a wrap around)
 #define LP2_MAX_WAIT_TIME_US	(71*60*1000000ul)
 
+#if NV_KBC_INTERRUPT_WORKAROUND
+volatile void *g_pKBC;
+#endif
+
 // When non-zero, collects and prints aggregate statistics about idle times
 static volatile NvU8 *s_pFlowCtrl = NULL;
 
@@ -197,6 +201,17 @@ void __init NvAp20InitFlowController(void)
         return;
     }
 
+#if NV_KBC_INTERRUPT_WORKAROUND
+    NvRmModuleGetBaseAddress(s_hRmGlobal,
+        NVRM_MODULE_ID(NvRmModuleID_Kbc, 0), &pa, &len);
+
+    if (NvRmPhysicalMemMap(pa, len, NVOS_MEM_READ_WRITE,
+            NvOsMemAttribute_Uncached,
+            (void**)&g_pKBC)!=NvSuccess)
+    {
+        return;
+    }
+#endif
     s_pFlowCtrl = pTempFc;
     g_ArmPerif = (NvU32)pTempArmPerif;
 

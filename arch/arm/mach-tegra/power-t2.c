@@ -22,6 +22,8 @@
 
 #include "power.h"
 #include "linux/interrupt.h"
+#include "nvassert.h"
+#include "ap20/arapbdev_kbc.h"
 
 extern int enter_power_state(PowerState state, unsigned int proc_id);
 extern void prepare_for_wb0(void);
@@ -41,6 +43,10 @@ void shadow_lp0_scratch_regs(void);
 
 
 extern NvRmDeviceHandle s_hRmGlobal;
+
+#if NV_KBC_INTERRUPT_WORKAROUND
+extern volatile void *g_pKBC;
+#endif
 
 uintptr_t g_resume = 0, g_contextSavePA = 0, g_contextSaveVA = 0;
 uintptr_t g_iramContextSaveVA = 0;
@@ -99,6 +105,13 @@ void cpu_ap20_do_lp0(void)
 	prepare_for_wb0();
 	shadow_lp0_scratch_regs();
 	printk("LP0: Entering...\n");
+
+#if NV_KBC_INTERRUPT_WORKAROUND
+	//Forcibly clear the interrupt. This will clear
+	//the KBC interrupt that is probably pending in the
+	//32KHz domain.
+	NV_WRITE32(g_pKBC + APBDEV_KBC_INT_0, 0x1);
+#endif
 	enter_power_state(POWER_STATE_LP0, 0);
 	printk("LP0: Exited...\n");
 	shadow_runstate_scratch_regs();
@@ -715,7 +728,7 @@ unsigned int check_for_cpu1_reset(void)
             CLK_RST_CONTROLLER_RST_CPU_CMPLX_SET_0);
             
     reg = reg & 0x2;                
-    
+
     return reg;
 }
 
