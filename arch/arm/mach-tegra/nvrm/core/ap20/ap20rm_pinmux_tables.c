@@ -41,8 +41,6 @@
 #include "nvrm_clocks.h"
 #include "nvodm_query_pinmux.h"
 
-//  FIXME:  None of the modules have reset configurations, yet.  This should
-//  be fixed.
 static const NvU32 g_Ap20Mux_Uart1[] = {
     UNCONFIG(C,IRRX,UARTA,UARTB),UNCONFIG(C,IRTX,UARTA,UARTB),
     UNCONFIG(A,UAA,UARTA,MIPI_HS),UNCONFIG(A,UAB,UARTA,MIPI_HS),
@@ -156,7 +154,7 @@ static const NvU32 g_Ap20Mux_Spi3[] = {
      * -spia of SPI2_MOSI as spi3_dout on mux: 2 under config 7.
     */
     CONFIG(B,D,SPIA,SPI3),CONFIG(B,D,SPIF,SPI3),
-    CONFIG(B,D,SPIG,SPI3),CONFIG(B,D,SPIG,SPI3), CONFIGEND(),
+    CONFIG(B,D,SPIG,SPI3),CONFIG(B,D,SPIH,SPI3), CONFIGEND(),
     MODULEDONE(),
 };
 
@@ -393,7 +391,7 @@ static const NvU32 g_Ap20Mux_Nand[] = {
     CONFIGEND(),
     // config 1
     CONFIG(A,A,ATA,NAND),CONFIG(A,A,ATB,NAND),CONFIG(A,A,ATC,NAND),
-    CONFIG(A,A,ATD,NAND),CONFIG(B,A,ATE,NAND),CONFIG(B,C,GMB,IDE), CONFIGEND(),
+    CONFIG(A,A,ATD,NAND),CONFIG(B,A,ATE,NAND),CONFIGEND(),
     //.config 2
     CONFIG(A,A,ATA,NAND),CONFIG(A,A,ATB,NAND),CONFIG(A,A,ATC,NAND),CONFIGEND(),
     // config 3
@@ -744,7 +742,7 @@ static const NvU32 *g_Ap20MuxEtm[] = {
 };
 
 static const NvU32 g_Ap20Mux_Owr[] = {
-    UNCONFIG(B,OWC,OWR,RSVD1),UNCONFIG(A,UAC,OWR,RSVD2),UNCONFIG(D,GPU,PWM,RSVD4),
+    // no reset here,it causes issue for pwm if we use otherthan gpu padgroup
     CONFIGEND(),
     // config 1
     CONFIG(A,B,OWC,OWR),CONFIG(B,A,UAC,OWR),CONFIGEND(),
