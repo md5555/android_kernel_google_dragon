@@ -299,6 +299,15 @@ void NvRmPrivAp15SetupMc(NvRmDeviceHandle hRm);
 /** This API sets up the memory controller for AP20. */
 void NvRmPrivAp20SetupMc(NvRmDeviceHandle hRm);
 
+/** This API sets up AP20 MC for stat collection */
+void McStatAp20_Start(NvRmDeviceHandle rm, NvU32 client_id_0, NvU32 client_id_1, NvU32 llc_client_id);
+
+/** This API stops stat collection  for AP20 MC */
+void McStatAp20_Stop(NvRmDeviceHandle rm, NvU32 *client_0_cycles,
+                      NvU32 *client_1_cycles, NvU32 *llc_client_cycles,
+                      NvU32 *llc_client_clocks, NvU32 *mc_clocks);
+
+
 /* init and deinit the keylist */
 NvError NvRmPrivInitKeyList(NvRmDeviceHandle hRm, const NvU32*, NvU32);
 void NvRmPrivDeInitKeyList(NvRmDeviceHandle hRm);

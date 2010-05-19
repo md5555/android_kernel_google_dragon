@@ -79,8 +79,8 @@ static const NvU32 ObsInfoTableSize =
     NV_ARRAY_SIZE(ObsInfoTable);
 
 
-void
-McStat_Start(
+static void
+McStatAp1x_Start(
         NvRmDeviceHandle rm,
         NvU32 client_id_0,
         NvU32 client_id_1,
@@ -176,7 +176,29 @@ McStat_Start(
 }
 
 void
-McStat_Stop(
+McStat_Start(
+        NvRmDeviceHandle rm,
+        NvU32 client_id_0,
+        NvU32 client_id_1,
+        NvU32 llc_client_id)
+{
+    switch (rm->ChipId.Id)
+    {
+        case 0x15:
+        case 0x16:
+            McStatAp1x_Start(rm, client_id_0, client_id_1, llc_client_id);
+            break;
+        case 0x20:
+            McStatAp20_Start(rm, client_id_0, client_id_1, llc_client_id);
+            break;
+        default:
+            NV_ASSERT(!"Unsupported chip ID");
+            break;
+    }
+}
+
+static void
+McStatAp1x_Stop(
         NvRmDeviceHandle rm,
         NvU32 *client_0_cycles,
         NvU32 *client_1_cycles,
@@ -195,6 +217,31 @@ McStat_Stop(
     *mc_clocks = NV_REGR(rm, NvRmPrivModuleID_MemoryController, 
                    0, MC_STAT_EMC_CLOCKS_0);
 }
+
+void
+McStat_Stop(
+        NvRmDeviceHandle rm,
+        NvU32 *client_0_cycles,
+        NvU32 *client_1_cycles,
+        NvU32 *llc_client_cycles,
+        NvU32 *llc_client_clocks,
+        NvU32 *mc_clocks)
+{
+    switch (rm->ChipId.Id)
+    {
+        case 0x15:
+        case 0x16:
+            McStatAp1x_Stop(rm, client_0_cycles, client_1_cycles, llc_client_cycles, llc_client_clocks, mc_clocks );
+            break;
+        case 0x20:
+            McStatAp20_Stop(rm, client_0_cycles, client_1_cycles, llc_client_cycles, llc_client_clocks, mc_clocks );
+            break;
+        default:
+            NV_ASSERT(!"Unsupported chip ID");
+            break;
+    }
+}
+
 
 void
 McStat_Report(
