@@ -233,6 +233,40 @@ void NvRmPrivPmuDeinit(NvRmDeviceHandle hRmDevice)
     NvOsMemset(&s_Pmu, 0, sizeof(NvRmPmu));
     s_PmuSupportedEnv = NV_FALSE;
 }
+
+void NvRmPrivPmuLPxStateConfig(
+    NvRmDeviceHandle hRmDevice,
+    NvOdmSocPowerState state,
+    NvBool enter)
+{
+    NvOdmPmuProperty PmuProperty = {0};
+    NvBool HasPmuProperty = NvOdmQueryGetPmuProperty(&PmuProperty);
+    const NvOdmPeripheralConnectivity* pCoreRail =
+        NvOdmPeripheralGetGuid(NV_VDD_CORE_ODM_ID);
+
+    NV_ASSERT(hRmDevice);
+    NV_ASSERT(pCoreRail);
+    NV_ASSERT(pCoreRail->NumAddress);
+
+    // On platforms with combined cpu/core power request core power rail
+    // should be controlled by the combined request only during deep sleep
+    // - enable the On/Off control on entry, and disable on exit
+    if (state == NvOdmSocPowerState_DeepSleep)
+    {
+        if (HasPmuProperty && PmuProperty.CombinedPowerReq)
+        {
+            NvU32 level = enter ?
+                ODM_VOLTAGE_ENABLE_EXT_ONOFF : ODM_VOLTAGE_DISABLE_EXT_ONOFF;
+            NvRmPmuSetVoltage(hRmDevice, pCoreRail->AddressList[0].Address,
+                              level, NULL);
+        }
+    }
+    // Mask/Unmask PMU interrupt on entry/exit to/from suspend or deep sleep
+    if ((state == NvOdmSocPowerState_Suspend) ||
+        (state == NvOdmSocPowerState_DeepSleep))
+        NvRmPrivPmuInterruptMask(hRmDevice, enter);
+}
+
 /*****************************************************************************/
 
 void NvRmPmuGetCapabilities( 

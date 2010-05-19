@@ -1476,10 +1476,13 @@ NvRmPowerActivityHint (
 NvError
 NvRmKernelPowerSuspend( NvRmDeviceHandle hRmDeviceHandle )
 {
+    NvOdmSocPowerState state =
+        NvOdmQueryLowestSocPowerState()->LowestPowerState;
 
-    NvRmPrivPmuInterruptMask(hRmDeviceHandle, NV_TRUE);
-    NvRmPrivDfsSuspend(NvOdmQueryLowestSocPowerState()->LowestPowerState);
-    NvRmPrivPowerGroupSuspend(hRmDeviceHandle);
+    NvRmPrivDfsSuspend(state);
+    if (state ==  NvOdmSocPowerState_Suspend)
+        NvRmPrivPowerGroupSuspend(hRmDeviceHandle);
+    NvRmPrivPmuLPxStateConfig(hRmDeviceHandle, state, NV_TRUE);
 
 #if NVRM_POWER_DEBUG_SUSPEND_ENTRY
     NvOsMutexLock(s_hPowerClientMutex);
@@ -1525,8 +1528,12 @@ NvRmKernelPowerSuspend( NvRmDeviceHandle hRmDeviceHandle )
 NvError
 NvRmKernelPowerResume( NvRmDeviceHandle hRmDeviceHandle )
 {
-    NvRmPrivPmuInterruptMask(hRmDeviceHandle, NV_FALSE);
-    NvRmPrivPowerGroupResume(hRmDeviceHandle);
+    NvOdmSocPowerState state =
+        NvOdmQueryLowestSocPowerState()->LowestPowerState;
+
+    NvRmPrivPmuLPxStateConfig(hRmDeviceHandle, state, NV_FALSE);
+    if (state ==  NvOdmSocPowerState_Suspend)
+        NvRmPrivPowerGroupResume(hRmDeviceHandle);
     return NvSuccess;
 }
 
