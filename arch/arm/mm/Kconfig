@@ -774,7 +774,14 @@ config NEEDS_SYSCALL_FOR_CMPXCHG
 	  It is just not possible.
 
 config OUTER_CACHE
-	bool
+    bool
+
+config OUTER_CACHE_SYNC
+    bool
+    help
+    The outer cache has a outer_cache_fns.sync function pointer
+    that can be used to drain the write buffer of the outer cache.
+
 
 config CACHE_FEROCEON_L2
 	bool "Enable the Feroceon L2 cache controller"
@@ -805,6 +812,7 @@ config CACHE_L2X0
 		   REALVIEW_EB_A9MP || ARCH_MX35 || ARCH_MX31 || MACH_REALVIEW_PBX
 	default y
 	select OUTER_CACHE
+	select OUTER_CACHE_SYNC
 	help
 	  This option enables the L2x0 PrimeCell.
 
@@ -813,6 +821,7 @@ config CACHE_PL3X0
 	depends on ARCH_TEGRA_2x_SOC
 	default y
 	select OUTER_CACHE
+	select OUTER_CACHE_SYNC
 	help
 	  This option enables the PL3x0 PrimeCell.
 

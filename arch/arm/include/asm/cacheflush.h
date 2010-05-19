@@ -15,6 +15,7 @@
 #include <asm/glue.h>
 #include <asm/shmparam.h>
 #include <asm/cachetype.h>
+#include <asm/outercache.h>
 
 #define CACHE_COLOUR(vaddr)	((vaddr & (SHMLBA - 1)) >> PAGE_SHIFT)
 
@@ -228,13 +229,6 @@ struct cpu_cache_fns {
 	void (*dma_flush_all)(void);
 };
 
-struct outer_cache_fns {
-	void (*inv_range)(unsigned long, unsigned long);
-	void (*clean_range)(unsigned long, unsigned long);
-	void (*flush_range)(unsigned long, unsigned long);
-	void (*sync)(void);
-};
-
 /*
  * Select the calling method
  */
@@ -357,43 +351,6 @@ static inline void smp_dma_flush_all(void)
 #define smp_dma_flush_range		dmac_flush_range
 #define smp_dma_clean_all		dmac_clean_all
 #define smp_dma_flush_all		dmac_flush_all
-#endif
-
-#ifdef CONFIG_OUTER_CACHE
-
-extern struct outer_cache_fns outer_cache;
-
-static inline void outer_inv_range(unsigned long start, unsigned long end)
-{
-	if (outer_cache.inv_range)
-		outer_cache.inv_range(start, end);
-}
-static inline void outer_clean_range(unsigned long start, unsigned long end)
-{
-	if (outer_cache.clean_range)
-		outer_cache.clean_range(start, end);
-}
-static inline void outer_flush_range(unsigned long start, unsigned long end)
-{
-	if (outer_cache.flush_range)
-		outer_cache.flush_range(start, end);
-}
-static inline void outer_sync(void)
-{
-	if (outer_cache.sync)
-		outer_cache.sync();
-}
-#else
-
-static inline void outer_inv_range(unsigned long start, unsigned long end)
-{ }
-static inline void outer_clean_range(unsigned long start, unsigned long end)
-{ }
-static inline void outer_flush_range(unsigned long start, unsigned long end)
-{ }
-static inline void outer_sync(void)
-{ }
-
 #endif
 
 /*
