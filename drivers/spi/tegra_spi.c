@@ -163,7 +163,10 @@ static void tegra_spi_workerthread(struct work_struct *w)
 		int status = 0;
 		NvRmSpiTransactionInfo trans[64];
 		NvU32 i= 0;
-		NvU32  actual_length = 0;	 
+		NvU32 actual_length = 0;
+		NvU32 BitsPerWord;
+		NvU32 ClockInKHz;
+		NvU32 ChipSelect;
 
 		m = container_of(pShimSpi->msg_queue.next, 
 			struct spi_message, queue);
@@ -193,10 +196,21 @@ static void tegra_spi_workerthread(struct work_struct *w)
 			i++;
 		}
 
+
+		if (!m->spi) {
+			status = -EINVAL;
+			break;
+		}
+
+		/* Get slave config.  PinMuxConfig is a property of the master. */
+		BitsPerWord = m->spi->bits_per_word;
+		ClockInKHz = m->spi->max_speed_hz / 1000;
+		ChipSelect = m->spi->chip_select;
+
 		if (!status && i) {
 			NvRmSpiMultipleTransactions(pShimSpi->hSpi,
-				pShimSpi->PinMuxConfig, pShimSpi->ChipSelect,
-				pShimSpi->ClockInKHz, pShimSpi->BitsPerWord,
+				pShimSpi->PinMuxConfig, ChipSelect,
+				ClockInKHz, BitsPerWord,
 				trans, i);
 
 			m->actual_length += actual_length;
