@@ -668,7 +668,16 @@ NvOdmQueryPinAttributes(const NvOdmPinAttrib** pPinAttributes)
 
 NvBool NvOdmQueryGetPmuProperty(NvOdmPmuProperty* pPmuProperty)
 {
-    return NV_FALSE;
+    pPmuProperty->IrqConnected = NV_FALSE;
+    pPmuProperty->PowerGoodCount = 0x7E;
+    pPmuProperty->IrqPolarity = NvOdmInterruptPolarity_Low;
+    pPmuProperty->CorePowerReqPolarity = NvOdmCorePowerReqPolarity_Low;
+    pPmuProperty->SysClockReqPolarity = NvOdmSysClockReqPolarity_High;
+    pPmuProperty->CombinedPowerReq = NV_FALSE;
+    pPmuProperty->CpuPowerGoodUs = 2000;
+    pPmuProperty->AccuracyPercent = 3;
+    pPmuProperty->VCpuOTPOnWakeup = NV_FALSE;
+    return NV_TRUE;
 }
 
 /**
@@ -684,7 +693,7 @@ const NvOdmSocPowerStateInfo* NvOdmQueryLowestSocPowerState(void)
     if (pPowerStateInfo == NULL)
     {
         // Lowest power state.
-        PowerStateInfo.LowestPowerState = NvOdmSocPowerState_Suspend;
+        PowerStateInfo.LowestPowerState = NvOdmSocPowerState_DeepSleep;
 
         pPowerStateInfo = (const NvOdmSocPowerStateInfo*) &PowerStateInfo;
     }
