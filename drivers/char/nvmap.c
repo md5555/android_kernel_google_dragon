@@ -2012,6 +2012,9 @@ static int _nvmap_do_create(struct nvmap_file_priv *priv,
 		r = _nvmap_ref_lookup_locked(priv, (unsigned long)h);
 		spin_unlock(&priv->ref_lock);
 		if (r) {
+			/* if the client does something strange, like calling CreateFromId
+			 * when it was the original creator, avoid creating two handle refs
+			 * for the same handle */
 			atomic_inc(&r->refs);
 			*ref = r;
 			return 0;
@@ -2019,14 +2022,15 @@ static int _nvmap_do_create(struct nvmap_file_priv *priv,
 
 		/* verify that adding this handle to the process' access list
 		 * won't exceed the IOVM limit */
-		if (h->heap_pgalloc && !h->pgalloc.contig) {
+		/* TODO: [ahatala 2010-04-20] let the kernel over-commit for now */
+		if (h->heap_pgalloc && !h->pgalloc.contig && !su) {
 			int oc = atomic_add_return(h->size, &priv->iovm_commit);
 			if (oc > priv->iovm_limit) {
 				atomic_sub(h->size, &priv->iovm_commit);
 				_nvmap_handle_put(h);
 				h = NULL;
 				pr_err("%s: %s duplicating handle would "
-					"over-commit iovmm space (%d / %dB\n",
+					"over-commit iovmm space (%dB / %dB)\n",
 					__func__, current->group_leader->comm,
 					oc, priv->iovm_limit);
 				return -ENOMEM;
@@ -2042,9 +2046,6 @@ static int _nvmap_do_create(struct nvmap_file_priv *priv,
 
 	BUG_ON(!h);
 
-	/* if the client does something strange, like calling CreateFromId
-	 * when it was the original creator, avoid creating two handle refs
-	 * for the same handle */
 	spin_lock(&priv->ref_lock);
 	r = kzalloc(sizeof(*r), GFP_KERNEL);
 	if (!r) {
