@@ -788,11 +788,13 @@ NvEcTransportOpen(NvEcTransportHandle *phEcTrans,
         I2cGetSocCapabilities(t->hRmDevice, t->Instance, &t->I2cSocCaps);
         NV_ASSERT_SUCCESS(NvRmGpioOpen(t->hRmDevice, &t->hGpio));
         NvRmGpioAcquirePinHandle(t->hGpio, GpioPort, GpioPin, &t->hEcRequestPin);
-        NV_CHECK_ERROR_CLEANUP(NvRmGpioConfigPins(t->hGpio, 
-            &t->hEcRequestPin, 1, NvRmGpioPinMode_Output));
         // De-assert the Gpio Line here.
-        if (t->hEcRequestPin)
+        if (t->hEcRequestPin) {
             NvRmGpioWritePins(t->hGpio, &t->hEcRequestPin, &PinState, 1);
+            NV_CHECK_ERROR_CLEANUP(NvRmGpioConfigPins(t->hGpio,
+                &t->hEcRequestPin, 1, NvRmGpioPinMode_Output));
+        }
+
         NV_CHECK_ERROR(HwI2cInitController(t));
         GetBufferForRxData(t);
         g_IsInitialized = NV_TRUE;
