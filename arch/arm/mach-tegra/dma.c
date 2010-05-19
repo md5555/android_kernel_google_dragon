@@ -179,7 +179,16 @@ int tegra_dma_dequeue_req(int channel, struct tegra_dma_req *_req)
 	req_transfer_count = NV_DRF_VAL(APBDMACHAN_CHANNEL_0,
 		CSR, WCOUNT, ch->csr);
 
-	req->bytes_transferred = req_transfer_count - to_transfer;
+	if (status & NV_DRF_DEF(APBDMACHAN_CHANNEL_0, STA, BSY, ACTIVE)) {
+		if (to_transfer)
+			req->bytes_transferred = (req_transfer_count -
+								to_transfer);
+		else
+			req->bytes_transferred = (req_transfer_count);
+	} else {
+		req->bytes_transferred = (req_transfer_count + 1);
+	}
+
 	req->bytes_transferred *= 4;
 	/* In continous transfer mode, DMA only tracks the count of the
 	 * half DMA buffer. So, if the DMA already finished half the DMA
@@ -191,7 +200,7 @@ int tegra_dma_dequeue_req(int channel, struct tegra_dma_req *_req)
 	 */
 	if (ch->mode & TEGRA_DMA_MODE_CONTINOUS)
 		if (req->buffer_status == TEGRA_DMA_REQ_BUF_STATUS_HALF_FULL) {
-			req->bytes_transferred += 4 * req_transfer_count;
+			req->bytes_transferred += 4 * (req_transfer_count +1);
 		}
 
 	tegra_dma_stop(ch);
