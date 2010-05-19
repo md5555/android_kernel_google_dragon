@@ -27,6 +27,8 @@
 #include <plat/cpu.h>
 #include <plat/iic.h>
 #include <plat/fb.h>
+#include <plat/fimc.h>
+#include <plat/csis.h>
 
 #if defined(CONFIG_PM)
 #include <mach/pm.h>
@@ -110,6 +112,15 @@ static struct i2c_board_info i2c_devs2[] __initdata = {
 #endif
 #endif
 
+#ifdef CONFIG_VIDEO_FIMC
+static struct s3c_platform_fimc fimc_plat = {
+#ifdef S5K6AA_ENABLED
+	.default_cam	= CAMERA_CSI_C,
+	.camera		= &s5k6aa,
+#endif
+};
+#endif
+
 static struct platform_device *voguev210_devices[] __initdata = {
 #ifdef CONFIG_I2C_S3C2410
 	&s3c_device_i2c0,
@@ -123,6 +134,14 @@ static struct platform_device *voguev210_devices[] __initdata = {
 
 #ifdef CONFIG_FB_S3C
 	&s3c_device_fb,
+#endif
+
+#ifdef CONFIG_VIDEO_FIMC
+	&s3c_device_fimc0,
+	&s3c_device_fimc1,
+	&s3c_device_fimc2,
+	&s3c_device_csis,
+	&s3c_device_ipc,
 #endif
 
 #ifdef CONFIG_S3C2410_WATCHDOG
@@ -178,6 +197,13 @@ static void __init voguev210_machine_init(void)
 
 #ifdef CONFIG_FB_S3C
 	s3cfb_set_platdata(NULL);
+#endif
+
+#ifdef CONFIG_VIDEO_FIMC
+	s3c_fimc0_set_platdata(&fimc_plat);
+	s3c_fimc1_set_platdata(&fimc_plat);
+	s3c_fimc2_set_platdata(&fimc_plat);
+	s3c_csis_set_platdata(NULL);
 #endif
 
 	platform_add_devices(voguev210_devices, ARRAY_SIZE(voguev210_devices));
