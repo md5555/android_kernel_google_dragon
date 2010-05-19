@@ -1168,6 +1168,9 @@ NvRmPrivAp20BasicReset( NvRmDeviceHandle rm )
                                  CLK_ENB_BSEV, DISABLE, ClkOutH);
     ClkOutH = NV_FLD_SET_DRF_DEF(CLK_RST_CONTROLLER, CLK_OUT_ENB_H,
                                  CLK_ENB_BSEA, DISABLE, ClkOutH);
+    // Make sure SNOR clock will be kept disabled
+    ClkOutH = NV_FLD_SET_DRF_DEF(CLK_RST_CONTROLLER, CLK_OUT_ENB_H,
+                                 CLK_ENB_SNOR, DISABLE, ClkOutH);
 
     // restore clock enable state (= disable those clocks that
     // were disabled on boot)
