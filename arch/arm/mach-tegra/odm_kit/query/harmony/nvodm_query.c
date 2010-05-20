@@ -687,17 +687,27 @@ NvBool NvOdmQueryGetPmuProperty(NvOdmPmuProperty* pPmuProperty)
  */
 const NvOdmSocPowerStateInfo* NvOdmQueryLowestSocPowerState(void)
 {
-    static NvOdmSocPowerStateInfo PowerStateInfo;
-    const static NvOdmSocPowerStateInfo* pPowerStateInfo = NULL;
 
+    static                      NvOdmSocPowerStateInfo  PowerStateInfo;
+    const static                NvOdmSocPowerStateInfo* pPowerStateInfo = NULL;
+    NvOdmServicesKeyListHandle  hKeyList;
+    NvU32                       LPStateSelection = 0;
     if (pPowerStateInfo == NULL)
     {
-        // Lowest power state.
-        PowerStateInfo.LowestPowerState = NvOdmSocPowerState_DeepSleep;
 
+        hKeyList = NvOdmServicesKeyListOpen();
+        if (hKeyList)
+        {
+            LPStateSelection = NvOdmServicesGetKeyValue(hKeyList,
+                                                NvOdmKeyListId_ReservedBctCustomerOption);
+            NvOdmServicesKeyListClose(hKeyList);
+            LPStateSelection = NV_DRF_VAL(TEGRA_DEVKIT, BCT_CUSTOPT, LPSTATE, LPStateSelection);
+        }
+        // Lowest power state controlled by the flashed custom option.
+        PowerStateInfo.LowestPowerState =  ((LPStateSelection == TEGRA_DEVKIT_BCT_CUSTOPT_0_LPSTATE_LP1)?
+                                            NvOdmSocPowerState_Suspend : NvOdmSocPowerState_DeepSleep);
         pPowerStateInfo = (const NvOdmSocPowerStateInfo*) &PowerStateInfo;
     }
-    
     return (pPowerStateInfo);
 }
 

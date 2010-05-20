@@ -1177,12 +1177,10 @@ const NvOdmSocPowerStateInfo* NvOdmQueryLowestSocPowerState(void)
 
     static                      NvOdmSocPowerStateInfo  PowerStateInfo;
     const static                NvOdmSocPowerStateInfo* pPowerStateInfo = NULL;
-
+    NvOdmServicesKeyListHandle  hKeyList;
+    NvU32                       LPStateSelection = 0;
     if (pPowerStateInfo == NULL)
     {
-#if 0
-        NvOdmServicesKeyListHandle  hKeyList;
-        NvU32                       LPStateSelection = 0;
         hKeyList = NvOdmServicesKeyListOpen();
         if (hKeyList)
         {
@@ -1191,17 +1189,11 @@ const NvOdmSocPowerStateInfo* NvOdmQueryLowestSocPowerState(void)
             NvOdmServicesKeyListClose(hKeyList);
             LPStateSelection = NV_DRF_VAL(TEGRA_DEVKIT, BCT_CUSTOPT, LPSTATE, LPStateSelection);
         }
-
         // Lowest power state controlled by the flashed custom option.
         PowerStateInfo.LowestPowerState =  ((LPStateSelection == TEGRA_DEVKIT_BCT_CUSTOPT_0_LPSTATE_LP1)?
                                             NvOdmSocPowerState_Suspend : NvOdmSocPowerState_DeepSleep);
-#endif
-        PowerStateInfo.LowestPowerState = NvOdmSocPowerState_Suspend;
-        // Idle threshold (Msecs) for the lowest power state.
-        //PowerStateInfo.IdleThreshold = 525;
         pPowerStateInfo = (const NvOdmSocPowerStateInfo*) &PowerStateInfo;
     }
-
     return (pPowerStateInfo);
 }
 
