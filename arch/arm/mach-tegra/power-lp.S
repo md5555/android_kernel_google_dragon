@@ -261,8 +261,19 @@ ENTRY(enter_lp2)
 	orr	r2, r2, #(1<<0)
 	str	r2, [r6, #FLOW_CTLR_CPU_CSR_0]
 
-	//Put the CPU on the desired clock source for wakeup.
+	//Put the CPU on the desired clock source for wakeup,
+	// wait 2us for switch to complete, and disable PLLX
 	str	r1, [r8, #CLK_RST_CONTROLLER_CCLK_BURST_POLICY_0]
+	ldr	r11, [r7]
+cclk_delay:
+	ldr	r2, [r7]
+	sub	r2, r2, r11
+	cmp	r2, #2
+	ble	cclk_delay
+
+	ldr	r2, [r8, #CLK_RST_CONTROLLER_PLLX_BASE_0]
+	bic	r2, r2, #(1<<30)	//Clear PllX ENABLE
+	str	r2, [r8, #CLK_RST_CONTROLLER_PLLX_BASE_0]
 	dmb
 
 	//Get the microsecond count before LP2

@@ -54,7 +54,7 @@ NvU32 g_modifiedPlls;
 NvU32 g_wakeupCcbp = 0, g_NumActiveCPUs, g_Sync = 0, g_ArmPerif = 0;
 NvU32 g_enterLP2PA = 0;
 NvU32 g_localTimerLoadRegister, g_localTimerCntrlRegister;
-NvU32 g_coreSightClock, g_currentCcbp;
+NvU32 g_coreSightClock, g_currentCcbp, g_currentCcdiv;
 NvU32 g_lp1CpuPwrGoodCnt, g_currentCpuPwrGoodCnt;
 volatile void *g_pPMC, *g_pAHB, *g_pCLK_RST_CONTROLLER;
 volatile void *g_pEMC, *g_pMC, *g_pAPB_MISC, *g_pTimerus;
@@ -231,6 +231,13 @@ void cpu_ap20_do_lp2(void)
         //Disable the Statistics interrupt
         disable_irq(INT_SYS_STATS_MON);
         do_suspend_prep();
+
+        // Save/clear CPU clock divider ("voltage-safe", as scaling is
+        // based on source frequency before divider)
+        g_currentCcdiv =  NV_REGR(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset,
+	        0, CLK_RST_CONTROLLER_SUPER_CCLK_DIVIDER_0);
+        NV_REGW(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 0,
+                CLK_RST_CONTROLLER_SUPER_CCLK_DIVIDER_0, 0);
     }
 
     //Do LP2
@@ -252,6 +259,11 @@ void cpu_ap20_do_lp2(void)
             enable_pll(PowerPllP, NV_TRUE);
 
         NvOsWaitUS(300);
+
+        //Restore CPU clock divider
+        NV_REGW(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 0,
+                CLK_RST_CONTROLLER_SUPER_CCLK_DIVIDER_0, g_currentCcdiv);
+
         //Restore burst policy
         NV_REGW(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 0, 
                 CLK_RST_CONTROLLER_CCLK_BURST_POLICY_0, g_currentCcbp);
@@ -487,7 +499,13 @@ static NvU32 select_wakeup_pll(void)
 
     // Get the possible PLL clock sources for the CPU complex. Don't consider
     // any PLLs that were turned off and of course PLL-X is not a possibility.
+#if 0
     PllMask = (PowerPllC | PowerPllP | PowerPllM) & ~g_modifiedPlls;
+#else
+    // Do not consider high frequency PLLC and PLLM either, since they may
+    // be too high for current voltage.
+    PllMask = PowerPllP & ~g_modifiedPlls;
+#endif
 
     // Pick a PLL source for the CPU complex so that we don't have to
     // run on the oscillator which is soooo slooooow.
