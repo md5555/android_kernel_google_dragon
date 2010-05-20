@@ -2757,6 +2757,9 @@ static int fsl_udc_resume(struct platform_device *pdev)
 		}
 	}
 	platform_udc_clk_resume();
+#if defined(CONFIG_ARCH_TEGRA)
+	fsl_udc_restart(udc_controller);
+#else
 	/* Enable DR irq reg and set controller Run */
 	if (udc_controller->stopped) {
 		dr_controller_setup(udc_controller);
@@ -2765,7 +2768,7 @@ static int fsl_udc_resume(struct platform_device *pdev)
 	udc_controller->usb_state = USB_STATE_ATTACHED;
 	udc_controller->ep0_state = WAIT_FOR_SETUP;
 	udc_controller->ep0_dir = 0;
-
+#endif
 	/* Power down the phy if cable is not connected */
 	if (!(fsl_readl(&usb_sys_regs->vbus_wakeup) & USB_SYS_VBUS_STATUS))
 		platform_udc_clk_suspend();
