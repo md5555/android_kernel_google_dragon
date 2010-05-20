@@ -732,6 +732,10 @@ static void DfsParametersInit(NvRmDfs* pDfs)
 
     #undef INIT_PARAM
 
+    // Adjust EMC parameters as required for particular SDRAM type
+    if (pDfs->hRm->ChipId.Id == 0x20)
+        NvRmPrivAp20EmcParametersAdjust(pDfs);
+
     // Update minimum frequency boundary for DFS clocks as required for
     // download transport support
     switch (NvRmPrivGetDownloadTransport(pDfs->hRm))
@@ -765,11 +769,6 @@ static void DfsParametersInit(NvRmDfs* pDfs)
         default:
             break;
     }
-
-    // Adjust minimum frequency boundary for EMC as required for
-    // particular SDRAM type
-    if (pDfs->hRm->ChipId.Id == 0x20)
-        NvRmPrivAp20EmcMinFreqSet(pDfs);
 
     // CPU clock H/w limits
     pClimits = NvRmPrivGetSocClockLimits(NvRmModuleID_Cpu);

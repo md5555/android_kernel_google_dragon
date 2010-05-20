@@ -188,9 +188,14 @@ extern "C"
 /**
  * Default DFS algorithm parameters for EMC clock domain
  */
-#define NVRM_DFS_PARAM_EMC_AP20 \
+
+// Defines minimum scaling limit for each supported SDRAM type
+#define NVRM_AP20_DDR2_MIN_KHZ (50000)
+#define NVRM_AP20_LPDDR2_MIN_KHZ (18000)
+
+#define NVRM_DFS_PARAM_EMC_AP20_DDR2 \
     NvRmFreqMaximum, /* Maximum domain frequency set to h/w limit */ \
-    18000,  /* Minimum domain frequency 18 MHz (for all SDRAM types) */ \
+    NVRM_AP20_DDR2_MIN_KHZ,  /* Minimum domain frequency for DDR2 */ \
     1000,   /* Frequency change upper band 1 MHz */ \
     1000,   /* Frequency change lower band 1 MHz */ \
     {          /* RT starvation control parameters */ \
@@ -205,11 +210,28 @@ extern "C"
     },\
     1,      /* Relative adjustement of average freqiency 1/2^1 ~ 50% */ \
     0,      /* Number of smaple intervals with NRT to trigger boost = 1 */ \
-    1       /* NRT idle cycles threshold = 1 */ 
+    1       /* NRT idle cycles threshold = 1 */
 
-// Defines minimum scaling limit for each supported SDRAM type
-#define NVRM_AP20_DDR2_MIN_KHZ (50000)
-#define NVRM_AP20_LPDDR2_MIN_KHZ (18000)
+#define NVRM_DFS_PARAM_EMC_AP20_LPDDR2 \
+    NvRmFreqMaximum, /* Maximum domain frequency set to h/w limit */ \
+    NVRM_AP20_LPDDR2_MIN_KHZ,  /* Minimum domain frequency for LPDDR2 */ \
+    1000,   /* Frequency change upper band 1 MHz */ \
+    1000,   /* Frequency change lower band 1 MHz */ \
+    {          /* RT starvation control parameters */ \
+        16000, /* Fixed frequency RT boost increase 16 MHz */ \
+        255,   /* Proportional frequency boost increase 255/256 ~ 100% */ \
+        128,   /* Proportional frequency boost decrease 128/256 ~ 50% */  \
+    },\
+    {          /* NRT starvation control parameters */ \
+        1000,  /* Fixed frequency NRT boost increase 1 MHz */ \
+        255,   /* Proportional frequency boost increase 255/256 ~ 100% */ \
+        128,   /* Proportional frequency boost decrease 128/256 ~ 50% */  \
+    },\
+    0,      /* Relative adjustement of average freqiency 1/2^0 ~ 100% */ \
+    0,      /* Number of smaple intervals with NRT to trigger boost = 1 */ \
+    1       /* NRT idle cycles threshold = 1 */
+
+#define NVRM_DFS_PARAM_EMC_AP20 NVRM_DFS_PARAM_EMC_AP20_LPDDR2
 
 /**
  * Defines CPU frequency threshold for slave CPU1 power management:
@@ -236,12 +258,12 @@ extern "C"
 /*****************************************************************************/
 
 /**
- * Set minimum EMC frequency based on the SDRAM type selected by current EMC
- * configuration.
+ * Adjust EMC scaling algorithm parameters based on the SDRAM type selected by
+ * current EMC configuration.
  *
  * @param pDfs - A pointer to DFS structure.
  */
-void NvRmPrivAp20EmcMinFreqSet(NvRmDfs* pDfs);
+void NvRmPrivAp20EmcParametersAdjust(NvRmDfs* pDfs);
 
 /**
  * Initializes activity monitors within the DFS module. Only activity
