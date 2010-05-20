@@ -41,6 +41,7 @@ MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_LICENSE(DRIVER_LICENSE);
 
 #define NVEC_PAYLOAD    32
+#define KEYBOARD_SCANNING_DISABLED_IN_SUSPEND 0
 
 /* The total number of scan codes will be (first - last) */
 #define EC_FIRST_CODE 0x00
@@ -410,17 +411,20 @@ static int nvec_keyboard_remove(struct nvec_device *dev)
 
 static int nvec_keyboard_suspend(struct nvec_device *pdev, pm_message_t state)
 {
+#if KEYBOARD_SCANNING_DISABLED_IN_SUSPEND
 	NvEcRequest Request = {0};
 	NvEcResponse Response = {0};
+	NvError err = NvError_Success;
+#endif
 	struct input_dev *input_dev = nvec_get_drvdata(pdev);
 	struct nvec_keyboard *keyboard = input_get_drvdata(input_dev);
-	NvError err = NvError_Success;
 
 	if (!keyboard) {
 		printk("%s: device handle is NULL\n", __func__);
 		return -1;
 	}
 
+#if KEYBOARD_SCANNING_DISABLED_IN_SUSPEND
 	/* disable keyboard scanning */
 	Request.PacketType = NvEcPacketType_Request;
 	Request.RequestType = NvEcRequestResponseType_Keyboard;
@@ -443,7 +447,7 @@ static int nvec_keyboard_suspend(struct nvec_device *pdev, pm_message_t state)
 		printk("%s: scanning could not be disabled\n", __func__);
 		return -1;
 	}
-
+#endif
 	/* power down hardware */
 	if (!NvOdmKeyboardPowerHandler(NV_TRUE)) {
 		printk("%s: hardware power down fail\n", __func__);
@@ -455,11 +459,13 @@ static int nvec_keyboard_suspend(struct nvec_device *pdev, pm_message_t state)
 
 static int nvec_keyboard_resume(struct nvec_device *pdev)
 {
+#if KEYBOARD_SCANNING_DISABLED_IN_SUSPEND
 	NvEcRequest Request = {0};
 	NvEcResponse Response = {0};
+	NvError err = NvError_Success;
+#endif
 	struct input_dev *input_dev = nvec_get_drvdata(pdev);
 	struct nvec_keyboard *keyboard = input_get_drvdata(input_dev);
-	NvError err = NvError_Success;
 
 	if (!keyboard) {
 		printk("%s: device handle is NULL\n", __func__);
@@ -472,6 +478,7 @@ static int nvec_keyboard_resume(struct nvec_device *pdev)
 		return -1;
 	}
 
+#if KEYBOARD_SCANNING_DISABLED_IN_SUSPEND
 	/* re-enable keyboard scanning */
 	Request.PacketType = NvEcPacketType_Request;
 	Request.RequestType = NvEcRequestResponseType_Keyboard;
@@ -480,11 +487,11 @@ static int nvec_keyboard_resume(struct nvec_device *pdev)
 	Request.NumPayloadBytes = 0;
 
 	err = NvEcSendRequest(
-					keyboard->hNvec,
-					&Request,
-					&Response,
-					sizeof(Request),
-					sizeof(Response));
+				keyboard->hNvec,
+				&Request,
+				&Response,
+				sizeof(Request),
+				sizeof(Response));
 	if (err != NvError_Success) {
 		printk("%s: scanning enable request send fail\n", __func__);
 		return -1;
@@ -494,6 +501,7 @@ static int nvec_keyboard_resume(struct nvec_device *pdev)
 		printk("%s: scanning could not be enabled\n", __func__);
 		return -1;
 	}
+#endif
 
 	return 0;
 }
