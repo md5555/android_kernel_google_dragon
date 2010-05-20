@@ -28,6 +28,11 @@
 #include <linux/i2c.h>
 #include <linux/pm.h>
 #include <linux/spi/spi.h>
+#if CONFIG_KEYBOARD_GPIO
+#include <linux/gpio_keys.h>
+#include <linux/input.h>
+#include "include/mach/gpio-names.h"
+#endif
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -132,6 +137,32 @@ static struct platform_device tegra_nand_device =
 };
 #endif
 
+
+#if CONFIG_KEYBOARD_GPIO
+static struct gpio_keys_button tegra_buttons[] = {
+	{
+		.gpio		= TEGRA_GPIO_PU5,
+		.code		= SW_LID,
+		.desc		= "LID",
+		.active_low	= 0,
+		.type           = EV_SW,
+		.wakeup         = 1,
+	}
+};
+
+static struct gpio_keys_platform_data tegra_button_data = {
+	.buttons	= tegra_buttons,
+	.nbuttons	= ARRAY_SIZE(tegra_buttons),
+};
+
+static struct platform_device tegra_button_device = {
+	.name	= "gpio-keys",
+	.id		= 3,
+	.dev		= {
+		.platform_data	= &tegra_button_data,
+	}
+};
+#endif
 
 #ifdef CONFIG_RTC_DRV_TEGRA_ODM
 static struct platform_device tegra_rtc_device =
@@ -584,6 +615,10 @@ static void __init tegra_machine_init(void)
 	tegra_set_voltage( NV_VDD_PEX_CLK_ODM_ID, 1);
 #else
 	tegra_set_voltage( NV_VDD_PEX_CLK_ODM_ID, 0);
+#endif
+
+#if CONFIG_KEYBOARD_GPIO
+	platform_device_register(&tegra_button_device);
 #endif
 
 	pm_power_off = tegra_system_power_off;
