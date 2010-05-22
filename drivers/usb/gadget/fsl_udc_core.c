@@ -1819,8 +1819,6 @@ static void fsl_udc_restart(struct fsl_udc *udc)
 {
 	/* setup the controller in the device mode */
 	dr_controller_setup(udc);
-	/* Reset all internal used Queues */
-	reset_queues(udc);
 	/* setup EP0 for setup packet */
 	ep0_setup(udc);
 	/* start the controller */
@@ -1865,6 +1863,8 @@ static irqreturn_t fsl_udc_irq(int irq, void *_udc)
 			if (udc->vbus_active) {
 				/* If cable disconnected, cancel any delayed work */
 				cancel_delayed_work(&udc->work);
+				/* Reset all internal Queues and inform client driver */
+				reset_queues(udc);
 				/* stop the controller and turn off the clocks */
 				dr_controller_stop(udc);
 				platform_udc_clk_suspend();
