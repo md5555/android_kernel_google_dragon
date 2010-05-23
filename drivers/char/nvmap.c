@@ -47,9 +47,6 @@
 #include "nvrm_memmgr.h"
 #include "nvbootargs.h"
 
-/* TODO: [ahatala 2010-04-29] temporary workaround for GART LP0 problems */
-#define DISABLE_IOVMM
-
 static void nvmap_vma_open(struct vm_area_struct *vma);
 
 static void nvmap_vma_close(struct vm_area_struct *vma);
@@ -1831,9 +1828,6 @@ static int _nvmap_do_alloc(struct nvmap_file_priv *priv,
 	/* can't do greater than page size alignment with page alloc */
 	if (align > PAGE_SIZE)
 		heap_mask &= NVMEM_HEAP_CARVEOUT_MASK;
-#ifdef DISABLE_IOVMM
-	heap_mask &= ~NVMEM_HEAP_IOVMM;
-#endif
 
 	while (heap_mask && !h->alloc) {
 		unsigned int heap_type = _nvmap_heap_policy(heap_mask, numpages);
