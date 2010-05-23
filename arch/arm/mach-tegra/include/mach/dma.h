@@ -31,7 +31,7 @@ typedef enum {
 
 typedef enum {
 	TEGRA_DMA_REQ_SUCCESS                      = 0,
-	TEGRA_DMA_REQ_ERROR_ABOTRED                = 1,
+	TEGRA_DMA_REQ_ERROR_ABORTED                = 1,
 } tegra_dma_req_error_t;
 
 typedef enum {

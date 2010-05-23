@@ -556,7 +556,7 @@ void tegra_tx_dma_complete_callback(struct tegra_dma_req *req, int err)
 {
 	struct uart_port *u = (struct uart_port *)req->data;
 	struct tegra_uart_port *t;
-	if (err == -TEGRA_DMA_REQ_ERROR_ABOTRED)
+	if (err == -TEGRA_DMA_REQ_ERROR_ABORTED)
 		return;
 
 	t  = container_of(u, struct tegra_uart_port, uport);
