@@ -272,7 +272,7 @@ static const NvU8 s_UtmipIdleWaitDelay    = 17;
 //UTMIP Elastic limit
 static const NvU8 s_UtmipElasticLimit     = 16;
 //UTMIP High Speed Sync Start Delay
-static const NvU8 s_UtmipHsSyncStartDelay = 9;
+static const NvU8 s_UtmipHsSyncStartDelay = 0;
 
 
 static NvError
@@ -316,8 +316,6 @@ Ap20UsbPhyUtmiConfigure(
                     USB1_LEGACY_CTRL, USB1_NO_LEGACY_MODE, NEW, RegVal);
         USB1_IF_REG_WR(USB1_LEGACY_CTRL, RegVal);
     }
-
-    USB_UTMIP_REG_UPDATE_NUM(TX_CFG0, UTMIP_FS_PREAMBLE_J, 0x1);
 
     // Configure the UTMIP_IDLE_WAIT and UTMIP_ELASTIC_LIMIT
     // Setting these fields, together with default values of the other
@@ -368,7 +366,13 @@ Ap20UsbPhyUtmiPowerControl(
     NvBool Enable)
 {
     NvU32 RegVal = 0;
-    NvU32 XcvrSetupValue = 0x8; 
+
+    /* UTMIP_XCVR_SETUP setting of 0x9, in conjunction with
+       UTMIP_XCVR_TERM_RANGE_ADJ of 0x6, gives the maximum guard band around
+       the USB electrical spec. This is true across fast and slow chips, high
+       and low voltage, and hot and cold temperature. */
+    NvU32 XcvrSetupValue = 0x9;
+    NvU32 XcvrTermRangeAdj = 0x6;
 
     if (Enable)
     {
@@ -409,12 +413,13 @@ Ap20UsbPhyUtmiPowerControl(
             RegVal = USB_UTMIP_FLD_SET_DRF_DEF(
                         XCVR_CFG0, UTMIP_XCVR_LSRSLEW, 2, RegVal);
         }
-        USB_UTMIP_REG_WR(XCVR_CFG0, RegVal);
+        else
+        {
+            RegVal = USB_UTMIP_FLD_SET_DRF_DEF(
+                        XCVR_CFG0, UTMIP_XCVR_HSSLEW_MSB, 0, RegVal);
+        }
 
-        // Enables the PHY calibration values to read from the fuses.
-        RegVal = USB_UTMIP_REG_RD(SPARE_CFG0);
-        RegVal |= (1 << 3);
-        USB_UTMIP_REG_WR(SPARE_CFG0, RegVal);
+        USB_UTMIP_REG_WR(XCVR_CFG0, RegVal);
 
         RegVal = USB_UTMIP_REG_RD(XCVR_CFG1);
         RegVal = USB_UTMIP_FLD_SET_DRF_DEF(
@@ -423,6 +428,8 @@ Ap20UsbPhyUtmiPowerControl(
                     XCVR_CFG1, UTMIP_FORCE_PDCHRP_POWERDOWN, 0, RegVal);
         RegVal = USB_UTMIP_FLD_SET_DRF_DEF(
                     XCVR_CFG1, UTMIP_FORCE_PDDR_POWERDOWN, 0, RegVal);
+        RegVal = USB_UTMIP_FLD_SET_DRF_DEF(
+                    XCVR_CFG1, UTMIP_XCVR_TERM_RANGE_ADJ, XcvrTermRangeAdj, RegVal);
         USB_UTMIP_REG_WR(XCVR_CFG1, RegVal);
 
         // Enable Batery charge enabling bit, set to '0' for enable
