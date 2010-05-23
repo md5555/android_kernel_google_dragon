@@ -108,6 +108,7 @@ static int gart_suspend(struct platform_device *pdev, pm_message_t state)
 			GART_ENTRY_ADDR_TABLE_ADDR, gpfn_to_gart(gart,i));
 		writel(reg, gart->regs + MC_GART_ENTRY_ADDR_0);
 		gart->savedata[i] = readl(gart->regs + MC_GART_ENTRY_DATA_0);
+		dmb();
 	}
 	spin_unlock(&gart->pte_lock);
 	return 0;
@@ -131,7 +132,10 @@ static int gart_resume(struct platform_device *pdev)
 			GART_ENTRY_ADDR_TABLE_ADDR, gpfn_to_gart(gart, i));
 		writel(reg, gart->regs + MC_GART_ENTRY_ADDR_0);
 		writel(gart->savedata[i], gart->regs + MC_GART_ENTRY_DATA_0);
+		dsb();
+		outer_sync();
 	}
+
 	reg = NV_DRF_DEF(MC, GART_CONFIG, GART_ENABLE, ENABLE);
 	writel(reg, gart->regs + MC_GART_CONFIG_0);
 	spin_unlock(&gart->pte_lock);
