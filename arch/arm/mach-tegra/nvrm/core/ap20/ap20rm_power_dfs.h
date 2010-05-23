@@ -67,9 +67,9 @@ extern "C"
         128,   /* Proportional frequency boost decrease 128/256 ~ 50% */  \
     },\
     {          /* NRT starvation control parameters */ \
-        4000,  /* Fixed frequency boost increase 4 MHz */ \
+        10000, /* Fixed frequency boost increase 10 MHz */ \
         255,   /* Proportional frequency boost increase 255/256 ~ 100% */ \
-        128,   /* Proportional frequency boost decrease 128/256 ~ 50% */  \
+        32,    /* Proportional frequency boost decrease 32/256 ~ 12% */  \
     },\
     3,      /* Relative adjustement of average freqiency 1/2^3 ~ 12% */ \
     1,      /* Number of smaple intervals with NRT to trigger boost = 2 */ \

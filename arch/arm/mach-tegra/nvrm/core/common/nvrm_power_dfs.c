@@ -1109,6 +1109,10 @@ DfsGetTargetFrequencies(
                     pDomainSampler->NrtStarveBoostKHz = (pDomainSampler->NrtStarveBoostKHz *
                      ((0x1 << BOOST_FRACTION_BITS) - pDomainParam->NrtStarveParam.BoostDecKoef))
                       >> BOOST_FRACTION_BITS;
+
+                    if (pDomainSampler->NrtStarveBoostKHz <
+                        pDomainParam->NrtStarveParam.BoostStepKHz)
+                        pDomainSampler->NrtStarveBoostKHz = 0;  // cut tail
                 }
             }
             else if (pDomainSampler->NrtSampleCounter < pDomainParam->MinNrtSamples)
@@ -1206,10 +1210,9 @@ DfsGetTargetFrequencies(
 
         /*
          * Determine if low corner is hit in this domain - clear hit indicator
-         * if new target domain frequency is above low limit (with hysteresis
-         * equal to the 1st NRT starvation step). For platform with dedicated
-         * CPU partition reduce activity margin by half when there is no busy
-         * or starvation requirements
+         * if new target domain frequency is above low limit (with hysteresis)
+         * For platform with dedicated CPU partition do not include activity
+         * margin when there is no busy or starvation requirements
          */
         if (NvRmPrivIsCpuRailDedicated(pDfs->hRm) &&
             (DomainBusyKHz <= LowCornerDomainKHz) &&
@@ -1218,7 +1221,7 @@ DfsGetTargetFrequencies(
             // Multiplying threshold has the same effect as dividing target
             // to reduce margin
             LowCornerDomainKHz +=
-                (LowCornerDomainKHz >> (pDomainParam->RelAdjustBits + 1));
+                (LowCornerDomainKHz >> pDomainParam->RelAdjustBits);
         }
         if ( ((*pDomainKHz) > 
               (LowCornerDomainKHz + pDomainParam->NrtStarveParam.BoostStepKHz))
