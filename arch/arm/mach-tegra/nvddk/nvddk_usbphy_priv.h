@@ -172,12 +172,10 @@ typedef struct NvDdkUsbPhyRec
     NvDdkUsbPhyUtmiPadConfig *pUtmiPadConfig;
     // Usb Controller context
     NvDdkUsbPhyControllerContext Context;
-    // Thread ID for the helper thread
-    NvOsThreadHandle hThreadId;
-    // semphore for signaling the thread
-    NvOsSemaphoreHandle HelperThreadSema;
-    // variable to control the thread loop
-    NvBool Stopped;
+    // Contains the mutex for providing the thread safety
+    NvOsMutexHandle ThreadSafetyMutex;
+    // Indicator for turning off the USB power rail
+    NvBool TurnOffPowerRail;
     // Indicates phy powered up for the host mode
     NvBool IsHostMode;
     // Set of function pointers to access the usb phy hardware interface.

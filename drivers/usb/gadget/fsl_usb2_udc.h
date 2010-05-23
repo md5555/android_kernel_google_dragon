@@ -447,6 +447,8 @@ struct ep_td_struct {
 #define USB_SYS_VBUS_WAKEUP_INT_ENABLE		0x100
 #define USB_SYS_VBUS_WAKEUP_INT_STATUS		0x200
 #define USB_SYS_VBUS_STATUS			0x400
+#define USB_SYS_ID_PIN_STATUS		(0x4)
+
 
 /*-------------------------------------------------------------------------*/
 
@@ -515,6 +517,7 @@ struct fsl_udc {
 	u8 device_address;	/* Device USB address */
 	struct regulator *vbus_regulator;	/* regulator for drawing VBUS */
 	struct delayed_work work; /* delayed work for charger detection */
+	struct work_struct irq_work; /* irq work for controling the usb power*/
 };
 
 /*-------------------------------------------------------------------------*/

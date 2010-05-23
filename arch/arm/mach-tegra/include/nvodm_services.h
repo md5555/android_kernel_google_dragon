@@ -1684,6 +1684,13 @@ NvBool NvOdmUsbIsConnected(void);
  */
 NvOdmUsbChargerType NvOdmUsbChargingType(NvU32 Instance);
 
+/**
+ * Enables/Disables the USB power rail.
+ *
+ * @param Enable NV_TRUE to enable, or NV_FALSE to disable.
+ */
+void NvOdmEnableUsbPhyPowerRail(NvBool Enable);
+
 #if defined(__cplusplus)
 }
 #endif

@@ -935,12 +935,89 @@ NvOdmPwmConfig(NvOdmServicesPwmHandle hOdmPwm,
         pCurrentFreqHzOrPeriod);
 }
 
+void
+NvOdmEnableUsbPhyPowerRail(
+    NvBool Enable)
+{
+    NvU32 i;
+    NvU32 settle_time_us;
+    NvU64 guid = NV_VDD_USB_ODM_ID;
+    NvOdmPeripheralConnectivity const *pConnectivity;
+    NvRmDeviceHandle hRmDevice;
+    /* get the connectivity info */
+    pConnectivity = NvOdmPeripheralGetGuid( guid );
+    if( !pConnectivity )
+    {
+        // Do nothing if no power rail info is discovered
+        return;
+    }
+
+    if (NvRmOpen(&hRmDevice, 0) != NvSuccess)
+    {
+        return;
+    }
+
+    /* enable the power rail */
+    if (Enable)
+    {
+        for( i = 0; i < pConnectivity->NumAddress; i++ )
+        {
+            if( pConnectivity->AddressList[i].Interface == NvOdmIoModule_Vdd )
+            {
+                NvRmPmuVddRailCapabilities cap;
+
+                /* address is the vdd rail id */
+                NvRmPmuGetCapabilities(
+                    hRmDevice,
+                    pConnectivity->AddressList[i].Address, &cap );
+
+                /* set the rail volatage to the recommended */
+                NvRmPmuSetVoltage(
+                    hRmDevice, pConnectivity->AddressList[i].Address,
+                    cap.requestMilliVolts, &settle_time_us );
+
+                /* wait for the rail to settle */
+                NvOsWaitUS( settle_time_us );
+            }
+        }
+    }
+    else
+    {
+        for( i = 0; i < pConnectivity->NumAddress; i++ )
+        {
+            if( pConnectivity->AddressList[i].Interface == NvOdmIoModule_Vdd )
+            {
+                /* set the rail volatage to the recommended */
+                NvRmPmuSetVoltage(
+                    hRmDevice, pConnectivity->AddressList[i].Address,
+                    ODM_VOLTAGE_OFF, 0 );
+            }
+        }
+    }
+
+
+    NvRmClose(hRmDevice);
+}
+
+
 void NvOdmEnableOtgCircuitry(NvBool Enable)
 {
-    // Rm analog interface calls related to usb are deleted. This API does nothing.
-    // This API should not be called for usb phy related operations
-    return;
+    const NvOdmUsbProperty *pProperty = NULL;
+    static NvBool s_PowerEnabled = NV_FALSE;
+
+    if ((s_PowerEnabled && Enable) || (!s_PowerEnabled && !Enable))
+        return;
+
+    pProperty = NvOdmQueryGetUsbProperty(NvOdmIoModule_Usb, 0);
+
+    if (pProperty && (!pProperty->UseInternalPhyWakeup) &&
+        ((pProperty->UsbMode == NvOdmUsbModeType_Device) ||
+         (pProperty->UsbMode == NvOdmUsbModeType_OTG)))
+    {
+        NvOdmEnableUsbPhyPowerRail(s_PowerEnabled = Enable);
+    }
 }
+
 
 NvBool NvOdmUsbIsConnected(void)
 {

@@ -111,16 +111,16 @@ static int tegra_otg_set_peripheral(struct otg_transceiver *otg,
 	temp &= ~TEGRA_USB_VBUS_INT_STATUS;
 	writel(temp, (sg_tegra_otg->regs + TEGRA_USB_WAKEUP_REG_OFFSET));
 
-	spin_lock_irqsave(&sg_tegra_otg->lock, flags);
 	/* Check if we detect any device connected */
 	if (!(temp & TEGRA_USB_ID_STATUS)) {
 		struct usb_hcd *hcd = (struct usb_hcd *)otg->host;
+		spin_lock_irqsave(&sg_tegra_otg->lock, flags);
 		otg->state = OTG_STATE_A_HOST;
 		/* set HCD flags to start host ISR */
 		set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
+		spin_unlock_irqrestore(&sg_tegra_otg->lock, flags);
 		NvDdkUsbPhyPowerUp(sg_tegra_otg->usb_phy, NV_TRUE, 0);
 	}
-	spin_unlock_irqrestore(&sg_tegra_otg->lock, flags);
 
 	return 0;
 }
@@ -179,7 +179,7 @@ static int __init tegra_otg_probe(struct platform_device *pdev)
 		NvDdkUsbPhyOpen(s_hRmGlobal, instance, &sg_tegra_otg->usb_phy)
 	);
 	NV_CHECK_ERROR_CLEANUP(
-		NvDdkUsbPhyPowerUp(sg_tegra_otg->usb_phy, NV_TRUE, 0)
+		NvDdkUsbPhyPowerUp(sg_tegra_otg->usb_phy, NV_FALSE, 0)
 	);
 	sg_tegra_otg->instance = pdev->id;
 	sg_tegra_otg->dev = &pdev->dev;
@@ -224,7 +224,7 @@ static int __init tegra_otg_probe(struct platform_device *pdev)
 		goto err_otg;
 	}
 
-	NvDdkUsbPhyPowerDown(sg_tegra_otg->usb_phy, NV_TRUE, 0);
+	NvDdkUsbPhyPowerDown(sg_tegra_otg->usb_phy, NV_FALSE, 0);
 
 	return 0;
 

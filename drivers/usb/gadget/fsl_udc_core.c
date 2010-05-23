@@ -74,8 +74,8 @@ static struct usb_sys_interface *usb_sys_regs;
 
 /* Charger current limit=1800mA, as per the USB charger spec */
 #define USB_CHARGING_CURRENT_LIMIT_MA 1800
-/* 100msec wait time for charger detection after vbus is detected */
-#define USB_CHARGER_DETECTION_WAIT_TIME_MS 100
+/* 1 sec wait time for charger detection after vbus is detected */
+#define USB_CHARGER_DETECTION_WAIT_TIME_MS 1000
 
 /* it is initialized in probe()  */
 static struct fsl_udc *udc_controller = NULL;
@@ -1830,6 +1830,87 @@ static void fsl_udc_restart(struct fsl_udc *udc)
 }
 #endif
 
+
+/*
+ * Work thread function for handling the USB power sequence.
+ *
+ * This work thread is created to avoid the pre-emption from the ISR context.
+ * USB Power Rail is controlled based on the USB cable connection.
+ * USB Power rail function cannot be called from ISR as NvRmPmuSetVoltage()
+ * uses I2C driver, that waits on semaphore during the I2C transaction
+ * this will cause the pre-emption if called in ISR.
+ */
+static void fsl_udc_irq_work(struct work_struct* irq_work)
+{
+	struct fsl_udc *udc = container_of (irq_work, struct fsl_udc, irq_work);
+	u32 temp;
+
+	/* check OTG tranceiver is available or not */
+	if (udc->transceiver) {
+		if (udc->transceiver->state == OTG_STATE_B_PERIPHERAL) {
+			if (!udc->vbus_active) {
+				/* set vbus active  and enable the usb clocks */
+				udc->vbus_active = 1;
+				platform_udc_clk_resume();
+				fsl_udc_restart(udc);
+				/* Schedule work to wait for 100msec and check for
+				 * charger if setup packet is not received */
+				schedule_delayed_work(&udc->work,
+					USB_CHARGER_DETECTION_WAIT_TIME_MS);
+			}
+		} else if (udc->transceiver->state == OTG_STATE_A_SUSPEND) {
+			if (udc->vbus_active) {
+				/* If cable disconnected, cancel any delayed work */
+				cancel_delayed_work(&udc->work);
+				spin_lock(&udc->lock);
+				/* Reset all internal Queues and inform client driver */
+				reset_queues(udc);
+				spin_unlock(&udc->lock);
+				/* stop the controller and turn off the clocks */
+				dr_controller_stop(udc);
+				platform_udc_clk_suspend();
+				udc->vbus_active = 0;
+				udc->usb_state = USB_STATE_DEFAULT;
+				udc->transceiver->state = OTG_STATE_UNDEFINED;
+				if (udc->vbus_regulator) {
+					/* set the current limit to 0mA */
+					regulator_set_current_limit(udc->vbus_regulator, 0, 0);
+				}
+			}
+		}
+	}else {
+		/* VBUS A session detection interrupts. When the interrupt is received,
+		 * mark the vbus active shadow.
+		 */
+		temp = fsl_readl(&usb_sys_regs->vbus_wakeup);
+		if (temp & USB_SYS_VBUS_WAKEUP_INT_STATUS) {
+			if (temp & USB_SYS_VBUS_STATUS) {
+				udc->vbus_active = 1;
+				platform_udc_clk_resume();
+				/* Schedule work to wait for 100msec and check for
+				 * charger if setup packet is not received */
+				schedule_delayed_work(&udc->work,
+					USB_CHARGER_DETECTION_WAIT_TIME_MS);
+				/* printk("USB cable connected\n"); */
+			} else {
+				/* If cable disconnected, cancel any delayed work */
+				cancel_delayed_work(&udc->work);
+				spin_lock(&udc->lock);
+				reset_queues(udc);
+				spin_unlock(&udc->lock);
+				udc->vbus_active = 0;
+				udc->usb_state = USB_STATE_DEFAULT;
+				platform_udc_clk_suspend();
+				if (udc->vbus_regulator) {
+					/* set the current limit to 0mA */
+					regulator_set_current_limit(udc->vbus_regulator, 0, 0);
+				}
+				/* printk("USB cable dis-connected\n"); */
+			}
+		}
+	}
+}
+
 /*
  * USB device controller interrupt handler
  */
@@ -1850,31 +1931,14 @@ static irqreturn_t fsl_udc_irq(int irq, void *_udc)
 	if (udc->transceiver) {
 		if (udc->transceiver->state == OTG_STATE_B_PERIPHERAL) {
 			if (!udc->vbus_active) {
-				/* set vbus active  and enable the usb clocks */
-				udc->vbus_active = 1;
-				platform_udc_clk_resume();
-				fsl_udc_restart(udc);
-				/* Schedule work to wait for 100msec and check for
-				 * charger if setup packet is not received */
-				schedule_delayed_work(&udc->work,
-					USB_CHARGER_DETECTION_WAIT_TIME_MS);
+				schedule_work(&udc->irq_work);
 			}
 		} else if (udc->transceiver->state == OTG_STATE_A_SUSPEND) {
 			if (udc->vbus_active) {
-				/* If cable disconnected, cancel any delayed work */
-				cancel_delayed_work(&udc->work);
-				/* Reset all internal Queues and inform client driver */
-				reset_queues(udc);
-				/* stop the controller and turn off the clocks */
-				dr_controller_stop(udc);
-				platform_udc_clk_suspend();
-				udc->vbus_active = 0;
-				udc->usb_state = USB_STATE_DEFAULT;
-				udc->transceiver->state = OTG_STATE_UNDEFINED;
-				if (udc->vbus_regulator) {
-					/* set the current limit to 0mA */
-					regulator_set_current_limit(udc->vbus_regulator, 0, 0);
-				}
+				schedule_work(&udc->irq_work);
+			} else {
+				spin_unlock_irqrestore(&udc->lock, flags);
+				return IRQ_HANDLED;
 			}
 		} else {
 			spin_unlock_irqrestore(&udc->lock, flags);
@@ -1888,29 +1952,9 @@ static irqreturn_t fsl_udc_irq(int irq, void *_udc)
 		/* write back the register to clear the interrupt */
 		fsl_writel(temp, &usb_sys_regs->vbus_wakeup);
 		if (temp & USB_SYS_VBUS_WAKEUP_INT_STATUS) {
-			if (temp & USB_SYS_VBUS_STATUS) {
-				udc->vbus_active = 1;
-				platform_udc_clk_resume();
-				/* Schedule work to wait for 100msec and check for
-				 * charger if setup packet is not received */
-				schedule_delayed_work(&udc->work,
-					USB_CHARGER_DETECTION_WAIT_TIME_MS);
-				/* printk("USB cable connected\n"); */
-			} else {
-				/* If cable disconnected, cancel any delayed work */
-				cancel_delayed_work(&udc->work);
-				reset_queues(udc);
-				udc->vbus_active = 0;
-				udc->usb_state = USB_STATE_DEFAULT;
-				platform_udc_clk_suspend();
-				if (udc->vbus_regulator) {
-					/* set the current limit to 0mA */
-					regulator_set_current_limit(udc->vbus_regulator, 0, 0);
-				}
-				/* printk("USB cable dis-connected\n"); */
-			}
-			status = IRQ_HANDLED;
+				schedule_work(&udc->irq_work);
 		}
+		status = IRQ_HANDLED;
 	}
 	spin_unlock_irqrestore(&udc->lock, flags);
 #endif
@@ -2648,6 +2692,9 @@ static int __init fsl_udc_probe(struct platform_device *pdev)
 	/* create a delayed work for detecting the USB charger */
 	INIT_DELAYED_WORK(&udc_controller->work, fsl_udc_charger_detection);
 
+	/* create a work for controlling the clocks to the Phy */
+	INIT_WORK(&udc_controller->irq_work, fsl_udc_irq_work);
+
 #if defined(CONFIG_ARCH_TEGRA)
 #ifdef CONFIG_USB_OTG_UTILS
 	/* Get the OTG transceiver. If OTG is enabled then transceiver
@@ -2737,8 +2784,20 @@ static int fsl_udc_suspend(struct platform_device *pdev, pm_message_t state)
 		if (udc_controller->transceiver->state != OTG_STATE_B_PERIPHERAL) {
 			/* we are not in device mode, return */
 			return 0;
+		} else {
+			udc_controller->transceiver->state = OTG_STATE_UNDEFINED;
 		}
 	}
+	if (udc_controller->vbus_active)
+	{
+		spin_lock(&udc_controller->lock);
+		/* Reset all internal Queues and inform client driver */
+		reset_queues(udc_controller);
+		udc_controller->vbus_active = 0;
+		udc_controller->usb_state = USB_STATE_DEFAULT;
+		spin_unlock(&udc_controller->lock);
+	}
+	/* stop the controller and turn off the clocks */
 	dr_controller_stop(udc_controller);
 	platform_udc_clk_suspend();
 	return 0;
@@ -2751,12 +2810,22 @@ static int fsl_udc_suspend(struct platform_device *pdev, pm_message_t state)
 static int fsl_udc_resume(struct platform_device *pdev)
 {
 	if (udc_controller->transceiver) {
-		if (udc_controller->transceiver->state != OTG_STATE_B_PERIPHERAL) {
-			/* we are not in device mode, return */
+		if (!(fsl_readl(&usb_sys_regs->vbus_wakeup) & USB_SYS_ID_PIN_STATUS)) {
+			/* If ID status is low means host is connected, return */
 			return 0;
 		}
+		/* enable clock and check for VBUS */
+		platform_udc_clk_resume();
+		if (!(fsl_readl(&usb_sys_regs->vbus_wakeup) & USB_SYS_VBUS_STATUS)) {
+			/* if there is no VBUS then power down the clocks and return */
+			platform_udc_clk_suspend();
+			return 0;
+		}
+	} else {
+		/* enable the clocks to the controller */
+		platform_udc_clk_resume();
 	}
-	platform_udc_clk_resume();
+
 #if defined(CONFIG_ARCH_TEGRA)
 	fsl_udc_restart(udc_controller);
 #else

@@ -44,6 +44,7 @@
 #include "nvrm_pmu.h"
 #include "nvrm_hardware_access.h"
 #include "nvddk_usbphy_priv.h"
+#include "nvodm_services.h"
 
 #define MAX_USB_INSTANCES 5
 
@@ -53,31 +54,8 @@
 
 static NvDdkUsbPhy *s_pUsbPhy = NULL;
 static NvDdkUsbPhyUtmiPadConfig *s_pUtmiPadConfig = NULL;
+static NvOsMutexHandle   s_UsbPhyMutex = NULL;
 
-static NvBool
-UsbPhyDiscover(
-    NvDdkUsbPhy *pUsbPhy)
-{
-    NvU64 guid = NV_VDD_USB_ODM_ID;
-    NvOdmPeripheralConnectivity const *pConnectivity;
-
-    if( pUsbPhy->pConnectivity )
-    {
-        return NV_TRUE;
-    }
-
-    /* get the connectivity info */
-    pConnectivity = NvOdmPeripheralGetGuid( guid );
-    if( !pConnectivity )
-    {
-        return NV_FALSE;
-    }
-
-    pUsbPhy->Guid = guid;
-    pUsbPhy->pConnectivity = pConnectivity;
-
-    return NV_TRUE;
-}
 
 static void UsbPrivEnableVbus(NvDdkUsbPhy *pUsbPhy, NvBool Enable)
 {
@@ -125,62 +103,42 @@ static void UsbPrivEnableVbus(NvDdkUsbPhy *pUsbPhy, NvBool Enable)
     }
 }
 
-static void
-UsbPhyPowerRailEnable(
-    NvDdkUsbPhy *pUsbPhy,
-    NvBool Enable)
+static NvBool UsbPhyTurnOffPowerRail(NvU32 MaxInstances)
 {
-    NvU32 i;
-    NvOdmPeripheralConnectivity const *pConnectivity;
-    NvU32 settle_time_us;
+    NvBool TurnOff = NV_FALSE;
+    NvU32 instance = 0;
+    const NvOdmUsbProperty *pProperty = NULL;
 
-    /* get the peripheral config */
-    if( !UsbPhyDiscover( pUsbPhy ) )
+    for (instance = 0; instance < MaxInstances; instance++)
     {
-        // Do nothing if no power rail info is discovered
-        return;
-    }
+        pProperty = NvOdmQueryGetUsbProperty(NvOdmIoModule_Usb, instance);
 
-    /* enable the power rail */
-    pConnectivity = pUsbPhy->pConnectivity;
-
-    if (Enable)
-    {
-        for( i = 0; i < pConnectivity->NumAddress; i++ )
+        if (pProperty)
         {
-            if( pConnectivity->AddressList[i].Interface == NvOdmIoModule_Vdd )
+            if (pProperty->UsbMode == NvOdmUsbModeType_None)
             {
-                NvRmPmuVddRailCapabilities cap;
-
-                /* address is the vdd rail id */
-                NvRmPmuGetCapabilities(
-                    pUsbPhy->hRmDevice,
-                    pConnectivity->AddressList[i].Address, &cap );
-
-                /* set the rail volatage to the recommended */
-                NvRmPmuSetVoltage(
-                    pUsbPhy->hRmDevice, pConnectivity->AddressList[i].Address,
-                    cap.requestMilliVolts, &settle_time_us );
-
-                /* wait for the rail to settle */
-                NvOsWaitUS( settle_time_us );
+                continue;
             }
-        }
-    }
-    else
-    {
-        for( i = 0; i < pConnectivity->NumAddress; i++ )
-        {
-            if( pConnectivity->AddressList[i].Interface == NvOdmIoModule_Vdd )
+            else if (((pProperty->UsbMode == NvOdmUsbModeType_Device) ||
+                (pProperty->UsbMode == NvOdmUsbModeType_OTG)) &&
+                (!pProperty->UseInternalPhyWakeup))
             {
-                /* set the rail volatage to the recommended */
-                NvRmPmuSetVoltage(
-                    pUsbPhy->hRmDevice, pConnectivity->AddressList[i].Address,
-                    ODM_VOLTAGE_OFF, 0 );
+                TurnOff = NV_TRUE;
+            }
+            else if (((pProperty->UsbMode == NvOdmUsbModeType_Host) &&
+                (pProperty->IdPinDetectionType == NvOdmUsbIdPinType_CableId)) &&
+                (!pProperty->UseInternalPhyWakeup))
+            {
+                TurnOff = NV_TRUE;
+            }
+            else
+            {
+                TurnOff = NV_FALSE;
             }
         }
     }
 
+    return TurnOff;
 }
 
 
@@ -370,10 +328,32 @@ UsbPhyInitialize(
     NvRmModuleReset(hUsbPhy->hRmDevice,
         NVRM_MODULE_ID(NvRmModuleID_Usb2Otg, hUsbPhy->Instance));
 
-    // Power Up the USB Phy
-    NV_CHECK_ERROR_CLEANUP(hUsbPhy->PowerUp(hUsbPhy));
 
-    hUsbPhy->IsPhyPoweredUp = NV_TRUE;
+    // On AP20 H-CLK should not be turned off
+    // This is required to detect the sensor interrupts.
+    // However, phy can be programmed to put in the low power mode
+    if (!hUsbPhy->Caps.PhyRegInController)
+    {
+        // Disable the clock
+        NV_CHECK_ERROR_CLEANUP(
+            NvRmPowerModuleClockControl(hUsbPhy->hRmDevice,
+              NVRM_MODULE_ID(NvRmModuleID_Usb2Otg, hUsbPhy->Instance),
+              hUsbPhy->RmPowerClientId, NV_FALSE));
+    }
+
+    // Disable power
+    NV_CHECK_ERROR_CLEANUP(
+        NvRmPowerVoltageControl(hUsbPhy->hRmDevice,
+          NVRM_MODULE_ID(NvRmModuleID_Usb2Otg, hUsbPhy->Instance),
+          hUsbPhy->RmPowerClientId, NvRmVoltsOff, NvRmVoltsOff,
+          NULL, 0, NULL));
+
+    // if we are not turning off the power rail during power up and down
+    // then turn on only once during the initalization.
+    if (!hUsbPhy->TurnOffPowerRail)
+    {
+        NvOdmEnableUsbPhyPowerRail(NV_TRUE);
+    }
 
 fail:
 
@@ -395,42 +375,6 @@ UsbPhyIoctlUsbBisuHintsOnOff(
     return UsbPhyDfsBusyHint(pUsbPhy, pOnOff->OnOff, pOnOff->BoostDurationMs);
 }
 
-/*
- * NvDdkUsbPhyHelperThread() - Thread to control the Busy hints and Vbus.
- *
- * Busy hints and Vbus are controlled based on the USB cable connection status.
- * USB cable status change(connect/disconnect) is identified in the ISR.
- * Busy hints function cannot be called from ISR as NvRmPowerBusyHintMulti()
- * uses vfree and vmalloc functions which are not supposed to call from the
- * ISR context. This helper thread is signaled from the ISR by calling Phy
- * suspend/resume APIs to control the busy hints and VBUS.
- */
-static void
-NvDdkUsbPhyHelperThread(
-    void* pArgs)
-{
-    NvDdkUsbPhyHandle hUsbPhy = (NvDdkUsbPhyHandle)pArgs;
-
-    hUsbPhy->Stopped = NV_FALSE;
-
-    while (!hUsbPhy->Stopped)
-    {
-        /* wait for the signal to turn on/off the busy hints and vbus */
-        NvOsSemaphoreWaitTimeout(hUsbPhy->HelperThreadSema, NV_WAIT_INFINITE);
-
-        if (!(hUsbPhy->IsPhyPoweredUp && hUsbPhy->IsHostMode))
-        {
-                /* Turn on/off the USB busy hints */
-                UsbPhyDfsBusyHint(hUsbPhy, hUsbPhy->IsPhyPoweredUp, NV_WAIT_INFINITE);
-        }
-        /* Turn on/off the vbus for host mode */
-        if (hUsbPhy->IsHostMode)
-        {
-            UsbPrivEnableVbus(hUsbPhy, hUsbPhy->IsPhyPoweredUp);
-        }
-    }
-}
-
 NvError
 NvDdkUsbPhyOpen(
     NvRmDeviceHandle hRm,
@@ -440,6 +384,7 @@ NvDdkUsbPhyOpen(
     NvError e;
     NvU32 MaxInstances = 0;
     NvDdkUsbPhy *pUsbPhy = NULL;
+    NvOsMutexHandle UsbPhyMutex = NULL;
     NvRmModuleInfo info[MAX_USB_INSTANCES];
     NvU32 j;
 
@@ -466,15 +411,32 @@ NvDdkUsbPhyOpen(
         return NvError_ModuleNotPresent;
     }
 
+    if (!s_UsbPhyMutex)
+    {
+        e = NvOsMutexCreate(&UsbPhyMutex);
+        if (e!=NvSuccess)
+            return e;
+
+        if (NvOsAtomicCompareExchange32(
+                (NvS32*)&s_UsbPhyMutex, 0, (NvS32)UsbPhyMutex)!=0)
+        {
+            NvOsMutexDestroy(UsbPhyMutex);
+        }
+    }
+
+    NvOsMutexLock(s_UsbPhyMutex);
     if (!s_pUsbPhy)
     {
         s_pUsbPhy = NvOsAlloc(MaxInstances * sizeof(NvDdkUsbPhy));
         if (s_pUsbPhy)
             NvOsMemset(s_pUsbPhy, 0, MaxInstances * sizeof(NvDdkUsbPhy));
-        else
-            return NvError_InsufficientMemory;
     }
+    NvOsMutexUnlock(s_UsbPhyMutex);
 
+    if (!s_pUsbPhy)
+        return NvError_InsufficientMemory;
+
+    NvOsMutexLock(s_UsbPhyMutex);
     if (!s_pUtmiPadConfig)
     {
         s_pUtmiPadConfig = NvOsAlloc(sizeof(NvDdkUsbPhyUtmiPadConfig));
@@ -493,17 +455,19 @@ NvDdkUsbPhyOpen(
                     PhyAddr, s_pUtmiPadConfig->BankSize, NVOS_MEM_READ_WRITE,
                     NvOsMemAttribute_Uncached, (void **)&s_pUtmiPadConfig->pVirAdr));
         }
-        else
-        {
-            return NvError_InsufficientMemory;
-        }
     }
+    NvOsMutexUnlock(s_UsbPhyMutex);
+
+    if (!s_pUtmiPadConfig)
+        return NvError_InsufficientMemory;
 
     pUsbPhy = &s_pUsbPhy[Instance];
 
+    NvOsMutexLock(s_UsbPhyMutex);
     if (!pUsbPhy->RefCount)
     {
         NvRmPhysAddr PhysAddr;
+        NvOsMutexHandle ThreadSafetyMutex = NULL;
 
         NvOsMemset(pUsbPhy, 0, sizeof(NvDdkUsbPhy));
         pUsbPhy->Instance = Instance;
@@ -513,6 +477,15 @@ NvDdkUsbPhyOpen(
         pUsbPhy->pUtmiPadConfig = s_pUtmiPadConfig;
         pUsbPhy->pProperty = NvOdmQueryGetUsbProperty(
                                     NvOdmIoModule_Usb, pUsbPhy->Instance);
+        pUsbPhy->TurnOffPowerRail = UsbPhyTurnOffPowerRail(MaxInstances);
+
+        NV_CHECK_ERROR_CLEANUP(NvOsMutexCreate(&ThreadSafetyMutex));
+        if (NvOsAtomicCompareExchange32(
+                (NvS32*)&pUsbPhy->ThreadSafetyMutex, 0,
+                (NvS32)ThreadSafetyMutex)!=0)
+        {
+            NvOsMutexDestroy(ThreadSafetyMutex);
+        }
 
         NvRmModuleGetBaseAddress(
             pUsbPhy->hRmDevice,
@@ -555,32 +528,9 @@ NvDdkUsbPhyOpen(
             NvRmPowerRegister(pUsbPhy->hRmDevice,
             pUsbPhy->hPwrEventSem, &pUsbPhy->RmPowerClientId));
 
-        NV_CHECK_ERROR_CLEANUP(
-            NvOsSemaphoreCreate(&pUsbPhy->HelperThreadSema, 0));
-
-        NV_CHECK_ERROR_CLEANUP(
-            NvOsThreadCreate(&NvDdkUsbPhyHelperThread,
-            (void*)pUsbPhy, &pUsbPhy->hThreadId));
-
-        if ((pUsbPhy->pProperty->UsbMode == NvOdmUsbModeType_Host) ||
-            (pUsbPhy->pProperty->UsbMode == NvOdmUsbModeType_OTG))
-        {
-            UsbPrivEnableVbus(pUsbPhy, NV_TRUE);
-        }
-
-        #if !NV_OAL
-        UsbPhyPowerRailEnable(pUsbPhy, NV_TRUE);
-        #endif
-
         // Open the H/W interface
         UsbPhyOpenHwInterface(pUsbPhy);
 
-        /* Enable the busy hints for USB device mode, for host mode     *
-         * transaction based busy hints are on/off mechanism is present */
-        if (pUsbPhy->pProperty->UsbMode != NvOdmUsbModeType_Host)
-        {
-            UsbPhyDfsBusyHint(pUsbPhy, NV_TRUE, NV_WAIT_INFINITE);
-        }
         // Initialize the USB Phy
         NV_CHECK_ERROR_CLEANUP(UsbPhyInitialize(pUsbPhy));
     }
@@ -590,13 +540,14 @@ NvDdkUsbPhyOpen(
     }
 
     *hUsbPhy = pUsbPhy;
+    NvOsMutexUnlock(s_UsbPhyMutex);
 
     return NvSuccess;
 
 fail:
 
     NvDdkUsbPhyClose(pUsbPhy);
-
+    NvOsMutexUnlock(s_UsbPhyMutex);
     return e;
 }
 
@@ -608,13 +559,19 @@ NvDdkUsbPhyClose(
     if (!hUsbPhy)
         return;
 
+    NvOsMutexLock(s_UsbPhyMutex);
+
     if (!hUsbPhy->RefCount)
+    {
+        NvOsMutexUnlock(s_UsbPhyMutex);
         return;
+    }
 
     --hUsbPhy->RefCount;
 
     if (hUsbPhy->RefCount)
     {
+        NvOsMutexUnlock(s_UsbPhyMutex);
         return;
     }
 
@@ -623,6 +580,7 @@ NvDdkUsbPhyClose(
         NVRM_MODULE_ID(NvRmModuleID_Usb2Otg, hUsbPhy->Instance),
         NV_TRUE);
 
+    NvOsMutexLock(hUsbPhy->ThreadSafetyMutex);
     if (hUsbPhy->RmPowerClientId)
     {
         if (hUsbPhy->IsPhyPoweredUp)
@@ -646,6 +604,9 @@ NvDdkUsbPhyClose(
         NvRmPowerUnRegister(hUsbPhy->hRmDevice, hUsbPhy->RmPowerClientId);
         NvOsSemaphoreDestroy(hUsbPhy->hPwrEventSem);
     }
+    NvOsMutexUnlock(hUsbPhy->ThreadSafetyMutex);
+
+    NvOsMutexDestroy(hUsbPhy->ThreadSafetyMutex);
 
     if (hUsbPhy->CloseHwInterface)
     {
@@ -658,11 +619,7 @@ NvDdkUsbPhyClose(
         UsbPrivEnableVbus(hUsbPhy, NV_FALSE);
     }
 
-    UsbPhyPowerRailEnable(hUsbPhy, NV_FALSE);
-
-    hUsbPhy->Stopped = NV_TRUE;
-    NvOsThreadJoin(hUsbPhy->hThreadId);
-    NvOsSemaphoreDestroy(hUsbPhy->HelperThreadSema);
+    NvOdmEnableUsbPhyPowerRail(NV_FALSE);
 
     NvRmPhysicalMemUnmap(
         (void*)hUsbPhy->UsbVirAdr, hUsbPhy->UsbBankSize);
@@ -671,6 +628,7 @@ NvDdkUsbPhyClose(
         (void*)hUsbPhy->MiscVirAdr, hUsbPhy->MiscBankSize);
 
     NvOsMemset(hUsbPhy, 0, sizeof(NvDdkUsbPhy));
+    NvOsMutexUnlock(s_UsbPhyMutex);
 }
 
 
@@ -684,14 +642,16 @@ NvDdkUsbPhyPowerUp(
 
     NV_ASSERT(hUsbPhy);
 
+    NvOsMutexLock(hUsbPhy->ThreadSafetyMutex);
     if (hUsbPhy->IsPhyPoweredUp)
-        return e;
-
-    // On wake up from Deep power down mode turn on the rails based on odm query
-    if (IsDpd)
     {
-        if (hUsbPhy->pProperty->UsbRailPoweOffInDeepSleep)
-            UsbPhyPowerRailEnable(hUsbPhy, NV_TRUE);
+        NvOsMutexUnlock(hUsbPhy->ThreadSafetyMutex);
+        return e;
+    }
+
+    if (hUsbPhy->TurnOffPowerRail)
+    {
+        NvOdmEnableUsbPhyPowerRail(NV_TRUE);
     }
 
     // Enable power for USB module
@@ -709,21 +669,30 @@ NvDdkUsbPhyPowerUp(
               NVRM_MODULE_ID(NvRmModuleID_Usb2Otg, hUsbPhy->Instance),
               hUsbPhy->RmPowerClientId, NV_TRUE));
     }
+
     // Power up the Phy
     NV_CHECK_ERROR_CLEANUP(hUsbPhy->PowerUp(hUsbPhy));
-    hUsbPhy->IsPhyPoweredUp = NV_TRUE;
-    hUsbPhy->IsHostMode = IsHostMode;
+
     if (hUsbPhy->pProperty->UsbMode == NvOdmUsbModeType_Host)
     {
         hUsbPhy->RestoreContext(hUsbPhy);
     }
-    // signal to set the busy hints and vbus
-    NvOsSemaphoreSignal(hUsbPhy->HelperThreadSema);
 
-    //NvOsDebugPrintf("NvDdkUsbPhyPowerUp::VOLTAGE ON\n");
+    if (hUsbPhy->IsHostMode = IsHostMode)
+    {
+        UsbPrivEnableVbus(hUsbPhy, NV_TRUE);
+    }
+    else
+    {
+        /* Turn on the USB busy hints */
+        UsbPhyDfsBusyHint(hUsbPhy, NV_TRUE, NV_WAIT_INFINITE);
+    }
+    hUsbPhy->IsPhyPoweredUp = NV_TRUE;
+
 
 fail:
 
+    NvOsMutexUnlock(hUsbPhy->ThreadSafetyMutex);
     return e;
 }
 
@@ -738,11 +707,22 @@ NvDdkUsbPhyPowerDown(
 
     NV_ASSERT(hUsbPhy);
 
+    NvOsMutexLock(hUsbPhy->ThreadSafetyMutex);
     if (!hUsbPhy->IsPhyPoweredUp)
+    {
+        NvOsMutexUnlock(hUsbPhy->ThreadSafetyMutex);
         return e;
+    }
+
     if (hUsbPhy->pProperty->UsbMode == NvOdmUsbModeType_Host)
     {
         hUsbPhy->SaveContext(hUsbPhy);
+    }
+
+    /* Turn on/off the vbus for host mode */
+    if (hUsbPhy->IsHostMode = IsHostMode)
+    {
+        UsbPrivEnableVbus(hUsbPhy, NV_FALSE);
     }
     // Power down the USB Phy
     NV_CHECK_ERROR_CLEANUP(hUsbPhy->PowerDown(hUsbPhy));
@@ -766,21 +746,20 @@ NvDdkUsbPhyPowerDown(
           hUsbPhy->RmPowerClientId, NvRmVoltsOff, NvRmVoltsOff,
           NULL, 0, NULL));
 
-    // In Deep power down mode turn off the rails based on odm query
-    if (IsDpd)
+    /* Turn off the USB busy hints */
+    UsbPhyDfsBusyHint(hUsbPhy, NV_FALSE, NV_WAIT_INFINITE);
+
+    if (hUsbPhy->TurnOffPowerRail)
     {
-        if (hUsbPhy->pProperty->UsbRailPoweOffInDeepSleep)
-            UsbPhyPowerRailEnable(hUsbPhy, NV_FALSE);
+         NvOdmEnableUsbPhyPowerRail(NV_FALSE);
+         NvOdmEnableOtgCircuitry(NV_FALSE);
     }
 
     hUsbPhy->IsPhyPoweredUp = NV_FALSE;
-    hUsbPhy->IsHostMode = IsHostMode;
-    NvOsSemaphoreSignal(hUsbPhy->HelperThreadSema);
-
-    //NvOsDebugPrintf("NvDdkUsbPhyPowerDown::VOLTAGE OFF\n");
 
 fail:
 
+    NvOsMutexUnlock(hUsbPhy->ThreadSafetyMutex);
     return e;
 }
 
@@ -818,4 +797,3 @@ NvDdkUsbPhyIoctl(
     }
     return ErrStatus;
 }
-
