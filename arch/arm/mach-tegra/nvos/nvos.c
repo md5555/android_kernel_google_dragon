@@ -283,6 +283,15 @@ NvS32 NvOsDebugNprintf(const char *format, ...)
     return r;
 }
 
+#if NV_DEBUG
+NvError
+NvOsShowError(NvError err, const char *file, int line)
+{
+	NvOsDebugPrintf("Error %08x at %s:%d\n",
+			(int)err, file, line);
+	return err;
+}
+#endif
 
 NvError NvOsGetOsInformation(NvOsOsInfo *pOsInfo)
 {
