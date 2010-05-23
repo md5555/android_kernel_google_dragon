@@ -35,6 +35,7 @@
 #include "max8907b_i2c.h"
 #include "max8907b_reg.h"
 #include "max8907b_batterycharger.h"
+#include "nvodm_services.h"
 
 NvBool 
 Max8907bSetupInterrupt(
@@ -104,6 +105,22 @@ Max8907bInterruptHandler_int(
     if (!Max8907bI2cRead8(hDevice, MAX8907B_CHG_IRQ1, &data))
     {
         return;
+    }
+
+    if (data)
+    {
+        // VBUS connect interrupt
+        if (data &
+           (MAX8907B_CHG_IRQ1_VCHG_R_MASK << MAX8907B_CHG_IRQ1_VCHG_R_SHIFT))
+        {
+            NvOdmEnableOtgCircuitry(NV_TRUE);
+        }
+        // VBUS dis-connect interrupt
+        else if (data &
+                (MAX8907B_CHG_IRQ1_VCHG_F_MASK << MAX8907B_CHG_IRQ1_VCHG_F_SHIFT))
+        {
+            NvOdmEnableOtgCircuitry(NV_FALSE);
+        }
     }
 
     // CHG_IRQ2

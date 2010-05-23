@@ -214,8 +214,7 @@ void NvRmPrivPmuInterruptMask(NvRmDeviceHandle hRmDevice, NvBool mask)
         s_Pmu.IntrMasked = mask;
         NvOsMutexUnlock(s_Pmu.hMutex);
 
-        if (!mask)
-            NvRmInterruptDone(s_Pmu.hInterrupt);
+        NvOsInterruptMask(s_Pmu.hInterrupt, mask);
     }
 }
 
