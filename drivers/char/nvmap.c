@@ -47,7 +47,8 @@
 #include "nvrm_memmgr.h"
 #include "nvbootargs.h"
 
-/*#define IOVMM_FIRST*/ /* enable to force most allocations from iovmm */
+/* TODO: [ahatala 2010-04-29] temporary workaround for GART LP0 problems */
+#define DISABLE_IOVMM
 
 static void nvmap_vma_open(struct vm_area_struct *vma);
 
@@ -85,20 +86,23 @@ static int nvmap_map_into_caller_ptr(struct file *filp, void __user *arg);
 static int nvmap_ioctl_rw_handle(struct file *filp, int is_read,
 	void __user* arg);
 
-extern void NvRmPrivMemIncrRef(NvRmMemHandle hmem);
-
 static struct backing_dev_info nvmap_bdi = {
 	.ra_pages	= 0,
 	.capabilities	= (BDI_CAP_NO_ACCT_AND_WRITEBACK |
 			   BDI_CAP_READ_MAP | BDI_CAP_WRITE_MAP),
 };
 
-
 #define NVMAP_PTE_OFFSET(x) (((unsigned long)(x) - NVMAP_BASE) >> PAGE_SHIFT)
 #define NVMAP_PTE_INDEX(x) (((unsigned long)(x) - NVMAP_BASE)>>PGDIR_SHIFT)
 #define NUM_NVMAP_PTES (NVMAP_SIZE >> PGDIR_SHIFT)
 #define NVMAP_END (NVMAP_BASE + NVMAP_SIZE)
 #define NVMAP_PAGES (NVMAP_SIZE >> PAGE_SHIFT)
+
+/* Heaps to use for kernel allocs when no heap list supplied */
+#define NVMAP_KERNEL_DEFAULT_HEAPS (NVMEM_HEAP_SYSMEM | NVMEM_HEAP_CARVEOUT_GENERIC)
+
+/* Heaps for which secure allocations are allowed */
+#define NVMAP_SECURE_HEAPS (NVMEM_HEAP_CARVEOUT_IRAM | NVMEM_HEAP_IOVMM)
 
 static pte_t *nvmap_pte[NUM_NVMAP_PTES];
 static unsigned long nvmap_ptebits[NVMAP_PAGES/BITS_PER_LONG];
@@ -118,6 +122,36 @@ static DECLARE_WAIT_QUEUE_HEAD(nvmap_pin_wait);
 static struct rb_root nvmap_handles = RB_ROOT;
 
 static struct tegra_iovmm_client *nvmap_vm_client = NULL;
+
+/* default heap order policy */
+static unsigned int _nvmap_heap_policy (unsigned int heaps, int numpages)
+{
+	static const unsigned int multipage_order[] = {
+		NVMEM_HEAP_CARVEOUT_MASK,
+		NVMEM_HEAP_SYSMEM,
+		NVMEM_HEAP_IOVMM,
+		0
+	};
+	static const unsigned int singlepage_order[] = {
+		NVMEM_HEAP_SYSMEM,
+		NVMEM_HEAP_CARVEOUT_MASK,
+		NVMEM_HEAP_IOVMM,
+		0
+	};
+	const unsigned int* order;
+
+	if (numpages == 1)
+		order = singlepage_order;
+	else
+		order = multipage_order;
+
+	while (*order) {
+		unsigned int h = (*order & heaps);
+		if (h) return h;
+		order++;
+	}
+	return 0;
+};
 
 /* first-fit linear allocator carveout heap manager */
 struct nvmap_mem_block {
@@ -1038,25 +1072,6 @@ void _nvmap_handle_free(struct nvmap_handle *h)
 
 #define nvmap_gfp (GFP_KERNEL | __GFP_HIGHMEM | __GFP_NOWARN)
 
-static int _nvmap_alloc_do_coalloc(struct nvmap_handle *h,
-	struct nvmap_carveout *co, size_t align)
-{
-	int idx;
-
-	idx = nvmap_carveout_alloc(co, align, h->size);
-	if (idx != -1) {
-		h->alloc = true;
-		h->heap_pgalloc = false;
-		h->carveout.co_heap = co;
-		h->carveout.block_idx = idx;
-		spin_lock(&co->lock);
-		h->carveout.base = co->blocks[idx].base;
-		spin_unlock(&co->lock);
-	}
-
-	return (idx==-1) ? -ENOMEM : 0;
-}
-
 /* map the backing pages for a heap_pgalloc handle into its IOVMM area */
 static void _nvmap_handle_iovmm_map(struct nvmap_handle *h)
 {
@@ -1077,8 +1092,7 @@ static void _nvmap_handle_iovmm_map(struct nvmap_handle *h)
 	h->pgalloc.dirty = false;
 }
 
-static int _nvmap_alloc_do_pgalloc(struct nvmap_handle *h,
-	bool contiguous, bool secure)
+static int nvmap_pagealloc(struct nvmap_handle *h, bool contiguous)
 {
 	unsigned int i = 0, cnt = (h->size + PAGE_SIZE - 1) >> PAGE_SHIFT;
 	struct page **pages;
@@ -1089,13 +1103,6 @@ static int _nvmap_alloc_do_pgalloc(struct nvmap_handle *h,
 		pages = kzalloc(sizeof(*pages)*cnt, GFP_KERNEL);
 
 	if (!pages) return -ENOMEM;
-
-	if (cnt==1 && !secure) contiguous = true;
-
-	/* secure surfaces should only be allocated in discontiguous (IOVM-
-	 * managed) space, so that the mapping can be zapped after it is
-	 * unpinned */
-	WARN_ON(secure && contiguous);
 
 	if (contiguous) {
 		size_t order = get_order(h->size);
@@ -1141,10 +1148,8 @@ static int _nvmap_alloc_do_pgalloc(struct nvmap_handle *h,
 
 	h->size = cnt<<PAGE_SHIFT;
 	h->pgalloc.pages = pages;
-	h->heap_pgalloc = true;
 	h->pgalloc.contig = contiguous;
 	INIT_LIST_HEAD(&h->pgalloc.mru_list);
-	h->alloc = true;
 	return 0;
 
 fail:
@@ -1791,78 +1796,15 @@ static int nvmap_ioctl_getid(struct file *filp, void __user *arg)
 	return -EPERM;
 }
 
-/* attempts to allocate from either contiguous system memory or IOVMM space */
-static int _nvmap_do_page_alloc(struct nvmap_file_priv *priv,
-	struct nvmap_handle *h, unsigned int heap_mask,
-	size_t align, bool secure)
-{
-	int ret = -ENOMEM;
-	size_t page_size = (h->size + PAGE_SIZE - 1) & ~(PAGE_SIZE-1);
-#ifdef IOVMM_FIRST
-	unsigned int fallback[] = { NVMEM_HEAP_IOVMM, NVMEM_HEAP_SYSMEM, 0 };
-#else
-	unsigned int fallback[] = { NVMEM_HEAP_SYSMEM, NVMEM_HEAP_IOVMM, 0 };
-#endif
-	unsigned int *m = fallback;
-
-	/* secure allocations must not be performed from sysmem */
-	if (secure) heap_mask &= ~NVMEM_HEAP_SYSMEM;
-
-	if (align > PAGE_SIZE) return -EINVAL;
-
-
-	while (*m && ret) {
-		if (heap_mask & NVMEM_HEAP_SYSMEM & *m)
-			ret = _nvmap_alloc_do_pgalloc(h, true, secure);
-
-		else if (heap_mask & NVMEM_HEAP_IOVMM & *m) {
-			/* increment the committed IOVM space prior to
-			 * allocation, to avoid race conditions with other
-			 * threads simultaneously allocating. this is
-			 * conservative, but guaranteed to work */
-
-			int oc;
-			oc = atomic_add_return(page_size, &priv->iovm_commit);
-
-			if (oc <= priv->iovm_limit)
-				ret = _nvmap_alloc_do_pgalloc(h, false, secure);
-			else
-				ret = -ENOMEM;
-			/* on failure, or when do_pgalloc promotes a non-
-			 * contiguous request into a contiguous request,
-			 * release the commited iovm space */
-			if (ret || h->pgalloc.contig)
-				atomic_sub(page_size, &priv->iovm_commit);
-		}
-		m++;
-	}
-	return ret;
-}
-
-/* attempts to allocate from the carveout heaps */
-static int _nvmap_do_carveout_alloc(struct nvmap_handle *h,
-	unsigned int heap_mask, size_t align)
-{
-	int ret = -ENOMEM;
-	struct nvmap_carveout_node *n;
-
-	down_read(&nvmap_context.list_sem);
-	list_for_each_entry(n, &nvmap_context.heaps, heap_list) {
-		if (heap_mask & n->heap_bit)
-			ret = _nvmap_alloc_do_coalloc(h, &n->carveout, align);
-		if (!ret) break;
-	}
-	up_read(&nvmap_context.list_sem);
-	return ret;
-}
-
 static int _nvmap_do_alloc(struct nvmap_file_priv *priv,
 	unsigned long href, unsigned int heap_mask, size_t align,
-	unsigned int flags, bool secure, bool carveout_first)
+	unsigned int flags)
 {
-	int ret = -ENOMEM;
 	struct nvmap_handle_ref *r;
 	struct nvmap_handle *h;
+	int numpages;
+
+	align = max_t(size_t, align, L1_CACHE_BYTES);
 
 	if (!href) return -EINVAL;
 
@@ -1874,35 +1816,93 @@ static int _nvmap_do_alloc(struct nvmap_file_priv *priv,
 
 	h = r->h;
 	if (h->alloc) return 0;
-	h->flags = flags;
 
-	align = max_t(size_t, align, L1_CACHE_BYTES);
+	numpages = ((h->size + PAGE_SIZE - 1) >> PAGE_SHIFT);
+	h->secure = (flags & NVMEM_HANDLE_SECURE);
+	h->flags = (flags & 0x3);
 
-	if (secure) heap_mask &= ~NVMEM_HEAP_CARVEOUT_MASK;
+	BUG_ON(!numpages);
 
-	if (carveout_first || (heap_mask & NVMEM_HEAP_CARVEOUT_IRAM)) {
-		ret = _nvmap_do_carveout_alloc(h, heap_mask, align);
-		if (ret) ret = _nvmap_do_page_alloc(priv, h,
-				   heap_mask, align, secure);
-	} else {
-		ret = _nvmap_do_page_alloc(priv, h, heap_mask, align, secure);
-		if (ret) ret = _nvmap_do_carveout_alloc(h, heap_mask, align);
+	/* secure allocations can only be served from secure heaps */
+	if (h->secure) {
+		heap_mask &= NVMAP_SECURE_HEAPS;
+		if (!heap_mask) return -EINVAL;
+	}
+	/* can't do greater than page size alignment with page alloc */
+	if (align > PAGE_SIZE)
+		heap_mask &= NVMEM_HEAP_CARVEOUT_MASK;
+#ifdef DISABLE_IOVMM
+	heap_mask &= ~NVMEM_HEAP_IOVMM;
+#endif
+
+	while (heap_mask && !h->alloc) {
+		unsigned int heap_type = _nvmap_heap_policy(heap_mask, numpages);
+
+		if (heap_type & NVMEM_HEAP_CARVEOUT_MASK) {
+			struct nvmap_carveout_node *n;
+
+			down_read(&nvmap_context.list_sem);
+			list_for_each_entry(n, &nvmap_context.heaps, heap_list) {
+				if (heap_type & n->heap_bit) {
+					struct nvmap_carveout* co = &n->carveout;
+					int idx = nvmap_carveout_alloc(co, align, h->size);
+					if (idx != -1) {
+						h->carveout.co_heap = co;
+						h->carveout.block_idx = idx;
+						spin_lock(&co->lock);
+						h->carveout.base = co->blocks[idx].base;
+						spin_unlock(&co->lock);
+						h->heap_pgalloc = false;
+						h->alloc = true;
+						break;
+					}
+				}
+			}
+			up_read(&nvmap_context.list_sem);
+		}
+		else if (heap_type & NVMEM_HEAP_IOVMM) {
+			int ret;
+
+			BUG_ON(align > PAGE_SIZE);
+
+			/* increment the committed IOVM space prior to
+			 * allocation, to avoid race conditions with other
+			 * threads simultaneously allocating. this is
+			 * conservative, but guaranteed to work */
+			if (atomic_add_return(numpages << PAGE_SHIFT, &priv->iovm_commit)
+				< priv->iovm_limit) {
+				ret = nvmap_pagealloc(h, false);
+			}
+			else ret = -ENOMEM;
+
+			if (ret) {
+				atomic_sub(numpages << PAGE_SHIFT, &priv->iovm_commit);
+			}
+			else {
+				BUG_ON(h->pgalloc.contig);
+				h->heap_pgalloc = true;
+				h->alloc = true;
+			}
+		}
+		else if (heap_type & NVMEM_HEAP_SYSMEM) {
+			if (nvmap_pagealloc(h, true) == 0) {
+				BUG_ON(!h->pgalloc.contig);
+				h->heap_pgalloc = true;
+				h->alloc = true;
+			}
+		}
+		else break;
+
+		heap_mask &= ~heap_type;
 	}
 
-	BUG_ON((!ret && !h->alloc) || (ret && h->alloc));
-	return ret;
+	return (h->alloc ? 0 : -ENOMEM);
 }
 
 static int nvmap_ioctl_alloc(struct file *filp, void __user *arg)
 {
 	struct nvmem_alloc_handle op;
 	struct nvmap_file_priv *priv = filp->private_data;
-	bool secure = false;
-#ifdef IOVMM_FIRST
-	bool carveout_first = false;
-#else
-	bool carveout_first = true;
-#endif
 	int err;
 
 	err = copy_from_user(&op, arg, sizeof(op));
@@ -1914,12 +1914,7 @@ static int nvmap_ioctl_alloc(struct file *filp, void __user *arg)
 	 * data leakage. */
 	op.align = max_t(size_t, op.align, PAGE_SIZE);
 
-	if (op.flags & NVMEM_HANDLE_SECURE) secure = true;
-
-	/* TODO: implement a way to specify carveout-first vs
-	 * carveout-second */
-	return _nvmap_do_alloc(priv, op.handle, op.heap_mask,
-		op.align, (op.flags & 0x3), secure, carveout_first);
+	return _nvmap_do_alloc(priv, op.handle, op.heap_mask, op.align, op.flags);
 }
 
 static int _nvmap_do_free(struct nvmap_file_priv *priv, unsigned long href)
@@ -1951,7 +1946,7 @@ static int _nvmap_do_free(struct nvmap_file_priv *priv, unsigned long href)
 			__func__, current->comm,
 			(r->h->owner) ? r->h->owner->comm : "kernel",
 			(r->h->global) ? "global" : "private",
-			(r->h->alloc && r->h->heap_pgalloc)?"page-alloc" :
+			(r->h->alloc && r->h->heap_pgalloc) ? "page-alloc" :
 			(r->h->alloc) ? "carveout" : "unallocated",
 			r->h->orig_size);
 		while (pins--) do_wake |= _nvmap_handle_unpin(r->h);
@@ -3061,9 +3056,8 @@ NvError NvRmMemHandleCreate(NvRmDeviceHandle hRm,
 NvError NvRmMemAlloc(NvRmMemHandle hMem, const NvRmHeap *Heaps,
 	NvU32 NumHeaps, NvU32 Alignment, NvOsMemAttribute Coherency)
 {
-	unsigned int heap_mask = 0;
 	unsigned int flags = pgprot_kernel;
-	int err;
+	int err = -ENOMEM;
 
 	BUG_ON(Alignment & (Alignment-1));
 
@@ -3072,36 +3066,42 @@ NvError NvRmMemAlloc(NvRmMemHandle hMem, const NvRmHeap *Heaps,
 	else
 		flags = NVMEM_HANDLE_WRITE_COMBINE;
 
-	if (!NumHeaps || !Heaps)
-		heap_mask = (NVMEM_HEAP_SYSMEM | NVMEM_HEAP_CARVEOUT_GENERIC);
+	if (!NumHeaps || !Heaps) {
+		err = _nvmap_do_alloc(&nvmap_context.init_data,
+				  (unsigned long)hMem, NVMAP_KERNEL_DEFAULT_HEAPS,
+				  (size_t)Alignment, flags);
+	}
 	else {
 		unsigned int i;
-		for (i=0; i<NumHeaps; i++) {
+		for (i = 0; i < NumHeaps; i++) {
+			unsigned int heap;
 			switch (Heaps[i]) {
 			case NvRmHeap_GART:
-				heap_mask |= NVMEM_HEAP_IOVMM;
+				heap = NVMEM_HEAP_IOVMM;
 				break;
 			case NvRmHeap_External:
-				heap_mask |= NVMEM_HEAP_SYSMEM;
+				heap = NVMEM_HEAP_SYSMEM;
 				break;
 			case NvRmHeap_ExternalCarveOut:
-				heap_mask |= NVMEM_HEAP_CARVEOUT_GENERIC;
+				heap = NVMEM_HEAP_CARVEOUT_GENERIC;
 				break;
 			case NvRmHeap_IRam:
-				heap_mask |= NVMEM_HEAP_CARVEOUT_IRAM;
+				heap = NVMEM_HEAP_CARVEOUT_IRAM;
 				break;
 			default:
+				heap = 0;
 				break;
+			}
+			if (heap) {
+				err = _nvmap_do_alloc(&nvmap_context.init_data,
+						  (unsigned long)hMem, heap,
+						  (size_t)Alignment, flags);
+				if (!err) break;
 			}
 		}
 	}
-	if (!heap_mask) return NvError_InsufficientMemory;
 
-	err = _nvmap_do_alloc(&nvmap_context.init_data, (unsigned long)hMem,
-		heap_mask, (size_t)Alignment, flags, false, true);
-
-	if (err) return NvError_InsufficientMemory;
-	return NvSuccess;
+	return (err ? NvError_InsufficientMemory : NvSuccess);
 }
 
 void NvRmMemReadStrided(NvRmMemHandle hMem, NvU32 Offset, NvU32 SrcStride,
