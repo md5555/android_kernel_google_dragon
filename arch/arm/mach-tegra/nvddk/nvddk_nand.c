@@ -3144,6 +3144,7 @@ NvError NvDdkNandOpen(NvRmDeviceHandle hRmDevice, NvDdkNandHandle *phNand)
     // Event semaphore to register with the rm_power module
     NV_CHECK_ERROR_CLEANUP(NvOsSemaphoreCreate(&s_pNandRec->PowerMgmtSema, 0));
     // Register with the rm_power manager
+    s_pNandRec->RmPowerClientId = NVRM_POWER_CLIENT_TAG('N','A','N','D');
     NV_CHECK_ERROR_CLEANUP(NvRmPowerRegister(s_pNandRec->RmDevHandle,
         s_pNandRec->PowerMgmtSema, &(s_pNandRec->RmPowerClientId)));
     // Read the NAND lock cfg before resetting the NAND controller (NAND controller

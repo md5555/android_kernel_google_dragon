@@ -376,6 +376,7 @@ NvError NvRmPwmConfig(
         {
             hPwm->PowerEnabled = NV_FALSE;
             // Register with RM power
+            s_PwmPowerID = NVRM_POWER_CLIENT_TAG('P','W','M',' ');
             status = NvRmPowerRegister(hPwm->RmDeviceHandle, NULL, &s_PwmPowerID);
             if (status != NvSuccess)
                 goto fail;

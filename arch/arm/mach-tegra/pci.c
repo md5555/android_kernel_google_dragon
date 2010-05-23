@@ -268,6 +268,7 @@ static int __init pci_tegra_setup(int nr, struct pci_sys_data *data)
 		return 0;
 	}
 
+        pci_tegra_powerid = NVRM_POWER_CLIENT_TAG('P','C','I',' ');
 	if (NvRmPowerRegister(s_hRmGlobal, 0, &pci_tegra_powerid) != NvSuccess)
 		goto fail;
 

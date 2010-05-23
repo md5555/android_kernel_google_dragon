@@ -722,6 +722,7 @@ NvError NvRmPrivPcieOpen(NvRmDeviceHandle hRm)
     /* Start PCIE refclock (enable PLLE) */
     if (exec == ExecPlatform_Soc)
     {
+        s_PowerClientId = NVRM_POWER_CLIENT_TAG('P','C','I','E');
         if (NvRmPowerRegister(hRm, 0, &s_PowerClientId) != NvSuccess)
             goto fail;
         if (NvRmPowerModuleClockControl(hRm, NvRmPrivModuleID_Pcie, 

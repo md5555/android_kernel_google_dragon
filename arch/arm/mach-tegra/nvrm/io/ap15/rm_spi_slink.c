@@ -1199,7 +1199,10 @@ static NvError CreateSpiSlinkChannelHandle(
 #if !NV_OAL
     // Register slink/spi for Rm power client
     if (!Error)
-        Error = NvRmPowerRegister(hRmSpiSlink->hDevice, NULL, &hRmSpiSlink->RmPowerClientId);
+    {
+       hRmSpiSlink->RmPowerClientId = NVRM_POWER_CLIENT_TAG('S','P','I',' ');
+       Error = NvRmPowerRegister(hRmSpiSlink->hDevice, NULL, &hRmSpiSlink->RmPowerClientId);
+    }
 #endif
 
     // Enable Power/Clock.

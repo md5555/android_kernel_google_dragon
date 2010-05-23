@@ -434,9 +434,12 @@ NvError CreateSnorHandle(
     // Register as the Rm power client
     Error = NvOsSemaphoreCreate(&HandleSnor->hRmPowerEventSema, 0);
     if (!Error)
+    {
+        HandleSnor->RmPowerClientId = NVRM_POWER_CLIENT_TAG('S','N','O','R');
         Error = NvRmPowerRegister(HandleSnor->hRmDevice, 
                         HandleSnor->hRmPowerEventSema,
                         &HandleSnor->RmPowerClientId);
+    }
 
     if (!Error)
         Error =  SetPowerControl(HandleSnor, NV_TRUE);

@@ -269,6 +269,8 @@ NvRmI2cOpen(
             if(status)
                 goto fail_1;
         }
+
+        c->I2cPowerClientId = NVRM_POWER_CLIENT_TAG('I','2','C',' ');
         status = NvRmPowerRegister(hRmDevice, NULL, &c->I2cPowerClientId);
         if (status != NvSuccess)
         {

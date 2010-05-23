@@ -92,6 +92,7 @@ NvRmPrivGpioViAcquirePinHandle(
     if (s_PowerClientRefCount == 0)
     {
         // turn on vi clock, reset, and power
+        s_ViPowerID = NVRM_POWER_CLIENT_TAG('V','I',' ',' ');
         status = NvRmPowerRegister(hRm, NULL, &s_ViPowerID);
         if (status != NvSuccess)
             goto power_stuff_failed;

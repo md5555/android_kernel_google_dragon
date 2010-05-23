@@ -645,6 +645,7 @@ static NvError HwI2cInitController(NvRmI2cSlaveController* t)
     
     // Enable Clock.
     // Configure Clock.
+    t->I2cPowerClientId = NVRM_POWER_CLIENT_TAG('N','V','E','C');
     NV_CHECK_ERROR_CLEANUP(NvRmPowerRegister(t->hRmDevice, NULL, 
         &t->I2cPowerClientId));
     /* 

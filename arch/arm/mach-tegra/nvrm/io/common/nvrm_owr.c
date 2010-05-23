@@ -231,6 +231,7 @@ NvRmOwrOpen(
             goto fail;
         }
 
+        pOwrInfo->OwrPowerClientId = NVRM_POWER_CLIENT_TAG('O','W','R',' ');
         status = 
             NvRmPowerRegister(hRmDevice, NULL, &pOwrInfo->OwrPowerClientId);
         if (status != NvSuccess)

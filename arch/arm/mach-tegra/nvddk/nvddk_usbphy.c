@@ -550,6 +550,7 @@ NvDdkUsbPhyOpen(
         NV_CHECK_ERROR_CLEANUP(
             NvOsSemaphoreCreate(&pUsbPhy->hPwrEventSem, 0));
 
+        pUsbPhy->RmPowerClientId = NVRM_POWER_CLIENT_TAG('U','S','B','p');
         NV_CHECK_ERROR_CLEANUP(
             NvRmPowerRegister(pUsbPhy->hRmDevice,
             pUsbPhy->hPwrEventSem, &pUsbPhy->RmPowerClientId));
