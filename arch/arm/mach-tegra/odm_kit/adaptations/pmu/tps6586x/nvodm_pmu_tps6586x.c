@@ -1399,11 +1399,7 @@ Tps6586xWriteVoltageReg(
                 (vddRail == TPS6586xPmuSupply_LDO4) ||
                 (vddRail == TPS6586xPmuSupply_LDO2))
             {
-#if defined(CONFIG_TEGRA_ODM_HARMONY)
-                status = Tps6586xI2cRead8(hDevice, pSupplyInfo->supplyRegInfo.addr, &data);
-#else
                 data = 0;
-#endif
                 switch (vddRail) 
                 {
                 case TPS6586xPmuSupply_LDO2:
