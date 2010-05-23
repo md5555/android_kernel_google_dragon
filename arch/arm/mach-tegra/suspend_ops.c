@@ -29,11 +29,6 @@
 extern void cpu_ap20_do_lp0(void);
 extern void cpu_ap20_do_lp1(void);
 
-#if defined(CONFIG_TEGRA_ODM_HARMONY)
-static struct wake_lock suspend_ops_wake_lock;
-static bool wake_lock_initialized = false;
-#endif
-
 int tegra_state_valid(suspend_state_t state)
 {
 	if (state > PM_SUSPEND_ON && state <= PM_SUSPEND_MAX)
@@ -61,22 +56,10 @@ int tegra_state_enter(suspend_state_t state)
 	return 0;
 }
 
-void tegra_state_end(void)
-{
-#if defined(CONFIG_TEGRA_ODM_HARMONY)
-	if(!wake_lock_initialized) {
-		wake_lock_init(&suspend_ops_wake_lock, WAKE_LOCK_SUSPEND, "tegra_suspend_ops");
-		wake_lock_initialized = true;
-	}
-	wake_lock_timeout(&suspend_ops_wake_lock, 1000);
-#endif
-}
-
 static struct platform_suspend_ops tegra_suspend_ops =
 {
 	.valid   = tegra_state_valid,
 	.enter   = tegra_state_enter,
-	.end     = tegra_state_end
 };
 
 void tegra_set_suspend_ops(void)
