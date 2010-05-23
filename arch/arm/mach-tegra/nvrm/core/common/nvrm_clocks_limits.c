@@ -271,7 +271,6 @@ NvRmPrivClockLimitsInit(NvRmDeviceHandle hRmDevice)
                         pSKUedLimits->DisplayBPixelMaxKHz);
     DispMaxKHz = NV_MIN(
         DispMaxKHz, s_ClockRangeLimits[NvRmModuleID_Display].MaxKHz);
-    s_ClockRangeLimits[NvRmModuleID_Display].MaxKHz = DispMaxKHz;
     s_ClockRangeLimits[NvRmClkLimitsExtID_DisplayA].MaxKHz =
         NV_MIN(DispMaxKHz, pSKUedLimits->DisplayAPixelMaxKHz);
     s_ClockRangeLimits[NvRmClkLimitsExtID_DisplayA].MinKHz =
