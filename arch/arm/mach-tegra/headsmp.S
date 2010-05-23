@@ -21,6 +21,7 @@
  */
 #include <linux/linkage.h>
 #include <linux/init.h>
+#include "nvmacro.h"
 
 	 .section ".text.head", "ax"
 	__CPUINIT
@@ -40,10 +41,10 @@ ENTRY(v7_invalidate_l1)
 	mcr	p15, 2, r0, c0, c0, 0
 	mrc	p15, 1, r0, c0, c0, 0
 
-	ldr	r1, =0x7fff
+	movw	r1, #0x7fff
 	and	r2, r1, r0, lsr #13
 
-	ldr	r1, =0x3ff
+	movw	r1, #0x3ff
 
 	and	r3, r1, r0, lsr #3	@ NumWays - 1
 	add	r2, r2, #1		@ NumSets
@@ -83,7 +84,7 @@ ENTRY(tegra_secondary_startup)
 	mrc	p15, 0, r0, c0, c0, 5	@ mpidr
 	and	r0, r0, #15
 #if defined(CONFIG_ARCH_TEGRA_2x_SOC)
-	ldr	r1, =0x6000f100
+	MOV32	r1, 0x6000f100
 #else
 #error "Invalid Tegra SoC family selection"
 #endif
