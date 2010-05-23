@@ -52,10 +52,23 @@ struct tegra_sdhci
 	NvU32			cd_polarity;
 	NvRmGpioInterruptHandle	cd_int;
 	NvU32			MaxClock;
+	NvBool			SdioControllerClkEnabled;
 #ifdef CONFIG_EMBEDDED_MMC_START_OFFSET
 	NvU32			StartOffset;
 #endif
 };
+
+static NvError
+tegra_sdhci_set_controller_clk(struct tegra_sdhci *t_sdhci, NvBool enable)
+{
+	NvError e = NvSuccess;
+	if (t_sdhci->SdioControllerClkEnabled != enable) {
+		t_sdhci->SdioControllerClkEnabled = enable;
+		e = (NvRmPowerModuleClockControl(s_hRmGlobal, t_sdhci->ModId,
+				0, enable));
+	}
+	return e;
+}
 
 static int tegra_sdhci_enable_dma(struct sdhci_host *host)
 {
@@ -133,11 +146,11 @@ static unsigned int tegra_sdhci_get_maxclock(struct sdhci_host *host)
 static int tegra_sdhci_set_clock(struct sdhci_host *host,
 	unsigned int clock)
 {
+	NvError err;
 	struct tegra_sdhci *t_sdhci;
 
 	t_sdhci = sdhci_priv(host);
 	if (clock) {
-		NvError err;
 		NvU32 min, max, target, actual_freq;
 		min = 400;
 		max = clock / 1000;
@@ -146,15 +159,23 @@ static int tegra_sdhci_set_clock(struct sdhci_host *host,
 		if (max < min) max  = min;
 		if (target < min) target  = min;
 
+		/* enable clock to sdio controller */
+		err = tegra_sdhci_set_controller_clk(t_sdhci, NV_TRUE);
+		if (err) goto fail;
+
 		err = NvRmPowerModuleClockConfig(s_hRmGlobal,
 			t_sdhci->ModId, 0, min, max, &target, 1,
 			&actual_freq, 0);
-		if (err==NvSuccess)
-			return 1;
+		if (err) goto fail;
 	} else {
-		/* TODO Do we need to shutdown the clock?  */
+		/* disable clock to sdio controller */
+		err = tegra_sdhci_set_controller_clk(t_sdhci, NV_FALSE);
+		if (err) goto fail;
 	}
-	return 0;
+	return 1; /* return success */
+fail:
+	pr_err("tegra_sdhci_set_clock failed with error %d\n", err);
+	return 0; /* upper layer expects return value 0 in case of failure */
 }
 
 static struct sdhci_ops tegra_sdhci_ops = {
@@ -200,6 +221,7 @@ int __init tegra_sdhci_probe(struct platform_device *pdev)
 	host->pdev = pdev;
 	host->sdhost = sdhost;
 	host->ModId = ModId;
+	host->SdioControllerClkEnabled = NV_FALSE;
 #ifdef CONFIG_EMBEDDED_MMC_START_OFFSET
 	if (pdata)
 		host->StartOffset = pdata->StartOffset;
@@ -254,7 +276,7 @@ int __init tegra_sdhci_probe(struct platform_device *pdev)
 	err2 = NvRmPowerModuleClockConfig(s_hRmGlobal, ModId, 0,
 		min, max, &target, 1, &host->MaxClock, 0);
 
-	err3 = NvRmPowerModuleClockControl(s_hRmGlobal, ModId, 0, NV_TRUE);
+	err3 = tegra_sdhci_set_controller_clk(host, NV_TRUE);
 	if (err1 || err2 || err3) {
 		goto fail;
 	}
@@ -339,8 +361,7 @@ static int __devexit tegra_sdhci_remove(struct platform_device *pdev)
 	if (host->hSdioHandle)
 		NvOdmSdioClose(host->hSdioHandle);
 	(void)NvRmSetModuleTristate(s_hRmGlobal, host->ModId, NV_TRUE);
-	(void)NvRmPowerModuleClockControl(s_hRmGlobal,
-		host->ModId, 0, NV_FALSE);
+	(void)tegra_sdhci_set_controller_clk(host, NV_FALSE);
 
 	if (host->wp_pin)
 		NvRmGpioReleasePinHandles(s_hGpioGlobal, &host->wp_pin, 1);
@@ -366,7 +387,7 @@ static int tegra_sdhci_suspend(struct platform_device *pdev, pm_message_t state)
 	if (t_sdhci->sdhost->card_type != MMC_TYPE_SDIO) {
 		ret = sdhci_suspend_host(t_sdhci->sdhost,state);
 		if (ret)
-			printk("sdhci_suspend_host failed with error %d\n", ret);
+			pr_err("sdhci_suspend_host failed with error %d\n", ret);
 	}
 
 	return ret;
@@ -378,11 +399,10 @@ static int tegra_sdhci_resume(struct platform_device *pdev)
 	struct tegra_sdhci *t_sdhci;
 
 	t_sdhci = platform_get_drvdata(pdev);
-
 	if (t_sdhci->sdhost->card_type != MMC_TYPE_SDIO) {
 		ret = sdhci_resume_host(t_sdhci->sdhost);
 		if (ret)
-			printk("sdhci_resume_host failed with error %d\n", ret);
+			pr_err("sdhci_resume_host failed with error %d\n", ret);
 	}
 
 	return ret;
