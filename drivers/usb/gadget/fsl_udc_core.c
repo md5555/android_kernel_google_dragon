@@ -1883,30 +1883,28 @@ static void fsl_udc_irq_work(struct work_struct* irq_work)
 		 * mark the vbus active shadow.
 		 */
 		temp = fsl_readl(&usb_sys_regs->vbus_wakeup);
-		if (temp & USB_SYS_VBUS_WAKEUP_INT_STATUS) {
-			if (temp & USB_SYS_VBUS_STATUS) {
-				udc->vbus_active = 1;
-				platform_udc_clk_resume();
-				/* Schedule work to wait for 100msec and check for
-				 * charger if setup packet is not received */
-				schedule_delayed_work(&udc->work,
-					USB_CHARGER_DETECTION_WAIT_TIME_MS);
-				/* printk("USB cable connected\n"); */
-			} else {
-				/* If cable disconnected, cancel any delayed work */
-				cancel_delayed_work(&udc->work);
-				spin_lock(&udc->lock);
-				reset_queues(udc);
-				spin_unlock(&udc->lock);
-				udc->vbus_active = 0;
-				udc->usb_state = USB_STATE_DEFAULT;
-				platform_udc_clk_suspend();
-				if (udc->vbus_regulator) {
-					/* set the current limit to 0mA */
-					regulator_set_current_limit(udc->vbus_regulator, 0, 0);
-				}
-				/* printk("USB cable dis-connected\n"); */
+		if (temp & USB_SYS_VBUS_STATUS) {
+			udc->vbus_active = 1;
+			platform_udc_clk_resume();
+			/* Schedule work to wait for 100msec and check for
+			 * charger if setup packet is not received */
+			schedule_delayed_work(&udc->work,
+				USB_CHARGER_DETECTION_WAIT_TIME_MS);
+			/* printk("USB cable connected\n"); */
+		} else {
+			/* If cable disconnected, cancel any delayed work */
+			cancel_delayed_work(&udc->work);
+			spin_lock(&udc->lock);
+			reset_queues(udc);
+			spin_unlock(&udc->lock);
+			udc->vbus_active = 0;
+			udc->usb_state = USB_STATE_DEFAULT;
+			platform_udc_clk_suspend();
+			if (udc->vbus_regulator) {
+				/* set the current limit to 0mA */
+				regulator_set_current_limit(udc->vbus_regulator, 0, 0);
 			}
+			/* printk("USB cable dis-connected\n"); */
 		}
 	}
 }
