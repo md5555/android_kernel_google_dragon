@@ -1255,13 +1255,22 @@ Max8907bPwrEnAttach(
     switch (Supply)
     {
         case Max8907bPmuSupply_LX_V1:   // CPU
-            CntData = Attach ?  MAX8907B_SEQCNT_PWREN_LX_V1 :
-                                MAX8907B_SEQCNT_DEFAULT_LX_V1;
+            // No sequencer delay for CPU rail when it is attached
+            CntData = Attach ?  0x00 : MAX8907B_SEQCNT_DEFAULT_LX_V1;
             SeqSel = Attach ? MAX8907B_SEQSEL_PWREN_LXX :
                               MAX8907B_SEQSEL_DEFAULT_LX_V1;
             break;
 
         case Max8907bPmuSupply_LX_V2:   // Core
+            // Change CPU sequencer delay when core is attached to assure
+            // order of Core/CPU rails control; clear CPU delay when core
+            // is detached
+            CntAddr = Max8907bSupplyInfoTable[
+                Max8907bPmuSupply_LX_V1].SequencerCountRegAddr;
+            CntData = Attach ?  MAX8907B_SEQCNT_PWREN_LX_V1 : 0x00;
+            if (!Max8907bI2cWrite8(hDevice, CntAddr, CntData))
+                return NV_FALSE;
+
             CntData = Attach ?  MAX8907B_SEQCNT_PWREN_LX_V2 :
                                 MAX8907B_SEQCNT_DEFAULT_LX_V2;
             SeqSel = Attach ? MAX8907B_SEQSEL_PWREN_LXX :

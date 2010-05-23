@@ -90,8 +90,12 @@ extern "C"
 #define MAX8907B_SEQCNT_DEFAULT_LX_V1       0x1C
 #define MAX8907B_SEQCNT_DEFAULT_LX_V2       0x1C
 
-// Defines sequencer count PWREN control values 
-#define MAX8907B_SEQCNT_PWREN_LX_V1         0x00    /* no delay */
+// Defines sequencer count PWREN control values (these settings applied
+// togeteher, when both CPU/V1 and CORE/V2 rails are attached to PWREN;
+// in case when only CPU/V1 rail is attached no delay is specified)
+// B[7:4] - power up delay in 20us taps
+// B[3:0] - power down delay in 20us taps
+#define MAX8907B_SEQCNT_PWREN_LX_V1         0xC0    /* 240us up delay */
 #define MAX8907B_SEQCNT_PWREN_LX_V2         0x00    /* no delay */
 
 // Defines PMU output timing parameters. Scaling up time is dynamically
