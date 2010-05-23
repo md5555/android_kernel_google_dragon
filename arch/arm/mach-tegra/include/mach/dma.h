@@ -22,24 +22,32 @@
 
 #if defined(CONFIG_TEGRA_SYSTEM_DMA)
 
-struct tegra_dma_req;
+typedef enum {
+	TEGRA_DMA_SHARED                           = 0x00000001,
+	TEGRA_DMA_MODE_CONTINUOUS                  = 0x00000002,
+	TEGRA_DMA_MODE_ONESHOT                     = 0x00000004,
+	TEGRA_DMA_MODE_CONTINUOUS_SAME_BUFFER      = 0x00010002,
+} tegra_dma_mode_t;
 
-enum tegra_dma_mode {
-	TEGRA_DMA_SHARED = 1,
-	TEGRA_DMA_MODE_CONTINOUS = 2,
-	TEGRA_DMA_MODE_ONESHOT = 4,
-};
+typedef enum {
+	TEGRA_DMA_REQ_SUCCESS                      = 0,
+	TEGRA_DMA_REQ_ERROR_ABOTRED                = 1,
+} tegra_dma_req_error_t;
 
-enum tegra_dma_req_error {
-	TEGRA_DMA_REQ_SUCCESS = 0,
-	TEGRA_DMA_REQ_ERROR_ABOTRED,
-};
+typedef enum {
+	TEGRA_DMA_REQ_BUF_STATE_EMPTY             = 0,
+	TEGRA_DMA_REQ_BUF_STATE_HALF_FULL         = 1,
+	TEGRA_DMA_REQ_BUF_STATE_FULL              = 2,
+} tegra_dma_req_buff_state_t;
 
-enum tegra_dma_req_buff_status {
-	TEGRA_DMA_REQ_BUF_STATUS_EMPTY,
-	TEGRA_DMA_REQ_BUF_STATUS_HALF_FULL,
-	TEGRA_DMA_REQ_BUF_STATUS_FULL,
-};
+typedef enum {
+	TEGRA_DMA_REQ_STATE_FREE                      = 0,
+	TEGRA_DMA_REQ_STATE_QUEUED                    = 1,
+	TEGRA_DMA_REQ_STATE_READY_TO_RUN              = 2,
+	TEGRA_DMA_REQ_STATE_RUNNING                   = 3,
+	TEGRA_DMA_REQ_STATE_STOPPED                   = 4,
+	TEGRA_DMA_REQ_STATE_COMPLETE                  = 5
+} tegra_dma_req_state_t;
 
 struct tegra_dma_req {
 	struct list_head list;
@@ -93,7 +101,9 @@ struct tegra_dma_req {
 	int status;
 
 	/* DMA completion tracking information */
-	int buffer_status;
+	tegra_dma_req_buff_state_t buffer_state;
+
+	tegra_dma_req_state_t req_state;
 
 	/* Client specific data */
 	void *data;
@@ -106,6 +116,10 @@ void tegra_dma_flush(int channel);
 
 bool tegra_dma_is_req_inflight(int channel, struct tegra_dma_req *req);
 bool tegra_dma_is_empty(int channel);
+
+int tegra_dma_get_transfer_count(int channel, struct tegra_dma_req *_req,
+				bool is_stop_dma);
+int tegra_dma_start_dma(int channel, struct tegra_dma_req *_req);
 
 int tegra_dma_allocate_channel(int mode);
 void tegra_dma_free_channel(int channel);

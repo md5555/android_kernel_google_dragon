@@ -69,6 +69,7 @@ const u8 i2c_selector_values[] = {
 	APBDMACHAN_CHANNEL_0_CSR_0_REQ_SEL_I2C3,
 };
 
+
 struct tegra_dma_channel {
 	struct list_head	list;
 	int			id;
@@ -76,7 +77,7 @@ struct tegra_dma_channel {
 	char			*name;
 	volatile void  __iomem	*addr;
 	unsigned long		phys_addr;
-	int			mode;
+	tegra_dma_mode_t	mode;
 
 	/* Register shadow */
 	unsigned long		csr;
@@ -130,6 +131,124 @@ void tegra_dma_stop(struct tegra_dma_channel *ch)
 	if (status & NV_DRF_DEF(APBDMACHAN_CHANNEL_0, STA, ISE_EOC, INTR))
 		writel(status, ch->addr + APBDMACHAN_CHANNEL_0_STA_0);
 }
+int tegra_dma_get_transfer_count(int channel, struct tegra_dma_req *_req,
+						bool is_stop_dma)
+{
+	struct tegra_dma_channel *ch = &dma_channels[channel];
+	unsigned int csr;
+	unsigned int status;
+	struct tegra_dma_req *req = NULL;
+	unsigned long irq_flags;
+	int to_transfer;
+	int req_transfer_count;
+	int bytes_transferred = 0;
+
+	spin_lock_irqsave(&ch->lock, irq_flags);
+	req = list_entry(ch->list.next, typeof(*req), list);
+
+	/* Make sure that dma request is in top of the list */
+	if (req != _req) {
+		spin_unlock_irqrestore(&ch->lock, irq_flags);
+		printk(KERN_ERR "The dma request is not running \n");
+		return -1;
+	}
+
+	if (_req->req_state != TEGRA_DMA_REQ_STATE_RUNNING) {
+		spin_unlock_irqrestore(&ch->lock, irq_flags);
+		printk(KERN_ERR "The dma request is not running \n");
+		return -1;
+	}
+
+	/* If dma need to stop then change trigger level to some reserved
+	 * requestor because we want to read the current status, Hw issue*/
+	if (is_stop_dma) {
+		csr = ch->csr;
+		csr = NV_FLD_SET_DRF_DEF(APBDMACHAN_CHANNEL_0, CSR,
+			REQ_SEL, NA31, csr);
+		/* Set the enable as that is not shadowed */
+		csr = NV_FLD_SET_DRF_DEF(APBDMACHAN_CHANNEL_0, CSR,
+			ENB, ENABLE, csr);
+		writel(csr, ch->addr + APBDMACHAN_CHANNEL_0_CSR_0);
+	}
+
+	/* Get current transfer count */
+	status = readl(ch->addr + APBDMACHAN_CHANNEL_0_STA_0);
+	to_transfer = NV_DRF_VAL(APBDMACHAN_CHANNEL_0, STA, COUNT, status);
+	req_transfer_count = NV_DRF_VAL(APBDMACHAN_CHANNEL_0, CSR, WCOUNT,
+				ch->csr);
+
+	if (status & NV_DRF_DEF(APBDMACHAN_CHANNEL_0, STA, BSY, ACTIVE)) {
+		if (to_transfer)
+			bytes_transferred = (req_transfer_count - to_transfer);
+		else
+			bytes_transferred = (req_transfer_count);
+	} else {
+		bytes_transferred = (req_transfer_count + 1);
+	}
+	bytes_transferred <<= 2;
+
+	if (ch->mode & TEGRA_DMA_MODE_CONTINUOUS) {
+		if (req->buffer_state == TEGRA_DMA_REQ_BUF_STATE_HALF_FULL) {
+			bytes_transferred += 4 * (req_transfer_count + 1);
+		}
+	}
+	if (is_stop_dma) {
+		tegra_dma_stop(ch);
+		req->req_state = TEGRA_DMA_REQ_STATE_STOPPED;
+	}
+
+	spin_unlock_irqrestore(&ch->lock, irq_flags);
+	return bytes_transferred;
+}
+EXPORT_SYMBOL(tegra_dma_get_transfer_count);
+
+int tegra_dma_start_dma(int channel, struct tegra_dma_req *_req)
+{
+	unsigned int csr;
+	unsigned int status;
+	struct tegra_dma_channel *ch = &dma_channels[channel];
+	struct tegra_dma_req *req = NULL;
+	unsigned long irq_flags;
+
+	spin_lock_irqsave(&ch->lock, irq_flags);
+
+	req = list_entry(ch->list.next, typeof(*req), list);
+
+	/* Make sure that dma request is in top of the list */
+	if (req != _req) {
+		spin_unlock_irqrestore(&ch->lock, irq_flags);
+		printk(KERN_ERR "The dma request is not on top request \n");
+		return -1;
+	}
+
+	if (req->req_state != TEGRA_DMA_REQ_STATE_STOPPED) {
+		spin_unlock_irqrestore(&ch->lock, irq_flags);
+		printk(KERN_ERR "Dma state is not in STOPPED \n");
+		return -1;
+	}
+
+	/* clear interrupt if already there */
+	status = readl(ch->addr + APBDMACHAN_CHANNEL_0_STA_0);
+	if (status & NV_DRF_DEF(APBDMACHAN_CHANNEL_0, STA, ISE_EOC, INTR))
+		writel(status, ch->addr + APBDMACHAN_CHANNEL_0_STA_0);
+
+	csr = ch->csr;
+	csr = NV_FLD_SET_DRF_DEF(APBDMACHAN_CHANNEL_0, CSR, IE_EOC,ENABLE, csr);
+	writel(csr, ch->addr + APBDMACHAN_CHANNEL_0_CSR_0);
+	ch->csr = csr;
+
+	req->bytes_transferred = 0;
+	req->status = 0;
+	req->buffer_state = TEGRA_DMA_REQ_BUF_STATE_EMPTY;
+	req->req_state = TEGRA_DMA_REQ_STATE_RUNNING;
+
+	/* start dma now */
+	csr = NV_FLD_SET_DRF_DEF(APBDMACHAN_CHANNEL_0, CSR, ENB, ENABLE, csr);
+	writel(csr, ch->addr + APBDMACHAN_CHANNEL_0_CSR_0);
+	spin_unlock_irqrestore(&ch->lock, irq_flags);
+	return 0;
+}
+EXPORT_SYMBOL(tegra_dma_start_dma);
 
 int tegra_dma_dequeue_req(int channel, struct tegra_dma_req *_req)
 {
@@ -198,8 +317,8 @@ int tegra_dma_dequeue_req(int channel, struct tegra_dma_req *_req)
 	 *	dequue happens at the same time as the DMA just moved to
 	 *	the new buffer and SW didn't yet received the interrupt?
 	 */
-	if (ch->mode & TEGRA_DMA_MODE_CONTINOUS)
-		if (req->buffer_status == TEGRA_DMA_REQ_BUF_STATUS_HALF_FULL) {
+	if (ch->mode & TEGRA_DMA_MODE_CONTINUOUS)
+		if (req->buffer_state == TEGRA_DMA_REQ_BUF_STATE_HALF_FULL) {
 			req->bytes_transferred += 4 * (req_transfer_count +1);
 		}
 
@@ -213,10 +332,13 @@ int tegra_dma_dequeue_req(int channel, struct tegra_dma_req *_req)
 	}
 	req->status = -TEGRA_DMA_REQ_ERROR_ABOTRED;
 
+	req->req_state = TEGRA_DMA_REQ_STATE_COMPLETE;
 	spin_unlock_irqrestore(&ch->lock, irq_flags);
 
 	/* Callback should be called without any lock */
 	req->complete(req, req->status);
+	req->req_state = TEGRA_DMA_REQ_STATE_FREE;
+
 	return 0;
 }
 EXPORT_SYMBOL(tegra_dma_dequeue_req);
@@ -271,7 +393,8 @@ int tegra_dma_enqueue_req(int channel, struct tegra_dma_req *req)
 
 	req->bytes_transferred = 0;
 	req->status = 0;
-	req->buffer_status = 0;
+	req->buffer_state = TEGRA_DMA_REQ_BUF_STATE_EMPTY;
+	req->req_state = TEGRA_DMA_REQ_STATE_QUEUED;
 	if (list_empty(&ch->list))
 		start_dma = 1;
 
@@ -350,6 +473,7 @@ static void tegra_dma_update_hw_partial(struct tegra_dma_channel *ch,
 	}
 	writel(ch->apb_ptr, ch->addr + APBDMACHAN_CHANNEL_0_APB_PTR_0);
 	writel(ch->ahb_ptr, ch->addr + APBDMACHAN_CHANNEL_0_AHB_PTR_0);
+	req->req_state = TEGRA_DMA_REQ_STATE_READY_TO_RUN;
 	return;
 }
 
@@ -476,6 +600,7 @@ static void tegra_dma_update_hw(struct tegra_dma_channel *ch,
 	csr = NV_FLD_SET_DRF_DEF(APBDMACHAN_CHANNEL_0, CSR, ENB,
 		ENABLE, ch->csr);
 	writel(csr, ch->addr + APBDMACHAN_CHANNEL_0_CSR_0);
+	req->req_state = TEGRA_DMA_REQ_STATE_RUNNING;
 }
 
 static void tegra_dma_init_hw(struct tegra_dma_channel *ch)
@@ -516,6 +641,7 @@ static void handle_oneshot_dma(struct tegra_dma_channel *ch)
 		list_del(&req->list);
 		req->bytes_transferred = bytes_transferred;
 		req->status = TEGRA_DMA_REQ_SUCCESS;
+		req->req_state = TEGRA_DMA_REQ_STATE_COMPLETE;
 
 		spin_unlock(&ch->lock);
 		/* Callback should be called without any lock */
@@ -533,6 +659,7 @@ static void handle_oneshot_dma(struct tegra_dma_channel *ch)
 static void handle_continuous_dma(struct tegra_dma_channel *ch)
 {
 	static struct tegra_dma_req *req;
+	struct tegra_dma_req *next_req;
 
 	spin_lock(&ch->lock);
 	if (list_empty(&ch->list)) {
@@ -541,46 +668,85 @@ static void handle_continuous_dma(struct tegra_dma_channel *ch)
 	}
 
 	req = list_entry(ch->list.next, typeof(*req), list);
-	if (req) {
-		if (req->buffer_status == TEGRA_DMA_REQ_BUF_STATUS_EMPTY) {
-			/* Load the next request into the hardware, if available
-			 * */
+	if (!req) {
+		spin_unlock(&ch->lock);
+		return;
+	}
+	if (req->buffer_state == TEGRA_DMA_REQ_BUF_STATE_EMPTY) {
+		/* continuous non same buffer, load the new request */
+		if (ch->mode  != TEGRA_DMA_MODE_CONTINUOUS_SAME_BUFFER) {
 			if (!list_is_last(&req->list, &ch->list)) {
-				struct tegra_dma_req *next_req;
-
-				printk("Queue the next request\n");
+				printk("Queueing the next request\n");
 				next_req = list_entry(req->list.next,
-					typeof(*next_req), list);
+					    typeof(*next_req), list);
 				tegra_dma_update_hw_partial(ch, next_req);
 			}
-			req->buffer_status = TEGRA_DMA_REQ_BUF_STATUS_HALF_FULL;
-			/* DMA lock is NOT held when callbak is called */
-			spin_unlock(&ch->lock);
-			req->threshold(req, TEGRA_DMA_REQ_SUCCESS);
-			return;
+		}
+		req->buffer_state = TEGRA_DMA_REQ_BUF_STATE_HALF_FULL;
 
-		} else if (req->buffer_status ==
-			TEGRA_DMA_REQ_BUF_STATUS_HALF_FULL) {
-			/* Callback when the buffer is completely full (i.e on
-			 * the second  interrupt */
-			int bytes_transferred;
+		/* DMA lock is NOT held when callbak is called */
+		spin_unlock(&ch->lock);
+		req->threshold(req, TEGRA_DMA_REQ_SUCCESS);
+		return;
+	} else if (req->buffer_state == TEGRA_DMA_REQ_BUF_STATE_HALF_FULL) {
+		/* Callback when the buffer is completely full (i.e on
+		 * the second  interrupt */
+		int bytes_transferred;
 
-			bytes_transferred = NV_DRF_VAL(APBDMACHAN_CHANNEL_0,
-				CSR, WCOUNT, ch->csr);
-			bytes_transferred += 1;
-			bytes_transferred <<= 3;
+		bytes_transferred = NV_DRF_VAL(APBDMACHAN_CHANNEL_0, CSR,
+						WCOUNT, ch->csr);
+		bytes_transferred += 1;
+		bytes_transferred <<= 3;
+		req->bytes_transferred = bytes_transferred;
+		req->buffer_state = TEGRA_DMA_REQ_BUF_STATE_FULL;
+		req->status = TEGRA_DMA_REQ_SUCCESS;
 
-			req->buffer_status = TEGRA_DMA_REQ_BUF_STATUS_FULL;
-			req->bytes_transferred = bytes_transferred;
-			req->status = TEGRA_DMA_REQ_SUCCESS;
+		if (ch->mode  != TEGRA_DMA_MODE_CONTINUOUS_SAME_BUFFER) {
+			if (list_is_last(&req->list, &ch->list)) {
+				printk(KERN_INFO "Stopping cont-dma as there"
+						 "is no more request\n");
+				tegra_dma_stop(ch);
+			} else {
+				/* It may be possible that req came after
+				 * half dma complete so it need to start
+				 * immediately */
+				next_req = list_entry(req->list.next,
+						typeof(*next_req), list);
+				if (next_req->req_state !=
+					TEGRA_DMA_REQ_STATE_READY_TO_RUN) {
+					printk(KERN_INFO "Starting dma req which"
+							 "came after half dma "
+							 "complete\n");
+					tegra_dma_update_hw(ch, next_req);
+				} else {
+					next_req->req_state =
+						TEGRA_DMA_REQ_STATE_RUNNING;
+				}
+			}
+			req->req_state = TEGRA_DMA_REQ_STATE_COMPLETE;
 			list_del(&req->list);
 
 			/* DMA lock is NOT held when callbak is called */
 			spin_unlock(&ch->lock);
 			req->complete(req, TEGRA_DMA_REQ_SUCCESS);
-			return;
-
+			req->req_state = TEGRA_DMA_REQ_STATE_FREE;
+			req->buffer_state = TEGRA_DMA_REQ_BUF_STATE_EMPTY;
 		} else {
+			/* DMA lock is NOT held when callbak is called */
+			req->buffer_state = TEGRA_DMA_REQ_BUF_STATE_EMPTY;
+			spin_unlock(&ch->lock);
+			req->threshold(req, TEGRA_DMA_REQ_SUCCESS);
+		}
+		return;
+	} else {
+		if (ch->mode  != TEGRA_DMA_MODE_CONTINUOUS_SAME_BUFFER) {
+			tegra_dma_stop(ch);
+			req->req_state = TEGRA_DMA_REQ_STATE_COMPLETE;
+
+			/* Dma should be stop much earlier */
+			BUG();
+		} else {
+			/* Why cont-same buffer reach here */
 			BUG();
 		}
 	}
@@ -639,8 +805,8 @@ int __init tegra_dma_init(void)
 			goto fail;
 
 		modid = NVRM_MODULE_ID(NvRmPrivModuleID_ApbDmaChannel, i);
-		NvRmModuleGetBaseAddress(s_hRmGlobal, modid,
-			&ch->phys_addr, &size);
+		NvRmModuleGetBaseAddress(s_hRmGlobal, modid, &ch->phys_addr,
+						&size);
 		ch->addr = IO_ADDRESS(ch->phys_addr);
 		if (!ch->addr) {
 			ret = -ENOMEM;
