@@ -37,6 +37,15 @@
 #define NET_SKB_PAD	L1_CACHE_BYTES
 
 
+/*
+ *  4MB is required to cover all USB host use cases.
+ */
+#ifndef CONSISTENT_DMA_SIZE
+#define CONSISTENT_DMA_SIZE SZ_4M
+#endif
+
+
+
 #define __arch_page_to_dma(dev, page)	((dma_addr_t)__virt_to_phys(page_address(page)))
 
 #define __arch_dma_to_virt(dev, addr)	((void *) __phys_to_virt(addr))
