@@ -71,12 +71,14 @@ struct tegra_kbc_plat *tegra_kbc_odm_to_plat(void)
 
 	NvOdmKbcGetParameter(NvOdmKbcParameter_DebounceTime, 1, &temp);
 
-	pdata->debounce_cnt = temp;
+	/* debounce time is reported from ODM in milliseconds,
+	 * but needs to be specified in 32KHz ticks */
+	pdata->debounce_cnt = temp *32;
 
 	/* repeat cycle is reported from ODM in milliseconds,
 	 * but needs to be specified in 32KHz ticks */
 	NvOdmKbcGetParameter(NvOdmKbcParameter_RepeatCycleTime, 1, &temp);
-	pdata->repeat_cnt = temp * 4096 / 125;
+	pdata->repeat_cnt = temp * 32;
 
 	temp = NvOdmPeripheralEnumerate(&srch_attr, &srch_val, 1, &guid, 1);
 	if (!temp) {

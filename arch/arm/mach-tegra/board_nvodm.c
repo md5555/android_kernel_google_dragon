@@ -430,7 +430,7 @@ static void kbc_init(void)
     struct tegra_kbc_plat *pdata = NULL;
     static struct resource res[2];
 
-    dev = platform_device_alloc("tegra_kbc", -1);
+    dev = platform_device_alloc("tegra-kbc", -1);
     if (!dev)
         goto fail;
 
