@@ -45,6 +45,8 @@
 #include "nvrm_hwintf.h"
 #include "nvodm_modules.h"
 
+#include <mach/pinmux.h>
+
 // This is to disable trisate refcounting.
 #define SKIP_TRISTATE_REFCNT 0
 
@@ -229,19 +231,20 @@ void NvRmPrivAp15EnableExternalClockSource(
 
 void NvRmPrivAp20EnableExternalClockSource(
     NvRmDeviceHandle hDevice,
-    const NvU32* pModuleProgram,
-    NvU32 Config,
-    NvBool EnableClock);
+    struct tegra_pingroup_config *pin_config,
+    int len,
+    NvBool ClockState);
 
 NvU32 NvRmPrivAp15GetExternalClockSourceFreq(
     NvRmDeviceHandle hDevice,
     const NvU32* pModuleProgram,
     NvU32 Config);
 
-NvU32 NvRmPrivAp20GetExternalClockSourceFreq(
+NvU32
+NvRmPrivAp20GetExternalClockSourceFreq(
     NvRmDeviceHandle hDevice,
-    const NvU32* pModuleProgram,
-    NvU32 Config);
+    struct tegra_pingroup_config *pin_config,
+    int len);
 
 NvBool NvRmPrivAp15RmModuleToOdmModule(
     NvRmModuleID ModuleID,

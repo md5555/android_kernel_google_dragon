@@ -38,6 +38,10 @@
 #include "ap15/ap15rm_private.h"
 #include "nvrm_pinmux_utils.h"
 #include "nvodm_query_pinmux.h"
+#include <linux/module.h>
+
+#include <mach/pinmux.h>
+#include <mach/gpio-names.h>
 
 /*  Each of the pin mux configurations defined in the pin mux spreadsheet are
  *  stored in chip-specific tables.  For each configuration, every pad group
@@ -75,65 +79,96 @@
  *  macros.
  */
 
-static void NvRmPrivApplyAllPinMuxes(
-    NvRmDeviceHandle hDevice,
-    NvBool First);
+#define IO_MODULES() \
+    iomodule_devid(Ata, 1,  "ide")                                         \
+    iomodule_devid(Crt, 1, "crt")                                          \
+    iomodule_devid(Csi, 1, "csi")                                          \
+    iomodule_devid(Dap, 5, "i2s.0", "i2s.1", "i2s.2",                      \
+                                "i2s.3", "i2s.4")                          \
+    iomodule_devid(Display,2, "displaya", "displayb")                      \
+    iomodule_devid(Dsi, 1,  "dsi")                                         \
+    iomodule_devid(Gpio,1,  "gpio")                                        \
+    iomodule_devid(Hdcp,1,  "hdcp")                                        \
+    iomodule_devid(Hdmi,1,  "hdmi")                                        \
+    iomodule_devid(Hsi,1, "hsi")                                           \
+    iomodule_devid(Hsmmc,1, "hsmmc")                                       \
+    iomodule_devid(I2s,1, "i2s")                                           \
+    iomodule_devid(I2c,3, "tegra_i2c.1", "tegra_i2c.2", "tegra_i2c.3")     \
+    iomodule_devid(I2c_Pmu,1, "tegra_i2c.0")                               \
+    iomodule_devid(Kbd, 1, "tegra_kbc")                                    \
+    iomodule_devid(Mio, 1, "mio")                                          \
+    iomodule_devid(Nand,1, "tegra_nand")                                   \
+    iomodule_devid(Pwm, 1, "pwm")                                          \
+    iomodule_devid(Sdio,4, "tegra-sdhci.0", "tegra-sdhci.1",               \
+                        "tegra-sdhci.2", "tegra-sdhci.3")                  \
+    iomodule_devid(Sflash,1, "tegra_spi.4")                                \
+    iomodule_devid(Slink,1, "slink")                                       \
+    iomodule_devid(Spdif,1, "spdif")                                       \
+    iomodule_devid(Spi, 4, "tegra_spi.0", "tegra_spi.1", "tegra_spi.2",    \
+                        "tegra_spi.3")                                     \
+    iomodule_devid(Twc, 1, "twc")                                          \
+    iomodule_devid(Tvo, 1, "tvo")                                          \
+    iomodule_devid(Uart, 5, "tegra_uart.0", "tegra_uart.1",                \
+                        "tegra_uart.2", "tegra_uart.3",                    \
+                        "tegra_uart.4")                                    \
+    iomodule_devid(Usb, 1, "Usb")                                          \
+    iomodule_devid(Vdd, 1, "Vdd")                                          \
+    iomodule_devid(VideoInput, 1, "vi")                                    \
+    iomodule_devid(Xio, 1, "xio")                                          \
+    iomodule_devid(ExternalClock, 3, "extclk.0", "extclk.1", "extclk.2")   \
+    iomodule_devid(Ulpi, 1, "tegra-ehci.1")                                \
+    iomodule_devid(OneWire, 1, "tegra_w1")                                 \
+    iomodule_devid(SyncNor, 1, "snor")                                     \
+    iomodule_devid(PciExpress, 1, "tegra_pcie")                            \
+    iomodule_devid(Trace, 1, "etm")                                        \
+    iomodule_devid(Tsense,1, "tsensor")                                    \
+    iomodule_devid(BacklightPwm,4, "blight.d1.p0", "blight.d1.p1",         \
+                                 "blight.d2.p0", "blight.d2.p1")
 
-static void NvRmPrivApplyAllModuleTypePinMuxes(
-    NvRmDeviceHandle hDevice,
-    NvU32 Module,
-    NvBool ApplyReset,
-    NvBool ApplyActual);
+struct tegra_iomodule_devlist
+{
+    int t_inst;
+    const char **dev_list;
+};
+
+#define iomodule_devid(mod, tinst, ...) \
+    static const char *tegra_iomodule_##mod[] = {__VA_ARGS__};
+IO_MODULES()
+
+#undef iomodule_devid
+#define iomodule_devid(mod, tinst, ...)    \
+    [NvOdmIoModule_##mod] = {              \
+         .t_inst = tinst,                  \
+         .dev_list = tegra_iomodule_##mod, \
+     },
+
+static const struct  tegra_iomodule_devlist iomodule_devlist[NvOdmIoModule_Num] = {
+    IO_MODULES()
+};
+
+extern struct tegra_pingroup_config *tegra_pinmux_get(const char *dev_id,
+         int config, int *len);
+extern int gpio_get_pinmux_group(int gpio_nr);
 
 typedef struct
 {
-    void (*pfnInitTrisateRefCount)(NvRmDeviceHandle hDevice);
-    const NvU32*** (*pfnGetPinMuxConfigs)(NvRmDeviceHandle hDevice);
     void
-    (*pfnSetPinMuxCtl)(
-    NvRmDeviceHandle hDevice,
-        const NvU32* Module,
-        NvU32 Config);
-    void
-    (*pfnSetPadTristates)(
+    (*pfnEnableExtClock)(
         NvRmDeviceHandle hDevice,
-        const NvU32* Module,
-        NvU32 Config,
-        NvBool EnTristate);
-    const NvU32*
-    (*pfnFindConfigStart)(
-        const NvU32* Instance,
-        NvU32 Config,
-        NvU32 EndMarker);
-    NvBool
-    (*pfnGetPinGroupForGpio)(
+        struct tegra_pingroup_config *pin_config,
+        int len,
+        NvBool ClockState);
+    NvU32
+    (*pfnGetExtClockFreq)(
         NvRmDeviceHandle hDevice,
-        NvU32 Port,
-        NvU32 Pin,
-        NvU32 *pMapping);
-    void
-    (*pfnSetGpioTristate)(
-        NvRmDeviceHandle hDevice,
-        NvU32 Port,
-        NvU32 Pin,
-        NvBool EnableTristate);
+        struct tegra_pingroup_config *pin_config,
+        int len);
     NvError
     (*pfnInterfaceCaps)(
         NvOdmIoModule Module,
         NvU32 Instance,
         NvU32 PinMap,
         void *pCaps);
-    void
-    (*pfnEnableExtClock)(
-        NvRmDeviceHandle hDevice,
-        const NvU32* Instance,
-        NvU32 Config,
-        NvBool ClockState);
-    NvU32
-    (*pfnGetExtClockFreq)(
-        NvRmDeviceHandle hDevice,
-        const NvU32* Instance,
-        NvU32 Config);
     NvError
     (*pfnGetStraps)(
         NvRmDeviceHandle hDevice,
@@ -147,141 +182,119 @@ typedef struct
 static NvPinmuxPrivMethods* NvRmPrivGetPinmuxMethods(NvRmDeviceHandle hDevice)
 {
     static NvPinmuxPrivMethods *p;
-    static NvPinmuxPrivMethods s_Ap15Methods =
-    {
-        NvRmPrivAp15InitTrisateRefCount,
-        NvRmAp15GetPinMuxConfigs,
-        NvRmPrivAp15SetPinMuxCtl,
-        NvRmPrivAp15SetPadTristates,
-        NvRmPrivAp15FindConfigStart,
-        NvRmAp15GetPinGroupForGpio,
-        NvRmPrivAp15SetGpioTristate,
-        NvRmPrivAp15GetModuleInterfaceCaps,
-        NvRmPrivAp15EnableExternalClockSource,
-        NvRmPrivAp15GetExternalClockSourceFreq,
-        NvRmAp15GetStraps,
-        NvRmAp15SetDefaultTristate
-    };
-    static NvPinmuxPrivMethods s_Ap16Methods =
-    {
-        NvRmPrivAp15InitTrisateRefCount,
-        NvRmAp16GetPinMuxConfigs,
-        NvRmPrivAp15SetPinMuxCtl,
-        NvRmPrivAp15SetPadTristates,
-        NvRmPrivAp15FindConfigStart,
-        NvRmAp15GetPinGroupForGpio,
-        NvRmPrivAp15SetGpioTristate,
-        NvRmPrivAp16GetModuleInterfaceCaps,
-        NvRmPrivAp15EnableExternalClockSource,
-        NvRmPrivAp15GetExternalClockSourceFreq,
-        NvRmAp15GetStraps,
-        NvRmAp15SetDefaultTristate
-    };
     static NvPinmuxPrivMethods s_Ap20Methods =
     {
-        NvRmPrivAp15InitTrisateRefCount,
-        NvRmAp20GetPinMuxConfigs,
-        NvRmPrivAp15SetPinMuxCtl,
-        NvRmPrivAp15SetPadTristates,
-        NvRmPrivAp15FindConfigStart,
-        NvRmAp20GetPinGroupForGpio,
-        NvRmPrivAp15SetGpioTristate,
-        NvRmPrivAp20GetModuleInterfaceCaps,
         NvRmPrivAp20EnableExternalClockSource,
         NvRmPrivAp20GetExternalClockSourceFreq,
+        NvRmPrivAp20GetModuleInterfaceCaps,
         NvRmAp20GetStraps,
         NvRmAp20SetDefaultTristate
     };
 
     NV_ASSERT(hDevice);
-    switch (hDevice->ChipId.Id) {
-    case 0x15:
-        p = &s_Ap15Methods;
-        break;
-    case 0x16:
-        p = &s_Ap16Methods;
-        break;
-    case 0x20:
+    if (hDevice->ChipId.Id == 0x20)
+    {
         p = &s_Ap20Methods;
-        break;
-    default:
+    }
+    else
+    {
         NV_ASSERT(!"Unsupported chip ID");
-        return NULL;
+        p = NULL;
     }
     return p;
 }
 
-static void NvRmPrivApplyAllPinMuxes(
-    NvRmDeviceHandle hDevice,
-    NvBool First)
-{
-    NvOdmIoModule Module;
-
-    NV_ASSERT(hDevice->PinMuxTable);
-
-    for (Module=NvOdmIoModule_Ata; Module<NvOdmIoModule_Num; Module++)
-    {
-        NvBool ApplyActual = NV_TRUE;
-        /* During early boot, the only device that has its pin mux correctly
-         * initialized is the I2C PMU controller, so that primitive peripherals
-         * (EEPROMs, PMU, RTC) can be accessed during the boot process */
-        if (First)
-            ApplyActual = (Module==NvOdmIoModule_I2c_Pmu);
-
-        NvRmPrivApplyAllModuleTypePinMuxes(hDevice, Module,
-            First, ApplyActual);
-    }
-}
-
 static void NvRmPrivApplyAllModuleTypePinMuxes(
     NvRmDeviceHandle hDevice,
-    NvU32 Module,
+    NvU32 IoModule,
     NvBool ApplyReset,
     NvBool ApplyActual)
 {
     const NvU32 *OdmConfigs;
     NvU32 NumOdmConfigs;
-    NvPinmuxPrivMethods *p = NvRmPrivGetPinmuxMethods(hDevice);
-    const NvU32 **ModulePrograms = hDevice->PinMuxTable[(NvU32)Module];
-
-    if (!ModulePrograms)
-        return;
+    struct tegra_pingroup_config *pin_config;
+    int len = 0;
+    int Instance = 0;
+    NvU32 config;
 
     if (ApplyActual)
-        NvOdmQueryPinMux(Module, &OdmConfigs, &NumOdmConfigs);
+        NvOdmQueryPinMux(IoModule, &OdmConfigs, &NumOdmConfigs);
     else
     {
         OdmConfigs = NULL;
         NumOdmConfigs = 0;
     }
 
-    for (; *ModulePrograms ; ModulePrograms++)
+    for (Instance = 0; Instance < iomodule_devlist[IoModule].t_inst; ++Instance)
     {
         /*  Apply the reset configuration to ensure that the module is in
          *  a sane state, then apply the ODM configuration, if one is specified
          */
         if (ApplyReset)
-            (p->pfnSetPinMuxCtl)(hDevice, *ModulePrograms, 0);
+        {
+            if (iomodule_devlist[IoModule].dev_list[Instance] != NULL)
+            {
+                pin_config = tegra_pinmux_get(iomodule_devlist[IoModule].dev_list[Instance],
+                            0, &len);
+                    if (pin_config != NULL)
+                    {
+                        tegra_pinmux_config_pinmux_table(pin_config, len, false);
+                    }
+            }
+        }
         if (NumOdmConfigs && ApplyActual)
         {
-            (p->pfnSetPinMuxCtl)(hDevice, *ModulePrograms, *OdmConfigs);
+            config = *OdmConfigs;
+            if (config)
+            {
+                if (iomodule_devlist[IoModule].dev_list[Instance] != NULL)
+                {
+                    pin_config = tegra_pinmux_get(
+                                        iomodule_devlist[IoModule].dev_list[Instance],
+                                        config, &len);
+                    if (pin_config != NULL)
+                    {
+                        tegra_pinmux_config_pinmux_table(pin_config, len, true);
+                    }
+                }
+            }
             NumOdmConfigs--;
             OdmConfigs++;
         }
     }
+
     /*  If the ODM pin mux table is created correctly, there should be
-     *  the same number of ODM configs as module instances; however, we
-     *  allow the ODM to specify fewer configs than instances with assumed
-     *  zeros for undefined modules */
+    *  the same number of ODM configs as module instances; however, we
+    *  allow the ODM to specify fewer configs than instances with assumed
+    *  zeros for undefined modules */
     while (NumOdmConfigs)
     {
         NV_ASSERT((*OdmConfigs==0) &&
-                  "More ODM configs than module instances!\n");
+                    "More ODM configs than module instances!\n");
         NumOdmConfigs--;
         OdmConfigs++;
     }
 }
 
+static void NvRmPrivApplyAllPinMuxes(
+    NvRmDeviceHandle hDevice,
+    NvBool First)
+{
+    NvOdmIoModule IoModule;
+
+    for (IoModule = NvOdmIoModule_Ata; IoModule < NvOdmIoModule_Num; IoModule++)
+    {
+        NvBool ApplyActual = NV_TRUE;
+        /* During early boot, the only device that has its pin mux correctly
+         * initialized is the I2C PMU controller, so that primitive peripherals
+         * (EEPROMs, PMU, RTC) can be accessed during the boot process */
+        if (First)
+            ApplyActual = (IoModule==NvOdmIoModule_I2c_Pmu);
+
+        NvRmPrivApplyAllModuleTypePinMuxes(hDevice, IoModule, First,
+                                           ApplyActual);
+    }
+}
 /**
  * RmInitPinMux will program the pin mux settings for all IO controllers to
  * the ODM-selected value (or a safe reset value, if no value is defined in
@@ -298,17 +311,10 @@ void NvRmInitPinMux(
     if (First)
         (p->pfnSetDefaultTristate)(hDevice);
 
-    if (!hDevice->PinMuxTable)
-    {
-        hDevice->PinMuxTable = (p->pfnGetPinMuxConfigs)(hDevice);
-        (p->pfnInitTrisateRefCount)(hDevice);
-    }
-
 #if (!NVOS_IS_WINDOWS_CE || NV_OAL)
     NvRmPrivApplyAllPinMuxes(hDevice, First);
 #endif
 }
-
 
 /* RmPinMuxConfigSelect sets a specific module to a specific configuration.
  * It is used for multiplexed controllers, and should only be called by the
@@ -319,34 +325,22 @@ void NvRmPinMuxConfigSelect(
     NvU32 Instance,
     NvU32 Configuration)
 {
-    const NvU32 ***ModulePrograms = NULL;
-    const NvU32 **InstancePrograms = NULL;
-    NvU32 i = 0;
-    NvPinmuxPrivMethods *p = NvRmPrivGetPinmuxMethods(hDevice);
+    struct tegra_pingroup_config *pin_config;
+    int len = 0;
 
     NV_ASSERT(hDevice);
     if (!hDevice)
         return;
+    if (Instance >= iomodule_devlist[IoModule].t_inst)
+	return;
 
-    ModulePrograms = hDevice->PinMuxTable;
-    NV_ASSERT(ModulePrograms && ((NvU32)IoModule < (NvU32)NvOdmIoModule_Num));
-
-    InstancePrograms = (const NvU32**)ModulePrograms[(NvU32)IoModule];
-
-    /*  Walk through the instance arrays for this module, breaking
-     *  when either the requested instance or the end of the list is
-     *  reached. */
-    if (InstancePrograms)
+    if (iomodule_devlist[IoModule].dev_list[Instance] != NULL)
     {
-        while (i<Instance && *InstancePrograms)
+        pin_config = tegra_pinmux_get(iomodule_devlist[IoModule].dev_list[Instance],
+                            Configuration, &len);
+        if (pin_config != NULL)
         {
-            i++;
-            InstancePrograms++;
-        }
-
-        if (*InstancePrograms)
-        {
-            (p->pfnSetPinMuxCtl)(hDevice, *InstancePrograms, Configuration);
+            tegra_pinmux_config_pinmux_table(pin_config, len, true);
         }
     }
 }
@@ -363,33 +357,25 @@ void NvRmPinMuxConfigSetTristate(
     NvU32 Configuration,
     NvBool EnableTristate)
 {
-    const NvU32 ***ModulePrograms  = NULL;
-    const NvU32 **InstancePrograms = NULL;
-    NvU32 i = 0;
-    NvPinmuxPrivMethods *p = NvRmPrivGetPinmuxMethods(hDevice);
+    struct tegra_pingroup_config *pin_config;
+    int len = 0;
+    tegra_tristate_t tristate;
 
     NV_ASSERT(hDevice);
     if (!hDevice)
         return;
 
-    ModulePrograms = hDevice->PinMuxTable;
+    if (Instance >= iomodule_devlist[IoModule].t_inst)
+        return;
 
-    NV_ASSERT(ModulePrograms && ((NvU32)IoModule < (NvU32)NvOdmIoModule_Num));
-
-    InstancePrograms = (const NvU32**)ModulePrograms[(NvU32)IoModule];
-
-    if (InstancePrograms)
+    if (iomodule_devlist[IoModule].dev_list[Instance] != NULL)
     {
-        while (i<Instance && *InstancePrograms)
+        pin_config = tegra_pinmux_get(iomodule_devlist[IoModule].dev_list[Instance],
+                        Configuration, &len);
+        if (pin_config != NULL)
         {
-            i++;
-            InstancePrograms++;
-        }
-
-        if (*InstancePrograms)
-        {
-            (p->pfnSetPadTristates)(hDevice, *InstancePrograms,
-                Configuration, EnableTristate);
+            tristate = (EnableTristate)? TEGRA_TRI_TRISTATE: TEGRA_TRI_NORMAL;
+            tegra_pinmux_config_tristate_table(pin_config, len, tristate);
         }
     }
 }
@@ -429,20 +415,12 @@ NvU32 NvRmPrivRmModuleToOdmModule(
 
     NV_ASSERT(pOdmModules && pOdmInstances);
 
-    if (ChipId==0x15)
-    {
-        Result = NvRmPrivAp15RmModuleToOdmModule(RmModule,
-            pOdmModules, pOdmInstances, &Cnt);
-    }
-    else if (ChipId==0x16)
-    {
-        Result = NvRmPrivAp16RmModuleToOdmModule(RmModule,
-             pOdmModules, pOdmInstances, &Cnt);
-    }
-    else if (ChipId==0x20)
+    if (ChipId==0x20)
     {
         Result = NvRmPrivAp20RmModuleToOdmModule(RmModule,
              pOdmModules, pOdmInstances, &Cnt);
+    } else {
+        return 0;
     }
 
     /*  A default mapping is provided for all standard I/O controllers,
@@ -618,9 +596,26 @@ void NvRmSetGpioTristate(
     NvU32 Pin,
     NvBool EnableTristate)
 {
-    NvPinmuxPrivMethods *p = NvRmPrivGetPinmuxMethods(hDevice);
+    int gpio_nr;
+    tegra_pingroup_t pg;
+    tegra_tristate_t ts;
+    int err;
 
-    (p->pfnSetGpioTristate)(hDevice, Port, Pin, EnableTristate);
+    gpio_nr = Port*8 + Pin;
+
+    if (gpio_nr >= TEGRA_MAX_GPIO)
+        return;
+
+    pg = gpio_get_pinmux_group(gpio_nr);
+    if (pg >= 0)
+    {
+        ts = (EnableTristate == NV_TRUE)?TEGRA_TRI_TRISTATE: TEGRA_TRI_NORMAL;
+        err = tegra_pinmux_set_tristate(pg, ts);
+        if (err < 0)
+            printk(KERN_ERR "pinmux: can't set pingroup %d tristate"
+                " to %d: %d\n", pg,
+                ts, err);
+    }
 }
 
 NvU32 NvRmExternalClockConfig(
@@ -630,46 +625,49 @@ NvU32 NvRmExternalClockConfig(
     NvU32 Config,
     NvBool EnableTristate)
 {
-    const NvU32 ***ModulePrograms  = NULL;
-    const NvU32 **InstancePrograms = NULL;
-    const NvU32 *CdevInstance;
-    NvU32 i = 0;
     NvU32 ret = 0;
+    struct tegra_pingroup_config *pin_config;
+    int len = 0;
+    tegra_tristate_t tristate;
     NvPinmuxPrivMethods *p = NvRmPrivGetPinmuxMethods(hDevice);
+
 
     NV_ASSERT(hDevice);
 
     if (!hDevice)
-        return NvError_BadParameter;
+        return 0;
 
-    ModulePrograms = hDevice->PinMuxTable;
+    if (IoModule != NvOdmIoModule_ExternalClock)
+        return 0;
 
-    NV_ASSERT(IoModule==NvOdmIoModule_ExternalClock);
+    if (Instance >= iomodule_devlist[IoModule].t_inst)
+        return 0;
 
-    NV_ASSERT(ModulePrograms && ((NvU32)IoModule < (NvU32)NvOdmIoModule_Num));
+    if (iomodule_devlist[IoModule].dev_list[Instance] == NULL)
+        return 0;
 
-    InstancePrograms = (const NvU32**)ModulePrograms[(NvU32)IoModule];
-
-    if (InstancePrograms)
+    if (!EnableTristate)
     {
-        while (i<Instance && *InstancePrograms)
+        if (Config)
         {
-            i++;
-            InstancePrograms++;
+            pin_config = tegra_pinmux_get(iomodule_devlist[IoModule].dev_list[Instance],
+                            Config, &len);
+            if (pin_config != NULL)
+            {
+                tegra_pinmux_config_pinmux_table(pin_config, len, true);
+            }
         }
+    }
 
-        if (*InstancePrograms)
-        {
-            if (!EnableTristate)
-                (p->pfnSetPinMuxCtl)(hDevice, *InstancePrograms, Config);
-
-            (p->pfnSetPadTristates)(hDevice, *InstancePrograms,
-                Config, EnableTristate);
-            CdevInstance = (p->pfnFindConfigStart)(*InstancePrograms,
-                               Config, MODULEDONE());
-            (p->pfnEnableExtClock)(hDevice, CdevInstance, Config, !EnableTristate);
-            ret = (p->pfnGetExtClockFreq)(hDevice, CdevInstance, Config);
-        }
+    /* setting tri state */
+    pin_config = tegra_pinmux_get(iomodule_devlist[IoModule].dev_list[Instance],
+                                   Config, &len);
+    if (pin_config != NULL)
+    {
+        tristate = (EnableTristate)?TEGRA_TRI_TRISTATE: TEGRA_TRI_NORMAL;
+        tegra_pinmux_config_tristate_table(pin_config, len, tristate);
+        (p->pfnEnableExtClock)(hDevice, pin_config, len, !EnableTristate);
+        ret = (p->pfnGetExtClockFreq)(hDevice, pin_config, len);
     }
     return ret;
 }

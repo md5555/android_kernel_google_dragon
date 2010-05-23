@@ -345,9 +345,6 @@ void NvRmPrivAp15SetGpioTristate(
         case 0x16:
             ret = NvRmAp15GetPinGroupForGpio(hDevice, Port, Pin, &Mapping);
             break;
-        case 0x20:
-            ret = NvRmAp20GetPinGroupForGpio(hDevice, Port, Pin, &Mapping);
-            break;
         default:
             NV_ASSERT(!"Chip ID not supported");
             return;

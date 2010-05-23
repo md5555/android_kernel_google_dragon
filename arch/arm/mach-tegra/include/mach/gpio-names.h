@@ -249,4 +249,6 @@
 #define TEGRA_GPIO_PBB6		222
 #define TEGRA_GPIO_PBB7		223
 
+#define TEGRA_MAX_GPIO		(TEGRA_GPIO_PBB7 + 1)
+
 #endif

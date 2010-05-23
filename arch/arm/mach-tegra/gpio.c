@@ -36,10 +36,13 @@
 #include <asm/io.h>
 #include <asm/gpio.h>
 
+#include <mach/pinmux.h>
+
 #define GPIO_BANK(x)        ((x) >> 5)
 #define GPIO_PORT(x)        (((x) >> 3) & 0x3)
 #define GPIO_BIT(x)         ((x) & 0x7)
 
+extern int gpio_get_pinmux_group(int gpio_nr);
 extern unsigned long tegra_get_module_inst_base(const char *name, int inst);
 static unsigned long add_gpio_base = 0;
 #define GPIO_REG(x)   ((add_gpio_base + GPIO_BANK(x)*0x80) +  GPIO_PORT(x)*4)
@@ -120,6 +123,22 @@ void tegra_gpio_disable(int gpio)
 	tegra_gpio_mask_write(GPIO_MSK_CNF(gpio), gpio, 0);
 }
 
+static void tegra_set_gpio_tristate(int gpio_nr, tegra_tristate_t ts)
+{
+	tegra_pingroup_t pg;
+	int err;
+
+	if (gpio_nr >= TEGRA_MAX_GPIO)
+		return;
+	pg = gpio_get_pinmux_group(gpio_nr);
+	if (pg >= 0) {
+		err = tegra_pinmux_set_tristate(pg, ts);
+		if (err < 0)
+			printk(KERN_ERR "pinmux: can't set pingroup %d tristate"
+					" to %d: %d\n", pg, ts, err);
+	}
+}
+
 static int tegra_gpio_request(struct gpio_chip *chip, unsigned offset)
 {
 	int port;
@@ -134,7 +153,7 @@ static int tegra_gpio_request(struct gpio_chip *chip, unsigned offset)
 	}
 
 	tegra_gpio_mask_write(GPIO_MSK_CNF(offset), offset, 1);
-	NvRmSetGpioTristate(s_hRmGlobal, port, pin, NV_FALSE);
+	tegra_set_gpio_tristate(offset, TEGRA_TRI_NORMAL);
 	return 0;
 }
 
@@ -147,7 +166,7 @@ static void tegra_gpio_free(struct gpio_chip *chip, unsigned offset)
 
 	tegra_gpio_io_power_config(offset, false);
 	tegra_gpio_mask_write(GPIO_MSK_CNF(offset), offset, 0);
-	NvRmSetGpioTristate(s_hRmGlobal, port, pin, NV_TRUE);
+	tegra_set_gpio_tristate(offset, TEGRA_TRI_TRISTATE);
 }
 
 static void tegra_gpio_set(struct gpio_chip *chip, unsigned offset, int value)
