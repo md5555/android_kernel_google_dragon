@@ -816,14 +816,14 @@ config CACHE_L2X0
 	help
 	  This option enables the L2x0 PrimeCell.
 
-config CACHE_PL3X0
-	bool "Enable the PL3x0 outer cache controller"
+config CACHE_PL310
+	bool "Enable the PL310 outer cache controller"
 	depends on ARCH_TEGRA_2x_SOC
 	default y
 	select OUTER_CACHE
 	select OUTER_CACHE_SYNC
 	help
-	  This option enables the PL3x0 PrimeCell.
+	  This option enables the PL310 PrimeCell.
 
 config CACHE_XSC3L2
 	bool "Enable the L2 cache on XScale3"
