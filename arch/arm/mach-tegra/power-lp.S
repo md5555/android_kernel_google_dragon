@@ -294,12 +294,24 @@ DoWFI:
 ENDPROC(enter_lp2)
 
 ENTRY(exit_lp2)
-	ldr	r5, =PMC_PA_BASE	//R5 = PMC PA base address
-	ldr	r6, =FLOW_PA_BASE	//R6 = FLOW PA base address
-	ldr	r7, =TIMERUS_PA_BASE //R7 = TIMERUS PA base address
-	ldr	r8, =CLK_RST_PA_BASE //R8 = CLK PA base address
-	ldr	r9, =EVP_PA_BASE	//R9 = EVP PA base address
-	ldr	r10, =CSITE_PA_BASE  //R10 = CSITE PA base address
+	//R5 = PMC PA base address
+	add		r5, pc, #lp1_literals-(.+4)
+	ldr		r5, [r5]
+	//R6 = FLOW PA base address
+	add		r6, pc, #lp1_literals-(.+0)
+	ldr		r6, [r6]
+	//R7 = TIMERUS PA base address
+	add		r7, pc, #lp1_literals-(.-4)
+	ldr		r7, [r7]
+	//R8 = CLK PA base address
+	add		r8, pc, #lp1_literals-(.-8)
+	ldr		r8, [r8]
+	//R9 = EVP PA base address
+	add		r9, pc, #lp1_literals-(.-12)
+	ldr		r9, [r9]
+	//R10 = CSITE PA base address
+	add		r10, pc, #lp1_literals-(.-12)
+	ldr		r10, [r10]
 
 	//Check which core we are by checking the MPIDR
 	mrc	p15, 0, r2, c0, c0, 5
@@ -347,9 +359,12 @@ reset_poll:
 	str	r0, [r8, #CLK_RST_CONTROLLER_RST_DEVICES_U_0]
 
 	//Unlock debugger access by writing special "CSACCESS"
-	ldr	r0, =0xC5ACCE55
-	ldr	r1, =CSITE_CPUDBG0_LAR_0  //R1 = CPU0 lock offset
-	ldr	r2, =CSITE_CPUDBG1_LAR_0  //R2 = CPU1 lock offset
+	add	r0, pc, #lp1_literals-(.-20)
+	ldr	r0, [r0]
+	add	r1, pc, #lp1_literals-(.-24) //R1 = CPU0 lock offset
+	ldr	r1, [r1]
+	add	r2, pc, #lp1_literals-(.-28) //R2 = CPU1 lock offset
+	ldr	r2, [r2]
 	str	r0, [r10, r1]		//Unlock CPU0
 	str	r0, [r10, r2]		//Unlock CPU1
 
@@ -572,9 +587,12 @@ reset_poll1:
 	str		r0, [r8, #CLK_RST_CONTROLLER_RST_DEVICES_U_0]
 
 	//Unlock debugger access by writing special "CSACCESS"
-	ldr		r0, =0xC5ACCE55
-	ldr		r1, =CSITE_CPUDBG0_LAR_0  //R1 = CPU0 lock offset
-	ldr		r2, =CSITE_CPUDBG1_LAR_0  //R2 = CPU1 lock offset
+	add		r0, pc, #lp1_literals-(.-20)
+	ldr		r0, [r0]
+	add		r1, pc, #lp1_literals-(.-24) //R1 = CPU0 lock offset
+	ldr		r1, [r1]
+	add		r2, pc, #lp1_literals-(.-28) //R2 = CPU1 lock offset
+	ldr		r2, [r2]
 	str		r0, [r10, r1]		  //Unlock CPU0
 	str		r0, [r10, r2]		  //Unlock CPU1
 
@@ -640,7 +658,6 @@ pll_delay:
 	str		r2, [r8, #CLK_RST_CONTROLLER_CCLK_BURST_POLICY_0]
 
 	//Take the SDRAM out of self-refresh
-
 	//Make sure that the sdram is not gated
 	ldr		r1, [r4, #EMC_CFG_0]
 	bic		r1, r1, #2, 2
@@ -688,6 +705,9 @@ lp1_literals:
 	.word	0x60006000
 	.word	0x6000f000
 	.word	0x70040000
+	.word	0xC5ACCE55
+	.word	CSITE_CPUDBG0_LAR_0
+	.word	CSITE_CPUDBG1_LAR_0
 TemporaryStore:
 	//Create some empty space. We can't use literals
 	//after the MMU has been turned off, so we need
@@ -812,7 +832,8 @@ ENTRY(exit_power_state)
 	//Switch to SVC state
 	cpsid if, #0x13
 
-	ldr	r5, =PMC_PA_BASE
+	add		r5, pc, #lp0_literals-(.+4)	//PMC base
+	ldr		r5, [r5]
 
 	//Check which core we are by checking the MPIDR
 	mrc	p15, 0, r2, c0, c0, 5
