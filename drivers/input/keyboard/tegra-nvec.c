@@ -141,8 +141,8 @@ NvU8 code_tab_102us[EC_TOTAL_CODES] = {
 	0,		//VK_SNAPSHOT
 	0,
 	0,		//VK_OEM_102
-	0,		//VK_F11
-	0,		//VK_F12
+	KEY_F11,	//VK_F11
+	KEY_F12,	//VK_F12
 };
 
 /* The total number of scan codes will be (first - last) */
