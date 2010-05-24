@@ -426,7 +426,7 @@ static void nvec_mouse_remove(struct nvec_device *dev)
 	mouse = NULL;
 }
 
-static struct nvec_driver nvec_mouse = {
+static struct nvec_driver nvec_mouse_driver = {
 	.name		= "nvec_mouse",
 	.probe		= nvec_mouse_probe,
 	.remove		= nvec_mouse_remove,
@@ -436,7 +436,7 @@ static struct nvec_driver nvec_mouse = {
 
 static struct nvec_device nvec_mouse_device = {
 	.name	= "nvec_mouse",
-	.driver	= &nvec_mouse,
+	.driver	= &nvec_mouse_driver,
 };
 
 static int __init nvec_mouse_init(void)
@@ -457,7 +457,7 @@ static int __init nvec_mouse_init(void)
 		goto fail;
 	}
 
-	err = nvec_register_driver(&nvec_mouse);
+	err = nvec_register_driver(&nvec_mouse_driver);
 	if (err)
 	{
 		pr_err("**nvec_mouse_init: nvec_register_driver: fail\n");
@@ -468,7 +468,7 @@ static int __init nvec_mouse_init(void)
 	if (err)
 	{
 		pr_err("**nvec_mouse_init: nvec_device_add: fail\n");
-		nvec_unregister_driver(&nvec_mouse);
+		nvec_unregister_driver(&nvec_mouse_driver);
 		goto fail_register;
 	}
 
@@ -483,7 +483,7 @@ fail:
 static void __exit nvec_mouse_exit(void)
 {
 	nvec_unregister_device(&nvec_mouse_device);
-	nvec_unregister_driver(&nvec_mouse);
+	nvec_unregister_driver(&nvec_mouse_driver);
 }
 
 module_init(nvec_mouse_init);
