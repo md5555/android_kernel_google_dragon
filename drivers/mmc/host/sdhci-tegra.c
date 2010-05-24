@@ -281,7 +281,6 @@ int __init tegra_sdhci_probe(struct platform_device *pdev)
 		goto fail;
 	}
 	NvRmModuleReset(s_hRmGlobal, ModId);
-	NvOdmSdioResume(host->hSdioHandle);
 
 	sdhost->hw_name = "tegra";
 	sdhost->ops = &tegra_sdhci_ops;
@@ -376,7 +375,6 @@ static int __devexit tegra_sdhci_remove(struct platform_device *pdev)
 }
 
 #if defined(CONFIG_PM)
-
 static int tegra_sdhci_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	int ret = 0;
@@ -388,6 +386,7 @@ static int tegra_sdhci_suspend(struct platform_device *pdev, pm_message_t state)
 		ret = sdhci_suspend_host(t_sdhci->sdhost,state);
 		if (ret)
 			pr_err("sdhci_suspend_host failed with error %d\n", ret);
+		NvOdmSdioSuspend(t_sdhci->hSdioHandle);
 	}
 
 	return ret;
@@ -404,6 +403,7 @@ static int tegra_sdhci_resume(struct platform_device *pdev)
 		ret = tegra_sdhci_set_controller_clk(t_sdhci, NV_TRUE);
 		if (ret)
 			pr_err("tegra_sdhci_resume:tegra_sdhci_set_clock failed with error %d\n", ret);
+		NvOdmSdioResume(t_sdhci->hSdioHandle);
 		ret = sdhci_resume_host(t_sdhci->sdhost);
 		if (ret)
 			pr_err("sdhci_resume_host failed with error %d\n", ret);
