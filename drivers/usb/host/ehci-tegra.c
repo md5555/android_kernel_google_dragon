@@ -354,6 +354,8 @@ static int tegra_ehci_setup(struct usb_hcd *hcd)
 }
 
 
+#ifdef	CONFIG_PM
+
 static int tegra_ehci_bus_suspend(struct usb_hcd *hcd)
 {
 	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
@@ -419,6 +421,7 @@ static int tegra_ehci_bus_resume(struct usb_hcd *hcd)
 
 	return ehci_bus_resume(hcd);
 }
+#endif
 
 static int tegra_ehci_urb_enqueue(
 	struct usb_hcd	*hcd,
