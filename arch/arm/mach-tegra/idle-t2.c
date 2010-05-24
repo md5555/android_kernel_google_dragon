@@ -39,7 +39,7 @@ extern void cpu_ap20_do_lp0(void);
 extern void resume(unsigned int state);
 extern uintptr_t g_resume, g_contextSavePA, g_contextSaveVA;
 extern uintptr_t g_iramContextSaveVA;
-extern NvU32 g_NumActiveCPUs, g_ArmPerif;
+extern NvU32 g_ArmPerif;
 extern NvU32 g_enterLP2PA;
 extern volatile void *g_pPMC, *g_pAHB, *g_pCLK_RST_CONTROLLER, *g_pRtc;
 extern volatile void *g_pEMC, *g_pMC, *g_pAPB_MISC, *g_pIRAM, *g_pTimerus;
@@ -251,7 +251,6 @@ void __init NvAp20InitFlowController(void)
     g_iramContextSaveVA =
         (uintptr_t)kmalloc(AVP_CONTEXT_SAVE_AREA_SIZE, GFP_ATOMIC);
     g_contextSavePA = virt_to_phys((void*)g_contextSaveVA);
-    g_NumActiveCPUs = num_online_cpus();
     g_enterLP2PA = virt_to_phys((void*)enter_lp2);
 
     NvOsBootArgGet(NvBootArgKey_WarmBoot,

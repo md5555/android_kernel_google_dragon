@@ -51,7 +51,7 @@ extern volatile void *g_pKBC;
 uintptr_t g_resume = 0, g_contextSavePA = 0, g_contextSaveVA = 0;
 uintptr_t g_iramContextSaveVA = 0;
 NvU32 g_modifiedPlls;
-NvU32 g_wakeupCcbp = 0, g_NumActiveCPUs, g_Sync = 0, g_ArmPerif = 0;
+NvU32 g_wakeupCcbp = 0, g_ArmPerif = 0;
 NvU32 g_enterLP2PA = 0;
 NvU32 g_localTimerLoadRegister, g_localTimerCntrlRegister;
 NvU32 g_coreSightClock, g_currentCcbp, g_currentCcdiv;
@@ -194,8 +194,7 @@ void cpu_ap20_do_lp1(void)
 		//We're back
 		enable_irq(INT_SYS_STATS_MON);
 
-		g_NumActiveCPUs = num_online_cpus();
-                // Assembly LP1 code explicitly turn on PLLX,PLLM and PLLP so no need to enable it
+		// Assembly LP1 code explicitly turn on PLLX,PLLM and PLLP so no need to enable it
 		if (g_modifiedPlls & PowerPllC) {
 			enable_pll(PowerPllC, NV_TRUE);
 			NvOsWaitUS(300);
@@ -252,8 +251,7 @@ void cpu_ap20_do_lp2(void)
     {
         //We're back
         enable_irq(INT_SYS_STATS_MON);
-    
-        g_NumActiveCPUs = num_online_cpus();
+
         //Delay if needed
     
         if (g_modifiedPlls & PowerPllC)    
