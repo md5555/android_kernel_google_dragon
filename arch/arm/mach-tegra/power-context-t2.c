@@ -20,7 +20,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#include "power.h"
+#include "mach/power.h"
 
 extern NvRmDeviceHandle s_hRmGlobal;
 extern uintptr_t g_resume, g_contextSavePA;

@@ -1,30 +1,43 @@
 /*
- * arch/arm/mach-tegra/power.h
+ * arch/arm/mach-tegra/include/mach/power-t2.h
  *
- * Header for tegra power
+ * Header for tegra 2 power
  *
- * Copyright (c) 2010, NVIDIA Corporation.
+ * Copyright (c) 2010 NVIDIA Corporation.
+ * All rights reserved.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
  *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
- * more details.
+ * Redistributions of source code must retain the above copyright notice,
+ * this list of conditions and the following disclaimer.
  *
- * You should have received a copy of the GNU General Public License along
- * with this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ * Redistributions in binary form must reproduce the above copyright notice,
+ * this list of conditions and the following disclaimer in the documentation
+ * and/or other materials provided with the distribution.
+ *
+ * Neither the name of the NVIDIA Corporation nor the names of its contributors
+ * may be used to endorse or promote products derived from this software
+ * without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ *
  */
 
-#include "nvos.h"
-#include "nvrm_init.h"
-#include "nvrm_drf.h"
+#ifndef	_MACH_TEGRA_POWER_T2_H_
+#define	_MACH_TEGRA_POWER_T2_H_
+
 #include "ap20/arapbpm.h"
-#include "nvrm_module.h"
 #include "ap20/arflow_ctlr.h"
 #include "ap20/arclk_rst.h"
 #include "ap20/arapb_misc.h"
@@ -35,77 +48,21 @@
 #include "ap20/aremc.h"
 #include "ap15/arictlr.h"
 #include "ap15/argpio.h"
-#include "nvrm_hardware_access.h"
-#include "nvrm_interrupt.h"
-#include "nvrm_power.h"
-#include "nvrm_power_private.h"
-#include <linux/kernel.h>
-#include <linux/platform_device.h>
-#include <linux/interrupt.h>
 #include "ap20/nvboot_pmc_scratch_map.h"
 
-extern NvRmDeviceHandle s_hRmGlobal;
-
-#define NUM_LOCAL_TIMER_REGISTERS 3
-#define WAKE_PAD_MIN_LATCH_TIME_US 130
-#define WAKE_PAD_MIN_SAMPLE_TIME_US 70
+#define AVP_CONTEXT_SAVE_AREA_SIZE	4096
+#define NUM_LOCAL_TIMER_REGISTERS 	3
+#define WAKE_PAD_MIN_LATCH_TIME_US 	130
+#define WAKE_PAD_MIN_SAMPLE_TIME_US 	70
 
 //Workaround for spurious KBC wake event
 #define NV_KBC_INTERRUPT_WORKAROUND 1
 
-#define NV_CAR_REGR(pBase, reg)\
-		NV_READ32( (((NvUPtr)(pBase)) + CLK_RST_CONTROLLER_##reg##_0))
-#define NV_CAR_REGW(pBase, reg, val)\
-		NV_WRITE32( (((NvUPtr)(pBase)) + CLK_RST_CONTROLLER_##reg##_0), (val))
-#define NV_CAR_REGR_OFFSET(pBase, off)\
-		NV_READ32( (((NvUPtr)(pBase)) + off))
-#define NV_CAR_REGW_OFFSET(pBase, off, val)\
-		NV_WRITE32( (((NvUPtr)(pBase)) + off), (val))
-
-#define NV_ICTLR_REGR(pBase, reg)\
-		NV_READ32( (((NvUPtr)(pBase)) + ICTLR_##reg##_0))
-#define NV_ICTLR_REGW(pBase, reg, val)\
-		NV_WRITE32( (((NvUPtr)(pBase)) + ICTLR_##reg##_0), (val))
-
-#define NV_MISC_REGR(pBase, reg)\
-		NV_READ32( (((NvUPtr)(pBase)) + APB_MISC_##reg##_0))
-#define NV_MISC_REGW(pBase, reg, val)\
-		NV_WRITE32( (((NvUPtr)(pBase)) + APB_MISC_##reg##_0), (val))
-
-#define NV_GPIO_REGR(pBase, reg)\
-		NV_READ32( (((NvUPtr)(pBase)) + GPIO_##reg))
-#define NV_GPIO_REGW(pBase, reg, val)\
-		NV_WRITE32( (((NvUPtr)(pBase)) + GPIO_##reg), (val))
-
-#define NV_APBDMA_REGR(pBase, reg)\
-		NV_READ32( (((NvUPtr)(pBase)) + APBDMA_##reg##_0))
-#define NV_APBDMA_REGW(pBase, reg, val)\
-		NV_WRITE32( (((NvUPtr)(pBase)) + APBDMA_##reg##_0), (val))
-
-#define NV_APBDMACH_REGR(pBase, reg)\
-		NV_READ32( (((NvUPtr)(pBase)) + APBDMACHAN_CHANNEL_0_##reg##_0))
-#define NV_APBDMACH_REGW(pBase, reg, val)\
-		NV_WRITE32( (((NvUPtr)(pBase)) + APBDMACHAN_CHANNEL_0_##reg##_0),(val))
-
-#define NV_MC_REGR(pBase, reg)\
-		NV_READ32( (((NvUPtr)(pBase)) + MC_##reg##_0))
-#define NV_MC_REGW(pBase, reg, val)\
-		NV_WRITE32( (((NvUPtr)(pBase)) + MC_##reg##_0), (val))
-
-#define NV_PMC_REGR(pBase, reg)\
-		NV_READ32( (((NvUPtr)(pBase)) + APBDEV_PMC_##reg##_0))
-#define NV_PMC_REGW(pBase, reg, val)\
-		NV_WRITE32( (((NvUPtr)(pBase)) + APBDEV_PMC_##reg##_0), (val))
-
 #define CAR_CLK_SOURCES_OFFSET_START	CLK_RST_CONTROLLER_CLK_SOURCE_I2S1_0
-#define CAR_CLK_SOURCES_OFFSET_END		CLK_RST_CONTROLLER_CLK_SOURCE_OSC_0
-#define CAR_CLK_SOURCES_REGISTER_COUNT\
+#define CAR_CLK_SOURCES_OFFSET_END	CLK_RST_CONTROLLER_CLK_SOURCE_OSC_0
+#define CAR_CLK_SOURCES_REGISTER_COUNT \
 	((CAR_CLK_SOURCES_OFFSET_END - CAR_CLK_SOURCES_OFFSET_START +\
 		sizeof(NvU32)) / sizeof(NvU32))
-
-#define NV_DR_REGR(d,r)\
-		NV_READ32( ((NvUPtr)(g_p##d)) + d##_##r##_0)
-
 
 //------------------------------------------------------------------------------
 // Boot ROM PMC scratch map name remapping to fix broken names (see bug 542815).
@@ -414,87 +371,5 @@ extern NvRmDeviceHandle s_hRmGlobal;
 		REG(SCRATCH40, APB_MISC, GP_XM2CFGDPADCTRL2, CFG2TMC_XM2CFGD_RX_FT_REC_EN) \
 		/* End-of-List */
 
-#define GPIO_PORT(x)				((x) - 'a')
-#define GPIO_PORTS_PER_INSTANCE		(4)
-#define GPIO_BITS_PER_PORT			(8)
+#endif /* _MACH_TEGRA_POWER_T2_H_ */
 
-#define aa							('z'+1) // GPIO port AA
-#define ab							('z'+2) // GPIO port AB
-
-#define AVP_CONTEXT_SAVE_AREA_SIZE 	4096
-
-//------------------------------------------------------------------------------
-// Wakeup source table macros
-//------------------------------------------------------------------------------
-
-/** WAKEUP_INTERNAL(m,i,x) - Internal wakeup module interrupt sources
-
-	@param m Module id
-	@param i Module instance
-	@param x Module interrupt index
- */
-#define WAKEUP_INTERNAL(m,i,x)	{ NVRM_MODULE_ID((m), (i)), (x) }
-
-/** WAKEUP_EXTERNAL(p, b) - External wakeup module interrupt sources
-
-	@param p GPIO port (e.g., 'a', 'b', etc.)
-	@param b GPIO port bit
- */
-#define WAKEUP_EXTERNAL(p,b)\
-	{NVRM_MODULE_ID(NvRmPrivModuleID_Gpio,GPIO_PORT(p)/GPIO_PORTS_PER_INSTANCE),\
-		(((GPIO_PORT(p) % GPIO_PORTS_PER_INSTANCE)*GPIO_BITS_PER_PORT) + (b)) }
-typedef struct
-{
-	NvU32 *pBase;
-	NvU32 *pContext;
-}  power_module_context;
-
-struct power_context
-{
-	NvU32 context_size_words;
-	NvU32 *first_context_location;
-	power_module_context interrupt;
-	power_module_context misc;
-	power_module_context clock_reset;
-	power_module_context apb_dma;
-	power_module_context apb_dma_chan;
-	power_module_context gpio;
-	power_module_context vde;
-	power_module_context mc;
-};
-
-struct wakeup_source
-{
-	NvU32 Module;
-	NvU32 Index;
-};
-
-typedef enum
-{
-	PowerModuleContext_Init,
-	PowerModuleContext_Save,
-	PowerModuleContext_Restore,
-	PowerModuleContext_DisableInterrupt,
-	PowerModuleContext_SaveLP1,
-	PowerModuleContext_RestoreLP1,
-	PowerModuleContext_Force32 = 0x7fffffff
-} PowerModuleContext;
-
-typedef enum
-{
-	PowerPllM = 0x1,  // Memory
-	PowerPllC = 0x2,  // CPU
-	PowerPllP = 0x4,  // Peripherals
-	PowerPllA = 0x8,  // Audio
-	PowerPllX = 0x10, // CPU Complex
-	PowerPll_Force32 = 0x7fffffff
-} PowerPll;
-
-typedef enum
-{
-	POWER_STATE_LP2,
-	POWER_STATE_LP1,
-	POWER_STATE_LP0,
-} PowerState;
-
-typedef NvU16 NvIrqNumber;

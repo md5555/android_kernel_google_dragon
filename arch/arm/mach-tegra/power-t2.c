@@ -20,7 +20,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#include "power.h"
+#include "mach/power.h"
 #include "linux/interrupt.h"
 #include "nvassert.h"
 #include "ap20/arapbdev_kbc.h"
@@ -229,7 +229,7 @@ void cpu_ap20_do_lp2(void)
             APBDEV_PMC_SCRATCH37_0, g_contextSavePA);
 
     //Only CPU0 must execute the actual suspend operations
-    //CPU1 must be in the reset state before we continue LP2        
+    //CPU1 must be in the reset state before we continue LP2
     if (!proc_id)
     {
         //Disable the Statistics interrupt
@@ -246,19 +246,19 @@ void cpu_ap20_do_lp2(void)
 
     //Do LP2
     enter_power_state(POWER_STATE_LP2, proc_id);
-    
+
     if (!proc_id)
     {
         //We're back
         enable_irq(INT_SYS_STATS_MON);
 
         //Delay if needed
-    
-        if (g_modifiedPlls & PowerPllC)    
+
+        if (g_modifiedPlls & PowerPllC)
             enable_pll(PowerPllC, NV_TRUE);
-        if (g_modifiedPlls & PowerPllM)    
+        if (g_modifiedPlls & PowerPllM)
             enable_pll(PowerPllM, NV_TRUE);
-        if (g_modifiedPlls & PowerPllP)    
+        if (g_modifiedPlls & PowerPllP)
             enable_pll(PowerPllP, NV_TRUE);
 
         NvOsWaitUS(300);
@@ -268,11 +268,11 @@ void cpu_ap20_do_lp2(void)
                 CLK_RST_CONTROLLER_SUPER_CCLK_DIVIDER_0, g_currentCcdiv);
 
         //Restore burst policy
-        NV_REGW(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 0, 
+        NV_REGW(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 0,
                 CLK_RST_CONTROLLER_CCLK_BURST_POLICY_0, g_currentCcbp);
-        
+
         //Restore the CoreSight clock source.
-        NV_REGW(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 0, 
+        NV_REGW(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 0,
                 CLK_RST_CONTROLLER_CLK_SOURCE_CSITE_0, g_coreSightClock);
     }
 }
@@ -446,7 +446,7 @@ static NvU32 select_wakeup_pll(void)
     NvU32   Pll;            // Wakeup PLL
 
     //Get the current CPU burst policy.
-    CurrentCcbp = NV_REGR(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 0, 
+    CurrentCcbp = NV_REGR(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 0,
                     CLK_RST_CONTROLLER_CCLK_BURST_POLICY_0);
     Ccbp = CurrentCcbp;
 
@@ -464,25 +464,25 @@ static NvU32 select_wakeup_pll(void)
 
         case CLK_RST_CONTROLLER_CCLK_BURST_POLICY_0_CPU_STATE_IDLE:
             // Extract the 'idle' state clock source.
-            Reg = NV_DRF_VAL(CLK_RST_CONTROLLER, CCLK_BURST_POLICY, 
+            Reg = NV_DRF_VAL(CLK_RST_CONTROLLER, CCLK_BURST_POLICY,
                     CWAKEUP_IDLE_SOURCE, Ccbp);
             break;
 
         case CLK_RST_CONTROLLER_CCLK_BURST_POLICY_0_CPU_STATE_RUN:
             // Extract the 'run' state clock source.
-            Reg = NV_DRF_VAL(CLK_RST_CONTROLLER, CCLK_BURST_POLICY, 
+            Reg = NV_DRF_VAL(CLK_RST_CONTROLLER, CCLK_BURST_POLICY,
                     CWAKEUP_RUN_SOURCE, Ccbp);
             break;
 
         case CLK_RST_CONTROLLER_CCLK_BURST_POLICY_0_CPU_STATE_IRQ:
             // Extract the 'IRQ' state clock source.
-            Reg = NV_DRF_VAL(CLK_RST_CONTROLLER, CCLK_BURST_POLICY, 
+            Reg = NV_DRF_VAL(CLK_RST_CONTROLLER, CCLK_BURST_POLICY,
                     CWAKEUP_IRQ_SOURCE, Ccbp);
             break;
 
         case CLK_RST_CONTROLLER_CCLK_BURST_POLICY_0_CPU_STATE_FIQ:
             // Extract the 'FIQ' state clock source.
-            Reg = NV_DRF_VAL(CLK_RST_CONTROLLER, CCLK_BURST_POLICY, 
+            Reg = NV_DRF_VAL(CLK_RST_CONTROLLER, CCLK_BURST_POLICY,
                     CWAKEUP_FIQ_SOURCE, Ccbp);
             break;
         default:
@@ -521,7 +521,7 @@ static NvU32 select_wakeup_pll(void)
         if (PllMask & PowerPllM)
         {
             // Is it running now?
-            Reg = NV_REGR(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 0, 
+            Reg = NV_REGR(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 0,
                     CLK_RST_CONTROLLER_PLLM_BASE_0);
             if (NV_DRF_VAL(CLK_RST_CONTROLLER, PLLM_BASE, PLLM_ENABLE, Reg))
             {
@@ -535,7 +535,7 @@ static NvU32 select_wakeup_pll(void)
         if (PllMask & PowerPllP)
         {
             // Is it running now?
-            Reg = NV_REGR(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 
+            Reg = NV_REGR(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset,
                     0, CLK_RST_CONTROLLER_PLLP_BASE_0);
             if (NV_DRF_VAL(CLK_RST_CONTROLLER, PLLP_BASE, PLLP_ENABLE, Reg))
             {
@@ -564,25 +564,25 @@ SetWakeupSource:
     {
         case CLK_RST_CONTROLLER_CCLK_BURST_POLICY_0_CPU_STATE_IDLE:
             // Extract the 'idle' state clock source.
-            Ccbp = NV_FLD_SET_DRF_NUM(CLK_RST_CONTROLLER, CCLK_BURST_POLICY, 
+            Ccbp = NV_FLD_SET_DRF_NUM(CLK_RST_CONTROLLER, CCLK_BURST_POLICY,
                     CWAKEUP_IDLE_SOURCE, Pll, Ccbp);
             break;
 
         case CLK_RST_CONTROLLER_CCLK_BURST_POLICY_0_CPU_STATE_RUN:
             // Extract the 'run' state clock source.
-            Ccbp = NV_FLD_SET_DRF_NUM(CLK_RST_CONTROLLER, CCLK_BURST_POLICY, 
+            Ccbp = NV_FLD_SET_DRF_NUM(CLK_RST_CONTROLLER, CCLK_BURST_POLICY,
                     CWAKEUP_RUN_SOURCE, Pll, Ccbp);
             break;
 
         case CLK_RST_CONTROLLER_CCLK_BURST_POLICY_0_CPU_STATE_IRQ:
             // Extract the 'IRQ' state clock source.
-            Ccbp = NV_FLD_SET_DRF_NUM(CLK_RST_CONTROLLER, CCLK_BURST_POLICY, 
+            Ccbp = NV_FLD_SET_DRF_NUM(CLK_RST_CONTROLLER, CCLK_BURST_POLICY,
                     CWAKEUP_IRQ_SOURCE, Pll, Ccbp);
             break;
 
         case CLK_RST_CONTROLLER_CCLK_BURST_POLICY_0_CPU_STATE_FIQ:
             // Extract the 'FIQ' state clock source.
-            Ccbp = NV_FLD_SET_DRF_NUM(CLK_RST_CONTROLLER, CCLK_BURST_POLICY, 
+            Ccbp = NV_FLD_SET_DRF_NUM(CLK_RST_CONTROLLER, CCLK_BURST_POLICY,
                     CWAKEUP_FIQ_SOURCE, Pll, Ccbp);
             break;
 
@@ -599,42 +599,42 @@ SetWakeupSource:
 void enable_pll(PowerPll pll, NvBool enable)
 {
     NvU32 reg;
-    
+
     switch(pll)
     {
         case PowerPllM:
-            reg = NV_REGR(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 
+            reg = NV_REGR(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset,
                     0, CLK_RST_CONTROLLER_PLLM_BASE_0);
-            reg = NV_FLD_SET_DRF_NUM(CLK_RST_CONTROLLER, PLLM_BASE, 
+            reg = NV_FLD_SET_DRF_NUM(CLK_RST_CONTROLLER, PLLM_BASE,
                     PLLM_ENABLE, (enable ? 1 : 0), reg);
-            NV_REGW(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 
+            NV_REGW(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset,
                     0, CLK_RST_CONTROLLER_PLLM_BASE_0, reg);
             break;
 
         case PowerPllC:
-            reg = NV_REGR(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 
+            reg = NV_REGR(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset,
                     0, CLK_RST_CONTROLLER_PLLC_BASE_0);
-            reg = NV_FLD_SET_DRF_NUM(CLK_RST_CONTROLLER, PLLC_BASE, 
+            reg = NV_FLD_SET_DRF_NUM(CLK_RST_CONTROLLER, PLLC_BASE,
                     PLLC_ENABLE, (enable ? 1 : 0), reg);
-            NV_REGW(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 
+            NV_REGW(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset,
                     0, CLK_RST_CONTROLLER_PLLC_BASE_0, reg);
             break;
 
         case PowerPllP:
-            reg = NV_REGR(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 
+            reg = NV_REGR(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset,
                     0, CLK_RST_CONTROLLER_PLLP_BASE_0);
-            reg = NV_FLD_SET_DRF_NUM(CLK_RST_CONTROLLER, PLLP_BASE, 
+            reg = NV_FLD_SET_DRF_NUM(CLK_RST_CONTROLLER, PLLP_BASE,
                     PLLP_ENABLE, (enable ? 1 : 0), reg);
-            NV_REGW(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 0, 
+            NV_REGW(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 0,
                     CLK_RST_CONTROLLER_PLLP_BASE_0, reg);
             break;
 
         case PowerPllA:
-            reg = NV_REGR(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 
+            reg = NV_REGR(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset,
                     0, CLK_RST_CONTROLLER_PLLA_BASE_0);
-            reg = NV_FLD_SET_DRF_NUM(CLK_RST_CONTROLLER, PLLA_BASE, 
+            reg = NV_FLD_SET_DRF_NUM(CLK_RST_CONTROLLER, PLLA_BASE,
                     PLLA_ENABLE, (enable ? 1 : 0), reg);
-            NV_REGW(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 
+            NV_REGW(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset,
                     0, CLK_RST_CONTROLLER_PLLA_BASE_0, reg);
             break;
 
@@ -646,9 +646,9 @@ void enable_pll(PowerPll pll, NvBool enable)
 void enable_plls(NvBool enable)
 {
     NvU32 dfsPllFlags = NvRmPrivGetDfsFlags(s_hRmGlobal);
-    
+
     g_modifiedPlls = 0;
-    
+
     //DFS tells us which PLLs are safe to turn off
     if (dfsPllFlags & NvRmDfsStatusFlags_StopPllC0)
     {
@@ -657,7 +657,7 @@ void enable_plls(NvBool enable)
     }
 
     //pllp
-    if ((dfsPllFlags & NvRmDfsStatusFlags_StopPllP0) && 
+    if ((dfsPllFlags & NvRmDfsStatusFlags_StopPllP0) &&
         (dfsPllFlags & NvRmDfsStatusFlags_StopPllA0))
     {
         enable_pll(PowerPllP, NV_FALSE);
@@ -675,18 +675,18 @@ void enable_plls(NvBool enable)
 void do_suspend_prep(void)
 {
     NvU32 reg;
-    
+
     //Enable CPU power request output
     reg = NV_REGR(s_hRmGlobal, NvRmModuleID_Pmif, 0, APBDEV_PMC_CNTRL_0);
     reg = NV_FLD_SET_DRF_DEF(APBDEV_PMC, CNTRL, CPUPWRREQ_OE, ENABLE, reg);
     NV_REGW(s_hRmGlobal, NvRmModuleID_Pmif, 0, APBDEV_PMC_CNTRL_0, reg);
-    
+
     //Save the CoreSight stuff
-    g_coreSightClock = NV_REGR(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 
+    g_coreSightClock = NV_REGR(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset,
             0, CLK_RST_CONTROLLER_CLK_SOURCE_CSITE_0);
-    reg = NV_DRF_DEF(CLK_RST_CONTROLLER, CLK_SOURCE_CSITE, 
+    reg = NV_DRF_DEF(CLK_RST_CONTROLLER, CLK_SOURCE_CSITE,
             CSITE_CLK_SRC, CLK_M);
-    NV_REGW(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 0, 
+    NV_REGW(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 0,
             CLK_RST_CONTROLLER_CLK_SOURCE_CSITE_0, reg);
     //Turn off necessary PLLs
     enable_plls(NV_FALSE);
@@ -698,50 +698,50 @@ void do_suspend_prep(void)
 void reset_cpu(unsigned int cpu, unsigned int reset)
 {
     NvU32 reg;
-    
+
     if (reset)
     {
         reg = NV_DRF_DEF(FLOW_CTLR, HALT_CPU1_EVENTS, MODE,
                 FLOW_MODE_WAITEVENT);
-                    
+
         if (cpu)
-        {                    
-            NV_REGW(s_hRmGlobal, NvRmModuleID_FlowCtrl, 0, 
+        {
+            NV_REGW(s_hRmGlobal, NvRmModuleID_FlowCtrl, 0,
                     FLOW_CTLR_HALT_CPU1_EVENTS_0, reg);
         }
         else
         {
-            NV_REGW(s_hRmGlobal, NvRmModuleID_FlowCtrl, 0, 
-                    FLOW_CTLR_HALT_CPU_EVENTS_0, reg);            
+            NV_REGW(s_hRmGlobal, NvRmModuleID_FlowCtrl, 0,
+                    FLOW_CTLR_HALT_CPU_EVENTS_0, reg);
         }
         // Place CPUn into reset.
         reg = NV_DRF_NUM(CLK_RST_CONTROLLER, RST_CPU_CMPLX_SET, SET_CPURESET0, 1)
             | NV_DRF_NUM(CLK_RST_CONTROLLER, RST_CPU_CMPLX_SET, SET_DBGRESET0, 1)
             | NV_DRF_NUM(CLK_RST_CONTROLLER, RST_CPU_CMPLX_SET, SET_DERESET0,  1);
         reg <<= cpu;
-        NV_REGW(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 0, 
-            CLK_RST_CONTROLLER_RST_CPU_CMPLX_SET_0, reg);    
+        NV_REGW(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 0,
+            CLK_RST_CONTROLLER_RST_CPU_CMPLX_SET_0, reg);
     }
     else
     {
-        reg = NV_DRF_DEF(FLOW_CTLR, HALT_CPU1_EVENTS, MODE, 
-                    FLOW_MODE_NONE);           
+        reg = NV_DRF_DEF(FLOW_CTLR, HALT_CPU1_EVENTS, MODE,
+                    FLOW_MODE_NONE);
         if (cpu)
-        {                    
-            NV_REGW(s_hRmGlobal, NvRmModuleID_FlowCtrl, 0, 
+        {
+            NV_REGW(s_hRmGlobal, NvRmModuleID_FlowCtrl, 0,
                     FLOW_CTLR_HALT_CPU1_EVENTS_0, reg);
         }
         else
         {
-            NV_REGW(s_hRmGlobal, NvRmModuleID_FlowCtrl, 0, 
-                    FLOW_CTLR_HALT_CPU_EVENTS_0, reg);            
-        }        
+            NV_REGW(s_hRmGlobal, NvRmModuleID_FlowCtrl, 0,
+                    FLOW_CTLR_HALT_CPU_EVENTS_0, reg);
+        }
         // Take CPUn out of reset.
         reg = NV_DRF_NUM(CLK_RST_CONTROLLER, RST_CPU_CMPLX_CLR, CLR_CPURESET0, 1)
             | NV_DRF_NUM(CLK_RST_CONTROLLER, RST_CPU_CMPLX_CLR, CLR_DBGRESET0, 1)
             | NV_DRF_NUM(CLK_RST_CONTROLLER, RST_CPU_CMPLX_CLR, CLR_DERESET0,  1);
         reg <<= cpu;
-        NV_REGW(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 0, 
+        NV_REGW(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 0,
             CLK_RST_CONTROLLER_RST_CPU_CMPLX_CLR_0, reg);
     }
 }
@@ -750,10 +750,10 @@ unsigned int check_for_cpu1_reset(void)
 {
     volatile NvU32 reg;
 
-    reg = NV_REGR(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 0, 
+    reg = NV_REGR(s_hRmGlobal, NvRmPrivModuleID_ClockAndReset, 0,
             CLK_RST_CONTROLLER_RST_CPU_CMPLX_SET_0);
-            
-    reg = reg & 0x2;                
+
+    reg = reg & 0x2;
 
     return reg;
 }
@@ -766,7 +766,7 @@ void save_local_timers(void)
     while (spin);
 
     g_localTimerLoadRegister = reg[0];
-    g_localTimerCntrlRegister = reg[2];    
+    g_localTimerCntrlRegister = reg[2];
 }
 
 void restore_local_timers(void)
@@ -775,7 +775,7 @@ void restore_local_timers(void)
     volatile NvU32 spin = 0;
 
     while (spin);
-    
+
     reg[0] = g_localTimerLoadRegister;
     reg[2] = g_localTimerCntrlRegister;
 }

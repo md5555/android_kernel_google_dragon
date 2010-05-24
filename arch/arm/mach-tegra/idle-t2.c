@@ -25,7 +25,7 @@
 #include "ap20/arflow_ctlr.h"
 #include "nvbootargs.h"
 #include "nvrm_memmgr.h"
-#include "power.h"
+#include "mach/power.h"
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
 #include <linux/wakelock.h>
@@ -87,7 +87,7 @@ void __init NvAp20InitFlowController(void)
 
     NvRmModuleGetBaseAddress(s_hRmGlobal,
         NVRM_MODULE_ID(NvRmModuleID_FlowCtrl, 0), &pa, &len);
-            
+
     if (NvRmPhysicalMemMap(pa, len, NVOS_MEM_READ_WRITE,
             NvOsMemAttribute_Uncached, (void**)&pTempFc)!=NvSuccess)
     {
@@ -280,12 +280,12 @@ void cpu_ap20_do_idle(void)
 {
     unsigned int tmp = 0;
     volatile uint32_t *addr = 0;
-    
+
     dsb();
 
     if (likely(s_pFlowCtrl))
     {
-        /* 
+        /*
          *  Trigger the "stats monitor" to count the CPU idle cycles.
          */
         if (smp_processor_id())
@@ -296,7 +296,7 @@ void cpu_ap20_do_idle(void)
             addr = (volatile uint32_t*)(s_pFlowCtrl + FLOW_CTLR_HALT_CPU_EVENTS_0);
         }
 
-        tmp = NV_DRF_DEF(FLOW_CTLR, HALT_CPU1_EVENTS, MODE, FLOW_MODE_WAITEVENT) 
+        tmp = NV_DRF_DEF(FLOW_CTLR, HALT_CPU1_EVENTS, MODE, FLOW_MODE_WAITEVENT)
             | NV_DRF_NUM(FLOW_CTLR, HALT_CPU1_EVENTS, JTAG, 1);
 
         NV_WRITE32(addr, tmp);
@@ -311,7 +311,7 @@ void cpu_ap20_do_idle(void)
         /*
          * Signal "stats monitor" to stop counting the idle cycles.
          */
-        tmp = NV_DRF_DEF(FLOW_CTLR, HALT_CPU1_EVENTS, MODE, FLOW_MODE_NONE); 
+        tmp = NV_DRF_DEF(FLOW_CTLR, HALT_CPU1_EVENTS, MODE, FLOW_MODE_NONE);
         NV_WRITE32(addr, tmp);
         tmp = NV_READ32(addr);
     }
