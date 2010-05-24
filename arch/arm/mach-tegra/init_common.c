@@ -859,11 +859,12 @@ fail:
 #else
 #include <asm/hardware/cache-l2x0.h>
 #include "ap20/arpl310.h"
-static void __init tegra_pl310_init(void)
+void tegra_pl310_init(void)
 {
     NvRmPhysAddr CachePa;
     NvU32 Len;
     volatile NvU8 *pCache = NULL;
+
     NvU32 AuxValue =
         NV_DRF_NUM(PL310, AUXILIARY_CONTROL, FULL_LINE_OF_ZERO, 1) |
         NV_DRF_NUM(PL310, AUXILIARY_CONTROL, SO_DEV_HIGH_PRIORITY, 0) |

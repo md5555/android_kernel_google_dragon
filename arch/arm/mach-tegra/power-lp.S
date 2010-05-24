@@ -29,6 +29,7 @@
 #include "ap20/arapbpm.h"
 #include "ap20/aremc.h"
 #include "ap20/arapb_misc.h"
+#include "ap20/arpl310.h"
 #include "nvrm_drf.h"
 
 #if defined(CONFIG_ARCH_TEGRA_2x_SOC)
@@ -47,7 +48,7 @@
 #define CSITE_CPUDBG0_LAR_0 0x10fb0
 #define CSITE_CPUDBG1_LAR_0 0x12fb0
 #define TEMP_AREA_SIZE 32
-#define DEBUG_FORCE_RTC_WAKEUP 5
+#define DEBUG_FORCE_RTC_WAKEUP_SEC 0
 #else
 #error "Unrecognized Tegra SoC Family"
 #endif
@@ -122,7 +123,7 @@ ArmCortexA9Saved:
 	ldr r5, =enter_lp0_end
 	ldr r6, =enter_lp0
 
-	//For LP0, the AVP stores it's continuation address at the first
+	//For LP0, the AVP stores its continuation address at the first
 	//location in IRAM. Before we overwrite IRAM with the LP0 entry
 	//code, copy the AVP continuation and store it in the scratch
 	//register dedicated for this purposed.
@@ -135,6 +136,65 @@ ArmCortexA9Saved:
 	ldr r3, [r3]
 	//Store in scratch39
 	str r1, [r3, #APBDEV_PMC_SCRATCH39_0]
+
+	//Flush L2 rams for LP0
+	ldr	r1, =g_pPL310
+	ldr	r1, [r1]
+
+	ldr	r2, [r1, #PL310_CONTROL_0]
+	ands r2, r2, #0x1
+	beq	copy_to_iram
+
+	//Clear L2 restoration ptr
+	ldr r3, =g_contextSaveVA
+	ldr r3, [r3]
+
+	mov r2, #0
+	str r2, [r3, #0x30]
+
+	dsb
+
+	//Lock all ways
+	add r10, r1, #PL310_DATA_LOCKDOWN0_0
+	//16 lockdown registers => 64 bytes register space
+	add r2, r10, #64
+	//r3 = 0xff = ALL_WAYS
+	mov r3, #0xff
+
+lock_all_ways:
+	str r3, [r10]
+	add r10, r10, #4
+
+	cmp r10, r2
+	bne lock_all_ways
+
+	//Clean all ways
+	mov r2, #0xff
+	str r2, [r1, #PL310_CLEAN_BY_WAY_0]
+
+wait_for_l2_flush:
+	ldr r2, [r1, #PL310_CLEAN_BY_WAY_0]
+	cmp r2, #0
+	bne wait_for_l2_flush
+
+	//Issue a cache sync
+	mov r2, #0
+	str r2, [r1, #PL310_CACHE_SYNC_0]
+	dsb
+
+	//Unlock all ways
+	add r10, r1, #PL310_DATA_LOCKDOWN0_0
+	//16 lockdown registers => 64 bytes register space
+	add r2, r10, #64
+	//r3 = 0 = BITMAP_NO_WAYS
+	mov r3, #0
+
+unlock_all_ways:
+	str r3, [r10]
+	add r10, r10, #4
+
+	cmp r10, r2
+	bne unlock_all_ways
 
 copy_to_iram:
 	//Copy the enter_lp0 function to IRAM using 8x4 block moves.
@@ -488,7 +548,7 @@ pad_susp_end:
 	bic		r2, r2, #(1<<14)
 	str		r2, [r5, #APBDEV_PMC_CNTRL_0]
 
-        //Switch CPU clocks to CLKM
+	//Switch CPU clocks to CLKM
 	mov		r2, #0
 	orr		r2, r2, #(1<<28)
 	str		r2, [r8, #CLK_RST_CONTROLLER_CCLK_BURST_POLICY_0]
@@ -785,13 +845,14 @@ is_self:
 	orr		r2, r2, #1
 	str		r2, [r6, #FLOW_CTLR_CPU_CSR_0]
 
+#if DEBUG_FORCE_RTC_WAKEUP_SEC
 	//r0 = RTC_BASE
 	mov r0, r8
 	//setup rtc wake
 	ldr r2, [r0, #0x10] //milli
 	ldr r2, [r0, #0x8] //shadow
 
-	add r2, r2, #DEBUG_FORCE_RTC_WAKEUP
+	add r2, r2, #DEBUG_FORCE_RTC_WAKEUP_SEC
 rtc_idle1:
 	ldr r1, [r0, #0x4]
 	tst r1, #0x1
@@ -808,6 +869,7 @@ rtc_idle3:
 	ldr r1, [r0, #0x4]
 	tst r1, #0x1
 	bne rtc_idle3
+#endif
 	//Save the microsecond count before LP0 in SCRATCH38
 	ldr		r2, [r7]
 	str		r2, [r5, #APBDEV_PMC_SCRATCH38_0]
@@ -887,6 +949,28 @@ pll_wait:
 	ldr		r1, =0x20008888
 	str		r1, [r0, #0x20]
 
+#if DEBUG_FORCE_RTC_WAKEUP_SEC
+	//Clear the pending rtc interrupt
+	ldr	r0, =g_pRtc
+	ldr	r0, [r0]
+rtc_idle4:
+	ldr r1, [r0, #0x4]
+	tst r1, #0x1
+	bne rtc_idle4
+	mov r2, #0
+	str r2, [r0, #0x28]
+rtc_idle5:
+	ldr r1, [r0, #0x4]
+	tst r1, #0x1
+	bne rtc_idle5
+	//clear interrupt
+	mov r2, #1
+	str r2, [r0, #0x2c]
+rtc_idle6:
+	ldr r1, [r0, #0x4]
+	tst r1, #0x1
+	bne rtc_idle6
+#endif
 skip_pll:
 	//Restore the cpu virtual context
 	b	ArmCortexA9VirtualRestore

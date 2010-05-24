@@ -29,6 +29,7 @@ extern int enter_power_state(PowerState state, unsigned int proc_id);
 extern void prepare_for_wb0(void);
 extern void prepare_for_wb1(void);
 extern NvU32* perform_context_operation(PowerModuleContext Context);
+extern void tegra_pl310_init(void);
 
 void cpu_ap20_do_lp2(void);
 void resume(unsigned int state);
@@ -40,7 +41,6 @@ void reset_cpu(unsigned int cpu, unsigned int reset);
 static void init_lp0_scratch_registers(void);
 void shadow_runstate_scratch_regs(void);
 void shadow_lp0_scratch_regs(void);
-
 
 extern NvRmDeviceHandle s_hRmGlobal;
 
@@ -58,7 +58,7 @@ NvU32 g_coreSightClock, g_currentCcbp, g_currentCcdiv;
 NvU32 g_lp1CpuPwrGoodCnt, g_currentCpuPwrGoodCnt;
 volatile void *g_pPMC, *g_pAHB, *g_pCLK_RST_CONTROLLER;
 volatile void *g_pEMC, *g_pMC, *g_pAPB_MISC, *g_pTimerus;
-volatile void *g_pIRAM;
+volatile void *g_pIRAM, *g_pRtc, *g_pPL310;
 
 #define WAKEUP_SOURCE_INT_RTC   16
 #define INVALID_IRQ				(0xFFFF)
@@ -77,9 +77,6 @@ void cpu_ap20_do_lp0(void)
 	NvOdmPmuProperty	PmuProperty;
 	NvBool HasPmuProperty = NvOdmQueryGetPmuProperty(&PmuProperty);
 
-	//Inform RM about entry to LP0 state
-	NvRmPrivPowerSetState(s_hRmGlobal, NvRmPowerState_LP0);
-
 	if (HasPmuProperty && PmuProperty.CombinedPowerReq)
 	{
 		//Enable core power request, and tristate CPU power request outputs
@@ -95,6 +92,8 @@ void cpu_ap20_do_lp0(void)
 			APBDEV_PMC_CNTRL_0);
 		Reg = NV_FLD_SET_DRF_DEF(APBDEV_PMC, CNTRL,
 			CPUPWRREQ_OE, DISABLE, Reg);
+		NV_REGW(s_hRmGlobal, NvRmModuleID_Pmif, 0,
+				APBDEV_PMC_CNTRL_0, Reg);
 	}
 
 	//Store the scratch1 value first. This scratch is clobbered
@@ -113,6 +112,12 @@ void cpu_ap20_do_lp0(void)
 	NV_WRITE32(g_pKBC + APBDEV_KBC_INT_0, 0x1);
 #endif
 	enter_power_state(POWER_STATE_LP0, 0);
+
+	//Re-initialize the L2 cache
+	tegra_pl310_init();
+
+	//Inform RM about entry to LP0 state
+	NvRmPrivPowerSetState(s_hRmGlobal, NvRmPowerState_LP0);
 	printk("LP0: Exited...\n");
 	shadow_runstate_scratch_regs();
 
@@ -286,7 +291,7 @@ void power_lp0_init(void)
 	//Enable CPU power request. Leave it enabled to be ready for LP2/LP1.
 	Reg = NV_PMC_REGR(g_pPMC, CNTRL);
 	Reg = NV_FLD_SET_DRF_DEF(APBDEV_PMC, CNTRL, CPUPWRREQ_OE, ENABLE, Reg);
-	NV_PMC_REGW(g_pPMC, CNTRL, Reg);
+	NV_ASSERT(Reg == APBDEV_PMC_CNTRL_0_CPUPWRREQ_OE_ENABLE);
 
 	//If the system supports deep sleep (LP0), initialize PMC accordingly.
 	if (LPStateInfo->LowestPowerState == NvOdmSocPowerState_DeepSleep)
