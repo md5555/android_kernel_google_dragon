@@ -93,16 +93,11 @@ ENTRY(enter_power_state)
 	//Wait for everyone else to spin down
 wait_for_other_cores:
 	stmfd	sp!, {r1}
-	bl	check_for_cpu1_reset
+	bl	check_for_slave_reset
 	ldmfd	sp!, {r1}
 
 	cmp	r0, #0
 	beq	finish_power_state
-
-	//Save the local timers
-	stmfd	sp!, {r1}
-	bl	save_local_timers
-	ldmfd	sp!, {r1}
 
 	//Ok we can save state for core0 now
 save_arm_state:
@@ -914,16 +909,6 @@ skip_pll:
 
 ArmCortexA9VirtualRestored:
 
-	//Everything should be restored now
-	//Check which core we are by checking the MPIDR
-	mrc	p15, 0, r2, c0, c0, 5
-	ands	r2, r2, #0x3
-	bne	skip_local_timer_restore
-
-	//Restore the local timers
-	bl	restore_local_timers
-
-skip_local_timer_restore:
 	//Restore the stack registers
 	ldmfd	sp!, {r0}
 	ldmfd	sp!, {r0-r12, lr}
@@ -1112,6 +1097,15 @@ loop3CA9GICsave:
 	ldr	r2, [r1]	//distributor control
 	str	r2, [r0], #4
 continueCA9GICsave:
+	str	r0, [r11, #0x2C]
+	ldr	r1, [r11, #0x38]
+	mov	r6, #0x600
+	add	r1, r1, r6
+	ldr	r2, [r1, #0]
+	ldr	r3, [r1, #8]
+	ldr	r4, [r1, #0x20]
+	ldr	r5, [r1, #0x28]
+	stmia	r0!, {r2-r5}
 	mov	r4, r0
 	mrc	p15, 0, r5, c1, c0, 0
 	tst	r5, #1
@@ -1638,6 +1632,30 @@ loop3CA9GICrestore:
 	ldr	r2, [r0], #4
 	str	r2, [r1]
 CA9GICrestorecontinue:
+        mrc     p15,0,r7,c0,c0,5
+        tst     r7, r7
+        bpl     CA9TimersRestorecontinue
+        ubfx    r7, r7, #0, #2
+        ldr     r0, [r11,#0x2C]
+        cmp     r0, #0
+        beq     CA9TimersRestorecontinue
+        ldr     r1, [r11, #0x38]
+        mov     r6, #0x600
+        add     r1, r1, r6
+        ldmia   r0!, {r2-r5}
+        str     r2, [r1, #0]
+        str     r3, [r1, #8]
+        and     r2, r5, #1<<3
+        cmp     r2, #0
+        bne	watchdog_okCA9TimersRestore
+        mov32   r2, 0x12345678
+        str     r2, [r1, #0x34]
+        mov32   r2, 0x87654321
+        str     r2, [r1, #0x34]
+watchdog_okCA9TimersRestore:
+	str     r4, [r1, #0x20]
+	str     r5, [r1, #0x28]
+CA9TimersRestorecontinue:
 	ldr	r0, [r11, #0x1C]
 	cmp	r0, #0
 	beq	exit_fpu_restoreVFPrestore

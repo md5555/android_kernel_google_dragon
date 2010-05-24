@@ -53,7 +53,6 @@ uintptr_t g_iramContextSaveVA = 0;
 NvU32 g_modifiedPlls;
 NvU32 g_wakeupCcbp = 0, g_ArmPerif = 0;
 NvU32 g_enterLP2PA = 0;
-NvU32 g_localTimerLoadRegister, g_localTimerCntrlRegister;
 NvU32 g_coreSightClock, g_currentCcbp, g_currentCcdiv;
 NvU32 g_lp1CpuPwrGoodCnt, g_currentCpuPwrGoodCnt;
 volatile void *g_pPMC, *g_pAHB, *g_pCLK_RST_CONTROLLER;
@@ -746,7 +745,7 @@ void reset_cpu(unsigned int cpu, unsigned int reset)
     }
 }
 
-unsigned int check_for_cpu1_reset(void)
+unsigned int check_for_slave_reset(void)
 {
     volatile NvU32 reg;
 
@@ -757,26 +756,3 @@ unsigned int check_for_cpu1_reset(void)
 
     return reg;
 }
-
-void save_local_timers(void)
-{
-    volatile NvU32 *reg = (volatile NvU32 *)(g_ArmPerif+0x600);
-    volatile NvU32 spin = 0;
-
-    while (spin);
-
-    g_localTimerLoadRegister = reg[0];
-    g_localTimerCntrlRegister = reg[2];
-}
-
-void restore_local_timers(void)
-{
-    volatile NvU32 *reg = (volatile NvU32 *)(g_ArmPerif+0x600);
-    volatile NvU32 spin = 0;
-
-    while (spin);
-
-    reg[0] = g_localTimerLoadRegister;
-    reg[2] = g_localTimerCntrlRegister;
-}
-
