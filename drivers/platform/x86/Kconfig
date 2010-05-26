@@ -435,4 +435,12 @@ config ACPI_TOSHIBA
 
 	  If you have a legacy free Toshiba laptop (such as the Libretto L1
 	  series), say Y.
+
+config ACPI_CHROMEOS
+	tristate "ChromeOS specific ACPI extensions"
+	depends on ACPI
+	---help---
+	  This driver adds support for access to certain proprietary hardware
+	  available on from ChromeOS BIOS.
+
 endif # X86_PLATFORM_DEVICES
