@@ -196,6 +196,12 @@ config GPIO_LANGWELL
 	help
 	  Say Y here to support Intel Moorestown platform GPIO.
 
+config GPIO_NM10
+        tristate "Intel NM10 GPIO controller support"
+        depends on PCI
+        help
+          Say Y here to support Intel's NM10 LPC based GPIO controller.
+
 comment "SPI GPIO expanders:"
 
 config GPIO_MAX7301
