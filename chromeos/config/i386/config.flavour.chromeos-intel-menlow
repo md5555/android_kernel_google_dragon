@@ -6,3 +6,5 @@
 # CONFIG_TCG_NSC is not set
 CONFIG_TCG_TIS=m
 CONFIG_TCG_TPM=m
+# CONFIG_GOBI is not set
+
