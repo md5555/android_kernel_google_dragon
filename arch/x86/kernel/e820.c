@@ -425,7 +425,7 @@ static int __init append_e820_map(struct e820entry *biosmap, int nr_map)
 {
 	/* Only one memory region (or negative)? Ignore it */
 	if (nr_map < 2)
-		return -1;
+		return no_e820_map_return();
 
 	return __append_e820_map(biosmap, nr_map);
 }

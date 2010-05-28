@@ -1444,6 +1444,16 @@ config EFI64
 	  32-bit kernel. Enabling this would stop kernel calling EFI
 	  services, and handle pads in efi-related structures for 64-bit.
 
+config ALLOW_EMPTY_E820
+	bool "Allow empty e820 memory maps"
+        default y
+	depends on EFI && (X86_64 || X86_32)
+	---help---
+	  Enable this if you are using EFI memory maps instead of e820.
+	  The EFI memory maps are scanned much later than the e820 maps, and
+	  without this option the e280 setup code will automatically add
+	  some default mappings that may conflict with the real EFI maps.
+
 config SECCOMP
 	def_bool y
 	prompt "Enable seccomp to safely compute untrusted bytecode"

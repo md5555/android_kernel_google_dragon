@@ -126,6 +126,13 @@ extern void e820_reserve_resources(void);
 extern void e820_reserve_resources_late(void);
 extern void setup_memory_map(void);
 extern char *default_machine_specific_memory_setup(void);
+#ifdef CONFIG_ALLOW_EMPTY_E820
+static inline int no_e820_map_return(void) { return 0; }
+#else
+static inline int no_e820_map_return(void) { return -1; }
+#endif
+
+
 #endif /* __KERNEL__ */
 #endif /* __ASSEMBLY__ */
 
