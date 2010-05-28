@@ -19,7 +19,7 @@ case "$mode" in
 esac
 kerneldir="`pwd`"
 confdir="$kerneldir/chromeos/config"
-archs="i386 armel"
+archs="x86_64 i386 armel"
 family='chromeos'
 bindir="`pwd`/chromeos/scripts"
 common_conf="$confdir/config.common.$family"
