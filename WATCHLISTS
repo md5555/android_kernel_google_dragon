@@ -15,7 +15,8 @@
     },
   },
   'WATCHLISTS': {
-    'all': ['mbligh@chromium.org', 'msb@chromium.org', 'olofj@chromium.org'],
+    'all': ['mbligh@chromium.org', 'msb@chromium.org', 'olofj@chromium.org',
+            'vbendeb@chromium.org'],
     'chromeos': ['sleffler+cc@chromium.org'],
     'networking': ['sleffler+cc@chromium.org'],
   },
