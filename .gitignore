@@ -56,6 +56,9 @@ include/linux/utsrelease.h
 include/linux/bounds.h
 include/generated
 
+# kernelconfig build directory
+/build/
+
 # stgit generated dirs
 patches-*
 
