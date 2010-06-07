@@ -53,13 +53,18 @@
 #include "ar3kpsparser.h"
 
 #define FPGA_REGISTER	0x4FFC
-
+#define BDADDR_TYPE_STRING	0
+#define BDADDR_TYPE_HEX		1
+#define CONFIG_PATH	  "ar3k"
 
 #define PS_ASIC_FILE      "PS_ASIC.pst"
 #define PS_FPGA_FILE      "PS_FPGA.pst"
 
 #define PATCH_FILE      "RamPatch.txt"
 #define BDADDR_FILE "ar3kbdaddr.pst"
+
+#define ROM_VER_AR3001_3_1_0	30000
+#define ROM_VER_AR3001_3_1_1	30101
 
 
 #ifndef HCI_TRANSPORT_SDIO

@@ -140,6 +140,8 @@ int PSSendOps(void *arg)
     A_UINT32 DevType;
     A_UCHAR *PsFileName;
     A_UCHAR *patchFileName;
+    A_UCHAR path[256];
+    A_UCHAR config_path[256];
     AR3K_CONFIG_INFO *hdev = (AR3K_CONFIG_INFO*)arg;
     struct device *firmwareDev = NULL;
     status = 0;
@@ -163,15 +165,16 @@ int PSSendOps(void *arg)
         goto complete;
     }
     patchFileName = PATCH_FILE;
+    snprintf(path, sizeof(path), "%s/%xcoex/",CONFIG_PATH,Rom_Version);
     if(DevType){
         if(DevType == 0xdeadc0de){
 	        PsFileName =  PS_ASIC_FILE;
 	    } else{
-    		AR_DEBUG_PRINTF(ATH_DEBUG_ERR,(" FPGA Test Image : %x %x  \n",Rom_Version,Build_Version));
+		AR_DEBUG_PRINTF(ATH_DEBUG_ERR,(" FPGA Test Image : %x %x  \n",Rom_Version,Build_Version));
                 if((Rom_Version == 0x99999999) && (Build_Version == 1)){
                         
-    			AR_DEBUG_PRINTF(ATH_DEBUG_ERR,("FPGA Test Image : Skipping Patch File load\n"));
-    			patchFileName = NULL;
+			AR_DEBUG_PRINTF(ATH_DEBUG_ERR,("FPGA Test Image : Skipping Patch File load\n"));
+			patchFileName = NULL;
 		}
 	        PsFileName =  PS_FPGA_FILE;
 	    }
@@ -180,9 +183,10 @@ int PSSendOps(void *arg)
 	    PsFileName =  PS_ASIC_FILE;
     }
 
-    AR_DEBUG_PRINTF(ATH_DEBUG_ERR,("%x: FPGA/ASIC PS File Name %s\n", DevType,PsFileName));
+    snprintf(config_path, sizeof(config_path), "%s%s",path,PsFileName);
+    AR_DEBUG_PRINTF(ATH_DEBUG_ERR,("%x: FPGA/ASIC PS File Name %s\n", DevType,config_path));
     /* Read the PS file to a dynamically allocated buffer */
-    if(request_firmware(&firmware,PsFileName,firmwareDev) < 0) {
+    if(request_firmware(&firmware,config_path,firmwareDev) < 0) {
         AR_DEBUG_PRINTF(ATH_DEBUG_ERR,("%s: firmware file open error\n", __FUNCTION__ ));
         status = 1;
         goto complete;
@@ -207,7 +211,14 @@ int PSSendOps(void *arg)
 
 
     /* Read the patch file to a dynamically allocated buffer */
-    if((patchFileName == NULL) || (request_firmware(&firmware,patchFileName,firmwareDev) < 0)) {
+	if(patchFileName != NULL)
+		snprintf(config_path,
+			 sizeof(config_path), "%s%s",path,patchFileName);
+	else {
+		status = 0;
+	}
+    AR_DEBUG_PRINTF(ATH_DEBUG_ERR,("Patch File Name %s\n", config_path));
+    if((patchFileName == NULL) || (request_firmware(&firmware,config_path,firmwareDev) < 0)) {
         AR_DEBUG_PRINTF(ATH_DEBUG_ERR,("%s: firmware file open error\n", __FUNCTION__ ));
         /* 
          *  It is not necessary that Patch file be available, continue with PS Operations if.
@@ -302,17 +313,19 @@ int PSSendOps(void *arg)
 #endif /* HCI_TRANSPORT_SDIO */
 	{
 		 /* Read Contents of BDADDR file if user has not provided any option */
-    	if(request_firmware(&firmware,BDADDR_FILE,firmwareDev) < 0) {
-        	AR_DEBUG_PRINTF(ATH_DEBUG_ERR,("%s: firmware file open error\n", __FUNCTION__ ));
-        	status = 1;
-        	goto complete;
-    	}
-    	if(NULL == firmware || firmware->size == 0) {
-        	status = 1;
-        	goto complete;
-    	}
+		sprintf(config_path,"%s%s",path,BDADDR_FILE);
+	AR_DEBUG_PRINTF(ATH_DEBUG_ERR,("Patch File Name %s\n", config_path));
+	if(request_firmware(&firmware,config_path,firmwareDev) < 0) {
+		AR_DEBUG_PRINTF(ATH_DEBUG_ERR,("%s: firmware file open error\n", __FUNCTION__ ));
+		status = 1;
+		goto complete;
+	}
+	if(NULL == firmware || firmware->size == 0) {
+		status = 1;
+		goto complete;
+	}
 		write_bdaddr(hdev,(A_UCHAR *)firmware->data);
-       	release_firmware(firmware);
+	release_firmware(firmware);
 	}
 complete:
 #ifndef HCI_TRANSPORT_SDIO
