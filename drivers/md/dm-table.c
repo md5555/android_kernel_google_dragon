@@ -11,6 +11,7 @@
 #include <linux/vmalloc.h>
 #include <linux/blkdev.h>
 #include <linux/namei.h>
+#include <linux/mount.h>
 #include <linux/ctype.h>
 #include <linux/slab.h>
 #include <linux/interrupt.h>
@@ -901,7 +902,7 @@ static int setup_indexes(struct dm_table *t)
 /*
  * Builds the btree to index the map.
  */
-int dm_table_complete(struct dm_table *t)
+int dm_table_build_index(struct dm_table *t)
 {
 	int r = 0;
 	unsigned int leaf_nodes;
@@ -917,6 +918,54 @@ int dm_table_complete(struct dm_table *t)
 	if (t->depth >= 2)
 		r = setup_indexes(t);
 
+	return r;
+}
+
+/*
+ * Register the mapped device for blk_integrity support if
+ * the underlying devices support it.
+ */
+static int dm_table_prealloc_integrity(struct dm_table *t,
+				       struct mapped_device *md)
+{
+	struct list_head *devices = dm_table_get_devices(t);
+	struct dm_dev_internal *dd;
+
+	list_for_each_entry(dd, devices, list)
+		if (bdev_get_integrity(dd->dm_dev.bdev))
+			return blk_integrity_register(dm_disk(md), NULL);
+
+	return 0;
+}
+
+/*
+ * Prepares the table for use by building the indices,
+ * setting the type, and allocating mempools.
+ */
+int dm_table_complete(struct dm_table *t)
+{
+	int r = 0;
+	r = dm_table_set_type(t);
+	if (r) {
+		DMERR("unable to set table type");
+		return r;
+	}
+
+	r = dm_table_build_index(t);
+	if (r) {
+		DMERR("unable to build btrees");
+		return r;
+	}
+
+	r = dm_table_prealloc_integrity(t, t->md);
+	if (r) {
+		DMERR("could not register integrity profile.");
+		return r;
+	}
+
+	r = dm_table_alloc_md_mempools(t);
+	if (r)
+		DMERR("unable to allocate mempools");
 	return r;
 }
 
