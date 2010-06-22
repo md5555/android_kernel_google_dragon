@@ -34,6 +34,10 @@
 #include "intel_bios.h"
 #include <linux/io-mapping.h>
 
+#ifdef CONFIG_DRM_I915_DIRECT_BACKLIGHT
+#include <linux/backlight.h>
+#endif
+
 /* General customization:
  */
 
@@ -590,6 +594,12 @@ typedef struct drm_i915_private {
 	int child_dev_num;
 	struct child_device_config *child_dev;
 	struct drm_connector *int_lvds_connector;
+
+#ifdef CONFIG_DRM_I915_DIRECT_BACKLIGHT
+	/* direct backlight interface */
+	struct backlight_device *backlight;
+#endif
+
 } drm_i915_private_t;
 
 /** driver private structure attached to each drm_gem_object */
@@ -937,6 +947,15 @@ static inline void intel_opregion_free(struct drm_device *dev, int suspend) { re
 static inline void opregion_asle_intr(struct drm_device *dev) { return; }
 static inline void ironlake_opregion_gse_intr(struct drm_device *dev) { return; }
 static inline void opregion_enable_asle(struct drm_device *dev) { return; }
+#endif
+
+#ifdef CONFIG_DRM_I915_DIRECT_BACKLIGHT
+/* i915_backlight.c */
+extern void i915_backlight_init(struct drm_device *dev);
+extern void i915_backlight_exit(struct drm_device *dev);
+#else
+extern inline void i915_backlight_init(struct drm_device *dev) { return; }
+extern inline void i915_backlight_exit(struct drm_device *dev) { return; }
 #endif
 
 /* modesetting */

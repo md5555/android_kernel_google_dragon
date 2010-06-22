@@ -31,5 +31,6 @@ i915-y := i915_drv.o i915_dma.o i915_irq.o i915_mem.o \
 
 i915-$(CONFIG_ACPI)	+= i915_opregion.o
 i915-$(CONFIG_COMPAT)   += i915_ioc32.o
+i915-$(CONFIG_DRM_I915_DIRECT_BACKLIGHT)	+= i915_backlight.o
 
 obj-$(CONFIG_DRM_I915)  += i915.o

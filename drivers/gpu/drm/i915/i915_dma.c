@@ -1504,6 +1504,9 @@ int i915_driver_load(struct drm_device *dev, unsigned long flags)
 
 	setup_timer(&dev_priv->hangcheck_timer, i915_hangcheck_elapsed,
 		    (unsigned long) dev);
+
+	i915_backlight_init(dev);
+
 	return 0;
 
 out_workqueue_free:
@@ -1522,6 +1525,8 @@ free_priv:
 int i915_driver_unload(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
+
+	i915_backlight_exit(dev);
 
 	destroy_workqueue(dev_priv->wq);
 	del_timer_sync(&dev_priv->hangcheck_timer);
