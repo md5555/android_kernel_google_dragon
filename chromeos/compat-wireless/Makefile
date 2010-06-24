@@ -38,13 +38,18 @@ obj-$(CONFIG_COMPAT_BLUETOOTH_MODULES) += drivers/bluetooth/
 else
 
 export PWD :=	$(shell pwd)
+CFLAGS += \
+        -DCOMPAT_BASE_TREE="\"$(shell cat compat_base_tree)\"" \
+        -DCOMPAT_BASE_TREE_VERSION="\"$(shell cat compat_base_tree_version)\"" \
+        -DCOMPAT_PROJECT="\"Compat-wireless\"" \
+        -DCOMPAT_VERSION="\"$(shell cat compat_version)\""
 
 # These exported as they are used by the scripts
 # to check config and compat autoconf
 export COMPAT_CONFIG=config.mk
 export CONFIG_CHECK=.$(COMPAT_CONFIG)_md5sum.txt
 export COMPAT_AUTOCONF=include/linux/compat_autoconf.h
-export CREL=$(shell cat $(PWD)/compat-release)
+export CREL=$(shell cat $(PWD)/compat_version)
 export CREL_PRE:=.compat_autoconf_
 export CREL_CHECK:=$(CREL_PRE)$(CREL)
 
