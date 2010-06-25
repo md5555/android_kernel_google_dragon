@@ -108,6 +108,7 @@ typedef struct {
 #define HCI_GET_OP_CODE(p)          (((A_UINT16)((p)[1])) << 8) | ((A_UINT16)((p)[0]))
 
 extern unsigned int setupbtdev;
+AR3K_CONFIG_INFO      ar3kconfig;
 
 #ifdef EXPORT_HCI_BRIDGE_INTERFACE
 AR6K_HCI_BRIDGE_INFO *g_pHcidevInfo;
@@ -219,13 +220,18 @@ static void RefillRecvBuffers(AR6K_HCI_BRIDGE_INFO      *pHcidevInfo,
     }
 }
 
+#define HOST_INTEREST_ITEM_ADDRESS(ar, item) \
+        (((ar)->arTargetType == TARGET_TYPE_AR6001) ? AR6001_HOST_INTEREST_ITEM_ADDRESS(item) : \
+        (((ar)->arTargetType == TARGET_TYPE_AR6002) ? AR6002_HOST_INTEREST_ITEM_ADDRESS(item) : \
+        (((ar)->arTargetType == TARGET_TYPE_AR6003) ? AR6003_HOST_INTEREST_ITEM_ADDRESS(item) : 0)))
 static A_STATUS ar6000_hci_transport_ready(HCI_TRANSPORT_HANDLE     HCIHandle, 
                                            HCI_TRANSPORT_PROPERTIES *pProps, 
                                            void                     *pContext)
 {
     AR6K_HCI_BRIDGE_INFO *pHcidevInfo = (AR6K_HCI_BRIDGE_INFO *)pContext;
     A_STATUS              status;
-    AR3K_CONFIG_INFO      ar3kconfig;
+    A_UINT32 address, hci_uart_pwr_mgmt_params;
+//    AR3K_CONFIG_INFO      ar3kconfig;
     
     pHcidevInfo->pHCIDev = HCIHandle;
     
@@ -259,6 +265,15 @@ static A_STATUS ar6000_hci_transport_ready(HCI_TRANSPORT_HANDLE     HCIHandle,
                 /* in test mode, no need to go any further */
             break;    
         }
+
+        // The delay is required when AR6K is driving the BT reset line
+        // where time is needed after the BT chip is out of reset (HCI_TransportStart)
+        // and before the first HCI command is issued (AR3KConfigure)
+        // FIXME
+        // The delay should be configurable and be only applied when AR6K driving the BT
+        // reset line. This could be done by some module parameter or based on some HW config
+        // info. For now apply 100ms delay blindly
+        A_MDELAY(100);
         
         A_MEMZERO(&ar3kconfig,sizeof(ar3kconfig));
         ar3kconfig.pHCIDev = pHcidevInfo->pHCIDev;
@@ -284,10 +299,30 @@ static A_STATUS ar6000_hci_transport_ready(HCI_TRANSPORT_HANDLE     HCIHandle,
             ar3kconfig.Flags |= AR3K_CONFIG_FLAG_SET_AR6K_SCALE_STEP;
         }
         
-            /* configure the AR3K device */         
+        /* Fetch the address of the hi_hci_uart_pwr_mgmt_params instance in the host interest area */
+        address = TARG_VTOP(pHcidevInfo->ar->arTargetType, 
+                            HOST_INTEREST_ITEM_ADDRESS(pHcidevInfo->ar, hi_hci_uart_pwr_mgmt_params));
+        status = ar6000_ReadRegDiag(pHcidevInfo->ar->arHifDevice, &address, &hci_uart_pwr_mgmt_params);
+        if (A_OK == status) {
+            ar3kconfig.PwrMgmtEnabled = (hci_uart_pwr_mgmt_params & 0x1);
+            ar3kconfig.IdleTimeout = (hci_uart_pwr_mgmt_params & 0xFFFF0000) >> 16;
+            ar3kconfig.WakeupTimeout = (hci_uart_pwr_mgmt_params & 0xFF00) >> 8;
+        } else {
+            AR_DEBUG_PRINTF(ATH_DEBUG_ERR, ("HCI Bridge: failed to read hci_uart_pwr_mgmt_params! \n"));
+        }
+        /* configure the AR3K device */         
+		memcpy(ar3kconfig.bdaddr,pHcidevInfo->ar->bdaddr,6);
         status = AR3KConfigure(&ar3kconfig);
         if (A_FAILED(status)) {
             break; 
+        }
+
+        /* Make sure both AR6K and AR3K have power management enabled */
+        if (ar3kconfig.PwrMgmtEnabled) {
+            status = HCI_TransportEnablePowerMgmt(pHcidevInfo->pHCIDev, TRUE);
+            if (A_FAILED(status)) {
+                AR_DEBUG_PRINTF(ATH_DEBUG_ERR, ("HCI Bridge: failed to enable TLPM for AR6K! \n"));
+            }
         }
         
         status = bt_register_hci(pHcidevInfo);
@@ -685,7 +720,6 @@ static int bt_send_frame(struct sk_buff *skb)
     struct hci_dev             *hdev = (struct hci_dev *)skb->dev;
     HCI_TRANSPORT_PACKET_TYPE  type;
     AR6K_HCI_BRIDGE_INFO       *pHcidevInfo;
-    A_UINT8                    *pTemp;
     HTC_PACKET                 *pPacket;
     A_STATUS                   status = A_OK;
     struct sk_buff             *txSkb = NULL;
@@ -756,17 +790,19 @@ static int bt_send_frame(struct sk_buff *skb)
         A_MEMCPY(txSkb->data, skb->data, skb->len);
         skb_put(txSkb,skb->len);
         
-            /* push on header transport space */
-        pTemp = (A_UINT8 *)skb_push(txSkb, pHcidevInfo->HCIProps.HeadRoom);           
         pPacket = AllocHTCStruct(pHcidevInfo);        
         if (NULL == pPacket) {
             status = A_NO_MEMORY;
             break;    
         }       
               
+        /* HCI packet length here doesn't include the 1-byte transport header which
+         * will be handled by the HCI transport layer. Enough headroom has already
+         * been reserved above for the transport header
+         */
         SET_HTC_PACKET_INFO_TX(pPacket,
                                txSkb,
-                               pTemp + pHcidevInfo->HCIProps.HeadRoom, 
+                               txSkb->data,
                                txSkb->len,
                                type, 
                                AR6K_CONTROL_PKT_TAG); /* HCI packets cannot be dropped */

@@ -78,10 +78,16 @@ typedef PREPACK struct _AR6K_GMBOX_CTRL_REGISTERS {
 #define AR6K_SCATTER_REQS                       4
 #define AR6K_LEGACY_MAX_WRITE_LENGTH            2048
 
+#ifndef A_CACHE_LINE_PAD
+#define A_CACHE_LINE_PAD                        128
+#endif
+
 /* buffers for ASYNC I/O */
 typedef struct AR6K_ASYNC_REG_IO_BUFFER {
     HTC_PACKET    HtcPacket;   /* we use an HTC packet as a wrapper for our async register-based I/O */
-    A_UINT8       Buffer[AR6K_REG_IO_BUFFER_SIZE];
+    A_UINT8       _Pad1[A_CACHE_LINE_PAD];
+    A_UINT8       Buffer[AR6K_REG_IO_BUFFER_SIZE];  /* cache-line safe with pads around */
+    A_UINT8       _Pad2[A_CACHE_LINE_PAD];
 } AR6K_ASYNC_REG_IO_BUFFER;
 
 typedef struct _AR6K_GMBOX_INFO { 
@@ -95,8 +101,11 @@ typedef struct _AR6K_GMBOX_INFO {
 
 typedef struct _AR6K_DEVICE {
     A_MUTEX_T                   Lock;
-    AR6K_IRQ_PROC_REGISTERS     IrqProcRegisters;
-    AR6K_IRQ_ENABLE_REGISTERS   IrqEnableRegisters;
+    A_UINT8       _Pad1[A_CACHE_LINE_PAD];
+    AR6K_IRQ_PROC_REGISTERS     IrqProcRegisters;   /* cache-line safe with pads around */
+    A_UINT8       _Pad2[A_CACHE_LINE_PAD];
+    AR6K_IRQ_ENABLE_REGISTERS   IrqEnableRegisters; /* cache-line safe with pads around */
+    A_UINT8       _Pad3[A_CACHE_LINE_PAD];
     void                        *HIFDevice;
     A_UINT32                    BlockSize;
     A_UINT32                    BlockMask;

@@ -1345,8 +1345,12 @@ A_STATUS HTCRecvMessagePendingHandler(void *Context, A_UINT32 MsgLookAheads[], i
                 /* clean up packets */
             HTC_RECYCLE_RX_PKT(target, pPacket, &target->EndPoint[pPacket->Endpoint]);
         }
+        if  (HTC_STOPPING(target)) {
+            AR_DEBUG_PRINTF(ATH_DEBUG_WARN,
+                (" Host is going to stop. blocking receiver for HTCStop.. \n"));
+            DevStopRecv(&target->Device, asyncProc ? DEV_STOP_RECV_ASYNC : DEV_STOP_RECV_SYNC);
+        }
     }
-    
         /* before leaving, check to see if host ran out of buffers and needs to stop the
          * receiver */
     if (target->RecvStateFlags & HTC_RECV_WAIT_BUFFERS) {

@@ -167,6 +167,12 @@ struct host_interest_s {
     A_UINT32               hi_hci_bridge_flags;                       /* 0xa0 */
     A_UINT32               hi_hci_uart_support_pins;                  /* 0xa4 */
         /* NOTE: byte [0] = RESET pin (bit 7 is polarity), bytes[1]..bytes[3] are for future use */
+    A_UINT32               hi_hci_uart_pwr_mgmt_params;               /* 0xa8 */
+        /* 0xa8 - [0]: 1 = enable, 0 = disable
+         *        [1]: 0 = UART FC active low, 1 = UART FC active high
+         * 0xa9 - [7:0]: wakeup timeout in ms
+         * 0xaa, 0xab - [15:0]: idle timeout in ms
+         */       
 };
 
 /* Bits defined in hi_option_flag */
@@ -178,6 +184,7 @@ struct host_interest_s {
 #define HI_OPTION_ENABLE_PROFILE  0x20 /* Enable CPU profiling */
 #define HI_OPTION_DISABLE_DBGLOG  0x40 /* Disable debug logging */
 #define HI_OPTION_SKIP_ERA_TRACKING  0x80 /* Skip Era Tracking */
+#define HI_OPTION_PAPRD_DISABLE      0x100 /* Disable PAPRD (debug) */
 
 /* 2 bits of hi_option_flag are used to represent 3 modes */
 #define HI_OPTION_FW_MODE_IBSS    0x0 /* IBSS Mode */

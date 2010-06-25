@@ -117,6 +117,12 @@ config ATH6KL_VIRTUAL_SCATTER_GATHER
 	help
 	Enables virtual scatter gather support for the hardware that does not support it natively.
 
+config ATH6KL_SKIP_ABI_VERSION_CHECK
+	bool "Skip ABI version check support"
+	depends on ATH6K_LEGACY
+	help
+	Forces the driver to disable ABI version check. Caution: Incompatilbity between the host driver and target firmware may lead to unknown side effects.
+
 config ATH6KL_DEBUG
 	bool "Debug support"
 	depends on ATH6K_LEGACY

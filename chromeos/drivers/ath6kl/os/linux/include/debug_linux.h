@@ -27,7 +27,7 @@
      * which may be compiler dependent. */
 #define AR_DEBUG_PRINTF(mask, args) do {        \
     if (GET_ATH_MODULE_DEBUG_VAR_MASK(ATH_MODULE_NAME) & (mask)) {                    \
-        A_PRINTF(ATH_PRINTX_ARG args);    \
+        A_LOGGER(mask, ATH_MODULE_NAME, ATH_PRINTX_ARG args);    \
     }                                            \
 } while (0)
 #else

@@ -316,6 +316,9 @@ wmi_init(void *devt)
     wmip->wmi_pair_crypto_type  = NONE_CRYPT;
     wmip->wmi_grp_crypto_type   = NONE_CRYPT;
 
+    wmip->wmi_ht_allowed[A_BAND_24GHZ] = 1;
+    wmip->wmi_ht_allowed[A_BAND_5GHZ] = 1;
+
     return (wmip);
 }
 
@@ -946,7 +949,7 @@ wmi_control_rx(struct wmi_t *wmip, void *osbuf)
     case (WMI_CONNECT_EVENTID):
         A_DPRINTF(DBG_WMI, (DBGFMT "WMI_CONNECT_EVENTID\n", DBGARG));
         status = wmi_connect_event_rx(wmip, datap, len);
-        A_WMI_SEND_EVENT_TO_APP(wmip->wmi_devt, id, datap, len);
+        A_WMI_SEND_GENERIC_EVENT_TO_APP(wmip->wmi_devt, id, datap, len);
         break;
     case (WMI_DISCONNECT_EVENTID):
         A_DPRINTF(DBG_WMI, (DBGFMT "WMI_DISCONNECT_EVENTID\n", DBGARG));
@@ -1203,7 +1206,7 @@ wmi_ready_event_rx(struct wmi_t *wmip, A_UINT8 *datap, int len)
     A_DPRINTF(DBG_WMI, (DBGFMT "Enter\n", DBGARG));
     wmip->wmi_ready = TRUE;
     A_WMI_READY_EVENT(wmip->wmi_devt, ev->macaddr, ev->phyCapability,
-                      ev->version);
+                      ev->sw_version, ev->abi_version);
 
     return A_OK;
 }
@@ -1412,10 +1415,12 @@ wmi_bssInfo_event_rx(struct wmi_t *wmip, A_UINT8 *datap, int len)
     if(ar6000_get_driver_cfg(wmip->wmi_devt,
                     AR6000_DRIVER_CFG_GET_WLANNODECACHING,
                     &nodeCachingAllowed) != A_OK) {
+        wmi_node_return(wmip, bss);
         return A_EINVAL;
     }
 
     if(!nodeCachingAllowed) {
+        wmi_node_return(wmip, bss);
         return A_OK;
     }
 
@@ -1428,8 +1433,10 @@ wmi_bssInfo_event_rx(struct wmi_t *wmip, A_UINT8 *datap, int len)
               bih->bssid[1], bih->bssid[2], bih->bssid[3], bih->bssid[4],
               bih->bssid[5]));
 
-    if(wps_enable && (bih->frameType == PROBERESP_FTYPE) )
+    if(wps_enable && (bih->frameType == PROBERESP_FTYPE) ) {
+        wmi_node_return(wmip, bss);
         return A_OK;
+    }
 
     if (bss != NULL) {
         /*
@@ -1452,6 +1459,18 @@ wmi_bssInfo_event_rx(struct wmi_t *wmip, A_UINT8 *datap, int len)
                 memcpy(cached_ssid_buf, ie_ssid + 2, cached_ssid_len);
             }
         }
+
+        /* 
+         * Use the current average rssi of associated AP base on assumpiton 
+         * 1. Most os with GUI will update RSSI by wmi_get_stats_cmd() periodically
+         * 2. wmi_get_stats_cmd(..) will be called when calling wmi_startscan_cmd(...)
+         * The average value of RSSI give end-user better feeling for instance value of scan result
+         * It also sync up RSSI info in GUI between scan result and RSSI signal icon
+         */
+        if (bss && IEEE80211_ADDR_EQ(wmip->wmi_bssid, bih->bssid)) {
+            bih->rssi = bss->ni_rssi;
+            bih->snr  = bss->ni_snr;
+        } 
 
         wlan_node_reclaim(&wmip->wmi_scan_table, bss);
     }
@@ -3385,8 +3404,14 @@ wmi_is_bitrate_index_valid(struct wmi_t *wmip, A_INT32 rateIndex)
     A_BOOL isValid = TRUE;
     switch(phyMode) {
         case WMI_11A_MODE:
-            if ((rateIndex < MODE_A_SUPPORT_RATE_START) || (rateIndex > MODE_A_SUPPORT_RATE_STOP)) {
-                isValid = FALSE;
+            if (wmip->wmi_ht_allowed[A_BAND_5GHZ]){
+                if ((rateIndex < MODE_A_SUPPORT_RATE_START) || (rateIndex > MODE_GHT20_SUPPORT_RATE_STOP)) {
+                    isValid = FALSE;
+                }
+            } else {
+                if ((rateIndex < MODE_A_SUPPORT_RATE_START) || (rateIndex > MODE_A_SUPPORT_RATE_STOP)) {
+                    isValid = FALSE;
+                }
             }
             break;
 
@@ -3397,15 +3422,27 @@ wmi_is_bitrate_index_valid(struct wmi_t *wmip, A_INT32 rateIndex)
             break;
 
         case WMI_11GONLY_MODE:
-            if ((rateIndex < MODE_GONLY_SUPPORT_RATE_START) || (rateIndex > MODE_GONLY_SUPPORT_RATE_STOP)) {
-                isValid = FALSE;
+            if (wmip->wmi_ht_allowed[A_BAND_24GHZ]){
+                if ((rateIndex < MODE_GONLY_SUPPORT_RATE_START) || (rateIndex > MODE_GHT20_SUPPORT_RATE_STOP)) {
+                    isValid = FALSE;
+                }
+            } else {
+                if ((rateIndex < MODE_GONLY_SUPPORT_RATE_START) || (rateIndex > MODE_GONLY_SUPPORT_RATE_STOP)) {
+                    isValid = FALSE;
+                }
             }
             break;
 
         case WMI_11G_MODE:
         case WMI_11AG_MODE:        
-            if ((rateIndex < MODE_G_SUPPORT_RATE_START) || (rateIndex > MODE_G_SUPPORT_RATE_STOP)) {
-                isValid = FALSE;
+            if (wmip->wmi_ht_allowed[A_BAND_24GHZ]){
+                if ((rateIndex < MODE_G_SUPPORT_RATE_START) || (rateIndex > MODE_GHT20_SUPPORT_RATE_STOP)) {
+                    isValid = FALSE;
+                }
+            } else {
+                if ((rateIndex < MODE_G_SUPPORT_RATE_START) || (rateIndex > MODE_G_SUPPORT_RATE_STOP)) {
+                    isValid = FALSE;
+                }
             }
             break;        
         default:
@@ -6278,6 +6315,7 @@ wmi_set_ht_cap_cmd(struct wmi_t *wmip, WMI_SET_HT_CAP_CMD *cmd)
 {
     void *osbuf;
     WMI_SET_HT_CAP_CMD *htCap;
+    A_UINT8 band;
 
     osbuf = A_NETBUF_ALLOC(sizeof(*htCap));
     if (osbuf == NULL) {
@@ -6285,6 +6323,9 @@ wmi_set_ht_cap_cmd(struct wmi_t *wmip, WMI_SET_HT_CAP_CMD *cmd)
     }
 
     A_NETBUF_PUT(osbuf, sizeof(*htCap));
+
+    band = (cmd->band)? A_BAND_5GHZ : A_BAND_24GHZ;
+    wmip->wmi_ht_allowed[band] = (cmd->enable)? 1:0;
 
     htCap = (WMI_SET_HT_CAP_CMD *)(A_NETBUF_DATA(osbuf));
     A_MEMZERO(htCap, sizeof(*htCap));

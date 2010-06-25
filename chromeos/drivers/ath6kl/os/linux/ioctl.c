@@ -1326,7 +1326,6 @@ ar6000_xioctl_get_btcoex_stats_cmd(struct net_device * dev, char * userdata, str
 	return(ret);
 }
 
-
 #ifdef CONFIG_HOST_GPIO_SUPPORT
 struct ar6000_gpio_intr_wait_cmd_s  gpio_intr_results;
 /* gpio_reg_results and gpio_data_available are protected by arSem */
@@ -1894,8 +1893,10 @@ int ar6000_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 
     if ((ar->arWlanState == WLAN_DISABLED) &&
         ((cmd != AR6000_XIOCTRL_WMI_SET_WLAN_STATE) &&
+         (cmd != AR6000_XIOCTL_GET_WLAN_SLEEP_STATE) &&
          (cmd != AR6000_XIOCTL_DIAG_READ) &&
-         (cmd != AR6000_XIOCTL_DIAG_WRITE)))
+         (cmd != AR6000_XIOCTL_DIAG_WRITE) &&
+         (cmd != AR6000_IOCTL_WMI_GETREV)))
     {
         ret = -EIO;
         goto ioctl_done;
@@ -2185,9 +2186,9 @@ int ar6000_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
                 unsigned int streamID;
                 get_user(streamID, (unsigned int *)userdata);
                 get_user(length, (unsigned int *)userdata + 1);
-                buffer = rq->ifr_data + sizeof(length);
+                buffer = (unsigned char*)rq->ifr_data + sizeof(length);
                 ret = ar6000_htc_raw_read(ar, (HTC_RAW_STREAM_ID)streamID,
-                                          buffer, length);
+                                          (char*)buffer, length);
                 put_user(ret, (unsigned int *)rq->ifr_data);
             } else {
                 ret = A_ERROR;
@@ -2199,9 +2200,9 @@ int ar6000_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
                 unsigned int streamID;
                 get_user(streamID, (unsigned int *)userdata);
                 get_user(length, (unsigned int *)userdata + 1);
-                buffer = userdata + sizeof(streamID) + sizeof(length);
+                buffer = (unsigned char*)userdata + sizeof(streamID) + sizeof(length);
                 ret = ar6000_htc_raw_write(ar, (HTC_RAW_STREAM_ID)streamID,
-                                           buffer, length);
+                                           (char*)buffer, length);
                 put_user(ret, (unsigned int *)rq->ifr_data);
             } else {
                 ret = A_ERROR;
@@ -2462,7 +2463,8 @@ int ar6000_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
                         ret = -EIO;
                     } else {
                         AR6000_SPIN_LOCK(&ar->arLock, 0);
-                        ar->arListenInterval = param;
+                        ar->arListenIntervalT = listenCmd.listenInterval;
+                        ar->arListenIntervalB = listenCmd.numBeacons;
                         AR6000_SPIN_UNLOCK(&ar->arLock, 0);
                     }
 
@@ -3792,32 +3794,37 @@ int ar6000_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
             A_UINT8 mask_data[WOW_PATTERN_SIZE]={0};
             A_UINT8 pattern_data[WOW_PATTERN_SIZE]={0};
 
-            if (ar->arWmiReady == FALSE) {
-                ret = -EIO;
-            } else {
-
+            do {
+                if (ar->arWmiReady == FALSE) {
+                    ret = -EIO;
+                    break;        
+                } 
                 if(copy_from_user(&cmd, userdata,
-                            sizeof(WMI_ADD_WOW_PATTERN_CMD)))
-                      ret = -EFAULT;
-                      goto ioctl_done;
+                            sizeof(WMI_ADD_WOW_PATTERN_CMD))) 
+                {
+                    ret = -EFAULT;
+                    break;        
+                }
                 if (copy_from_user(pattern_data,
                                       userdata + 3,
-                                      cmd.filter_size)){
-                        ret = -EFAULT;
-                        break;
+                                      cmd.filter_size)) 
+                {
+                    ret = -EFAULT;
+                    break;        
                 }
                 if (copy_from_user(mask_data,
-                                      (userdata + 3 + cmd.filter_size),
-                                      cmd.filter_size)){
-                        ret = -EFAULT;
-                        break;
-                } else {
-                    if (wmi_add_wow_pattern_cmd(ar->arWmi,
-                                &cmd, pattern_data, mask_data, cmd.filter_size) != A_OK){
-                        ret = -EIO;
-                    }
+                                  (userdata + 3 + cmd.filter_size),
+                                  cmd.filter_size))
+                {
+                    ret = -EFAULT;
+                    break;
                 }
-            }
+                if (wmi_add_wow_pattern_cmd(ar->arWmi,
+                            &cmd, pattern_data, mask_data, cmd.filter_size) != A_OK)
+                {
+                    ret = -EIO;
+                }
+            } while(FALSE);
 #undef WOW_PATTERN_SIZE
 #undef WOW_MASK_SIZE
             break;
@@ -4480,6 +4487,21 @@ int ar6000_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
             } else {
                 wmi_ap_set_rateset(ar->arWmi, rate.rateset);
             }
+            break;
+        }
+        case AR6000_XIOCTL_GET_WLAN_SLEEP_STATE:
+        {
+            WMI_REPORT_SLEEP_STATE_EVENT  wmiSleepEvent ;
+
+            if (ar->arWlanState == WLAN_ENABLED) {
+                wmiSleepEvent.sleepState = WMI_REPORT_SLEEP_STATUS_IS_AWAKE;
+            } else {
+                wmiSleepEvent.sleepState = WMI_REPORT_SLEEP_STATUS_IS_DEEP_SLEEP;
+            }
+            rq->ifr_ifru.ifru_ivalue = ar->arWlanState; /* return value */
+
+            ar6000_send_event_to_app(ar, WMI_REPORT_SLEEP_STATE_EVENTID, (A_UINT8*)&wmiSleepEvent,
+                                     sizeof(WMI_REPORT_SLEEP_STATE_EVENTID));
             break;
         }
         default:

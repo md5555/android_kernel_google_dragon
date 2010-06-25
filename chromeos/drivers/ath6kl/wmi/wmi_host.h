@@ -47,6 +47,14 @@ typedef struct sq_threshold_params_s {
     A_UINT8  last_rssi; //normally you would expect this to be bss specific but we keep only one instance because its only valid when the device is in a connected state. Not sure if it belongs to host or target.
     A_UINT8  last_rssi_poll_event; //Not sure if it belongs to host or target
 } SQ_THRESHOLD_PARAMS;
+
+/*
+ * These constants are used with A_WLAN_BAND_SET.
+ */ 
+#define A_BAND_24GHZ           0
+#define A_BAND_5GHZ            1
+#define A_NUM_BANDS            2
+
 struct wmi_t {
     A_BOOL                          wmi_ready;
     A_BOOL                          wmi_numQoSStream;
@@ -65,6 +73,7 @@ struct wmi_t {
     CRYPTO_TYPE                     wmi_pair_crypto_type;
     CRYPTO_TYPE                     wmi_grp_crypto_type;
     A_BOOL                          wmi_is_wmm_enabled;
+    A_UINT8                         wmi_ht_allowed[A_NUM_BANDS];
 };
 
 

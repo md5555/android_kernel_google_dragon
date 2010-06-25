@@ -68,6 +68,9 @@ ATH_DEBUG_INSTANTIATE_MODULE_VAR(misc,
 #define CPU_DBG_SEL_ADDRESS                      0x00000483
 #define CPU_DBG_ADDRESS                          0x00000484
 
+static A_UINT8 custDataAR6002[AR6002_CUST_DATA_SIZE];
+static A_UINT8 custDataAR6003[AR6003_CUST_DATA_SIZE];
+
 /* Compile the 4BYTE version of the window register setup routine,
  * This mitigates host interconnect issues with non-4byte aligned bus requests, some
  * interconnects use bus adapters that impose strict limitations.
@@ -477,6 +480,65 @@ A_STATUS ar6000_reset_device(HIF_DEVICE *hifDevice, A_UINT32 TargetType, A_BOOL 
     }
 
     return A_OK;
+}
+
+/* This should be called in BMI phase after firmware is downloaded */
+void
+ar6000_copy_cust_data_from_target(HIF_DEVICE *hifDevice, A_UINT32 TargetType)
+{
+    A_UINT32 eepHeaderAddr;
+    A_UINT8 AR6003CustDataShadow[AR6003_CUST_DATA_SIZE+4];
+    A_INT32 i;
+
+    if (BMIReadMemory(hifDevice,
+            HOST_INTEREST_ITEM_ADDRESS(TargetType, hi_board_data),
+            (A_UCHAR *)&eepHeaderAddr,
+            4)!= A_OK)
+    {
+        AR_DEBUG_PRINTF(ATH_DEBUG_ERR, ("BMIReadMemory for reading board data address failed \n"));
+        return;
+    }
+
+    if (TargetType == TARGET_TYPE_AR6003) {
+        eepHeaderAddr += 36;  /* AR6003 customer data section offset is 37 */
+
+        for (i=0; i<AR6003_CUST_DATA_SIZE+4; i+=4){
+            if (BMIReadSOCRegister(hifDevice, eepHeaderAddr, (A_UINT32 *)&AR6003CustDataShadow[i])!= A_OK) {
+                AR_DEBUG_PRINTF(ATH_DEBUG_ERR, ("BMIReadSOCRegister () failed \n"));
+                return ;
+            }  
+            eepHeaderAddr +=4;
+        }
+
+        memcpy(custDataAR6003, AR6003CustDataShadow+1, AR6003_CUST_DATA_SIZE);
+    }
+
+    if (TargetType == TARGET_TYPE_AR6002) {
+        eepHeaderAddr += 64;  /* AR6002 customer data sectioin offset is 64 */
+
+        for (i=0; i<AR6002_CUST_DATA_SIZE; i+=4){
+            if (BMIReadSOCRegister(hifDevice, eepHeaderAddr, (A_UINT32 *)&custDataAR6002[i])!= A_OK) {
+                AR_DEBUG_PRINTF(ATH_DEBUG_ERR, ("BMIReadSOCRegister () failed \n"));
+                return ;
+            }  
+            eepHeaderAddr +=4;
+        }
+    }
+
+    return;
+}
+
+/* This is the function to call when need to use the cust data */
+A_UINT8 *
+ar6000_get_cust_data_buffer(A_UINT32 TargetType)
+{
+    if (TargetType == TARGET_TYPE_AR6003)
+        return custDataAR6003;
+
+    if (TargetType == TARGET_TYPE_AR6002)
+        return custDataAR6002;
+
+    return NULL;
 }
 
 #define REG_DUMP_COUNT_AR6001   38  /* WORDs, derived from AR600x_regdump.h */

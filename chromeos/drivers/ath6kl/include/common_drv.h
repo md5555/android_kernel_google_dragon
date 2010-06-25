@@ -53,6 +53,9 @@ typedef struct {
 #define AR6003_VERSION_REV1     0x300002ba
 #define AR6003_VERSION_REV2     0x30000384
 
+#define AR6002_CUST_DATA_SIZE 112
+#define AR6003_CUST_DATA_SIZE 16
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -82,6 +85,10 @@ A_STATUS ar6000_prepare_target(HIF_DEVICE *hifDevice,
 A_STATUS ar6000_set_hci_bridge_flags(HIF_DEVICE *hifDevice,
                                      A_UINT32    TargetType,
                                      A_UINT32    Flags);
+
+void ar6000_copy_cust_data_from_target(HIF_DEVICE *hifDevice, A_UINT32 TargetType);
+
+A_UINT8 *ar6000_get_cust_data_buffer(A_UINT32 TargetType);
 
 #ifdef __cplusplus
 }

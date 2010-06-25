@@ -32,6 +32,7 @@
 #include "hci_transport_api.h"
 #endif
 #include "ar3kconfig.h"
+#include "tlpm.h"
 
 #define BAUD_CHANGE_COMMAND_STATUS_OFFSET   5
 #define HCI_EVENT_RESP_TIMEOUTMS            3000
@@ -330,6 +331,125 @@ static A_STATUS AR3KConfigureSendHCIReset(AR3K_CONFIG_INFO *pConfig)
     return status;
 }
 
+static A_STATUS AR3KEnableTLPM(AR3K_CONFIG_INFO *pConfig)
+{
+    A_STATUS  status;
+    /* AR3K vendor specific command for Host Wakeup Config */
+    A_CHAR    hostWakeupConfig[] = {0x31,0xFC,0x18,
+                                    0x02,0x00,0x00,0x00,
+                                    0x01,0x00,0x00,0x00,
+                                    TLPM_DEFAULT_IDLE_TIMEOUT_LSB,TLPM_DEFAULT_IDLE_TIMEOUT_MSB,0x00,0x00,    //idle timeout in ms
+                                    0x00,0x00,0x00,0x00,
+                                    TLPM_DEFAULT_WAKEUP_TIMEOUT_MS,0x00,0x00,0x00,    //wakeup timeout in ms
+                                    0x00,0x00,0x00,0x00};
+    /* AR3K vendor specific command for Target Wakeup Config */
+    A_CHAR    targetWakeupConfig[] = {0x31,0xFC,0x18,
+                                      0x04,0x00,0x00,0x00,
+                                      0x01,0x00,0x00,0x00,
+                                      TLPM_DEFAULT_IDLE_TIMEOUT_LSB,TLPM_DEFAULT_IDLE_TIMEOUT_MSB,0x00,0x00,  //idle timeout in ms
+                                      0x00,0x00,0x00,0x00,
+                                      TLPM_DEFAULT_WAKEUP_TIMEOUT_MS,0x00,0x00,0x00,  //wakeup timeout in ms
+                                      0x00,0x00,0x00,0x00};
+    /* AR3K vendor specific command for Host Wakeup Enable */
+    A_CHAR    hostWakeupEnable[] = {0x31,0xFC,0x4,
+                                    0x01,0x00,0x00,0x00};
+    /* AR3K vendor specific command for Target Wakeup Enable */
+    A_CHAR    targetWakeupEnable[] = {0x31,0xFC,0x4,
+                                      0x06,0x00,0x00,0x00};
+    /* AR3K vendor specific command for Sleep Enable */
+    A_CHAR    sleepEnable[] = {0x4,0xFC,0x1,
+                               0x1};
+    A_UINT8   *pEvent = NULL;
+    A_UINT8   *pBufferToFree = NULL;
+    
+    if (0 != pConfig->IdleTimeout) {
+        A_UINT8 idle_lsb = pConfig->IdleTimeout & 0xFF;
+        A_UINT8 idle_msb = (pConfig->IdleTimeout & 0xFF00) >> 8;
+        hostWakeupConfig[11] = targetWakeupConfig[11] = idle_lsb;
+        hostWakeupConfig[12] = targetWakeupConfig[12] = idle_msb;
+    }
+
+    if (0 != pConfig->WakeupTimeout) {
+        hostWakeupConfig[19] = targetWakeupConfig[19] = (pConfig->WakeupTimeout & 0xFF);
+    }
+
+    status = SendHCICommandWaitCommandComplete(pConfig,
+                                               hostWakeupConfig,
+                                               sizeof(hostWakeupConfig),
+                                               &pEvent,
+                                               &pBufferToFree);
+    if (pBufferToFree != NULL) {
+        A_FREE(pBufferToFree);    
+    }
+    if (A_FAILED(status)) {
+        AR_DEBUG_PRINTF(ATH_DEBUG_ERR,("HostWakeup Config Failed! \n"));    
+        return status;
+    }
+    
+    pEvent = NULL;
+    pBufferToFree = NULL;
+    status = SendHCICommandWaitCommandComplete(pConfig,
+                                               targetWakeupConfig,
+                                               sizeof(targetWakeupConfig),
+                                               &pEvent,
+                                               &pBufferToFree);
+    if (pBufferToFree != NULL) {
+        A_FREE(pBufferToFree);    
+    }
+    if (A_FAILED(status)) {
+        AR_DEBUG_PRINTF(ATH_DEBUG_ERR,("Target Wakeup Config Failed! \n"));    
+        return status;
+    }
+
+    pEvent = NULL;
+    pBufferToFree = NULL;
+    status = SendHCICommandWaitCommandComplete(pConfig,
+                                               hostWakeupEnable,
+                                               sizeof(hostWakeupEnable),
+                                               &pEvent,
+                                               &pBufferToFree);
+    if (pBufferToFree != NULL) {
+        A_FREE(pBufferToFree);    
+    }
+    if (A_FAILED(status)) {
+        AR_DEBUG_PRINTF(ATH_DEBUG_ERR,("HostWakeup Enable Failed! \n"));    
+        return status;
+    }
+
+    pEvent = NULL;
+    pBufferToFree = NULL;
+    status = SendHCICommandWaitCommandComplete(pConfig,
+                                               targetWakeupEnable,
+                                               sizeof(targetWakeupEnable),
+                                               &pEvent,
+                                               &pBufferToFree);
+    if (pBufferToFree != NULL) {
+        A_FREE(pBufferToFree);    
+    }
+    if (A_FAILED(status)) {
+        AR_DEBUG_PRINTF(ATH_DEBUG_ERR,("Target Wakeup Enable Failed! \n"));    
+        return status;
+    }
+
+    pEvent = NULL;
+    pBufferToFree = NULL;
+    status = SendHCICommandWaitCommandComplete(pConfig,
+                                               sleepEnable,
+                                               sizeof(sleepEnable),
+                                               &pEvent,
+                                               &pBufferToFree);
+    if (pBufferToFree != NULL) {
+        A_FREE(pBufferToFree);    
+    }
+    if (A_FAILED(status)) {
+        AR_DEBUG_PRINTF(ATH_DEBUG_ERR,("Sleep Enable Failed! \n"));    
+    }
+    
+    AR_DEBUG_PRINTF(ATH_DEBUG_ERR,("AR3K Config: Enable TLPM Completed (status = %d) \n",status));
+
+    return status;                                              
+}
+
 A_STATUS AR3KConfigure(AR3K_CONFIG_INFO *pConfig)
 {
     A_STATUS        status = A_OK; 
@@ -371,6 +491,14 @@ A_STATUS AR3KConfigure(AR3K_CONFIG_INFO *pConfig)
 
         /* Send HCI reset to make PS tags take effect*/
         AR3KConfigureSendHCIReset(pConfig);
+
+        if (pConfig->PwrMgmtEnabled) {
+            /* the delay is required after the previous HCI reset before further
+             * HCI commands can be issued
+             */
+            A_MDELAY(200);
+            AR3KEnableTLPM(pConfig);
+        }
                
            /* re-enable asynchronous recv */
         status = HCI_TransportEnableDisableAsyncRecv(pConfig->pHCIDev,TRUE);

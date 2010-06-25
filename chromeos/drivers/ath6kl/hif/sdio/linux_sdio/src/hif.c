@@ -32,7 +32,7 @@
 #include "hif_internal.h"
 #define ATH_MODULE_NAME hif
 #include "a_debug.h"
-
+#include "AR6002/hw2.0/hw/mbox_host_reg.h"
 
 #if HIF_USE_DMA_BOUNCE_BUFFER
 /* macro to check if DMA buffer is WORD-aligned and DMA-able.  Most host controllers assume the
@@ -547,10 +547,12 @@ hifIRQHandler(struct sdio_func *func)
     AR_DEBUG_PRINTF(ATH_DEBUG_TRACE, ("AR6000: +hifIRQHandler\n"));
 
     device = getHifDevice(func);
+    atomic_set(&device->irqHandling, 1);
     /* release the host during ints so we can pick it back up when we process cmds */
     sdio_release_host(device->func);
     status = device->htcCallbacks.dsrHandler(device->htcCallbacks.context);
     sdio_claim_host(device->func);
+    atomic_set(&device->irqHandling, 0);
     AR_DEBUG_ASSERT(status == A_OK || status == A_ECANCELED);
     AR_DEBUG_PRINTF(ATH_DEBUG_TRACE, ("AR6000: -hifIRQHandler\n"));
 }
@@ -710,8 +712,7 @@ HIFUnMaskInterrupt(HIF_DEVICE *device)
 
 void HIFMaskInterrupt(HIF_DEVICE *device)
 {
-    int ret;;
-
+    int ret;
     AR_DEBUG_ASSERT(device != NULL);
     AR_DEBUG_ASSERT(device->func != NULL);
 
@@ -719,6 +720,11 @@ void HIFMaskInterrupt(HIF_DEVICE *device)
 
     /* Mask our function IRQ */
     sdio_claim_host(device->func);
+    while (atomic_read(&device->irqHandling)) {        
+        sdio_release_host(device->func);
+        schedule_timeout(HZ/10);
+        sdio_claim_host(device->func);
+    }
     ret = sdio_release_irq(device->func);
     sdio_release_host(device->func);
     AR_DEBUG_ASSERT(ret == 0);
@@ -837,10 +843,40 @@ static int hifDeviceSuspend(struct device *dev)
         status = osdrvCallbacks.deviceSuspendHandler(device->claimedContext);
     }
     if (status == A_OK) {
+        int oldresetvalue = reset_sdio_on_unload;
+        reset_sdio_on_unload = 1;
         hifDisableFunc(device, func);
+        reset_sdio_on_unload = oldresetvalue;
         device->is_suspend = TRUE;
     } else if (status == A_EBUSY) {
+        A_INT32 cnt = 10;
+        A_UINT8 host_int_status;
+	    do {            		    
+		    while (atomic_read(&device->irqHandling)) {
+			    /* wait until irq handler finished all the jobs */
+			    schedule_timeout(HZ/10);
+		    }
+		    /* check if there is any pending irq due to force done */
+		    host_int_status = 0;
+		    status = HIFReadWrite(device, HOST_INT_STATUS_ADDRESS,
+				    (A_UINT8 *)&host_int_status, sizeof(host_int_status),
+				    HIF_RD_SYNC_BYTE_INC, NULL);
+		    host_int_status = A_SUCCESS(status) ? (host_int_status & (1 << 0)) : 0;
+		    if (host_int_status) {
+			    schedule(); /* schedule for next dsrHandler */
+		    }
+	    } while (host_int_status && --cnt > 0);
+
+        if (host_int_status && cnt == 0) {
+            AR_DEBUG_PRINTF(ATH_DEBUG_ERROR, 
+                            ("AR6000: %s(), Unable clear up pending IRQ before the system suspended\n",
+					        __FUNCTION__));
+        }
+#if 1
         status = A_OK; /* assume that sdio host controller will take care the power of wifi chip */
+#else
+        return -EBUSY; /* Return -EBUSY if customer use all android patch of mmc stack provided by us */ 
+#endif 
     }
     return A_SUCCESS(status) ? 0 : status;
 }

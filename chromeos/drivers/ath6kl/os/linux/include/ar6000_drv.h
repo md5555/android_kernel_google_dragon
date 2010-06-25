@@ -285,6 +285,7 @@ typedef enum _AR6K_BIN_FILE {
 #define AR6003_REV1_TCMD_FIRMWARE_FILE      "ath6k/AR6003/hw1.0/athtcmd_ram.bin"
 #define AR6003_REV1_ART_FIRMWARE_FILE       "ath6k/AR6003/hw1.0/device.bin"
 #define AR6003_REV1_PATCH_FILE              "ath6k/AR6003/hw1.0/data.patch.bin"
+#define AR6003_REV1_EPPING_FIRMWARE_FILE    "ath6k/AR6003/hw1.0/endpointping.bin"
 #ifdef AR600x_SD31_XXX
 #define AR6003_REV1_BOARD_DATA_FILE         "ath6k/AR6003/hw1.0/bdata.SD31.bin"
 #elif defined(AR600x_SD32_XXX)
@@ -298,12 +299,13 @@ typedef enum _AR6K_BIN_FILE {
 /* AR6003 2.0 definitions */
 #define AR6003_REV2_VERSION                 0x30000384 
 #define AR6003_REV2_DATA_DOWNLOAD_ADDRESS   AR6003_REV2_OTP_DATA_ADDRESS
-#define AR6003_REV2_PATCH_DOWNLOAD_ADDRESS  0x57e918
+#define AR6003_REV2_PATCH_DOWNLOAD_ADDRESS  0x57e910
 #define AR6003_REV2_OTP_FILE                "ath6k/AR6003/hw2.0/otp.bin.z77"
 #define AR6003_REV2_FIRMWARE_FILE           "ath6k/AR6003/hw2.0/athwlan.bin.z77"
 #define AR6003_REV2_TCMD_FIRMWARE_FILE      "ath6k/AR6003/hw2.0/athtcmd_ram.bin"
 #define AR6003_REV2_ART_FIRMWARE_FILE       "ath6k/AR6003/hw2.0/device.bin"
 #define AR6003_REV2_PATCH_FILE              "ath6k/AR6003/hw2.0/data.patch.bin"
+#define AR6003_REV2_EPPING_FIRMWARE_FILE    "ath6k/AR6003/hw2.0/endpointping.bin"
 #ifdef AR600x_SD31_XXX
 #define AR6003_REV2_BOARD_DATA_FILE         "ath6k/AR6003/hw2.0/bdata.SD31.bin"
 #elif defined(AR600x_SD32_XXX)
@@ -460,7 +462,8 @@ typedef struct ar6_softc {
     A_UINT8                 arReqBssid[6];
     A_UINT16                arChannelHint;
     A_UINT16                arBssChannel;
-    A_UINT16                arListenInterval;
+    A_UINT16                arListenIntervalB;
+    A_UINT16                arListenIntervalT;
     struct ar6000_version   arVersion;
     A_UINT32                arTargetType;
     A_INT8                  arRssi;
@@ -569,8 +572,10 @@ typedef struct ar6_softc {
     A_UINT16                arOsPowerCtrl;
     A_UINT16                arWowState;
 #endif
-    A_BOOL                  scan_complete;
+    A_UINT8                 scan_triggered;
     WMI_SCAN_PARAMS_CMD     scParams;
+    A_UINT8                 mcast_filters[MAC_MAX_FILTERS_PER_LIST][4];
+    A_UINT8                 bdaddr[6];
 } AR_SOFTC_T;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0)

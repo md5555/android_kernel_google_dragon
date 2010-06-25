@@ -51,6 +51,28 @@ encode_ie(void *buf, size_t bufsize,
 }
 #endif /* WIRELESS_EXT > 14 */
 
+static A_UINT8
+get_bss_phy_capability(bss_t *bss)
+{
+    A_UINT8 capability = 0;
+    struct ieee80211_common_ie *cie = &bss->ni_cie;
+#define CHAN_IS_11A(x)              (!((x >= 2412) && (x <= 2484)))
+    if (CHAN_IS_11A(cie->ie_chan)) {
+        if (cie->ie_htcap) {
+            capability = WMI_11NA_CAPABILITY;
+        } else {
+            capability = WMI_11A_CAPABILITY;
+        }
+    } else if ((cie->ie_erp) || (cie->ie_xrates)) {
+        if (cie->ie_htcap) {
+            capability = WMI_11NG_CAPABILITY;
+        } else {
+            capability = WMI_11G_CAPABILITY;
+        }
+    }
+    return capability;
+}
+
 void
 ar6000_scan_node(void *arg, bss_t *ni)
 {
@@ -269,28 +291,22 @@ ar6000_scan_node(void *arg, bss_t *ni)
         /* protocol */
         A_MEMZERO(&iwe, sizeof(iwe));
         iwe.cmd = SIOCGIWNAME;
-#define CHAN_IS_11A(x)              (!((x >= 2412) && (x <= 2484)))
-        if (CHAN_IS_11A(cie->ie_chan)) {
-            if (cie->ie_htcap) {
-                /* 11na */
-                snprintf(iwe.u.name, IFNAMSIZ, "IEEE 802.11na");
-            }
-            else {
-                /* 11a */
-                snprintf(iwe.u.name, IFNAMSIZ, "IEEE 802.11a");
-            }
-        } else if ((cie->ie_erp) || (cie->ie_xrates)) {
-            if (cie->ie_htcap) {
-                /* 11ng */
-                snprintf(iwe.u.name, IFNAMSIZ, "IEEE 802.11ng");
-            }
-            else {
-                /* 11g */
-                snprintf(iwe.u.name, IFNAMSIZ, "IEEE 802.11g");
-            }
-        } else {
-            /* 11b */
+        switch (get_bss_phy_capability(ni)) {
+        case WMI_11A_CAPABILITY:
+            snprintf(iwe.u.name, IFNAMSIZ, "IEEE 802.11a");
+            break;
+        case WMI_11G_CAPABILITY:
+            snprintf(iwe.u.name, IFNAMSIZ, "IEEE 802.11g");
+            break;
+        case WMI_11NA_CAPABILITY:
+            snprintf(iwe.u.name, IFNAMSIZ, "IEEE 802.11na");
+            break;
+        case WMI_11NG_CAPABILITY:
+            snprintf(iwe.u.name, IFNAMSIZ, "IEEE 802.11ng");
+            break;
+        default:
             snprintf(iwe.u.name, IFNAMSIZ, "IEEE 802.11b");
+            break;
         }
         current_ev = iwe_stream_add_event(
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27)
@@ -583,7 +599,7 @@ ar6000_ioctl_siwessid(struct net_device *dev,
         return -ERESTARTSYS;
     }
 
-    if (ar->bIsDestroyProgress) {
+    if (ar->bIsDestroyProgress || ar->arWlanState == WLAN_DISABLED) {
         up(&ar->arSem);
         return -EBUSY;
     }
@@ -601,7 +617,13 @@ ar6000_ioctl_siwessid(struct net_device *dev,
 
     if (!data->flags) {
         arNetworkType = ar->arNetworkType;
-        ar6000_init_profile_info(ar);
+#ifdef ATH6K_CONFIG_CFG80211
+        if (ar->arConnected) {
+#endif /* ATH6K_CONFIG_CFG80211 */
+            ar6000_init_profile_info(ar);
+#ifdef ATH6K_CONFIG_CFG80211
+        }
+#endif /* ATH6K_CONFIG_CFG80211 */
         ar->arNetworkType = arNetworkType;
     }
 
@@ -792,26 +814,32 @@ ar6000_ioctl_giwrate(struct net_device *dev,
         return -EBUSY;
     }
 
+    if (ar->arWlanState == WLAN_DISABLED) {
+        return -EIO;
+    }
+
+    if ((ar->arNextMode != AP_NETWORK && !ar->arConnected) || ar->arWmiReady == FALSE) {
+        rrq->value = 1000 * 1000;       
+        return 0;
+    }
+
     if (down_interruptible(&ar->arSem)) {
         return -ERESTARTSYS;
     }
 
-    if (ar->bIsDestroyProgress) {
+    if (ar->bIsDestroyProgress || ar->arWlanState == WLAN_DISABLED) {
         up(&ar->arSem);
         return -EBUSY;
     }
 
-    if(ar->arWmiReady == TRUE)
-    {
-        ar->arBitRate = 0xFFFF;
-        if (wmi_get_bitrate_cmd(ar->arWmi) != A_OK) {
-            up(&ar->arSem);
-            return -EIO;
-        }
-        wait_event_interruptible_timeout(arEvent, ar->arBitRate != 0xFFFF, wmitimeout * HZ);
-        if (signal_pending(current)) {
-            ret = -EINTR;
-        }
+    ar->arBitRate = 0xFFFF;
+    if (wmi_get_bitrate_cmd(ar->arWmi) != A_OK) {
+        up(&ar->arSem);
+        return -EIO;
+    }
+    wait_event_interruptible_timeout(arEvent, ar->arBitRate != 0xFFFF, wmitimeout * HZ);
+    if (signal_pending(current)) {
+        ret = -EINTR;
     }
     /* If the interface is down or wmi is not ready or the target is not
        connected - return the value stored in the device structure */
@@ -1231,8 +1259,13 @@ ar6000_ioctl_siwgenie(struct net_device *dev,
     }
 #ifdef WAPI_ENABLE
     if (ie_type == IEEE80211_ELEMID_WAPI) {
-        if(copy_from_user(wapi_ie, ie, ie_length))
-            return -EIO;
+        if (ie_length > 0) {
+            if (copy_from_user(wapi_ie, ie, ie_length)) {
+                return -EIO;
+            }
+        }
+        wmi_set_appie_cmd(ar->arWmi, WMI_FRAME_ASSOC_REQ, ie_length, wapi_ie);
+    } else if (ie_length == 0) {
         wmi_set_appie_cmd(ar->arWmi, WMI_FRAME_ASSOC_REQ, ie_length, wapi_ie);
     }
 #endif
@@ -1869,6 +1902,7 @@ static int ar6000_ioctl_siwpower(struct net_device *dev,
                  struct iw_request_info *info,
                  union iwreq_data *wrqu, char *extra)
 {
+#ifndef ATH6K_CONFIG_OTA_MODE
     AR_SOFTC_T *ar = (AR_SOFTC_T *)ar6k_priv(dev);
     WMI_POWER_MODE power_mode;
 
@@ -1887,6 +1921,7 @@ static int ar6000_ioctl_siwpower(struct net_device *dev,
 
     if (wmi_powermode_cmd(ar->arWmi, power_mode) < 0)
         return -EIO;
+#endif
     return 0;
 }
 
@@ -1924,6 +1959,7 @@ ar6000_ioctl_giwname(struct net_device *dev,
            struct iw_request_info *info,
            char *name, char *extra)
 {
+    A_UINT8 capability;
     AR_SOFTC_T *ar = (AR_SOFTC_T *)ar6k_priv(dev);
 
     if (is_iwioctl_allowed(ar->arNextMode, info->cmd) != A_OK) {
@@ -1935,7 +1971,15 @@ ar6000_ioctl_giwname(struct net_device *dev,
         return -EIO;
     }
 
-    switch (ar->arPhyCapability) {
+    capability = ar->arPhyCapability;
+    if(ar->arNetworkType == INFRA_NETWORK && ar->arConnected) {
+        bss_t *bss = wmi_find_node(ar->arWmi, ar->arBssid);
+        if (bss) {
+            capability = get_bss_phy_capability(bss);
+            wmi_node_return(ar->arWmi, bss);
+        }
+    }
+    switch (capability) {
     case (WMI_11A_CAPABILITY):
         strncpy(name, "AR6000 802.11a", IFNAMSIZ);
         break;
@@ -1955,7 +1999,7 @@ ar6000_ioctl_giwname(struct net_device *dev,
         strncpy(name, "AR6000 802.11nag", IFNAMSIZ);
         break;
     default:
-        strncpy(name, "AR6000 802.11", IFNAMSIZ);
+        strncpy(name, "AR6000 802.11b", IFNAMSIZ);
         break;
     }
 
@@ -2200,10 +2244,6 @@ ar6000_ioctl_giwrange(struct net_device *dev,
     }
 
     if (ar->arWmiReady == FALSE) {
-        return -EIO;
-    }
-
-    if (ar->arWlanState == WLAN_DISABLED) {
         return -EIO;
     }
 
@@ -2489,6 +2529,17 @@ ar6000_ioctl_siwscan(struct net_device *dev,
         return -EIO;
     }
 
+    /* If scan is issued in the middle of ongoing scan or connect,
+       dont issue another one */
+    if ( ar->scan_triggered > 0 ) {
+        ++ar->scan_triggered;
+        if (ar->scan_triggered < 5) {
+            return 0;
+        } else {
+            AR_DEBUG_PRINTF(ATH_DEBUG_WLAN_SCAN,("Scan request is triggered over 5 times. Not scan complete event\n"));
+        }
+    } 
+
     if (!ar->arUserBssFilter) {
         if (wmi_bssfilter_cmd(ar->arWmi, ALL_BSS_FILTER, 0) != A_OK) {
             return -EIO;
@@ -2533,7 +2584,7 @@ ar6000_ioctl_siwscan(struct net_device *dev,
     }
 
     if (ret == 0) {
-        ar->scan_complete = 0;
+        ar->scan_triggered = 1;
     }
 
     return ret;
@@ -2628,6 +2679,23 @@ ar6000_ioctl_siwcommit(struct net_device *dev,
     return 0;
 }
 
+#define W_PROTO(_x) wait_ ## _x
+#define WAIT_HANDLER_IMPL(_x, type) \
+int wait_ ## _x (struct net_device *dev, struct iw_request_info *info, type wrqu, char *extra) {\
+    int ret; \
+    dev_hold(dev); \
+    rtnl_unlock(); \
+    ret = _x(dev, info, wrqu, extra); \
+    rtnl_lock(); \
+    dev_put(dev); \
+    return ret;\
+}
+
+WAIT_HANDLER_IMPL(ar6000_ioctl_siwessid, struct iw_point *)
+WAIT_HANDLER_IMPL(ar6000_ioctl_giwrate, struct iw_param *)
+WAIT_HANDLER_IMPL(ar6000_ioctl_giwtxpow, struct iw_param *)
+WAIT_HANDLER_IMPL(ar6000_ioctl_giwrange, struct iw_point*)
+
 /* Structures to export the Wireless Handlers */
 static const iw_handler ath_handlers[] = {
     (iw_handler) ar6000_ioctl_siwcommit,        /* SIOCSIWCOMMIT */
@@ -2641,7 +2709,7 @@ static const iw_handler ath_handlers[] = {
     (iw_handler) ar6000_ioctl_siwsens,          /* SIOCSIWSENS */
     (iw_handler) ar6000_ioctl_giwsens,          /* SIOCGIWSENS */
     (iw_handler) NULL /* not _used */,          /* SIOCSIWRANGE */
-    (iw_handler) ar6000_ioctl_giwrange,         /* SIOCGIWRANGE */
+    (iw_handler) W_PROTO(ar6000_ioctl_giwrange),/* SIOCGIWRANGE */
     (iw_handler) NULL /* not used */,           /* SIOCSIWPRIV */
     (iw_handler) NULL /* kernel code */,        /* SIOCGIWPRIV */
     (iw_handler) NULL /* not used */,           /* SIOCSIWSTATS */
@@ -2660,20 +2728,20 @@ static const iw_handler ath_handlers[] = {
     (iw_handler) ar6000_ioctl_iwaplist,         /* SIOCGIWAPLIST */
     (iw_handler) ar6000_ioctl_siwscan,          /* SIOCSIWSCAN */
     (iw_handler) ar6000_ioctl_giwscan,          /* SIOCGIWSCAN */
-    (iw_handler) ar6000_ioctl_siwessid,         /* SIOCSIWESSID */
+    (iw_handler) W_PROTO(ar6000_ioctl_siwessid),/* SIOCSIWESSID */
     (iw_handler) ar6000_ioctl_giwessid,         /* SIOCGIWESSID */
     (iw_handler) NULL,                          /* SIOCSIWNICKN */
     (iw_handler) NULL,                          /* SIOCGIWNICKN */
     (iw_handler) NULL,                          /* -- hole -- */
     (iw_handler) NULL,                          /* -- hole -- */
     (iw_handler) ar6000_ioctl_siwrate,          /* SIOCSIWRATE */
-    (iw_handler) ar6000_ioctl_giwrate,          /* SIOCGIWRATE */
+    (iw_handler) W_PROTO(ar6000_ioctl_giwrate), /* SIOCGIWRATE */
     (iw_handler) NULL,                          /* SIOCSIWRTS */
     (iw_handler) NULL,                          /* SIOCGIWRTS */
     (iw_handler) NULL,                          /* SIOCSIWFRAG */
     (iw_handler) NULL,                          /* SIOCGIWFRAG */
     (iw_handler) ar6000_ioctl_siwtxpow,         /* SIOCSIWTXPOW */
-    (iw_handler) ar6000_ioctl_giwtxpow,         /* SIOCGIWTXPOW */
+    (iw_handler) W_PROTO(ar6000_ioctl_giwtxpow),/* SIOCGIWTXPOW */
     (iw_handler) ar6000_ioctl_siwretry,         /* SIOCSIWRETRY */
     (iw_handler) ar6000_ioctl_giwretry,         /* SIOCGIWRETRY */
     (iw_handler) ar6000_ioctl_siwencode,        /* SIOCSIWENCODE */

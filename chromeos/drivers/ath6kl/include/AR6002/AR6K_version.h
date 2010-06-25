@@ -22,7 +22,7 @@
 #define __VER_PATCH_ 0
 
 /* The makear6ksdk script (used for release builds) modifies the following line. */
-#define __BUILD_NUMBER_ 1052
+#define __BUILD_NUMBER_ 101
 
 
 /* Format of the version number. */
@@ -44,4 +44,5 @@
  */
 #define AR6K_SW_VERSION     ( ( __VER_MAJOR_ << VER_MAJOR_BIT_OFFSET ) + ( __VER_MINOR_ << VER_MINOR_BIT_OFFSET ) + ( __VER_PATCH_ << VER_PATCH_BIT_OFFSET ) + ( __BUILD_NUMBER_ << VER_BUILD_NUM_BIT_OFFSET ) )
 
-
+/* ABI Version. Reflects the version of binary interface exposed by AR6K target firmware. Needs to be incremented by 1 for any change in the firmware that requires upgrade of the driver on the host side for the change to work correctly */
+#define AR6K_ABI_VERSION        1

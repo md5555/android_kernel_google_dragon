@@ -236,6 +236,19 @@ A_STATUS    HCI_TransportRecvHCIEventSync(HCI_TRANSPORT_HANDLE HciTrans,
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
 A_STATUS    HCI_TransportSetBaudRate(HCI_TRANSPORT_HANDLE HciTrans, A_UINT32 Baud);
 
+/*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  @desc: Enable/Disable HCI Transport Power Management
+  @function name: HCI_TransportEnablePowerMgmt
+  @input:  HciTrans - hci transport handle 
+           Enable - 1 = Enable, 0 = Disable
+  @output: 
+  @return: A_OK on success
+  @notes: 
+  @example:
+  @see also: 
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
+A_STATUS HCI_TransportEnablePowerMgmt(HCI_TRANSPORT_HANDLE HciTrans, A_BOOL Enable);
+
 #ifdef __cplusplus
 }
 #endif

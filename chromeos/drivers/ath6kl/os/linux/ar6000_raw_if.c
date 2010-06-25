@@ -278,10 +278,6 @@ int ar6000_htc_raw_close(AR_SOFTC_T *ar)
     /* Initialize the BMI component */
     BMIInit();
 
-    if (ar->arRawHtc) {
-        A_FREE(ar->arRawHtc);
-        ar->arRawHtc = NULL;
-    }
     return 0;
 }
 

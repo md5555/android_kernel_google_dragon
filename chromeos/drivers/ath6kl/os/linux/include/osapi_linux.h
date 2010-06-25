@@ -83,7 +83,32 @@
 #define A_MALLOC(size)                  kmalloc((size), GFP_KERNEL)
 #define A_MALLOC_NOWAIT(size)           kmalloc((size), GFP_ATOMIC)
 #define A_FREE(addr)                    kfree(addr)
+
+#if defined(ANDROID_ENV) && defined(CONFIG_ANDROID_LOGGER)
+extern unsigned int enablelogcat;
+extern int android_logger_lv(void* module, int mask);
+enum logidx { LOG_MAIN_IDX = 0 };
+extern int logger_write(const enum logidx idx, 
+                const unsigned char prio,
+                const char __kernel * const tag,
+                const char __kernel * const fmt,
+                ...);
+#define A_ANDROID_PRINTF(mask, module, tags, args...) do {  \
+    if (enablelogcat) \
+        logger_write(LOG_MAIN_IDX, android_logger_lv(module, mask), tags, args); \
+    else \
+        printk(KERN_ALERT args); \
+} while (0)
+#ifdef DEBUG
+#define A_LOGGER_MODULE_NAME(x) #x
+#define A_LOGGER(mask, mod, args...) \
+    A_ANDROID_PRINTF(mask, &GET_ATH_MODULE_DEBUG_VAR_NAME(mod), "ar6k_" A_LOGGER_MODULE_NAME(mod), args);
+#endif 
+#define A_PRINTF(args...) A_ANDROID_PRINTF(ATH_DEBUG_INFO, NULL, "ar6k_driver", args)
+#else
+#define A_LOGGER(mask, mod, args...)    printk(KERN_ALERT args)
 #define A_PRINTF(args...)               printk(KERN_ALERT args)
+#endif /* ANDROID */
 #define A_PRINTF_LOG(args...)           printk(args)
 #define A_SPRINTF(buf, args...)			sprintf (buf, args)
 
@@ -312,6 +337,8 @@ A_UINT32 a_copy_from_user(void *to, const void *from, A_UINT32 n);
 #define A_CHECK_DRV_TX()   
              
 #define A_GET_CACHE_LINE_BYTES()    L1_CACHE_BYTES
+
+#define A_CACHE_LINE_PAD            128
 
 static inline void *A_ALIGN_TO_CACHE_LINE(void *ptr) {   
     return (void *)L1_CACHE_ALIGN((A_UINT32)ptr);

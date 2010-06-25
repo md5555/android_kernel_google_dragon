@@ -26,7 +26,7 @@ extern "C" {
 struct ar6_softc;
 
 void ar6000_ready_event(void *devt, A_UINT8 *datap, A_UINT8 phyCap,
-                        A_UINT32 ver);
+                        A_UINT32 sw_ver, A_UINT32 abi_ver);
 A_STATUS ar6000_control_tx(void *devt, void *osbuf, HTC_ENDPOINT_ID eid);
 void ar6000_connect_event(struct ar6_softc *ar, A_UINT16 channel,
                           A_UINT8 *bssid, A_UINT16 listenInterval,

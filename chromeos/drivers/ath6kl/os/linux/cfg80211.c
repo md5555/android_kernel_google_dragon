@@ -315,6 +315,9 @@ ar6k_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
             return -EIO;
         }
         return 0;
+    } else if(ar->arSsidLen == sme->ssid_len &&
+              !A_MEMCMP(ar->arSsid, sme->ssid, ar->arSsidLen)) {
+	    wmi_disconnect_cmd(ar->arWmi);
     }
 
     A_MEMZERO(ar->arSsid, sizeof(ar->arSsid));
@@ -337,14 +340,14 @@ ar6k_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 
     if(sme->crypto.n_ciphers_pairwise) {
         ar6k_set_cipher(ar, sme->crypto.ciphers_pairwise[0], true);
+    } else {
+        ar6k_set_cipher(ar, IW_AUTH_CIPHER_NONE, true);
     }
     ar6k_set_cipher(ar, sme->crypto.cipher_group, false);
 
     if(sme->crypto.n_akm_suites) {
         ar6k_set_key_mgmt(ar, sme->crypto.akm_suites[0]);
     }
-
-    ar->arNetworkType = INFRA_NETWORK;
 
     if((sme->key_len) &&
        (NONE_AUTH == ar->arAuthMode) &&
@@ -380,6 +383,8 @@ ar6k_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
             return -EIO;
         }
     }
+
+    ar->arNetworkType = ar->arNextMode;
 
     AR_DEBUG_PRINTF(ATH_DEBUG_INFO, ("%s: Connect called with authmode %d dot11 auth %d"\
                     " PW crypto %d PW crypto Len %d GRP crypto %d"\
@@ -457,6 +462,14 @@ ar6k_cfg80211_connect_event(AR_SOFTC_T *ar, A_UINT16 channel,
         if(NL80211_IFTYPE_ADHOC != ar->wdev->iftype) {
             AR_DEBUG_PRINTF(ATH_DEBUG_INFO,
                             ("%s: ath6k not in ibss mode\n", __func__));
+            return;
+        }
+    }
+
+    if((INFRA_NETWORK & networkType)) {
+        if(NL80211_IFTYPE_STATION != ar->wdev->iftype) {
+            AR_DEBUG_PRINTF(ATH_DEBUG_INFO,
+                            ("%s: ath6k not in station mode\n", __func__));
             return;
         }
     }
@@ -623,6 +636,14 @@ ar6k_cfg80211_disconnect_event(AR_SOFTC_T *ar, A_UINT8 reason,
         A_MEMZERO(bssid, ETH_ALEN);
         cfg80211_ibss_joined(ar->arNetDev, bssid, GFP_KERNEL);
         return;
+    }
+
+    if((INFRA_NETWORK & ar->arNetworkType)) {
+        if(NL80211_IFTYPE_STATION != ar->wdev->iftype) {
+            AR_DEBUG_PRINTF(ATH_DEBUG_INFO,
+                            ("%s: ath6k not in station mode\n", __func__));
+            return;
+        }
     }
 
     if(FALSE == ar->arConnected) {
@@ -1247,10 +1268,10 @@ ar6k_cfg80211_change_iface(struct wiphy *wiphy, struct net_device *ndev,
 
     switch (type) {
     case NL80211_IFTYPE_STATION:
-        ar->arNetworkType = INFRA_NETWORK;
+        ar->arNextMode = INFRA_NETWORK;
         break;
     case NL80211_IFTYPE_ADHOC:
-        ar->arNetworkType = ADHOC_NETWORK;
+        ar->arNextMode = ADHOC_NETWORK;
         break;
     default:
         AR_DEBUG_PRINTF(ATH_DEBUG_ERR, ("%s: type %u\n", __func__, type));
@@ -1316,6 +1337,8 @@ ar6k_cfg80211_join_ibss(struct wiphy *wiphy, struct net_device *dev,
         ar6k_set_cipher(ar, IW_AUTH_CIPHER_NONE, true);
         ar6k_set_cipher(ar, IW_AUTH_CIPHER_NONE, false);
     }
+
+    ar->arNetworkType = ar->arNextMode;
 
     AR_DEBUG_PRINTF(ATH_DEBUG_INFO, ("%s: Connect called with authmode %d dot11 auth %d"\
                     " PW crypto %d PW crypto Len %d GRP crypto %d"\

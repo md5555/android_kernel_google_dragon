@@ -78,6 +78,7 @@ struct hif_device {
     DL_LIST      ScatterReqHead;                /* scatter request list head */
     A_BOOL       scatter_enabled;               /* scatter enabled flag */
     A_BOOL   is_suspend;
+    atomic_t   irqHandling;
 };
 
 #define HIF_DMA_BUFFER_SIZE (32 * 1024)

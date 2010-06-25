@@ -58,6 +58,7 @@ extern "C" {
 #define DBGLOG_MODULEID_MGMT                  13
 #define DBGLOG_MODULEID_TMR                   14
 #define DBGLOG_MODULEID_BTCOEX                15
+#define DBGLOG_MODULEID_TLPM                  2
 #define DBGLOG_MODULEID_END
 
 #define DBGLOG_NUM_ARGS_OFFSET             30

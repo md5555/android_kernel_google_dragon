@@ -975,6 +975,7 @@ typedef enum {
  */
 #define AR6000_XIOCTL_WMI_SET_QOS_SUPP                  148 
 
+#define AR6000_XIOCTL_GET_WLAN_SLEEP_STATE              149
 
 /*
  * arguments:
@@ -987,6 +988,7 @@ struct ar6000_version {
     A_UINT32        host_ver;
     A_UINT32        target_ver;
     A_UINT32        wlan_ver;
+    A_UINT32        abi_ver;
 };
 
 /* used by AR6000_IOCTL_WMI_GET_QOS_QUEUE */

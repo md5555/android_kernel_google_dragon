@@ -93,8 +93,8 @@ extern "C" {
 #define A_WMI_TXPWR_RX(devt, txPwr) \
     ar6000_txPwr_rx((devt), (txPwr))
 
-#define A_WMI_READY_EVENT(devt, datap, phyCap, ver) \
-    ar6000_ready_event((devt), (datap), (phyCap), (ver))
+#define A_WMI_READY_EVENT(devt, datap, phyCap, sw_ver, abi_ver) \
+    ar6000_ready_event((devt), (datap), (phyCap), (sw_ver), (abi_ver))
 
 #define A_WMI_DBGLOG_INIT_DONE(ar) \
     ar6000_dbglog_init_done(ar);

@@ -50,6 +50,7 @@
 #define BTON_TIMEOUT_MS           500
 #define BTOFF_TIMEOUT_MS          500
 #define BAUD_TIMEOUT_MS           1
+#define BTPWRSAV_TIMEOUT_MS       1  
 
 typedef struct {
     HCI_TRANSPORT_CONFIG_INFO   HCIConfig;
@@ -197,7 +198,7 @@ static A_STATUS CreditsAvailableCallback(void *pContext, int Credits, A_BOOL Cre
     AR_DEBUG_PRINTF(ATH_DEBUG_RECV,("+CreditsAvailableCallback (Credits:%d, IRQ:%s) \n",
                 Credits, CreditIRQEnabled ? "ON" : "OFF"));
     
-    LOCK_HCI_RX(pProt);
+    LOCK_HCI_TX(pProt);
     
     do {
         
@@ -244,7 +245,7 @@ static A_STATUS CreditsAvailableCallback(void *pContext, int Credits, A_BOOL Cre
                       
     } while (FALSE);
     
-    UNLOCK_HCI_RX(pProt);
+    UNLOCK_HCI_TX(pProt);
 
     if (enableCreditIrq) {
         AR_DEBUG_PRINTF(ATH_DEBUG_RECV,(" Enabling credit count IRQ...\n"));
@@ -1248,6 +1249,26 @@ A_STATUS HCI_TransportSetBaudRate(HCI_TRANSPORT_HANDLE HciTrans, A_UINT32 Baud)
         AR_DEBUG_PRINTF(ATH_DEBUG_ERR, ("Failed to tell target to change baud rate!"));            
     }
     
+    return status;
+}
+
+A_STATUS HCI_TransportEnablePowerMgmt(HCI_TRANSPORT_HANDLE HciTrans, A_BOOL Enable)
+{
+    A_STATUS status;
+    GMBOX_PROTO_HCI_UART  *pProt = (GMBOX_PROTO_HCI_UART *)HciTrans;
+                             
+    if (Enable) {
+        status = DevGMboxSetTargetInterrupt(pProt->pDev, MBOX_SIG_HCI_BRIDGE_PWR_SAV_ON, BTPWRSAV_TIMEOUT_MS);
+    } else {
+        status = DevGMboxSetTargetInterrupt(pProt->pDev, MBOX_SIG_HCI_BRIDGE_PWR_SAV_OFF, BTPWRSAV_TIMEOUT_MS);
+    }
+
+    if (A_FAILED(status)) {
+        AR_DEBUG_PRINTF(ATH_DEBUG_ERR,("Failed to enable/disable HCI power management!\n"));
+    } else {
+        AR_DEBUG_PRINTF(ATH_DEBUG_ERR,("HCI power management enabled/disabled!\n"));
+    }
+
     return status;
 }
 

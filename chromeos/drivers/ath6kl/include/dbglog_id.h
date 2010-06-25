@@ -245,6 +245,7 @@ extern "C" {
 #define WHAL_ERROR_XMIT_STOPDMA                    29
 #define WHAL_ERROR_INTERRUPT_BB_PANIC              30 
 #define WHAL_ERROR_RESET_TXIQCAL                   31 
+#define WHAL_ERROR_PAPRD_MAXGAIN_ABOVE_WINDOW      32 
 #define WHAL_DBGID_DEFINITION_END
 
 /* DC debug identifier definitions */
@@ -405,7 +406,7 @@ extern "C" {
 #define BTCOEX_FRAME_PRI_LOW_RATE_THRES				44
 #define BTCOEX_PM_FAKE_SLEEP						45
 #define BTCOEX_ACL_COEX_STATUS						46
-#define BTCOEX_ACL_COEX_DETECTECTION				47
+#define BTCOEX_ACL_COEX_DETECTION					47
 #define BTCOEX_A2DP_COEX_STATUS						48
 #define BTCOEX_SCO_STATUS							49
 #define BTCOEX_WAKEUP_ON_DATA						50
@@ -422,15 +423,15 @@ extern "C" {
 #define BTCOEX_DBG_DATA_COMPLETE					64
 #define BTCOEX_UPLINK_QUEUED_TIMESTAMP				65
 #define BTCOEX_DBG_DATA_COMPLETE_TIME				66
-#define BTCOEX_DBG_TX_COMP_TXQ						67
-#define BTCOEX_DBG_SCO_FL_EDGE						68
+#define BTCOEX_DBG_A2DP_ROLE_IS_SLAVE               67
+#define BTCOEX_DBG_A2DP_ROLE_IS_MASTER              68
 #define BTCOEX_DBG_UPLINK_SEQ_NUM					69
 #define BTCOEX_UPLINK_AGGR_SEQ						70
 #define BTCOEX_DBG_TX_COMP_SEQ_NO					71
 #define BTCOEX_DBG_MAX_AGGR_PAUSE_STATE				72
 #define BTCOEX_DBG_ACL_TRAFFIC                      73
 #define BTCOEX_CURR_AGGR_PROP						74
-#define BTCOEX_CREAT_AGGR							75
+#define BTCOEX_DBG_SCO_GET_PER_TIME_DIFF 			75
 #define BTCOEX_PSPOLL_PROCESS						76
 #define BTCOEX_RETURN_FROM_MAC						77
 #define BTCOEX_FREED_REQUEUED_CNT					78
@@ -439,12 +440,12 @@ extern "C" {
 #define BTCOEX_DBG_A2DP_NO_SYNC                     81
 #define BTCOEX_RETURN_FROM_MAC_HOLD_Q_INFO			82
 #define BTCOEX_RETURN_FROM_MAC_AC					83
-#define BTCOEX_CREAT_AGGR_AC						84
+#define BTCOEX_DBG_DTIM_RECV                        84
 #define BTCOEX_IS_PRE_UPDATE						86
 #define BTCOEX_ENQUEUED_BIT_MAP						87
 #define BTCOEX_TX_COMPLETE_FIRST_DESC_STATS			88
 #define BTCOEX_UPLINK_DESC							89
-#define BTCOEX_DBG_TXQ_DETAILS						90
+#define BTCOEX_SCO_GET_PER_FIRST_FRM_TIMESTAMP		90
 #define BTCOEX_DBG_RECV_ACK							94
 #define BTCOEX_DBG_ADDBA_INDICATION                 95
 #define BTCOEX_TX_COMPLETE_EOL_FAILED				96
@@ -521,7 +522,30 @@ extern "C" {
 #define BTCOEX_DBG_BEACON_SCAN_ENABLE              180
 #define BTCOEX_DBG_BEACON_SCAN_DISABLE             181
 #define BTCOEX_DBG_RX_NOTIFY                       182
+#define BTCOEX_SCO_GET_PER_SECOND_FRM_TIMESTAMP    183
+#define BTCOEX_DBG_TXQ_DETAILS                     184
+#define BTCOEX_DBG_SCO_STOMP_LOW_PRI               185
+#define BTCOEX_DBG_A2DP_FORCE_SCAN                 186
+#define BTCOEX_DBG_DTIM_STOMP_COMP                 187
 #define BTCOEX_DBGID_DEFINITION_END
+
+#define TLPM_DBGID_DEFINITION_START
+#define TLPM_INIT                                  1
+#define TLPM_FILTER_POWER_STATE                    2
+#define TLPM_NOTIFY_NOT_IDLE                       3
+#define TLPM_TIMEOUT_IDLE_HANDLER                  4
+#define TLPM_TIMEOUT_WAKEUP_HANDLER                5
+#define TLPM_WAKEUP_SIGNAL_HANDLER                 6
+#define TLPM_UNEXPECTED_GPIO_INTR_ERROR            7
+#define TLPM_BREAK_ON_NOT_RECEIVED_ERROR           8
+#define TLPM_BREAK_OFF_NOT_RECIVED_ERROR           9
+#define TLPM_ACK_GPIO_INTR                         10
+#define TLPM_ON                                    11
+#define TLPM_OFF                                   12
+#define TLPM_WAKEUP_FROM_HOST                      13
+#define TLPM_WAKEUP_FROM_BT                        14 
+#define TLPM_TX_BREAK_RECIVED                      15
+#define TLPM_DBGID_DEFINITION_END
 
 #ifdef __cplusplus
 }

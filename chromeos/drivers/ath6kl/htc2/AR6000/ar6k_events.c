@@ -525,6 +525,13 @@ static A_STATUS ProcessPendingIRQs(AR6K_DEVICE *pDev, A_BOOL *pDone, A_BOOL *pAS
          *             sizeof(counter_int_status_enable);
          *
         */
+#ifdef CONFIG_MMC_SDHCI_S3C
+            pDev->IrqProcRegisters.host_int_status = 0;
+            pDev->IrqProcRegisters.rx_lookahead_valid = 0;
+            pDev->IrqProcRegisters.host_int_status2 = 0;
+            pDev->IrqProcRegisters.rx_lookahead[0] = 0;
+            pDev->IrqProcRegisters.rx_lookahead[1] = 0xaaa5555;
+#endif /* CONFIG_MMC_SDHCI_S3C */
         status = HIFReadWrite(pDev->HIFDevice,
                               HOST_INT_STATUS_ADDRESS,
                               (A_UINT8 *)&pDev->IrqProcRegisters,

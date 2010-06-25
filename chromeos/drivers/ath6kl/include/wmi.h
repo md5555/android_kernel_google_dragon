@@ -430,7 +430,7 @@ typedef enum {
 	WMI_SET_BTCOEX_DEBUG_CMDID,
 	WMI_SET_BTCOEX_BT_OPERATING_STATUS_CMDID,
 	WMI_GET_BTCOEX_STATS_CMDID,
-	WMI_GET_BTCOEX_CONFIG_CMDID
+	WMI_GET_BTCOEX_CONFIG_CMDID,
 } WMI_COMMAND_ID;
 
 /*
@@ -1502,6 +1502,10 @@ typedef PREPACK struct {
  * BTCOEX_PSPOLLMODE_SCO_CONFIG - Configuration applied only during ps-poll mode.
  * BTCOEX_OPTMODE_SCO_CONFIG - Configuration applied only during opt mode.
  */
+#define WMI_SCO_CONFIG_FLAG_ALLOW_OPTIMIZATION   (1 << 0)
+#define WMI_SCO_CONFIG_FLAG_IS_EDR_CAPABLE       (1 << 1)
+#define WMI_SCO_CONFIG_FLAG_IS_BT_MASTER         (1 << 2)
+#define WMI_SCO_CONFIG_FLAG_FW_DETECT_OF_PER     (1 << 3)
 typedef PREPACK struct {
 	A_UINT32 scoSlots;					/* Number of SCO Tx/Rx slots.
 										   HVx, EV3, 2EV3 = 2 */
@@ -1514,7 +1518,8 @@ typedef PREPACK struct {
 										  bits:	   meaning:
  										  0   Allow Close Range Optimization
  										  1   Is EDR capable or Not
- 										  2       IS Co-located Bt role Master
+ 										  2   IS Co-located Bt role Master
+                                          3   Firmware determines the periodicity of SCO.
 							  			 */
 
     A_UINT32 linkId;                      /* applicable to STE-BT - not used */
@@ -1572,9 +1577,15 @@ typedef PREPACK struct {
 }POSTPACK BTCOEX_OPTMODE_SCO_CONFIG;
 
 typedef PREPACK struct {
+    A_UINT32 scanInterval;
+    A_UINT32 maxScanStompCnt;
+}POSTPACK BTCOEX_WLANSCAN_SCO_CONFIG;
+
+typedef PREPACK struct {
 	BTCOEX_SCO_CONFIG scoConfig;
 	BTCOEX_PSPOLLMODE_SCO_CONFIG scoPspollConfig;
 	BTCOEX_OPTMODE_SCO_CONFIG scoOptModeConfig;
+	BTCOEX_WLANSCAN_SCO_CONFIG scoWlanScanConfig;
 }POSTPACK WMI_SET_BTCOEX_SCO_CONFIG_CMD;
 
 /* ------------------WMI_SET_BTCOEX_A2DP_CONFIG_CMDID -------------------*/
@@ -1588,6 +1599,12 @@ typedef PREPACK struct {
  * BTCOEX_OPTMODE_A2DP_CONFIG - Configuration applied only during opt mode.
  */
 
+#define WMI_A2DP_CONFIG_FLAG_ALLOW_OPTIMIZATION    (1 << 0)
+#define WMI_A2DP_CONFIG_FLAG_IS_EDR_CAPABLE        (1 << 1)
+#define WMI_A2DP_CONFIG_FLAG_IS_BT_ROLE_MASTER     (1 << 2)
+#define WMI_A2DP_CONFIG_FLAG_IS_A2DP_HIGH_PRI      (1 << 3)
+#define WMI_A2DP_CONFIG_FLAG_FIND_BT_ROLE          (1 << 4)
+
 typedef PREPACK struct {
     A_UINT32 a2dpFlags;      /* A2DP Option flags:
 		                        bits:    meaning:
@@ -1595,6 +1612,7 @@ typedef PREPACK struct {
        	                     	1       IS EDR capable
        	                     	2       IS Co-located Bt role Master
                                 3       a2dp traffic is high priority
+                                4       Fw detect the role of bluetooth.
                              */
 	A_UINT32 linkId;         /* Applicable only to STE-BT - not used */
 
@@ -1658,6 +1676,9 @@ typedef PREPACK struct {
  * BTCOEX_PSPOLLMODE_ACLCOEX_CONFIG - Configuration applied only during ps-poll mode.
  * BTCOEX_OPTMODE_ACLCOEX_CONFIG - Configuration applied only during opt mode.
  */
+
+#define WMI_ACLCOEX_FLAGS_ALLOW_OPTIMIZATION   (1 << 0)
+#define WMI_ACLCOEX_FLAGS_DISABLE_FW_DETECTION (1 << 1)
 
 typedef PREPACK struct {
     A_UINT32 aclWlanMediumDur; 	    /* Wlan usage time during Acl (non-a2dp)
@@ -1800,8 +1821,15 @@ typedef PREPACK struct {
 }WMI_BTCOEX_STATS_EVENT;
 
 
-
 /*--------------------------END OF BTCOEX -------------------------------------*/
+typedef PREPACK struct {
+    A_UINT32 sleepState;
+}WMI_REPORT_SLEEP_STATE_EVENT;
+
+typedef enum {
+    WMI_REPORT_SLEEP_STATUS_IS_DEEP_SLEEP =0,
+    WMI_REPORT_SLEEP_STATUS_IS_AWAKE
+} WMI_REPORT_SLEEP_STATUS;
 typedef enum {
     DISCONN_EVT_IN_RECONN = 0,  /* default */
     NO_DISCONN_EVT_IN_RECONN
@@ -1896,12 +1924,13 @@ typedef enum {
     WMI_TX_COMPLETE_EVENTID,
     WMI_HCI_EVENT_EVENTID,
     WMI_ACL_DATA_EVENTID,
+    WMI_REPORT_SLEEP_STATE_EVENTID,
 #ifdef WAPI_ENABLE
     WMI_WAPI_REKEY_EVENTID,
 #endif
 	WMI_REPORT_BTCOEX_STATS_EVENTID,
 	WMI_REPORT_BTCOEX_CONFIG_EVENTID,
-	
+
 	WMI_THIN_RESERVED_START_EVENTID = 0x8000,
 	/* Events in this range are reserved for thinmode 
 	 * See wmi_thin.h for actual definitions */
@@ -1927,7 +1956,8 @@ typedef PREPACK struct {
 } POSTPACK WMI_READY_EVENT_1;
 
 typedef PREPACK struct {
-    A_UINT32    version;
+    A_UINT32    sw_version;
+    A_UINT32    abi_version;
     A_UINT8     macaddr[ATH_MAC_LEN];
     A_UINT8     phyCapability;              /* WMI_PHY_CAPABILITY */
 } POSTPACK WMI_READY_EVENT_2;
@@ -1936,7 +1966,7 @@ typedef PREPACK struct {
 #ifdef AR6002_REV2
 #define WMI_READY_EVENT WMI_READY_EVENT_1  /* AR6002_REV2 target code */
 #else
-#define WMI_READY_EVENT WMI_READY_EVENT_2  /* AR6002_REV4 and AR6001 */
+#define WMI_READY_EVENT WMI_READY_EVENT_2  /* AR6001, AR6002_REV4, AR6002_REV5 */
 #endif
 #else
 #define WMI_READY_EVENT WMI_READY_EVENT_2 /* host code */
@@ -1974,6 +2004,7 @@ typedef enum {
     DOT11H_CHANNEL_SWITCH = 0x0b,
     PROFILE_MISMATCH   = 0x0c,
     CONNECTION_EVICTED = 0x0d,
+    IBSS_MERGE         = 0xe,
 } WMI_DISCONNECT_REASON;
 
 typedef PREPACK struct {
@@ -2665,6 +2696,7 @@ typedef enum {
 typedef PREPACK struct {
     A_BOOL enable_wow;
     WMI_WOW_FILTER filter;
+    A_UINT16 hostReqDelay;
 } POSTPACK WMI_SET_WOW_MODE_CMD;
 
 typedef PREPACK struct {

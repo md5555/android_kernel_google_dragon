@@ -20,6 +20,8 @@
 #ifndef ATHBTFILTER_H_
 #define ATHBTFILTER_H_
 
+#define ATH_DEBUG_INFO  (1 << 2)
+#define ATH_DEBUG_INF    ATH_DEBUG_INFO
 
 typedef enum _ATHBT_HCI_CTRL_TYPE {
     ATHBT_HCI_COMMAND     = 0,

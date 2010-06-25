@@ -33,6 +33,7 @@ extern A_STATUS    (*_HCI_TransportRecvHCIEventSync)(HCI_TRANSPORT_HANDLE HciTra
                                           HTC_PACKET           *pPacket,
                                           int                  MaxPollMS);
 extern A_STATUS    (*_HCI_TransportSetBaudRate)(HCI_TRANSPORT_HANDLE HciTrans, A_UINT32 Baud);
+extern A_STATUS    (*_HCI_TransportEnablePowerMgmt)(HCI_TRANSPORT_HANDLE HciTrans, A_BOOL Enable);
 
 
 #define HCI_TransportAttach(HTCHandle, pInfo)   \
@@ -53,6 +54,8 @@ extern A_STATUS    (*_HCI_TransportSetBaudRate)(HCI_TRANSPORT_HANDLE HciTrans, A
             _HCI_TransportRecvHCIEventSync((HciTrans), (pPacket), (MaxPollMS))
 #define HCI_TransportSetBaudRate(HciTrans, Baud)    \
             _HCI_TransportSetBaudRate((HciTrans), (Baud))
+#define HCI_TransportEnablePowerMgmt(HciTrans, Enable)    \
+            _HCI_TransportEnablePowerMgmt((HciTrans), (Enable))
 
 
 extern A_STATUS ar6000_register_hci_transport(HCI_TRANSPORT_CALLBACKS *hciTransCallbacks);

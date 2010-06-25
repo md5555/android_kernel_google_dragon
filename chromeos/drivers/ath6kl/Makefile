@@ -96,6 +96,10 @@ ifeq ($(CONFIG_ATH6KL_VIRTUAL_SCATTER_GATHER),y)
 ccflags-y += -DATH6K_CONFIG_HIF_VIRTUAL_SCATTER
 endif
 
+ifeq ($(CONFIG_ATH6KL_SKIP_ABI_VERSION_CHECK),y)
+ccflags-y += -DATH6K_SKIP_ABI_VERSION_CHECK
+endif
+
 ccflags-y += -DLINUX -DKERNEL_2_6
 ccflags-y += -DTCMD
 ccflags-y += -DSEND_EVENT_TO_APP

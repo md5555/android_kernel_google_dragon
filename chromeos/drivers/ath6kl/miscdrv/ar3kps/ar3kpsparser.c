@@ -41,6 +41,8 @@
 
 #define WRITE_PATCH_COMMAND_STATUS_OFFSET 5
 
+#define PS_RAM_SIZE	2048
+
 #define RAM_PS_REGION           (1<<0)
 #define RAM_PATCH_REGION        (1<<1)
 #define RAMPS_MAX_PS_DATA_PER_TAG         20000
@@ -129,7 +131,7 @@ static A_UINT32 Tag_Count = 0;
 /* Stores the number of patch commands */
 static A_UINT32 Patch_Count = 0;
 static A_UINT32 Total_tag_lenght = 0;
-static A_BOOL BDADDR = FALSE;
+A_BOOL BDADDR = FALSE;
 A_UINT32      StartTagId;
 
 tPsTagEntry PsTagEntry[RAMPS_MAX_PS_TAGS_PER_FILE];
@@ -601,6 +603,7 @@ A_STATUS AthDoParsePatch(A_UCHAR *patchbuffer, A_UINT32 patchlen)
     Byte[2] = '\0';
     j = 0;
     filepos = 0;
+    Patch_Count = 0;
 
     while(NULL != AthGetLine(Line,MAX_BYTE_LENGTH,patchbuffer,patchlen,&filepos)) {
         if(strlen(Line) <= 1 || !IS_HEX(Line[0])) {
@@ -673,6 +676,10 @@ A_STATUS AthDoParsePS(A_UCHAR *srcbuffer, A_UINT32 srclen)
     int i;
     A_BOOL BDADDR_Present = A_ERROR;
 
+    Tag_Count = 0;
+
+    Total_tag_lenght = 0;
+    BDADDR = FALSE;
 
 
     status = A_ERROR;
@@ -801,8 +808,9 @@ int AthCreateCommandList(PSCmdPacket **HciPacketList, A_UINT32 *numPackets)
                 AR_DEBUG_PRINTF(ATH_DEBUG_ERR,("*** Enable Patch**** \r\n"));
                 AthPSCreateHCICommand(ENABLE_PATCH,0,*HciPacketList,numPackets);
         }
-        AR_DEBUG_PRINTF(ATH_DEBUG_ERR,("*** PS Reset**** \r\n"));
-        AthPSCreateHCICommand(PS_RESET,Total_tag_lenght,*HciPacketList,numPackets);
+
+        AR_DEBUG_PRINTF(ATH_DEBUG_ERR,("*** PS Reset**** %d[0x%x] \r\n",PS_RAM_SIZE,PS_RAM_SIZE));
+		AthPSCreateHCICommand(PS_RESET,PS_RAM_SIZE,*HciPacketList,numPackets);
         if(Tag_Count > 0){
             AR_DEBUG_PRINTF(ATH_DEBUG_ERR,("*** PS Write**** \r\n"));
                 AthPSCreateHCICommand(PS_WRITE,Tag_Count,*HciPacketList,numPackets);
