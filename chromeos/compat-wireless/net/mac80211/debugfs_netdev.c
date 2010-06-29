@@ -109,6 +109,14 @@ static ssize_t ieee80211_if_fmt_##name(					\
 	return scnprintf(buf, buflen, "%pM\n", sdata->field);		\
 }
 
+#define IEEE80211_IF_FMT_DEC_DIV_16(name, field)			\
+static ssize_t ieee80211_if_fmt_##name(					\
+	const struct ieee80211_sub_if_data *sdata,			\
+	char *buf, int buflen)						\
+{									\
+	return scnprintf(buf, buflen, "%d\n", sdata->field / 16);	\
+}
+
 #define __IEEE80211_IF_FILE(name, _write)				\
 static ssize_t ieee80211_if_read_##name(struct file *file,		\
 					char __user *userbuf,		\
@@ -149,6 +157,8 @@ IEEE80211_IF_FILE(rc_rateidx_mask_5ghz, rc_rateidx_mask[IEEE80211_BAND_5GHZ],
 /* STA attributes */
 IEEE80211_IF_FILE(bssid, u.mgd.bssid, MAC);
 IEEE80211_IF_FILE(aid, u.mgd.aid, DEC);
+IEEE80211_IF_FILE(last_beacon, u.mgd.last_beacon_signal, DEC);
+IEEE80211_IF_FILE(ave_beacon, u.mgd.ave_beacon_signal, DEC_DIV_16);
 IEEE80211_IF_FILE(dtim_period, local->hw.conf.ps_dtim_period, DEC);
 IEEE80211_IF_FILE(beacon_int, vif.bss_conf.beacon_int, DEC);
 IEEE80211_IF_FILE(cts_prot, vif.bss_conf.use_cts_prot, BOOL);
@@ -290,6 +300,8 @@ static void add_sta_files(struct ieee80211_sub_if_data *sdata)
 
 	DEBUGFS_ADD(bssid);
 	DEBUGFS_ADD(aid);
+	DEBUGFS_ADD(last_beacon);
+	DEBUGFS_ADD(ave_beacon);
 	DEBUGFS_ADD_MODE(smps, 0600);
 	DEBUGFS_ADD(dtim_period);
 	DEBUGFS_ADD(beacon_int);
