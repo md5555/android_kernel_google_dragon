@@ -214,6 +214,16 @@ int ieee80211_start_tx_ba_session(struct ieee80211_sta *pubsta, u16 tid)
 	int ret = 0;
 	u16 start_seq_num;
 
+	/* 
+	 * TODO(pstew): This is a stop-gap to gain data on failures
+	 */
+#ifdef CONFIG_MAC80211_DEBUGFS
+	if (local->debug_disable_tx_ba) {
+		printk(KERN_DEBUG "Not doing tx_ba\n");
+		return -EINVAL;
+	}
+#endif
+
 	if (WARN_ON(!local->ops->ampdu_action))
 		return -EINVAL;
 

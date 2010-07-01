@@ -860,6 +860,9 @@ struct ieee80211_local {
 	struct work_struct restart_work;
 
 #ifdef CONFIG_MAC80211_DEBUGFS
+	bool debug_disable_rx_ba;
+	bool debug_disable_tx_ba;
+
 	struct local_debugfsdentries {
 		struct dentry *rcdir;
 		struct dentry *stations;

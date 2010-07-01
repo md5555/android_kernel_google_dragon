@@ -419,6 +419,56 @@ DEBUGFS_DEVSTATS_FILE(dot11RTSFailureCount);
 DEBUGFS_DEVSTATS_FILE(dot11FCSErrorCount);
 DEBUGFS_DEVSTATS_FILE(dot11RTSSuccessCount);
 
+#define DEBUGFS_BOOL_FILE(name) \
+static ssize_t name## _read(struct file *file, char __user *user_buf,	\
+			    size_t count, loff_t *ppos)			\
+{									\
+	struct ieee80211_local *local = file->private_data;		\
+	int res;							\
+	char buf[10];							\
+									\
+	res = scnprintf(buf, sizeof(buf), "%d\n", local->debug_ ##name);\
+									\
+	return simple_read_from_buffer(user_buf, count, ppos, buf, res);\
+}									\
+									\
+static ssize_t name## _write(struct file *file,				\
+			     const char __user *user_buf,		\
+			     size_t count, loff_t *ppos)		\
+{									\
+	struct ieee80211_local *local = file->private_data;		\
+	unsigned long val;						\
+	char buf[10];							\
+	size_t len;							\
+	int ret;							\
+									\
+	len = min(count, sizeof(buf) - 1);				\
+	if (copy_from_user(buf, user_buf, len))				\
+		return -EFAULT;						\
+	buf[len] = '\0';						\
+									\
+	ret = strict_strtoul(buf, 0, &val);				\
+									\
+	if (ret)							\
+		return -EINVAL;						\
+									\
+	local->debug_ ##name = (val != 0) ? true : false;		\
+									\
+	return count;							\
+}									\
+									\
+static const struct file_operations debug_bool_ ##name## _ops = {	\
+	.read = name## _read,						\
+	.write = name## _write,						\
+	.open = mac80211_open_file_generic				\
+};
+
+#define DEBUGFS_BOOL_ADD(name)						\
+	debugfs_create_file(#name, 0600, phyd, local,			\
+			    &debug_bool_ ##name## _ops);
+
+DEBUGFS_BOOL_FILE(disable_tx_ba);
+DEBUGFS_BOOL_FILE(disable_rx_ba);
 
 void debugfs_hw_add(struct ieee80211_local *local)
 {
@@ -482,4 +532,7 @@ void debugfs_hw_add(struct ieee80211_local *local)
 	DEBUGFS_STATS_ADD(dot11RTSFailureCount);
 	DEBUGFS_STATS_ADD(dot11FCSErrorCount);
 	DEBUGFS_STATS_ADD(dot11RTSSuccessCount);
+	DEBUGFS_BOOL_ADD(disable_tx_ba);
+	DEBUGFS_BOOL_ADD(disable_rx_ba);
+
 }
