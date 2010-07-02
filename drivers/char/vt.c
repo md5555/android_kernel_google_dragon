@@ -1616,7 +1616,8 @@ static void reset_terminal(struct vc_data *vc, int do_clear)
 	vc->vc_decscnm		= 0;
 	vc->vc_decom		= 0;
 	vc->vc_decawm		= 1;
-	vc->vc_deccm		= 1;
+	/* Hide the cursor on the first VC but show it on others. */
+	vc->vc_deccm		= vc->vc_num != 0;
 	vc->vc_decim		= 0;
 
 	set_kbd(vc, decarm);
