@@ -40,6 +40,18 @@ module_param(ieee80211_disable_40mhz_24ghz, bool, 0644);
 MODULE_PARM_DESC(ieee80211_disable_40mhz_24ghz,
 		 "Disable 40MHz support in the 2.4GHz band");
 
+#ifdef CONFIG_MAC80211_DEBUGFS
+static bool ieee80211_default_disable_rx_ba = 0;
+module_param(ieee80211_default_disable_rx_ba, bool, 0644);
+MODULE_PARM_DESC(ieee80211_default_disable_rx_ba,
+                 "Disable received HT aggregation requests by default");
+
+static bool ieee80211_default_disable_tx_ba = 0;
+module_param(ieee80211_default_disable_tx_ba, bool, 0644);
+MODULE_PARM_DESC(ieee80211_default_disable_tx_ba,
+                 "Disable transmitted HT aggregation requests by default");
+#endif
+
 void ieee80211_configure_filter(struct ieee80211_local *local)
 {
 	u64 mc;
@@ -388,6 +400,11 @@ struct ieee80211_hw *ieee80211_alloc_hw(size_t priv_data_len,
 	local->user_power_level = -1;
 	local->uapsd_queues = IEEE80211_DEFAULT_UAPSD_QUEUES;
 	local->uapsd_max_sp_len = IEEE80211_DEFAULT_MAX_SP_LEN;
+
+#ifdef CONFIG_MAC80211_DEBUGFS
+        local->debug_disable_rx_ba = ieee80211_default_disable_rx_ba;
+        local->debug_disable_tx_ba = ieee80211_default_disable_tx_ba;
+#endif
 
 	INIT_LIST_HEAD(&local->interfaces);
 	mutex_init(&local->iflist_mtx);
