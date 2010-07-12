@@ -194,17 +194,15 @@ void ieee80211_process_addba_request(struct ieee80211_local *local,
 
 	status = WLAN_STATUS_REQUEST_DECLINED;
 
-	/* 
+	/*
 	 * TODO(pstew): This is a stop-gap to gain data on failures.  Fix
 	 * the problem instead.
 	 */
 #ifdef CONFIG_MAC80211_DEBUGFS
-	if (local->debug_disable_rx_ba) {
-		printk(KERN_DEBUG "Not doing rx_ba\n");
+	if (local->debug_disable_rx_ba)
 		goto end_no_lock;
-	}
 #endif
- 
+
 	if (test_sta_flags(sta, WLAN_STA_SUSPEND)) {
 #ifdef CONFIG_MAC80211_HT_DEBUG
 		printk(KERN_DEBUG "Suspend in progress. "
