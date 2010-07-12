@@ -15,13 +15,15 @@
 #include <linux/tty_flip.h>
 #include <linux/usb.h>
 #include <linux/usb/serial.h>
+#include <linux/slab.h>
+#include "usb-wwan.h"
 
 #define DRIVER_AUTHOR "Qualcomm Inc"
 #define DRIVER_DESC "Qualcomm USB Serial driver"
 
 static int debug;
 
-static struct usb_device_id id_table[] = {
+static const struct usb_device_id id_table[] = {
 	{USB_DEVICE(0x05c6, 0x9211)},	/* Acer Gobi QDL device */
 	{USB_DEVICE(0x05c6, 0x9212)},	/* Acer Gobi Modem Device */
 	{USB_DEVICE(0x03f0, 0x1f1d)},	/* HP un2400 Gobi Modem Device */
@@ -95,7 +97,8 @@ static struct usb_driver qcdriver = {
 
 static int qcprobe(struct usb_serial *serial, const struct usb_device_id *id)
 {
-	struct usb_host_interface *intf = serial->interface->cur_altsetting;
+	struct usb_wwan_intf_private *data;
+        struct usb_host_interface *intf = serial->interface->cur_altsetting;
 	int retval = -ENODEV;
 	__u8 nintf;
 	__u8 ifnum;
@@ -106,6 +109,13 @@ static int qcprobe(struct usb_serial *serial, const struct usb_device_id *id)
 	dbg("Num Interfaces = %d", nintf);
 	ifnum = intf->desc.bInterfaceNumber;
 	dbg("This Interface = %d", ifnum);
+
+	data = serial->private = kzalloc(sizeof(struct usb_wwan_intf_private),
+					 GFP_KERNEL);
+	if (!data)
+		return -ENOMEM;
+
+	spin_lock_init(&data->susp_lock);
 
 	switch (nintf) {
 	case 1:
@@ -130,6 +140,7 @@ static int qcprobe(struct usb_serial *serial, const struct usb_device_id *id)
 					"Could not set interface, error %d\n",
 					retval);
 				retval = -ENODEV;
+				kfree(data);
 			}
 			return retval;
 		}
@@ -146,6 +157,7 @@ static int qcprobe(struct usb_serial *serial, const struct usb_device_id *id)
 					"Could not set interface, error %d\n",
 					retval);
 				retval = -ENODEV;
+				kfree(data);
 			}
 			return retval;
 		}
@@ -154,6 +166,7 @@ static int qcprobe(struct usb_serial *serial, const struct usb_device_id *id)
 	default:
 		dev_err(&serial->dev->dev,
 			"unknown number of interfaces: %d\n", nintf);
+		kfree(data);
 		return -ENODEV;
 	}
 
@@ -170,6 +183,18 @@ static struct usb_serial_driver qcdevice = {
 	.usb_driver          = &qcdriver,
 	.num_ports           = 1,
 	.probe               = qcprobe,
+	.open		     = usb_wwan_open,
+	.close		     = usb_wwan_close,
+	.write		     = usb_wwan_write,
+	.write_room	     = usb_wwan_write_room,
+	.chars_in_buffer     = usb_wwan_chars_in_buffer,
+	.attach		     = usb_wwan_startup,
+	.disconnect	     = usb_wwan_disconnect,
+	.release	     = usb_wwan_release,
+#ifdef CONFIG_PM
+	.suspend	     = usb_wwan_suspend,
+	.resume		     = usb_wwan_resume,
+#endif
 };
 
 static int __init qcinit(void)
