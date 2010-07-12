@@ -1,1 +1,1 @@
-obj-$(CONFIG_GOBI) += QCSerial2k.o
+obj-$(CONFIG_GOBI_QCSERIAL) += QCSerial2k.o
