@@ -153,6 +153,7 @@ static const struct nla_policy nl80211_policy[NL80211_ATTR_MAX+1] = {
 	[NL80211_ATTR_FRAME_MATCH] = { .type = NLA_BINARY, },
 	[NL80211_ATTR_PS_STATE] = { .type = NLA_U32 },
 	[NL80211_ATTR_CQM] = { .type = NLA_NESTED, },
+	[NL80211_ATTR_LOCAL_STATE_CHANGE] = { .type = NLA_FLAG },
 };
 
 /* policy for the attributes */
@@ -3395,6 +3396,7 @@ static int nl80211_authenticate(struct sk_buff *skb, struct genl_info *info)
 	int err, ssid_len, ie_len = 0;
 	enum nl80211_auth_type auth_type;
 	struct key_parse key;
+	bool local_state_change;
 
 	if (!is_valid_ie_attr(info->attrs[NL80211_ATTR_IE]))
 		return -EINVAL;
@@ -3473,9 +3475,12 @@ static int nl80211_authenticate(struct sk_buff *skb, struct genl_info *info)
 		goto out;
 	}
 
+	local_state_change = !!info->attrs[NL80211_ATTR_LOCAL_STATE_CHANGE];
+
 	err = cfg80211_mlme_auth(rdev, dev, chan, auth_type, bssid,
 				 ssid, ssid_len, ie, ie_len,
-				 key.p.key, key.p.key_len, key.idx);
+				 key.p.key, key.p.key_len, key.idx,
+				 local_state_change);
 
 out:
 	cfg80211_unlock_rdev(rdev);
@@ -3652,6 +3657,7 @@ static int nl80211_deauthenticate(struct sk_buff *skb, struct genl_info *info)
 	const u8 *ie = NULL, *bssid;
 	int err, ie_len = 0;
 	u16 reason_code;
+	bool local_state_change;
 
 	if (!is_valid_ie_attr(info->attrs[NL80211_ATTR_IE]))
 		return -EINVAL;
@@ -3697,7 +3703,10 @@ static int nl80211_deauthenticate(struct sk_buff *skb, struct genl_info *info)
 		ie_len = nla_len(info->attrs[NL80211_ATTR_IE]);
 	}
 
-	err = cfg80211_mlme_deauth(rdev, dev, bssid, ie, ie_len, reason_code);
+	local_state_change = !!info->attrs[NL80211_ATTR_LOCAL_STATE_CHANGE];
+
+	err = cfg80211_mlme_deauth(rdev, dev, bssid, ie, ie_len, reason_code,
+				   local_state_change);
 
 out:
 	cfg80211_unlock_rdev(rdev);
@@ -3714,6 +3723,7 @@ static int nl80211_disassociate(struct sk_buff *skb, struct genl_info *info)
 	const u8 *ie = NULL, *bssid;
 	int err, ie_len = 0;
 	u16 reason_code;
+	bool local_state_change;
 
 	if (!is_valid_ie_attr(info->attrs[NL80211_ATTR_IE]))
 		return -EINVAL;
@@ -3759,7 +3769,10 @@ static int nl80211_disassociate(struct sk_buff *skb, struct genl_info *info)
 		ie_len = nla_len(info->attrs[NL80211_ATTR_IE]);
 	}
 
-	err = cfg80211_mlme_disassoc(rdev, dev, bssid, ie, ie_len, reason_code);
+	local_state_change = !!info->attrs[NL80211_ATTR_LOCAL_STATE_CHANGE];
+
+	err = cfg80211_mlme_disassoc(rdev, dev, bssid, ie, ie_len, reason_code,
+				     local_state_change);
 
 out:
 	cfg80211_unlock_rdev(rdev);
