@@ -141,7 +141,7 @@ void cfg80211_send_rx_assoc(struct net_device *dev, const u8 *buf, size_t len)
 EXPORT_SYMBOL(cfg80211_send_rx_assoc);
 
 void __cfg80211_send_deauth(struct net_device *dev,
-				   const u8 *buf, size_t len)
+			    const u8 *buf, size_t len, bool send_frame)
 {
 	struct wireless_dev *wdev = dev->ieee80211_ptr;
 	struct wiphy *wiphy = wdev->wiphy;
@@ -181,7 +181,17 @@ void __cfg80211_send_deauth(struct net_device *dev,
 	if (!found)
 		return;
 
+
 	nl80211_send_deauth(rdev, dev, buf, len, GFP_KERNEL);
+
+	/*
+	 * "send_frame == false" here indicates that this state change
+	 * was synthesized by a nl80211 local_state_change request.
+	 * The intent was not to put us into a disconnected state, but
+	 * rather to clean up our auth_bsses above.
+	 */
+	if (!send_frame)
+		return;
 
 	if (wdev->sme_state == CFG80211_SME_CONNECTED) {
 		u16 reason_code;
@@ -199,12 +209,13 @@ void __cfg80211_send_deauth(struct net_device *dev,
 }
 EXPORT_SYMBOL(__cfg80211_send_deauth);
 
-void cfg80211_send_deauth(struct net_device *dev, const u8 *buf, size_t len)
+void cfg80211_send_deauth(struct net_device *dev, const u8 *buf, size_t len,
+			  bool send_frame)
 {
 	struct wireless_dev *wdev = dev->ieee80211_ptr;
 
 	wdev_lock(wdev);
-	__cfg80211_send_deauth(dev, buf, len);
+	__cfg80211_send_deauth(dev, buf, len, send_frame);
 	wdev_unlock(wdev);
 }
 EXPORT_SYMBOL(cfg80211_send_deauth);
