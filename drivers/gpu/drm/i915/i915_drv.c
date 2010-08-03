@@ -49,6 +49,7 @@ unsigned int i915_lvds_downclock = 0;
 module_param_named(lvds_downclock, i915_lvds_downclock, int, 0400);
 
 static struct drm_driver driver;
+extern int intel_agp_enabled;
 
 #define INTEL_VGA_DEVICE(id, info) {		\
 	.class = PCI_CLASS_DISPLAY_VGA << 8,	\
@@ -79,14 +80,14 @@ const static struct intel_device_info intel_i915g_info = {
 	.is_i915g = 1, .is_i9xx = 1, .cursor_needs_physical = 1,
 };
 const static struct intel_device_info intel_i915gm_info = {
-	.is_i9xx = 1,  .is_mobile = 1, .has_fbc = 1,
+	.is_i9xx = 1,  .is_mobile = 1,
 	.cursor_needs_physical = 1,
 };
 const static struct intel_device_info intel_i945g_info = {
 	.is_i9xx = 1, .has_hotplug = 1, .cursor_needs_physical = 1,
 };
 const static struct intel_device_info intel_i945gm_info = {
-	.is_i945gm = 1, .is_i9xx = 1, .is_mobile = 1, .has_fbc = 1,
+	.is_i945gm = 1, .is_i9xx = 1, .is_mobile = 1,
 	.has_hotplug = 1, .cursor_needs_physical = 1,
 };
 
@@ -546,6 +547,11 @@ static struct drm_driver driver = {
 
 static int __init i915_init(void)
 {
+	if (!intel_agp_enabled) {
+		DRM_ERROR("drm/i915 can't work without intel_agp module!\n");
+		return -ENODEV;
+	}
+
 	driver.num_ioctls = i915_max_ioctl;
 
 	i915_gem_shrinker_init();
@@ -559,6 +565,22 @@ static int __init i915_init(void)
 	 * Allow optional vga_text_mode_force boot option to override
 	 * the default behavior.
 	 */
+	/*
+	 * If the user has not specified modesetting the check for known
+         * bad devices and disable them.
+         */
+	if (i915_modeset == -1) {
+		static struct pci_device_id i915_badmodeset[] = {
+			INTEL_VGA_DEVICE(0x3577, 0),
+			INTEL_VGA_DEVICE(0x2562, 0),
+			INTEL_VGA_DEVICE(0x3582, 0),
+			{ },
+		};
+		if (pci_dev_present(i915_badmodeset)) {
+			DRM_INFO("i915 disabling kernel modesetting for known bad device.\n");
+			i915_modeset = 0;
+		}
+	}
 #if defined(CONFIG_DRM_I915_KMS)
 	if (i915_modeset != 0)
 		driver.driver_features |= DRIVER_MODESET;

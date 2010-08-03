@@ -229,10 +229,7 @@ static struct aa_namespace *aa_alloc_namespace(const char *name)
 	INIT_LIST_HEAD(&ns->sub_ns);
 	rwlock_init(&ns->lock);
 
-	/*
-	 * null profile is not added to the profile list,
-	 * released by aa_free_namespace
-	 */
+	/* released by aa_free_namespace */
 	ns->unconfined = aa_alloc_profile("unconfined");
 	if (!ns->unconfined)
 		goto fail_unconfined;
@@ -631,7 +628,7 @@ struct aa_profile *aa_new_null_profile(struct aa_profile *parent, int hat)
 
 	profile->sid = sid;
 	profile->mode = APPARMOR_COMPLAIN;
-	profile->flags = PFLAG_NULL | PFLAG_NO_LIST_REF;
+	profile->flags = PFLAG_NULL;
 	if (hat)
 		profile->flags |= PFLAG_HAT;
 
@@ -907,7 +904,7 @@ ssize_t aa_interface_replace_profiles(void *udata, size_t size, bool add_only)
 	struct aa_policy *policy;
 	struct aa_profile *old_profile = NULL, *new_profile = NULL;
 	struct aa_profile *rename_profile = NULL;
-	struct aa_namespace *ns;
+	struct aa_namespace *ns = NULL;
 	ssize_t error;
 	struct aa_audit_iface sa = {
 		.base.operation = "profile_replace",

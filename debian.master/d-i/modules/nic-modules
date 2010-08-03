@@ -24,6 +24,7 @@ arc-rimi ?
 arlan ?
 at1700 ?
 atl1 ?
+atl1c ?
 atl1e ?
 atl2 ?
 atmel ?
@@ -151,3 +152,4 @@ winbond-840 ?
 yellowfin ?
 znet ?
 vmxnet3 ?
+xen-netfront ?

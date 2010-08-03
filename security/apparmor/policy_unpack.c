@@ -507,8 +507,11 @@ static struct aa_profile *unpack_profile(struct aa_ext *e,
 		goto fail;
 
 	/* path_flags is optional */
-	unpack_u32(e, &profile->path_flags, "path_flags");
-	profile->path_flags |= profile->flags & PFLAG_MEDIATE_DELETED;
+	if (unpack_u32(e, &profile->path_flags, "path_flags"))
+		profile->path_flags |= profile->flags & PFLAG_MEDIATE_DELETED;
+	else
+		/* default to */
+		profile->path_flags = PFLAG_MEDIATE_DELETED;
 
 	/* mmap_min_addr is optional */
 	if (unpack_u64(e, &tmp64, "mmap_min_addr")) {
@@ -707,9 +710,10 @@ struct aa_profile *aa_unpack(void *udata, size_t size,
 		return ERR_PTR(error);
 
 	profile = unpack_profile(&e, sa);
-	if (IS_ERR(profile))
+	if (IS_ERR(profile)) {
 		sa->pos = e.pos - e.start;
-
+		return profile;
+	}
 	error = verify_profile(profile, sa);
 	if (error) {
 		aa_put_profile(profile);

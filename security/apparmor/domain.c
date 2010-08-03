@@ -350,7 +350,7 @@ int apparmor_bprm_set_creds(struct linux_binprm *bprm)
 	cxt = bprm->cred->security;
 	BUG_ON(!cxt);
 
-	profile = aa_newest_version(cxt->profile);
+	profile = aa_get_profile(aa_newest_version(cxt->profile));
 	/*
 	 * get the namespace from the replacement profile as replacement
 	 * can change the namespace
@@ -424,10 +424,8 @@ int apparmor_bprm_set_creds(struct linux_binprm *bprm)
 	if (!new_profile)
 		goto audit;
 
-	if (profile == new_profile) {
-		aa_put_profile(new_profile);
-		goto audit;
-	}
+	if (profile == new_profile)
+		goto abort;
 
 	if (bprm->unsafe & LSM_UNSAFE_SHARE) {
 		/* FIXME: currently don't mediate shared state */
@@ -438,7 +436,7 @@ int apparmor_bprm_set_creds(struct linux_binprm *bprm)
 		sa.base.error = aa_may_change_ptraced_domain(current,
 							     new_profile);
 		if (sa.base.error)
-			goto audit;
+			goto abort;
 	}
 
 	/* Determine if secure exec is needed.
@@ -454,7 +452,7 @@ int apparmor_bprm_set_creds(struct linux_binprm *bprm)
 	 * to avoid having to recompute in secureexec
 	 */
 	if (!(sa.perms.xindex & AA_X_UNSAFE)) {
-		AA_DEBUG("scubbing environment variables for %s profile=%s\n",
+		AA_DEBUG("scrubbing environment variables for %s profile=%s\n",
 			 sa.name, new_profile->base.hname);
 		bprm->unsafe |= AA_SECURE_X_NEEDED;
 	}
@@ -482,9 +480,14 @@ audit:
 	sa.base.error = aa_audit_file(profile, &sa);
 
 cleanup:
+	aa_put_profile(profile);
 	kfree(buffer);
 
 	return sa.base.error;
+
+abort:
+	aa_put_profile(new_profile);
+	goto audit;
 }
 
 /**
