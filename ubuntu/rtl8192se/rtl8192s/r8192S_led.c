@@ -1286,7 +1286,12 @@ void LedControl8192SE(struct net_device *dev, LED_CTL_MODE LedAction)
 {
 	struct r8192_priv *priv = rtllib_priv(dev);
 
-	if(IS_NIC_DOWN(priv))
+	
+#ifdef _RTL8192_EXT_PATCH_
+	if((!priv->up)&& (!priv->mesh_up))
+#else
+	if(!priv->up)
+#endif
 		return;
 
 #ifdef TO_DO_LIST

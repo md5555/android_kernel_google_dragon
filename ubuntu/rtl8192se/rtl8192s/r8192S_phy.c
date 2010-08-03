@@ -2124,7 +2124,12 @@ void PHY_SetBWModeCallback8192S(struct net_device *dev)
 		priv->SetBWModeInProgress= false;
 		return;
 	}
-	if(IS_NIC_DOWN(priv)){
+#ifdef _RTL8192_EXT_PATCH_
+	if((!priv->up) && (!priv->mesh_up))
+#else
+	if(!priv->up)
+#endif
+	{
 		priv->SwChnlInProgress = priv->SetBWModeInProgress = false;
 		return;
 	}
@@ -2241,7 +2246,12 @@ void rtl8192_SetBWMode(struct net_device *dev, HT_CHANNEL_WIDTH	Bandwidth, HT_EX
 #endif		
 	}
 #endif
-	if(!IS_NIC_DOWN(priv)){
+#ifdef _RTL8192_EXT_PATCH_
+	if(priv->up || priv->mesh_up)
+#else
+	if (priv->up) 
+#endif
+	{
 		PHY_SetBWModeCallback8192S(dev);
 	} else {
 		priv->SetBWModeInProgress= false;
@@ -2254,9 +2264,13 @@ void PHY_SwChnlCallback8192S(struct net_device *dev)
 	struct r8192_priv *priv = rtllib_priv(dev);
 	u32		delay;
 	
-	RT_TRACE(COMP_CH, "==>SwChnlCallback8190Pci(), switch to channel %d\n", priv->chan);
+        RT_TRACE(COMP_CH, "==>SwChnlCallback8190Pci(), switch to channel %d\n", priv->chan);
 	
-	if(IS_NIC_DOWN(priv))
+#ifdef _RTL8192_EXT_PATCH_
+	if((!priv->up) && (!priv->mesh_up))
+#else
+	if(!priv->up)
+#endif
 	{	
 		printk("%s: driver is not up\n", __FUNCTION__);
 		priv->SwChnlInProgress = priv->SetBWModeInProgress = false;
@@ -2294,7 +2308,11 @@ u8 rtl8192_phy_SwChnl(struct net_device* dev, u8 channel)
 {
 	struct r8192_priv *priv = rtllib_priv(dev);
 
-	if(IS_NIC_DOWN(priv))
+#ifdef _RTL8192_EXT_PATCH_
+	if((!priv->up) && (!priv->mesh_up))
+#else
+	if(!priv->up)
+#endif
 	{
 		printk("%s: driver is not up.\n",__FUNCTION__);
 		priv->SwChnlInProgress = priv->SetBWModeInProgress = false;
@@ -2366,7 +2384,12 @@ u8 rtl8192_phy_SwChnl(struct net_device* dev, u8 channel)
 	}
 #endif
 
-	if(!IS_NIC_DOWN(priv)){
+#ifdef _RTL8192_EXT_PATCH_
+	if(priv->up || priv->mesh_up)
+#else
+	if(priv->up) 
+#endif
+	{
 		PHY_SwChnlCallback8192S(dev);
 	} else {
 		priv->SwChnlInProgress = false;
@@ -2628,10 +2651,45 @@ phy_FinishSwChnlNow(
 	{
 		if(delay>0)
 			mdelay(delay);
-		if(IS_NIC_DOWN(priv))
+#ifdef _RTL8192_EXT_PATCH_
+		if((!priv->up) && (!priv->mesh_up))
+#else
+		if(!priv->up)
+#endif
 			break;
 	}
 }
+
+#ifdef TO_DO_LIST
+extern	VOID
+PHY_SetMonitorMode8192S(
+	IN	PADAPTER			pAdapter,
+	IN	BOOLEAN				bEnableMonitorMode
+	)
+{
+	HAL_DATA_TYPE		*pHalData	= GET_HAL_DATA(pAdapter);
+	BOOLEAN				bFilterOutNonAssociatedBSSID = false;
+
+	if(bEnableMonitorMode)
+	{
+		bFilterOutNonAssociatedBSSID = false;
+		RT_TRACE(COMP_RM, DBG_LOUD, ("PHY_SetMonitorMode8192S(): enable monitor mode\n"));
+
+		pHalData->bInMonitorMode = true;
+		pAdapter->HalFunc.AllowAllDestAddrHandler(pAdapter, true, true);
+		pAdapter->HalFunc.SetHwRegHandler(pAdapter, HW_VAR_CECHK_BSSID, (pu1Byte)&bFilterOutNonAssociatedBSSID);
+	}
+	else
+	{
+		bFilterOutNonAssociatedBSSID = true;
+		RT_TRACE(COMP_RM, DBG_LOUD, ("PHY_SetMonitorMode8192S(): disable monitor mode\n"));
+
+		pAdapter->HalFunc.AllowAllDestAddrHandler(pAdapter, false, true);
+		pHalData->bInMonitorMode = false;
+		pAdapter->HalFunc.SetHwRegHandler(pAdapter, HW_VAR_CECHK_BSSID, (pu1Byte)&bFilterOutNonAssociatedBSSID);
+	}
+}
+#endif
 
 
 u8 rtl8192_phy_CheckIsLegalRFPath(struct net_device* dev, u32 eRFPath)
@@ -3161,8 +3219,8 @@ bool rtl8192se_set_fw_cmd(struct net_device* dev, FW_CMD_IO_TYPE		FwCmdIO)
 
 	if(bPostProcessing && !priv->SetFwCmdInProgress)
 	{
-		priv->SetFwCmdInProgress = true;
-		priv->CurrentFwCmdIO = FwCmdIO; 
+	priv->SetFwCmdInProgress = true;
+	priv->CurrentFwCmdIO = FwCmdIO; 
 	}
 	else
 	{
@@ -3211,7 +3269,12 @@ void rtl8192_SetFwCmdIOCallback(struct net_device* dev)
 	struct r8192_priv *priv = rtllib_priv(dev);
 	u32		input,CurrentAID = 0;
 	
-	if(IS_NIC_DOWN(priv)){
+#ifdef _RTL8192_EXT_PATCH_
+	if((!priv->up) && (!priv->mesh_up))
+#else
+	if(!priv->up)
+#endif
+	{
 		RT_TRACE(COMP_CMD, "SetFwCmdIOTimerCallback(): driver is going to unload\n");
 		return;
 	}

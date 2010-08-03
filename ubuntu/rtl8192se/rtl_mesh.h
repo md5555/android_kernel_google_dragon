@@ -35,6 +35,5 @@ struct net_device_stats *meshdev_stats(struct net_device *meshdev);
 void meshdev_init(struct net_device* meshdev);
 
 int meshdev_update_ext_chnl_offset_as_client(void *data);
-int meshdev_start_mesh_protocol_wq(void *data);
 #endif
 #endif
