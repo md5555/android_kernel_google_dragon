@@ -47,6 +47,22 @@
 #define BASED_MAX_BRIGHTNESS (MAX_BRIGHTNESS + BRIGHTNESS_0_BASE)
 
 /*
+ * For smoothed backlight stepping, use a timer to trigger a function
+ * that steps the backlight gradually up/down.
+ *
+ * Experimentation with a constant step level shows that sometimes the
+ * resulting variable change duration was too short or too long depending
+ * on the range of change.  It feels better to have a constant change
+ * duration and a variable step level.
+ *
+ * The change duration here is STEP_PERIOD * (STEP_COUNT - 1).
+ * The -1 comes from the fact that the top half takes the first step, and
+ * the timer function takes the rest.
+ */
+#define STEP_PERIOD (HZ / 30)
+#define STEP_COUNT 11
+
+/*
  * The Pineview LVDS Backlight PWM Control register is a 32 bit word split
  * into two unsigned 16 bit words: the high order short is the cycle frequency,
  * and the low order word is the duty cycle.  According to i915_opregion.c,
@@ -58,20 +74,59 @@
 #define CTL_TO_PWM(ctl) ((ctl & BACKLIGHT_DUTY_CYCLE_MASK) >> 1)
 #define PWM_TO_CTL(pwm) ((pwm << 1) & BACKLIGHT_DUTY_CYCLE_MASK)
 
-static int i915_get_intensity(struct backlight_device *bd)
+static int i915_get_intensity_hard(struct drm_i915_private *dev_priv)
 {
-	struct drm_device *dev = bl_get_data(bd);
-	struct drm_i915_private *dev_priv = dev->dev_private;
 	u32 blc_pwm_ctl;
-	int level, pwm_val, based_level;
+	int pwm_val, based_level;
 
 	blc_pwm_ctl = I915_READ(BLC_PWM_CTL);
 	pwm_val = CTL_TO_PWM(blc_pwm_ctl);
 	based_level = (pwm_val * BASED_MAX_BRIGHTNESS) / PWM_FREQUENCY;
+
+	return based_level;
+}
+
+static void i915_set_intensity_hard(struct drm_i915_private *dev_priv,
+				    int based_level)
+{
+	int pwm_val;
+	u32 blc_pwm_ctl;
+
+	pwm_val = (based_level * PWM_FREQUENCY) / BASED_MAX_BRIGHTNESS;
+	blc_pwm_ctl = (PWM_FREQUENCY << BACKLIGHT_MODULATION_FREQ_SHIFT) |
+		PWM_TO_CTL(pwm_val);
+	I915_WRITE(BLC_PWM_CTL, blc_pwm_ctl);
+}
+
+static void next_step(struct drm_i915_private *dev_priv)
+{
+	int current_step, next_level;
+
+	dev_priv->steps_taken++;
+	if (dev_priv->steps_taken < 0 || dev_priv->steps_taken >= STEP_COUNT) {
+		i915_set_intensity_hard(dev_priv, dev_priv->target_level);
+		return;
+	}
+
+	current_step = (dev_priv->target_level - dev_priv->start_level) *
+		dev_priv->steps_taken / STEP_COUNT;
+	next_level = dev_priv->start_level + current_step;
+	i915_set_intensity_hard(dev_priv, next_level);
+	if (next_level != dev_priv->target_level)
+		mod_timer(&dev_priv->soft_backlight_timer,
+			jiffies + STEP_PERIOD);
+}
+
+static int i915_get_intensity(struct backlight_device *bd)
+{
+	struct drm_device *dev = bl_get_data(bd);
+	struct drm_i915_private *dev_priv = dev->dev_private;
+	int level, based_level;
+
+	based_level = dev_priv->target_level;
 	level = based_level - BRIGHTNESS_0_BASE;
 	if (level < 0)
 		level = 0;
-
 	return level;
 }
 
@@ -79,19 +134,19 @@ static int i915_set_intensity(struct backlight_device *bd)
 {
 	struct drm_device *dev = bl_get_data(bd);
 	struct drm_i915_private *dev_priv = dev->dev_private;
-	int level, pwm_val, based_level;
-	u32 blc_pwm_ctl;
+	int level, based_level;
 
 	level = bd->props.brightness;
 	if (level > MAX_BRIGHTNESS)
 		level = MAX_BRIGHTNESS;
-
 	based_level = level + BRIGHTNESS_0_BASE;
-	pwm_val = (based_level * PWM_FREQUENCY) / BASED_MAX_BRIGHTNESS;
-	blc_pwm_ctl = (PWM_FREQUENCY << BACKLIGHT_MODULATION_FREQ_SHIFT) |
-		PWM_TO_CTL(pwm_val);
-	I915_WRITE(BLC_PWM_CTL, blc_pwm_ctl);
 
+	/* Disable the timer to protect dev_priv.  next_step() enables it. */
+	del_timer_sync(&dev_priv->soft_backlight_timer);
+	dev_priv->target_level = based_level;
+	dev_priv->start_level = i915_get_intensity_hard(dev_priv);
+	dev_priv->steps_taken = 0;
+	next_step(dev_priv); /* take the first step */
 	return 0;
 }
 
@@ -99,6 +154,11 @@ static struct backlight_ops i915_bl_ops = {
 	.get_brightness = i915_get_intensity,
 	.update_status = i915_set_intensity,
 };
+
+static void backlight_timer_func(unsigned long data)
+{
+	next_step((struct drm_i915_private *)data);
+}
 
 void i915_backlight_init(struct drm_device *dev)
 {
@@ -119,6 +179,9 @@ void i915_backlight_init(struct drm_device *dev)
 		return;
 	}
 
+	setup_timer(&dev_priv->soft_backlight_timer, backlight_timer_func,
+		(unsigned long) dev_priv);
+
 	dev_priv->backlight = bd;
 	bd->props.max_brightness = MAX_BRIGHTNESS;
 	bd->props.brightness = 0;
@@ -131,6 +194,7 @@ void i915_backlight_exit(struct drm_device *dev)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 
 	if (dev_priv->backlight) {
+		del_timer_sync(&dev_priv->soft_backlight_timer);
 		backlight_device_unregister(dev_priv->backlight);
 		dev_priv->backlight = NULL;
 	}
