@@ -599,6 +599,38 @@ static void nouveau_OF_copy_vbios_to_ramin(struct drm_device *dev)
 #endif
 }
 
+static void nouveau_apply_noaccel_quirks (struct drm_device *dev)
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	if (nouveau_noaccel == -1) {
+		/* If not specified, noaccel should default off */
+		nouveau_noaccel = 0;
+
+		/* MacBook Pro laptops with 9600GT cards hang with acceleration */
+		/* See https://bugs.launchpad.net/bugs/546393 */
+		if ((dev->pdev->device == 0x0647) &&
+		    (dev->pdev->subsystem_vendor == 0x106b)) {
+			nouveau_noaccel = 1;
+			NV_INFO(dev, "Detected MacBook Pro 9600GT chip. "
+				 "Disabling acceleration\n");
+		}
+		/* At least two of the three nv20 cards hang with acceleration */
+		/* See https://bugs.launchpad.net/bugs/544088 */
+		if (dev_priv->chipset == 0x20) {
+			nouveau_noaccel = 1;
+			NV_INFO(dev, "Detected NV20 (GeForce 3) chip. "
+				 "Disabling acceleration\n");
+		}
+		/* GeForce 6100 cards also hang with acceleration */
+		/* See https://bugs.launchpad.net/bugs/542950 */
+		if (dev->pdev->device == 0x0242) {
+			nouveau_noaccel = 1;
+			NV_INFO(dev, "Detected GeForce 6100 chip. "
+				 "Disabling acceleration\n");
+		}
+	}
+}
+
 int nouveau_load(struct drm_device *dev, unsigned long flags)
 {
 	struct drm_nouveau_private *dev_priv;
@@ -727,6 +759,9 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 		dev_priv->flags |= NV_NFORCE;
 	else if (dev->pci_device == 0x01f0)
 		dev_priv->flags |= NV_NFORCE2;
+
+	/* Apply noaccel quirks */
+	nouveau_apply_noaccel_quirks(dev);
 
 	/* For kernel modesetting, init card now and bring up fbcon */
 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {

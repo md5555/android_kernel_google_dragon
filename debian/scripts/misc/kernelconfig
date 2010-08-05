@@ -14,6 +14,7 @@ fi
 mode=${1:?"Usage: $0 [oldconfig|editconfig]"}
 case "$mode" in
     oldconfig)  ;; # All is good
+    defaultconfig)  ;; # All is good
     editconfig) ;; # All is good
     genconfig)  ;; # All is good
     *) echo "$0 called with invalid mode" 1>&2
@@ -21,7 +22,7 @@ case "$mode" in
 esac
 kerneldir="`pwd`"
 confdir="$kerneldir/${DEBIAN}/config"
-sharedconfdir="$kerneldir/debian/config"
+sharedconfdir="$kerneldir/debian.master/config"
 variant="$2"
 
 . $DEBIAN/etc/kernelconfig
@@ -50,9 +51,6 @@ for arch in $archs; do
 		*)	kernarch="$arch"	;;
 	esac
 
-	echo ""
-	echo "***************************************"
-	echo "* Processing $arch ($kernarch) ... "
 	archconfdir=$confdir/$arch
 	flavourconfigs=$(cd $archconfdir && ls config.flavour.*)
 
@@ -72,6 +70,9 @@ for arch in $archs; do
 				cat $archconfdir/config.common.$arch >> "$fullconf"
 			fi
 			cat "$archconfdir/$config" >>"$fullconf"
+			if [ -f $confdir/OVERRIDES ]; then
+				cat $confdir/OVERRIDES >> "$fullconf"
+			fi
 			;;
 		esac
 	done
@@ -86,11 +87,27 @@ for arch in $archs; do
 				# Weed out incorrect config parameters
 				echo "* Run silentoldconfig on $arch/$config ..."
 				make O=`pwd`/build ARCH=$kernarch silentoldconfig ;;
+			    defaultconfig)
+				# Weed out incorrect config parameters
+				echo "* Run oldconfig on $arch/$config ..."
+				make O=`pwd`/build ARCH=$kernarch oldconfig ;;
 			    editconfig)
 				# Interactively edit config parameters
-				echo " * Run menuconfig on $arch/$config... Press a key."
-				read
-				make O=`pwd`/build ARCH=$kernarch menuconfig ;;
+				while : ; do
+					echo -n "Do you want to edit config: $arch/$config? [Y/n] "
+					read choice
+					
+					case "$choice" in
+					y* | Y* | "" )
+						make O=`pwd`/build ARCH=$kernarch menuconfig
+						break ;;
+					n* | N* )
+						break ;;
+					*)
+						echo "Entry not valid"
+					esac
+				done
+				;;
 			    *)  # Bad!
 				exit 1 ;;
 			esac

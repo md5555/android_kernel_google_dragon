@@ -29,6 +29,7 @@
 #define WLAN_SWITCH_MASK 0
 #define BT_SWITCH_MASK 1
 #define WWAN_SWITCH_MASK 2
+#define HW_SWITCH_SUPPORT 3
 #define HW_SWITCH_MASK 16
 
 /* This structure will be modified by the firmware when we enter
@@ -240,7 +241,8 @@ static int dell_rfkill_set(void *data, bool blocked)
 	int disable = blocked ? 1 : 0;
 	unsigned long radio = (unsigned long)data;
 
-	if (!(hw_switch_status & BIT(radio-1)) || !(hw_switch_status & BIT(HW_SWITCH_MASK))) {
+	if (!(hw_switch_status & BIT(radio-1)) || !(hw_switch_status & BIT(HW_SWITCH_MASK)) || \
+			!(hw_switch_status & BIT(HW_SWITCH_SUPPORT))) {
 		memset(&buffer, 0, sizeof(struct calling_interface_buffer));
 		buffer.input[0] = (1 | (radio<<8) | (disable << 16));
 		dell_send_request(&buffer, 17, 11);
@@ -258,6 +260,7 @@ static void dell_rfkill_query(struct rfkill *rfkill, void *data)
 	dell_send_request(&buffer, 17, 11);
 	status = buffer.output[1];
 
+	hw_switch_status |= (status & BIT(0)) << BIT(HW_SWITCH_SUPPORT);
 	hw_switch_status |= (status & BIT(HW_SWITCH_MASK)) ^ BIT(HW_SWITCH_MASK);
 
 	/* HW switch control not supported
@@ -288,8 +291,10 @@ static const struct rfkill_ops dell_rfkill_ops = {
 /*
  * Called for each KEY_WLAN key press event. Note that a physical
  * rf-kill switch change also causes the BIOS to emit a KEY_WLAN.
+ *
+ * dell_rfkill_set may block, so schedule it on a worker thread.
  */
-static void dell_rfkill_update(void)
+static void dell_rfkill_update(struct work_struct *work)
 {
 	hw_switch_status ^= BIT(HW_SWITCH_MASK);
 	if (wifi_rfkill && (hw_switch_status & BIT(WLAN_SWITCH_MASK))) {
@@ -307,6 +312,7 @@ static void dell_rfkill_update(void)
 		dell_rfkill_set((void*)3, rfkill_blocked(wwan_rfkill));
 	}
 }
+DECLARE_WORK(dell_rfkill_update_work, &dell_rfkill_update);
 
 static int dell_setup_rfkill(void)
 {
@@ -431,7 +437,9 @@ static bool dell_input_filter(struct input_handle *handle, unsigned int type,
 			     unsigned int code, int value)
 {
 	if (type == EV_KEY && code == KEY_WLAN && value == 1) {
-		dell_rfkill_update();
+		if (!schedule_work(&dell_rfkill_update_work))
+			printk(KERN_NOTICE "rfkill switch handling already "
+					   "scheduled, dropping this event\n");
 		return 1;
 	}
 

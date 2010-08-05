@@ -21,17 +21,10 @@ $(stampdir)/stamp-prepare-tree-%: $(commonconfdir)/config.common.$(family) $(arc
 	touch $(builddir)/build-$*/ubuntu-build
 	[ "$(do_full_source)" != 'true' ] && true || \
 		rsync -a --exclude debian --exclude debian.master --exclude $(DEBIAN) * $(builddir)/build-$*
-	cat $^ | sed -e 's/.*CONFIG_VERSION_SIGNATURE.*/CONFIG_VERSION_SIGNATURE="Ubuntu $(release)-$(revision)-$*"/' > $(builddir)/build-$*/.config
+	cat $^ | sed -e 's/.*CONFIG_VERSION_SIGNATURE.*/CONFIG_VERSION_SIGNATURE="Ubuntu $(release)-$(revision)-$* $(release)$(extraversion)"/' > $(builddir)/build-$*/.config
 	find $(builddir)/build-$* -name "*.ko" | xargs rm -f
 	$(build_cd) $(kmake) $(build_O) silentoldconfig prepare scripts
-ifeq ($(do_tools),true)
-	install -d $(builddir)/tools-$*
-	for i in *; do ln -s $(CURDIR)/$$i $(builddir)/tools-$*/; done
-	rm $(builddir)/tools-$*/tools
-	rsync -a tools/ $(builddir)/tools-$*/tools/
-endif
 	touch $@
-
 
 # Do the actual build, including image and modules
 build-%: $(stampdir)/stamp-build-%
@@ -41,9 +34,6 @@ $(stampdir)/stamp-build-%: prepare-%
 	@echo "Building $*..."
 	$(build_cd) $(kmake) $(build_O) $(conc_level) $(build_image)
 	$(build_cd) $(kmake) $(build_O) $(conc_level) modules
-ifeq ($(do_tools),true)
-	cd $(builddir)/tools-$*/tools/perf && make
-endif
 	@touch $@
 
 # Install the finished build
@@ -88,6 +78,17 @@ endif
 		INSTALL_MOD_STRIP=1 INSTALL_MOD_PATH=$(pkgdir)/ \
 		INSTALL_FW_PATH=$(pkgdir)/lib/firmware/$(abi_release)-$*
 
+	#
+	# Remove all modules not in the inclusion list.
+	#
+	if [ -f $(DEBIAN)/control.d/$(target_flavour).inclusion-list ] ; then \
+		$(DROOT)/scripts/module-inclusion $(pkgdir)/lib/modules/$(abi_release)-$*/kernel \
+			$(DEBIAN)/control.d/$(target_flavour).inclusion-list 2>&1 | \
+				tee $(target_flavour).inclusion-list.log; \
+		/sbin/depmod -b $(pkgdir) -ea -F $(pkgdir)/boot/System.map-$(abi_release)-$* \
+			$(abi_release)-$* 2>&1 |tee $(target_flavour).depmod.log; \
+	fi
+
 ifeq ($(no_dumpfile),)
 	makedumpfile -g $(pkgdir)/boot/vmcoreinfo-$(abi_release)-$* \
 		-x $(builddir)/build-$*/vmlinux
@@ -101,13 +102,6 @@ endif
 	  ln -f $(pkgdir)/lib/modules/$(abi_release)-$*/kernel/drivers/video/vesafb.ko \
 		$(pkgdir)/lib/modules/$(abi_release)-$*/initrd/; \
 	fi
-
-	# Add the tools.
-ifeq ($(do_tools),true)
-	install -d $(pkgdir)/usr/bin
-	install -s -m755 $(builddir)/tools-$*/tools/perf/perf \
-		$(pkgdir)/usr/bin/perf_$(abi_release)-$*
-endif
 
 	# Now the image scripts
 	install -d $(pkgdir)/DEBIAN
@@ -208,15 +202,17 @@ endif
 	# Remove files which are generated at installation by postinst,
 	# except for modules.order and modules.builtin
 	#
+	mkdir $(pkgdir)/lib/modules/$(abi_release)-$*/_
 	mv $(pkgdir)/lib/modules/$(abi_release)-$*/modules.order \
-		$(pkgdir)/lib/modules/$(abi_release)-$*/_modules.order
-	mv $(pkgdir)/lib/modules/$(abi_release)-$*/modules.builtin \
-		$(pkgdir)/lib/modules/$(abi_release)-$*/_modules.builtin
+		$(pkgdir)/lib/modules/$(abi_release)-$*/_
+	if [ -f $(pkgdir)/lib/modules/$(abi_release)-$*/modules.builtin ] ; then \
+	    mv $(pkgdir)/lib/modules/$(abi_release)-$*/modules.builtin \
+		$(pkgdir)/lib/modules/$(abi_release)-$*/_; \
+	fi
 	rm -f $(pkgdir)/lib/modules/$(abi_release)-$*/modules.*
-	mv $(pkgdir)/lib/modules/$(abi_release)-$*/_modules.builtin \
-		$(pkgdir)/lib/modules/$(abi_release)-$*/modules.builtin
-	mv $(pkgdir)/lib/modules/$(abi_release)-$*/_modules.order \
-		$(pkgdir)/lib/modules/$(abi_release)-$*/modules.order
+	mv $(pkgdir)/lib/modules/$(abi_release)-$*/_/* \
+		$(pkgdir)/lib/modules/$(abi_release)-$*
+	rmdir $(pkgdir)/lib/modules/$(abi_release)-$*/_
 
 headers_tmp := $(CURDIR)/debian/tmp-headers
 headers_dir := $(CURDIR)/debian/linux-libc-dev
@@ -336,7 +332,50 @@ endif
 $(stampdir)/stamp-flavours:
 	@echo $(flavours) > $@
 
-binary-debs: $(stampdir)/stamp-flavours $(addprefix binary-,$(flavours))
+#
+# per-architecture packages
+#
+$(stampdir)/stamp-prepare-perarch:
+	@echo "Preparing perarch ..."
+ifeq ($(do_tools),true)
+	install -d $(builddir)/tools-$*
+	for i in *; do ln -s $(CURDIR)/$$i $(builddir)/tools-$*/; done
+	rm $(builddir)/tools-$*/tools
+	rsync -a tools/ $(builddir)/tools-$*/tools/
+endif
+	touch $@
+
+$(stampdir)/stamp-build-perarch: prepare-perarch
+ifeq ($(do_tools),true)
+	cd $(builddir)/tools-$*/tools/perf && make
+endif
+	@touch $@
+
+install-perarch: toolspkgdir = $(CURDIR)/debian/$(tools_pkg_name)
+install-perarch: $(stampdir)/stamp-build-perarch
+	# Add the tools.
+ifeq ($(do_tools),true)
+	install -d $(toolspkgdir)/usr/bin
+	install -s -m755 $(builddir)/tools-$*/tools/perf/perf \
+		$(toolspkgdir)/usr/bin/perf_$(abi_release)
+endif
+
+binary-perarch: toolspkg = $(tools_pkg_name)
+binary-perarch: install-perarch
+	@# Empty for make to be happy
+ifeq ($(do_tools),true)
+	dh_installchangelogs -p$(toolspkg)
+	dh_installdocs -p$(toolspkg)
+	dh_compress -p$(toolspkg)
+	dh_fixperms -p$(toolspkg)
+	dh_shlibdeps -p$(toolspkg)
+	dh_installdeb -p$(toolspkg)
+	dh_gencontrol -p$(toolspkg)
+	dh_md5sums -p$(toolspkg)
+	dh_builddeb -p$(toolspkg)
+endif
+
+binary-debs: binary-perarch $(stampdir)/stamp-flavours $(addprefix binary-,$(flavours))
 
 build-arch:  $(addprefix build-,$(flavours))
 
