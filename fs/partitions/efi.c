@@ -94,6 +94,7 @@
  *
  ************************************************************/
 #include <linux/crc32.h>
+#include <linux/ctype.h>
 #include <linux/math64.h>
 #include "check.h"
 #include "efi.h"
@@ -608,6 +609,7 @@ efi_partition(struct parsed_partitions *state, struct block_device *bdev)
 	gpt_entry *ptes = NULL;
 	u32 i;
 	unsigned ssz = bdev_logical_block_size(bdev) / 512;
+	u8 unparsed_guid[37];
 
 	if (!find_valid_gpt(bdev, &gpt, &ptes) || !gpt || !ptes) {
 		kfree(gpt);
@@ -618,6 +620,9 @@ efi_partition(struct parsed_partitions *state, struct block_device *bdev)
 	pr_debug("GUID Partition Table is valid!  Yea!\n");
 
 	for (i = 0; i < le32_to_cpu(gpt->num_partition_entries) && i < state->limit-1; i++) {
+		struct partition_meta_info *info;
+		unsigned label_count = 0;
+		unsigned label_max;
 		u64 start = le64_to_cpu(ptes[i].starting_lba);
 		u64 size = le64_to_cpu(ptes[i].ending_lba) -
 			   le64_to_cpu(ptes[i].starting_lba) + 1ULL;
@@ -631,6 +636,29 @@ efi_partition(struct parsed_partitions *state, struct block_device *bdev)
 		if (!efi_guidcmp(ptes[i].partition_type_guid,
 				 PARTITION_LINUX_RAID_GUID))
 			state->parts[i+1].flags = 1;
+
+		info = &state->parts[i + 1].info;
+		/* The EFI specification diverges from RFC 4122 with respect to
+		 * the packed storage of its UUIDs.  efi_guid_unparse unpacks to
+		 * a common ASCII representation, which allows part_pack_uuid to
+		 * pack it in the standard big endian layout for use by the rest
+		 * of the kernel.
+		 */
+		efi_guid_unparse(&ptes[i].unique_partition_guid, unparsed_guid);
+		part_pack_uuid(unparsed_guid, info->uuid);
+
+		/* Naively convert UTF16-LE to 7 bits. */
+		label_max = min(sizeof(info->volname) - 1,
+				sizeof(ptes[i].partition_name));
+		info->volname[label_max] = 0;
+		while (label_count < label_max) {
+			u8 c = ptes[i].partition_name[label_count] & 0xff;
+			if (c && !isprint(c))
+				c = '!';
+			info->volname[label_count] = c;
+			label_count++;
+		}
+		state->parts[i + 1].has_info = true;
 	}
 	kfree(ptes);
 	kfree(gpt);
