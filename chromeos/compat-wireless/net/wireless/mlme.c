@@ -141,7 +141,7 @@ void cfg80211_send_rx_assoc(struct net_device *dev, const u8 *buf, size_t len)
 EXPORT_SYMBOL(cfg80211_send_rx_assoc);
 
 void __cfg80211_send_deauth(struct net_device *dev,
-			    const u8 *buf, size_t len, bool send_frame)
+				   const u8 *buf, size_t len)
 {
 	struct wireless_dev *wdev = dev->ieee80211_ptr;
 	struct wiphy *wiphy = wdev->wiphy;
@@ -149,7 +149,7 @@ void __cfg80211_send_deauth(struct net_device *dev,
 	struct ieee80211_mgmt *mgmt = (struct ieee80211_mgmt *)buf;
 	const u8 *bssid = mgmt->bssid;
 	int i;
-	bool found = false;
+	bool found = false, was_current = false;
 
 	ASSERT_WDEV_LOCK(wdev);
 
@@ -159,6 +159,7 @@ void __cfg80211_send_deauth(struct net_device *dev,
 		cfg80211_put_bss(&wdev->current_bss->pub);
 		wdev->current_bss = NULL;
 		found = true;
+		was_current = true;
 	} else for (i = 0; i < MAX_AUTH_BSSES; i++) {
 		if (wdev->auth_bsses[i] &&
 		    memcmp(wdev->auth_bsses[i]->pub.bssid, bssid, ETH_ALEN) == 0) {
@@ -181,19 +182,9 @@ void __cfg80211_send_deauth(struct net_device *dev,
 	if (!found)
 		return;
 
-
 	nl80211_send_deauth(rdev, dev, buf, len, GFP_KERNEL);
 
-	/*
-	 * "send_frame == false" here indicates that this state change
-	 * was synthesized by a nl80211 local_state_change request.
-	 * The intent was not to put us into a disconnected state, but
-	 * rather to clean up our auth_bsses above.
-	 */
-	if (!send_frame)
-		return;
-
-	if (wdev->sme_state == CFG80211_SME_CONNECTED) {
+	if (wdev->sme_state == CFG80211_SME_CONNECTED && was_current) {
 		u16 reason_code;
 		bool from_ap;
 
@@ -209,13 +200,12 @@ void __cfg80211_send_deauth(struct net_device *dev,
 }
 EXPORT_SYMBOL(__cfg80211_send_deauth);
 
-void cfg80211_send_deauth(struct net_device *dev, const u8 *buf, size_t len,
-			  bool send_frame)
+void cfg80211_send_deauth(struct net_device *dev, const u8 *buf, size_t len)
 {
 	struct wireless_dev *wdev = dev->ieee80211_ptr;
 
 	wdev_lock(wdev);
-	__cfg80211_send_deauth(dev, buf, len, send_frame);
+	__cfg80211_send_deauth(dev, buf, len);
 	wdev_unlock(wdev);
 }
 EXPORT_SYMBOL(cfg80211_send_deauth);

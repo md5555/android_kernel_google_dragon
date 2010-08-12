@@ -240,11 +240,9 @@ static void ieee80211_send_deauth_disassoc(struct ieee80211_sub_if_data *sdata,
 
 	if (stype == IEEE80211_STYPE_DEAUTH)
 		if (cookie)
-			__cfg80211_send_deauth(sdata->dev, (u8 *)mgmt, skb->len,
-					       send_frame);
+			__cfg80211_send_deauth(sdata->dev, (u8 *)mgmt, skb->len);
 		else
-			cfg80211_send_deauth(sdata->dev, (u8 *)mgmt, skb->len,
-					     send_frame);
+			cfg80211_send_deauth(sdata->dev, (u8 *)mgmt, skb->len);
 	else
 		if (cookie)
 			__cfg80211_send_disassoc(sdata->dev, (u8 *)mgmt, skb->len);
@@ -1660,8 +1658,7 @@ static void ieee80211_sta_rx_queued_mgmt(struct ieee80211_sub_if_data *sdata,
 			/* no action */
 			break;
 		case RX_MGMT_CFG80211_DEAUTH:
-			cfg80211_send_deauth(sdata->dev, (u8 *)mgmt, skb->len,
-					     true);
+			cfg80211_send_deauth(sdata->dev, (u8 *)mgmt, skb->len);
 			break;
 		case RX_MGMT_CFG80211_DISASSOC:
 			cfg80211_send_disassoc(sdata->dev, (u8 *)mgmt, skb->len);
@@ -1712,7 +1709,7 @@ static void ieee80211_sta_rx_queued_mgmt(struct ieee80211_sub_if_data *sdata,
 		}
 		mutex_unlock(&local->work_mtx);
 
-		cfg80211_send_deauth(sdata->dev, (u8 *)mgmt, skb->len, true);
+		cfg80211_send_deauth(sdata->dev, (u8 *)mgmt, skb->len);
 	}
  out:
 	kfree_skb(skb);
