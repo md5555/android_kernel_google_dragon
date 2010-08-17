@@ -1,0 +1,16 @@
+This is a copy of the GPL portions of the USB device server from
+IncentivesPro.  We use it under Chromium OS to facilitate testing of
+devices with test harnesses that must run under other operating
+systems.
+
+We have not negotiated rights to distribute the userspace; it is
+free-as-in-beer without source.
+
+Fetched from http://incentivespro.com/tusbd2.6.31.zip.  The rest of
+the path is to fit into the directory structure of
+http://incentivespro.com/usb-server.tar.gz (which contains the
+userland and an earlier version of tusbd)
+
+
+
+

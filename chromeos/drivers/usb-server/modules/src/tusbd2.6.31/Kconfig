@@ -1,0 +1,4 @@
+config TUSBD_USB_OVER_IP
+	tristate "USB-over-IP driver from http://www.incentivespro.com/product.html"
+	help
+	This module adds USB-over-IP support.  
