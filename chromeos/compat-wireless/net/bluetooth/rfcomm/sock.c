@@ -508,7 +508,7 @@ static int rfcomm_sock_accept(struct socket *sock, struct socket *newsock, int f
 	BT_DBG("sk %p timeo %ld", sk, timeo);
 
 	/* Wait for an incoming connection. (wake-one). */
-	add_wait_queue_exclusive(sk->sk_sleep, &wait);
+	add_wait_queue_exclusive(sk_sleep(sk), &wait);
 	while (!(nsk = bt_accept_dequeue(sk, newsock))) {
 		set_current_state(TASK_INTERRUPTIBLE);
 		if (!timeo) {
@@ -531,7 +531,7 @@ static int rfcomm_sock_accept(struct socket *sock, struct socket *newsock, int f
 		}
 	}
 	set_current_state(TASK_RUNNING);
-	remove_wait_queue(sk->sk_sleep, &wait);
+	remove_wait_queue(sk_sleep(sk), &wait);
 
 	if (err)
 		goto done;
@@ -626,7 +626,7 @@ static long rfcomm_sock_data_wait(struct sock *sk, long timeo)
 {
 	DECLARE_WAITQUEUE(wait, current);
 
-	add_wait_queue(sk->sk_sleep, &wait);
+	add_wait_queue(sk_sleep(sk), &wait);
 	for (;;) {
 		set_current_state(TASK_INTERRUPTIBLE);
 
@@ -645,7 +645,7 @@ static long rfcomm_sock_data_wait(struct sock *sk, long timeo)
 	}
 
 	__set_current_state(TASK_RUNNING);
-	remove_wait_queue(sk->sk_sleep, &wait);
+	remove_wait_queue(sk_sleep(sk), &wait);
 	return timeo;
 }
 
@@ -1165,7 +1165,7 @@ error:
 	return err;
 }
 
-void rfcomm_cleanup_sockets(void)
+void __exit rfcomm_cleanup_sockets(void)
 {
 	debugfs_remove(rfcomm_sock_debugfs);
 

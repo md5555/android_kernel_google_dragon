@@ -7,11 +7,9 @@
 
 #include <linux/skbuff.h>
 #if defined(CONFIG_PCCARD) || defined(CONFIG_PCCARD_MODULE)
-#if defined(CONFIG_PCMCIA) || defined(CONFIG_PCMCIA_MODULE)
 #include <pcmcia/cs_types.h>
 #include <pcmcia/cistpl.h>
 #include <pcmcia/ds.h>
-#endif
 #endif
 #include <linux/kfifo.h>
 #include <linux/firmware.h>
@@ -53,9 +51,6 @@ static inline void compat_release_firmware(const struct firmware *fw)
 
 #define IFF_DONT_BRIDGE 0x800		/* disallow bridging this ether dev */
 /* source: include/linux/if.h */
-
-#define kparam_block_sysfs_write(a)
-#define kparam_unblock_sysfs_write(a)
 
 /* this will never happen on older kernels */
 #define NETDEV_POST_INIT 0xffff

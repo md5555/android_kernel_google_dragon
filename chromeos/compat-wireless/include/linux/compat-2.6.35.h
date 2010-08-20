@@ -6,9 +6,12 @@
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,35))
 #include <linux/etherdevice.h>
 #include <net/sock.h>
+#include <linux/types.h>
 
-#define IW_HANDLER(id, func)			\
-	[IW_IOCTL_IDX(id)] = func
+/* added on linux/kernel.h */
+#define USHRT_MAX      ((u16)(~0U))
+#define SHRT_MAX       ((s16)(USHRT_MAX>>1))
+#define SHRT_MIN       ((s16)(-SHRT_MAX - 1))
 
 #define  SDIO_BUS_ECSI		0x20	/* Enable continuous SPI interrupt */
 #define  SDIO_BUS_SCSI		0x40	/* Support continuous SPI interrupt */
@@ -20,8 +23,9 @@ static inline wait_queue_head_t *sk_sleep(struct sock *sk)
 	return sk->sk_sleep;
 }
 
-#define usb_alloc_coherent(dev, size, mem_flags, dma) usb_buffer_alloc(dev, size, mem_flags, dma)
-#define usb_free_coherent(dev, size, addr, dma) usb_buffer_free(dev, size, addr, dma)
+#define sdio_writeb_readb(func, write_byte, addr, err_ret) sdio_readb(func, addr, err_ret)
+
+int hex_to_bin(char ch);
 
 #endif /* (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,35)) */
 

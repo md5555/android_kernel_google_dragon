@@ -193,7 +193,7 @@ TRACE_EVENT(iwlwifi_dev_tx,
 		__entry->framelen = buf0_len + buf1_len;
 		memcpy(__get_dynamic_array(tfd), tfd, tfdlen);
 		memcpy(__get_dynamic_array(buf0), buf0, buf0_len);
-		memcpy(__get_dynamic_array(buf1), buf1, buf0_len);
+		memcpy(__get_dynamic_array(buf1), buf1, buf1_len);
 	),
 	TP_printk("[%p] TX %.2x (%zu bytes)",
 		  __entry->priv,
@@ -263,6 +263,4 @@ TRACE_EVENT(iwlwifi_dev_ucode_event,
 #define TRACE_INCLUDE_PATH .
 #undef TRACE_INCLUDE_FILE
 #define TRACE_INCLUDE_FILE iwl-devtrace
-#if (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,30))
 #include <trace/define_trace.h>
-#endif

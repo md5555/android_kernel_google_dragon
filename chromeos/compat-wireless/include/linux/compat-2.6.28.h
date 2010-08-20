@@ -147,6 +147,23 @@ static inline void skb_queue_splice(const struct sk_buff_head *list,
 }
 
 /**
+ *	skb_queue_splice - join two skb lists and reinitialise the emptied list
+ *	@list: the new list to add
+ *	@head: the place to add it in the first list
+ *
+ *	The list at @list is reinitialised
+ */
+static inline void skb_queue_splice_init(struct sk_buff_head *list,
+					 struct sk_buff_head *head)
+{
+	if (!skb_queue_empty(list)) {
+		__skb_queue_splice(list, (struct sk_buff *) head, head->next);
+		head->qlen += list->qlen;
+		__skb_queue_head_init(list);
+	}
+}
+
+/**
  *	skb_queue_splice_tail - join two skb lists and reinitialise the emptied list
  *	@list: the new list to add
  *	@head: the place to add it in the first list
@@ -212,6 +229,12 @@ unsigned long round_jiffies_up(unsigned long j);
 
 extern void skb_add_rx_frag(struct sk_buff *skb, int i, struct page *page,
 			    int off, int size);
+
+#define wake_up_interruptible_poll(x, m)			\
+	__wake_up(x, TASK_INTERRUPTIBLE, 1, (void *) (m))
+
+extern int n_tty_ioctl_helper(struct tty_struct *tty, struct file *file,
+		       unsigned int cmd, unsigned long arg);
 
 #endif /* (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)) */
 

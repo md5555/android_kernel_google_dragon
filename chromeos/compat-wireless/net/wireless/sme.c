@@ -35,7 +35,7 @@ struct cfg80211_conn {
 	bool auto_auth, prev_bssid_valid;
 };
 
-bool cfg80211_is_all_idle(void)
+static bool cfg80211_is_all_idle(void)
 {
 	struct cfg80211_registered_device *rdev;
 	struct wireless_dev *wdev;
@@ -518,12 +518,16 @@ void cfg80211_connect_result(struct net_device *dev, const u8 *bssid,
 	ev->type = EVENT_CONNECT_RESULT;
 	if (bssid)
 		memcpy(ev->cr.bssid, bssid, ETH_ALEN);
-	ev->cr.req_ie = ((u8 *)ev) + sizeof(*ev);
-	ev->cr.req_ie_len = req_ie_len;
-	memcpy((void *)ev->cr.req_ie, req_ie, req_ie_len);
-	ev->cr.resp_ie = ((u8 *)ev) + sizeof(*ev) + req_ie_len;
-	ev->cr.resp_ie_len = resp_ie_len;
-	memcpy((void *)ev->cr.resp_ie, resp_ie, resp_ie_len);
+	if (req_ie_len) {
+		ev->cr.req_ie = ((u8 *)ev) + sizeof(*ev);
+		ev->cr.req_ie_len = req_ie_len;
+		memcpy((void *)ev->cr.req_ie, req_ie, req_ie_len);
+	}
+	if (resp_ie_len) {
+		ev->cr.resp_ie = ((u8 *)ev) + sizeof(*ev) + req_ie_len;
+		ev->cr.resp_ie_len = resp_ie_len;
+		memcpy((void *)ev->cr.resp_ie, resp_ie, resp_ie_len);
+	}
 	ev->cr.status = status;
 
 	spin_lock_irqsave(&wdev->event_lock, flags);
@@ -737,7 +741,6 @@ int __cfg80211_connect(struct cfg80211_registered_device *rdev,
 		       const u8 *prev_bssid)
 {
 	struct wireless_dev *wdev = dev->ieee80211_ptr;
-	struct ieee80211_channel *chan;
 	struct cfg80211_bss *bss = NULL;
 	int err;
 
@@ -745,10 +748,6 @@ int __cfg80211_connect(struct cfg80211_registered_device *rdev,
 
 	if (wdev->sme_state != CFG80211_SME_IDLE)
 		return -EALREADY;
-
-	chan = rdev_fixed_channel(rdev, wdev);
-	if (chan && chan != connect->channel)
-		return -EBUSY;
 
 	if (WARN_ON(wdev->connect_keys)) {
 		kfree(wdev->connect_keys);

@@ -1830,8 +1830,6 @@ static void atl1_rx_checksum(struct atl1_adapter *adapter,
 		adapter->hw_csum_good++;
 		return;
 	}
-
-	return;
 }
 
 /*
@@ -2347,7 +2345,7 @@ static netdev_tx_t atl1_xmit_frame(struct sk_buff *skb,
 {
 	struct atl1_adapter *adapter = netdev_priv(netdev);
 	struct atl1_tpd_ring *tpd_ring = &adapter->tpd_ring;
-	int len = skb->len;
+	int len;
 	int tso;
 	int count = 1;
 	int ret_val;
@@ -2359,7 +2357,7 @@ static netdev_tx_t atl1_xmit_frame(struct sk_buff *skb,
 	unsigned int f;
 	unsigned int proto_hdr_len;
 
-	len -= skb->data_len;
+	len = skb_headlen(skb);
 
 	if (unlikely(skb->len <= 0)) {
 		dev_kfree_skb_any(skb);
@@ -2878,7 +2876,6 @@ static void atl1_poll_controller(struct net_device *netdev)
 }
 #endif
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,29))
 static const struct net_device_ops atl1_netdev_ops = {
 	.ndo_open		= atl1_open,
 	.ndo_stop		= atl1_close,
@@ -2894,7 +2891,6 @@ static const struct net_device_ops atl1_netdev_ops = {
 	.ndo_poll_controller	= atl1_poll_controller,
 #endif
 };
-#endif
 
 /*
  * atl1_probe - Device Initialization Routine
@@ -2983,22 +2979,7 @@ static int __devinit atl1_probe(struct pci_dev *pdev,
 	adapter->mii.phy_id_mask = 0x1f;
 	adapter->mii.reg_num_mask = 0x1f;
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,29))
-	netdev->netdev_ops = &atl1_netdev_ops;
-#else
-	netdev->change_mtu = atl1_change_mtu;
-	netdev->hard_start_xmit = atl1_xmit_frame;
-	netdev->open = atl1_open;
-	netdev->stop = atl1_close;
-	netdev->tx_timeout = atlx_tx_timeout;
-	netdev->set_mac_address = atl1_set_mac;
-	netdev->do_ioctl = atlx_ioctl;
-	netdev->set_multicast_list = atlx_set_multi;
-	netdev->vlan_rx_register = atlx_vlan_rx_register;
-#ifdef CONFIG_NET_POLL_CONTROLLER
-	netdev->poll_controller = atl1_poll_controller;
-#endif
-#endif
+	netdev_attach_ops(netdev, &atl1_netdev_ops);
 	netdev->watchdog_timeo = 5 * HZ;
 
 	netdev->ethtool_ops = &atl1_ethtool_ops;
@@ -3407,7 +3388,6 @@ static void atl1_get_wol(struct net_device *netdev,
 	wol->wolopts = 0;
 	if (adapter->wol & ATLX_WUFC_MAG)
 		wol->wolopts |= WAKE_MAGIC;
-	return;
 }
 
 static int atl1_set_wol(struct net_device *netdev,

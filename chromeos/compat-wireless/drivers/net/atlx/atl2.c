@@ -136,7 +136,7 @@ static void atl2_set_multi(struct net_device *netdev)
 {
 	struct atl2_adapter *adapter = netdev_priv(netdev);
 	struct atl2_hw *hw = &adapter->hw;
-	struct dev_mc_list *mc_ptr;
+	struct netdev_hw_addr *ha;
 	u32 rctl;
 	u32 hash_value;
 
@@ -158,8 +158,12 @@ static void atl2_set_multi(struct net_device *netdev)
 	ATL2_WRITE_REG_ARRAY(hw, REG_RX_HASH_TABLE, 1, 0);
 
 	/* comoute mc addresses' hash value ,and put it into hash table */
-	netdev_for_each_mc_addr(mc_ptr, netdev) {
-		hash_value = atl2_hash_mc_addr(hw, mc_ptr->dmi_addr);
+	netdev_for_each_mc_addr(ha, netdev) {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,35))
+		hash_value = atl2_hash_mc_addr(hw, ha->addr);
+#else
+		hash_value = atl2_hash_mc_addr(hw, ha->dmi_addr);
+#endif
 		atl2_hash_set(hw, hash_value);
 	}
 }
@@ -422,7 +426,6 @@ static void atl2_intr_rx(struct atl2_adapter *adapter)
 				netdev->stats.rx_dropped++;
 				break;
 			}
-			skb->dev = netdev;
 			memcpy(skb->data, rxd->packet, rx_size);
 			skb_put(skb, rx_size);
 			skb->protocol = eth_type_trans(skb, netdev);
@@ -893,7 +896,6 @@ static netdev_tx_t atl2_xmit_frame(struct sk_buff *skb,
 		(adapter->txd_write_ptr >> 2));
 
 	mmiowb();
-	netdev->trans_start = jiffies;
 	dev_kfree_skb_any(skb);
 	return NETDEV_TX_OK;
 }
@@ -1307,7 +1309,6 @@ static void atl2_poll_controller(struct net_device *netdev)
 #endif
 
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,29))
 static const struct net_device_ops atl2_netdev_ops = {
 	.ndo_open		= atl2_open,
 	.ndo_stop		= atl2_close,
@@ -1323,7 +1324,6 @@ static const struct net_device_ops atl2_netdev_ops = {
 	.ndo_poll_controller	= atl2_poll_controller,
 #endif
 };
-#endif
 
 /*
  * atl2_probe - Device Initialization Routine
@@ -1398,22 +1398,7 @@ static int __devinit atl2_probe(struct pci_dev *pdev,
 
 	atl2_setup_pcicmd(pdev);
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,29))
-	netdev->netdev_ops = &atl2_netdev_ops;
-#else
-	netdev->change_mtu = atl2_change_mtu;
-	netdev->hard_start_xmit = atl2_xmit_frame;
-	netdev->open = atl2_open;
-	netdev->stop = atl2_close;
-	netdev->tx_timeout = atl2_tx_timeout;
-	netdev->set_mac_address = atl2_set_mac;
-	netdev->do_ioctl = atl2_ioctl;
-	netdev->set_multicast_list = atl2_set_multi;
-	netdev->vlan_rx_register = atl2_vlan_rx_register;
-#ifdef CONFIG_NET_POLL_CONTROLLER
-	netdev->poll_controller = atl2_poll_controller;
-#endif
-#endif
+	netdev_attach_ops(netdev, &atl2_netdev_ops);
 	atl2_set_ethtool_ops(netdev);
 	netdev->watchdog_timeo = 5 * HZ;
 	strncpy(netdev->name, pci_name(pdev), sizeof(netdev->name) - 1);

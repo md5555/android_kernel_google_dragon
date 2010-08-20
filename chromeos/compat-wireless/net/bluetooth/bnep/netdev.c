@@ -88,7 +88,7 @@ static void bnep_net_set_mc_list(struct net_device *dev)
 		memcpy(__skb_put(skb, ETH_ALEN), dev->broadcast, ETH_ALEN);
 		r->len = htons(ETH_ALEN * 2);
 	} else {
-		struct dev_mc_list *dmi = dev->mc_list;
+		struct netdev_hw_addr *ha;
 		int i, len = skb->len;
 
 		if (dev->flags & IFF_BROADCAST) {
@@ -98,18 +98,25 @@ static void bnep_net_set_mc_list(struct net_device *dev)
 
 		/* FIXME: We should group addresses here. */
 
-		for (i = 0;
-		     i < netdev_mc_count(dev) && i < BNEP_MAX_MULTICAST_FILTERS;
-		     i++) {
-			memcpy(__skb_put(skb, ETH_ALEN), dmi->dmi_addr, ETH_ALEN);
-			memcpy(__skb_put(skb, ETH_ALEN), dmi->dmi_addr, ETH_ALEN);
-			dmi = dmi->next;
+		i = 0;
+		netdev_for_each_mc_addr(ha, dev) {
+			if (i == BNEP_MAX_MULTICAST_FILTERS)
+				break;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,35))
+			memcpy(__skb_put(skb, ETH_ALEN), ha->addr, ETH_ALEN);
+			memcpy(__skb_put(skb, ETH_ALEN), ha->addr, ETH_ALEN);
+#else
+			memcpy(__skb_put(skb, ETH_ALEN), ha->dmi_addr, ETH_ALEN);
+			memcpy(__skb_put(skb, ETH_ALEN), ha->dmi_addr, ETH_ALEN);
+#endif
+
+			i++;
 		}
 		r->len = htons(skb->len - len);
 	}
 
 	skb_queue_tail(&sk->sk_write_queue, skb);
-	wake_up_interruptible(sk->sk_sleep);
+	wake_up_interruptible(sk_sleep(sk));
 #endif
 }
 
@@ -197,11 +204,11 @@ static int bnep_net_xmit(struct sk_buff *skb, struct net_device *dev)
 	/*
 	 * We cannot send L2CAP packets from here as we are potentially in a bh.
 	 * So we have to queue them and wake up session thread which is sleeping
-	 * on the sk->sk_sleep.
+	 * on the sk_sleep(sk).
 	 */
 	dev->trans_start = jiffies;
 	skb_queue_tail(&sk->sk_write_queue, skb);
-	wake_up_interruptible(sk->sk_sleep);
+	wake_up_interruptible(sk_sleep(sk));
 
 	if (skb_queue_len(&sk->sk_write_queue) >= BNEP_TX_QUEUE_LEN) {
 		BT_DBG("tx queue is full");
@@ -214,7 +221,6 @@ static int bnep_net_xmit(struct sk_buff *skb, struct net_device *dev)
 	return NETDEV_TX_OK;
 }
 
-#if (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,28))
 static const struct net_device_ops bnep_netdev_ops = {
 	.ndo_open            = bnep_net_open,
 	.ndo_stop            = bnep_net_close,
@@ -226,16 +232,6 @@ static const struct net_device_ops bnep_netdev_ops = {
 	.ndo_change_mtu	     = eth_change_mtu,
 
 };
-#else
-static struct net_device_stats *bnep_net_get_stats(struct net_device *dev)
-{
-	return &dev->stats;
-}
-static int bnep_net_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
-{
-	return -EINVAL;
-}
-#endif
 
 void bnep_net_setup(struct net_device *dev)
 {
@@ -244,18 +240,7 @@ void bnep_net_setup(struct net_device *dev)
 	dev->addr_len = ETH_ALEN;
 
 	ether_setup(dev);
-#if (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,28))
-	dev->netdev_ops = &bnep_netdev_ops;
-#else
-	dev->open            = bnep_net_open;
-	dev->stop            = bnep_net_close;
-	dev->hard_start_xmit = bnep_net_xmit;
-	dev->get_stats       = bnep_net_get_stats;
-	dev->do_ioctl        = bnep_net_ioctl;
-	dev->set_mac_address = bnep_net_set_mac_addr;
-	dev->set_multicast_list = bnep_net_set_mc_list;
-	dev->tx_timeout      = bnep_net_timeout;
-#endif
+	netdev_attach_ops(dev, &bnep_netdev_ops);
 
 	dev->watchdog_timeo  = HZ * 2;
 }

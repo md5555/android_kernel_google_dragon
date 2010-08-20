@@ -361,10 +361,6 @@ struct wiphy *wiphy_new(const struct cfg80211_ops *ops, int sizeof_priv)
 	INIT_LIST_HEAD(&rdev->bss_list);
 	INIT_WORK(&rdev->scan_done_wk, __cfg80211_scan_done);
 
-#ifdef CONFIG_CFG80211_WEXT
-	rdev->wiphy.wext = &cfg80211_wext_handler;
-#endif
-
 	device_initialize(&rdev->wiphy.dev);
 	rdev->wiphy.dev.class = &ieee80211_class;
 	rdev->wiphy.dev.platform_data = rdev;
@@ -476,23 +472,21 @@ int wiphy_register(struct wiphy *wiphy)
 	/* check and set up bitrates */
 	ieee80211_set_bitrate_flags(wiphy);
 
+	mutex_lock(&cfg80211_mutex);
+
 	res = device_add(&rdev->wiphy.dev);
 	if (res)
-		return res;
+		goto out_unlock;
 
 	res = rfkill_register(rdev->rfkill);
 	if (res)
 		goto out_rm_dev;
-
-	mutex_lock(&cfg80211_mutex);
 
 	/* set up regulatory info */
 	wiphy_update_regulatory(wiphy, NL80211_REGDOM_SET_BY_CORE);
 
 	list_add_rcu(&rdev->list, &cfg80211_rdev_list);
 	cfg80211_rdev_list_generation++;
-
-	mutex_unlock(&cfg80211_mutex);
 
 	/* add to debugfs */
 	rdev->wiphy.debugfsdir =
@@ -513,11 +507,15 @@ int wiphy_register(struct wiphy *wiphy)
 	}
 
 	cfg80211_debugfs_rdev_add(rdev);
+	mutex_unlock(&cfg80211_mutex);
 
 	return 0;
 
- out_rm_dev:
+out_rm_dev:
 	device_del(&rdev->wiphy.dev);
+
+out_unlock:
+	mutex_unlock(&cfg80211_mutex);
 	return res;
 }
 EXPORT_SYMBOL(wiphy_register);
@@ -704,10 +702,8 @@ static int cfg80211_netdev_notifier_call(struct notifier_block * nb,
 		wdev->sme_state = CFG80211_SME_IDLE;
 		mutex_unlock(&rdev->devlist_mtx);
 #ifdef CONFIG_CFG80211_WEXT
-#if (LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,32))
 		if (!dev->wireless_handlers)
 			dev->wireless_handlers = &cfg80211_wext_handler;
-#endif
 		wdev->wext.default_key = -1;
 		wdev->wext.default_mgmt_key = -1;
 		wdev->wext.connect.auth_type = NL80211_AUTHTYPE_AUTOMATIC;
@@ -717,7 +713,8 @@ static int cfg80211_netdev_notifier_call(struct notifier_block * nb,
 			wdev->ps = true;
 		else
 			wdev->ps = false;
-		wdev->ps_timeout = 100;
+		/* allow mac80211 to determine the timeout */
+		wdev->ps_timeout = -1;
 		if (rdev->ops->set_power_mgmt)
 			if (rdev->ops->set_power_mgmt(wdev->wiphy, dev,
 						      wdev->ps,
@@ -911,7 +908,7 @@ out_fail_pernet:
 }
 subsys_initcall(cfg80211_init);
 
-static void cfg80211_exit(void)
+static void __exit cfg80211_exit(void)
 {
 	debugfs_remove(ieee80211_debugfs_dir);
 	nl80211_exit();
@@ -924,3 +921,52 @@ static void cfg80211_exit(void)
 	destroy_workqueue(cfg80211_wq);
 }
 module_exit(cfg80211_exit);
+
+static int ___wiphy_printk(const char *level, const struct wiphy *wiphy,
+			   struct va_format *vaf)
+{
+	if (!wiphy)
+		return printk("%s(NULL wiphy *): %pV", level, vaf);
+
+	return printk("%s%s: %pV", level, wiphy_name(wiphy), vaf);
+}
+
+int __wiphy_printk(const char *level, const struct wiphy *wiphy,
+		   const char *fmt, ...)
+{
+	struct va_format vaf;
+	va_list args;
+	int r;
+
+	va_start(args, fmt);
+
+	vaf.fmt = fmt;
+	vaf.va = &args;
+
+	r = ___wiphy_printk(level, wiphy, &vaf);
+	va_end(args);
+
+	return r;
+}
+EXPORT_SYMBOL(__wiphy_printk);
+
+#define define_wiphy_printk_level(func, kern_level)		\
+int func(const struct wiphy *wiphy, const char *fmt, ...)	\
+{								\
+	struct va_format vaf;					\
+	va_list args;						\
+	int r;							\
+								\
+	va_start(args, fmt);					\
+								\
+	vaf.fmt = fmt;						\
+	vaf.va = &args;						\
+								\
+	r = ___wiphy_printk(kern_level, wiphy, &vaf);		\
+	va_end(args);						\
+								\
+	return r;						\
+}								\
+EXPORT_SYMBOL(func);
+
+define_wiphy_printk_level(wiphy_debug, KERN_DEBUG);

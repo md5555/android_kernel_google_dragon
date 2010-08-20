@@ -284,7 +284,7 @@ static void atl1e_set_multi(struct net_device *netdev)
 {
 	struct atl1e_adapter *adapter = netdev_priv(netdev);
 	struct atl1e_hw *hw = &adapter->hw;
-	struct dev_mc_list *mc_ptr;
+	struct netdev_hw_addr *ha;
 	u32 mac_ctrl_data = 0;
 	u32 hash_value;
 
@@ -307,8 +307,12 @@ static void atl1e_set_multi(struct net_device *netdev)
 	AT_WRITE_REG_ARRAY(hw, REG_RX_HASH_TABLE, 1, 0);
 
 	/* comoute mc addresses' hash value ,and put it into hash table */
-	netdev_for_each_mc_addr(mc_ptr, netdev) {
-		hash_value = atl1e_hash_mc_addr(hw, mc_ptr->dmi_addr);
+	netdev_for_each_mc_addr(ha, netdev) {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,35))
+		hash_value = atl1e_hash_mc_addr(hw, ha->addr);
+#else
+		hash_value = atl1e_hash_mc_addr(hw, ha->dmi_addr);
+#endif
 		atl1e_hash_set(hw, hash_value);
 	}
 }
@@ -707,8 +711,6 @@ static void atl1e_init_ring_resources(struct atl1e_adapter *adapter)
 	adapter->ring_vir_addr = NULL;
 	adapter->rx_ring.desc = NULL;
 	rwlock_init(&adapter->tx_ring.tx_lock);
-
-	return;
 }
 
 /*
@@ -905,8 +907,6 @@ static inline void atl1e_configure_des_ring(const struct atl1e_adapter *adapter)
 	AT_WRITE_REG(hw, REG_HOST_RXFPAGE_SIZE, rx_ring->page_size);
 	/* Load all of base address above */
 	AT_WRITE_REG(hw, REG_LOAD_PTR, 1);
-
-	return;
 }
 
 static inline void atl1e_configure_tx(struct atl1e_adapter *adapter)
@@ -950,7 +950,6 @@ static inline void atl1e_configure_tx(struct atl1e_adapter *adapter)
 			(((u16)hw->tpd_burst & TXQ_CTRL_NUM_TPD_BURST_MASK)
 			 << TXQ_CTRL_NUM_TPD_BURST_SHIFT)
 			| TXQ_CTRL_ENH_MODE | TXQ_CTRL_EN);
-	return;
 }
 
 static inline void atl1e_configure_rx(struct atl1e_adapter *adapter)
@@ -1004,7 +1003,6 @@ static inline void atl1e_configure_rx(struct atl1e_adapter *adapter)
 			 RXQ_CTRL_CUT_THRU_EN | RXQ_CTRL_EN;
 
 	AT_WRITE_REG(hw, REG_RXQ_CTRL, rxq_ctrl_data);
-	return;
 }
 
 static inline void atl1e_configure_dma(struct atl1e_adapter *adapter)
@@ -1024,7 +1022,6 @@ static inline void atl1e_configure_dma(struct atl1e_adapter *adapter)
 		<< DMA_CTRL_DMAW_DLY_CNT_SHIFT;
 
 	AT_WRITE_REG(hw, REG_DMA_CTRL, dma_ctrl_data);
-	return;
 }
 
 static void atl1e_setup_mac_ctrl(struct atl1e_adapter *adapter)
@@ -1428,7 +1425,6 @@ static void atl1e_clean_rx_irq(struct atl1e_adapter *adapter, u8 que,
 					    "Memory squeeze, deferring packet\n");
 				goto skip_pkt;
 			}
-			skb->dev = netdev;
 			memcpy(skb->data, (u8 *)(prrs + 1), packet_size);
 			skb_put(skb, packet_size);
 			skb->protocol = eth_type_trans(skb, netdev);
@@ -1680,7 +1676,7 @@ static void atl1e_tx_map(struct atl1e_adapter *adapter,
 {
 	struct atl1e_tpd_desc *use_tpd = NULL;
 	struct atl1e_tx_buffer *tx_buffer = NULL;
-	u16 buf_len = skb->len - skb->data_len;
+	u16 buf_len = skb_headlen(skb);
 	u16 map_len = 0;
 	u16 mapped_len = 0;
 	u16 hdr_len = 0;
@@ -2202,7 +2198,6 @@ static void atl1e_shutdown(struct pci_dev *pdev)
 	atl1e_suspend(pdev, PMSG_SUSPEND);
 }
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,29))
 static const struct net_device_ops atl1e_netdev_ops = {
 	.ndo_open		= atl1e_open,
 	.ndo_stop		= atl1e_close,
@@ -2220,7 +2215,6 @@ static const struct net_device_ops atl1e_netdev_ops = {
 #endif
 
 };
-#endif
 
 static int atl1e_init_netdev(struct net_device *netdev, struct pci_dev *pdev)
 {
@@ -2228,23 +2222,7 @@ static int atl1e_init_netdev(struct net_device *netdev, struct pci_dev *pdev)
 	pci_set_drvdata(pdev, netdev);
 
 	netdev->irq  = pdev->irq;
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,29))
-	netdev->netdev_ops = &atl1e_netdev_ops;
-#else
-	netdev->change_mtu = atl1e_change_mtu;
-	netdev->hard_start_xmit = atl1e_xmit_frame;
-	netdev->open = atl1e_open;
-	netdev->stop = atl1e_close;
-	netdev->tx_timeout = atl1e_tx_timeout;
-	netdev->set_mac_address = atl1e_set_mac_addr;
-	netdev->do_ioctl = atl1e_ioctl;
-	netdev->get_stats = atl1e_get_stats;
-	netdev->set_multicast_list = atl1e_set_multi;
-	netdev->vlan_rx_register = atl1e_vlan_rx_register;
-#ifdef CONFIG_NET_POLL_CONTROLLER
-	netdev->poll_controller = atl1e_netpoll;
-#endif
-#endif
+	netdev_attach_ops(netdev, &atl1e_netdev_ops);
 
 	netdev->watchdog_timeo = AT_TX_WATCHDOG;
 	atl1e_set_ethtool_ops(netdev);
