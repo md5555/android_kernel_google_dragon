@@ -6,6 +6,7 @@
  * This file is released under the GPL.
  */
 #include <linux/async.h>
+#include <linux/delay.h>
 #include <linux/device-mapper.h>
 #include <linux/fs.h>
 #include <linux/string.h>
