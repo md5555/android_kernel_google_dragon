@@ -22,3 +22,4 @@ obj-$(CONFIG_ACPI_ASUS)		+= asus_acpi.o
 obj-$(CONFIG_TOPSTAR_LAPTOP)	+= topstar-laptop.o
 obj-$(CONFIG_ACPI_TOSHIBA)	+= toshiba_acpi.o
 obj-$(CONFIG_ACPI_CHROMEOS)	+= chromeos_acpi.o
+obj-$(CONFIG_CHROMEOS)		+= chromeos.o
