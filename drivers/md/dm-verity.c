@@ -15,6 +15,7 @@
 #include <linux/backing-dev.h>
 #include <linux/bio.h>
 #include <linux/blkdev.h>
+#include <linux/chromeos_platform.h>
 #include <linux/completion.h>
 #include <linux/crypto.h>
 #include <linux/delay.h>
@@ -574,9 +575,7 @@ static void verity_error(struct verity_config *vc, struct dm_verity_io *io,
 	}
 
 	/*  else DM_VERITY_ERROR_BEHAVOR_PANIC */
-	/* TODO(wad) If panic_timoeut is zero, a reboot does not occur.
-	 * extern int panic_timeout = 1;
-	 */
+	chromeos_set_need_recovery();
 	panic("dm-verity failure: "
 		"device:%u:%u error%d block:%llu message:%s",
 		MAJOR(devt), MINOR(devt), error, io->block, message);
@@ -584,7 +583,7 @@ static void verity_error(struct verity_config *vc, struct dm_verity_io *io,
 
 /**
  * verity_error_behavior_prepare - check and clean up error_behaviors
- * @behavior:	char array of size DM_VERITY_BMAX_ERROR_BEHAVIOR
+ * @behavior:	char array of size DM_VERITY_MAX_ERROR_BEHAVIOR
  *
  * Checks if the behavior is valid and rewrites it if it was a
  * legacy mode (digit).
@@ -1527,7 +1526,7 @@ static int verity_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 
 	/* arg6: override with optional device-specific error behavior */
 	if (argc >= 7) {
-		strncpy(vc->error_behavior, argv[7],
+		strncpy(vc->error_behavior, argv[6],
 			sizeof(vc->error_behavior));
 	} else {
 		/* Inherit the current global default. */
