@@ -1450,6 +1450,13 @@ static int format_corename(char *corename, long signr)
 	char *const out_end = corename + CORENAME_MAX_SIZE;
 	int rc;
 	int pid_in_pattern = 0;
+	pid_t pid = task_tgid_vnr(current);
+
+	/* The pipe helper runs in the init namespace and should
+	 * receive the matching pid until that changes.
+	 */
+	if (ispipe)
+		pid = task_tgid_nr(current);
 
 	/* Repeat as long as we have more pattern to process and more output
 	   space */
@@ -1472,7 +1479,7 @@ static int format_corename(char *corename, long signr)
 			case 'p':
 				pid_in_pattern = 1;
 				rc = snprintf(out_ptr, out_end - out_ptr,
-					      "%d", task_tgid_vnr(current));
+					      "%d", pid);
 				if (rc > out_end - out_ptr)
 					goto out;
 				out_ptr += rc;
@@ -1551,7 +1558,7 @@ static int format_corename(char *corename, long signr)
 	 * the filename. Do not do this for piped commands. */
 	if (!ispipe && !pid_in_pattern && core_uses_pid) {
 		rc = snprintf(out_ptr, out_end - out_ptr,
-			      ".%d", task_tgid_vnr(current));
+			      ".%d", pid);
 		if (rc > out_end - out_ptr)
 			goto out;
 		out_ptr += rc;
