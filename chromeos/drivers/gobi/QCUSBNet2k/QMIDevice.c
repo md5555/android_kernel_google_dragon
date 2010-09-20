@@ -14,6 +14,7 @@ FUNCTIONS:
       QTestDownReason
 
    Driver level asynchronous read functions
+      ResubmitIntURB
       ReadCallback
       IntCallback
       StartRead
@@ -120,7 +121,7 @@ POSSIBILITY OF SUCH DAMAGE.
 //-----------------------------------------------------------------------------
 
 extern int debug;
-static int qcusbnet2k_fwdelay = 0;
+extern int safeEnumDelay;
 
 // Prototype to QCSuspend function
 int QCSuspend( 
@@ -314,6 +315,53 @@ bool QTestDownReason(
 
 /*===========================================================================
 METHOD:
+   ResubmitIntURB (Public Method)
+
+DESCRIPTION:
+   Resubmit interrupt URB, re-using same values
+
+PARAMETERS
+   pIntURB       [ I ] - Interrupt URB 
+
+RETURN VALUE:
+   int - 0 for success
+         negative errno for failure
+===========================================================================*/
+int ResubmitIntURB( struct urb * pIntURB )
+{
+   int status;
+   int interval;
+
+   // Sanity test
+   if ( (pIntURB == NULL)
+   ||   (pIntURB->dev == NULL) )
+   {
+      return -EINVAL;
+   }
+ 
+   // Interval needs reset after every URB completion
+   interval = (pIntURB->dev->speed == USB_SPEED_HIGH) ? 7 : 3;
+
+   // Reschedule interrupt URB
+   usb_fill_int_urb( pIntURB,
+                     pIntURB->dev,
+                     pIntURB->pipe,
+                     pIntURB->transfer_buffer,
+                     pIntURB->transfer_buffer_length,
+                     pIntURB->complete,
+                     pIntURB->context,
+                     interval );
+   status = usb_submit_urb( pIntURB, GFP_ATOMIC );
+   if (status != 0)
+   {
+      DBG( "Error re-submitting Int URB %d\n", status );
+   }
+
+   return status;
+}
+
+/*===========================================================================
+METHOD:
    ReadCallback (Public Method)
 
 DESCRIPTION:
@@ -443,6 +491,9 @@ void ReadCallback( struct urb * pReadURB )
    
    // End critical section
    spin_unlock_irqrestore( &pDev->mQMIDev.mClientMemLock, flags );
+   
+   // Resubmit the interrupt URB
+   ResubmitIntURB( pDev->mQMIDev.mpIntURB );
 }
 
 /*===========================================================================
@@ -461,7 +512,6 @@ RETURN VALUE:
 void IntCallback( struct urb * pIntURB )
 {
    int status;
-   int interval;
    
    sQCUSBNet * pDev = (sQCUSBNet *)pIntURB->context;
    if (IsDeviceValid( pDev ) == false)
@@ -501,8 +551,10 @@ void IntCallback( struct urb * pIntURB )
          if (status != 0)
          {
             DBG( "Error submitting Read URB %d\n", status );
-            return;
          }
+
+         // Int URB will be resubmitted during ReadCallback
+         return;
       }
       // CDC CONNECTION_SPEED_CHANGE
       else if ((pIntURB->actual_length == 16)
@@ -528,22 +580,8 @@ void IntCallback( struct urb * pIntURB )
       }
    }
 
-   interval = (pDev->mpNetDev->udev->speed == USB_SPEED_HIGH) ? 7 : 3;
+   ResubmitIntURB( pIntURB );
 
-   // Reschedule interrupt URB
-   usb_fill_int_urb( pIntURB,
-                     pIntURB->dev,
-                     pIntURB->pipe,
-                     pIntURB->transfer_buffer,
-                     pIntURB->transfer_buffer_length,
-                     pIntURB->complete,
-                     pIntURB->context,
-                     interval );
-   status = usb_submit_urb( pIntURB, GFP_ATOMIC );
-   if (status != 0)
-   {
-      DBG( "Error re-submitting Int URB %d\n", status );
-   }   
    return;
 }
 
@@ -2426,7 +2464,14 @@ int RegisterQMIDevice( sQCUSBNet * pDev )
    int QCQMIIndex = 0;
    dev_t devno; 
    char * pDevName;
-   
+
+   if (pDev->mQMIDev.mbCdevIsInitialized == true)
+   {
+      // Should never happen, but always better to check
+      dbg( "device already exists\n" );
+      return -EEXIST;
+   }
+ 
    pDev->mbQMIValid = true;
 
    // Set up for QMICTL
@@ -2459,7 +2504,6 @@ int RegisterQMIDevice( sQCUSBNet * pDev )
    result = SetupQMIWDSCallback( pDev );
    if (result != 0)
    {
-      pDev->mbQMIValid = false;
       return result;
    }
 
@@ -2467,7 +2511,6 @@ int RegisterQMIDevice( sQCUSBNet * pDev )
    result = QMIDMSGetMEID( pDev );
    if (result != 0)
    {
-      pDev->mbQMIValid = false;
       return result;
    }
 
@@ -2482,6 +2525,7 @@ int RegisterQMIDevice( sQCUSBNet * pDev )
    cdev_init( &pDev->mQMIDev.mCdev, &UserspaceQMIFops );
    pDev->mQMIDev.mCdev.owner = THIS_MODULE;
    pDev->mQMIDev.mCdev.ops = &UserspaceQMIFops;
+   pDev->mQMIDev.mbCdevIsInitialized = true;
 
    result = cdev_add( &pDev->mQMIDev.mCdev, devno, 1 );
    if (result != 0)
@@ -2580,6 +2624,11 @@ void DeregisterQMIDevice( sQCUSBNet * pDev )
 
    pDev->mbQMIValid = false;
 
+   if (pDev->mQMIDev.mbCdevIsInitialized == false)
+   {
+      return;
+   }
+
    // Find each open file handle, and manually close it
    
    // Generally there will only be only one inode, but more are possible
@@ -2677,14 +2726,14 @@ bool QMIReady(
    if (IsDeviceValid( pDev ) == false)
    {
       DBG( "Invalid device\n" );
-      return -EFAULT;
+      return false;
    }
 
    writeBufferSize = QMICTLReadyReqSize();
    pWriteBuffer = kmalloc( writeBufferSize, GFP_KERNEL );
    if (pWriteBuffer == NULL)
    {
-      return -ENOMEM;
+      return false;
    }
 
    // An implimentation of down_timeout has not been agreed on,
@@ -2771,10 +2820,10 @@ bool QMIReady(
    
    DBG( "QMI Ready after %u milliseconds\n", curTime );
    
-   // TODO: 3580 and newer firmware does not require this delay
-   if (qcusbnet2k_fwdelay)
+   // 3580 and newer firmware does not require this delay
+   if (safeEnumDelay != 0)
    {
-      msleep( qcusbnet2k_fwdelay * 1000 );
+      msleep( 5000 );
    }
 
    // Success
@@ -3169,10 +3218,3 @@ int QMIDMSGetMEID( sQCUSBNet * pDev )
    // Success
    return 0;
 }
-
-#ifdef bool
-#undef bool
-#endif
-
-module_param( qcusbnet2k_fwdelay, int, S_IRUGO | S_IWUSR );
-MODULE_PARM_DESC( qcusbnet2k_fwdelay, "Delay for old firmware" );
