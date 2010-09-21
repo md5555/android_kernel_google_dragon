@@ -113,3 +113,5 @@ sym53c8xx ?
 qla4xxx ?
 mvsas ?
 vmw_pvscsi ?
+ums-cypress ?
+be2scsi ?

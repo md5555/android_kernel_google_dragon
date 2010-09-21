@@ -33,7 +33,6 @@
 #include <asm/unistd.h>
 #include "pnode.h"
 #include "internal.h"
-#include <linux/fs.h>
 
 #define HASH_SHIFT ilog2(PAGE_SIZE / sizeof(struct list_head))
 #define HASH_SIZE (1UL << HASH_SHIFT)
@@ -1121,8 +1120,15 @@ SYSCALL_DEFINE2(umount, char __user *, name, int, flags)
 {
 	struct path path;
 	int retval;
+	int lookup_flags = 0;
 
-	retval = user_path(name, &path);
+	if (flags & ~(MNT_FORCE | MNT_DETACH | MNT_EXPIRE | UMOUNT_NOFOLLOW))
+		return -EINVAL;
+
+	if (!(flags & UMOUNT_NOFOLLOW))
+		lookup_flags |= LOOKUP_FOLLOW;
+
+	retval = user_path_at(AT_FDCWD, name, lookup_flags, &path);
 	if (retval)
 		goto out;
 	retval = -EINVAL;
@@ -1134,12 +1140,6 @@ SYSCALL_DEFINE2(umount, char __user *, name, int, flags)
 	retval = -EPERM;
 	if (!capable(CAP_SYS_ADMIN))
 		goto dput_and_out;
-
-	/* Temporary solution to fix long umount periods till
-	 * we find the real fix
-	 */
-	sync_filesystems(0);
-	sync_filesystems(1);
 
 	retval = do_umount(path.mnt, flags);
 dput_and_out:

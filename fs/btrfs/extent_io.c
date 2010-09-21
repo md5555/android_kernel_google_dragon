@@ -2574,7 +2574,6 @@ int extent_write_full_page(struct extent_io_tree *tree, struct page *page,
 		.sync_io = wbc->sync_mode == WB_SYNC_ALL,
 	};
 	struct writeback_control wbc_writepages = {
-		.bdi		= wbc->bdi,
 		.sync_mode	= wbc->sync_mode,
 		.older_than_this = NULL,
 		.nr_to_write	= 64,
@@ -2608,7 +2607,6 @@ int extent_write_locked_range(struct extent_io_tree *tree, struct inode *inode,
 		.sync_io = mode == WB_SYNC_ALL,
 	};
 	struct writeback_control wbc_writepages = {
-		.bdi		= inode->i_mapping->backing_dev_info,
 		.sync_mode	= mode,
 		.older_than_this = NULL,
 		.nr_to_write	= nr_pages * 2,
@@ -3165,10 +3163,9 @@ struct extent_buffer *alloc_extent_buffer(struct extent_io_tree *tree,
 		spin_unlock(&tree->buffer_lock);
 		goto free_eb;
 	}
-	spin_unlock(&tree->buffer_lock);
-
 	/* add one reference for the tree */
 	atomic_inc(&eb->refs);
+	spin_unlock(&tree->buffer_lock);
 	return eb;
 
 free_eb:

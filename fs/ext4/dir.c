@@ -86,8 +86,8 @@ int ext4_check_dir_entry(const char *function, struct inode *dir,
 		ext4_error(dir->i_sb, function,
 			"bad entry in directory #%lu: %s - block=%llu"
 			"offset=%u(%u), inode=%u, rec_len=%d, name_len=%d",
-			dir->i_ino, error_msg, 
-			(unsigned long long) bh->b_blocknr,     
+			dir->i_ino, error_msg,
+			(unsigned long long) bh->b_blocknr,
 			(unsigned) (offset%bh->b_size), offset,
 			le32_to_cpu(de->inode),
 			rlen, de->name_len);

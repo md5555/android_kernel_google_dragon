@@ -2288,8 +2288,9 @@ i915_gem_object_get_pages(struct drm_gem_object *obj,
 	mapping = inode->i_mapping;
 	for (i = 0; i < page_count; i++) {
 		page = read_cache_page_gfp(mapping, i,
-					   mapping_gfp_mask (mapping) |
+					   GFP_HIGHUSER |
 					   __GFP_COLD |
+					   __GFP_RECLAIMABLE |
 					   gfpmask);
 		if (IS_ERR(page))
 			goto err_pages;
@@ -2639,6 +2640,14 @@ i915_gem_object_bind_to_gtt(struct drm_gem_object *obj, unsigned alignment)
 	if (alignment & (i915_gem_get_gtt_alignment(obj) - 1)) {
 		DRM_ERROR("Invalid object alignment requested %u\n", alignment);
 		return -EINVAL;
+	}
+
+	/* If the object is bigger than the entire aperture, reject it early
+	 * before evicting everything in a vain attempt to find space.
+	 */
+	if (obj->size > dev->gtt_total) {
+		DRM_ERROR("Attempting to bind an object larger than the aperture\n");
+		return -E2BIG;
 	}
 
  search_free:
@@ -4175,6 +4184,17 @@ i915_gem_object_pin(struct drm_gem_object *obj, uint32_t alignment)
 	int ret;
 
 	i915_verify_inactive(dev, __FILE__, __LINE__);
+
+	if (obj_priv->gtt_space != NULL) {
+		if (alignment == 0)
+			alignment = i915_gem_get_gtt_alignment(obj);
+		if (obj_priv->gtt_offset & (alignment - 1)) {
+			ret = i915_gem_object_unbind(obj);
+			if (ret)
+				return ret;
+		}
+	}
+
 	if (obj_priv->gtt_space == NULL) {
 		ret = i915_gem_object_bind_to_gtt(obj, alignment);
 		if (ret)
@@ -4978,6 +4998,16 @@ i915_gem_load(struct drm_device *dev)
 	spin_lock(&shrink_list_lock);
 	list_add(&dev_priv->mm.shrink_list, &shrink_list);
 	spin_unlock(&shrink_list_lock);
+
+	/* On GEN3 we really need to make sure the ARB C3 LP bit is set */
+	if (IS_GEN3(dev)) {
+		u32 tmp = I915_READ(MI_ARB_STATE);
+		if (!(tmp & MI_ARB_C3_LP_WRITE_ENABLE)) {
+			/* arb state is a masked write, so set bit + bit in mask */
+			tmp = MI_ARB_C3_LP_WRITE_ENABLE | (MI_ARB_C3_LP_WRITE_ENABLE << MI_ARB_MASK_SHIFT);
+			I915_WRITE(MI_ARB_STATE, tmp);
+		}
+	}
 
 	/* Old X drivers will take 0-2 for front, back, depth buffers */
 	dev_priv->fence_reg_start = 3;

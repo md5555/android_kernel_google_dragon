@@ -709,7 +709,7 @@ start_journal_io:
 		}
 	}
 
-	/* 
+	/*
 	 * If the journal is not located on the file system device,
 	 * then we must flush the file system device before we issue
 	 * the commit record

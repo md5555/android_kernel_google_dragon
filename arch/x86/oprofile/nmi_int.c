@@ -95,7 +95,10 @@ static void nmi_cpu_save_registers(struct op_msrs *msrs)
 static void nmi_cpu_start(void *dummy)
 {
 	struct op_msrs const *msrs = &__get_cpu_var(cpu_msrs);
-	model->start(msrs);
+	if (!msrs->controls)
+		WARN_ON_ONCE(1);
+	else
+		model->start(msrs);
 }
 
 static int nmi_start(void)
@@ -107,7 +110,10 @@ static int nmi_start(void)
 static void nmi_cpu_stop(void *dummy)
 {
 	struct op_msrs const *msrs = &__get_cpu_var(cpu_msrs);
-	model->stop(msrs);
+	if (!msrs->controls)
+		WARN_ON_ONCE(1);
+	else
+		model->stop(msrs);
 }
 
 static void nmi_stop(void)
@@ -578,6 +584,18 @@ static int __init ppro_init(char **cpu_type)
 	if (force_arch_perfmon && cpu_has_arch_perfmon)
 		return 0;
 
+	/*
+	 * Documentation on identifying Intel processors by CPU family
+	 * and model can be found in the Intel Software Developer's
+	 * Manuals (SDM):
+	 *
+	 *  http://www.intel.com/products/processor/manuals/
+	 *
+	 * As of May 2010 the documentation for this was in the:
+	 * "Intel 64 and IA-32 Architectures Software Developer's
+	 * Manual Volume 3B: System Programming Guide", "Table B-1
+	 * CPUID Signature Values of DisplayFamily_DisplayModel".
+	 */
 	switch (cpu_model) {
 	case 0 ... 2:
 		*cpu_type = "i386/ppro";
@@ -599,12 +617,13 @@ static int __init ppro_init(char **cpu_type)
 	case 15: case 23:
 		*cpu_type = "i386/core_2";
 		break;
+	case 0x1a:
+	case 0x1e:
 	case 0x2e:
-	case 26:
 		spec = &op_arch_perfmon_spec;
 		*cpu_type = "i386/core_i7";
 		break;
-	case 28:
+	case 0x1c:
 		*cpu_type = "i386/atom";
 		break;
 	default:

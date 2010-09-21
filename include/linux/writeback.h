@@ -27,13 +27,12 @@ enum writeback_sync_modes {
  * in a manner such that unspecified fields are set to zero.
  */
 struct writeback_control {
-	struct backing_dev_info *bdi;	/* If !NULL, only write back this
-					   queue */
-	struct super_block *sb;		/* if !NULL, only write inodes from
-					   this super_block */
 	enum writeback_sync_modes sync_mode;
 	unsigned long *older_than_this;	/* If !NULL, only write back inodes
 					   older than this */
+	unsigned long wb_start;         /* Time writeback_inodes_wb was
+					   called. This is needed to avoid
+					   extra jobs and livelock */
 	long nr_to_write;		/* Write this many pages, and decrement
 					   this for each page written */
 	long pages_skipped;		/* Pages which were not written */
@@ -71,7 +70,8 @@ int inode_wait(void *);
 void writeback_inodes_sb(struct super_block *);
 int writeback_inodes_sb_if_idle(struct super_block *);
 void sync_inodes_sb(struct super_block *);
-void writeback_inodes_wbc(struct writeback_control *wbc);
+void writeback_inodes_wb(struct bdi_writeback *wb,
+		struct writeback_control *wbc);
 long wb_do_writeback(struct bdi_writeback *wb, int force_wait);
 void wakeup_flusher_threads(long nr_pages);
 
