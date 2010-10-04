@@ -28,7 +28,7 @@
 #include "rate.h"
 #include "led.h"
 
-#define IEEE80211_MAX_PROBE_TRIES 5
+#define IEEE80211_MAX_PROBE_TRIES 2
 
 /*
  * beacon loss detection timeout
@@ -45,7 +45,7 @@
  * a probe request because of beacon loss or for
  * checking the connection still works.
  */
-#define IEEE80211_PROBE_WAIT		(HZ / 2)
+#define IEEE80211_PROBE_WAIT		(HZ / 5)
 
 /*
  * Weight given to the latest Beacon frame when calculating average signal
