@@ -116,17 +116,16 @@ int radeon_irq_kms_init(struct radeon_device *rdev)
 	}
 	/* enable msi */
 	rdev->msi_enabled = 0;
-	/* MSIs don't seem to work on my rs780;
-	 * not sure about rs880 or other rs780s.
-	 * Needs more investigation.
+	/* MSIs don't seem to work reliably on all IGP
+	 * chips.  Disable MSI on them for now.
 	 */
 	if ((rdev->family >= CHIP_RV380) &&
-	    (rdev->family != CHIP_RS780) &&
-	    (rdev->family != CHIP_RS880)) {
+	    (!(rdev->flags & RADEON_IS_IGP)) &&
+	    (!(rdev->flags & RADEON_IS_AGP))) {
 		int ret = pci_enable_msi(rdev->pdev);
 		if (!ret) {
 			rdev->msi_enabled = 1;
-			DRM_INFO("radeon: using MSI.\n");
+			dev_info(rdev->dev, "radeon: using MSI.\n");
 		}
 	}
 	rdev->irq.installed = true;

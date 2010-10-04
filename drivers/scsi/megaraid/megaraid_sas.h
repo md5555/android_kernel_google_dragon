@@ -30,6 +30,8 @@
 #define	PCI_DEVICE_ID_LSI_VERDE_ZCR		0x0413
 #define	PCI_DEVICE_ID_LSI_SAS1078GEN2		0x0078
 #define	PCI_DEVICE_ID_LSI_SAS0079GEN2		0x0079
+#define	PCI_DEVICE_ID_LSI_SAS0073SKINNY		0x0073
+#define	PCI_DEVICE_ID_LSI_SAS0071SKINNY		0x0071
 
 /*
  * =====================================
@@ -570,6 +572,7 @@ struct megasas_ctrl_info {
  * is shown below
  */
 #define MEGASAS_INT_CMDS			32
+#define MEGASAS_SKINNY_INT_CMDS			5
 
 /*
  * FW can accept both 32 and 64 bit SGLs. We want to allocate 32/64 bit
@@ -584,6 +587,8 @@ struct megasas_ctrl_info {
 #define MFI_REPLY_1078_MESSAGE_INTERRUPT	0x80000000
 #define MFI_REPLY_GEN2_MESSAGE_INTERRUPT	0x00000001
 #define MFI_GEN2_ENABLE_INTERRUPT_MASK		(0x00000001 | 0x00000004)
+#define MFI_REPLY_SKINNY_MESSAGE_INTERRUPT	0x40000000
+#define MFI_SKINNY_ENABLE_INTERRUPT_MASK	(0x00000001)
 
 /*
 * register set for both 1068 and 1078 controllers
