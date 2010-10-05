@@ -110,6 +110,8 @@ struct synaptics_data {
 	unsigned char pkt_type;			/* packet type - old, new, etc */
 	unsigned char mode;			/* current mode byte */
 	int scroll;
+
+	struct serio *pt_port;			/* Pass-through serio port */
 };
 
 int synaptics_detect(struct psmouse *psmouse, bool set_properties);
