@@ -932,7 +932,7 @@ static void ieee80211_set_associated(struct ieee80211_sub_if_data *sdata,
 }
 
 static void ieee80211_set_disassoc(struct ieee80211_sub_if_data *sdata,
-				   bool remove_sta)
+				   bool remove_sta, bool tx)
 {
 	struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
 	struct ieee80211_local *local = sdata->local;
@@ -971,7 +971,7 @@ static void ieee80211_set_disassoc(struct ieee80211_sub_if_data *sdata,
 	sta = sta_info_get(sdata, bssid);
 	if (sta) {
 		set_sta_flags(sta, WLAN_STA_BLOCK_BA);
-		ieee80211_sta_tear_down_BA_sessions(sta);
+		ieee80211_sta_tear_down_BA_sessions(sta, tx);
 	}
 	mutex_unlock(&local->sta_mtx);
 
@@ -1130,7 +1130,7 @@ static void __ieee80211_connection_loss(struct ieee80211_sub_if_data *sdata)
 
 	printk(KERN_DEBUG "Connection to AP %pM lost.\n", bssid);
 
-	ieee80211_set_disassoc(sdata, true);
+	ieee80211_set_disassoc(sdata, true, true);
 	ieee80211_recalc_idle(local);
 	mutex_unlock(&ifmgd->mtx);
 	/*
@@ -1200,7 +1200,7 @@ ieee80211_rx_mgmt_deauth(struct ieee80211_sub_if_data *sdata,
 	printk(KERN_DEBUG "%s: deauthenticated from %pM (Reason: %u)\n",
 			sdata->name, bssid, reason_code);
 
-	ieee80211_set_disassoc(sdata, true);
+	ieee80211_set_disassoc(sdata, true, false);
 	ieee80211_recalc_idle(sdata->local);
 
 	return RX_MGMT_CFG80211_DEAUTH;
@@ -1230,7 +1230,7 @@ ieee80211_rx_mgmt_disassoc(struct ieee80211_sub_if_data *sdata,
 	printk(KERN_DEBUG "%s: disassociated from %pM (Reason: %u)\n",
 			sdata->name, mgmt->sa, reason_code);
 
-	ieee80211_set_disassoc(sdata, true);
+	ieee80211_set_disassoc(sdata, true, false);
 	ieee80211_recalc_idle(sdata->local);
 	return RX_MGMT_CFG80211_DISASSOC;
 }
@@ -1870,7 +1870,7 @@ void ieee80211_sta_work(struct ieee80211_sub_if_data *sdata)
 			printk(KERN_DEBUG "No probe response from AP %pM"
 				" after %dms, disconnecting.\n",
 				bssid, (1000 * IEEE80211_PROBE_WAIT)/HZ);
-			ieee80211_set_disassoc(sdata, true);
+			ieee80211_set_disassoc(sdata, true, true);
 			ieee80211_recalc_idle(local);
 			mutex_unlock(&ifmgd->mtx);
 			/*
@@ -2186,7 +2186,7 @@ int ieee80211_mgd_assoc(struct ieee80211_sub_if_data *sdata,
 		}
 
 		/* Trying to reassociate - clear previous association state */
-		ieee80211_set_disassoc(sdata, true);
+		ieee80211_set_disassoc(sdata, true, false);
 	}
 	mutex_unlock(&ifmgd->mtx);
 
@@ -2295,7 +2295,7 @@ int ieee80211_mgd_deauth(struct ieee80211_sub_if_data *sdata,
 
 	memcpy(bssid, req->bss->bssid, ETH_ALEN);
 	if (ifmgd->associated == req->bss) {
-		ieee80211_set_disassoc(sdata, false);
+		ieee80211_set_disassoc(sdata, false, true);
 		mutex_unlock(&ifmgd->mtx);
 		assoc_bss = true;
 	} else {
@@ -2376,7 +2376,7 @@ int ieee80211_mgd_disassoc(struct ieee80211_sub_if_data *sdata,
 	       sdata->name, req->bss->bssid, req->reason_code);
 
 	memcpy(bssid, req->bss->bssid, ETH_ALEN);
-	ieee80211_set_disassoc(sdata, false);
+	ieee80211_set_disassoc(sdata, false, true);
 
 	mutex_unlock(&ifmgd->mtx);
 
