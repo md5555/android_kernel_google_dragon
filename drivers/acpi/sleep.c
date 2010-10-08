@@ -214,6 +214,7 @@ static int acpi_suspend_enter(suspend_state_t pm_state)
 	acpi_status status = AE_OK;
 	unsigned long flags = 0;
 	u32 acpi_state = acpi_target_sleep_state;
+	u64 tsc;
 
 	ACPI_FLUSH_CPU_CACHE();
 
@@ -235,6 +236,9 @@ static int acpi_suspend_enter(suspend_state_t pm_state)
 
 	case ACPI_STATE_S3:
 		do_suspend_lowlevel();
+		rdtscll(tsc);
+		printk(KERN_INFO "TSC at resume: %llu\n",
+				(unsigned long long)tsc);
 		break;
 	}
 
