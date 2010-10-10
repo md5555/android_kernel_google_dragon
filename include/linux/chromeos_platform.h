@@ -9,6 +9,9 @@
  * and per-platform firmware interfaces.
  */
 
+/* Checks whether ChromeOS platform was detected and initialized */
+extern bool chromeos_initialized(void);
+
 /* Checks to see if the current device is in devmode */
 extern bool chromeos_is_devmode(void);
 
@@ -20,6 +23,11 @@ extern int chromeos_set_need_recovery(void);
 
 #else
 /* Stubbed-out versions so we can keep code common */
+static inline bool chromeos_initialized(void)
+{
+	return false;
+}
+
 static inline bool chromeos_is_devmode(void)
 {
 	return true;

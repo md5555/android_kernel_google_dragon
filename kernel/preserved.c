@@ -4,6 +4,7 @@
  * This file is released under the GPLv2: see the file COPYING for details.
  */
 
+#include <linux/chromeos_platform.h>
 #include <linux/debugfs.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -71,7 +72,8 @@ struct preserved {
 };
 static struct preserved *preserved = __va(CHROMEOS_PRESERVED_RAM_ADDR);
 
-static bool preserved_was_reserved;
+/* If a crash occurs very early, just assume that area was reserved */
+static bool assume_preserved_area_safe = true;
 static DEFINE_MUTEX(preserved_mutex);
 
 /*
@@ -83,7 +85,7 @@ static bool preserved_is_valid(void)
 {
 	BUILD_BUG_ON(sizeof(*preserved) != CHROMEOS_PRESERVED_RAM_SIZE);
 
-	if (preserved_was_reserved &&
+	if (assume_preserved_area_safe &&
 	    preserved->magic == DEBUGFS_MAGIC &&
 	    preserved->cursor < sizeof(preserved->buf) &&
 	    preserved->ksize <= sizeof(preserved->buf) &&
@@ -95,15 +97,9 @@ static bool preserved_is_valid(void)
 	return false;
 }
 
-/*
- * The noinline below works around a compiler bug, which inlined both calls to
- * preserved_make_valid(), but omitted its tail call to preserved_is_valid():
- * so the first write to utrace failed with ENXIO, or the first attempt to
- * save kernel crash messages skipped immediately to reboot.
- */
-static noinline bool preserved_make_valid(void)
+static bool preserved_make_valid(void)
 {
-	if (!preserved_was_reserved)
+	if (!assume_preserved_area_safe)
 		return false;
 
 	preserved->magic = DEBUGFS_MAGIC;
@@ -111,12 +107,7 @@ static noinline bool preserved_make_valid(void)
 	preserved->ksize = 0;
 	preserved->usize = 0;
 
-	/*
-	 * But perhaps this reserved area is not actually backed by RAM?
-	 * Check that we can read back what we wrote - though this check
-	 * would be better with a cache flush (dependent on architecture).
-	 */
-	return preserved_is_valid();
+	return true;
 }
 
 /*
@@ -514,45 +505,44 @@ void emergency_restart(void)	/* overriding the __weak one in kernel/sys.c */
 }
 
 /*
- * Initialization: initialize early (once debugfs is ready) so that we are
- * ready to handle early panics (though S3-reboot can only be set up later).
+ * Initialization: when booting, we first assume that it will be safe to
+ * write panics into the preserved area.  But as soon as we can, check that
+ * it is indeed reserved.  Then once debugfs, chromeos_acpi and chromeos
+ * drivers are ready, give the user interface to it - though it should be
+ * safe to let a crashing kernel write there, we cannot allow utrace_write
+ * without being sure that it is on a ChromeOS platform.  If S3 reboot is to
+ * be used, userspace can enable that later by giving chnv the right value.
  */
 
-static bool __init preserved_is_reserved(void)
+static int __init preserved_early_init(void)
 {
 	unsigned int pfn = CHROMEOS_PRESERVED_RAM_ADDR >> PAGE_SHIFT;
 	unsigned int efn = pfn + (CHROMEOS_PRESERVED_RAM_SIZE >> PAGE_SHIFT);
 
 	while (pfn < efn) {
 		if (!pfn_valid(pfn))
-			return false;
+			break;
 		if (!PageReserved(pfn_to_page(pfn)))
-			return false;
+			break;
 		pfn++;
 	}
 
-	preserved_was_reserved = true;
-	return true;
+	assume_preserved_area_safe = (pfn >= efn);
+	return 0;
 }
+early_initcall(preserved_early_init);
 
 static int __init preserved_init(void)
 {
 	struct dentry *dir;
 
 	/*
-	 * Whether or not it can preserve an oops or other bug trace, ChromeOS
-	 * prefers to reboot the machine immediately when a kernel bug occurs.
-	 * It's easier to force these here than insist on more boot options.
-	 */
-	panic_on_oops = 1;
-	panic_timeout = -1;		/* reboot without waiting */
-
-	/*
 	 * Check that the RAM we expect to use has indeed been reserved
 	 * for us: this kernel might be running on a machine without it.
-	 * But to be even safer, we don't access that memory until asked.
+	 * But to be even safer, we don't access that memory until asked,
+	 * and don't give a user interface to it without ChromeOS firmware.
 	 */
-	if (preserved_is_reserved()) {
+	if (assume_preserved_area_safe && chromeos_initialized()) {
 		/*
 		 * If error occurs in setting up /sys/kernel/debug/preserved/,
 		 * we cannot do better than ignore it.
@@ -572,4 +562,4 @@ static int __init preserved_init(void)
 
 	return 0;
 }
-postcore_initcall(preserved_init);
+device_initcall(preserved_init);
