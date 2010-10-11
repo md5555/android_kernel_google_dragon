@@ -209,7 +209,6 @@ void PrintHex(
 {
    char * pPrintBuf;
    u16 pos;
-   int status;
    
    pPrintBuf = kmalloc( bufSize * 3 + 1, GFP_ATOMIC );
    if (pPrintBuf == NULL)
@@ -221,15 +220,10 @@ void PrintHex(
    
    for (pos = 0; pos < bufSize; pos++)
    {
-      status = snprintf( (pPrintBuf + (pos * 3)), 
-                         4, 
-                         "%02X ", 
-                         *(u8 *)(pBuffer + pos) );
-      if (status != 3)
-      {
-         DBG( "snprintf error %d\n", status );
-         return;
-      }
+      snprintf( (pPrintBuf + (pos * 3)),
+                4,
+                "%02X ",
+                *(u8 *)(pBuffer + pos) );
    }
    
    DBG( "   : %s\n", pPrintBuf );
@@ -621,6 +615,8 @@ int StartRead( sQCUSBNet * pDev )
    if (pDev->mQMIDev.mpIntURB == NULL)
    {
       DBG( "Error allocating int urb\n" );
+      usb_free_urb( pDev->mQMIDev.mpReadURB );
+      pDev->mQMIDev.mpReadURB = NULL;
       return -ENOMEM;
    }
 
@@ -628,6 +624,10 @@ int StartRead( sQCUSBNet * pDev )
    pDev->mQMIDev.mpReadBuffer = kmalloc( DEFAULT_READ_URB_LENGTH, GFP_KERNEL );
    if (pDev->mQMIDev.mpReadBuffer == NULL)
    {
+      usb_free_urb( pDev->mQMIDev.mpIntURB );
+      usb_free_urb( pDev->mQMIDev.mpReadURB );
+      pDev->mQMIDev.mpReadURB = NULL;
+      pDev->mQMIDev.mpIntURB = NULL;
       DBG( "Error allocating read buffer\n" );
       return -ENOMEM;
    }
@@ -635,6 +635,12 @@ int StartRead( sQCUSBNet * pDev )
    pDev->mQMIDev.mpIntBuffer = kmalloc( DEFAULT_READ_URB_LENGTH, GFP_KERNEL );
    if (pDev->mQMIDev.mpIntBuffer == NULL)
    {
+      kfree( pDev->mQMIDev.mpReadBuffer );
+      usb_free_urb( pDev->mQMIDev.mpIntURB );
+      usb_free_urb( pDev->mQMIDev.mpReadURB );
+      pDev->mQMIDev.mpReadURB = NULL;
+      pDev->mQMIDev.mpIntURB = NULL;
+      pDev->mQMIDev.mpReadBuffer = NULL;
       DBG( "Error allocating int buffer\n" );
       return -ENOMEM;
    }      
@@ -643,6 +649,14 @@ int StartRead( sQCUSBNet * pDev )
                                               GFP_KERNEL );
    if (pDev->mQMIDev.mpReadSetupPacket == NULL)
    {
+      kfree( pDev->mQMIDev.mpIntBuffer );
+      kfree( pDev->mQMIDev.mpReadBuffer );
+      usb_free_urb( pDev->mQMIDev.mpIntURB );
+      usb_free_urb( pDev->mQMIDev.mpReadURB );
+      pDev->mQMIDev.mpReadURB = NULL;
+      pDev->mQMIDev.mpIntURB = NULL;
+      pDev->mQMIDev.mpReadBuffer = NULL;
+      pDev->mQMIDev.mpIntBuffer = NULL;
       DBG( "Error allocating setup packet buffer\n" );
       return -ENOMEM;
    }
@@ -1086,6 +1100,7 @@ int WriteSync(
          QCSuspend( pDev->mpIntf, PMSG_SUSPEND );
       }
 
+      usb_free_urb( pWriteURB );
       return result;
    }
 
@@ -1132,6 +1147,7 @@ int WriteSync(
    if (IsDeviceValid( pDev ) == false)
    {
       DBG( "Invalid device!\n" );
+      usb_free_urb( pWriteURB );
       return -ENXIO;
    }
 
@@ -1149,6 +1165,7 @@ int WriteSync(
    
       // End critical section
       spin_unlock_irqrestore( &pDev->mQMIDev.mClientMemLock, flags );   
+      usb_free_urb( pWriteURB );
       return -EINVAL;
    }
 
@@ -2795,6 +2812,10 @@ bool QMIReady(
             kfree( pReadBuffer );
 
             break;
+         }
+         else
+         {
+            spin_unlock_irqrestore( &pDev->mQMIDev.mClientMemLock, flags );
          }
       }
       else
