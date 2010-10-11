@@ -1390,12 +1390,6 @@ int do_execve(char * filename,
 	free_bprm(bprm);
 	if (displaced)
 		put_files_struct(displaced);
-
-	/* propagate seccomp mode if applicable */
-#ifdef CONFIG_SECCOMP
-	prctl_set_seccomp(current->parent->seccomp.mode);
-#endif
-
 	return retval;
 
 out:
