@@ -505,6 +505,15 @@ init_vbt_defaults(struct drm_i915_private *dev_priv)
 	/* general features */
 	dev_priv->int_tv_support = 1;
 	dev_priv->int_crt_support = 1;
+
+	/* Set the Panel Power On/Off timings if uninitialized. */
+	if ((I915_READ(PP_ON_DELAYS) == 0) && (I915_READ(PP_OFF_DELAYS) == 0)) {
+		/* Set T2 to 40ms and T5 to 200ms */
+		I915_WRITE(PP_ON_DELAYS, 0x019007d0);
+
+		/* Set T3 to 35ms and Tx to 200ms */
+		I915_WRITE(PP_OFF_DELAYS, 0x015e07d0);
+	}
 }
 
 /**
