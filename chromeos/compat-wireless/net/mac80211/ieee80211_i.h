@@ -329,10 +329,12 @@ struct ieee80211_if_managed {
 	struct work_struct monitor_work;
 	struct work_struct chswitch_work;
 	struct work_struct beacon_connection_loss_work;
+	struct work_struct probe_status_work;
 
 	unsigned long bloss_timeout;
 	unsigned long probe_timeout;
 	int probe_send_count;
+	bool probe_acked;
 
 	struct mutex mtx;
 	struct cfg80211_bss *associated;

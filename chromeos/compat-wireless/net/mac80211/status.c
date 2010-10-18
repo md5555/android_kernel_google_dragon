@@ -123,14 +123,18 @@ static void ieee80211_handle_filtered_frame(struct ieee80211_local *local,
 	dev_kfree_skb(skb);
 }
 
-static void ieee80211_frame_acked(struct sta_info *sta, struct sk_buff *skb)
+static void ieee80211_sta_tx_status(struct sta_info *sta, struct sk_buff *skb)
 {
 	struct ieee80211_mgmt *mgmt = (void *) skb->data;
 	struct ieee80211_local *local = sta->local;
 	struct ieee80211_sub_if_data *sdata = sta->sdata;
+	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(skb);
+
+	if (sdata->vif.type != NL80211_IFTYPE_STATION)
+		return;
 
 	if (ieee80211_is_action(mgmt->frame_control) &&
-	    sdata->vif.type == NL80211_IFTYPE_STATION &&
+	    (info->flags & IEEE80211_TX_STAT_ACK) &&
 	    mgmt->u.action.category == WLAN_CATEGORY_HT &&
 	    mgmt->u.action.u.ht_smps.action == WLAN_HT_ACTION_SMPS) {
 		/*
@@ -154,6 +158,13 @@ static void ieee80211_frame_acked(struct sta_info *sta, struct sk_buff *skb)
 		}
 
 		ieee80211_queue_work(&local->hw, &local->recalc_smps);
+	} else if (ieee80211_is_probe_req(mgmt->frame_control)) {
+		struct ieee80211_if_managed *ifmgd = &sta->sdata->u.mgd;
+
+		ifmgd->probe_acked = 
+		    (info->flags & IEEE80211_TX_STAT_ACK) ? true : false;
+
+		ieee80211_queue_work(&local->hw, &ifmgd->probe_status_work);
 	}
 }
 
@@ -240,9 +251,8 @@ void ieee80211_tx_status(struct ieee80211_hw *hw, struct sk_buff *skb)
 		if (ieee80211_vif_is_mesh(&sta->sdata->vif))
 			ieee80211s_update_metric(local, sta, skb);
 
-		if (!(info->flags & IEEE80211_TX_CTL_INJECTED) &&
-		    (info->flags & IEEE80211_TX_STAT_ACK))
-			ieee80211_frame_acked(sta, skb);
+		if (!(info->flags & IEEE80211_TX_CTL_INJECTED))
+			ieee80211_sta_tx_status(sta, skb);
 	}
 
 	rcu_read_unlock();

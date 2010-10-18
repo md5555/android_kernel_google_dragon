@@ -28,7 +28,7 @@
 #include "rate.h"
 #include "led.h"
 
-#define IEEE80211_MAX_PROBE_TRIES 2
+#define IEEE80211_MAX_PROBE_TRIES 1
 
 /*
  * beacon loss timeout is calculated as N frames times the
@@ -1044,22 +1044,11 @@ static void ieee80211_mgd_probe_ap_send(struct ieee80211_sub_if_data *sdata)
 	struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
 	const u8 *ssid;
 	u8 *dst = ifmgd->associated->bssid;
-	u8 unicast_limit = max(1, IEEE80211_MAX_PROBE_TRIES - 3);
-
-	/*
-	 * Try sending broadcast probe requests for the last three
-	 * probe requests after the first ones failed since some
-	 * buggy APs only support broadcast probe requests.
-	 */
-	if (ifmgd->probe_send_count >= unicast_limit)
-		dst = NULL;
 
 	ssid = ieee80211_bss_get_ie(ifmgd->associated, WLAN_EID_SSID);
 	ieee80211_send_probe_req(sdata, dst, ssid + 2, ssid[1], NULL, 0);
 
 	ifmgd->probe_send_count++;
-	ifmgd->probe_timeout = jiffies + IEEE80211_PROBE_WAIT;
-	run_again(ifmgd, ifmgd->probe_timeout);
 }
 
 static void ieee80211_mgd_probe_ap(struct ieee80211_sub_if_data *sdata,
@@ -1844,55 +1833,77 @@ static void ieee80211_sta_timer(unsigned long data)
 
 void ieee80211_sta_work(struct ieee80211_sub_if_data *sdata)
 {
-	struct ieee80211_local *local = sdata->local;
-	struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
+	/* nothing right now */
+}
 
-	/* then process the rest of the work */
+static void ieee80211_sta_process_probe_status(struct ieee80211_sub_if_data *sdata)
+{
+	struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
+	struct ieee80211_local *local = sdata->local;
+	u8 bssid[ETH_ALEN];
+
 	mutex_lock(&ifmgd->mtx);
 
-	if (ifmgd->flags & (IEEE80211_STA_BEACON_POLL |
-			    IEEE80211_STA_CONNECTION_POLL) &&
-	    ifmgd->associated) {
-		u8 bssid[ETH_ALEN];
-
-		memcpy(bssid, ifmgd->associated->bssid, ETH_ALEN);
-		if (time_is_after_jiffies(ifmgd->probe_timeout))
-			run_again(ifmgd, ifmgd->probe_timeout);
-
-		else if (ifmgd->probe_send_count < IEEE80211_MAX_PROBE_TRIES) {
+	if (!(ifmgd->flags & (IEEE80211_STA_BEACON_POLL |
+			      IEEE80211_STA_CONNECTION_POLL)))
+		goto done;
+	if (!ifmgd->associated)	/* XXX can this fail if flags are set? */
+		goto done;
+	memcpy(bssid, ifmgd->associated->bssid, ETH_ALEN);
+	if (ifmgd->probe_acked) {
+		/*
+		 * Probe frame was ACK'd, just clear polling state.
+		 */
+		ifmgd->flags &= ~(IEEE80211_STA_BEACON_POLL |
+				  IEEE80211_STA_CONNECTION_POLL);
+		ifmgd->probe_send_count = 0;
+	} else if (ifmgd->probe_send_count < IEEE80211_MAX_PROBE_TRIES) {
 #ifdef CONFIG_MAC80211_VERBOSE_DEBUG
-			printk(KERN_DEBUG "No probe response from AP %pM"
-				" after %dms, try %d\n", bssid,
-				(1000 * IEEE80211_PROBE_WAIT)/HZ,
-				ifmgd->probe_send_count);
+		printk(KERN_DEBUG "No ACK of probe to AP %pM, try again (%d)\n",
+			bssid, ifmgd->probe_send_count);
 #endif
-			ieee80211_mgd_probe_ap_send(sdata);
-		} else {
-			/*
-			 * We actually lost the connection ... or did we?
-			 * Let's make sure!
-			 */
-			ifmgd->flags &= ~(IEEE80211_STA_CONNECTION_POLL |
-					  IEEE80211_STA_BEACON_POLL);
-			printk(KERN_DEBUG "No probe response from AP %pM"
-				" after %dms, disconnecting.\n",
-				bssid, (1000 * IEEE80211_PROBE_WAIT)/HZ);
-			ieee80211_set_disassoc(sdata, true, true);
-			ieee80211_recalc_idle(local);
-			mutex_unlock(&ifmgd->mtx);
-			/*
-			 * must be outside lock due to cfg80211,
-			 * but that's not a problem.
-			 */
-			ieee80211_send_deauth_disassoc(sdata, bssid,
-					IEEE80211_STYPE_DEAUTH,
-					WLAN_REASON_DISASSOC_DUE_TO_INACTIVITY,
-					NULL, true);
-			mutex_lock(&ifmgd->mtx);
-		}
-	}
+		ieee80211_mgd_probe_ap_send(sdata);
+	} else {
+		/*
+		 * We actually lost the connection.
+		 */
+		ifmgd->flags &= ~(IEEE80211_STA_CONNECTION_POLL |
+				  IEEE80211_STA_BEACON_POLL);
 
+		/* XXX juggle __ieee80211_connection_loss to suit */
+		printk(KERN_DEBUG "No response from AP %pM, disconnecting.\n",
+		    bssid);
+
+		ieee80211_set_disassoc(sdata, true, true);
+		ieee80211_recalc_idle(local);
+
+		/*
+		 * NB: must be outside lock due to cfg80211.
+		 */
+		mutex_unlock(&ifmgd->mtx);
+		ieee80211_send_deauth_disassoc(sdata, bssid,
+			       IEEE80211_STYPE_DEAUTH,
+			       WLAN_REASON_DISASSOC_DUE_TO_INACTIVITY,
+			       NULL, true);
+		return;
+	}
+done:
 	mutex_unlock(&ifmgd->mtx);
+}
+
+/*
+ * Process TX status for probe frame sent to the associated
+ * AP on beacon or connection loss.
+ */
+static void ieee80211_probe_status_work(struct work_struct *work)
+{
+	struct ieee80211_sub_if_data *sdata = container_of(work,
+		struct ieee80211_sub_if_data, u.mgd.probe_status_work);
+
+	WARN_ON(sdata->vif.type != NL80211_IFTYPE_STATION);
+
+	if (ieee80211_sdata_running(sdata))
+		ieee80211_sta_process_probe_status(sdata);
 }
 
 static void ieee80211_sta_bcn_mon_timer(unsigned long data)
@@ -1987,6 +1998,7 @@ void ieee80211_sta_setup_sdata(struct ieee80211_sub_if_data *sdata)
 	INIT_WORK(&ifmgd->chswitch_work, ieee80211_chswitch_work);
 	INIT_WORK(&ifmgd->beacon_connection_loss_work,
 		  ieee80211_beacon_connection_loss_work);
+	INIT_WORK(&ifmgd->probe_status_work, ieee80211_probe_status_work);
 	setup_timer(&ifmgd->timer, ieee80211_sta_timer,
 		    (unsigned long) sdata);
 	setup_timer(&ifmgd->bcn_mon_timer, ieee80211_sta_bcn_mon_timer,
