@@ -22,6 +22,7 @@
 #define DRIVER_DESC "Qualcomm USB Serial driver"
 
 static int debug;
+static int export_non_qmi;
 
 static const struct usb_device_id id_table[] = {
 	{USB_DEVICE(0x05c6, 0x9211)},	/* Acer Gobi QDL device */
@@ -155,8 +156,8 @@ static int qcprobe(struct usb_serial *serial, const struct usb_device_id *id)
 	case 3:
 	case 4:
 		/* Composite mode */
-		if (ifnum == 2) {
-			dbg("Modem port found");
+		if (ifnum == 2 || (export_non_qmi && ifnum != 0)) {
+			dbg("Exporting interface %d", ifnum);
 			retval = usb_set_interface(serial->dev, ifnum, 0);
 			if (retval < 0) {
 				dev_err(&serial->dev->dev,
@@ -168,7 +169,6 @@ static int qcprobe(struct usb_serial *serial, const struct usb_device_id *id)
 			return retval;
 		}
 		break;
-
 	default:
 		dev_err(&serial->dev->dev,
 			"unknown number of interfaces: %d\n", nintf);
@@ -235,3 +235,5 @@ MODULE_LICENSE("GPL v2");
 
 module_param(debug, bool, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(debug, "Debug enabled or not");
+module_param(export_non_qmi, bool, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(export_non_qmi, "Export all non-QMI interfaces");
