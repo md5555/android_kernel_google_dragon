@@ -161,10 +161,28 @@ static void ieee80211_sta_tx_status(struct sta_info *sta, struct sk_buff *skb)
 	} else if (ieee80211_is_probe_req(mgmt->frame_control)) {
 		struct ieee80211_if_managed *ifmgd = &sta->sdata->u.mgd;
 
-		ifmgd->probe_acked = 
+		ifmgd->probe_acked =
 		    (info->flags & IEEE80211_TX_STAT_ACK) ? true : false;
 
 		ieee80211_queue_work(&local->hw, &ifmgd->probe_status_work);
+	} else if (ieee80211_is_data(mgmt->frame_control) &&
+		   sdata->vif.type == NL80211_IFTYPE_STATION &&
+	           (info->flags & IEEE80211_TX_STAT_ACK)) {
+		struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
+		if (ifmgd->cqm_bitrate_thold != 0 &&
+		    (ifmgd->last_cqm_tx_rate.idx != sta->last_tx_rate.idx ||
+		     (ifmgd->last_cqm_tx_rate.flags &
+		      (IEEE80211_TX_RC_MCS | IEEE80211_TX_RC_40_MHZ_WIDTH |
+		       IEEE80211_TX_RC_SHORT_GI)) !=
+		     (sta->last_tx_rate.flags &
+		      (IEEE80211_TX_RC_MCS | IEEE80211_TX_RC_40_MHZ_WIDTH |
+		       IEEE80211_TX_RC_SHORT_GI)) ||
+		     sdata->u.mgd.last_cqm_bitrate == 0)) {
+			ifmgd->last_cqm_tx_rate = sta->last_tx_rate;
+			ifmgd->tx_bitrate_changed = true;
+			ieee80211_queue_work(&local->hw,
+					     &ifmgd->bitrate_notify_work);
+		}
 	}
 }
 

@@ -400,3 +400,99 @@ void rate_control_deinitialize(struct ieee80211_local *local)
 	rate_control_put(ref);
 }
 
+u32 ieee80211_rate_calculate(struct ieee80211_local *local,
+			     struct ieee80211_if_managed *ifmgd)
+{
+	u32 mcs, rate_h;
+	struct ieee80211_tx_rate *rate_ptr = &ifmgd->last_cqm_tx_rate;
+	struct ieee80211_supported_band *sband;
+        static const u16 mcs_rate_table[128] = {
+		/* 20 MHz Channel width, SHORT_GI off, MCS 0-31 */
+		65,   130,  195,  260,  390,  520,  585,  650,
+		130,  260,  390,  520,  780, 1040, 1170, 1300,
+		195,  390,  585,  780, 1170, 1560, 1755, 1950,
+		260,  520,  780, 1040, 1560, 2080, 2340, 2600,
+		/* 40 MHz Channel width, SHORT_GI off, MCS 0-31 */
+		135,  270,  405,  540,  810, 1080, 1215, 1350,
+		270,  540,  810, 1080, 1620, 2160, 2430, 2700,
+		405,  810, 1215, 1620, 2430, 3240, 3645, 4050,
+		540, 1080, 1620, 2160, 3240, 4320, 4860, 5400,
+		/* 20 MHz Channel width, SHORT_GI on, MCS 0-31 */
+		72,   144,  217,  289,  433,  578,  650,  722,
+		144,  289,  433,  578,  867, 1156, 1300, 1444,
+		217,  433,  650,  867, 1300, 1733, 1950, 2167,
+		289,  578,  867, 1156, 1733, 2311, 2600, 2889,
+		/* 40 MHz Channel width, SHORT_GI on, MCS 0-31 */
+		150,  300,  450,  600,  900, 1200, 1350, 1500,
+		300,  600,  900, 1200, 1800, 2400, 2700, 3000,
+		450,  900, 1350, 1800, 2700, 3600, 4050, 4500,
+		600, 1200, 1800, 2400, 3600, 4800, 5400, 6000
+	};
+
+	if (!(rate_ptr->flags & IEEE80211_TX_RC_MCS)) {
+		sband = local->hw.wiphy->bands[local->hw.conf.channel->band];
+		rate_h = sband->bitrates[rate_ptr->idx].bitrate;
+	} else {
+		mcs = rate_ptr->idx;
+
+		/* MCS values over 32 are not yet supported */
+		if (mcs >= 32)
+			return 0;
+
+		if (rate_ptr->flags & IEEE80211_TX_RC_40_MHZ_WIDTH)
+			mcs |= 1 << 5;
+
+		if (rate_ptr->flags & IEEE80211_TX_RC_SHORT_GI)
+			mcs |= 1 << 6;
+
+		rate_h = mcs_rate_table[mcs];
+	}
+
+	return rate_h * 100;
+}
+
+void ieee80211_cqm_bitrate_notify(struct ieee80211_sub_if_data *sdata)
+{
+	struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
+	u32 bitrate, threshold;
+	int prev_rate_below_threshold, cur_rate_below_threshold;
+
+	if (!netif_running(sdata->dev) ||
+	    sdata->vif.type != NL80211_IFTYPE_STATION)
+		return;
+
+	/*
+	 * Skip sending a notification if a the state was cleared
+	 * after the workproc was scheduled (e.g, if userspace
+	 * canceled CQM monitoring)
+	 */
+	if (!ifmgd->tx_bitrate_changed || ifmgd->cqm_bitrate_thold == 0)
+		return;
+
+	ifmgd->tx_bitrate_changed = false;
+
+	I802_DEBUG_INC(sdata->local->tx_cqm_calculate_count);
+
+	bitrate = ieee80211_rate_calculate(sdata->local, ifmgd);
+
+	threshold = ifmgd->cqm_bitrate_thold;
+	prev_rate_below_threshold = (ifmgd->last_cqm_bitrate < threshold);
+	cur_rate_below_threshold = (bitrate < threshold);
+
+	/*
+	 * Trigger a bitrate notification if one of the following is
+	 * true:
+	 *   - We haven't sent one since the threshold was reconfigured
+	 *   - We have crossed the threshold in either direction
+	 *   - We are below threshold, and the bitrate has decreased yet
+	 *     again.
+	 */
+	if (ifmgd->last_cqm_bitrate == 0 ||
+	    prev_rate_below_threshold != cur_rate_below_threshold ||
+	    (cur_rate_below_threshold && bitrate < ifmgd->last_cqm_bitrate)) {
+		cfg80211_cqm_bitrate_notify(sdata->dev, bitrate,
+					    GFP_KERNEL);
+		ifmgd->last_cqm_bitrate = bitrate;
+		I802_DEBUG_INC(sdata->local->tx_cqm_notify_count);
+	}
+}

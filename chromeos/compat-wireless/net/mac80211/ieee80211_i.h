@@ -329,12 +329,14 @@ struct ieee80211_if_managed {
 	struct work_struct monitor_work;
 	struct work_struct chswitch_work;
 	struct work_struct beacon_connection_loss_work;
+	struct work_struct bitrate_notify_work;
 	struct work_struct probe_status_work;
 
 	unsigned long bloss_timeout;
 	unsigned long probe_timeout;
 	int probe_send_count;
 	bool probe_acked;
+	bool tx_bitrate_changed;
 
 	struct mutex mtx;
 	struct cfg80211_bss *associated;
@@ -386,6 +388,25 @@ struct ieee80211_if_managed {
 	 * generated for the current association.
 	 */
 	int last_cqm_event_signal;
+
+
+	/*
+	 * Connection quality monitor bitrate threshold, a zero value
+	 * implies disabled
+	 */
+	u32 cqm_bitrate_thold;
+
+	/*
+	 * Last bitrate value sent as an event to signal quality listeners.
+	 * This is a u32 in units of 1000 bits per second.
+	 */
+	u32 last_cqm_bitrate;
+
+	/*
+	 * Previous transmit rate.  Used to detect whether the transmit rate
+	 * for the previous packet is different from the one before it.
+	 */
+	struct ieee80211_tx_rate last_cqm_tx_rate;
 };
 
 struct ieee80211_if_ibss {
@@ -824,6 +845,8 @@ struct ieee80211_local {
 	unsigned int rx_expand_skb_head2;
 	unsigned int rx_handlers_fragments;
 	unsigned int tx_status_drop;
+	unsigned int tx_cqm_calculate_count;
+	unsigned int tx_cqm_notify_count;
 #define I802_DEBUG_INC(c) (c)++
 #else /* CONFIG_MAC80211_DEBUG_COUNTERS */
 #define I802_DEBUG_INC(c) do { } while (0)

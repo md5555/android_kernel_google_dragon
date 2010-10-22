@@ -1035,6 +1035,7 @@ struct cfg80211_pmksa {
  * @set_power_mgmt: Configure WLAN power management. A timeout value of -1
  *	allows the driver to adjust the dynamic ps timeout value.
  * @set_cqm_rssi_config: Configure connection quality monitor RSSI threshold.
+ * @set_cqm_bitrate_config: Config connection quality monitor bitrate threshold.
  *
  */
 struct cfg80211_ops {
@@ -1185,6 +1186,10 @@ struct cfg80211_ops {
 	int	(*set_cqm_rssi_config)(struct wiphy *wiphy,
 				       struct net_device *dev,
 				       s32 rssi_thold, u32 rssi_hyst);
+
+	int	(*set_cqm_bitrate_config)(struct wiphy *wiphy,
+					  struct net_device *dev,
+					  u32 bitrate_thold);
 };
 
 /*
@@ -2420,6 +2425,19 @@ void cfg80211_action_tx_status(struct net_device *dev, u64 cookie,
 void cfg80211_cqm_rssi_notify(struct net_device *dev,
 			      enum nl80211_cqm_rssi_threshold_event rssi_event,
 			      gfp_t gfp);
+
+/**
+ * cfg80211_cqm_bitrate_notify - connection quality monitoring bitrate event
+ * @dev: network device
+ * @rate: the new transmit rate
+ * @gfp: context flags
+ *
+ * This function is called when a the transmit bitrate changes, and
+ * connection quality monitoring is configured to capture these events.
+ */
+void cfg80211_cqm_bitrate_notify(struct net_device *dev,
+				 u32 bitrate,
+				 gfp_t gfp);
 
 #ifdef __KERNEL__
 

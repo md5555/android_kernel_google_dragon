@@ -934,3 +934,16 @@ void cfg80211_cqm_rssi_notify(struct net_device *dev,
 	nl80211_send_cqm_rssi_notify(rdev, dev, rssi_event, gfp);
 }
 EXPORT_SYMBOL(cfg80211_cqm_rssi_notify);
+
+void cfg80211_cqm_bitrate_notify(struct net_device *dev,
+				 u32 bitrate,
+				 gfp_t gfp)
+{
+	struct wireless_dev *wdev = dev->ieee80211_ptr;
+	struct wiphy *wiphy = wdev->wiphy;
+	struct cfg80211_registered_device *rdev = wiphy_to_dev(wiphy);
+
+	/* Indicate roaming trigger event to user space */
+	nl80211_send_cqm_bitrate_notify(rdev, dev, bitrate, gfp);
+}
+EXPORT_SYMBOL(cfg80211_cqm_bitrate_notify);

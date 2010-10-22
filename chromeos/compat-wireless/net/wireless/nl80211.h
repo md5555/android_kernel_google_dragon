@@ -88,4 +88,10 @@ nl80211_send_cqm_rssi_notify(struct cfg80211_registered_device *rdev,
 			     enum nl80211_cqm_rssi_threshold_event rssi_event,
 			     gfp_t gfp);
 
+void
+nl80211_send_cqm_bitrate_notify(struct cfg80211_registered_device *rdev,
+				struct net_device *netdev,
+				u32 bitrate,
+				gfp_t gfp);
+
 #endif /* __NET_WIRELESS_NL80211_H */

@@ -120,6 +120,14 @@ int ieee80211_init_rate_ctrl_alg(struct ieee80211_local *local,
 void rate_control_deinitialize(struct ieee80211_local *local);
 
 
+/* Notify listeners about transmit rate changes */
+void ieee80211_cqm_bitrate_notify(struct ieee80211_sub_if_data *sdata);
+
+/* Convert rate into cfg80211-compatible struct? */
+void ieee80211_rate_convert_cfg(struct ieee80211_local *local,
+				struct ieee80211_if_managed *ifmgd,
+				struct rate_info *rate);
+
 /* Rate control algorithms */
 #ifdef CONFIG_MAC80211_RC_PID
 extern int rc80211_pid_init(void);

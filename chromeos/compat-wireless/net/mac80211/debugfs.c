@@ -437,6 +437,10 @@ void debugfs_hw_add(struct ieee80211_local *local)
 		local->rx_handlers_fragments);
 	DEBUGFS_STATS_ADD(tx_status_drop,
 		local->tx_status_drop);
+	DEBUGFS_STATS_ADD(tx_cqm_calculate_count,
+		local->tx_cqm_calculate_count);
+	DEBUGFS_STATS_ADD(tx_cqm_notify_count,
+		local->tx_cqm_notify_count);
 #endif
 	DEBUGFS_DEVSTATS_ADD(dot11ACKFailureCount);
 	DEBUGFS_DEVSTATS_ADD(dot11RTSFailureCount);

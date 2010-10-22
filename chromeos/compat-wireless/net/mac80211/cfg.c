@@ -1495,6 +1495,20 @@ static int ieee80211_set_cqm_rssi_config(struct wiphy *wiphy,
 	return 0;
 }
 
+static int ieee80211_set_cqm_bitrate_config(struct wiphy *wiphy,
+					    struct net_device *dev,
+					    u32 bitrate_thold)
+{
+	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
+
+	sdata->u.mgd.cqm_bitrate_thold = bitrate_thold;
+	sdata->u.mgd.last_cqm_bitrate = 0;
+	memset(&sdata->u.mgd.last_cqm_tx_rate, 0,
+	       sizeof(sdata->u.mgd.last_cqm_tx_rate));
+
+	return 0;
+}
+
 static int ieee80211_set_bitrate_mask(struct wiphy *wiphy,
 				      struct net_device *dev,
 				      const u8 *addr,
@@ -1649,4 +1663,5 @@ struct cfg80211_ops mac80211_config_ops = {
 	.cancel_remain_on_channel = ieee80211_cancel_remain_on_channel,
 	.action = ieee80211_action,
 	.set_cqm_rssi_config = ieee80211_set_cqm_rssi_config,
+	.set_cqm_bitrate_config = ieee80211_set_cqm_bitrate_config,
 };
