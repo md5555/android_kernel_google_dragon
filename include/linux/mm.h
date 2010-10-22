@@ -140,6 +140,19 @@ extern pgprot_t protection_map[16];
 #define FAULT_FLAG_WRITE	0x01	/* Fault was a write access */
 #define FAULT_FLAG_NONLINEAR	0x02	/* Fault was via a nonlinear mapping */
 #define FAULT_FLAG_MKWRITE	0x04	/* Fault was mkwrite of existing pte */
+#define FAULT_FLAG_DUMP		0x08	/* give error on hole if would be 0s */
+#define FAULT_FLAG_FORCE	0x10	/* get_user_pages r/w w/o permission */
+#define FAULT_FLAG_TOUCH	0x20	/* follow_page mark page accessed */
+#define FAULT_FLAG_GET		0x40	/* follow_page do get_page on page */
+/*
+ * Temporarily define obsolescent FOLL_flags to their replacement FAULT_FLAGs,
+ * to minimize our local patch: the upstreamed patch will rename throughout.
+ */
+#define FOLL_WRITE	FAULT_FLAG_WRITE
+#define FOLL_TOUCH	FAULT_FLAG_TOUCH
+#define FOLL_GET	FAULT_FLAG_GET
+#define FOLL_DUMP	FAULT_FLAG_DUMP
+#define FOLL_FORCE	FAULT_FLAG_FORCE
 
 /*
  * This interface is used by x86 PAT code to identify a pfn mapping that is
@@ -1248,11 +1261,6 @@ int vm_insert_mixed(struct vm_area_struct *vma, unsigned long addr,
 
 struct page *follow_page(struct vm_area_struct *, unsigned long address,
 			unsigned int foll_flags);
-#define FOLL_WRITE	0x01	/* check pte is writable */
-#define FOLL_TOUCH	0x02	/* mark page accessed */
-#define FOLL_GET	0x04	/* do get_page on page */
-#define FOLL_DUMP	0x08	/* give error on hole if it would be zero */
-#define FOLL_FORCE	0x10	/* get_user_pages read/write w/o permission */
 
 typedef int (*pte_fn_t)(pte_t *pte, pgtable_t token, unsigned long addr,
 			void *data);

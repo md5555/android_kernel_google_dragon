@@ -1333,8 +1333,7 @@ int __get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
 				int ret;
 
 				ret = handle_mm_fault(mm, vma, start,
-					(foll_flags & FOLL_WRITE) ?
-					FAULT_FLAG_WRITE : 0);
+								foll_flags);
 
 				if (ret & VM_FAULT_ERROR) {
 					if (ret & VM_FAULT_OOM)
