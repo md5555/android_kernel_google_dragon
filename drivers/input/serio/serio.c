@@ -473,6 +473,7 @@ static ssize_t serio_rebind_driver(struct device *dev, struct device_attribute *
 		serio_disconnect_port(serio);
 		error = serio_bind_driver(serio, to_serio_driver(drv));
 		put_driver(drv);
+		serio_remove_pending_events(serio);
 	} else {
 		error = -EINVAL;
 	}
