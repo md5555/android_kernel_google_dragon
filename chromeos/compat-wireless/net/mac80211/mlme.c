@@ -1996,6 +1996,7 @@ void ieee80211_sta_restart(struct ieee80211_sub_if_data *sdata)
 	/* Restart Beacon miss timer */
 	mod_timer(&sdata->u.mgd.bcn_mon_timer,
 		  round_jiffies_up(jiffies + sdata->u.mgd.bloss_timeout));
+        ieee80211_send_nullfunc(sdata->local, sdata, 0);
 }
 #endif
 
