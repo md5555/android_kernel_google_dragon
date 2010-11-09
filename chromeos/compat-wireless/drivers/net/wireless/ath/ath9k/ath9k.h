@@ -312,7 +312,6 @@ struct ath_rx {
 	u8 rxotherant;
 	u32 *rxlink;
 	unsigned int rxfilter;
-	spinlock_t rxflushlock;
 	spinlock_t rxbuflock;
 	struct list_head rxbuf;
 	struct ath_descdma rxdma;
@@ -556,9 +555,9 @@ struct ath_softc {
 	struct ath_hw *sc_ah;
 	void __iomem *mem;
 	int irq;
-	spinlock_t sc_resetlock;
 	spinlock_t sc_serial_rw;
 	spinlock_t sc_pm_lock;
+	spinlock_t sc_pcu_lock;
 	struct mutex mutex;
 	struct work_struct paprd_work;
 	struct work_struct hw_check_work;
