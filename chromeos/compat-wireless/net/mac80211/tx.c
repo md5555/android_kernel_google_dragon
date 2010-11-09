@@ -286,9 +286,10 @@ ieee80211_tx_h_check_assoc(struct ieee80211_tx_data *tx)
 			     tx->sdata->vif.type != NL80211_IFTYPE_ADHOC &&
 			     ieee80211_is_data(hdr->frame_control))) {
 #ifdef CONFIG_MAC80211_VERBOSE_DEBUG
-			printk(KERN_DEBUG "%s: dropped data frame to not "
-			       "associated station %pM\n",
-			       tx->sdata->name, hdr->addr1);
+			if (net_ratelimit())
+				printk(KERN_DEBUG "%s: dropped data frame to "
+				       "not associated station %pM\n",
+				       tx->sdata->name, hdr->addr1);
 #endif /* CONFIG_MAC80211_VERBOSE_DEBUG */
 			I802_DEBUG_INC(tx->local->tx_handlers_drop_not_assoc);
 			return TX_DROP;
