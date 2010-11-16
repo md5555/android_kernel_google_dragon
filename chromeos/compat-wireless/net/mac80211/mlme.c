@@ -1865,6 +1865,13 @@ static void ieee80211_sta_process_probe_status(struct ieee80211_sub_if_data *sda
 		ifmgd->flags &= ~(IEEE80211_STA_BEACON_POLL |
 				  IEEE80211_STA_CONNECTION_POLL);
 		ifmgd->probe_send_count = 0;
+
+		/*
+		 * Re-enable power save
+		 */
+		mutex_lock(&local->iflist_mtx);
+		ieee80211_recalc_ps(local, -1);
+		mutex_unlock(&local->iflist_mtx);
 	} else if (ifmgd->probe_send_count < IEEE80211_MAX_PROBE_TRIES) {
 #ifdef CONFIG_MAC80211_VERBOSE_DEBUG
 		printk(KERN_DEBUG "No ACK of probe to AP %pM, try again (%d)\n",
