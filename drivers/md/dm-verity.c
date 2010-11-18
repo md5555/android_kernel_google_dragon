@@ -1582,6 +1582,9 @@ static int verity_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 	int depth;
 	unsigned long long tmpull = 0;
 	sector_t blocks;
+	struct request_queue *dev_queue;
+	struct mapped_device *md;
+	struct request_queue *md_queue;
 
 	/* Support expanding after the root hash for optional args */
 	if (argc < 6) {
@@ -1759,6 +1762,24 @@ static int verity_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 		ti->error = "Couldn't create kverityd queue";
 		goto bad_verify_queue;
 	}
+
+	/*
+	 * Propagate the setting of QUEUE_FLAG_NONROT from the base device
+	 * to the mapper device.  The flag is used by higher level software
+	 * (e.g. ureadahead) to make decisions about whether to optimize
+	 * seek time.
+	 */
+	dev_queue = bdev_get_queue(vc->dev->bdev);
+	md = dm_table_get_md(ti->table);
+	md_queue = dm_disk(md)->queue;
+	spin_lock_irq(md_queue->queue_lock);
+	if (blk_queue_nonrot(dev_queue)) {
+		queue_flag_set(QUEUE_FLAG_NONROT, md_queue);
+        } else {
+		queue_flag_clear(QUEUE_FLAG_NONROT, md_queue);
+	}
+	spin_unlock_irq(md_queue->queue_lock);
+        dm_put(md);
 
 	ti->num_flush_requests = 1;
 	ti->private = vc;
