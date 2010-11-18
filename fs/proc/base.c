@@ -1048,13 +1048,16 @@ static ssize_t oom_adjust_write(struct file *file, const char __user *buf,
 		return -ESRCH;
 	}
 
-	if (oom_adjust < task->signal->oom_adj && !capable(CAP_SYS_RESOURCE)) {
+	if (oom_adjust < task->signal->oom_adj_min &&
+	    !capable(CAP_SYS_RESOURCE)) {
 		unlock_task_sighand(task, &flags);
 		put_task_struct(task);
 		return -EACCES;
 	}
 
 	task->signal->oom_adj = oom_adjust;
+	if (has_capability_noaudit(current, CAP_SYS_RESOURCE))
+		task->signal->oom_adj_min = oom_adjust;
 
 	unlock_task_sighand(task, &flags);
 	put_task_struct(task);

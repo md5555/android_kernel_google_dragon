@@ -1186,6 +1186,10 @@ increase the likelihood of this process being killed by the oom-killer.  Valid
 values are in the range -16 to +15, plus the special value -17, which disables
 oom-killing altogether for this process.
 
+In addition, the value of /proc/<pid>/oom_adj may be reduced no lower than the
+last value set by a CAP_SYS_RESOURCE process. To reduce the value any lower
+requires CAP_SYS_RESOURCE.
+
 The process to be killed in an out-of-memory situation is selected among all others
 based on its badness score. This value equals the original memory size of the process
 and is then updated according to its CPU time (utime + stime) and the
