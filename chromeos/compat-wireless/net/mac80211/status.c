@@ -158,7 +158,8 @@ static void ieee80211_sta_tx_status(struct sta_info *sta, struct sk_buff *skb)
 		}
 
 		ieee80211_queue_work(&local->hw, &local->recalc_smps);
-	} else if (ieee80211_is_probe_req(mgmt->frame_control)) {
+	} else if (ieee80211_is_probe_req(mgmt->frame_control) ||
+		   ieee80211_is_nullfunc(mgmt->frame_control)) {
 		struct ieee80211_if_managed *ifmgd = &sta->sdata->u.mgd;
 
 		ifmgd->probe_acked =

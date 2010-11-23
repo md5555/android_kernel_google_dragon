@@ -1045,8 +1045,13 @@ static void ieee80211_mgd_probe_ap_send(struct ieee80211_sub_if_data *sdata)
 	const u8 *ssid;
 	u8 *dst = ifmgd->associated->bssid;
 
-	ssid = ieee80211_bss_get_ie(ifmgd->associated, WLAN_EID_SSID);
-	ieee80211_send_probe_req(sdata, dst, ssid + 2, ssid[1], NULL, 0);
+
+	if ((sdata->local->hw.flags & IEEE80211_HW_REPORTS_TX_ACK_STATUS)) {
+		ieee80211_send_nullfunc(sdata->local, sdata, 0);
+	} else {
+		ssid = ieee80211_bss_get_ie(ifmgd->associated, WLAN_EID_SSID);
+		ieee80211_send_probe_req(sdata, dst, ssid + 2, ssid[1], NULL, 0);
+	}
 
 	ifmgd->probe_send_count++;
 }
@@ -2000,10 +2005,9 @@ void ieee80211_sta_restart(struct ieee80211_sub_if_data *sdata)
 		add_timer(&ifmgd->timer);
 	if (test_and_clear_bit(TMR_RUNNING_CHANSW, &ifmgd->timers_running))
 		add_timer(&ifmgd->chswitch_timer);
-	/* Restart Beacon miss timer */
-	mod_timer(&sdata->u.mgd.bcn_mon_timer,
-		  round_jiffies_up(jiffies + sdata->u.mgd.bloss_timeout));
-        ieee80211_send_nullfunc(sdata->local, sdata, 0);
+
+	ieee80211_sta_reset_beacon_monitor(sdata);
+	ieee80211_queue_work(&sdata->local->hw, &sdata->u.mgd.monitor_work);
 }
 #endif
 
