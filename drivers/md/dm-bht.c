@@ -221,7 +221,7 @@ int dm_bht_create(struct dm_bht *bht, unsigned int depth,
 		goto bad_digest_len;
 	}
 
-	bht->root_digest = kzalloc(bht->digest_size, GFP_KERNEL);
+	bht->root_digest = (u8 *) kzalloc(bht->digest_size, GFP_KERNEL);
 	if (!bht->root_digest) {
 		DMERR("failed to allocate memory for root digest");
 		status = -ENOMEM;
@@ -373,7 +373,8 @@ static int dm_bht_initialize_entries(struct dm_bht *bht)
 		 * (a) which pages have been loaded from disk
 		 * (b) which specific nodes have been verified.
 		 */
-		level->entries = kcalloc(level->count,
+		level->entries = (struct dm_bht_entry *)
+				 kcalloc(level->count,
 					 sizeof(struct dm_bht_entry),
 					 GFP_KERNEL);
 		if (!level->entries) {
@@ -688,12 +689,12 @@ static int dm_bht_verify_root(struct dm_bht *bht,
 }
 
 /* dm_bht_verify_path
- * Verifies the path to block_index from depth=0. Returns 0 on ok.
+ * Verifies the path from block_index to depth=0. Returns 0 on ok.
  */
 static int dm_bht_verify_path(struct dm_bht *bht, unsigned int block_index,
 			      dm_bht_compare_cb compare_cb)
 {
-	unsigned int depth;
+	unsigned int depth = bht->depth;
 	struct dm_bht_level *level;
 	struct dm_bht_entry *entry;
 	struct dm_bht_entry *parent = NULL;
@@ -706,7 +707,7 @@ static int dm_bht_verify_path(struct dm_bht *bht, unsigned int block_index,
 	int ret = 0;
 
 	hash_desc = &bht->hash_desc[smp_processor_id()];
-	for (depth = 0; depth < bht->depth; ++depth) {
+	while (depth-- > 0) {
 		level = dm_bht_get_level(bht, depth);
 		entry_index = dm_bht_index_at_level(bht, depth, block_index);
 		DMDEBUG("verify_path for bi=%u on d=%d ei=%u (max=%u)",
@@ -729,16 +730,18 @@ static int dm_bht_verify_path(struct dm_bht *bht, unsigned int block_index,
 			break;
 		}
 
-		/* We go through the error-checking for depth=0 here so we
-		 * don't have to duplicate it above.  After this point, parent
-		 * will always be set.
+		/* At depth 0, we're at the page underneath the root node and
+		 * leave its validation to a separate path.
 		 */
-		if (!parent) {
-			parent_index = entry_index;
-			parent = entry;
-			continue;
-		}
+		if (depth == 0)
+			break;
 
+		/* Grab the parent entry where the current entry hash is. */
+		parent_index = dm_bht_index_at_level(bht, depth - 1,
+						     block_index);
+		level = dm_bht_get_level(bht, depth - 1);
+		BUG_ON(parent_index >= level->count);
+		parent = &level->entries[parent_index];
 
 		/* Because we are one level down, the node_index into the
 		 * the parent's node list modulo the number of nodes.
@@ -752,17 +755,17 @@ static int dm_bht_verify_path(struct dm_bht *bht, unsigned int block_index,
 			DMDEBUG("verify_path node %u is verified in parent %u",
 				node_index, parent_index);
 			/* If this entry has been checked, move along. */
-			parent_index = entry_index;
-			parent = entry;
 			continue;
 		}
 
-		DMDEBUG("verify_path node %u is not verified in parent %u",
-			node_index, parent_index);
 		/* We need to check that this entry matches the expected
 		 * hash in the parent->nodes.
 		 */
 		node = dm_bht_node(bht, parent, node_index);
+		DMDEBUG("verify_path: node is not verified in parent "
+		        "(d=%u,ei=%u,p=%u,pnode=%u)",
+		        depth, entry_index, parent_index, node_index);
+
 		if (dm_bht_compute_and_compare(bht, hash_desc,
 					       virt_to_page(entry->nodes),
 					       node, compare_cb)) {
@@ -782,8 +785,6 @@ static int dm_bht_verify_path(struct dm_bht *bht, unsigned int block_index,
 			atomic_cmpxchg(&entry->state,
 				       DM_BHT_ENTRY_READY,
 				       DM_BHT_ENTRY_VERIFIED);
-		parent_index = entry_index;
-		parent = entry;
 	}
 	return ret;
 }
@@ -913,14 +914,16 @@ int dm_bht_compute(struct dm_bht *bht, void *read_cb_ctx)
 {
 	unsigned int block;
 	int updated = 0;
+	int verify_mode = bht->verify_mode;
 	/* Start at the last block and walk backwards. */
+	bht->verify_mode = DM_BHT_FULL_REVERIFY;
 	for (block = bht->block_count - 1; block != 0;
 	     block -= bht->node_count) {
 		DMDEBUG("Updating levels for block %u", block);
 		updated = dm_bht_populate(bht, read_cb_ctx, block);
 		if (updated < 0) {
 			DMERR("Failed to pre-zero entries");
-			return updated;
+			goto out;
 		}
 		updated = dm_bht_verify_path(bht,
 					     block,
@@ -928,7 +931,7 @@ int dm_bht_compute(struct dm_bht *bht, void *read_cb_ctx)
 		if (updated) {
 			DMERR("Failed to update levels for block %u",
 			      block);
-			return updated;
+			goto out;
 		}
 		if (block < bht->node_count)
 			break;
@@ -936,6 +939,8 @@ int dm_bht_compute(struct dm_bht *bht, void *read_cb_ctx)
 	/* Don't forget the root digest! */
 	DMDEBUG("Calling verify_root with update_hash");
 	updated = dm_bht_verify_root(bht, dm_bht_update_hash);
+out:
+	bht->verify_mode = verify_mode;
 	return updated;
 }
 EXPORT_SYMBOL(dm_bht_compute);
