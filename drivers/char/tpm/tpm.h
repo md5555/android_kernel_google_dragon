@@ -107,6 +107,7 @@ struct tpm_chip {
 	int needs_resume;
 	unsigned long resume_time;
 	struct mutex resume_mutex;
+	u32 manufacturer_id;
 
 	struct timer_list user_read_timer;	/* user needs to claim result */
 	struct work_struct work;

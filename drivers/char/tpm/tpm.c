@@ -480,6 +480,21 @@ enum tpm_sub_capabilities {
 
 };
 
+/* TODO(fes): This function is a workaround to ensure that STM
+ * chips have SelfTestFull run.  Remove this when a better method is
+ * implemented.
+ */
+static int is_stm_tpm(struct tpm_chip * chip)
+{
+	cap_t cap;
+	if ((chip->manufacturer_id == 0xffffffff) &&
+	    !tpm_getcap(chip->dev, TPM_CAP_PROP_MANUFACTURER, &cap,
+			"attempting to determine the manufacturer")) {
+		chip->manufacturer_id = be32_to_cpu(cap.manufacturer_id);
+	}
+	return ((chip->manufacturer_id == 0x53544d20) ? 1 : 0);
+}
+
 static ssize_t transmit_cmd(struct tpm_chip *chip, struct tpm_cmd_t *cmd,
 			    int len, const char *desc)
 {
@@ -1177,7 +1192,15 @@ int tpm_pm_resume(struct device *dev)
 	tpm_transmit(chip, startrestorestate, sizeof(startrestorestate));
 	dev_info(chip->dev, "TPM resume returned 0x%x (may be byte swapped)",
 		 start_cmd->header.out.return_code);
-	needs_resume(chip);
+	/* TODO(fes): HACK--the is_stm_tpm function ensures that
+	 * tpm_continue_selftest is run for STM TPMs.  It would be nice
+	 * to find a better, non-hack way of doing this.
+	 */
+	if (is_stm_tpm(chip)) {
+		tpm_continue_selftest(chip);
+	} else {
+		needs_resume(chip);
+	}
 	return 0;
 }
 EXPORT_SYMBOL_GPL(tpm_pm_resume);
@@ -1264,6 +1287,8 @@ struct tpm_chip *tpm_register_hardware(struct device *dev,
 	chip->release = dev->release;
 	dev->release = tpm_dev_release;
 	dev_set_drvdata(dev, chip);
+
+	chip->manufacturer_id = 0xffffffff;
 
 	if (misc_register(&chip->vendor.miscdev)) {
 		dev_err(chip->dev,
