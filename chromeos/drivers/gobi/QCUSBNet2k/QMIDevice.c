@@ -1194,8 +1194,10 @@ int WriteSync(
    else
    {
       // We have been forcibly interrupted
-      DBG( "Interrupted %d !!!\n", result );
-      DBG( "Device may be in bad state and need reset !!!\n" );
+      printk(KERN_WARNING "qcusbnet2k: write interrupted: %d", result);
+
+      // Signal to userspace that we're really, really hosed.
+      result = -ENOLINK;
 
       // URB has not finished
       usb_kill_urb( pWriteURB );
