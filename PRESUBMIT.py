@@ -8,6 +8,22 @@ See http://dev.chromium.org/developers/how-tos/depottools/presubmit-scripts
 for more details about the presubmit API built into gcl and git cl.
 """
 
+import subprocess
+
+def CheckPatch(input_api, output_api, source_file_filter=None):
+  """Checks that there is a Signed-off-by in the description."""
+  output = []
+  checkpatch = 'scripts/checkpatch.pl'
+  for affected_file in input_api.AffectedSourceFiles(source_file_filter):
+    file_name = affected_file.LocalPath()
+    if file_name.endswith('.c') or file_name.endswith('.h'):
+      cmd = subprocess.Popen([checkpatch, '-f', file_name],
+                             stdout=subprocess.PIPE)
+      stdout, _ = cmd.communicate()
+      if cmd.returncode:
+        output.append(output_api.PresubmitPromptWarning(stdout))
+  return output
+
 def CheckSignOff(input_api, output_api, source_file_filter=None):
   """Checks that there is a Signed-off-by in the description."""
   output = []
@@ -19,6 +35,7 @@ def CheckSignOff(input_api, output_api, source_file_filter=None):
 def CheckChange(input_api, output_api, committing):
     results = []
     results += CheckSignOff(input_api, output_api)
+    results += CheckPatch(input_api, output_api)
     return results
 
 def CheckChangeOnUpload(input_api, output_api):
