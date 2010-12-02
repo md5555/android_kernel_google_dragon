@@ -155,6 +155,31 @@ static __always_inline u8 *dm_bht_node(struct dm_bht *bht,
 	return &entry->nodes[node_index * bht->digest_size];
 }
 
+static inline struct dm_bht_entry *dm_bht_get_entry(struct dm_bht *bht,
+						    unsigned int depth,
+						    unsigned int block_index)
+{
+	unsigned int index = dm_bht_index_at_level(bht, depth, block_index);
+	struct dm_bht_level *level = dm_bht_get_level(bht, depth);
+
+	BUG_ON(index >= level->count);
+
+	return &level->entries[index];
+}
+
+static inline u8 *dm_bht_get_node(struct dm_bht *bht,
+				  struct dm_bht_entry *entry,
+				  unsigned int depth,
+				  unsigned int block_index)
+{
+	unsigned int index = dm_bht_index_at_level(bht, depth, block_index);
+	struct dm_bht_level *level = dm_bht_get_level(bht, depth);
+
+	BUG_ON(index >= level->count);
+
+	return dm_bht_node(bht, entry, index % bht->node_count);
+}
+
 
 /*-----------------------------------------------
  * Implementation functions
@@ -694,40 +719,31 @@ static int dm_bht_verify_root(struct dm_bht *bht,
 static int dm_bht_verify_path(struct dm_bht *bht, unsigned int block_index,
 			      dm_bht_compare_cb compare_cb)
 {
-	unsigned int depth = bht->depth;
-	struct dm_bht_level *level;
-	struct dm_bht_entry *entry;
-	struct dm_bht_entry *parent = NULL;
-	u8 *node;
-	unsigned int node_index;
-	unsigned int entry_index;
-	unsigned int parent_index = 0;  /* for logging */
-	struct hash_desc *hash_desc;
-	int state;
-	int ret = 0;
+	unsigned int depth = bht->depth - 1;
+	struct dm_bht_entry *entry = dm_bht_get_entry(bht, depth, block_index);
+	struct hash_desc *hash_desc = &bht->hash_desc[smp_processor_id()];
 
-	hash_desc = &bht->hash_desc[smp_processor_id()];
-	while (depth-- > 0) {
-		level = dm_bht_get_level(bht, depth);
-		entry_index = dm_bht_index_at_level(bht, depth, block_index);
-		DMDEBUG("verify_path for bi=%u on d=%d ei=%u (max=%u)",
-			block_index, depth, entry_index, level->count);
-		BUG_ON(entry_index >= level->count);
-		entry = &level->entries[entry_index];
+	while (depth > 0) {
+		struct dm_bht_entry *parent;
+		u8 *node;
+		int state;
 
-		/* Catch any existing errors */
+		DMDEBUG("verify_path for b=%u on d=%d", block_index, depth);
 		state = atomic_read(&entry->state);
-		if (state <= DM_BHT_ENTRY_ERROR) {
-			DMCRIT("entry(d=%u,idx=%u) is in an error state: %d",
-			       depth, entry_index, state);
+		if (state == DM_BHT_ENTRY_VERIFIED) {
+			DMDEBUG("verify_path node %u is verified in parent",
+				block_index);
+			entry = dm_bht_get_entry(bht, --depth, block_index);
+			continue;
+		} else if (state <= DM_BHT_ENTRY_ERROR) {
+			DMCRIT("entry(d=%u,b=%u) is in an error state: %d",
+			       depth, block_index, state);
 			DMCRIT("verification is not possible");
-			ret = 1;
-			break;
+			goto mismatch;
 		} else if (state <= DM_BHT_ENTRY_PENDING) {
-			DMERR("entry not ready for verify: d=%u,e=%u",
-			      depth, entry_index);
-			ret = 1;
-			break;
+			DMERR("entry not ready for verify: d=%u,b=%u",
+			      depth, block_index);
+			goto mismatch;
 		}
 
 		/* At depth 0, we're at the page underneath the root node and
@@ -736,57 +752,37 @@ static int dm_bht_verify_path(struct dm_bht *bht, unsigned int block_index,
 		if (depth == 0)
 			break;
 
-		/* Grab the parent entry where the current entry hash is. */
-		parent_index = dm_bht_index_at_level(bht, depth - 1,
-						     block_index);
-		level = dm_bht_get_level(bht, depth - 1);
-		BUG_ON(parent_index >= level->count);
-		parent = &level->entries[parent_index];
-
-		/* Because we are one level down, the node_index into the
-		 * the parent's node list modulo the number of nodes.
-		 */
-		node_index = entry_index % bht->node_count;
-
-		/* If the nodes in entry have already been checked against the
-		 * parent, then we're done.
-		 */
-		if (state == DM_BHT_ENTRY_VERIFIED) {
-			DMDEBUG("verify_path node %u is verified in parent %u",
-				node_index, parent_index);
-			/* If this entry has been checked, move along. */
-			continue;
-		}
-
 		/* We need to check that this entry matches the expected
 		 * hash in the parent->nodes.
 		 */
-		node = dm_bht_node(bht, parent, node_index);
-		DMDEBUG("verify_path: node is not verified in parent "
-		        "(d=%u,ei=%u,p=%u,pnode=%u)",
-		        depth, entry_index, parent_index, node_index);
+		parent = dm_bht_get_entry(bht, depth - 1, block_index);
+		/* This call is only safe if all nodes along the path
+		 * are already populated (i.e. READY) via dm_bht_populate.
+		 */
+		BUG_ON(atomic_read(&parent->state) < DM_BHT_ENTRY_READY);
+		node = dm_bht_get_node(bht, parent, depth, block_index);
 
 		if (dm_bht_compute_and_compare(bht, hash_desc,
 					       virt_to_page(entry->nodes),
 					       node, compare_cb)) {
 			DMERR("failed to verify entry's hash against parent "
-			      "(d=%u,ei=%u,p=%u,pnode=%u)",
-			      depth, entry_index, parent_index, node_index);
-			ret = DM_BHT_ENTRY_ERROR_MISMATCH;
-			break;
+			      "(d=%u,bi=%u)", depth, block_index);
+			goto mismatch;
 		}
 
-		/* Instead of keeping a bitmap of which children have been
-		 * checked, this data is kept in the child state. If full
-		 * reverifies have been set, then no intermediate entry/node is
-		 * ever marked as verified.
-		 */
 		if (bht->verify_mode != DM_BHT_FULL_REVERIFY)
 			atomic_cmpxchg(&entry->state,
 				       DM_BHT_ENTRY_READY,
 				       DM_BHT_ENTRY_VERIFIED);
+
+		entry = parent;
+		depth--;
 	}
-	return ret;
+
+	return 0;
+
+mismatch:
+	return DM_BHT_ENTRY_ERROR_MISMATCH;
 }
 
 /**
