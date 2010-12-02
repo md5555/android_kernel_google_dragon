@@ -473,57 +473,10 @@ static int verity_hash_bv(struct verity_config *vc,
 	return 0;
 }
 
-static void verity_free_buffer_pages(struct verity_config *vc,
-				     struct dm_verity_io *io, struct bio *clone)
-{
-	unsigned int original_vecs = clone->bi_vcnt;
-	struct bio_vec *bv;
-	VERITY_BUG_ON(!vc || !io || !clone, "NULL arguments");
-
-	/* No work to do. */
-	if (!io->leading_pages && !io->trailing_pages)
-		return;
-
-	/* Determine which pages are ours with one page per vector. */
-	original_vecs -= io->leading_pages + io->trailing_pages;
-
-	/* Handle any leading pages */
-	bv = bio_iovec_idx(clone, 0);
-	while (io->leading_pages--) {
-		if (unlikely(bv->bv_page == NULL)) {
-			VERITY_BUG("missing leading bv_page in padding");
-			bv++;
-			continue;
-		}
-		mempool_free(bv->bv_page, vc->page_pool);
-		bv->bv_page = NULL;
-		bv++;
-	}
-	bv += original_vecs;
-	/* TODO(wad) This is probably off-by-one */
-	while (io->trailing_pages--) {
-		if (unlikely(bv->bv_page == NULL)) {
-			VERITY_BUG("missing leading bv_page in padding");
-			bv++;
-			continue;
-		}
-		mempool_free(bv->bv_page, vc->page_pool);
-		bv->bv_page = NULL;
-		bv++;
-	}
-}
-
 static void kverityd_verify_cleanup(struct dm_verity_io *io, int error)
 {
 	struct verity_config *vc = io->target->private;
-	/* Clean up the pages used for padding, if any. */
-	verity_free_buffer_pages(vc, io, io->ctx.bio);
 
-	/* Release padded bio, if one was used. */
-	if (io->ctx.bio != io->base_bio) {
-		bio_put(io->ctx.bio);
-		io->ctx.bio = NULL;
-	}
 	/* Propagate the verification error. */
 	io->error = error;
 }
@@ -1146,7 +1099,7 @@ static int kverityd_bht_read_callback(void *ctx, sector_t start, u8 *dst,
 	/* We should only get page size requests at present. */
 	verity_inc_pending(io);
 	bio = verity_alloc_bioset(vc, GFP_NOIO, 1);
-	if (unlikely(!io->ctx.bio)) {
+	if (unlikely(!bio)) {
 		DMCRIT("Out of memory at bio_alloc_bioset");
 		dm_bht_read_completed(entry, -ENOMEM);
 		return -ENOMEM;
@@ -1276,15 +1229,6 @@ static void kverityd_src_io_read_end(struct bio *clone, int error)
 		DMERR("Error occurred: %d (%llu, %u)",
 			error, ULL(clone->bi_sector), clone->bi_size);
 		io->error = error;
-		/* verity_dec_pending will pick up the error, but it won't
-		 * free the leading/trailing pages for us.
-		 */
-		verity_free_buffer_pages(vc, io, io->ctx.bio);
-		/* Release padded bio, if one was used. */
-		if (io->ctx.bio != io->base_bio) {
-			bio_put(io->ctx.bio);
-			io->ctx.bio = NULL;
-		}
 	}
 
 	/* Release the clone which just avoids the block layer from
@@ -1306,12 +1250,9 @@ static void kverityd_src_io_read(struct dm_verity_io *io)
 	struct verity_config *vc = io->target->private;
 	struct bio *base_bio = io->base_bio;
 	sector_t bio_start = vc->start + io->sector;
-	unsigned int leading_bytes = 0;
-	unsigned int trailing_bytes = 0;
 	unsigned int bio_size = base_bio->bi_size;
-	unsigned int vecs_needed = bio_segments(base_bio);
-	struct bio_vec *cur_bvec = NULL;
-	struct bio *clone = NULL;
+	unsigned int leading_bytes, trailing_bytes;
+	struct bio *clone;
 
 	VERITY_BUG_ON(!io);
 
@@ -1337,66 +1278,10 @@ static void kverityd_src_io_read(struct dm_verity_io *io)
 	/* ... to the end of the original bio. */
 	trailing_bytes = (bio_size - leading_bytes) - base_bio->bi_size;
 
-	/* Additions are page aligned so page sized vectors can be padded in */
-	vecs_needed += PAGE_ALIGN(leading_bytes) >> PAGE_SHIFT;
-	vecs_needed += PAGE_ALIGN(trailing_bytes) >> PAGE_SHIFT;
+	/* We set logical_block_size=PAGE_SIZE so this should never happen. */
+	VERITY_BUG_ON(leading_bytes || trailing_bytes);
 
-	DMDEBUG("allocating bioset for padding (%u)", vecs_needed);
-	/* Allocate the bioset for the duplicate plus padding */
-	if (vecs_needed == bio_segments(base_bio)) {
-		/* No padding is needed so we can just verify using the
-		 * original bio.
-		 */
-		DMDEBUG("No padding needed!");
-		io->ctx.bio = base_bio;
-	} else {
-		ALLOCTRACE("bioset for io %p, sector %llu",
-			   io, ULL(bio_start));
-		io->ctx.bio = verity_alloc_bioset(vc, GFP_NOIO, vecs_needed);
-		if (unlikely(io->ctx.bio == NULL)) {
-			DMCRIT("Failed to allocate padded bioset");
-			io->error = -ENOMEM;
-			verity_dec_pending(io);
-			return;
-		}
-
-		DMDEBUG("clone init");
-		clone_init(io, io->ctx.bio, vecs_needed, bio_size, bio_start);
-		/* Now we need to copy over the iovecs, but we need to make
-		 * sure to offset if we realigned the request.
-		 */
-		cur_bvec = io->ctx.bio->bi_io_vec;
-
-		DMDEBUG("Populating padded bioset (%u %u)",
-			leading_bytes, trailing_bytes);
-		DMDEBUG("leading_bytes == %u", leading_bytes);
-		cur_bvec = populate_bio_vec(cur_bvec, vc->page_pool,
-					    leading_bytes, &io->leading_pages);
-		if (unlikely(cur_bvec == NULL)) {
-				io->error = -ENOMEM;
-				verity_free_buffer_pages(vc, io, io->ctx.bio);
-				bio_put(io->ctx.bio);
-				verity_dec_pending(io);
-				return;
-		}
-		/* Now we should be aligned to copy the bio_vecs in place */
-		DMDEBUG("copying original bvecs");
-		memcpy(cur_bvec, bio_iovec(base_bio),
-		       sizeof(struct bio_vec) * bio_segments(base_bio));
-		cur_bvec += bio_segments(base_bio);
-		/* Handle trailing vecs */
-		DMDEBUG("trailing_bytes == %u", trailing_bytes);
-		cur_bvec = populate_bio_vec(cur_bvec, vc->page_pool,
-					    trailing_bytes,
-					    &io->trailing_pages);
-		if (unlikely(cur_bvec == NULL)) {
-			io->error = -ENOMEM;
-			verity_free_buffer_pages(vc, io, io->ctx.bio);
-			bio_put(io->ctx.bio);
-			verity_dec_pending(io);
-			return;
-		}
-	}
+	io->ctx.bio = base_bio;
 
 	/* Now clone the padded request */
 	DMDEBUG("Creating clone of the padded request");
@@ -1406,9 +1291,6 @@ static void kverityd_src_io_read(struct dm_verity_io *io)
 	if (unlikely(!clone)) {
 		io->error = -ENOMEM;
 		/* Clean up */
-		verity_free_buffer_pages(vc, io, io->ctx.bio);
-		if (io->ctx.bio != base_bio)
-			bio_put(io->ctx.bio);
 		verity_dec_pending(io);
 		return;
 	}
@@ -1917,10 +1799,9 @@ static int verity_iterate_devices(struct dm_target *ti,
 static void verity_io_hints(struct dm_target *ti,
 			    struct queue_limits *limits)
 {
-	/*
-	 * Set this to the vc->dev value:
-	 blk_limits_io_min(limits, chunk_size); */
-	blk_limits_io_opt(limits, PAGE_SIZE);
+	limits->logical_block_size = PAGE_SIZE;
+	limits->physical_block_size = PAGE_SIZE;
+	blk_limits_io_min(limits, PAGE_SIZE);
 }
 
 static struct target_type verity_target = {
