@@ -56,7 +56,7 @@ MODULE_PARM_DESC(blink, "Enable LED blink on activity");
  * on 5 MHz steps, we support the channels which we know
  * we have calibration data for all cards though to make
  * this static */
-static struct ieee80211_channel ath9k_2ghz_chantable[] = {
+static const struct ieee80211_channel ath9k_2ghz_chantable[] = {
 	CHAN2G(2412, 0), /* Channel 1 */
 	CHAN2G(2417, 1), /* Channel 2 */
 	CHAN2G(2422, 2), /* Channel 3 */
@@ -77,7 +77,7 @@ static struct ieee80211_channel ath9k_2ghz_chantable[] = {
  * on 5 MHz steps, we support the channels which we know
  * we have calibration data for all cards though to make
  * this static */
-static struct ieee80211_channel ath9k_5ghz_chantable[] = {
+static const struct ieee80211_channel ath9k_5ghz_chantable[] = {
 	/* _We_ call this UNII 1 */
 	CHAN5G(5180, 14), /* Channel 36 */
 	CHAN5G(5200, 15), /* Channel 40 */
@@ -395,7 +395,8 @@ static void ath9k_init_crypto(struct ath_softc *sc)
 
 static int ath9k_init_btcoex(struct ath_softc *sc)
 {
-	int r, qnum;
+	struct ath_txq *txq;
+	int r;
 
 	switch (sc->sc_ah->btcoex_hw.scheme) {
 	case ATH_BTCOEX_CFG_NONE:
@@ -408,8 +409,8 @@ static int ath9k_init_btcoex(struct ath_softc *sc)
 		r = ath_init_btcoex_timer(sc);
 		if (r)
 			return -1;
-		qnum = sc->tx.hwq_map[WME_AC_BE];
-		ath9k_hw_init_btcoex_hw(sc->sc_ah, qnum);
+		txq = sc->tx.txq_map[WME_AC_BE];
+		ath9k_hw_init_btcoex_hw(sc->sc_ah, txq->axq_qnum);
 		sc->btcoex.bt_stomp_type = ATH_BTCOEX_STOMP_LOW;
 		break;
 	default:
@@ -422,65 +423,31 @@ static int ath9k_init_btcoex(struct ath_softc *sc)
 
 static int ath9k_init_queues(struct ath_softc *sc)
 {
-	struct ath_common *common = ath9k_hw_common(sc->sc_ah);
 	int i = 0;
 
-	for (i = 0; i < ARRAY_SIZE(sc->tx.hwq_map); i++)
-		sc->tx.hwq_map[i] = -1;
-
 	sc->beacon.beaconq = ath9k_hw_beaconq_setup(sc->sc_ah);
-	if (sc->beacon.beaconq == -1) {
-		ath_print(common, ATH_DBG_FATAL,
-			  "Unable to setup a beacon xmit queue\n");
-		goto err;
-	}
-
 	sc->beacon.cabq = ath_txq_setup(sc, ATH9K_TX_QUEUE_CAB, 0);
-	if (sc->beacon.cabq == NULL) {
-		ath_print(common, ATH_DBG_FATAL,
-			  "Unable to setup CAB xmit queue\n");
-		goto err;
-	}
 
 	sc->config.cabqReadytime = ATH_CABQ_READY_TIME;
 	ath_cabq_update(sc);
 
-	if (!ath_tx_setup(sc, WME_AC_BK)) {
-		ath_print(common, ATH_DBG_FATAL,
-			  "Unable to setup xmit queue for BK traffic\n");
-		goto err;
-	}
-
-	if (!ath_tx_setup(sc, WME_AC_BE)) {
-		ath_print(common, ATH_DBG_FATAL,
-			  "Unable to setup xmit queue for BE traffic\n");
-		goto err;
-	}
-	if (!ath_tx_setup(sc, WME_AC_VI)) {
-		ath_print(common, ATH_DBG_FATAL,
-			  "Unable to setup xmit queue for VI traffic\n");
-		goto err;
-	}
-	if (!ath_tx_setup(sc, WME_AC_VO)) {
-		ath_print(common, ATH_DBG_FATAL,
-			  "Unable to setup xmit queue for VO traffic\n");
-		goto err;
-	}
+	for (i = 0; i < WME_NUM_AC; i++)
+		sc->tx.txq_map[i] = ath_txq_setup(sc, ATH9K_TX_QUEUE_DATA, i);
 
 	return 0;
-
-err:
-	for (i = 0; i < ATH9K_NUM_TX_QUEUES; i++)
-		if (ATH_TXQ_SETUP(sc, i))
-			ath_tx_cleanupq(sc, &sc->tx.txq[i]);
-
-	return -EIO;
 }
 
-static void ath9k_init_channels_rates(struct ath_softc *sc)
+static int ath9k_init_channels_rates(struct ath_softc *sc)
 {
+	void *channels;
+
 	if (test_bit(ATH9K_MODE_11G, sc->sc_ah->caps.wireless_modes)) {
-		sc->sbands[IEEE80211_BAND_2GHZ].channels = ath9k_2ghz_chantable;
+		channels = kmemdup(ath9k_2ghz_chantable,
+			sizeof(ath9k_2ghz_chantable), GFP_KERNEL);
+		if (!channels)
+		    return -ENOMEM;
+
+		sc->sbands[IEEE80211_BAND_2GHZ].channels = channels;
 		sc->sbands[IEEE80211_BAND_2GHZ].band = IEEE80211_BAND_2GHZ;
 		sc->sbands[IEEE80211_BAND_2GHZ].n_channels =
 			ARRAY_SIZE(ath9k_2ghz_chantable);
@@ -490,7 +457,15 @@ static void ath9k_init_channels_rates(struct ath_softc *sc)
 	}
 
 	if (test_bit(ATH9K_MODE_11A, sc->sc_ah->caps.wireless_modes)) {
-		sc->sbands[IEEE80211_BAND_5GHZ].channels = ath9k_5ghz_chantable;
+		channels = kmemdup(ath9k_5ghz_chantable,
+			sizeof(ath9k_5ghz_chantable), GFP_KERNEL);
+		if (!channels) {
+			if (sc->sbands[IEEE80211_BAND_2GHZ].channels)
+				kfree(sc->sbands[IEEE80211_BAND_2GHZ].channels);
+			return -ENOMEM;
+		}
+
+		sc->sbands[IEEE80211_BAND_5GHZ].channels = channels;
 		sc->sbands[IEEE80211_BAND_5GHZ].band = IEEE80211_BAND_5GHZ;
 		sc->sbands[IEEE80211_BAND_5GHZ].n_channels =
 			ARRAY_SIZE(ath9k_5ghz_chantable);
@@ -499,6 +474,7 @@ static void ath9k_init_channels_rates(struct ath_softc *sc)
 		sc->sbands[IEEE80211_BAND_5GHZ].n_bitrates =
 			ARRAY_SIZE(ath9k_legacy_rates) - 4;
 	}
+	return 0;
 }
 
 static void ath9k_init_misc(struct ath_softc *sc)
@@ -592,8 +568,11 @@ static int ath9k_init_softc(u16 devid, struct ath_softc *sc, u16 subsysid,
 	if (ret)
 		goto err_btcoex;
 
+	ret = ath9k_init_channels_rates(sc);
+	if (ret)
+		goto err_btcoex;
+
 	ath9k_init_crypto(sc);
-	ath9k_init_channels_rates(sc);
 	ath9k_init_misc(sc);
 
 	return 0;
@@ -750,6 +729,12 @@ error_init:
 static void ath9k_deinit_softc(struct ath_softc *sc)
 {
 	int i = 0;
+
+	if (sc->sbands[IEEE80211_BAND_2GHZ].channels)
+		kfree(sc->sbands[IEEE80211_BAND_2GHZ].channels);
+
+	if (sc->sbands[IEEE80211_BAND_5GHZ].channels)
+		kfree(sc->sbands[IEEE80211_BAND_5GHZ].channels);
 
         if ((sc->btcoex.no_stomp_timer) &&
 	    sc->sc_ah->btcoex_hw.scheme == ATH_BTCOEX_CFG_3WIRE)

@@ -1,4 +1,4 @@
-obj-$(CONFIG_IWLWIFI)	+= iwlcore.o
+obj-$(CONFIG_COMPAT_IWLWIFI)	+= iwlcore.o
 iwlcore-objs 		:= iwl-core.o iwl-eeprom.o iwl-hcmd.o iwl-power.o
 iwlcore-objs 		+= iwl-rx.o iwl-tx.o iwl-sta.o
 iwlcore-objs 		+= iwl-scan.o iwl-led.o

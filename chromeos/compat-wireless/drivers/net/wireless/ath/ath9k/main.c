@@ -270,6 +270,7 @@ static void ath_paprd_activate(struct ath_softc *sc)
 {
 	struct ath_hw *ah = sc->sc_ah;
 	struct ath9k_hw_cal_data *caldata = ah->caldata;
+	struct ath_common *common = ath9k_hw_common(ah);
 	int chain;
 
 	if (!caldata || !caldata->paprd_done)
@@ -278,7 +279,7 @@ static void ath_paprd_activate(struct ath_softc *sc)
 	ath9k_ps_wakeup(sc);
 	ar9003_paprd_enable(ah, false);
 	for (chain = 0; chain < AR9300_MAX_CHAINS; chain++) {
-		if (!(ah->caps.tx_chainmask & BIT(chain)))
+		if (!(common->tx_chainmask & BIT(chain)))
 			continue;
 
 		ar9003_paprd_populate_single_table(ah, caldata, chain);
@@ -300,7 +301,8 @@ void ath_paprd_calibrate(struct work_struct *work)
 	struct ieee80211_supported_band *sband = &sc->sbands[band];
 	struct ath_tx_control txctl;
 	struct ath9k_hw_cal_data *caldata = ah->caldata;
-	int qnum, ftype;
+	struct ath_common *common = ath9k_hw_common(ah);
+	int ftype;
 	int chain_ok = 0;
 	int chain;
 	int len = 1800;
@@ -327,13 +329,12 @@ void ath_paprd_calibrate(struct work_struct *work)
 	memcpy(hdr->addr3, hw->wiphy->perm_addr, ETH_ALEN);
 
 	memset(&txctl, 0, sizeof(txctl));
-	qnum = sc->tx.hwq_map[WME_AC_BE];
-	txctl.txq = &sc->tx.txq[qnum];
+	txctl.txq = sc->tx.txq_map[WME_AC_BE];
 
 	ath9k_ps_wakeup(sc);
 	ar9003_paprd_init_table(ah);
 	for (chain = 0; chain < AR9300_MAX_CHAINS; chain++) {
-		if (!(ah->caps.tx_chainmask & BIT(chain)))
+		if (!(common->tx_chainmask & BIT(chain)))
 			continue;
 
 		chain_ok = 0;
@@ -551,7 +552,7 @@ void ath_hw_check(struct work_struct *work)
 
 		msleep(1);
 	}
-	ath_reset(sc, false);
+	ath_reset(sc, true);
 
 out:
 	ath9k_ps_restore(sc);
@@ -569,7 +570,7 @@ void ath9k_tasklet(unsigned long data)
 	ath9k_ps_wakeup(sc);
 
 	if (status & ATH9K_INT_FATAL) {
-		ath_reset(sc, false);
+		ath_reset(sc, true);
 		ath9k_ps_restore(sc);
 		return;
 	}
@@ -986,56 +987,6 @@ int ath_reset(struct ath_softc *sc, bool retry_tx)
 	return r;
 }
 
-static int ath_get_hal_qnum(u16 queue, struct ath_softc *sc)
-{
-	int qnum;
-
-	switch (queue) {
-	case 0:
-		qnum = sc->tx.hwq_map[WME_AC_VO];
-		break;
-	case 1:
-		qnum = sc->tx.hwq_map[WME_AC_VI];
-		break;
-	case 2:
-		qnum = sc->tx.hwq_map[WME_AC_BE];
-		break;
-	case 3:
-		qnum = sc->tx.hwq_map[WME_AC_BK];
-		break;
-	default:
-		qnum = sc->tx.hwq_map[WME_AC_BE];
-		break;
-	}
-
-	return qnum;
-}
-
-int ath_get_mac80211_qnum(u32 queue, struct ath_softc *sc)
-{
-	int qnum;
-
-	switch (queue) {
-	case WME_AC_VO:
-		qnum = 0;
-		break;
-	case WME_AC_VI:
-		qnum = 1;
-		break;
-	case WME_AC_BE:
-		qnum = 2;
-		break;
-	case WME_AC_BK:
-		qnum = 3;
-		break;
-	default:
-		qnum = -1;
-		break;
-	}
-
-	return qnum;
-}
-
 /* XXX: Remove me once we don't depend on ath9k_channel for all
  * this redundant data */
 void ath9k_update_ichannel(struct ath_softc *sc, struct ieee80211_hw *hw,
@@ -1208,7 +1159,6 @@ static int ath9k_tx(struct ieee80211_hw *hw,
 	struct ath_tx_control txctl;
 	int padpos, padsize;
 	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *) skb->data;
-	int qnum;
 
 	if (aphy->state != ATH_WIPHY_ACTIVE && aphy->state != ATH_WIPHY_SCAN) {
 		ath_print(common, ATH_DBG_XMIT,
@@ -1281,8 +1231,7 @@ static int ath9k_tx(struct ieee80211_hw *hw,
 		memmove(skb->data, skb->data + padsize, padpos);
 	}
 
-	qnum = ath_get_hal_qnum(skb_get_queue_mapping(skb), sc);
-	txctl.txq = &sc->tx.txq[qnum];
+	txctl.txq = sc->tx.txq_map[skb_get_queue_mapping(skb)];
 
 	ath_print(common, ATH_DBG_XMIT, "transmitting packet, skb: %p\n", skb);
 
@@ -1736,11 +1685,14 @@ static int ath9k_conf_tx(struct ieee80211_hw *hw, u16 queue,
 	struct ath_wiphy *aphy = hw->priv;
 	struct ath_softc *sc = aphy->sc;
 	struct ath_common *common = ath9k_hw_common(sc->sc_ah);
+	struct ath_txq *txq;
 	struct ath9k_tx_queue_info qi;
-	int ret = 0, qnum;
+	int ret = 0;
 
 	if (queue >= WME_NUM_AC)
 		return 0;
+
+	txq = sc->tx.txq_map[queue];
 
 	mutex_lock(&sc->mutex);
 
@@ -1750,20 +1702,19 @@ static int ath9k_conf_tx(struct ieee80211_hw *hw, u16 queue,
 	qi.tqi_cwmin = params->cw_min;
 	qi.tqi_cwmax = params->cw_max;
 	qi.tqi_burstTime = params->txop;
-	qnum = ath_get_hal_qnum(queue, sc);
 
 	ath_print(common, ATH_DBG_CONFIG,
 		  "Configure tx [queue/halq] [%d/%d],  "
 		  "aifs: %d, cw_min: %d, cw_max: %d, txop: %d\n",
-		  queue, qnum, params->aifs, params->cw_min,
+		  queue, txq->axq_qnum, params->aifs, params->cw_min,
 		  params->cw_max, params->txop);
 
-	ret = ath_txq_update(sc, qnum, &qi);
+	ret = ath_txq_update(sc, txq->axq_qnum, &qi);
 	if (ret)
 		ath_print(common, ATH_DBG_FATAL, "TXQ Update failed\n");
 
 	if (sc->sc_ah->opmode == NL80211_IFTYPE_ADHOC)
-		if ((qnum == sc->tx.hwq_map[WME_AC_BE]) && !ret)
+		if (queue == WME_AC_BE && !ret)
 			ath_beaconq_config(sc);
 
 	mutex_unlock(&sc->mutex);

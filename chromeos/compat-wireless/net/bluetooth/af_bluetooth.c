@@ -268,7 +268,7 @@ int bt_sock_recvmsg(struct kiocb *iocb, struct socket *sock,
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,32))
 		sock_recv_ts_and_drops(msg, sk, skb);
 #else
-	  sock_recv_timestamp(msg, sk, skb);
+		sock_recv_timestamp(msg, sk, skb);
 #endif
 
 	skb_free_datagram(sk, skb);
@@ -352,7 +352,7 @@ int bt_sock_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,31))
 		amount = sk->sk_sndbuf - sk_wmem_alloc_get(sk);
 #else
-    amount = sk->sk_sndbuf - atomic_read(&sk->sk_wmem_alloc);
+		amount = sk->sk_sndbuf - atomic_read(&sk->sk_wmem_alloc);
 #endif
 		if (amount < 0)
 			amount = 0;

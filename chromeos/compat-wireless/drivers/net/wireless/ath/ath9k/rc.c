@@ -1320,22 +1320,6 @@ static u8 ath_rc_build_ht_caps(struct ath_softc *sc, struct ieee80211_sta *sta,
 	return caps;
 }
 
-static bool ath_tx_aggr_check(struct ath_softc *sc, struct ath_node *an,
-			      u8 tidno)
-{
-	struct ath_atx_tid *txtid;
-
-	if (!(sc->sc_flags & SC_OP_TXAGGR))
-		return false;
-
-	txtid = ATH_AN_2_TID(an, tidno);
-
-	if (!(txtid->state & (AGGR_ADDBA_COMPLETE | AGGR_ADDBA_PROGRESS)))
-			return true;
-	return false;
-}
-
-
 /***********************************/
 /* mac80211 Rate Control callbacks */
 /***********************************/
@@ -1374,6 +1358,12 @@ static void ath_tx_status(void *priv, struct ieee80211_supported_band *sband,
 
 	if (tx_info->flags & IEEE80211_TX_STAT_TX_FILTERED)
 		return;
+
+	if (!(tx_info->flags & IEEE80211_TX_STAT_AMPDU)) {
+		tx_info->status.ampdu_ack_len =
+			(tx_info->flags & IEEE80211_TX_STAT_ACK ? 1 : 0);
+		tx_info->status.ampdu_len = 1;
+	}
 
 	/*
 	 * If an underrun error is seen assume it as an excessive retry only

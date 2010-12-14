@@ -475,12 +475,10 @@ int wiphy_register(struct wiphy *wiphy)
 	mutex_lock(&cfg80211_mutex);
 
 	res = device_add(&rdev->wiphy.dev);
-	if (res)
-		goto out_unlock;
-
-	res = rfkill_register(rdev->rfkill);
-	if (res)
-		goto out_rm_dev;
+	if (res) {
+		mutex_unlock(&cfg80211_mutex);
+		return res;
+	}
 
 	/* set up regulatory info */
 	wiphy_update_regulatory(wiphy, NL80211_REGDOM_SET_BY_CORE);
@@ -509,13 +507,18 @@ int wiphy_register(struct wiphy *wiphy)
 	cfg80211_debugfs_rdev_add(rdev);
 	mutex_unlock(&cfg80211_mutex);
 
+	/*
+	 * due to a locking dependency this has to be outside of the
+	 * cfg80211_mutex lock
+	 */
+	res = rfkill_register(rdev->rfkill);
+	if (res)
+		goto out_rm_dev;
+
 	return 0;
 
 out_rm_dev:
 	device_del(&rdev->wiphy.dev);
-
-out_unlock:
-	mutex_unlock(&cfg80211_mutex);
 	return res;
 }
 EXPORT_SYMBOL(wiphy_register);
@@ -921,52 +924,3 @@ static void __exit cfg80211_exit(void)
 	destroy_workqueue(cfg80211_wq);
 }
 module_exit(cfg80211_exit);
-
-static int ___wiphy_printk(const char *level, const struct wiphy *wiphy,
-			   struct va_format *vaf)
-{
-	if (!wiphy)
-		return printk("%s(NULL wiphy *): %pV", level, vaf);
-
-	return printk("%s%s: %pV", level, wiphy_name(wiphy), vaf);
-}
-
-int __wiphy_printk(const char *level, const struct wiphy *wiphy,
-		   const char *fmt, ...)
-{
-	struct va_format vaf;
-	va_list args;
-	int r;
-
-	va_start(args, fmt);
-
-	vaf.fmt = fmt;
-	vaf.va = &args;
-
-	r = ___wiphy_printk(level, wiphy, &vaf);
-	va_end(args);
-
-	return r;
-}
-EXPORT_SYMBOL(__wiphy_printk);
-
-#define define_wiphy_printk_level(func, kern_level)		\
-int func(const struct wiphy *wiphy, const char *fmt, ...)	\
-{								\
-	struct va_format vaf;					\
-	va_list args;						\
-	int r;							\
-								\
-	va_start(args, fmt);					\
-								\
-	vaf.fmt = fmt;						\
-	vaf.va = &args;						\
-								\
-	r = ___wiphy_printk(kern_level, wiphy, &vaf);		\
-	va_end(args);						\
-								\
-	return r;						\
-}								\
-EXPORT_SYMBOL(func);
-
-define_wiphy_printk_level(wiphy_debug, KERN_DEBUG);

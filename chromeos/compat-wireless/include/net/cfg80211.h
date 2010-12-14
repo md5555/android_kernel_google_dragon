@@ -1207,13 +1207,14 @@ struct cfg80211_ops {
  * 	initiator is %REGDOM_SET_BY_CORE).
  * @WIPHY_FLAG_STRICT_REGULATORY: tells us the driver for this device will
  *	ignore regulatory domain settings until it gets its own regulatory
- *	domain via its regulatory_hint(). After its gets its own regulatory
- *	domain it will only allow further regulatory domain settings to
- *	further enhance compliance. For example if channel 13 and 14 are
- *	disabled by this regulatory domain no user regulatory domain can
- *	enable these channels at a later time. This can be used for devices
- *	which do not have calibration information gauranteed for frequencies
- *	or settings outside of its regulatory domain.
+ *	domain via its regulatory_hint() unless the regulatory hint is
+ *	from a country IE. After its gets its own regulatory domain it will
+ *	only allow further regulatory domain settings to further enhance
+ *	compliance. For example if channel 13 and 14 are disabled by this
+ *	regulatory domain no user regulatory domain can enable these channels
+ *	at a later time. This can be used for devices which do not have
+ *	calibration information gauranteed for frequencies or settings
+ *	outside of its regulatory domain.
  * @WIPHY_FLAG_DISABLE_BEACON_HINTS: enable this if your driver needs to ensure
  *	that passive scan flags and beaconing flags may not be lifted by
  *	cfg80211 due to regulatory beacon hints. For more information on beacon
@@ -2426,6 +2427,8 @@ void cfg80211_cqm_rssi_notify(struct net_device *dev,
 			      enum nl80211_cqm_rssi_threshold_event rssi_event,
 			      gfp_t gfp);
 
+#ifdef __KERNEL__
+
 /**
  * cfg80211_cqm_bitrate_notify - connection quality monitoring bitrate event
  * @dev: network device
@@ -2439,56 +2442,41 @@ void cfg80211_cqm_bitrate_notify(struct net_device *dev,
 				 u32 bitrate,
 				 gfp_t gfp);
 
-#ifdef __KERNEL__
-
 /* Logging, debugging and troubleshooting/diagnostic helpers. */
 
 /* wiphy_printk helpers, similar to dev_printk */
 
 #define wiphy_printk(level, wiphy, format, args...)		\
-	printk(level "%s: " format, wiphy_name(wiphy), ##args)
+	dev_printk(level, &(wiphy)->dev, format, ##args)
 #define wiphy_emerg(wiphy, format, args...)			\
-	wiphy_printk(KERN_EMERG, wiphy, format, ##args)
+	dev_emerg(&(wiphy)->dev, format, ##args)
 #define wiphy_alert(wiphy, format, args...)			\
-	wiphy_printk(KERN_ALERT, wiphy, format, ##args)
+	dev_alert(&(wiphy)->dev, format, ##args)
 #define wiphy_crit(wiphy, format, args...)			\
-	wiphy_printk(KERN_CRIT, wiphy, format, ##args)
+	dev_crit(&(wiphy)->dev, format, ##args)
 #define wiphy_err(wiphy, format, args...)			\
-	wiphy_printk(KERN_ERR, wiphy, format, ##args)
+	dev_err(&(wiphy)->dev, format, ##args)
 #define wiphy_warn(wiphy, format, args...)			\
-	wiphy_printk(KERN_WARNING, wiphy, format, ##args)
+	dev_warn(&(wiphy)->dev, format, ##args)
 #define wiphy_notice(wiphy, format, args...)			\
-	wiphy_printk(KERN_NOTICE, wiphy, format, ##args)
+	dev_notice(&(wiphy)->dev, format, ##args)
 #define wiphy_info(wiphy, format, args...)			\
-	wiphy_printk(KERN_INFO, wiphy, format, ##args)
+	dev_info(&(wiphy)->dev, format, ##args)
 
-int wiphy_debug(const struct wiphy *wiphy, const char *format, ...)
-	__attribute__ ((format (printf, 2, 3)));
-
-#if defined(DEBUG)
-#define wiphy_dbg(wiphy, format, args...)			\
+#define wiphy_debug(wiphy, format, args...)			\
 	wiphy_printk(KERN_DEBUG, wiphy, format, ##args)
-#elif defined(CONFIG_DYNAMIC_DEBUG)
+
 #define wiphy_dbg(wiphy, format, args...)			\
-	dynamic_pr_debug("%s: " format,	wiphy_name(wiphy), ##args)
-#else
-#define wiphy_dbg(wiphy, format, args...)				\
-({									\
-	if (0)								\
-		wiphy_printk(KERN_DEBUG, wiphy, format, ##args);	\
-	0;								\
-})
-#endif
+	dev_dbg(&(wiphy)->dev, format, ##args)
 
 #if defined(VERBOSE_DEBUG)
 #define wiphy_vdbg	wiphy_dbg
 #else
-
 #define wiphy_vdbg(wiphy, format, args...)				\
 ({									\
 	if (0)								\
 		wiphy_printk(KERN_DEBUG, wiphy, format, ##args);	\
-		0;							\
+	0;								\
 })
 #endif
 

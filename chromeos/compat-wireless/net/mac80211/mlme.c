@@ -62,7 +62,7 @@
  * How many Beacon frames need to have been used in average signal strength
  * before starting to indicate signal change events.
  */
-#define IEEE80211_SIGNAL_AVE_MIN_COUNT	4
+#define IEEE80211_SIGNAL_AVE_MIN_COUNT 4
 
 #define TMR_RUNNING_TIMER	0
 #define TMR_RUNNING_CHANSW	1

@@ -313,7 +313,7 @@ static int hidp_send_report(struct hidp_session *session, struct hid_report *rep
 	return hidp_queue_report(session, buf, rsize);
 }
 
-#if (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,27))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,34))
 static int hidp_output_raw_report(struct hid_device *hid, unsigned char *data, size_t count,
 		unsigned char report_type)
 {
@@ -329,6 +329,15 @@ static int hidp_output_raw_report(struct hid_device *hid, unsigned char *data, s
 	}
 
 	if (hidp_send_ctrl_message(hid->driver_data, report_type,
+			data, count))
+		return -ENOMEM;
+	return count;
+}
+#elif (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,27))
+static int hidp_output_raw_report(struct hid_device *hid, unsigned char *data, size_t count)
+{
+	if (hidp_send_ctrl_message(hid->driver_data,
+			HIDP_TRANS_SET_REPORT | HIDP_DATA_RTYPE_FEATURE,
 			data, count))
 		return -ENOMEM;
 	return count;
@@ -598,16 +607,16 @@ static int hidp_session(void *arg)
 		session->input = NULL;
 	}
 
-  if (session->hid) {
+	if (session->hid) {
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,27))
-    hid_destroy_device(session->hid);
-    session->hid = NULL;
+		hid_destroy_device(session->hid);
+		session->hid = NULL;
 #else
-    if (session->hid->claimed & HID_CLAIMED_INPUT)
-      hidinput_disconnect(session->hid);
-    hid_free_device(session->hid);
+		if (session->hid->claimed & HID_CLAIMED_INPUT)
+			hidinput_disconnect(session->hid);
+		hid_free_device(session->hid);
 #endif
-  }
+	}
 
 	/* Wakeup user-space polling for socket errors */
 	session->intr_sock->sk->sk_err = EUNATCH;

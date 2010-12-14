@@ -15,7 +15,8 @@ DESTDIR?=
 
 ifneq ($(KERNELRELEASE),)
 
-NOSTDINC_FLAGS := -I$(M)/include/ -include $(M)/include/linux/compat-2.6.h
+NOSTDINC_FLAGS := -I$(M)/include/ \
+	-include $(M)/include/linux/compat-2.6.h
 
 obj-y := compat/
 
@@ -251,6 +252,7 @@ install-scripts:
 
 uninstall:
 	@# New location, matches upstream
+	@rm -rf $(KLIB)/$(KMODDIR)/compat/
 	@rm -rf $(KLIB)/$(KMODDIR)/net/mac80211/
 	@rm -rf $(KLIB)/$(KMODDIR)/net/rfkill/
 	@rm -rf $(KLIB)/$(KMODDIR)/net/wireless/

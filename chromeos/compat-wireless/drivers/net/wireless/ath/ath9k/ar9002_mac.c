@@ -229,13 +229,15 @@ static int ar9002_hw_proc_txdesc(struct ath_hw *ah, void *ds,
 
 	if (ads->ds_txstatus1 & AR_FrmXmitOK)
 		ts->ts_status |= ATH9K_TX_ACKED;
-	if (ads->ds_txstatus1 & AR_ExcessiveRetries)
-		ts->ts_status |= ATH9K_TXERR_XRETRY;
-	if (ads->ds_txstatus1 & AR_Filtered)
-		ts->ts_status |= ATH9K_TXERR_FILT;
-	if (ads->ds_txstatus1 & AR_FIFOUnderrun) {
-		ts->ts_status |= ATH9K_TXERR_FIFO;
-		ath9k_hw_updatetxtriglevel(ah, true);
+	else {
+		if (ads->ds_txstatus1 & AR_ExcessiveRetries)
+			ts->ts_status |= ATH9K_TXERR_XRETRY;
+		if (ads->ds_txstatus1 & AR_Filtered)
+			ts->ts_status |= ATH9K_TXERR_FILT;
+		if (ads->ds_txstatus1 & AR_FIFOUnderrun) {
+			ts->ts_status |= ATH9K_TXERR_FIFO;
+			ath9k_hw_updatetxtriglevel(ah, true);
+		}
 	}
 	if (ads->ds_txstatus9 & AR_TxOpExceeded)
 		ts->ts_status |= ATH9K_TXERR_XTXOP;

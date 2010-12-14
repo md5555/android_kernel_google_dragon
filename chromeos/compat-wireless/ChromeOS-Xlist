@@ -10,3 +10,6 @@ log-reg
 scripts
 udev
 patches
+code-metrics.txt
+pending-stable
+Kconfig

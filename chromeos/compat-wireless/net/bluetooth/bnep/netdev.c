@@ -176,11 +176,11 @@ static inline int bnep_net_proto_filter(struct sk_buff *skb, struct bnep_session
 #endif
 
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,31))
-static netdev_tx_t bnep_net_xmit(struct sk_buff *skb, struct net_device *dev)
+static netdev_tx_t bnep_net_xmit(struct sk_buff *skb,
+				 struct net_device *dev)
 #else
 static int bnep_net_xmit(struct sk_buff *skb, struct net_device *dev)
 #endif
-
 {
 	struct bnep_session *s = netdev_priv(dev);
 	struct sock *sk = s->sock->sk;
