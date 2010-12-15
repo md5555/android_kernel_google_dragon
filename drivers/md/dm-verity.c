@@ -395,37 +395,6 @@ static void verity_align_request(struct verity_config *vc, sector_t *start,
 	*size = PAGE_ALIGN(*size);
 }
 
-/* Populates a bio_vec array starting with the pointer provided allocating
- * pages from the given page pool until bytes reaches 0.
- * The next position in the bio_vec array is returned on success. On
- * failure, a NULL is returned.
- * It is assumed that the bio_vec array is properly sized.
- */
-static struct bio_vec *populate_bio_vec(struct bio_vec *bvec,
-					mempool_t *page_pool,
-					unsigned int bytes,
-					unsigned int *pages_added) {
-	gfp_t gfp_mask = GFP_NOIO | __GFP_HIGHMEM;
-	if (!bvec || !page_pool || !pages_added)
-		return NULL;
-
-	while (bytes > 0) {
-		DMDEBUG("bytes == %u", bytes);
-		bvec->bv_offset = 0;
-		bvec->bv_len = min(bytes, (unsigned int)PAGE_SIZE);
-		ALLOCTRACE("page for bio_vec %p", bvec);
-		bvec->bv_page = mempool_alloc(page_pool, gfp_mask);
-		if (unlikely(bvec->bv_page == NULL)) {
-			DMERR("Out of pages in the page_pool!");
-			return NULL;
-		}
-		bytes -= bvec->bv_len;
-		++*pages_added;
-		++bvec;
-	}
-	return bvec;
-}
-
 static int verity_hash_bv(struct verity_config *vc,
 			  struct verify_context *ctx)
 {
@@ -475,8 +444,6 @@ static int verity_hash_bv(struct verity_config *vc,
 
 static void kverityd_verify_cleanup(struct dm_verity_io *io, int error)
 {
-	struct verity_config *vc = io->target->private;
-
 	/* Propagate the verification error. */
 	io->error = error;
 }
@@ -1218,8 +1185,6 @@ static void kverityd_io_bht_populate(struct dm_verity_io *io)
 static void kverityd_src_io_read_end(struct bio *clone, int error)
 {
 	struct dm_verity_io *io = clone->bi_private;
-	struct verity_config *vc = io->target->private;
-	/* struct verity_config *vc = io->target->private; */
 
 	DMDEBUG("Padded I/O completed");
 	if (unlikely(!bio_flagged(clone, BIO_UPTODATE) && !error))
