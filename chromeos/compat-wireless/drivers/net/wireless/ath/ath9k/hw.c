@@ -2134,6 +2134,10 @@ int ath9k_hw_fill_cap_info(struct ath_hw *ah)
 	if (!(AR_SREV_9280(ah) && (ah->hw_version.macRev == 0)))
 		ah->misc_mode |= AR_PCU_MIC_NEW_LOC_ENA;
 
+	/* enable key search for every frame in an aggregate */
+	if (AR_SREV_9300_20_OR_LATER(ah))
+		ah->misc_mode |= AR_PCU_ALWAYS_PERFORM_KEYSEARCH;
+
 	pCap->low_2ghz_chan = 2312;
 	pCap->high_2ghz_chan = 2732;
 
@@ -2277,6 +2281,9 @@ int ath9k_hw_fill_cap_info(struct ath_hw *ah)
 	if (AR_SREV_9300_20_OR_LATER(ah))
 		pCap->hw_caps |= ATH9K_HW_CAP_RAC_SUPPORTED;
 
+	if (AR_SREV_9300_20_OR_LATER(ah))
+		ah->ent_mode = REG_READ(ah, AR_ENT_OTP);
+
 	if (AR_SREV_9287_10_OR_LATER(ah) || AR_SREV_9271(ah))
 		pCap->hw_caps |= ATH9K_HW_CAP_SGI_20;
 
@@ -2350,7 +2357,8 @@ u32 ath9k_hw_gpio_get(struct ath_hw *ah, u32 gpio)
 		val = REG_READ(ah, AR7010_GPIO_IN);
 		return (MS(val, AR7010_GPIO_IN_VAL) & AR_GPIO_BIT(gpio)) == 0;
 	} else if (AR_SREV_9300_20_OR_LATER(ah))
-		return MS_REG_READ(AR9300, gpio) != 0;
+		return (MS(REG_READ(ah, AR_GPIO_IN), AR9300_GPIO_IN_VAL) &
+			AR_GPIO_BIT(gpio)) != 0;
 	else if (AR_SREV_9271(ah))
 		return MS_REG_READ(AR9271, gpio) != 0;
 	else if (AR_SREV_9287_10_OR_LATER(ah))

@@ -1013,10 +1013,12 @@ enum {
 #define AR9287_GPIO_IN_VAL_S                     11
 #define AR9271_GPIO_IN_VAL                       0xFFFF0000
 #define AR9271_GPIO_IN_VAL_S                     16
-#define AR9300_GPIO_IN_VAL                       0x0001FFFF
-#define AR9300_GPIO_IN_VAL_S                     0
 #define AR7010_GPIO_IN_VAL                       0x0000FFFF
 #define AR7010_GPIO_IN_VAL_S                     0
+
+#define AR_GPIO_IN				 0x404c
+#define AR9300_GPIO_IN_VAL                       0x0001FFFF
+#define AR9300_GPIO_IN_VAL_S                     0
 
 #define AR_GPIO_OE_OUT                           (AR_SREV_9300_20_OR_LATER(ah) ? 0x4050 : 0x404c)
 #define AR_GPIO_OE_OUT_DRV                       0x3
@@ -1101,6 +1103,9 @@ enum {
 #define AR_INTR_PRIO_ASYNC_MASK   0x40c8
 #define AR_INTR_PRIO_SYNC_MASK    0x40cc
 #define AR_INTR_PRIO_ASYNC_ENABLE 0x40d4
+#define AR_ENT_OTP		  0x40d8
+#define AR_ENT_OTP_CHAIN2_DISABLE               0x00020000
+#define AR_ENT_OTP_MPSD		0x00800000
 
 #define AR_RTC_9300_PLL_DIV          0x000003ff
 #define AR_RTC_9300_PLL_DIV_S        0
@@ -1606,6 +1611,7 @@ enum {
 #define AR_PCU_TBTT_PROTECT        0x00200000
 #define AR_PCU_CLEAR_VMF           0x01000000
 #define AR_PCU_CLEAR_BA_VALID      0x04000000
+#define AR_PCU_ALWAYS_PERFORM_KEYSEARCH 0x10000000
 
 #define AR_PCU_BT_ANT_PREVENT_RX   0x00100000
 #define AR_PCU_BT_ANT_PREVENT_RX_S 20
