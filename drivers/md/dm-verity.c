@@ -154,7 +154,6 @@ struct verify_context {
 	struct bio *bio;  /* block_size padded bio or aligned original bio */
 	unsigned int offset;  /* into current bio_vec */
 	unsigned int idx;  /* of current bio_vec */
-	unsigned int needed;  /* for next hash */
 	sector_t block;  /*  current block */
 };
 
@@ -173,12 +172,6 @@ struct dm_verity_io {
 	sector_t sector;  /* unaligned, converted to target sector */
 	sector_t block;  /* aligned block index */
 	sector_t count;  /* aligned count in blocks */
-
-	/* Tracks the number of bv_pages that were allocated
-	 * from the local pool during request padding.
-	 */
-	unsigned int leading_pages;
-	unsigned int trailing_pages;
 };
 
 struct verity_config {
@@ -276,8 +269,6 @@ void verity_stats_average_requeues(struct verity_config *vc, int requeues)
  * Allocation and utility functions
  *-----------------------------------------------*/
 
-static void verity_align_request(struct verity_config *vc, sector_t *start,
-				 unsigned int *size);
 static void kverityd_src_io_read_end(struct bio *clone, int error);
 
 /* Shared destructor for all internal bios */
@@ -311,8 +302,6 @@ static struct dm_verity_io *verity_io_alloc(struct dm_target *ti,
 {
 	struct verity_config *vc = ti->private;
 	struct dm_verity_io *io;
-	unsigned int aligned_size = bio->bi_size;
-	sector_t aligned_sector = sector;
 
 	ALLOCTRACE("dm_verity_io for sector %llu", ULL(sector));
 	io = mempool_alloc(vc->io_pool, GFP_NOIO);
@@ -324,14 +313,11 @@ static struct dm_verity_io *verity_io_alloc(struct dm_target *ti,
 	io->base_bio = bio;
 	io->sector = sector;
 	io->error = 0;
-	io->leading_pages = 0;
-	io->trailing_pages = 0;
 	io->ctx.bio = NULL;
 
-	verity_align_request(vc, &aligned_sector, &aligned_size);
 	/* Adjust the sector by the virtual starting sector */
-	io->block = (to_bytes(aligned_sector)) >> PAGE_SHIFT;
-	io->count = aligned_size >> PAGE_SHIFT;
+	io->block = (to_bytes(sector)) >> PAGE_SHIFT;
+	io->count = bio->bi_size >> PAGE_SHIFT;
 
 	DMDEBUG("io_alloc for %llu blocks starting at %llu",
 		ULL(io->count), ULL(io->block));
@@ -350,7 +336,6 @@ static int verity_verify_context_init(struct verity_config *vc,
 		return -EINVAL;
 	}
 	ctx->offset = 0;
-	ctx->needed = PAGE_SIZE;
 	ctx->idx = ctx->bio ? ctx->bio->bi_idx : 0;
 	/* The sector has already be translated and adjusted to the
 	 * appropriate start for reading.
@@ -380,27 +365,14 @@ static void clone_init(struct dm_verity_io *io, struct bio *clone,
 	clone->bi_sector = start;
 }
 
-static void verity_align_request(struct verity_config *vc, sector_t *start,
-				 unsigned int *size)
-{
-	sector_t base_sector;
-	VERITY_BUG_ON(!start || !size || !vc, "NULL arguments");
-
-	base_sector = *start;
-	/* Mask off to the starting sector for a block */
-	*start = base_sector & (~(to_sector(PAGE_SIZE) - 1));
-	/* Add any extra bytes from the lead */
-	*size += to_bytes(base_sector - *start);
-	/* Now round up the size to the full block size */
-	*size = PAGE_ALIGN(*size);
-}
-
 static int verity_hash_bv(struct verity_config *vc,
 			  struct verify_context *ctx)
 {
 	struct bio_vec *bv = bio_iovec_idx(ctx->bio, ctx->idx);
 	struct scatterlist sg;
 	unsigned int size = bv->bv_len - (bv->bv_offset + ctx->offset);
+
+	VERITY_BUG_ON(size != PAGE_SIZE);
 
 	/* Catch unexpected undersized bvs */
 	if (bv->bv_len < bv->bv_offset + ctx->offset) {
@@ -409,10 +381,6 @@ static int verity_hash_bv(struct verity_config *vc,
 		return 0;
 	}
 
-	/* Only update the hash with the amount that's needed for this
-	 * block (as tracked in the ctx->sector).
-	 */
-	size = min(size, ctx->needed);
 	DMDEBUG("Updating hash for block %llu vector idx %u: "
 		"size:%u offset:%u+%u len:%u",
 		ULL(ctx->block), ctx->idx, size, bv->bv_offset, ctx->offset,
@@ -430,7 +398,6 @@ static int verity_hash_bv(struct verity_config *vc,
 		DMCRIT("Failed to update crypto hash");
 		return -EFAULT;
 	}
-	ctx->needed -= size;
 	ctx->offset += size;
 
 	if (ctx->offset + bv->bv_offset >= bv->bv_len) {
@@ -909,10 +876,6 @@ static int verity_verify(struct verity_config *vc,
 		if (r < 0)
 			goto bad_hash;
 
-		/* Continue until all the data expected is processed */
-		if (ctx->needed)
-			continue;
-
 		/* Calculate the final block digest to check in the tree */
 		if (crypto_hash_final(&vc->hash[smp_processor_id()], digest)) {
 			DMCRIT("Failed to compute final digest");
@@ -943,7 +906,6 @@ static int verity_verify(struct verity_config *vc,
 			r = -ENOMEM;
 			goto no_mem;
 		}
-		ctx->needed = PAGE_SIZE;
 		ctx->block++;
 		/* After completing a block, allow a reschedule.
 		 * TODO(wad) determine if this is truly needed.
@@ -1215,8 +1177,6 @@ static void kverityd_src_io_read(struct dm_verity_io *io)
 	struct verity_config *vc = io->target->private;
 	struct bio *base_bio = io->base_bio;
 	sector_t bio_start = vc->start + io->sector;
-	unsigned int bio_size = base_bio->bi_size;
-	unsigned int leading_bytes, trailing_bytes;
 	struct bio *clone;
 
 	VERITY_BUG_ON(!io);
@@ -1231,24 +1191,10 @@ static void kverityd_src_io_read(struct dm_verity_io *io)
 	DMDEBUG("kverity_io_read started");
 
 	verity_inc_pending(io);
-	/* We duplicate the bio here for two reasons:
-	 * 1. The block layer may modify the bvec array
-	 * 2. We may need to pad to BLOCK_SIZE
-	 * First, we have to determine if we need more segments than are
-	 * currently in use.
-	 */
-	verity_align_request(vc, &bio_start, &bio_size);
-	/* Number of bytes alignment added to the start */
-	leading_bytes = to_bytes((vc->start + io->sector) - bio_start);
-	/* ... to the end of the original bio. */
-	trailing_bytes = (bio_size - leading_bytes) - base_bio->bi_size;
-
-	/* We set logical_block_size=PAGE_SIZE so this should never happen. */
-	VERITY_BUG_ON(leading_bytes || trailing_bytes);
 
 	io->ctx.bio = base_bio;
 
-	/* Now clone the padded request */
+	/* Clone the bio. The block layer may modify the bvec array. */
 	DMDEBUG("Creating clone of the padded request");
 	ALLOCTRACE("clone for io %p, sector %llu",
 		   io, ULL(bio_start));
@@ -1378,6 +1324,10 @@ static int verity_map(struct dm_target *ti, struct bio *bio,
 		/* bio_endio(bio, -EIO); */
 		return -EIO;
 	} else {
+		/* logical_block_size=PAGE_SIZE so this should never happen. */
+		VERITY_BUG_ON(bio->bi_sector % to_sector(PAGE_SIZE));
+		VERITY_BUG_ON(bio->bi_size % PAGE_SIZE);
+
 		/* Queue up the request to be verified */
 		io = verity_io_alloc(ti, bio, bio->bi_sector - ti->begin);
 		if (!io) {
