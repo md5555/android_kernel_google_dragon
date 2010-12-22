@@ -43,7 +43,6 @@
 #include <linux/dm-bht.h>
 
 #define DM_MSG_PREFIX "verity"
-#define MESG_STR(x) x, sizeof(x)
 
 /* Supports up to 512-bit digests */
 #define VERITY_MAX_DIGEST_SIZE 64
@@ -787,7 +786,7 @@ static int verity_get_device(struct dm_target *ti, const char *devname,
 
 		/* Try the device by partition UUID */
 		if (!dm_get_device_by_uuid(ti, devname, dev_start, dev_len,
-		                           dm_dev))
+					   dm_dev))
 			return 0;
 
 		/* No need to be too aggressive since this is a slow path. */
@@ -1570,13 +1569,12 @@ static int verity_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 	md = dm_table_get_md(ti->table);
 	md_queue = dm_disk(md)->queue;
 	spin_lock_irq(md_queue->queue_lock);
-	if (blk_queue_nonrot(dev_queue)) {
+	if (blk_queue_nonrot(dev_queue))
 		queue_flag_set(QUEUE_FLAG_NONROT, md_queue);
-        } else {
+	else
 		queue_flag_clear(QUEUE_FLAG_NONROT, md_queue);
-	}
 	spin_unlock_irq(md_queue->queue_lock);
-        dm_put(md);
+	dm_put(md);
 
 	ti->num_flush_requests = 1;
 	ti->private = vc;
