@@ -263,10 +263,6 @@ config DM_VERITY
 	select DM_BHT
 	select CRYPTO
 	select CRYPTO_HASH
-	# TODO(wad) it is possible that the hash context per cpu approach
-	#           is not safe with PREEMPT.  Until checked, PREEMPT is
-	#           not allowed.
-	depends on !PREEMPT
 	---help---
 	  This device-mapper target allows you to create a device that
 	  transparently integrity checks the data on it. You'll need to
@@ -279,6 +275,19 @@ config DM_VERITY
 
 	  To compile this code as a module, choose M here: the module will
 	  be called dm-verity.
+
+	  If unsure, say N.
+
+config DM_VERITY_CHROMEOS
+	bool "Support Chrome OS specific verity error behavior"
+	depends on DM_VERITY
+	---help---
+	  Enables Chrome OS platform-specific error behavior.  In particular,
+	  it will modify the partition preceding the verified block device
+	  when non-transient error occurs (followed by a panic).
+
+	  This module relies on linux/chromeos_platform.h and will behave
+	  reasonably if it only supplies the stubs.
 
 	  If unsure, say N.
 
