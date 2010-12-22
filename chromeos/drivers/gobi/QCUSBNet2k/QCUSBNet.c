@@ -79,6 +79,7 @@ POSSIBILITY OF SUCH DAMAGE.
 //---------------------------------------------------------------------------
 // Include Files
 //---------------------------------------------------------------------------
+#include <linux/ctype.h>
 
 #include "Structs.h"
 #include "QMIDevice.h"
@@ -1072,6 +1073,16 @@ static const struct usb_device_id QCVIDPIDTable [] =
 
 MODULE_DEVICE_TABLE( usb, QCVIDPIDTable );
 
+static u8 nibble(unsigned char c)
+{
+        if (likely(isdigit(c)))
+                return c - '0';
+        c = toupper(c);
+        if (likely(isxdigit(c)))
+                return 10 + c - 'A';
+        return 0;
+}
+
 /*===========================================================================
 METHOD:
    QCUSBNetProbe (Public Method)
@@ -1098,6 +1109,8 @@ int QCUSBNetProbe(
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION( 2,6,29 ))
    struct net_device_ops * pNetDevOps;
 #endif
+   int i;
+   u8 *addr;
 
    status = usbnet_probe( pIntf, pVIDPIDs );
    if(status < 0 )
@@ -1167,9 +1180,6 @@ int QCUSBNetProbe(
 
    pQCDev->mpIntf = pIntf;
    memset( &(pQCDev->mMEID), '0', 14 );
-   
-   DBG( "Mac Address:\n" );
-   PrintHex( &pQCDev->mpNetDev->net->dev_addr[0], 6 );
 
    pQCDev->mbQMIValid = false;
    memset( &pQCDev->mQMIDev, 0, sizeof( sQMIDev ) );
@@ -1194,7 +1204,20 @@ int QCUSBNetProbe(
       usbnet_disconnect( pIntf );
       return status;
    }
-   
+
+   // After calling RegisterQMIDevice mMEID is valid.  Although most
+   // drivers set the MAC address in bind(), we need to wait until the
+   // MEID is available.
+   addr = &pDev->net->dev_addr[0];
+   for (i = 0; i < 6; i++)
+     addr[i] = (nibble(pQCDev->mMEID[i*2+2]) << 4) +
+         nibble(pQCDev->mMEID[i*2+3]);
+   addr [0] &= 0xfe;       /* clear multicast bit */
+   addr [0] |= 0x02;       /* set local assignment bit (IEEE802) */
+
+   DBG( "Mac Address:\n" );
+   PrintHex( &pQCDev->mpNetDev->net->dev_addr[0], 6 );
+
    // Success
    return 0;
 }
