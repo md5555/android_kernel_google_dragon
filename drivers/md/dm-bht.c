@@ -908,36 +908,44 @@ EXPORT_SYMBOL(dm_bht_zeroread_callback);
  */
 int dm_bht_compute(struct dm_bht *bht, void *read_cb_ctx)
 {
-	unsigned int block;
-	int updated = 0;
-	int verify_mode = bht->verify_mode;
-	/* Start at the last block and walk backwards. */
-	bht->verify_mode = DM_BHT_FULL_REVERIFY;
-	for (block = bht->block_count - 1; block != 0;
-	     block -= bht->node_count) {
-		DMDEBUG("Updating levels for block %u", block);
-		updated = dm_bht_populate(bht, read_cb_ctx, block);
-		if (updated < 0) {
-			DMERR("Failed to pre-zero entries");
+	struct hash_desc *hash_desc = &bht->hash_desc[smp_processor_id()];
+	int depth, r;
+
+	for (depth = bht->depth - 2; depth >= 0; depth--) {
+		struct dm_bht_level *level = dm_bht_get_level(bht, depth);
+		struct dm_bht_level *child_level = level + 1;
+		struct dm_bht_entry *entry = level->entries;
+		struct dm_bht_entry *child = child_level->entries;
+		unsigned int count = min(bht->node_count, child_level->count);
+		unsigned int i, j;
+
+		r = dm_bht_maybe_read_entries(bht, read_cb_ctx, depth,
+					      0, level->count, true);
+		if (r < 0) {
+			DMCRIT("an error occurred while reading entry");
 			goto out;
 		}
-		updated = dm_bht_verify_path(bht,
-					     block,
-					     dm_bht_update_hash);
-		if (updated) {
-			DMERR("Failed to update levels for block %u",
-			      block);
-			goto out;
+
+		for (i = 0; i < level->count; i++, entry++) {
+			for (j = 0; j < count; j++, child++) {
+				struct page *pg = virt_to_page(child->nodes);
+				u8 *node = dm_bht_node(bht, entry, j);
+
+				r = dm_bht_compute_and_compare(bht, hash_desc,
+						pg, node, dm_bht_update_hash);
+				if (r) {
+					DMERR("Failed to update (d=%u,i=%u)",
+					      depth, i);
+					goto out;
+				}
+			}
 		}
-		if (block < bht->node_count)
-			break;
 	}
 	/* Don't forget the root digest! */
 	DMDEBUG("Calling verify_root with update_hash");
-	updated = dm_bht_verify_root(bht, dm_bht_update_hash);
+	r = dm_bht_verify_root(bht, dm_bht_update_hash);
 out:
-	bht->verify_mode = verify_mode;
-	return updated;
+	return r;
 }
 EXPORT_SYMBOL(dm_bht_compute);
 
