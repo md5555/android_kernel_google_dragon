@@ -22,7 +22,7 @@
 #define DRIVER_DESC "Qualcomm USB Serial driver"
 
 static int debug;
-static int export_non_qmi;
+static bool export_non_qmi = true;
 
 static const struct usb_device_id id_table[] = {
 	{USB_DEVICE(0x05c6, 0x9211)},	/* Acer Gobi QDL device */
