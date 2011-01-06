@@ -1632,8 +1632,6 @@ static int ath_tx_setup_buffer(struct ieee80211_hw *hw, struct ath_buf *bf,
 	}
 
 	bf->bf_state.bfs_paprd = txctl->paprd;
-	if (txctl->paprd)
-		bf->bf_state.bfs_paprd_timestamp = jiffies;
 	bf->bf_flags = setup_tx_flags(skb, use_ldpc);
 
 	bf->bf_keytype = get_hw_crypto_keytype(skb);
@@ -1936,9 +1934,7 @@ static void ath_tx_complete_buf(struct ath_softc *sc, struct ath_buf *bf,
 	dma_unmap_single(sc->dev, bf->bf_dmacontext, skb->len, DMA_TO_DEVICE);
 
 	if (bf->bf_state.bfs_paprd) {
-		if (time_after(jiffies,
-			       bf->bf_state.bfs_paprd_timestamp +
-			       msecs_to_jiffies(ATH_PAPRD_TIMEOUT)))
+		if (!sc->paprd_pending)
 			dev_kfree_skb_any(skb);
 		else
 			complete(&sc->paprd_complete);

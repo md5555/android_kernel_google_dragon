@@ -4650,6 +4650,16 @@ static void ar9003_hw_set_power_per_rate_table(struct ath_hw *ah,
 	} /* end ctl mode checking */
 }
 
+static inline u8 mcsidx_to_tgtpwridx(unsigned int mcs_idx, u8 base_pwridx)
+{
+	u8 mod_idx = mcs_idx % 8;
+
+	if (mod_idx <= 3)
+		return mod_idx ? (base_pwridx + 1) : base_pwridx;
+	else
+		return base_pwridx + 4 * (mcs_idx / 8) + mod_idx - 2;
+}
+
 static void ath9k_hw_ar9300_set_txpower(struct ath_hw *ah,
 					struct ath9k_channel *chan, u16 cfgCtl,
 					u8 twiceAntennaReduction,
@@ -4657,15 +4667,69 @@ static void ath9k_hw_ar9300_set_txpower(struct ath_hw *ah,
 					u8 powerLimit)
 {
 	struct ath_common *common = ath9k_hw_common(ah);
+	struct ar9300_eeprom *eep = &ah->eeprom.ar9300_eep;
+	struct ar9300_modal_eep_header *modal_hdr;
 	u8 targetPowerValT2[ar9300RateSize];
-	unsigned int i = 0;
+	u8 target_power_val_t2_eep[ar9300RateSize];
+	unsigned int i = 0, paprd_scale_factor = 0;
+	u8 pwr_idx, min_pwridx = 0;
 
 	ar9003_hw_set_target_power_eeprom(ah, chan->channel, targetPowerValT2);
+
+	if (ah->eep_ops->get_eeprom(ah, EEP_PAPRD)) {
+		if (IS_CHAN_2GHZ(chan))
+			modal_hdr = &eep->modalHeader2G;
+		else
+			modal_hdr = &eep->modalHeader5G;
+
+		ah->paprd_ratemask =
+			le32_to_cpu(modal_hdr->papdRateMaskHt20) &
+			AR9300_PAPRD_RATE_MASK;
+
+		ah->paprd_ratemask_ht40 =
+			le32_to_cpu(modal_hdr->papdRateMaskHt40) &
+			AR9300_PAPRD_RATE_MASK;
+
+		paprd_scale_factor = ar9003_get_paprd_scale_factor(ah, chan);
+		min_pwridx = IS_CHAN_HT40(chan) ? ALL_TARGET_HT40_0_8_16 :
+						  ALL_TARGET_HT20_0_8_16;
+
+		if (!ah->paprd_table_write_done) {
+			memcpy(target_power_val_t2_eep, targetPowerValT2,
+			       sizeof(targetPowerValT2));
+			for (i = 0; i < 24; i++) {
+				pwr_idx = mcsidx_to_tgtpwridx(i, min_pwridx);
+				if (ah->paprd_ratemask & (1 << i)) {
+					if (targetPowerValT2[pwr_idx] &&
+					    targetPowerValT2[pwr_idx] ==
+					    target_power_val_t2_eep[pwr_idx])
+						targetPowerValT2[pwr_idx] -=
+							paprd_scale_factor;
+				}
+			}
+		}
+		memcpy(target_power_val_t2_eep, targetPowerValT2,
+		       sizeof(targetPowerValT2));
+	}
+
 	ar9003_hw_set_power_per_rate_table(ah, chan,
 					   targetPowerValT2, cfgCtl,
 					   twiceAntennaReduction,
 					   twiceMaxRegulatoryPower,
 					   powerLimit);
+
+	if (ah->eep_ops->get_eeprom(ah, EEP_PAPRD)) {
+		for (i = 0; i < ar9300RateSize; i++) {
+			if ((ah->paprd_ratemask & (1 << i)) &&
+			    (abs(targetPowerValT2[i] -
+				target_power_val_t2_eep[i]) >
+			    paprd_scale_factor)) {
+				ah->paprd_ratemask &= ~(1 << i);
+				ath_print(common, ATH_DBG_EEPROM,
+					"paprd disabled for mcs %d\n", i);
+			}
+		}
+	}
 
 	while (i < ar9300RateSize) {
 		ath_print(common, ATH_DBG_EEPROM,
@@ -4705,6 +4769,19 @@ static void ath9k_hw_ar9300_set_txpower(struct ath_hw *ah,
 	ah->txpower_limit = targetPowerValT2[i];
 
 	ar9003_hw_calibration_apply(ah, chan->channel);
+
+	if (IS_CHAN_2GHZ(chan)) {
+		if (IS_CHAN_HT40(chan))
+			i = ALL_TARGET_HT40_0_8_16;
+		else
+			i = ALL_TARGET_HT20_0_8_16;
+	} else {
+		if (IS_CHAN_HT40(chan))
+			i = ALL_TARGET_HT40_7;
+		else
+			i = ALL_TARGET_HT20_7;
+	}
+	ah->paprd_target_power = targetPowerValT2[i];
 }
 
 static u16 ath9k_hw_ar9300_get_spur_channel(struct ath_hw *ah,
@@ -4725,6 +4802,27 @@ s32 ar9003_hw_get_rx_gain_idx(struct ath_hw *ah)
 	struct ar9300_eeprom *eep = &ah->eeprom.ar9300_eep;
 
 	return (eep->baseEepHeader.txrxgain) & 0xf; /* bits 3:0 */
+}
+
+unsigned int ar9003_get_paprd_scale_factor(struct ath_hw *ah,
+					   struct ath9k_channel *chan)
+{
+	struct ar9300_eeprom *eep = &ah->eeprom.ar9300_eep;
+
+	if (IS_CHAN_2GHZ(chan))
+		return MS(le32_to_cpu(eep->modalHeader2G.papdRateMaskHt20),
+			  AR9300_PAPRD_SCALE_1);
+	else {
+		if (chan->channel >= 5700)
+		return MS(le32_to_cpu(eep->modalHeader5G.papdRateMaskHt20),
+			  AR9300_PAPRD_SCALE_1);
+		else if (chan->channel >= 5400)
+			return MS(le32_to_cpu(eep->modalHeader5G.papdRateMaskHt40),
+				   AR9300_PAPRD_SCALE_2);
+		else
+			return MS(le32_to_cpu(eep->modalHeader5G.papdRateMaskHt40),
+				  AR9300_PAPRD_SCALE_1);
+	}
 }
 
 const struct eeprom_ops eep_ar9300_ops = {

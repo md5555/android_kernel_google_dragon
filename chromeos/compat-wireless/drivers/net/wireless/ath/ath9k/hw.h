@@ -835,6 +835,11 @@ struct ath_hw {
 	u32 bb_watchdog_last_status;
 	u32 bb_watchdog_timeout_ms; /* in ms, 0 to disable */
 
+	unsigned int paprd_target_power;
+	unsigned int paprd_training_power;
+	unsigned int paprd_ratemask;
+	unsigned int paprd_ratemask_ht40;
+	bool paprd_table_write_done;
 	u32 paprd_gain_table_entries[PAPRD_GAIN_TABLE_ENTRIES];
 	u8 paprd_gain_table_index[PAPRD_GAIN_TABLE_ENTRIES];
 	/*
@@ -872,6 +877,11 @@ static inline int sign_extend(int val, const int nbits)
 {
 	int order = BIT(nbits-1);
 	return (val ^ order) - order;
+}
+
+static inline u8 get_streams(int mask)
+{
+	return !!(mask & BIT(0)) + !!(mask & BIT(1)) + !!(mask & BIT(2));
 }
 
 /* Initialization, Detach, Reset */
