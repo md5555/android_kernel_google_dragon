@@ -1317,8 +1317,9 @@ static void ath9k_stop(struct ieee80211_hw *hw)
 
 	ath9k_ps_restore(sc);
 
-	/* Finally, put the chip in FULL SLEEP mode */
-	ath9k_setpower(sc, ATH9K_PM_FULL_SLEEP);
+	sc->ps_idle = true;
+	ath9k_set_wiphy_idle(aphy, true);
+	ath_radio_disable(sc, hw);
 
 	sc->sc_flags |= SC_OP_INVALID;
 

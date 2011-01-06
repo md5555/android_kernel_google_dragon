@@ -525,7 +525,6 @@ static int ieee80211_stop(struct net_device *dev)
 
 	if (local->open_count == 0) {
 		ieee80211_clear_tx_pending(local);
-		drv_config(local, IEEE80211_CONF_CHANGE_IDLE);
 		ieee80211_stop_device(local);
 
 		/* no reconfiguring after stop! */
