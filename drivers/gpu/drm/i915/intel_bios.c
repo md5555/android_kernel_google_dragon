@@ -492,9 +492,20 @@ parse_device_mapping(struct drm_i915_private *dev_priv,
 	return;
 }
 
+static int intel_bios_ssc_frequency(struct drm_device *dev, bool high_speed)
+{
+	if (IS_GEN2(dev))
+		return high_speed ? 66 : 48;
+	if (IS_GEN3(dev) || IS_GEN4(dev))
+		return high_speed ? 100 : 96;
+	return high_speed ? 120 : 100;
+}
+
 static void
 init_vbt_defaults(struct drm_i915_private *dev_priv)
 {
+	struct drm_device *dev = dev_priv->dev;
+
 	/* LFP panel data */
 	dev_priv->lvds_dither = 1;
 	dev_priv->lvds_vbt = 0;
@@ -505,6 +516,11 @@ init_vbt_defaults(struct drm_i915_private *dev_priv)
 	/* general features */
 	dev_priv->int_tv_support = 1;
 	dev_priv->int_crt_support = 1;
+
+	/* Default to using SSC */
+	dev_priv->lvds_use_ssc = 1;
+	dev_priv->lvds_ssc_freq = intel_bios_ssc_frequency(dev, 1);
+	DRM_DEBUG("Set default to SSC at %dMHz\n", dev_priv->lvds_ssc_freq);
 
 	/* Set the Panel Power On/Off timings if uninitialized. */
 	if ((I915_READ(PP_ON_DELAYS) == 0) && (I915_READ(PP_OFF_DELAYS) == 0)) {
