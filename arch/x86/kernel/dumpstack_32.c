@@ -120,7 +120,7 @@ void show_registers(struct pt_regs *regs)
 
 		printk(KERN_EMERG "Stack:\n");
 		show_stack_log_lvl(NULL, regs, &regs->sp,
-				0, KERN_EMERG);
+				regs->bp, KERN_EMERG);
 
 		printk(KERN_EMERG "Code: ");
 
