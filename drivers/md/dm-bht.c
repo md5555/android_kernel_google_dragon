@@ -93,17 +93,12 @@ static void dm_bht_log_mismatch(struct dm_bht *bht, u8 *given, u8 *computed)
 typedef int (*dm_bht_compare_cb)(struct dm_bht *, u8 *, u8 *);
 
 /**
- * dm_bht_compute_and_compare: hashes a page of data; compares it to a hash
+ * dm_bht_compute_hash: hashes a page of data
  */
-static int dm_bht_compute_and_compare(struct dm_bht *bht,
-				      struct hash_desc *hash_desc,
-				      struct page *page,
-				      u8 *expected_digest,
-				      dm_bht_compare_cb compare_cb)
+static int dm_bht_compute_hash(struct dm_bht *bht, struct hash_desc *hash_desc,
+			       struct page *page, u8 *digest)
 {
 	struct scatterlist sg;
-	u8 digest[DM_BHT_MAX_DIGEST_SIZE];
-	int result;
 
 	sg_init_table(&sg, 1);
 	sg_set_page(&sg, page, PAGE_SIZE, 0);
@@ -118,12 +113,7 @@ static int dm_bht_compute_and_compare(struct dm_bht *bht,
 		return -EINVAL;
 	}
 
-	result = compare_cb(bht, expected_digest, digest);
-#ifdef CONFIG_DM_DEBUG
-	if (result)
-		dm_bht_log_mismatch(bht, expected_digest, digest);
-#endif
-	return result;
+	return 0;
 }
 
 static __always_inline struct dm_bht_level *dm_bht_get_level(struct dm_bht *bht,
@@ -716,15 +706,16 @@ static int dm_bht_verify_root(struct dm_bht *bht,
 /* dm_bht_verify_path
  * Verifies the path from block_index to depth=0. Returns 0 on ok.
  */
-static int dm_bht_verify_path(struct dm_bht *bht, unsigned int block_index,
-			      dm_bht_compare_cb compare_cb)
+static int dm_bht_verify_path(struct dm_bht *bht, unsigned int block_index)
 {
 	unsigned int depth = bht->depth - 1;
 	struct dm_bht_entry *entry = dm_bht_get_entry(bht, depth, block_index);
 	struct hash_desc *hash_desc = &bht->hash_desc[smp_processor_id()];
 
 	while (depth > 0) {
+		u8 digest[DM_BHT_MAX_DIGEST_SIZE];
 		struct dm_bht_entry *parent;
+		struct page *page;
 		u8 *node;
 		int state;
 
@@ -761,10 +752,10 @@ static int dm_bht_verify_path(struct dm_bht *bht, unsigned int block_index,
 		 */
 		BUG_ON(atomic_read(&parent->state) < DM_BHT_ENTRY_READY);
 		node = dm_bht_get_node(bht, parent, depth, block_index);
+		page = virt_to_page(entry->nodes);
 
-		if (dm_bht_compute_and_compare(bht, hash_desc,
-					       virt_to_page(entry->nodes),
-					       node, compare_cb)) {
+		if (dm_bht_compute_hash(bht, hash_desc, page, digest) ||
+		    dm_bht_compare_hash(bht, digest, node)) {
 			DMERR("failed to verify entry's hash against parent "
 			      "(d=%u,bi=%u)", depth, block_index);
 			goto mismatch;
@@ -860,9 +851,8 @@ int dm_bht_store_block(struct dm_bht *bht, unsigned int block_index,
 	}
 
 	hash_desc = &bht->hash_desc[smp_processor_id()];
-	dm_bht_compute_and_compare(bht, hash_desc, virt_to_page(block_data),
-				   dm_bht_node(bht, entry, node_index),
-				   &dm_bht_update_hash);
+	dm_bht_compute_hash(bht, hash_desc, virt_to_page(block_data),
+			    dm_bht_node(bht, entry, node_index));
 	return 0;
 }
 EXPORT_SYMBOL(dm_bht_store_block);
@@ -931,8 +921,8 @@ int dm_bht_compute(struct dm_bht *bht, void *read_cb_ctx)
 				struct page *pg = virt_to_page(child->nodes);
 				u8 *node = dm_bht_node(bht, entry, j);
 
-				r = dm_bht_compute_and_compare(bht, hash_desc,
-						pg, node, dm_bht_update_hash);
+				r = dm_bht_compute_hash(bht, hash_desc,
+							pg, node);
 				if (r) {
 					DMERR("Failed to update (d=%u,i=%u)",
 					      depth, i);
@@ -1140,9 +1130,7 @@ int dm_bht_verify_block(struct dm_bht *bht, unsigned int block_index,
 		return unverified;
 
 	/* Now check levels in between */
-	unverified = dm_bht_verify_path(bht,
-					block_index,
-					dm_bht_compare_hash);
+	unverified = dm_bht_verify_path(bht, block_index);
 	if (unverified)
 		DMERR_LIMIT("Failed to verify intermediary nodes for block: %u (%d)",
 		      block_index, unverified);
