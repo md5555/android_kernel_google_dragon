@@ -147,23 +147,15 @@ struct verity_stats {
 	unsigned long long total_requests;
 };
 
-/* Holds the context of a given verify operation. */
-struct verify_context {
-	struct bio *bio;  /* block_size padded bio or aligned original bio */
-	unsigned int offset;  /* into current bio_vec */
-	unsigned int idx;  /* of current bio_vec */
-	sector_t block;  /*  current block */
-};
-
 /* per-requested-bio private data */
 enum next_queue_type { DM_VERITY_NONE, DM_VERITY_IO, DM_VERITY_VERIFY };
 struct dm_verity_io {
 	struct dm_target *target;
-	struct bio *base_bio;
+	struct bio *bio;
+	struct bio *clone_bio;
 	struct delayed_work work;
 	unsigned int next_queue;
 
-	struct verify_context ctx;
 	int error;
 	atomic_t pending;
 
@@ -326,10 +318,10 @@ static struct dm_verity_io *verity_io_alloc(struct dm_target *ti,
 	/* By default, assume io requests will require a hash */
 	io->next_queue = DM_VERITY_IO;
 	io->target = ti;
-	io->base_bio = bio;
+	io->bio = bio;
+	io->clone_bio = NULL;
 	io->sector = sector;
 	io->error = 0;
-	io->ctx.bio = NULL;
 
 	/* Adjust the sector by the virtual starting sector */
 	io->block = (to_bytes(sector)) >> PAGE_SHIFT;
@@ -343,28 +335,6 @@ static struct dm_verity_io *verity_io_alloc(struct dm_target *ti,
 	return io;
 }
 
-/* ctx->bio should be prepopulated */
-static int verity_verify_context_init(struct verity_config *vc,
-				      struct verify_context *ctx)
-{
-	if (unlikely(ctx->bio == NULL)) {
-		DMCRIT("padded bio was not supplied to kverityd");
-		return -EINVAL;
-	}
-	ctx->offset = 0;
-	ctx->idx = ctx->bio ? ctx->bio->bi_idx : 0;
-	/* The sector has already be translated and adjusted to the
-	 * appropriate start for reading.
-	 */
-	ctx->block = to_bytes(ctx->bio->bi_sector) >> PAGE_SHIFT;
-	/* Setup the new hash context too */
-	if (crypto_hash_init(&vc->hash[smp_processor_id()])) {
-		DMCRIT("Failed to initialize the crypto hash");
-		return -EFAULT;
-	}
-	return 0;
-}
-
 static void clone_init(struct dm_verity_io *io, struct bio *clone,
 		       unsigned short vcnt, unsigned int size, sector_t start)
 {
@@ -373,7 +343,7 @@ static void clone_init(struct dm_verity_io *io, struct bio *clone,
 	clone->bi_private = io;
 	clone->bi_end_io  = kverityd_src_io_read_end;
 	clone->bi_bdev    = vc->dev->bdev;
-	clone->bi_rw      = io->base_bio->bi_rw;
+	clone->bi_rw      = io->bio->bi_rw;
 	clone->bi_destructor = dm_verity_bio_destructor;
 	clone->bi_idx = 0;
 	clone->bi_vcnt = vcnt;
@@ -381,45 +351,24 @@ static void clone_init(struct dm_verity_io *io, struct bio *clone,
 	clone->bi_sector = start;
 }
 
-static int verity_hash_bv(struct verity_config *vc,
-			  struct verify_context *ctx)
+static int verity_hash_page(struct verity_config *vc,
+			    struct page *page,
+			    u8 *digest)
 {
-	struct bio_vec *bv = bio_iovec_idx(ctx->bio, ctx->idx);
+	struct hash_desc *hash_desc = &vc->hash[smp_processor_id()];
 	struct scatterlist sg;
-	unsigned int size = bv->bv_len - (bv->bv_offset + ctx->offset);
 
-	VERITY_BUG_ON(size != PAGE_SIZE);
-
-	/* Catch unexpected undersized bvs */
-	if (bv->bv_len < bv->bv_offset + ctx->offset) {
-		ctx->offset = 0;
-		ctx->idx++;
-		return 0;
-	}
-
-	DMDEBUG("Updating hash for block %llu vector idx %u: "
-		"size:%u offset:%u+%u len:%u",
-		ULL(ctx->block), ctx->idx, size, bv->bv_offset, ctx->offset,
-		bv->bv_len);
-
-	/* Updates the current digest hash context for the on going block */
 	sg_init_table(&sg, 1);
-	sg_set_page(&sg, bv->bv_page, size, bv->bv_offset + ctx->offset);
+	sg_set_page(&sg, page, PAGE_SIZE, 0);
 
-	/* Use one hash_desc+tfm per cpu so that we can make use of all
-	 * available cores when verifying.  Only one context is handled per
-	 * processor, however.
-	 */
-	if (crypto_hash_update(&vc->hash[smp_processor_id()], &sg, size)) {
-		DMCRIT("Failed to update crypto hash");
+	if (crypto_hash_init(hash_desc)) {
+		DMCRIT("Failed to initialize the crypto hash");
 		return -EFAULT;
 	}
-	ctx->offset += size;
 
-	if (ctx->offset + bv->bv_offset >= bv->bv_len) {
-		ctx->offset = 0;
-		/* Bump the bio_segment counter */
-		ctx->idx++;
+	if (crypto_hash_digest(hash_desc, &sg, PAGE_SIZE, digest)) {
+		DMCRIT("crypto_hash_digest failed");
+		return -EFAULT;
 	}
 
 	return 0;
@@ -694,7 +643,6 @@ static void verity_inc_pending(struct dm_verity_io *io);
 static void verity_dec_pending(struct dm_verity_io *io)
 {
 	struct verity_config *vc = io->target->private;
-	struct bio *base_bio = io->base_bio;
 	int error = io->error;
 	VERITY_BUG_ON(!io, "NULL argument");
 
@@ -733,44 +681,48 @@ return_to_user:
 	mempool_free(io, vc->io_pool);
 
 	/* Return back to the caller */
-	bio_endio(base_bio, error);
+	bio_endio(io->bio, error);
 
 more_work_to_do:
 	return;
 }
 
-/* Walks the, potentially padded, data set and computes the hash of the
- * data read from the untrusted source device.  The computed hash is
- * then passed to dm-bht for verification.
+/* Walks the data set and computes the hash of the data read from the
+ * untrusted source device.  The computed hash is then passed to dm-bht
+ * for verification.
  */
 static int verity_verify(struct verity_config *vc,
-			 struct verify_context *ctx)
+			 struct bio *bio)
 {
 	u8 digest[VERITY_MAX_DIGEST_SIZE];
 	int r;
-	unsigned int block = 0;
+	unsigned int idx, block;
 	unsigned int digest_size =
 		crypto_hash_digestsize(vc->hash[smp_processor_id()].tfm);
 
-	while (ctx->idx < ctx->bio->bi_vcnt) {
-		r = verity_hash_bv(vc, ctx);
+	VERITY_BUG_ON(bio == NULL);
+
+	block = to_bytes(bio->bi_sector) >> PAGE_SHIFT;
+
+	for (idx = bio->bi_idx; idx < bio->bi_vcnt; idx++) {
+		struct bio_vec *bv = bio_iovec_idx(bio, idx);
+
+		VERITY_BUG_ON(bv->bv_offset);
+		VERITY_BUG_ON(bv->bv_len != PAGE_SIZE);
+
+		DMDEBUG("Updating hash for block %u", block);
+
+		r = verity_hash_page(vc, bv->bv_page, digest);
 		if (r < 0)
 			goto bad_hash;
 
-		/* Calculate the final block digest to check in the tree */
-		if (crypto_hash_final(&vc->hash[smp_processor_id()], digest)) {
-			DMCRIT("Failed to compute final digest");
-			r = -EFAULT;
-			goto bad_state;
-		}
-		block = (unsigned int)(ctx->block);
 		r = dm_bht_verify_block(&vc->bht, block, digest, digest_size);
 		/* dm_bht functions aren't expected to return errno friendly
 		 * values.  They are converted here for uniformity.
 		 */
 		if (r > 0) {
-			DMERR("Pending data for block %llu seen at verify",
-			      ULL(ctx->block));
+			DMERR("Pending data for block %u seen at verify",
+			      block);
 			r = -EBUSY;
 			goto bad_state;
 		}
@@ -779,15 +731,9 @@ static int verity_verify(struct verity_config *vc,
 			r = -EACCES;
 			goto bad_match;
 		}
-		REQTRACE("Block %llu verified", ULL(ctx->block));
+		REQTRACE("Block %u verified", block);
 
-		/* Reset state for the next block */
-		if (crypto_hash_init(&vc->hash[smp_processor_id()])) {
-			DMCRIT("Failed to initialize the crypto hash");
-			r = -ENOMEM;
-			goto no_mem;
-		}
-		ctx->block++;
+		block++;
 		/* After completing a block, allow a reschedule.
 		 * TODO(wad) determine if this is truly needed.
 		 */
@@ -797,7 +743,6 @@ static int verity_verify(struct verity_config *vc,
 	return 0;
 
 bad_hash:
-no_mem:
 bad_state:
 bad_match:
 	return r;
@@ -815,15 +760,9 @@ static void kverityd_verify(struct work_struct *work)
 
 	verity_inc_pending(io);
 
-	/* Default to ctx.bio as the padded bio clone.
-	 * The original bio is never touched until release.
-	 */
-	r = verity_verify_context_init(vc, &io->ctx);
+	r = verity_verify(vc, io->bio);
 
-	/* Only call verify if context initialization succeeded */
-	if (!r)
-		r = verity_verify(vc, &io->ctx);
-	/* Free up the padded bio and tag with the return value */
+	/* Free up the bio and tag with the return value */
 	kverityd_verify_cleanup(io, r);
 	verity_stats_verify_queue_dec(vc);
 
@@ -875,8 +814,8 @@ static void kverityd_io_bht_populate_end(struct bio *bio, int error)
 
 	/* We bail but assume the tree has been marked bad. */
 	if (unlikely(error)) {
-		DMERR("Failed to read for block %llu (%u)",
-		      ULL(io->base_bio->bi_sector), io->base_bio->bi_size);
+		DMERR("Failed to read for sector %llu (%u)",
+		      ULL(io->bio->bi_sector), io->bio->bi_size);
 		io->error = error;
 		/* Pass through the error to verity_dec_pending below */
 	}
@@ -1032,7 +971,7 @@ static void kverityd_src_io_read_end(struct bio *clone, int error)
 {
 	struct dm_verity_io *io = clone->bi_private;
 
-	DMDEBUG("Padded I/O completed");
+	DMDEBUG("I/O completed");
 	if (unlikely(!bio_flagged(clone, BIO_UPTODATE) && !error))
 		error = -EIO;
 
@@ -1052,37 +991,34 @@ static void kverityd_src_io_read_end(struct bio *clone, int error)
 }
 
 /* If not yet underway, an I/O request will be issued to the vc->dev
- * device for the data needed.  It is padded to the minimum block
- * size, aligned to that size, and cloned to avoid unexpected changes
+ * device for the data needed. It is cloned to avoid unexpected changes
  * to the original bio struct.
  */
 static void kverityd_src_io_read(struct dm_verity_io *io)
 {
 	struct verity_config *vc = io->target->private;
-	struct bio *base_bio = io->base_bio;
 	sector_t bio_start = vc->start + io->sector;
 	struct bio *clone;
 
 	VERITY_BUG_ON(!io);
 
-	/* If bio is non-NULL, then the data is already read. Could also check
-	 * BIO_UPTODATE, but it doesn't seem needed.
+	/* If clone is non-NULL, then the read is already issued. Could also
+	 * check BIO_UPTODATE, but it doesn't seem needed.
 	 */
-	if (io->ctx.bio) {
+	if (io->clone_bio) {
 		DMDEBUG("io_read called with existing bio. bailing: %p", io);
 		return;
 	}
+
 	DMDEBUG("kverity_io_read started");
 
 	verity_inc_pending(io);
 
-	io->ctx.bio = base_bio;
-
 	/* Clone the bio. The block layer may modify the bvec array. */
-	DMDEBUG("Creating clone of the padded request");
+	DMDEBUG("Creating clone of the request");
 	ALLOCTRACE("clone for io %p, sector %llu",
 		   io, ULL(bio_start));
-	clone = verity_alloc_bioset(vc, GFP_NOIO, bio_segments(io->ctx.bio));
+	clone = verity_alloc_bioset(vc, GFP_NOIO, bio_segments(io->bio));
 	if (unlikely(!clone)) {
 		io->error = -ENOMEM;
 		/* Clean up */
@@ -1090,16 +1026,16 @@ static void kverityd_src_io_read(struct dm_verity_io *io)
 		return;
 	}
 
-	clone_init(io, clone, bio_segments(io->ctx.bio), io->ctx.bio->bi_size,
+	clone_init(io, clone, bio_segments(io->bio), io->bio->bi_size,
 		   bio_start);
-	DMDEBUG("Populating clone of the padded request");
-	memcpy(clone->bi_io_vec, bio_iovec(io->ctx.bio),
+	DMDEBUG("Populating clone of the request");
+	memcpy(clone->bi_io_vec, bio_iovec(io->bio),
 	       sizeof(struct bio_vec) * clone->bi_vcnt);
 
 	/* Submit to the block device */
-	DMDEBUG("Submitting padded bio (%u became %u)",
-		bio_sectors(base_bio), bio_sectors(clone));
+	DMDEBUG("Submitting bio");
 	/* XXX: check queue_max_hw_sectors(bdev_get_queue(clone->bi_bdev)); */
+	io->clone_bio = clone;
 	generic_make_request(clone);
 }
 
@@ -1113,9 +1049,9 @@ static void kverityd_io(struct work_struct *work)
 						  work);
 	struct dm_verity_io *io = container_of(dwork, struct dm_verity_io,
 					       work);
-	VERITY_BUG_ON(!io->base_bio);
+	VERITY_BUG_ON(!io->bio);
 
-	if (bio_data_dir(io->base_bio) == WRITE) {
+	if (bio_data_dir(io->bio) == WRITE) {
 		/* TODO(wad) do something smarter when writes are seen */
 		printk(KERN_WARNING
 		       "Unexpected write bio received in kverityd_io");
