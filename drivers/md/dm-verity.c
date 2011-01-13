@@ -57,12 +57,6 @@
 /* Helper for printing sector_t */
 #define ULL(x) ((unsigned long long)(x))
 
-/* Requires the pool to have the given # of pages available. They are only
- * used for padding non-block aligned requests so each request should need
- * at most 2 additional pages. This means our maximum queue without suffering
- * from memory contention could be 32 requests.
- */
-#define MIN_POOL_PAGES 16
 /* IOS represent min of dm_verity_ios in a pool, but we also use it to
  * preallocate biosets (MIN_IOS * 2):
  * 1. We need to clone the entire bioset, including bio_vecs, before passing
@@ -179,7 +173,6 @@ struct verity_config {
 	/* Pool and bios required for making sure that backing device reads are
 	 * in PAGE_SIZE increments.
 	 */
-	mempool_t *page_pool;
 	struct bio_set *bs;
 
 	/* Single threaded I/O submitter */
@@ -1345,14 +1338,6 @@ static int verity_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 		goto bad_slab_pool;
 	}
 
-	/* Used to allocate pages for padding requests to PAGE_SIZE */
-	ALLOCTRACE("page pool for request padding");
-	vc->page_pool = mempool_create_page_pool(MIN_POOL_PAGES, 0);
-	if (!vc->page_pool) {
-		ti->error = "Cannot allocate page mempool";
-		goto bad_page_pool;
-	}
-
 	/* Allocate the bioset used for request padding */
 	/* TODO(wad) allocate a separate bioset for the first verify maybe */
 	ALLOCTRACE("bioset for I/O reqs");
@@ -1415,8 +1400,6 @@ bad_verify_queue:
 bad_io_queue:
 	bioset_free(vc->bs);
 bad_bs:
-	mempool_destroy(vc->page_pool);
-bad_page_pool:
 	mempool_destroy(vc->io_pool);
 bad_slab_pool:
 bad_err_behavior:
@@ -1450,8 +1433,6 @@ static void verity_dtr(struct dm_target *ti)
 
 	DMDEBUG("Destroying bs");
 	bioset_free(vc->bs);
-	DMDEBUG("Destroying page_pool");
-	mempool_destroy(vc->page_pool);
 	DMDEBUG("Destroying io_pool");
 	mempool_destroy(vc->io_pool);
 	DMDEBUG("Destroying crypto hash");
