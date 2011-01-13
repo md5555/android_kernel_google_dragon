@@ -73,8 +73,9 @@
  */
 #define MIN_BIOS (MIN_IOS * 2)
 
-/* We use a block size == page_size in sectors */
-#define VERITY_BLOCK_SIZE ((PAGE_SIZE) >> (SECTOR_SHIFT))
+/* VERITY_BLOCK_SIZE must is less than PAGE_SIZE */
+#define VERITY_BLOCK_SIZE 4096
+#define VERITY_BLOCK_SHIFT 12
 
 /* Support additional tracing of requests */
 #ifdef CONFIG_DM_VERITY_TRACE
@@ -317,8 +318,8 @@ static struct dm_verity_io *verity_io_alloc(struct dm_target *ti,
 	io->error = 0;
 
 	/* Adjust the sector by the virtual starting sector */
-	io->block = (to_bytes(sector)) >> PAGE_SHIFT;
-	io->count = bio->bi_size >> PAGE_SHIFT;
+	io->block = (to_bytes(sector)) >> VERITY_BLOCK_SHIFT;
+	io->count = bio->bi_size >> VERITY_BLOCK_SHIFT;
 
 	DMDEBUG("io_alloc for %llu blocks starting at %llu",
 		ULL(io->count), ULL(io->block));
@@ -344,22 +345,22 @@ static void clone_init(struct dm_verity_io *io, struct bio *clone,
 	clone->bi_sector = start;
 }
 
-static int verity_hash_page(struct verity_config *vc,
-			    struct page *page,
-			    u8 *digest)
+static int verity_hash_block(struct verity_config *vc,
+			     struct page *page,
+			     u8 *digest)
 {
 	struct hash_desc *hash_desc = &vc->hash[smp_processor_id()];
 	struct scatterlist sg;
 
 	sg_init_table(&sg, 1);
-	sg_set_page(&sg, page, PAGE_SIZE, 0);
+	sg_set_page(&sg, page, VERITY_BLOCK_SIZE, 0);
 
 	if (crypto_hash_init(hash_desc)) {
 		DMCRIT("Failed to initialize the crypto hash");
 		return -EFAULT;
 	}
 
-	if (crypto_hash_digest(hash_desc, &sg, PAGE_SIZE, digest)) {
+	if (crypto_hash_digest(hash_desc, &sg, VERITY_BLOCK_SIZE, digest)) {
 		DMCRIT("crypto_hash_digest failed");
 		return -EFAULT;
 	}
@@ -695,17 +696,18 @@ static int verity_verify(struct verity_config *vc,
 
 	VERITY_BUG_ON(bio == NULL);
 
-	block = to_bytes(bio->bi_sector) >> PAGE_SHIFT;
+	block = to_bytes(bio->bi_sector) >> VERITY_BLOCK_SHIFT;
 
 	for (idx = bio->bi_idx; idx < bio->bi_vcnt; idx++) {
 		struct bio_vec *bv = bio_iovec_idx(bio, idx);
 
-		VERITY_BUG_ON(bv->bv_offset);
-		VERITY_BUG_ON(bv->bv_len != PAGE_SIZE);
+		VERITY_BUG_ON(bv->bv_offset % VERITY_BLOCK_SIZE);
+		VERITY_BUG_ON(bv->bv_len % VERITY_BLOCK_SIZE);
 
 		DMDEBUG("Updating hash for block %u", block);
 
-		r = verity_hash_page(vc, bv->bv_page, digest);
+		/* TODO(msb) handle case where multiple blocks fit in a page */
+		r = verity_hash_block(vc, bv->bv_page, digest);
 		if (r < 0)
 			goto bad_hash;
 
@@ -829,7 +831,7 @@ static int kverityd_bht_read_callback(void *ctx, sector_t start, u8 *dst,
 	/* Explicitly catches these so we can use a custom bug route */
 	VERITY_BUG_ON(!io || !dst || !io->target || !io->target->private);
 	VERITY_BUG_ON(!entry);
-	VERITY_BUG_ON(count != to_sector(PAGE_SIZE));
+	VERITY_BUG_ON(count != to_sector(VERITY_BLOCK_SIZE));
 
 	vc = io->target->private;
 
@@ -848,7 +850,7 @@ static int kverityd_bht_read_callback(void *ctx, sector_t start, u8 *dst,
 	}
 	bio->bi_private = (void *) entry;
 	bio->bi_idx = 0;
-	bio->bi_size = PAGE_SIZE;
+	bio->bi_size = VERITY_BLOCK_SIZE;
 	bio->bi_sector = vc->hash_start + start;
 	bio->bi_bdev = vc->hash_dev->bdev;
 	bio->bi_end_io = kverityd_io_bht_populate_end;
@@ -1137,9 +1139,8 @@ static int verity_map(struct dm_target *ti, struct bio *bio,
 		/* bio_endio(bio, -EIO); */
 		return -EIO;
 	} else {
-		/* logical_block_size=PAGE_SIZE so this should never happen. */
-		VERITY_BUG_ON(bio->bi_sector % to_sector(PAGE_SIZE));
-		VERITY_BUG_ON(bio->bi_size % PAGE_SIZE);
+		VERITY_BUG_ON(bio->bi_sector % to_sector(VERITY_BLOCK_SIZE));
+		VERITY_BUG_ON(bio->bi_size % VERITY_BLOCK_SIZE);
 
 		/* Queue up the request to be verified */
 		io = verity_io_alloc(ti, bio, bio->bi_sector - ti->begin);
@@ -1226,10 +1227,9 @@ static int verity_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 			"Zero or negative depth supplied";
 		goto bad_depth;
 	}
-	/* dm-bht block size is HARD CODED to PAGE_SIZE right now. */
 	/* Calculate the blocks from the given device size */
 	vc->size = ti->len;
-	blocks = to_bytes(vc->size) >> PAGE_SHIFT;
+	blocks = to_bytes(vc->size) >> VERITY_BLOCK_SHIFT;
 	if (dm_bht_create(&vc->bht, (unsigned int)depth, blocks, argv[4])) {
 		DMERR("failed to create required bht");
 		goto bad_bht;
@@ -1251,9 +1251,9 @@ static int verity_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 		goto bad_verity_dev;
 	}
 
-	if (PAGE_ALIGN(vc->start) != vc->start ||
-	    PAGE_ALIGN(to_bytes(vc->size)) != to_bytes(vc->size)) {
-		ti->error = "Device must be PAGE_SIZE divisble/aligned";
+	if ((to_bytes(vc->start) % VERITY_BLOCK_SIZE) ||
+	    (to_bytes(vc->size) % VERITY_BLOCK_SIZE)) {
+		ti->error = "Device must be VERITY_BLOCK_SIZE divisble/aligned";
 		goto bad_hash_start;
 	}
 
@@ -1514,9 +1514,9 @@ static int verity_iterate_devices(struct dm_target *ti,
 static void verity_io_hints(struct dm_target *ti,
 			    struct queue_limits *limits)
 {
-	limits->logical_block_size = PAGE_SIZE;
-	limits->physical_block_size = PAGE_SIZE;
-	blk_limits_io_min(limits, PAGE_SIZE);
+	limits->logical_block_size = VERITY_BLOCK_SIZE;
+	limits->physical_block_size = VERITY_BLOCK_SIZE;
+	blk_limits_io_min(limits, VERITY_BLOCK_SIZE);
 }
 
 static struct target_type verity_target = {
