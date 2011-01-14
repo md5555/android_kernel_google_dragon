@@ -329,20 +329,23 @@ static struct dm_verity_io *verity_io_alloc(struct dm_target *ti,
 	return io;
 }
 
-static void clone_init(struct dm_verity_io *io, struct bio *clone,
-		       unsigned short vcnt, unsigned int size, sector_t start)
+static struct bio *verity_bio_clone(struct dm_verity_io *io)
 {
 	struct verity_config *vc = io->target->private;
+	struct bio *bio = io->bio;
+	struct bio *clone = verity_alloc_bioset(vc, GFP_NOIO, bio->bi_max_vecs);
 
+	if (!clone)
+		return NULL;
+
+	__bio_clone(clone, bio);
 	clone->bi_private = io;
 	clone->bi_end_io  = kverityd_src_io_read_end;
 	clone->bi_bdev    = vc->dev->bdev;
-	clone->bi_rw      = io->bio->bi_rw;
+	clone->bi_sector  = vc->start + io->sector;
 	clone->bi_destructor = dm_verity_bio_destructor;
-	clone->bi_idx = 0;
-	clone->bi_vcnt = vcnt;
-	clone->bi_size = size;
-	clone->bi_sector = start;
+
+	return clone;
 }
 
 static int verity_hash_block(struct verity_config *vc,
@@ -992,7 +995,6 @@ static void kverityd_src_io_read_end(struct bio *clone, int error)
 static void kverityd_src_io_read(struct dm_verity_io *io)
 {
 	struct verity_config *vc = io->target->private;
-	sector_t bio_start = vc->start + io->sector;
 	struct bio *clone;
 
 	VERITY_BUG_ON(!io);
@@ -1012,20 +1014,14 @@ static void kverityd_src_io_read(struct dm_verity_io *io)
 	/* Clone the bio. The block layer may modify the bvec array. */
 	DMDEBUG("Creating clone of the request");
 	ALLOCTRACE("clone for io %p, sector %llu",
-		   io, ULL(bio_start));
-	clone = verity_alloc_bioset(vc, GFP_NOIO, bio_segments(io->bio));
+		   io, ULL(vc->start + io->sector));
+	clone = verity_bio_clone(io);
 	if (unlikely(!clone)) {
 		io->error = -ENOMEM;
 		/* Clean up */
 		verity_dec_pending(io);
 		return;
 	}
-
-	clone_init(io, clone, bio_segments(io->bio), io->bio->bi_size,
-		   bio_start);
-	DMDEBUG("Populating clone of the request");
-	memcpy(clone->bi_io_vec, bio_iovec(io->bio),
-	       sizeof(struct bio_vec) * clone->bi_vcnt);
 
 	/* Submit to the block device */
 	DMDEBUG("Submitting bio");
