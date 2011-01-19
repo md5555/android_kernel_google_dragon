@@ -603,12 +603,6 @@ typedef struct drm_i915_private {
 #ifdef CONFIG_DRM_I915_DIRECT_BACKLIGHT
 	/* direct backlight interface */
 	struct backlight_device *backlight;
-
-	/* gradual backlight adjustment */
-	int target_level;
-	int start_level;
-	int steps_taken;
-	struct timer_list soft_backlight_timer;
 #endif
 
 } drm_i915_private_t;
