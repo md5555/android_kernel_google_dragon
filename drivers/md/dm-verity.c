@@ -118,13 +118,6 @@ module_param(error_behavior, charp, 0644);
 MODULE_PARM_DESC(error_behavior, "Behavior on error "
 				 "(eio, panic, none, notify)");
 
-/* Control whether the reads are optimized for sequential access by pre-reading
- * entries in the bht.
- */
-static int bht_readahead;
-module_param(bht_readahead, int, 0644);
-MODULE_PARM_DESC(bht_readahead, "Number of entries to readahead in the bht");
-
 /* Controls whether verity_get_device will wait forever for a device. */
 static int dev_wait;
 module_param(dev_wait, bool, 0444);
@@ -910,15 +903,8 @@ static void kverityd_io_bht_populate(struct dm_verity_io *io)
 		io_status |= populated;
 
 		/* If this io has outstanding requests, unplug the io queue */
-		if (populated & DM_BHT_ENTRY_REQUESTED) {
+		if (populated & DM_BHT_ENTRY_REQUESTED)
 			blk_unplug(r_queue);
-			/* If the bht is reading ahead, a cond_resched may be
-			 * needed to break contention.  msleep_interruptible(1)
-			 * is an alternative option.
-			 */
-			if (bht_readahead)
-				cond_resched();
-		}
 	}
 	REQTRACE("Block %llu+ initiated %d requests (io: %p)",
 		 ULL(io->block), atomic_read(&io->pending) - 1, io);
@@ -1233,7 +1219,6 @@ static int verity_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 		goto bad_root_hexdigest;
 	}
 	dm_bht_set_read_cb(&vc->bht, kverityd_bht_read_callback);
-	dm_bht_set_entry_readahead(&vc->bht, bht_readahead);
 
 	/* arg0: device to verify */
 	vc->start = 0;  /* TODO: should this support a starting offset? */
