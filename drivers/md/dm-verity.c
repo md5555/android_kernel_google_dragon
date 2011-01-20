@@ -883,7 +883,6 @@ static void kverityd_io_bht_populate(struct dm_verity_io *io)
 	int io_status = 0;
 	sector_t count;
 
-	verity_inc_pending(io);
 	/* Submits an io request for each missing block of block hashes.
 	 * The last one to return will then enqueue this on the
 	 * io workqueue.
@@ -958,7 +957,6 @@ static void kverityd_io_bht_populate(struct dm_verity_io *io)
 	 * request will result in a requeue.  If all data was pending from
 	 * other requests, this will be requeued now.
 	 */
-	verity_dec_pending(io);
 }
 
 /* Asynchronously called upon the completion of I/O issued
