@@ -493,7 +493,7 @@ static int verity_parse_error_behavior(char *behavior)
 		return -1;
 
 	/* Convert to the integer index matching the enum. */
-	return (allowed - allowed_error_behaviors);
+	return allowed - allowed_error_behaviors;
 }
 
 
