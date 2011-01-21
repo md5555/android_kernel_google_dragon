@@ -557,6 +557,9 @@ intel_init_bios(struct drm_device *dev)
 	size_t size;
 	int i;
 
+	/* Initialize to default VBT values */
+	init_vbt_defaults(dev_priv);
+
 	bios = pci_map_rom(pdev, &size);
 	if (!bios)
 		return -1;
@@ -568,9 +571,6 @@ intel_init_bios(struct drm_device *dev)
 			break;
 		}
 	}
-
-	/* Initialize to default VBT values */
-	init_vbt_defaults(dev_priv);
 
 	if (!vbt) {
 		DRM_ERROR("VBT signature missing\n");
