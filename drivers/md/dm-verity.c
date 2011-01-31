@@ -136,13 +136,16 @@ struct verity_stats {
 };
 
 /* per-requested-bio private data */
-enum next_queue_type { DM_VERITY_NONE, DM_VERITY_IO, DM_VERITY_VERIFY };
+enum verity_io_flags {
+	VERITY_IOFLAGS_PENDING = 0x1,	/* pending hash read bios */
+	VERITY_IOFLAGS_CLONED = 0x2,	/* original bio has been cloned */
+};
+
 struct dm_verity_io {
 	struct dm_target *target;
 	struct bio *bio;
-	struct bio *clone_bio;
 	struct delayed_work work;
-	unsigned int next_queue;
+	unsigned int flags;
 
 	int error;
 	atomic_t pending;
@@ -302,11 +305,9 @@ static struct dm_verity_io *verity_io_alloc(struct dm_target *ti,
 	io = mempool_alloc(vc->io_pool, GFP_NOIO);
 	if (unlikely(!io))
 		return NULL;
-	/* By default, assume io requests will require a hash */
-	io->next_queue = DM_VERITY_IO;
+	io->flags = 0;
 	io->target = ti;
 	io->bio = bio;
-	io->clone_bio = NULL;
 	io->sector = sector;
 	io->error = 0;
 
@@ -362,12 +363,6 @@ static int verity_hash_block(struct verity_config *vc,
 	}
 
 	return 0;
-}
-
-static void kverityd_verify_cleanup(struct dm_verity_io *io, int error)
-{
-	/* Propagate the verification error. */
-	io->error = error;
 }
 
 /* If the request is not successful, this handler takes action.
@@ -626,6 +621,17 @@ static int verity_get_device(struct dm_target *ti, const char *devname,
 
 static void verity_inc_pending(struct dm_verity_io *io);
 
+static void verity_return_bio_to_caller(struct dm_verity_io *io)
+{
+	struct verity_config *vc = io->target->private;
+
+	if (io->error)
+		verity_error(vc, io, io->error);
+
+	bio_endio(io->bio, io->error);
+	mempool_free(io, vc->io_pool);
+}
+
 /* verity_dec_pending manages the lifetime of all dm_verity_io structs.
  * Non-bug error handling is centralized through this interface and
  * all passage from workqueue to workqueue.
@@ -633,48 +639,32 @@ static void verity_inc_pending(struct dm_verity_io *io);
 static void verity_dec_pending(struct dm_verity_io *io)
 {
 	struct verity_config *vc = io->target->private;
-	int error = io->error;
 	VERITY_BUG_ON(!io, "NULL argument");
 
 	DMDEBUG("dec pending %p: %d--", io, atomic_read(&io->pending));
 
 	if (!atomic_dec_and_test(&io->pending))
-		goto more_work_to_do;
+		goto done;
 
-	if (unlikely(error)) {
-		/* We treat bad I/O as a compromise so that we go
-		 * to recovery mode. VERITY_BUG will just reboot on
-		 * e.g., OOM errors.
-		 */
-		verity_error(vc, io, error);
-		/* let the handler change the error. */
-		error = io->error;
-		goto return_to_user;
-	}
+	if (unlikely(io->error))
+		goto io_error;
 
-	if (io->next_queue == DM_VERITY_IO) {
+	if (io->flags & VERITY_IOFLAGS_PENDING) {
+		io->flags &= ~VERITY_IOFLAGS_PENDING;
 		kverityd_queue_io(io, true);
 		DMDEBUG("io %p requeued for io");
-		goto more_work_to_do;
-	}
-
-	if (io->next_queue == DM_VERITY_VERIFY) {
+	} else {
 		verity_stats_io_queue_dec(vc);
 		verity_stats_verify_queue_inc(vc);
 		kverityd_queue_verify(io);
 		DMDEBUG("io %p enqueued for verify");
-		goto more_work_to_do;
 	}
 
-return_to_user:
-	/* else next_queue == DM_VERITY_NONE */
-	mempool_free(io, vc->io_pool);
-
-	/* Return back to the caller */
-	bio_endio(io->bio, error);
-
-more_work_to_do:
+done:
 	return;
+
+io_error:
+	verity_return_bio_to_caller(io);
 }
 
 /* Walks the data set and computes the hash of the data read from the
@@ -747,17 +737,12 @@ static void kverityd_verify(struct work_struct *work)
 	struct dm_verity_io *io = container_of(dwork, struct dm_verity_io,
 					       work);
 	struct verity_config *vc = io->target->private;
-	int r = 0;
 
-	verity_inc_pending(io);
-
-	r = verity_verify(vc, io->bio);
+	io->error = verity_verify(vc, io->bio);
 
 	/* Free up the bio and tag with the return value */
-	kverityd_verify_cleanup(io, r);
 	verity_stats_verify_queue_dec(vc);
-
-	verity_dec_pending(io);
+	verity_return_bio_to_caller(io);
 }
 
 /* After all I/O is completed successfully for a request, it is queued on the
@@ -768,8 +753,6 @@ static void kverityd_verify(struct work_struct *work)
 static void kverityd_queue_verify(struct dm_verity_io *io)
 {
 	struct verity_config *vc = io->target->private;
-	/* verify work should never be requeued. */
-	io->next_queue = DM_VERITY_NONE;
 	REQTRACE("Block %llu+ is being queued for verify (io:%p)",
 		 ULL(io->block), io);
 	INIT_DELAYED_WORK(&io->work, kverityd_verify);
@@ -909,16 +892,6 @@ static void kverityd_io_bht_populate(struct dm_verity_io *io)
 	REQTRACE("Block %llu+ initiated %d requests (io: %p)",
 		 ULL(io->block), atomic_read(&io->pending) - 1, io);
 
-	/* TODO(wad) clean up the return values from maybe_read_entries */
-	/* If we return verified explicitly, then later we could do IO_REMAP
-	 * instead of resending to the verify queue.
-	 */
-	io->next_queue = DM_VERITY_VERIFY;
-	if (io_status == 0 || io_status == DM_BHT_ENTRY_READY) {
-		/* The whole request is ready. Make sure we can transition. */
-		DMDEBUG("io ready to be bumped %p", io);
-	}
-
 	if (io_status & DM_BHT_ENTRY_REQUESTED) {
 		/* If no data is pending another I/O request, this io
 		 * will get bounced on the next queue when the last async call
@@ -936,7 +909,7 @@ static void kverityd_io_bht_populate(struct dm_verity_io *io)
 		 * stored I/O context but races could be a challenge.
 		 */
 		DMDEBUG("io is pending %p");
-		io->next_queue = DM_VERITY_IO;
+		io->flags |= VERITY_IOFLAGS_PENDING;
 	}
 
 	/* If I/O requests were issues on behalf of populate, then the last
@@ -986,14 +959,13 @@ static void kverityd_src_io_read(struct dm_verity_io *io)
 	/* If clone is non-NULL, then the read is already issued. Could also
 	 * check BIO_UPTODATE, but it doesn't seem needed.
 	 */
-	if (io->clone_bio) {
+	if (io->flags & VERITY_IOFLAGS_CLONED) {
 		DMDEBUG("io_read called with existing bio. bailing: %p", io);
 		return;
 	}
+	io->flags |= VERITY_IOFLAGS_CLONED;
 
 	DMDEBUG("kverity_io_read started");
-
-	verity_inc_pending(io);
 
 	/* Clone the bio. The block layer may modify the bvec array. */
 	DMDEBUG("Creating clone of the request");
@@ -1002,15 +974,14 @@ static void kverityd_src_io_read(struct dm_verity_io *io)
 	clone = verity_bio_clone(io);
 	if (unlikely(!clone)) {
 		io->error = -ENOMEM;
-		/* Clean up */
-		verity_dec_pending(io);
 		return;
 	}
+
+	verity_inc_pending(io);
 
 	/* Submit to the block device */
 	DMDEBUG("Submitting bio");
 	/* XXX: check queue_max_hw_sectors(bdev_get_queue(clone->bi_bdev)); */
-	io->clone_bio = clone;
 	generic_make_request(clone);
 }
 
@@ -1036,8 +1007,8 @@ static void kverityd_io(struct work_struct *work)
 
 	/* Issue requests asynchronously. */
 	verity_inc_pending(io);
-	kverityd_src_io_read(io);  /* never updates next_queue */
-	kverityd_io_bht_populate(io);   /* manage next_queue eligibility */
+	kverityd_src_io_read(io);
+	kverityd_io_bht_populate(io);
 	verity_dec_pending(io);
 }
 
