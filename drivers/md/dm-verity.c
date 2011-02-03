@@ -997,14 +997,6 @@ static void kverityd_io(struct work_struct *work)
 					       work);
 	VERITY_BUG_ON(!io->bio);
 
-	if (bio_data_dir(io->bio) == WRITE) {
-		/* TODO(wad) do something smarter when writes are seen */
-		printk(KERN_WARNING
-		       "Unexpected write bio received in kverityd_io");
-		io->error = -EIO;
-		return;
-	}
-
 	/* Issue requests asynchronously. */
 	verity_inc_pending(io);
 	kverityd_src_io_read(io);
