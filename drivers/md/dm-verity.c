@@ -1023,6 +1023,7 @@ static void kverityd_queue_io(struct dm_verity_io *io, bool delayed)
 	 * queue and have it wait there. TODO(wad)
 	 */
 	if (delayed) {
+		verity_stats_total_requeues_inc(vc);
 		delay = HZ / 10;
 		REQTRACE("block %llu+ is being delayed %lu jiffies (io:%p)",
 			 ULL(io->block), delay, io);
