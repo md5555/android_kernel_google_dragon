@@ -606,17 +606,10 @@ static int dm_bht_check_block(struct dm_bht *bht, unsigned int block_index,
 	index = block_index >> bht->node_count_shift;
 	entry = &bht->levels[depth].entries[index];
 
-	*entry_state = atomic_read(&entry->state);
-	if (*entry_state <= DM_BHT_ENTRY_ERROR) {
-		DMCRIT("leaf entry for block %u is invalid",
-		       block_index);
-		return *entry_state;
-	}
-	if (*entry_state <= DM_BHT_ENTRY_PENDING) {
-		DMERR("leaf data not yet loaded for block %u",
-		      block_index);
-		return 1;
-	}
+	/* This call is only safe if all nodes along the path
+	 * are already populated (i.e. READY) via dm_bht_populate.
+	 */
+	BUG_ON(atomic_read(&entry->state) < DM_BHT_ENTRY_READY);
 
 	/* Index into the entry data */
 	index = (block_index % bht->node_count) * bht->digest_size;
