@@ -18,7 +18,6 @@
  * max to use for now.
  */
 #define DM_BHT_MAX_DIGEST_SIZE 128  /* 1k hashes are unlikely for now */
-#define DM_BHT_MAX_NODE_COUNT 256
 
 /* UNALLOCATED, PENDING, READY, and VERIFIED are valid states. All other
  * values are entry-related return codes.

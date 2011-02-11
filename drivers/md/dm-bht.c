@@ -288,15 +288,6 @@ int dm_bht_create(struct dm_bht *bht, unsigned int depth,
 	 */
 	bht->node_count = 1 << bht->node_count_shift;
 
-	/* TODO(wad) if node_count < DM_BHT_MAX_NODE_COUNT, then retry with
-	 * node_count_shift-1.
-	 */
-	if (bht->node_count > DM_BHT_MAX_NODE_COUNT) {
-		DMERR("node_count maximum node bitmap size");
-		status = -EINVAL;
-		goto bad_node_count;
-	}
-
 	/* This is unlikely to happen, but with 64k pages, who knows. */
 	if (bht->node_count > UINT_MAX / bht->digest_size) {
 		DMERR("node_count * hash_len exceeds UINT_MAX!");
@@ -634,7 +625,6 @@ static int dm_bht_check_block(struct dm_bht *bht, unsigned int block_index,
 		dm_bht_log_mismatch(bht, &entry->nodes[index], digest);
 		return DM_BHT_ENTRY_ERROR_MISMATCH;
 	}
-	/* TODO(wad) update bht->block_bitmap here or in the caller */
 	return 0;
 }
 
