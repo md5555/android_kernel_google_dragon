@@ -737,12 +737,6 @@ static int dm_bht_verify_path(struct dm_bht *bht, unsigned int block_index)
 			goto mismatch;
 		}
 
-		/* At depth 0, we're at the page underneath the root node and
-		 * leave its validation to a separate path.
-		 */
-		if (depth == 0)
-			break;
-
 		/* We need to check that this entry matches the expected
 		 * hash in the parent->nodes.
 		 */
