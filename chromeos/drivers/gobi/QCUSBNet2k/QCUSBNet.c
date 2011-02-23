@@ -98,7 +98,7 @@ POSSIBILITY OF SUCH DAMAGE.
 int debug;
 
 // Wait 5 seconds after enumeration for firmware to be ready?
-int safeEnumDelay = 1;
+int safeEnumDelay = 0;
 
 // Class should be created during module init, so needs to be global
 static struct class * gpClass;
