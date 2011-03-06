@@ -13,3 +13,12 @@ config SENSORS_TSL2563
 	 This driver can also be built as a module.  If so, the module
 	 will be called tsl2563.
 
+config SENSORS_TSL258x
+	tristate "TAOS TSL258x device driver"
+	depends on I2C
+	help
+	  Provides support for the TAOS tsl258x family of devices.
+	  Access ALS data via iio sysfs attributes.
+
+	  This driver can also be built as a module.  If so, the module
+	  will be called tsl258x.
