@@ -469,7 +469,7 @@ static int taos_chip_on(struct i2c_client *client)
 	 * initialize the desired mode of operation
 	 */
 	ret = i2c_smbus_write_byte_data(client, TSL258X_CMD_REG | TSL258X_CNTRL,
-					TSL258X_CNTL_PWRON | 
+					TSL258X_CNTL_PWRON |
 					TSL258X_CNTL_ADC_ENBL);
 	if (ret < 0) {
 		dev_err(&client->dev, "taos_chip_on failed on 2nd CTRL reg.\n");
