@@ -79,7 +79,8 @@
 #define MAX_LUX_TABLE_LEVELS		11
 
 enum {
-	TAOS_CHIP_UNKNOWN = 0, TAOS_CHIP_WORKING = 1, TAOS_CHIP_SLEEP = 2
+	TAOS_CHIP_UNKNOWN = 0, TAOS_CHIP_WORKING = 1, TAOS_CHIP_SLEEP = 2,
+	TAOS_CHIP_SUSPENDED = 3
 } TAOS_CHIP_WORKING_STATUS;
 
 /* Per-device data */
@@ -883,11 +884,14 @@ static int __devexit taos_remove(struct i2c_client *client)
 static int taos_suspend(struct i2c_client *client, pm_message_t state)
 {
 	struct tsl258x_chip *chip = i2c_get_clientdata(client);
-	int ret;
+	int ret = 0;
 
 	mutex_lock(&chip->als_mutex);
 
-	ret = taos_chip_off(client);
+	if (chip->taos_chip_status == TAOS_CHIP_WORKING) {
+		ret = taos_chip_off(client);
+		chip->taos_chip_status = TAOS_CHIP_SUSPENDED;
+	}
 
 	mutex_unlock(&chip->als_mutex);
 	return ret;
@@ -896,11 +900,12 @@ static int taos_suspend(struct i2c_client *client, pm_message_t state)
 static int taos_resume(struct i2c_client *client)
 {
 	struct tsl258x_chip *chip = i2c_get_clientdata(client);
-	int ret;
+	int ret = 0;
 
 	mutex_lock(&chip->als_mutex);
 
-	ret = taos_chip_on(client);
+	if (chip->taos_chip_status == TAOS_CHIP_SUSPENDED)
+		ret = taos_chip_on(client);
 
 	mutex_unlock(&chip->als_mutex);
 	return ret;
