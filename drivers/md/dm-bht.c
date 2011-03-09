@@ -588,7 +588,7 @@ static int dm_bht_update_hash(struct dm_bht *bht, u8 *known, u8 *computed)
 
 /* Check the disk block against the leaf hash. */
 static int dm_bht_check_block(struct dm_bht *bht, unsigned int block_index,
-			      const void *block, int *entry_state)
+			      const void *block)
 {
 	unsigned int depth = bht->depth;
 	struct dm_bht_entry *parent = dm_bht_get_entry(bht, depth - 1,
@@ -599,8 +599,7 @@ static int dm_bht_check_block(struct dm_bht *bht, unsigned int block_index,
 	/* This call is only safe if all nodes along the path
 	 * are already populated (i.e. READY) via dm_bht_populate.
 	 */
-	*entry_state = atomic_read(&parent->state);
-	BUG_ON(*entry_state < DM_BHT_ENTRY_READY);
+	BUG_ON(atomic_read(&parent->state) < DM_BHT_ENTRY_READY);
 
 	node = dm_bht_get_node(bht, parent, depth, block_index);
 	if (dm_bht_compute_hash(bht, virt_to_page(block), digest) ||
@@ -1057,7 +1056,6 @@ int dm_bht_verify_block(struct dm_bht *bht, unsigned int block_index,
 			const void *block)
 {
 	int unverified = 0;
-	int entry_state = 0;
 
 	/* Make sure that the root has been verified */
 	if (atomic_read(&bht->root_state) != DM_BHT_ENTRY_VERIFIED) {
@@ -1069,21 +1067,12 @@ int dm_bht_verify_block(struct dm_bht *bht, unsigned int block_index,
 	}
 
 	/* Now check that the digest supplied matches the leaf hash */
-	unverified = dm_bht_check_block(bht, block_index, block, &entry_state);
+	unverified = dm_bht_check_block(bht, block_index, block);
 	if (unverified) {
 		DMERR_LIMIT("Block check failed for %u: %d", block_index,
 				unverified);
 		return unverified;
 	}
-
-	/* If the entry which contains the block hash is marked verified, then
-	 * it means that its hash has been check with the parent.  In addition,
-	 * since that is only possible via verify_path, it transitively means
-	 * it is verified to the root of the tree. If the depth is 1, then it
-	 * means the entry was verified during root verification.
-	 */
-	if (entry_state == DM_BHT_ENTRY_VERIFIED || bht->depth == 1)
-		return unverified;
 
 	/* Now check levels in between */
 	unverified = dm_bht_verify_path(bht, block_index);
