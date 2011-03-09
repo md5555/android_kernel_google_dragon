@@ -95,9 +95,10 @@ typedef int (*dm_bht_compare_cb)(struct dm_bht *, u8 *, u8 *);
 /**
  * dm_bht_compute_hash: hashes a page of data
  */
-static int dm_bht_compute_hash(struct dm_bht *bht, struct hash_desc *hash_desc,
-			       struct page *page, u8 *digest)
+static int dm_bht_compute_hash(struct dm_bht *bht, struct page *page,
+			       u8 *digest)
 {
+	struct hash_desc *hash_desc = &bht->hash_desc[smp_processor_id()];
 	struct scatterlist sg;
 
 	sg_init_table(&sg, 1);
@@ -592,7 +593,6 @@ static int dm_bht_check_block(struct dm_bht *bht, unsigned int block_index,
 	unsigned int depth = bht->depth;
 	struct dm_bht_entry *parent = dm_bht_get_entry(bht, depth - 1,
 						       block_index);
-	struct hash_desc *hash_desc = &bht->hash_desc[smp_processor_id()];
 	u8 digest[DM_BHT_MAX_DIGEST_SIZE];
 	u8 *node;
 
@@ -603,7 +603,7 @@ static int dm_bht_check_block(struct dm_bht *bht, unsigned int block_index,
 	BUG_ON(*entry_state < DM_BHT_ENTRY_READY);
 
 	node = dm_bht_get_node(bht, parent, depth, block_index);
-	if (dm_bht_compute_hash(bht, hash_desc, virt_to_page(block), digest) ||
+	if (dm_bht_compute_hash(bht, virt_to_page(block), digest) ||
 	    dm_bht_compare_hash(bht, digest, node)) {
 		DMERR("failed to verify entry's hash against parent "
 		      "(d=%u,bi=%u)", depth, block_index);
@@ -684,7 +684,6 @@ static int dm_bht_verify_path(struct dm_bht *bht, unsigned int block_index)
 {
 	unsigned int depth = bht->depth - 1;
 	struct dm_bht_entry *entry = dm_bht_get_entry(bht, depth, block_index);
-	struct hash_desc *hash_desc = &bht->hash_desc[smp_processor_id()];
 
 	while (depth > 0) {
 		u8 digest[DM_BHT_MAX_DIGEST_SIZE];
@@ -722,7 +721,7 @@ static int dm_bht_verify_path(struct dm_bht *bht, unsigned int block_index)
 		node = dm_bht_get_node(bht, parent, depth, block_index);
 		page = virt_to_page(entry->nodes);
 
-		if (dm_bht_compute_hash(bht, hash_desc, page, digest) ||
+		if (dm_bht_compute_hash(bht, page, digest) ||
 		    dm_bht_compare_hash(bht, digest, node)) {
 			DMERR("failed to verify entry's hash against parent "
 			      "(d=%u,bi=%u)", depth, block_index);
@@ -770,7 +769,6 @@ int dm_bht_store_block(struct dm_bht *bht, unsigned int block_index,
 	struct dm_bht_entry *entry;
 	struct dm_bht_level *level;
 	int state;
-	struct hash_desc *hash_desc;
 	struct page *node_page = NULL;
 
 	/* Look at the last level of nodes above the leaves (data blocks) */
@@ -818,8 +816,7 @@ int dm_bht_store_block(struct dm_bht *bht, unsigned int block_index,
 		return 1;
 	}
 
-	hash_desc = &bht->hash_desc[smp_processor_id()];
-	dm_bht_compute_hash(bht, hash_desc, virt_to_page(block_data),
+	dm_bht_compute_hash(bht, virt_to_page(block_data),
 			    dm_bht_node(bht, entry, node_index));
 	return 0;
 }
@@ -866,7 +863,6 @@ EXPORT_SYMBOL(dm_bht_zeroread_callback);
  */
 int dm_bht_compute(struct dm_bht *bht, void *read_cb_ctx)
 {
-	struct hash_desc *hash_desc = &bht->hash_desc[smp_processor_id()];
 	int depth, r;
 
 	for (depth = bht->depth - 2; depth >= 0; depth--) {
@@ -889,8 +885,7 @@ int dm_bht_compute(struct dm_bht *bht, void *read_cb_ctx)
 				struct page *pg = virt_to_page(child->nodes);
 				u8 *node = dm_bht_node(bht, entry, j);
 
-				r = dm_bht_compute_hash(bht, hash_desc,
-							pg, node);
+				r = dm_bht_compute_hash(bht, pg, node);
 				if (r) {
 					DMERR("Failed to update (d=%u,i=%u)",
 					      depth, i);
