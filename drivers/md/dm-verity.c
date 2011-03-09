@@ -16,7 +16,6 @@
 #include <linux/bio.h>
 #include <linux/blkdev.h>
 #include <linux/completion.h>
-#include <linux/crypto.h>
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/err.h>
@@ -30,11 +29,8 @@
 #include <linux/workqueue.h>
 #include <linux/reboot.h>
 #include <asm/atomic.h>
-#include <linux/scatterlist.h>
 #include <asm/page.h>
 #include <asm/unaligned.h>
-#include <crypto/hash.h>
-#include <crypto/sha.h>
 
 /* #define CONFIG_DM_DEBUG 1 */
 #define CONFIG_DM_VERITY_TRACE 1
@@ -178,7 +174,6 @@ struct verity_config {
 	struct workqueue_struct *verify_queue;
 
 	char hash_alg[CRYPTO_MAX_ALG_NAME];
-	struct hash_desc *hash;  /* one per cpu */
 
 	int error_behavior;
 
@@ -340,29 +335,6 @@ static struct bio *verity_bio_clone(struct dm_verity_io *io)
 	clone->bi_destructor = dm_verity_bio_destructor;
 
 	return clone;
-}
-
-static int verity_hash_block(struct verity_config *vc,
-			     struct page *page,
-			     u8 *digest)
-{
-	struct hash_desc *hash_desc = &vc->hash[smp_processor_id()];
-	struct scatterlist sg;
-
-	sg_init_table(&sg, 1);
-	sg_set_page(&sg, page, VERITY_BLOCK_SIZE, 0);
-
-	if (crypto_hash_init(hash_desc)) {
-		DMCRIT("Failed to initialize the crypto hash");
-		return -EFAULT;
-	}
-
-	if (crypto_hash_digest(hash_desc, &sg, VERITY_BLOCK_SIZE, digest)) {
-		DMCRIT("crypto_hash_digest failed");
-		return -EFAULT;
-	}
-
-	return 0;
 }
 
 /* If the request is not successful, this handler takes action.
@@ -674,11 +646,8 @@ io_error:
 static int verity_verify(struct verity_config *vc,
 			 struct bio *bio)
 {
-	u8 digest[VERITY_MAX_DIGEST_SIZE];
 	int r;
 	unsigned int idx, block;
-	unsigned int digest_size =
-		crypto_hash_digestsize(vc->hash[smp_processor_id()].tfm);
 
 	VERITY_BUG_ON(bio == NULL);
 
@@ -693,11 +662,8 @@ static int verity_verify(struct verity_config *vc,
 		DMDEBUG("Updating hash for block %u", block);
 
 		/* TODO(msb) handle case where multiple blocks fit in a page */
-		r = verity_hash_block(vc, bv->bv_page, digest);
-		if (r < 0)
-			goto bad_hash;
-
-		r = dm_bht_verify_block(&vc->bht, block, digest, digest_size);
+		r = dm_bht_verify_block(&vc->bht, block,
+					page_address(bv->bv_page));
 		/* dm_bht functions aren't expected to return errno friendly
 		 * values.  They are converted here for uniformity.
 		 */
@@ -723,7 +689,6 @@ static int verity_verify(struct verity_config *vc,
 
 	return 0;
 
-bad_hash:
 bad_state:
 bad_match:
 	return r;
@@ -1132,7 +1097,6 @@ static int verity_map(struct dm_target *ti, struct bio *bio,
 static int verity_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 {
 	struct verity_config *vc;
-	int cpu = 0;
 	int ret = 0;
 	int depth;
 	unsigned long long tmpull = 0;
@@ -1232,28 +1196,6 @@ static int verity_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 		ti->error = "Hash algorithm name is too long";
 		goto bad_hash;
 	}
-	/* Allocate enough crypto contexts to be able to perform verifies
-	 * on all available CPUs.
-	 */
-	ALLOCTRACE("hash_desc array");
-	vc->hash = (struct hash_desc *)
-		      kcalloc(nr_cpu_ids, sizeof(struct hash_desc), GFP_KERNEL);
-	if (!vc->hash) {
-		DMERR("failed to allocate crypto hash contexts");
-		return -ENOMEM;
-	}
-
-	/* Setup the hash first. Its length determines much of the bht layout */
-	for (cpu = 0; cpu < nr_cpu_ids; ++cpu) {
-		ALLOCTRACE("hash_tfm (per-cpu)");
-		vc->hash[cpu].tfm = crypto_alloc_hash(vc->hash_alg, 0, 0);
-		if (IS_ERR(vc->hash[cpu].tfm)) {
-			DMERR("failed to allocate crypto hash '%s'",
-			      vc->hash_alg);
-			vc->hash[cpu].tfm = NULL;
-			goto bad_hash_alg;
-		}
-	}
 
 	/* arg6: override with optional device-specific error behavior */
 	if (argc >= 7) {
@@ -1346,12 +1288,7 @@ bad_bs:
 	mempool_destroy(vc->io_pool);
 bad_slab_pool:
 bad_err_behavior:
-	for (cpu = 0; cpu < nr_cpu_ids; ++cpu)
-		if (vc->hash[cpu].tfm)
-			crypto_free_hash(vc->hash[cpu].tfm);
-bad_hash_alg:
 bad_hash:
-	kfree(vc->hash);
 	dm_put_device(ti, vc->hash_dev);
 bad_hash_dev:
 bad_hash_start:
@@ -1367,7 +1304,6 @@ bad_verity_dev:
 static void verity_dtr(struct dm_target *ti)
 {
 	struct verity_config *vc = (struct verity_config *) ti->private;
-	int cpu;
 
 	DMDEBUG("Destroying io_queue");
 	destroy_workqueue(vc->io_queue);
@@ -1378,11 +1314,6 @@ static void verity_dtr(struct dm_target *ti)
 	bioset_free(vc->bs);
 	DMDEBUG("Destroying io_pool");
 	mempool_destroy(vc->io_pool);
-	DMDEBUG("Destroying crypto hash");
-	for (cpu = 0; cpu < nr_cpu_ids; ++cpu)
-		if (vc->hash[cpu].tfm)
-			crypto_free_hash(vc->hash[cpu].tfm);
-	kfree(vc->hash);
 
 	DMDEBUG("Destroying block hash tree");
 	dm_bht_destroy(&vc->bht);
