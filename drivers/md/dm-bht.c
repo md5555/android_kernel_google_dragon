@@ -307,7 +307,6 @@ int dm_bht_create(struct dm_bht *bht, unsigned int depth,
 	if (status)
 		goto bad_entries_alloc;
 
-	bht->verify_mode = DM_BHT_REVERIFY_LEAVES;
 	bht->entry_readahead = 0;
 	return 0;
 
@@ -727,10 +726,9 @@ static int dm_bht_verify_path(struct dm_bht *bht, unsigned int block_index)
 			goto mismatch;
 		}
 
-		if (bht->verify_mode != DM_BHT_FULL_REVERIFY)
-			atomic_cmpxchg(&entry->state,
-				       DM_BHT_ENTRY_READY,
-				       DM_BHT_ENTRY_VERIFIED);
+		atomic_cmpxchg(&entry->state,
+			       DM_BHT_ENTRY_READY,
+			       DM_BHT_ENTRY_VERIFIED);
 
 		entry = parent;
 		depth--;
@@ -1167,17 +1165,6 @@ void dm_bht_set_write_cb(struct dm_bht *bht, dm_bht_callback write_cb)
 	bht->write_cb = write_cb;
 }
 EXPORT_SYMBOL(dm_bht_set_write_cb);
-
-/**
- * dm_bht_set_verify_mode - set verify mode
- * @bht:	pointer to a dm_bht_create()d bht
- * @verify_mode:	indicate verification behavior
- */
-void dm_bht_set_verify_mode(struct dm_bht *bht, int verify_mode)
-{
-	bht->verify_mode = verify_mode;
-}
-EXPORT_SYMBOL(dm_bht_set_verify_mode);
 
 /**
  * dm_bht_set_entry_readahead - set verify mode
