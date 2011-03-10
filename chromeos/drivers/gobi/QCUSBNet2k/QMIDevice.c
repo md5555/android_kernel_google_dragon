@@ -41,7 +41,7 @@ FUNCTIONS:
    Userspace wrappers
       UserspaceOpen
       UserspaceIOCTL
-      UserspaceClose
+      UserspaceRelease
       UserspaceRead
       UserspaceWrite
 
@@ -139,6 +139,9 @@ int QCSuspend(
 // IOCTL to get the MEID of the device
 #define IOCTL_QMI_GET_DEVICE_MEID 0x8BE0 + 3
 
+// IOCTL to close the QMI connection
+#define IOCTL_QMI_CLOSE 0x8BE0 + 4
+
 // CDC GET_ENCAPSULATED_RESPONSE packet
 #define CDC_GET_ENCAPSULATED_RESPONSE 0x01A1ll
 
@@ -156,7 +159,7 @@ struct file_operations UserspaceQMIFops =
    .write     = UserspaceWrite,
    .ioctl     = UserspaceIOCTL,
    .open      = UserspaceOpen,
-   .flush     = UserspaceClose,
+   .release   = UserspaceRelease,
 };
 
 /*=========================================================================*/
@@ -1384,13 +1387,6 @@ void ReleaseClientID(
    u16 readBufferSize;
    unsigned long flags;
    u8 transactionID;
-
-   // Is device is still valid?
-   if (IsDeviceValid( pDev ) == false)
-   {
-      DBG( "invalid device\n" );
-      return;
-   }
    
    DBG( "releasing 0x%04X\n", clientID );
 
@@ -2119,8 +2115,7 @@ int UserspaceIOCTL(
    
    if (IsDeviceValid( pFilpData->mpDev ) == false)
    {
-      DBG( "Invalid device! Updating f_ops\n" );
-      pFilp->f_op = pFilp->f_dentry->d_inode->i_fop;
+      DBG( "Invalid device!\n" );
       return -ENXIO;
    }
 
@@ -2152,6 +2147,25 @@ int UserspaceIOCTL(
          return 0;
          break;
 
+
+      case IOCTL_QMI_CLOSE:
+         // This is called by userspace to kick waiting clients off an active
+         // QMI connection. If we don't do have this ioctl, we might have file
+         // descriptors that hang around forever (specifically because a ref to
+         // them is held by a pending aio_read() in userspace); this ioctl
+         // causes those pending reads to terminate immediately which prevents
+         // userspace from hanging inside this driver.
+         DBG("Tearing down QMI for service %lu", arg);
+         if (pFilpData->mClientID == (u16)-1) {
+            DBG("No QMI for this handle");
+            return -EBADR;
+         }
+
+         pFilp->private_data = NULL;
+         ReleaseClientID( pFilpData->mpDev, pFilpData->mClientID );
+         kfree(pFilpData);
+         return 0;
+         break;
 
       case IOCTL_QMI_GET_DEVICE_VIDPID:
          if (arg == 0)
@@ -2209,10 +2223,10 @@ int UserspaceIOCTL(
 
 /*===========================================================================
 METHOD:
-   UserspaceClose (Public Method)
+   UserspaceRelease (Public Method)
 
 DESCRIPTION:
-   Userspace close
+   Last ref to file structure dropped.
       Release client ID and free memory
 
 PARAMETERS
@@ -2223,68 +2237,17 @@ RETURN VALUE:
    int - 0 for success
          Negative errno for failure
 ===========================================================================*/
-int UserspaceClose(
-   struct file *       pFilp,
-   fl_owner_t          unusedFileTable )
+int UserspaceRelease(
+   struct inode *      pInode,
+   struct file *       pFilp )
 {
    sQMIFilpStorage * pFilpData = (sQMIFilpStorage *)pFilp->private_data;
-   struct task_struct * pEachTask;
-   struct fdtable * pFDT;
-   int count = 0;
-   int used = 0;
-   unsigned long flags;
 
    if (pFilpData == NULL)
    {
       DBG( "bad file data\n" );
       return -EBADF;
    }
-
-   // Fallthough.  If f_count == 1 no need to do more checks
-   if (atomic_read( &pFilp->f_count ) != 1)
-   {
-      // "group_leader" points to the main process' task, which resides in
-      // the global "tasks" list.
-      rcu_read_lock();
-      for_each_process(pEachTask)
-      {
-         if (pEachTask == NULL || pEachTask->files == NULL)
-         {
-            // Some tasks may not have files (e.g. Xsession)
-            continue;
-         }
-         spin_lock_irqsave( &pEachTask->files->file_lock, flags );
-         pFDT = files_fdtable( pEachTask->files );
-         for (count = 0; count < pFDT->max_fds; count++)
-         {
-            // Before this function was called, this file was removed
-            // from our task's file table so if we find it in a file
-            // table then it is being used by another task
-            if (pFDT->fd[count] == pFilp)
-            {
-               used++;
-               break;
-            }
-         }
-         spin_unlock_irqrestore( &pEachTask->files->file_lock, flags );
-      }
-      rcu_read_unlock();
-      
-      if (used > 0)
-      {
-         DBG( "not closing, as this FD is open by %d other process\n", used );
-         return 0;
-      }
-   }
-
-   if (IsDeviceValid( pFilpData->mpDev ) == false)
-   {
-      DBG( "Invalid device! Updating f_ops\n" );
-      pFilp->f_op = pFilp->f_dentry->d_inode->i_fop;
-      return -ENXIO;
-   }
-   
-   DBG( "0x%04X\n", pFilpData->mClientID );
    
    // Disable pFilpData so they can't keep sending read or write 
    //    should this function hang
@@ -2337,8 +2300,7 @@ ssize_t UserspaceRead(
 
    if (IsDeviceValid( pFilpData->mpDev ) == false)
    {
-      DBG( "Invalid device! Updating f_ops\n" );
-      pFilp->f_op = pFilp->f_dentry->d_inode->i_fop;
+      DBG( "Invalid device!\n" );
       return -ENXIO;
    }
    
@@ -2622,13 +2584,6 @@ void DeregisterQMIDevice( sQCUSBNet * pDev )
    unsigned long flags;
    int count = 0;
    int tries;
-
-   // Should never happen, but check anyway
-   if (IsDeviceValid( pDev ) == false)
-   {
-      DBG( "wrong device\n" );
-      return;
-   }
 
    // Release all clients
    while (pDev->mQMIDev.mpClientMemList != NULL)

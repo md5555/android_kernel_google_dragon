@@ -40,7 +40,7 @@ FUNCTIONS:
    Userspace wrappers
       UserspaceOpen
       UserspaceIOCTL
-      UserspaceClose
+      UserspaceRelease
       UserspaceRead
       UserspaceWrite
 
@@ -281,10 +281,10 @@ int UserspaceIOCTL(
    unsigned int      cmd, 
    unsigned long     arg );
 
-// Userspace close
-int UserspaceClose( 
-   struct file *       pFilp,
-   fl_owner_t          unusedFileTable );
+// Userspace release
+int UserspaceRelease(
+   struct inode *      pInode,
+   struct file *       pFilp );
 
 // Userspace read (synchronous)
 ssize_t UserspaceRead( 
