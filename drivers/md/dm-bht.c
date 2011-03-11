@@ -691,12 +691,13 @@ static int dm_bht_verify_path(struct dm_bht *bht, unsigned int block_index)
 		int state;
 
 		DMDEBUG("verify_path for b=%u on d=%d", block_index, depth);
+		/* TODO(msb,wad): would be nice to avoid two atomic reads */
 		state = atomic_read(&entry->state);
 		if (state == DM_BHT_ENTRY_VERIFIED) {
-			DMDEBUG("verify_path node %u is verified in parent",
+			DMDEBUG("verify_path node %u is verified to root",
 				block_index);
-			entry = dm_bht_get_entry(bht, --depth, block_index);
-			continue;
+			depth++; /* avoid an extra cmpxchg */
+			break;
 		} else if (state <= DM_BHT_ENTRY_ERROR) {
 			DMCRIT("entry(d=%u,b=%u) is in an error state: %d",
 			       depth, block_index, state);
@@ -726,12 +727,15 @@ static int dm_bht_verify_path(struct dm_bht *bht, unsigned int block_index)
 			goto mismatch;
 		}
 
+		entry = parent;
+		depth--;
+	}
+	/* Mark path to leaf as verified. */
+	for (; depth < bht->depth; depth++) {
+		entry = dm_bht_get_entry(bht, depth, block_index);
 		atomic_cmpxchg(&entry->state,
 			       DM_BHT_ENTRY_READY,
 			       DM_BHT_ENTRY_VERIFIED);
-
-		entry = parent;
-		depth--;
 	}
 
 	return 0;
