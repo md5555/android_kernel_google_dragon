@@ -682,65 +682,48 @@ static int dm_bht_verify_path(struct dm_bht *bht, unsigned int block_index)
 {
 	unsigned int depth = bht->depth - 1;
 	struct dm_bht_entry *entry = dm_bht_get_entry(bht, depth, block_index);
+	int state = atomic_read(&entry->state);
 
-	while (depth > 0) {
+	while (depth > 0 && state != DM_BHT_ENTRY_VERIFIED) {
 		u8 digest[DM_BHT_MAX_DIGEST_SIZE];
 		struct dm_bht_entry *parent;
 		struct page *page;
 		u8 *node;
-		int state;
-
-		DMDEBUG("verify_path for b=%u on d=%d", block_index, depth);
-		/* TODO(msb,wad): would be nice to avoid two atomic reads */
-		state = atomic_read(&entry->state);
-		if (state == DM_BHT_ENTRY_VERIFIED) {
-			DMDEBUG("verify_path node %u is verified to root",
-				block_index);
-			depth++; /* avoid an extra cmpxchg */
-			break;
-		} else if (state <= DM_BHT_ENTRY_ERROR) {
-			DMCRIT("entry(d=%u,b=%u) is in an error state: %d",
-			       depth, block_index, state);
-			DMCRIT("verification is not possible");
-			goto mismatch;
-		} else if (state <= DM_BHT_ENTRY_PENDING) {
-			DMERR("entry not ready for verify: d=%u,b=%u",
-			      depth, block_index);
-			goto mismatch;
-		}
 
 		/* We need to check that this entry matches the expected
 		 * hash in the parent->nodes.
 		 */
 		parent = dm_bht_get_entry(bht, depth - 1, block_index);
+		state = atomic_read(&parent->state);
 		/* This call is only safe if all nodes along the path
 		 * are already populated (i.e. READY) via dm_bht_populate.
 		 */
-		BUG_ON(atomic_read(&parent->state) < DM_BHT_ENTRY_READY);
+		BUG_ON(state < DM_BHT_ENTRY_READY);
 		node = dm_bht_get_node(bht, parent, depth, block_index);
 		page = virt_to_page(entry->nodes);
 
 		if (dm_bht_compute_hash(bht, page, digest) ||
-		    dm_bht_compare_hash(bht, digest, node)) {
-			DMERR("failed to verify entry's hash against parent "
-			      "(d=%u,bi=%u)", depth, block_index);
+		    dm_bht_compare_hash(bht, digest, node))
 			goto mismatch;
-		}
 
 		entry = parent;
 		depth--;
 	}
+
 	/* Mark path to leaf as verified. */
-	for (; depth < bht->depth; depth++) {
+	for (depth++; depth < bht->depth; depth++) {
 		entry = dm_bht_get_entry(bht, depth, block_index);
 		atomic_cmpxchg(&entry->state,
 			       DM_BHT_ENTRY_READY,
 			       DM_BHT_ENTRY_VERIFIED);
 	}
 
+	DMDEBUG("verify_path: node %u is verified to root", block_index);
 	return 0;
 
 mismatch:
+	DMERR("verify_path: failed to verify hash against parent (d=%u,bi=%u)",
+	      depth, block_index);
 	return DM_BHT_ENTRY_ERROR_MISMATCH;
 }
 
