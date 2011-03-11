@@ -95,14 +95,20 @@ typedef int (*dm_bht_compare_cb)(struct dm_bht *, u8 *, u8 *);
 /**
  * dm_bht_compute_hash: hashes a page of data
  */
-static int dm_bht_compute_hash(struct dm_bht *bht, struct page *page,
+static int dm_bht_compute_hash(struct dm_bht *bht, const void *block,
 			       u8 *digest)
 {
 	struct hash_desc *hash_desc = &bht->hash_desc[smp_processor_id()];
 	struct scatterlist sg;
 
+	/* TODO(msb): Once we supporting block_size < PAGE_SIZE, change this to:
+	 *            offset_into_page + length < page_size
+	 * For now just check that block is page-aligned.
+	 */
+	BUG_ON(!IS_ALIGNED((uintptr_t)block, PAGE_SIZE));
+
 	sg_init_table(&sg, 1);
-	sg_set_page(&sg, page, PAGE_SIZE, 0);
+	sg_set_buf(&sg, block, PAGE_SIZE);
 	/* Note, this is synchronous. */
 	if (crypto_hash_init(hash_desc)) {
 		DMCRIT("failed to reinitialize crypto hash (proc:%d)",
@@ -601,7 +607,7 @@ static int dm_bht_check_block(struct dm_bht *bht, unsigned int block_index,
 	BUG_ON(atomic_read(&parent->state) < DM_BHT_ENTRY_READY);
 
 	node = dm_bht_get_node(bht, parent, depth, block_index);
-	if (dm_bht_compute_hash(bht, virt_to_page(block), digest) ||
+	if (dm_bht_compute_hash(bht, block, digest) ||
 	    dm_bht_compare_hash(bht, digest, node)) {
 		DMERR("failed to verify entry's hash against parent "
 		      "(d=%u,bi=%u)", depth, block_index);
@@ -636,7 +642,7 @@ static int dm_bht_compute_root(struct dm_bht *bht, u8 *digest)
 			return 1;
 		}
 		sg_init_table(&sg, 1);
-		sg_set_page(&sg, virt_to_page(entry->nodes), PAGE_SIZE, 0);
+		sg_set_buf(&sg, entry->nodes, PAGE_SIZE);
 		if (crypto_hash_update(hash_desc, &sg, PAGE_SIZE)) {
 			DMCRIT("Failed to update crypto hash");
 			return -EINVAL;
@@ -687,7 +693,6 @@ static int dm_bht_verify_path(struct dm_bht *bht, unsigned int block_index)
 	while (depth > 0 && state != DM_BHT_ENTRY_VERIFIED) {
 		u8 digest[DM_BHT_MAX_DIGEST_SIZE];
 		struct dm_bht_entry *parent;
-		struct page *page;
 		u8 *node;
 
 		/* We need to check that this entry matches the expected
@@ -700,9 +705,8 @@ static int dm_bht_verify_path(struct dm_bht *bht, unsigned int block_index)
 		 */
 		BUG_ON(state < DM_BHT_ENTRY_READY);
 		node = dm_bht_get_node(bht, parent, depth, block_index);
-		page = virt_to_page(entry->nodes);
 
-		if (dm_bht_compute_hash(bht, page, digest) ||
+		if (dm_bht_compute_hash(bht, entry->nodes, digest) ||
 		    dm_bht_compare_hash(bht, digest, node))
 			goto mismatch;
 
@@ -800,7 +804,7 @@ int dm_bht_store_block(struct dm_bht *bht, unsigned int block_index,
 		return 1;
 	}
 
-	dm_bht_compute_hash(bht, virt_to_page(block_data),
+	dm_bht_compute_hash(bht, block_data,
 			    dm_bht_node(bht, entry, node_index));
 	return 0;
 }
@@ -866,10 +870,10 @@ int dm_bht_compute(struct dm_bht *bht, void *read_cb_ctx)
 
 		for (i = 0; i < level->count; i++, entry++) {
 			for (j = 0; j < count; j++, child++) {
-				struct page *pg = virt_to_page(child->nodes);
-				u8 *node = dm_bht_node(bht, entry, j);
+				u8 *block = child->nodes;
+				u8 *digest = dm_bht_node(bht, entry, j);
 
-				r = dm_bht_compute_hash(bht, pg, node);
+				r = dm_bht_compute_hash(bht, block, digest);
 				if (r) {
 					DMERR("Failed to update (d=%u,i=%u)",
 					      depth, i);
@@ -1032,6 +1036,7 @@ EXPORT_SYMBOL(dm_bht_populate);
  * @bht:	pointer to a dm_bht_create()d bht
  * @block_index:specific block data is expected from
  * @block:	virtual address of the block data in memory
+ *              (must be aligned to block size)
  *
  * Returns 0 on success, 1 on missing data, and a negative error
  * code on verification failure. All supporting functions called
