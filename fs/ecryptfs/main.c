@@ -122,7 +122,6 @@ int ecryptfs_init_persistent_file(struct dentry *ecryptfs_dentry)
 	int opened_lower_file = 0;
 	int rc = 0;
 
-	mutex_lock(&inode_info->lower_file_mutex);
 	if (!inode_info->lower_file) {
 		struct dentry *lower_dentry;
 		struct vfsmount *lower_mnt =
@@ -139,7 +138,6 @@ int ecryptfs_init_persistent_file(struct dentry *ecryptfs_dentry)
 		} else
 			opened_lower_file = 1;
 	}
-	mutex_unlock(&inode_info->lower_file_mutex);
 	if (opened_lower_file)
 		ima_counts_get(inode_info->lower_file);
 	return rc;
