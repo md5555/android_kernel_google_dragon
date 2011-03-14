@@ -591,31 +591,6 @@ static int dm_bht_update_hash(struct dm_bht *bht, u8 *known, u8 *computed)
 	return 0;
 }
 
-/* Check the disk block against the leaf hash. */
-static int dm_bht_check_block(struct dm_bht *bht, unsigned int block_index,
-			      const void *block)
-{
-	unsigned int depth = bht->depth;
-	struct dm_bht_entry *parent = dm_bht_get_entry(bht, depth - 1,
-						       block_index);
-	u8 digest[DM_BHT_MAX_DIGEST_SIZE];
-	u8 *node;
-
-	/* This call is only safe if all nodes along the path
-	 * are already populated (i.e. READY) via dm_bht_populate.
-	 */
-	BUG_ON(atomic_read(&parent->state) < DM_BHT_ENTRY_READY);
-
-	node = dm_bht_get_node(bht, parent, depth, block_index);
-	if (dm_bht_compute_hash(bht, block, digest) ||
-	    dm_bht_compare_hash(bht, digest, node)) {
-		DMERR("failed to verify entry's hash against parent "
-		      "(d=%u,bi=%u)", depth, block_index);
-		return DM_BHT_ENTRY_ERROR_MISMATCH;
-	}
-	return 0;
-}
-
 /* Walk all entries at level 0 to compute the root digest.
  * 0 on success.
  */
@@ -682,37 +657,39 @@ static int dm_bht_verify_root(struct dm_bht *bht,
 }
 
 /* dm_bht_verify_path
- * Verifies the path from block_index to depth=0. Returns 0 on ok.
+ * Verifies the path. Returns 0 on ok.
  */
-static int dm_bht_verify_path(struct dm_bht *bht, unsigned int block_index)
+static int dm_bht_verify_path(struct dm_bht *bht, unsigned int block_index,
+			      const void *block)
 {
-	unsigned int depth = bht->depth - 1;
-	struct dm_bht_entry *entry = dm_bht_get_entry(bht, depth, block_index);
-	int state = atomic_read(&entry->state);
+	unsigned int depth = bht->depth;
+	struct dm_bht_entry *entry;
+	int state;
 
-	while (depth > 0 && state != DM_BHT_ENTRY_VERIFIED) {
+	do {
 		u8 digest[DM_BHT_MAX_DIGEST_SIZE];
-		struct dm_bht_entry *parent;
 		u8 *node;
 
-		/* We need to check that this entry matches the expected
-		 * hash in the parent->nodes.
+		/* Need to check that the hash of the current block is accurate
+		 * in its parent.
 		 */
-		parent = dm_bht_get_entry(bht, depth - 1, block_index);
-		state = atomic_read(&parent->state);
+		entry = dm_bht_get_entry(bht, depth - 1, block_index);
+		state = atomic_read(&entry->state);
 		/* This call is only safe if all nodes along the path
 		 * are already populated (i.e. READY) via dm_bht_populate.
 		 */
 		BUG_ON(state < DM_BHT_ENTRY_READY);
-		node = dm_bht_get_node(bht, parent, depth, block_index);
+		node = dm_bht_get_node(bht, entry, depth, block_index);
 
-		if (dm_bht_compute_hash(bht, entry->nodes, digest) ||
+		if (dm_bht_compute_hash(bht, block, digest) ||
 		    dm_bht_compare_hash(bht, digest, node))
 			goto mismatch;
 
-		entry = parent;
-		depth--;
-	}
+		/* Keep the containing block of hashes to be verified in the
+		 * next pass.
+		 */
+		block = entry->nodes;
+	} while (--depth > 0 && state != DM_BHT_ENTRY_VERIFIED);
 
 	/* Mark path to leaf as verified. */
 	for (depth++; depth < bht->depth; depth++) {
@@ -1045,31 +1022,24 @@ EXPORT_SYMBOL(dm_bht_populate);
 int dm_bht_verify_block(struct dm_bht *bht, unsigned int block_index,
 			const void *block)
 {
-	int unverified = 0;
+	int r = 0;
 
 	/* Make sure that the root has been verified */
 	if (atomic_read(&bht->root_state) != DM_BHT_ENTRY_VERIFIED) {
-		unverified = dm_bht_verify_root(bht, dm_bht_compare_hash);
-		if (unverified) {
-			DMERR_LIMIT("Failed to verify root: %d", unverified);
-			return unverified;
+		r = dm_bht_verify_root(bht, dm_bht_compare_hash);
+		if (r) {
+			DMERR_LIMIT("Failed to verify root: %d", r);
+			goto out;
 		}
 	}
 
-	/* Now check that the digest supplied matches the leaf hash */
-	unverified = dm_bht_check_block(bht, block_index, block);
-	if (unverified) {
-		DMERR_LIMIT("Block check failed for %u: %d", block_index,
-				unverified);
-		return unverified;
-	}
-
 	/* Now check levels in between */
-	unverified = dm_bht_verify_path(bht, block_index);
-	if (unverified)
-		DMERR_LIMIT("Failed to verify intermediary nodes for block: %u (%d)",
-		      block_index, unverified);
-	return unverified;
+	r = dm_bht_verify_path(bht, block_index, block);
+	if (r)
+		DMERR_LIMIT("Failed to verify block: %u (%d)", block_index, r);
+
+out:
+	return r;
 }
 EXPORT_SYMBOL(dm_bht_verify_block);
 
