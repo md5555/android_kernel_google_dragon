@@ -36,9 +36,7 @@
 #include <linux/platform_device.h>
 #include <linux/acpi.h>
 
-MODULE_AUTHOR("Google Inc.");
-MODULE_DESCRIPTION("Chrome OS Extras Driver");
-MODULE_LICENSE("GPL");
+#include "chromeos_acpi.h"
 
 #define MY_LOGPREFIX "chromeos_acpi: "
 #define MY_ERR KERN_ERR MY_LOGPREFIX
@@ -111,13 +109,6 @@ struct chromeos_acpi_dev {
 };
 
 static struct chromeos_acpi_dev chromeos_acpi = { };
-
-
-/* Values set at probe time */
-int chromeos_acpi_chnv = -1;
-int chromeos_acpi_chsw = -1;
-
-bool chromeos_acpi_available;
 
 
 /*
@@ -334,6 +325,8 @@ static void handle_nested_acpi_package(union acpi_object *po, char *pm,
 		printk(MY_ERR "failed to create group %s.%d\n", pm, instance);
 }
 
+
+#ifdef CONFIG_CHROMEOS
 /*
  * handle_single_int() extract a single int value
  *
@@ -356,7 +349,7 @@ static void handle_single_int(union acpi_object *po, int *found)
 		printk(MY_ERR "acpi_object unexpected type %d, expected int\n",
 		       element->type);
 }
-
+#endif
 
 /*
  * handle_acpi_package() create sysfs group including attributes
@@ -393,12 +386,67 @@ static void handle_acpi_package(union acpi_object *po, char *pm)
 			add_sysfs_attribute(attr_value, pm, count, j);
 			break;
 
+		case ACPI_TYPE_BUFFER: {
+			char *base, *p;
+			int i;
+			unsigned room_left;
+			/* Include this many characters per line */
+			unsigned char_per_line = 16;
+			unsigned string_buffer_size =
+				/* three characters to display one byte */
+				element->buffer.length * 3 +
+				/* one newline per line, all rounded up, plus
+				 * extra newline in the end, plus terminating
+				 * zero, hence + 4
+				 */
+				element->buffer.length/char_per_line + 4;
+
+			if (string_buffer_size > sizeof(attr_value)) {
+				p = kzalloc(string_buffer_size, GFP_KERNEL);
+				if (!p) {
+					printk(MY_ERR "out of memory in %s!\n",
+					       __func__);
+					break;
+				}
+			} else {
+				p = attr_value;
+			}
+
+			base = p;
+			room_left = string_buffer_size;
+			for (i = 0; i < element->buffer.length; i++) {
+				int printed;
+				printed = snprintf(p, room_left, " %2.2x",
+						   element->buffer.pointer[i]);
+				room_left -= printed;
+				p += printed;
+				if (((i + 1) % char_per_line) == 0) {
+					if (!room_left)
+						break;
+					room_left--;
+					*p++ = '\n';
+				}
+			}
+			if (room_left < 2) {
+				printk(MY_ERR "%s: no room in the buffer!\n",
+				       __func__);
+				*p = '\0';
+			} else {
+				*p++ = '\n';
+				*p++ = '\0';
+			}
+			add_sysfs_attribute(base, pm, count, j);
+			if (string_buffer_size > sizeof(attr_value))
+				kfree(p);
+			break;
+		}
 		case ACPI_TYPE_PACKAGE:
 			handle_nested_acpi_package(element, pm, count, j);
 			break;
 
 		default:
-			printk(MY_ERR "ignoring type %d\n", element->type);
+			printk(MY_ERR "ignoring type %d (%s)\n",
+			       element->type, pm);
 			break;
 		}
 	}
@@ -433,13 +481,13 @@ static void add_acpi_method(struct acpi_device *device, char *pm)
 		printk(MY_ERR "%s is not a package, ignored\n", pm);
 	else
 		handle_acpi_package(po, pm);
-
+#ifdef CONFIG_CHROMEOS
 	/* Need to export a couple of variables to chromeos.c */
 	if (!strncmp(pm, "CHNV", 4))
 		handle_single_int(po, &chromeos_acpi_chnv);
 	else if (!strncmp(pm, "CHSW", 4))
 		handle_single_int(po, &chromeos_acpi_chsw);
-
+#endif
 	kfree(output.pointer);
 }
 
@@ -482,7 +530,8 @@ static int chromeos_process_mlst(struct acpi_device *device)
 		char method[ACPI_NAME_SIZE + 1];
 
 		if (element->type == ACPI_TYPE_STRING) {
-			copy_size = min(element->string.length, ACPI_NAME_SIZE);
+			copy_size = min(element->string.length,
+					(u32)ACPI_NAME_SIZE);
 			memcpy(method, element->string.pointer, copy_size);
 			method[copy_size] = '\0';
 			add_acpi_method(device, method);
@@ -538,8 +587,41 @@ static int __init chromeos_acpi_init(void)
 		return ret;
 	}
 
+#ifdef CONFIG_CHROMEOS
 	chromeos_acpi_available = true;
-
+#endif
 	return 0;
 }
-subsys_initcall(chromeos_acpi_init);
+
+static void chromeos_acpi_exit(void)
+{
+#ifdef CONFIG_CHROMEOS
+	chromeos_acpi_available = false;
+#endif
+	acpi_bus_unregister_driver(&chromeos_acpi_driver);
+
+	while (chromeos_acpi.groups) {
+		struct acpi_attribute_group *aag;
+		aag = chromeos_acpi.groups;
+		chromeos_acpi.groups = aag->next_acpi_attr_group;
+		sysfs_remove_group(&chromeos_acpi.p_dev->dev.kobj, &aag->ag);
+		kfree(aag);
+	}
+
+	while (chromeos_acpi.attributes) {
+		struct acpi_attribute *aa = chromeos_acpi.attributes;
+		chromeos_acpi.attributes = aa->next_acpi_attr;
+		device_remove_file(&chromeos_acpi.p_dev->dev, &aa->dev_attr);
+		kfree(aa);
+	}
+
+	platform_device_unregister(chromeos_acpi.p_dev);
+	printk(MY_INFO "removed\n");
+}
+
+module_init(chromeos_acpi_init);
+module_exit(chromeos_acpi_exit);
+
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Google Inc.");
+MODULE_DESCRIPTION("Chrome OS ACPI Driver");

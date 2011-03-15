@@ -32,6 +32,16 @@
 
 #include "chromeos_acpi.h"
 
+/* Values set at probe time */
+int chromeos_acpi_chnv = -1;
+EXPORT_SYMBOL_GPL(chromeos_acpi_chnv);
+
+int chromeos_acpi_chsw = -1;
+EXPORT_SYMBOL_GPL(chromeos_acpi_chsw);
+
+bool chromeos_acpi_available;
+EXPORT_SYMBOL_GPL(chromeos_acpi_available);
+
 static bool chromeos_inited;
 
 static void chromeos_set_nvram_flag(int index, unsigned char flag)
@@ -64,7 +74,7 @@ int chromeos_set_need_recovery(void)
 		return -ENODEV;
 
 	if (chromeos_acpi_chnv < 0) {
-		pr_warning("chromeos_set_need_recovery(): Can't write to nvram\n");
+		pr_warning("%s: Can't write to nvram\n", __func__);
 		return -ENODEV;
 	}
 
