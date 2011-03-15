@@ -694,9 +694,10 @@ static int dm_bht_verify_path(struct dm_bht *bht, unsigned int block_index,
 	/* Mark path to leaf as verified. */
 	for (depth++; depth < bht->depth; depth++) {
 		entry = dm_bht_get_entry(bht, depth, block_index);
-		atomic_cmpxchg(&entry->state,
-			       DM_BHT_ENTRY_READY,
-			       DM_BHT_ENTRY_VERIFIED);
+		/* At this point, entry can only be in VERIFIED or READY state.
+		 * So it is safe to use atomic_set instead of atomic_cmpxchg.
+		 */
+		atomic_set(&entry->state, DM_BHT_ENTRY_VERIFIED);
 	}
 
 	DMDEBUG("verify_path: node %u is verified to root", block_index);
