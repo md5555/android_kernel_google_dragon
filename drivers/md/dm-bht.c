@@ -441,7 +441,6 @@ static int dm_bht_write_callback_stub(void *ctx, sector_t start,
  */
 void dm_bht_read_completed(struct dm_bht_entry *entry, int status)
 {
-	int state;
 	if (status) {
 		/* TODO(wad) add retry support */
 		DMCRIT("an I/O error occurred while reading entry");
@@ -449,13 +448,8 @@ void dm_bht_read_completed(struct dm_bht_entry *entry, int status)
 		/* entry->nodes will be freed later */
 		return;
 	}
-	state = atomic_cmpxchg(&entry->state,
-				   DM_BHT_ENTRY_PENDING,
-				   DM_BHT_ENTRY_READY);
-	if (state != DM_BHT_ENTRY_PENDING) {
-		DMCRIT("state changed on entry out from under io");
-		BUG();
-	}
+	BUG_ON(atomic_read(&entry->state) != DM_BHT_ENTRY_PENDING);
+	atomic_set(&entry->state, DM_BHT_ENTRY_READY);
 }
 EXPORT_SYMBOL(dm_bht_read_completed);
 
