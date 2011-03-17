@@ -30,6 +30,10 @@ MODULE_DESCRIPTION("Support for Atheros 802.11n wireless LAN cards.");
 MODULE_SUPPORTED_DEVICE("Atheros 802.11n WLAN cards");
 MODULE_LICENSE("Dual BSD/GPL");
 
+static int paprd_disable = 1;	/* PAPRD needs more work; disable for now */
+module_param_named(paprd_disable, paprd_disable, int, 0444);
+MODULE_PARM_DESC(blink, "Disable PAPRD support (for AR9003)");
+
 static int __init ath9k_init(void)
 {
 	return 0;
@@ -370,7 +374,7 @@ static void ath9k_hw_init_config(struct ath_hw *ah)
 		ah->config.ht_enable = 0;
 
 	/* PAPRD needs some more work to be enabled */
-	ah->config.paprd_disable = 1;
+	ah->config.paprd_disable = paprd_disable;
 
 	ah->config.rx_intr_mitigation = true;
 	ah->config.pcieSerDesWrite = true;
