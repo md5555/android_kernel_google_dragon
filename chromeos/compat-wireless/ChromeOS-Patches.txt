@@ -3,7 +3,8 @@ Manually carried forward from merges before compat-wireless-2.6.36-5-spn:
     commit 6f4fdb4aee19f4a6f2f9a4bb467b6ecada60ad37
     Review URL: http://codereview.chromium.org/1750006
     expose more sta state via debugfs for use in testing
-    [local change for testing]
+    [local change for testing
+     Paul/Sam -- Move code to nl80211 station then upstream]
 
     commit d75ae7ef752f110c63ab4aadd801da0bd87f7d70
     Review URL: http://codereview.chromium.org/3687002
