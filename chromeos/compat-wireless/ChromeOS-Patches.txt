@@ -1,0 +1,119 @@
+Manually carried forward from merges before compat-wireless-2.6.36-5-spn:
+
+    commit 6f4fdb4aee19f4a6f2f9a4bb467b6ecada60ad37
+    Review URL: http://codereview.chromium.org/1750006
+    expose more sta state via debugfs for use in testing
+    [local change for testing]
+
+    commit d75ae7ef752f110c63ab4aadd801da0bd87f7d70
+    Review URL: http://codereview.chromium.org/3687002
+    better beacon miss handling
+    [Sam -- you should upstream this]
+
+    commit 9dc980e33a47d5315b15da8d3369edba489ebf08
+    Review URL: http://codereview.chromium.org/5092003
+    CHROMIUMOS: mac80211: Re-enable powersave if ACK cancels beacon/connection poll
+    [Dependent on d75 above]
+
+    commit 9ab070d8e21cb5891c770a0bbc2f9c2b6b66292a
+    Review URL: http://codereview.chromium.org/3604012
+    CHROMIUMOS: compat-wireless: Create CQM events for transmit bitrate changing
+    [Paul -- you should upstream this]
+
+    commit 6e021e6680be21a4ab45ed59bd43495920d5f2aa
+    Review URL: http://codereview.chromium.org/4127006
+    CHROMIUMOS: mac80211: ratelimit dropped data frame msgs
+    [Dependent on d75 above]
+    
+    
+Carried forward from changes after Compat-wireless-2.6.36-5-spn:
+
+    commit 8f2189315fb1224a000737948db09b076bb9dd5c
+    Review URL: http://codereview.chromium.org/6274021
+    CHROMIUMOS: ath9k: add PAPRD module parameter and disable by default
+    [Sam -- Module parameter part of this patch needs to be upstreamed]
+
+    commit 0c22aa2ee847893c539889edbc2f27d30427de7c
+    Review URL: http://codereview.chromium.org/6317018
+    CHROMIUMOS: ath9k: use split rx buffers to get rid of order-1 skb allocation
+    [Still in wireless-testing]
+
+    commit 0698755f96aad4bc4c4d0b708191103a36c01112
+    Review URL: http://codereview.chromium.org/6575047
+    CHROMIUMOS: compat-wireless: add uevent function to regulatory
+    [In wireless-testing]
+
+    commit 9e23708988b58ec341d1f94fd32efb124be2bd5e
+    Review URL: http://codereview.chromium.org/6684020
+    CHROMIUMOS: mac80211: do not enable ps if 802.1x controlled port is unblocked
+    [In wireless-testing]
+
+Subsumed by bump to compat-wireless-2.6.38-rc7-2-s:
+
+    commit 777a29f2ec215cb959b6efb9e51a18cb10cc73e9
+    Review URL: http://codereview.chromium.org/4102005
+    ath9k: Fix incorrect access of rate flags in RC
+
+    commit 5144c48b5a43939d08372b76dd2be3521a4c8169
+    Review URL: http://codereview.chromium.org/5300001
+    ath9k: fix timeout on stopping rx dma
+
+    commit 17eaa9991089796c324125cee3485e7ab090b0cb
+    Review URL: http://codereview.chromium.org/3592007
+    CHROMIUMOS: mac80211: avoid transmitting delBA to old AP
+
+    commit d4e4d17a56d83874d66b4ca3efeaaa4c0d97c338
+    Review URL: http://codereview.chromium.org/3264004
+    mac80211: Do not generate CQM events based on first Beacon frames
+    mac80211: Fix signal strength average initialization for CQM events
+
+    commit f9821575452f0190adac0f560ee21801bdce26eb
+    Review URL: http://codereview.chromium.org/3648002
+    CHROMIUMOS: mac80211: calculate beacon loss time accurately
+
+    commit 36f403ef7ab7e7288ce15e1580a81e462a2f80f4
+    Review URL: http://codereview.chromium.org/5255002
+    CHROMIUMOS: mac80211: Use connection monitor facility instead of manual nullfunc send
+
+    commit 4fca49a72cb606b59d778b3ab39900377cb68fb7
+    Review URL: http://codereview.chromium.org/3108012
+    CHROMIUMOS: compat_wireless: Package maintainer's version of "synth deauth" fix
+
+
+    commit 63e42e75c94bd8da697c5c0fea367d25a82c374d
+    Review URL: http://codereview.chromium.org/5527005
+    Backport AR9380 related changes
+
+    commit bcca686f2c4e875ede5a481ebb4713e6bf462b2e
+    Review URL: http://codereview.chromium.org/5563007
+    ath9k: fix a DMA related race condition on reset
+
+    commit ec30c71dfe8dd9e5f1bfc5bf4248de06cb529738
+    Review URL: http://codereview.chromium.org/5993008
+    CHROMIUMOS: mac80211: Use upstream version of "Push idle state to driver bef
+ore stop"
+
+    commit 2fd01880db73c6c6c628ca3d9e195203e3c59746
+    Review URL: http://codereview.chromium.org/6073008
+    ath9k_hw: update AR9003 initvals to improve carrier leak calibration/correction
+
+    commit b9c519b37def13d4956dd2391be19c9d7d52e072
+    Review URL: http://codereview.chromium.org/5990016
+    ath9k: AR9380 PAPRD changes to improve tx performance
+    
+    commit b9c519b37def13d4956dd2391be19c9d7d52e072
+    Review URL: http://codereview.chromium.org/5990016
+    ath9k: AR9380 PAPRD changes to improve tx performance
+    [Parts of this patch were reverted upstream, including:
+    ath9k: remove bfs_paprd_timestamp from struct ath_buf_state]
+
+    commit c82ac354e876fb9188b3ac36ab3df0ad74ee0f9b
+    Review URL: http://codereview.chromium.org/6053011
+    ath9k: Reset keycache on resume
+
+    commit bf05dc7eb897a86ae31cc1bf7caacd2d60be37c1
+    Review URL: http://codereview.chromium.org/6274007
+    ath9k_hw: ASPM interoperability fix for AR9380/AR9382
+
+Dropped changes:
+

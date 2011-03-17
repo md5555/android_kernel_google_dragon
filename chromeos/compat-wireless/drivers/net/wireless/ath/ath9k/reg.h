@@ -107,12 +107,6 @@
 #define AR_RXCFG_DMASZ_256B  6
 #define AR_RXCFG_DMASZ_512B  7
 
-#define AR_MIBC              0x0040
-#define AR_MIBC_COW          0x00000001
-#define AR_MIBC_FMC          0x00000002
-#define AR_MIBC_CMC          0x00000004
-#define AR_MIBC_MCS          0x00000008
-
 #define AR_TOPS              0x0044
 #define AR_TOPS_MASK         0x0000FFFF
 
@@ -793,6 +787,8 @@
 #define AR_SREV_REVISION_9271_11	1
 #define AR_SREV_VERSION_9300		0x1c0
 #define AR_SREV_REVISION_9300_20	2 /* 2.0 and 2.1 */
+#define AR_SREV_VERSION_9485		0x240
+#define AR_SREV_REVISION_9485_10	0
 
 #define AR_SREV_5416(_ah) \
 	(((_ah)->hw_version.macVersion == AR_SREV_VERSION_5416_PCI) || \
@@ -820,49 +816,23 @@
 	 ((_ah)->hw_version.macRev == AR_SREV_REVISION_9160_11))
 #define AR_SREV_9280(_ah) \
 	(((_ah)->hw_version.macVersion == AR_SREV_VERSION_9280))
-#define AR_SREV_9280_10_OR_LATER(_ah) \
+#define AR_SREV_9280_20_OR_LATER(_ah) \
 	(((_ah)->hw_version.macVersion >= AR_SREV_VERSION_9280))
 #define AR_SREV_9280_20(_ah) \
-	(((_ah)->hw_version.macVersion == AR_SREV_VERSION_9280) && \
-		((_ah)->hw_version.macRev >= AR_SREV_REVISION_9280_20))
-#define AR_SREV_9280_20_OR_LATER(_ah) \
-	(((_ah)->hw_version.macVersion > AR_SREV_VERSION_9280) || \
-	(((_ah)->hw_version.macVersion == AR_SREV_VERSION_9280) && \
-	((_ah)->hw_version.macRev >= AR_SREV_REVISION_9280_20)))
+	(((_ah)->hw_version.macVersion == AR_SREV_VERSION_9280))
 
 #define AR_SREV_9285(_ah) \
 	(((_ah)->hw_version.macVersion == AR_SREV_VERSION_9285))
-#define AR_SREV_9285_10_OR_LATER(_ah) \
-	(((_ah)->hw_version.macVersion >= AR_SREV_VERSION_9285))
-#define AR_SREV_9285_11(_ah) \
-	(AR_SREV_9285(ah) && \
-	 ((_ah)->hw_version.macRev == AR_SREV_REVISION_9285_11))
-#define AR_SREV_9285_11_OR_LATER(_ah) \
-	(((_ah)->hw_version.macVersion > AR_SREV_VERSION_9285) || \
-	 (AR_SREV_9285(ah) && ((_ah)->hw_version.macRev >= \
-			       AR_SREV_REVISION_9285_11)))
-#define AR_SREV_9285_12(_ah) \
-	(AR_SREV_9285(ah) && \
-	 ((_ah)->hw_version.macRev == AR_SREV_REVISION_9285_12))
 #define AR_SREV_9285_12_OR_LATER(_ah) \
-	(((_ah)->hw_version.macVersion > AR_SREV_VERSION_9285) || \
-	 (AR_SREV_9285(ah) && ((_ah)->hw_version.macRev >= \
-			       AR_SREV_REVISION_9285_12)))
+	(((_ah)->hw_version.macVersion >= AR_SREV_VERSION_9285))
 
 #define AR_SREV_9287(_ah) \
 	(((_ah)->hw_version.macVersion == AR_SREV_VERSION_9287))
-#define AR_SREV_9287_10_OR_LATER(_ah) \
+#define AR_SREV_9287_11_OR_LATER(_ah) \
 	(((_ah)->hw_version.macVersion >= AR_SREV_VERSION_9287))
-#define AR_SREV_9287_10(_ah) \
-	(((_ah)->hw_version.macVersion == AR_SREV_VERSION_9287) && \
-	 ((_ah)->hw_version.macRev == AR_SREV_REVISION_9287_10))
 #define AR_SREV_9287_11(_ah) \
 	(((_ah)->hw_version.macVersion == AR_SREV_VERSION_9287) && \
 	 ((_ah)->hw_version.macRev == AR_SREV_REVISION_9287_11))
-#define AR_SREV_9287_11_OR_LATER(_ah) \
-	(((_ah)->hw_version.macVersion > AR_SREV_VERSION_9287) || \
-	 (((_ah)->hw_version.macVersion == AR_SREV_VERSION_9287) && \
-	  ((_ah)->hw_version.macRev >= AR_SREV_REVISION_9287_11)))
 #define AR_SREV_9287_12(_ah) \
 	(((_ah)->hw_version.macVersion == AR_SREV_VERSION_9287) && \
 	 ((_ah)->hw_version.macRev == AR_SREV_REVISION_9287_12))
@@ -886,22 +856,29 @@
 
 #define AR_SREV_9300(_ah) \
 	(((_ah)->hw_version.macVersion == AR_SREV_VERSION_9300))
-#define AR_SREV_9300_20(_ah) \
-	(((_ah)->hw_version.macVersion == AR_SREV_VERSION_9300) && \
-	 ((_ah)->hw_version.macRev == AR_SREV_REVISION_9300_20))
 #define AR_SREV_9300_20_OR_LATER(_ah) \
 	(((_ah)->hw_version.macVersion > AR_SREV_VERSION_9300) || \
 	 (((_ah)->hw_version.macVersion == AR_SREV_VERSION_9300) && \
 	  ((_ah)->hw_version.macRev >= AR_SREV_REVISION_9300_20)))
 
+#define AR_SREV_9485(_ah) \
+	(((_ah)->hw_version.macVersion == AR_SREV_VERSION_9485))
+#define AR_SREV_9485_10(_ah) \
+	(AR_SREV_9485(_ah) && \
+	 ((_ah)->hw_version.macRev == AR_SREV_REVISION_9485_10))
+
 #define AR_SREV_9285E_20(_ah) \
     (AR_SREV_9285_12_OR_LATER(_ah) && \
      ((REG_READ(_ah, AR_AN_SYNTH9) & 0x7) == 0x1))
 
+enum ath_usb_dev {
+	AR9280_USB = 1, /* AR7010 + AR9280, UB94 */
+	AR9287_USB = 2, /* AR7010 + AR9287, UB95 */
+};
+
 #define AR_DEVID_7010(_ah) \
-	(((_ah)->hw_version.devid == 0x7010) || \
-	 ((_ah)->hw_version.devid == 0x7015) || \
-	 ((_ah)->hw_version.devid == 0x9018))
+	(((_ah)->hw_version.usbdev == AR9280_USB) || \
+	 ((_ah)->hw_version.usbdev == AR9287_USB))
 
 #define AR_RADIO_SREV_MAJOR                   0xf0
 #define AR_RAD5133_SREV_MAJOR                 0xc0
@@ -1142,6 +1119,8 @@ enum {
 
 #define AR_RTC_PLL_CONTROL \
 	((AR_SREV_9100(ah)) ? (AR_RTC_BASE + 0x0014) : 0x7014)
+
+#define AR_RTC_PLL_CONTROL2	0x703c
 
 #define AR_RTC_PLL_DIV          0x0000001f
 #define AR_RTC_PLL_DIV_S        0
@@ -1555,11 +1534,6 @@ enum {
 #define AR_TPC_CTS_S           0x08
 #define AR_TPC_CHIRP           0x003f0000
 #define AR_TPC_CHIRP_S         0x16
-
-#define AR_TFCNT           0x80ec
-#define AR_RFCNT           0x80f0
-#define AR_RCCNT           0x80f4
-#define AR_CCCNT           0x80f8
 
 #define AR_QUIET1          0x80fc
 #define AR_QUIET1_NEXT_QUIET_S         0

@@ -84,15 +84,6 @@ static ssize_t ieee80211_if_fmt_##name(					\
 #define IEEE80211_IF_FMT_SIZE(name, field)				\
 		IEEE80211_IF_FMT(name, field, "%zd\n")
 
-#define IEEE80211_IF_FMT_BOOL(name, field)				\
-static ssize_t ieee80211_if_fmt_##name(					\
-	const struct ieee80211_sub_if_data *sdata, char *buf,		\
-	int buflen)							\
-{									\
-	return scnprintf(buf, buflen, "%s\n", sdata->field ?		\
-			"true" : "false");				\
-}
-
 #define IEEE80211_IF_FMT_ATOMIC(name, field)				\
 static ssize_t ieee80211_if_fmt_##name(					\
 	const struct ieee80211_sub_if_data *sdata,			\
@@ -130,6 +121,7 @@ static const struct file_operations name##_ops = {			\
 	.read = ieee80211_if_read_##name,				\
 	.write = (_write),						\
 	.open = mac80211_open_file_generic,				\
+	.llseek = generic_file_llseek,					\
 }
 
 #define __IEEE80211_IF_FILE_W(name)					\
@@ -159,11 +151,6 @@ IEEE80211_IF_FILE(bssid, u.mgd.bssid, MAC);
 IEEE80211_IF_FILE(aid, u.mgd.aid, DEC);
 IEEE80211_IF_FILE(last_beacon, u.mgd.last_beacon_signal, DEC);
 IEEE80211_IF_FILE(ave_beacon, u.mgd.ave_beacon_signal, DEC_DIV_16);
-IEEE80211_IF_FILE(dtim_period, local->hw.conf.ps_dtim_period, DEC);
-IEEE80211_IF_FILE(beacon_int, vif.bss_conf.beacon_int, DEC);
-IEEE80211_IF_FILE(cts_prot, vif.bss_conf.use_cts_prot, BOOL);
-IEEE80211_IF_FILE(short_preamble, vif.bss_conf.use_short_preamble, BOOL);
-IEEE80211_IF_FILE(short_slot, vif.bss_conf.use_short_slot, BOOL);
 
 static int ieee80211_set_smps(struct ieee80211_sub_if_data *sdata,
 			      enum ieee80211_smps_mode smps_mode)
@@ -264,6 +251,7 @@ IEEE80211_IF_FILE(dot11MeshConfirmTimeout,
 IEEE80211_IF_FILE(dot11MeshHoldingTimeout,
 		u.mesh.mshcfg.dot11MeshHoldingTimeout, DEC);
 IEEE80211_IF_FILE(dot11MeshTTL, u.mesh.mshcfg.dot11MeshTTL, DEC);
+IEEE80211_IF_FILE(element_ttl, u.mesh.mshcfg.element_ttl, DEC);
 IEEE80211_IF_FILE(auto_open_plinks, u.mesh.mshcfg.auto_open_plinks, DEC);
 IEEE80211_IF_FILE(dot11MeshMaxPeerLinks,
 		u.mesh.mshcfg.dot11MeshMaxPeerLinks, DEC);
@@ -303,11 +291,6 @@ static void add_sta_files(struct ieee80211_sub_if_data *sdata)
 	DEBUGFS_ADD(last_beacon);
 	DEBUGFS_ADD(ave_beacon);
 	DEBUGFS_ADD_MODE(smps, 0600);
-	DEBUGFS_ADD(dtim_period);
-	DEBUGFS_ADD(beacon_int);
-	DEBUGFS_ADD(cts_prot);
-	DEBUGFS_ADD(short_preamble);
-	DEBUGFS_ADD(short_slot);
 }
 
 static void add_ap_files(struct ieee80211_sub_if_data *sdata)
@@ -373,6 +356,7 @@ static void add_mesh_config(struct ieee80211_sub_if_data *sdata)
 	MESHPARAMS_ADD(dot11MeshConfirmTimeout);
 	MESHPARAMS_ADD(dot11MeshHoldingTimeout);
 	MESHPARAMS_ADD(dot11MeshTTL);
+	MESHPARAMS_ADD(element_ttl);
 	MESHPARAMS_ADD(auto_open_plinks);
 	MESHPARAMS_ADD(dot11MeshMaxPeerLinks);
 	MESHPARAMS_ADD(dot11MeshHWMPactivePathTimeout);
@@ -428,6 +412,9 @@ void ieee80211_debugfs_add_netdev(struct ieee80211_sub_if_data *sdata)
 	sprintf(buf, "netdev:%s", sdata->name);
 	sdata->debugfs.dir = debugfs_create_dir(buf,
 		sdata->local->hw.wiphy->debugfsdir);
+	if (sdata->debugfs.dir)
+		sdata->debugfs.subdir_stations = debugfs_create_dir("stations",
+			sdata->debugfs.dir);
 	add_files(sdata);
 }
 

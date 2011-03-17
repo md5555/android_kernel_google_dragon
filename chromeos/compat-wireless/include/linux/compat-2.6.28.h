@@ -62,8 +62,6 @@ extern void usb_unpoison_urb(struct urb *urb);
 extern void usb_poison_anchored_urbs(struct usb_anchor *anchor);
 #endif
 
-extern struct urb *usb_get_from_anchor(struct usb_anchor *anchor);
-extern void usb_scuttle_anchored_urbs(struct usb_anchor *anchor);
 extern int usb_anchor_empty(struct usb_anchor *anchor);
 #endif /* CONFIG_USB */
 #endif
@@ -235,6 +233,10 @@ extern void skb_add_rx_frag(struct sk_buff *skb, int i, struct page *page,
 
 extern int n_tty_ioctl_helper(struct tty_struct *tty, struct file *file,
 		       unsigned int cmd, unsigned long arg);
+
+int pci_wake_from_d3(struct pci_dev *dev, bool enable);
+
+#define alloc_workqueue(name, flags, max_active) __create_workqueue(name, flags, max_active)
 
 #endif /* (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)) */
 

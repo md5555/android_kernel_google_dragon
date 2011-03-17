@@ -39,7 +39,6 @@
 #include <linux/skbuff.h>
 #include <linux/io.h>
 
-#include <pcmcia/cs.h>
 #include <pcmcia/cistpl.h>
 #include <pcmcia/ciscode.h>
 #include <pcmcia/ds.h>
@@ -908,8 +907,12 @@ static int bluecard_probe(struct pcmcia_device *link)
 	link->irq.Handler = bluecard_interrupt;
 #endif
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,37))
+	link->config_flags |= CONF_ENABLE_IRQ;
+#else
 	link->conf.Attributes = CONF_ENABLE_IRQ;
 	link->conf.IntType = INT_MEMORY_AND_IO;
+#endif
 
 	return bluecard_config(link);
 }
@@ -929,7 +932,11 @@ static int bluecard_config(struct pcmcia_device *link)
 	bluecard_info_t *info = link->priv;
 	int i, n;
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,37))
+	link->config_index = 0x20;
+#else
 	link->conf.ConfigIndex = 0x20;
+#endif
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36))
 	link->resource[0]->flags |= IO_DATA_PATH_WIDTH_8;
@@ -938,7 +945,7 @@ static int bluecard_config(struct pcmcia_device *link)
 #else
 	link->io.Attributes1 = IO_DATA_PATH_WIDTH_8;
 	link->io.NumPorts1 = 64;
-	link->io.IOAddrLines = 6;;
+	link->io.IOAddrLines = 6;
 #endif
 
 	for (n = 0; n < 0x400; n += 0x40) {
@@ -966,7 +973,7 @@ static int bluecard_config(struct pcmcia_device *link)
 		link->irq.AssignedIRQ = 0;
 #endif
 
-	i = pcmcia_request_configuration(link, &link->conf);
+	i = pcmcia_enable_device(link);
 	if (i != 0)
 		goto failed;
 
@@ -1002,9 +1009,13 @@ MODULE_DEVICE_TABLE(pcmcia, bluecard_ids);
 
 static struct pcmcia_driver bluecard_driver = {
 	.owner		= THIS_MODULE,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,37))
+	.name		= "bluecard_cs",
+#else
 	.drv		= {
 		.name	= "bluecard_cs",
 	},
+#endif
 	.probe		= bluecard_probe,
 	.remove		= bluecard_detach,
 	.id_table	= bluecard_ids,

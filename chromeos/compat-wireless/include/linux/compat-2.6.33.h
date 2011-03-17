@@ -6,12 +6,12 @@
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,33))
 
 #include <linux/skbuff.h>
+#include <linux/pci.h>
 #if defined(CONFIG_PCCARD) || defined(CONFIG_PCCARD_MODULE)
 #include <pcmcia/cs_types.h>
 #include <pcmcia/cistpl.h>
 #include <pcmcia/ds.h>
 #endif
-#include <linux/kfifo.h>
 #include <linux/firmware.h>
 
 #define release_firmware compat_release_firmware
@@ -91,12 +91,52 @@ int pccard_loop_tuple(struct pcmcia_socket *s, unsigned int function,
 
 #endif /* CONFIG_PCCARD */
 
-/* Backport for kfifo
- * kfifo_alloc and kfifo_free must be backported manually 
+/**
+ * list_for_each_entry_continue_rcu - continue iteration over list of given type
+ * @pos:	the type * to use as a loop cursor.
+ * @head:	the head for your list.
+ * @member:	the name of the list_struct within the struct.
+ *
+ * Continue to iterate over list of given type, continuing after
+ * the current position.
  */
-#define kfifo_in(a, b, c) __kfifo_put(*a, b, c)
-#define kfifo_out(a, b, c) __kfifo_get(*a, b, c)
-#define kfifo_len(a) __kfifo_len(*a)
+#define list_for_each_entry_continue_rcu(pos, head, member) 		\
+	for (pos = list_entry_rcu(pos->member.next, typeof(*pos), member); \
+	     prefetch(pos->member.next), &pos->member != (head);	\
+	     pos = list_entry_rcu(pos->member.next, typeof(*pos), member))
+
+#define sock_recv_ts_and_drops(msg, sk, skb) sock_recv_timestamp(msg, sk, skb)
+
+/**
+ * pci_pcie_cap - get the saved PCIe capability offset
+ * @dev: PCI device
+ *
+ * PCIe capability offset is calculated at PCI device initialization
+ * time and saved in the data structure. This function returns saved
+ * PCIe capability offset. Using this instead of pci_find_capability()
+ * reduces unnecessary search in the PCI configuration space. If you
+ * need to calculate PCIe capability offset from raw device for some
+ * reasons, please use pci_find_capability() instead.
+ */
+static inline int pci_pcie_cap(struct pci_dev *dev)
+{
+	return pci_find_capability(dev, PCI_CAP_ID_EXP);
+}
+
+/**
+ * pci_is_pcie - check if the PCI device is PCI Express capable
+ * @dev: PCI device
+ *
+ * Retrun true if the PCI device is PCI Express capable, false otherwise.
+ */
+static inline bool pci_is_pcie(struct pci_dev *dev)
+{
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,24))
+	return dev->is_pcie;
+#else
+	return !!pci_pcie_cap(dev);
+#endif
+}
 
 #endif /* (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,33)) */
 

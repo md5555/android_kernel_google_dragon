@@ -9,9 +9,6 @@
  */
 
 #include <linux/compat.h>
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,29))
-
 #include <linux/usb.h>
 #include <linux/etherdevice.h>
 
@@ -25,6 +22,7 @@ void netdev_attach_ops(struct net_device *dev,
 		       const struct net_device_ops *ops)
 {
 	dev->open = ops->ndo_open;
+	dev->init = ops->ndo_init;
 	dev->stop = ops->ndo_stop;
 	dev->hard_start_xmit = ops->ndo_start_xmit;
 	dev->change_rx_flags = ops->ndo_change_rx_flags;
@@ -124,6 +122,45 @@ int eth_validate_addr(struct net_device *dev)
 EXPORT_SYMBOL(eth_validate_addr);
 /* Source: net/ethernet/eth.c */
 
+#define NETREG_DUMMY 5
+/**
+ *	init_dummy_netdev	- init a dummy network device for NAPI
+ *	@dev: device to init
+ *
+ *	This takes a network device structure and initialize the minimum
+ *	amount of fields so it can be used to schedule NAPI polls without
+ *	registering a full blown interface. This is to be used by drivers
+ *	that need to tie several hardware interfaces to a single NAPI
+ *	poll scheduler due to HW limitations.
+ */
+int init_dummy_netdev(struct net_device *dev)
+{
+	/* Clear everything. Note we don't initialize spinlocks
+	 * are they aren't supposed to be taken by any of the
+	 * NAPI code and this dummy netdev is supposed to be
+	 * only ever used for NAPI polls
+	 */
+	memset(dev, 0, sizeof(struct net_device));
 
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2,6,29) */
+	/* make sure we BUG if trying to hit standard
+	 * register/unregister code path
+	 */
+	dev->reg_state = NETREG_DUMMY;
+
+	/* initialize the ref count */
+	atomic_set(&dev->refcnt, 1);
+
+#ifdef CONFIG_NETPOLL
+	/* NAPI wants this */
+	INIT_LIST_HEAD(&dev->napi_list);
+#endif
+
+	/* a dummy interface is started by default */
+	set_bit(__LINK_STATE_PRESENT, &dev->state);
+	set_bit(__LINK_STATE_START, &dev->state);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(init_dummy_netdev);
+/* Source: net/core/dev.c */
 

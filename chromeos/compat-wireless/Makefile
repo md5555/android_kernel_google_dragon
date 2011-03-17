@@ -30,6 +30,12 @@ obj-$(CONFIG_COMPAT_NET_USB_MODULES) += drivers/net/usb/
 
 obj-$(CONFIG_COMPAT_NETWORK_MODULES) += drivers/net/
 obj-$(CONFIG_COMPAT_VAR_MODULES) +=  drivers/ssb/ drivers/misc/eeprom/
+
+ifeq ($(CONFIG_STAGING_EXCLUDE_BUILD),)
+obj-$(CONFIG_COMPAT_STAGING) += drivers/staging/ath6kl/
+obj-$(CONFIG_COMPAT_STAGING) += drivers/staging/brcm80211/
+endif
+
 endif
 
 obj-$(CONFIG_COMPAT_BLUETOOTH) += net/bluetooth/
@@ -86,19 +92,32 @@ bt-install-modules: bt
 	@echo
 	@echo "Currently detected bluetooth subsystem modules:"
 	@echo
-	@$(MODPROBE) -l sco
-	@$(MODPROBE) -l l2cap
-	@$(MODPROBE) -l hidp
-	@$(MODPROBE) -l rfcomm
-	@$(MODPROBE) -l bnep
-	@$(MODPROBE) -l btusb
+	@$(MODPROBE) -l ath3k       
+	@$(MODPROBE) -l bcm203x
+	@$(MODPROBE) -l bluecard_cs
 	@$(MODPROBE) -l bluetooth
+	@$(MODPROBE) -l bnep
+	@$(MODPROBE) -l bpa10x
+	@$(MODPROBE) -l bt3c_cs
+	@$(MODPROBE) -l btmrvl
+	@$(MODPROBE) -l btmrvl_sdio
+	@$(MODPROBE) -l btsdio
+	@$(MODPROBE) -l btusb
+	@$(MODPROBE) -l btuart_cs
+	@$(MODPROBE) -l	cmtp
+	@$(MODPROBE) -l	dtl1_cs
+	@$(MODPROBE) -l hidp
+	@$(MODPROBE) -l	hci_vhci
+	@$(MODPROBE) -l	hci_uart
+	@$(MODPROBE) -l l2cap
+	@$(MODPROBE) -l rfcomm
+	@$(MODPROBE) -l sco
 	@echo
 	@echo Now run:
 	@echo
 	@echo sudo make btunload:
 	@echo
-	@echo And the load the needed bluetooth modules. If unsure reboot.
+	@echo And then load the needed bluetooth modules. If unsure reboot.
 	@echo
 
 btuninstall:
@@ -111,14 +130,26 @@ btuninstall:
 	@echo
 	@echo "Your old bluetooth subsystem modules were left intact:"
 	@echo
-	@$(MODPROBE) -l sco
-	@$(MODPROBE) -l l2cap
-	@$(MODPROBE) -l hidp
-	@$(MODPROBE) -l rfcomm
-	@$(MODPROBE) -l bnep
-	@$(MODPROBE) -l btusb
+	@$(MODPROBE) -l ath3k       
+	@$(MODPROBE) -l bcm203x
+	@$(MODPROBE) -l bluecard_cs
 	@$(MODPROBE) -l bluetooth
-	@
+	@$(MODPROBE) -l bnep
+	@$(MODPROBE) -l bpa10x
+	@$(MODPROBE) -l bt3c_cs
+	@$(MODPROBE) -l btmrvl
+	@$(MODPROBE) -l btmrvl_sdio
+	@$(MODPROBE) -l btsdio
+	@$(MODPROBE) -l btusb
+	@$(MODPROBE) -l btuart_cs
+	@$(MODPROBE) -l	cmtp
+	@$(MODPROBE) -l	dtl1_cs
+	@$(MODPROBE) -l hidp
+	@$(MODPROBE) -l	hci_vhci
+	@$(MODPROBE) -l	hci_uart
+	@$(MODPROBE) -l l2cap
+	@$(MODPROBE) -l rfcomm
+	@$(MODPROBE) -l sco
 	@echo
 
 btclean:
@@ -186,10 +217,14 @@ install-scripts:
 	@$(MODPROBE) -l at76c50x-usb
 	@$(MODPROBE) -l ath
 	@$(MODPROBE) -l ath5k
+	@$(MODPROBE) -l ath6kl
 	@$(MODPROBE) -l ath9k
+	@$(MODPROBE) -l ath9k_htc
 	@$(MODPROBE) -l b43
 	@$(MODPROBE) -l b43legacy
 	@$(MODPROBE) -l b44
+	@$(MODPROBE) -l carl9170
+	@$(MODPROBE) -l brcm80211
 	@$(MODPROBE) -l cdc_ether
 	@$(MODPROBE) -l eeprom_93cx6
 	@$(MODPROBE) -l ipw2100
@@ -197,6 +232,7 @@ install-scripts:
 	@$(MODPROBE) -l iwl3945
 	@$(MODPROBE) -l iwlagn
 	@$(MODPROBE) -l iwlcore
+	@$(MODPROBE) -l iwmc3200wifi
 	@$(MODPROBE) -l lib80211_crypt_ccmp
 	@$(MODPROBE) -l lib80211_crypt_tkip
 	@$(MODPROBE) -l lib80211_crypt_wep
@@ -209,6 +245,13 @@ install-scripts:
 	@$(MODPROBE) -l libipw
 	@$(MODPROBE) -l mac80211_hwsim
 	@$(MODPROBE) -l mwl8k
+	@$(MODPROBE) -l orinoco_cs
+	@$(MODPROBE) -l orinoco_nortel
+	@$(MODPROBE) -l orinoco_pci
+	@$(MODPROBE) -l orinoco_plx
+	@$(MODPROBE) -l orinoco_tld
+	@$(MODPROBE) -l orinoco_usb
+	@$(MODPROBE) -l orinoco
 	@$(MODPROBE) -l p54common
 	@$(MODPROBE) -l p54pci
 	@$(MODPROBE) -l p54spi
@@ -218,6 +261,8 @@ install-scripts:
 	@$(MODPROBE) -l rt2400pci
 	@$(MODPROBE) -l rt2500pci
 	@$(MODPROBE) -l rt2500usb
+	@$(MODPROBE) -l rt2800pci
+	@$(MODPROBE) -l rt2800usb
 	@$(MODPROBE) -l rt2x00lib
 	@$(MODPROBE) -l rt2x00pci
 	@$(MODPROBE) -l rt2x00usb
@@ -225,29 +270,54 @@ install-scripts:
 	@$(MODPROBE) -l rt73usb
 	@$(MODPROBE) -l rtl8180
 	@$(MODPROBE) -l rtl8187
+	@$(MODPROBE) -l rtlwifi
+	@$(MODPROBE) -l rtl8192ce
+	@$(MODPROBE) -l spectrum_cs
 	@$(MODPROBE) -l ssb
 	@$(MODPROBE) -l usb8xxx
 	@$(MODPROBE) -l usbnet
+	@$(MODPROBE) -l wl1251
+	@$(MODPROBE) -l wl12xx
 	@$(MODPROBE) -l zd1211rw
+	@echo
+	@echo "Currently detected ethernet subsystem modules:"
+	@echo
+	@$(MODPROBE) -l atl1
+	@$(MODPROBE) -l atl2
+	@$(MODPROBE) -l atl1e
+	@$(MODPROBE) -l atl1c
 	@echo
 	@echo "Currently detected bluetooth subsystem modules:"
 	@echo
-	@$(MODPROBE) -l sco
-	@$(MODPROBE) -l l2cap
-	@$(MODPROBE) -l hidp
-	@$(MODPROBE) -l rfcomm
-	@$(MODPROBE) -l bnep
-	@$(MODPROBE) -l btusb
+	@$(MODPROBE) -l ath3k           
+	@$(MODPROBE) -l bcm203x
+	@$(MODPROBE) -l bluecard_cs
 	@$(MODPROBE) -l bluetooth
+	@$(MODPROBE) -l bnep
+	@$(MODPROBE) -l bpa10x
+	@$(MODPROBE) -l bt3c_cs
+	@$(MODPROBE) -l btmrvl
+	@$(MODPROBE) -l btmrvl_sdio
+	@$(MODPROBE) -l btsdio
+	@$(MODPROBE) -l btusb
+	@$(MODPROBE) -l btuart_cs
+	@$(MODPROBE) -l	cmtp
+	@$(MODPROBE) -l	dtl1_cs
+	@$(MODPROBE) -l hidp
+	@$(MODPROBE) -l	hci_vhci
+	@$(MODPROBE) -l	hci_uart
+	@$(MODPROBE) -l l2cap
+	@$(MODPROBE) -l rfcomm
+	@$(MODPROBE) -l sco
 	@echo 
 	@echo Now run:
 	@echo 
-	@echo sudo make unload to unload both wireless and bluetooth modules
+	@echo sudo make unload to unload all: wireless, bluetooth and ethernet modules
 	@echo sudo make wlunload to unload wireless modules
 	@echo sudo make btunload to unload bluetooth modules
 	@echo
-	@echo And then load the wireless or bluetooth module you need. If unsure reboot.
-	@echo Alternatively use "sudo make load/wlload/btload" to load modules
+	@echo Run sudo modprobe 'driver-name' to load your desired driver. 
+	@echo If unsure reboot.
 	@echo
 
 uninstall:
@@ -259,6 +329,8 @@ uninstall:
 	@rm -rf $(KLIB)/$(KMODDIR)/drivers/ssb/
 	@rm -rf $(KLIB)/$(KMODDIR)/drivers/net/usb/
 	@rm -rf $(KLIB)/$(KMODDIR)/drivers/net/wireless/
+	@rm -rf $(KLIB)/$(KMODDIR)/drivers/staging/
+	@rm -rf $(KLIB)/$(KMODDIR)/drivers/net/atl*
 	@# Lets only remove the stuff we are sure we are providing
 	@# on the misc directory.
 	@rm -f $(KLIB)/$(KMODDIR)/drivers/misc/eeprom/eeprom_93cx6.ko*
@@ -276,10 +348,14 @@ uninstall:
 	@$(MODPROBE) -l at76c50x-usb
 	@$(MODPROBE) -l ath
 	@$(MODPROBE) -l ath5k
+	@$(MODPROBE) -l ath6kl
 	@$(MODPROBE) -l ath9k
+	@$(MODPROBE) -l ath9k_htc
 	@$(MODPROBE) -l b43
 	@$(MODPROBE) -l b43legacy
 	@$(MODPROBE) -l b44
+	@$(MODPROBE) -l carl9170
+	@$(MODPROBE) -l brcm80211
 	@$(MODPROBE) -l cdc_ether
 	@$(MODPROBE) -l eeprom_93cx6
 	@$(MODPROBE) -l ipw2100
@@ -287,6 +363,7 @@ uninstall:
 	@$(MODPROBE) -l iwl3945
 	@$(MODPROBE) -l iwlagn
 	@$(MODPROBE) -l iwlcore
+	@$(MODPROBE) -l iwmc3200wifi
 	@$(MODPROBE) -l lib80211_crypt_ccmp
 	@$(MODPROBE) -l lib80211_crypt_tkip
 	@$(MODPROBE) -l lib80211_crypt_wep
@@ -299,6 +376,13 @@ uninstall:
 	@$(MODPROBE) -l libipw
 	@$(MODPROBE) -l mac80211_hwsim
 	@$(MODPROBE) -l mwl8k
+	@$(MODPROBE) -l orinoco_cs
+	@$(MODPROBE) -l orinoco_nortel
+	@$(MODPROBE) -l orinoco_pci
+	@$(MODPROBE) -l orinoco_plx
+	@$(MODPROBE) -l orinoco_tld
+	@$(MODPROBE) -l orinoco_usb
+	@$(MODPROBE) -l orinoco
 	@$(MODPROBE) -l p54common
 	@$(MODPROBE) -l p54pci
 	@$(MODPROBE) -l p54spi
@@ -308,6 +392,8 @@ uninstall:
 	@$(MODPROBE) -l rt2400pci
 	@$(MODPROBE) -l rt2500pci
 	@$(MODPROBE) -l rt2500usb
+	@$(MODPROBE) -l rt2800pci
+	@$(MODPROBE) -l rt2800usb
 	@$(MODPROBE) -l rt2x00lib
 	@$(MODPROBE) -l rt2x00pci
 	@$(MODPROBE) -l rt2x00usb
@@ -315,20 +401,45 @@ uninstall:
 	@$(MODPROBE) -l rt73usb
 	@$(MODPROBE) -l rtl8180
 	@$(MODPROBE) -l rtl8187
+	@$(MODPROBE) -l rtlwifi
+	@$(MODPROBE) -l rtl8192ce
+	@$(MODPROBE) -l spectrum_cs
 	@$(MODPROBE) -l ssb
 	@$(MODPROBE) -l usb8xxx
 	@$(MODPROBE) -l usbnet
+	@$(MODPROBE) -l wl1251
+	@$(MODPROBE) -l wl12xx
 	@$(MODPROBE) -l zd1211rw
+	@echo
+	@echo "Your old ethernet subsystem modules are left intact:"
+	@echo
+	@$(MODPROBE) -l atl1
+	@$(MODPROBE) -l atl2
+	@$(MODPROBE) -l atl1e
+	@$(MODPROBE) -l atl1c
 	@echo
 	@echo "Your old bluetooth subsystem modules were left intact:"
 	@echo
-	@$(MODPROBE) -l sco
-	@$(MODPROBE) -l l2cap
-	@$(MODPROBE) -l hidp
-	@$(MODPROBE) -l rfcomm
-	@$(MODPROBE) -l bnep
-	@$(MODPROBE) -l btusb
+	@$(MODPROBE) -l ath3k           
+	@$(MODPROBE) -l bcm203x
+	@$(MODPROBE) -l bluecard_cs
 	@$(MODPROBE) -l bluetooth
+	@$(MODPROBE) -l bnep
+	@$(MODPROBE) -l bpa10x
+	@$(MODPROBE) -l bt3c_cs
+	@$(MODPROBE) -l btmrvl
+	@$(MODPROBE) -l btmrvl_sdio
+	@$(MODPROBE) -l btsdio
+	@$(MODPROBE) -l btusb
+	@$(MODPROBE) -l btuart_cs
+	@$(MODPROBE) -l	cmtp
+	@$(MODPROBE) -l	dtl1_cs
+	@$(MODPROBE) -l hidp
+	@$(MODPROBE) -l	hci_vhci
+	@$(MODPROBE) -l	hci_uart
+	@$(MODPROBE) -l l2cap
+	@$(MODPROBE) -l rfcomm
+	@$(MODPROBE) -l sco
 	@
 	@echo 
 
@@ -340,22 +451,14 @@ clean:
 unload:
 	@./scripts/unload.sh
 
-load: unload
-	@./scripts/load.sh
-
 btunload:
 	@./scripts/btunload.sh
-
-btload: btunload
-	@./scripts/btload.sh
 
 wlunload:
 	@./scripts/wlunload.sh
 
-wlload: wlunload
-	@./scripts/wlload.sh
 
-.PHONY: all clean install uninstall unload load btunload btload wlunload wlload modules bt
+.PHONY: all clean install uninstall unload btunload wlunload modules bt
 
 endif
 

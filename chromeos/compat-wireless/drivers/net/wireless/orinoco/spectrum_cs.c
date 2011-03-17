@@ -25,7 +25,6 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/delay.h>
-#include <pcmcia/cs.h>
 #include <pcmcia/cistpl.h>
 #include <pcmcia/cisreg.h>
 #include <pcmcia/ds.h>
@@ -154,14 +153,6 @@ spectrum_cs_stop_firmware(struct orinoco_private *priv, int idle)
 /* PCMCIA stuff     						    */
 /********************************************************************/
 
-/*
- * This creates an "instance" of the driver, allocating local data
- * structures for one device.  The device is registered with Card
- * Services.
- *
- * The dev_link structure is initialized, but we don't actually
- * configure the card at this point -- we wait until we receive a card
- * insertion event.  */
 static int
 spectrum_cs_probe(struct pcmcia_device *link)
 {
@@ -184,24 +175,14 @@ spectrum_cs_probe(struct pcmcia_device *link)
 	link->irq.Attributes = IRQ_TYPE_DYNAMIC_SHARING;
 	link->irq.Handler = orinoco_interrupt;
 #endif
-
-	/* General socket configuration defaults can go here.  In this
-	 * client, we assume very little, and rely on the CIS for
-	 * almost everything.  In most clients, many details (i.e.,
-	 * number, sizes, and attributes of IO windows) are fixed by
-	 * the nature of the device, and can be hard-wired here. */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,37))
 	link->conf.Attributes = 0;
 	link->conf.IntType = INT_MEMORY_AND_IO;
+#endif
 
 	return spectrum_cs_config(link);
 }				/* spectrum_cs_attach */
 
-/*
- * This deletes a driver "instance".  The device is de-registered with
- * Card Services.  If it has been released, all local data structures
- * are freed.  Otherwise, the structures will be freed when the device
- * is released.
- */
 static void spectrum_cs_detach(struct pcmcia_device *link)
 {
 	struct orinoco_private *priv = link->priv;
@@ -213,12 +194,16 @@ static void spectrum_cs_detach(struct pcmcia_device *link)
 	free_orinocodev(priv);
 }				/* spectrum_cs_detach */
 
-/*
- * spectrum_cs_config() is scheduled to run after a CARD_INSERTION
- * event is received, to configure the PCMCIA socket, and to make the
- * device available to the system.
- */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,37))
+static int spectrum_cs_config_check(struct pcmcia_device *p_dev,
+				    void *priv_data)
+{
+	if (p_dev->config_index == 0)
+		return -EINVAL;
 
+	return pcmcia_request_io(p_dev);
+};
+#else
 static int spectrum_cs_config_check(struct pcmcia_device *p_dev,
 				    cistpl_cftable_entry_t *cfg,
 				    cistpl_cftable_entry_t *dflt,
@@ -309,6 +294,7 @@ next_entry:
 	pcmcia_disable_device(p_dev);
 	return -ENODEV;
 };
+#endif
 
 static int
 spectrum_cs_config(struct pcmcia_device *link)
@@ -318,20 +304,12 @@ spectrum_cs_config(struct pcmcia_device *link)
 	int ret;
 	void __iomem *mem;
 
-	/*
-	 * In this loop, we scan the CIS for configuration table
-	 * entries, each of which describes a valid card
-	 * configuration, including voltage, IO window, memory window,
-	 * and interrupt settings.
-	 *
-	 * We make no assumptions about the card to be configured: we
-	 * use just the information available in the CIS.  In an ideal
-	 * world, this would work for any PCMCIA card, but it requires
-	 * a complete and accurate CIS.  In practice, a driver usually
-	 * "knows" most of these things without consulting the CIS,
-	 * and most client drivers will only use the CIS to fill in
-	 * implementation-defined details.
-	 */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,37))
+	link->config_flags |= CONF_AUTO_SET_VPP | CONF_AUTO_CHECK_VCC |
+		CONF_AUTO_SET_IO | CONF_ENABLE_IRQ;
+	if (ignore_cis_vcc)
+		link->config_flags &= ~CONF_AUTO_CHECK_VCC;
+#endif
 	ret = pcmcia_loop_config(link, spectrum_cs_config_check, NULL);
 	if (ret) {
 		if (!ignore_cis_vcc)
@@ -341,17 +319,6 @@ spectrum_cs_config(struct pcmcia_device *link)
 		goto failed;
 	}
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,35))
-	ret = pcmcia_request_irq(link, orinoco_interrupt);
-#else
-	ret = pcmcia_request_irq(link, &link->irq);
-#endif
-	if (ret)
-		goto failed;
-
-	/* We initialize the hermes structure before completing PCMCIA
-	 * configuration just in case the interrupt handler gets
-	 * called. */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36)
 	mem = ioport_map(link->resource[0]->start,
 			resource_size(link->resource[0]));
@@ -361,15 +328,21 @@ spectrum_cs_config(struct pcmcia_device *link)
 	if (!mem)
 		goto failed;
 
+	/* We initialize the hermes structure before completing PCMCIA
+	 * configuration just in case the interrupt handler gets
+	 * called. */
 	hermes_struct_init(hw, mem, HERMES_16BIT_REGSPACING);
 	hw->eeprom_pda = true;
 
-	/*
-	 * This actually configures the PCMCIA socket -- setting up
-	 * the I/O windows and the interrupt mapping, and putting the
-	 * card and host interface into "Memory and IO" mode.
-	 */
-	ret = pcmcia_request_configuration(link, &link->conf);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,35))
+	ret = pcmcia_request_irq(link, orinoco_interrupt);
+#else
+	ret = pcmcia_request_irq(link, &link->irq);
+#endif
+	if (ret)
+		goto failed;
+
+	ret = pcmcia_enable_device(link);
 	if (ret)
 		goto failed;
 
@@ -405,11 +378,6 @@ spectrum_cs_config(struct pcmcia_device *link)
 	return -ENODEV;
 }				/* spectrum_cs_config */
 
-/*
- * After a card is removed, spectrum_cs_release() will unregister the
- * device, and release the PCMCIA configuration.  If the device is
- * still open, this will be postponed until it is closed.
- */
 static void
 spectrum_cs_release(struct pcmcia_device *link)
 {
@@ -454,12 +422,6 @@ spectrum_cs_resume(struct pcmcia_device *link)
 /* Module initialization					    */
 /********************************************************************/
 
-/* Can't be declared "const" or the whole __initdata section will
- * become const */
-static char version[] __initdata = DRIVER_NAME " " DRIVER_VERSION
-	" (Pavel Roskin <proski@gnu.org>,"
-	" David Gibson <hermes@gibson.dropbear.id.au>, et al)";
-
 static struct pcmcia_device_id spectrum_cs_ids[] = {
 	PCMCIA_DEVICE_MANF_CARD(0x026c, 0x0001), /* Symbol Spectrum24 LA4137 */
 	PCMCIA_DEVICE_MANF_CARD(0x0104, 0x0001), /* Socket Communications CF */
@@ -470,9 +432,13 @@ MODULE_DEVICE_TABLE(pcmcia, spectrum_cs_ids);
 
 static struct pcmcia_driver orinoco_driver = {
 	.owner		= THIS_MODULE,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,37))
+	.name		= DRIVER_NAME,
+#else
 	.drv		= {
 		.name	= DRIVER_NAME,
 	},
+#endif
 	.probe		= spectrum_cs_probe,
 	.remove		= spectrum_cs_detach,
 	.suspend	= spectrum_cs_suspend,
@@ -483,8 +449,6 @@ static struct pcmcia_driver orinoco_driver = {
 static int __init
 init_spectrum_cs(void)
 {
-	printk(KERN_DEBUG "%s\n", version);
-
 	return pcmcia_register_driver(&orinoco_driver);
 }
 

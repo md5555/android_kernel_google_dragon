@@ -115,27 +115,22 @@ static void ieee80211_handle_filtered_frame(struct ieee80211_local *local,
 
 #ifdef CONFIG_MAC80211_VERBOSE_DEBUG
 	if (net_ratelimit())
-		printk(KERN_DEBUG "%s: dropped TX filtered frame, "
-		       "queue_len=%d PS=%d @%lu\n",
-		       wiphy_name(local->hw.wiphy),
-		       skb_queue_len(&sta->tx_filtered),
-		       !!test_sta_flags(sta, WLAN_STA_PS_STA), jiffies);
+		wiphy_debug(local->hw.wiphy,
+			    "dropped TX filtered frame, queue_len=%d PS=%d @%lu\n",
+			    skb_queue_len(&sta->tx_filtered),
+			    !!test_sta_flags(sta, WLAN_STA_PS_STA), jiffies);
 #endif
 	dev_kfree_skb(skb);
 }
 
-static void ieee80211_sta_tx_status(struct sta_info *sta, struct sk_buff *skb)
+static void ieee80211_frame_acked(struct sta_info *sta, struct sk_buff *skb)
 {
 	struct ieee80211_mgmt *mgmt = (void *) skb->data;
 	struct ieee80211_local *local = sta->local;
 	struct ieee80211_sub_if_data *sdata = sta->sdata;
-	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(skb);
-
-	if (sdata->vif.type != NL80211_IFTYPE_STATION)
-		return;
 
 	if (ieee80211_is_action(mgmt->frame_control) &&
-	    (info->flags & IEEE80211_TX_STAT_ACK) &&
+	    sdata->vif.type == NL80211_IFTYPE_STATION &&
 	    mgmt->u.action.category == WLAN_CATEGORY_HT &&
 	    mgmt->u.action.u.ht_smps.action == WLAN_HT_ACTION_SMPS) {
 		/*
@@ -159,34 +154,17 @@ static void ieee80211_sta_tx_status(struct sta_info *sta, struct sk_buff *skb)
 		}
 
 		ieee80211_queue_work(&local->hw, &local->recalc_smps);
-	} else if (ieee80211_is_probe_req(mgmt->frame_control) ||
-		   ieee80211_is_nullfunc(mgmt->frame_control)) {
-		struct ieee80211_if_managed *ifmgd = &sta->sdata->u.mgd;
-
-		ifmgd->probe_acked =
-		    (info->flags & IEEE80211_TX_STAT_ACK) ? true : false;
-
-		ieee80211_queue_work(&local->hw, &ifmgd->probe_status_work);
-	} else if (ieee80211_is_data(mgmt->frame_control) &&
-		   sdata->vif.type == NL80211_IFTYPE_STATION &&
-	           (info->flags & IEEE80211_TX_STAT_ACK)) {
-		struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
-		if (ifmgd->cqm_bitrate_thold != 0 &&
-		    (ifmgd->last_cqm_tx_rate.idx != sta->last_tx_rate.idx ||
-		     (ifmgd->last_cqm_tx_rate.flags &
-		      (IEEE80211_TX_RC_MCS | IEEE80211_TX_RC_40_MHZ_WIDTH |
-		       IEEE80211_TX_RC_SHORT_GI)) !=
-		     (sta->last_tx_rate.flags &
-		      (IEEE80211_TX_RC_MCS | IEEE80211_TX_RC_40_MHZ_WIDTH |
-		       IEEE80211_TX_RC_SHORT_GI)) ||
-		     sdata->u.mgd.last_cqm_bitrate == 0)) {
-			ifmgd->last_cqm_tx_rate = sta->last_tx_rate;
-			ifmgd->tx_bitrate_changed = true;
-			ieee80211_queue_work(&local->hw,
-					     &ifmgd->bitrate_notify_work);
-		}
 	}
 }
+
+/*
+ * Use a static threshold for now, best value to be determined
+ * by testing ...
+ * Should it depend on:
+ *  - on # of retransmissions
+ *  - current throughput (higher value for higher tpt)?
+ */
+#define STA_LOST_PKT_THRESHOLD	50
 
 void ieee80211_tx_status(struct ieee80211_hw *hw, struct sk_buff *skb)
 {
@@ -204,10 +182,11 @@ void ieee80211_tx_status(struct ieee80211_hw *hw, struct sk_buff *skb)
 	int retry_count = -1, i;
 	int rates_idx = -1;
 	bool send_to_cooked;
+	bool acked;
 
 	for (i = 0; i < IEEE80211_TX_MAX_RATES; i++) {
 		/* the HW cannot have attempted that rate */
-		if (i >= hw->max_rates) {
+		if (i >= hw->max_report_rates) {
 			info->status.rates[i].idx = -1;
 			info->status.rates[i].count = 0;
 		} else if (info->status.rates[i].idx >= 0) {
@@ -229,8 +208,8 @@ void ieee80211_tx_status(struct ieee80211_hw *hw, struct sk_buff *skb)
 		if (memcmp(hdr->addr2, sta->sdata->vif.addr, ETH_ALEN))
 			continue;
 
-		if (!(info->flags & IEEE80211_TX_STAT_ACK) &&
-		    test_sta_flags(sta, WLAN_STA_PS_STA)) {
+		acked = !!(info->flags & IEEE80211_TX_STAT_ACK);
+		if (!acked && test_sta_flags(sta, WLAN_STA_PS_STA)) {
 			/*
 			 * The STA is in power save mode, so assume
 			 * that this TX packet failed because of that.
@@ -262,7 +241,7 @@ void ieee80211_tx_status(struct ieee80211_hw *hw, struct sk_buff *skb)
 			rcu_read_unlock();
 			return;
 		} else {
-			if (!(info->flags & IEEE80211_TX_STAT_ACK))
+			if (!acked)
 				sta->tx_retry_failed++;
 			sta->tx_retry_count += retry_count;
 		}
@@ -271,8 +250,25 @@ void ieee80211_tx_status(struct ieee80211_hw *hw, struct sk_buff *skb)
 		if (ieee80211_vif_is_mesh(&sta->sdata->vif))
 			ieee80211s_update_metric(local, sta, skb);
 
-		if (!(info->flags & IEEE80211_TX_CTL_INJECTED))
-			ieee80211_sta_tx_status(sta, skb);
+		if (!(info->flags & IEEE80211_TX_CTL_INJECTED) && acked)
+			ieee80211_frame_acked(sta, skb);
+
+		if ((sta->sdata->vif.type == NL80211_IFTYPE_STATION) &&
+		    (local->hw.flags & IEEE80211_HW_REPORTS_TX_ACK_STATUS))
+			ieee80211_sta_tx_notify(sta->sdata, (void *) skb->data, acked);
+
+		if (local->hw.flags & IEEE80211_HW_REPORTS_TX_ACK_STATUS) {
+			if (info->flags & IEEE80211_TX_STAT_ACK) {
+				if (sta->lost_packets)
+					sta->lost_packets = 0;
+			} else if (++sta->lost_packets >= STA_LOST_PKT_THRESHOLD) {
+				cfg80211_cqm_pktloss_notify(sta->sdata->dev,
+							    sta->sta.addr,
+							    sta->lost_packets,
+							    GFP_ATOMIC);
+				sta->lost_packets = 0;
+			}
+		}
 	}
 
 	rcu_read_unlock();
@@ -325,10 +321,28 @@ void ieee80211_tx_status(struct ieee80211_hw *hw, struct sk_buff *skb)
 					msecs_to_jiffies(10));
 	}
 
-	if (info->flags & IEEE80211_TX_INTFL_NL80211_FRAME_TX)
-		cfg80211_action_tx_status(
-			skb->dev, (unsigned long) skb, skb->data, skb->len,
+	if (info->flags & IEEE80211_TX_INTFL_NL80211_FRAME_TX) {
+		struct ieee80211_work *wk;
+		u64 cookie = (unsigned long)skb;
+
+		rcu_read_lock();
+		list_for_each_entry_rcu(wk, &local->work_list, list) {
+			if (wk->type != IEEE80211_WORK_OFFCHANNEL_TX)
+				continue;
+			if (wk->offchan_tx.frame != skb)
+				continue;
+			wk->offchan_tx.frame = NULL;
+			break;
+		}
+		rcu_read_unlock();
+		if (local->hw_roc_skb_for_status == skb) {
+			cookie = local->hw_roc_cookie ^ 2;
+			local->hw_roc_skb_for_status = NULL;
+		}
+		cfg80211_mgmt_tx_status(
+			skb->dev, cookie, skb->data, skb->len,
 			!!(info->flags & IEEE80211_TX_STAT_ACK), GFP_ATOMIC);
+	}
 
 	/* this was a transmitted frame, but now we want to reuse it */
 	skb_orphan(skb);

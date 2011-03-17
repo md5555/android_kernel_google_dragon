@@ -145,6 +145,7 @@ static ssize_t rcname_read(struct file *file, char __user *userbuf,
 static const struct file_operations rcname_ops = {
 	.read = rcname_read,
 	.open = mac80211_open_file_generic,
+	.llseek = default_llseek,
 };
 #endif
 
@@ -207,10 +208,11 @@ static bool rc_no_data_or_no_ack(struct ieee80211_tx_rate_control *txrc)
 
 	fc = hdr->frame_control;
 
-	return ((info->flags & IEEE80211_TX_CTL_NO_ACK) || !ieee80211_is_data(fc));
+	return (info->flags & IEEE80211_TX_CTL_NO_ACK) || !ieee80211_is_data(fc);
 }
 
-static void rc_send_low_broadcast(s8 *idx, u32 basic_rates, u8 max_rate_idx)
+static void rc_send_low_broadcast(s8 *idx, u32 basic_rates,
+				  struct ieee80211_supported_band *sband)
 {
 	u8 i;
 
@@ -221,7 +223,7 @@ static void rc_send_low_broadcast(s8 *idx, u32 basic_rates, u8 max_rate_idx)
 	if (basic_rates & (1 << *idx))
 		return; /* selected rate is a basic rate */
 
-	for (i = *idx + 1; i <= max_rate_idx; i++) {
+	for (i = *idx + 1; i <= sband->n_bitrates; i++) {
 		if (basic_rates & (1 << i)) {
 			*idx = i;
 			return;
@@ -236,16 +238,25 @@ bool rate_control_send_low(struct ieee80211_sta *sta,
 			   struct ieee80211_tx_rate_control *txrc)
 {
 	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(txrc->skb);
+	struct ieee80211_supported_band *sband = txrc->sband;
+	int mcast_rate;
 
 	if (!sta || !priv_sta || rc_no_data_or_no_ack(txrc)) {
 		info->control.rates[0].idx = rate_lowest_index(txrc->sband, sta);
 		info->control.rates[0].count =
 			(info->flags & IEEE80211_TX_CTL_NO_ACK) ?
 			1 : txrc->hw->max_rate_tries;
-		if (!sta && txrc->ap)
+		if (!sta && txrc->bss) {
+			mcast_rate = txrc->bss_conf->mcast_rate[sband->band];
+			if (mcast_rate > 0) {
+				info->control.rates[0].idx = mcast_rate - 1;
+				return true;
+			}
+
 			rc_send_low_broadcast(&info->control.rates[0].idx,
 					      txrc->bss_conf->basic_rates,
-					      txrc->sband->n_bitrates);
+					      sband);
+		}
 		return true;
 	}
 	return false;
@@ -371,8 +382,8 @@ int ieee80211_init_rate_ctrl_alg(struct ieee80211_local *local,
 
 	ref = rate_control_alloc(name, local);
 	if (!ref) {
-		printk(KERN_WARNING "%s: Failed to select rate control "
-		       "algorithm\n", wiphy_name(local->hw.wiphy));
+		wiphy_warn(local->hw.wiphy,
+			   "Failed to select rate control algorithm\n");
 		return -ENOENT;
 	}
 
@@ -383,9 +394,8 @@ int ieee80211_init_rate_ctrl_alg(struct ieee80211_local *local,
 		sta_info_flush(local, NULL);
 	}
 
-	printk(KERN_DEBUG "%s: Selected rate control "
-	       "algorithm '%s'\n", wiphy_name(local->hw.wiphy),
-	       ref->ops->name);
+	wiphy_debug(local->hw.wiphy, "Selected rate control algorithm '%s'\n",
+		    ref->ops->name);
 
 	return 0;
 }
@@ -403,99 +413,3 @@ void rate_control_deinitialize(struct ieee80211_local *local)
 	rate_control_put(ref);
 }
 
-u32 ieee80211_rate_calculate(struct ieee80211_local *local,
-			     struct ieee80211_if_managed *ifmgd)
-{
-	u32 mcs, rate_h;
-	struct ieee80211_tx_rate *rate_ptr = &ifmgd->last_cqm_tx_rate;
-	struct ieee80211_supported_band *sband;
-        static const u16 mcs_rate_table[128] = {
-		/* 20 MHz Channel width, SHORT_GI off, MCS 0-31 */
-		65,   130,  195,  260,  390,  520,  585,  650,
-		130,  260,  390,  520,  780, 1040, 1170, 1300,
-		195,  390,  585,  780, 1170, 1560, 1755, 1950,
-		260,  520,  780, 1040, 1560, 2080, 2340, 2600,
-		/* 40 MHz Channel width, SHORT_GI off, MCS 0-31 */
-		135,  270,  405,  540,  810, 1080, 1215, 1350,
-		270,  540,  810, 1080, 1620, 2160, 2430, 2700,
-		405,  810, 1215, 1620, 2430, 3240, 3645, 4050,
-		540, 1080, 1620, 2160, 3240, 4320, 4860, 5400,
-		/* 20 MHz Channel width, SHORT_GI on, MCS 0-31 */
-		72,   144,  217,  289,  433,  578,  650,  722,
-		144,  289,  433,  578,  867, 1156, 1300, 1444,
-		217,  433,  650,  867, 1300, 1733, 1950, 2167,
-		289,  578,  867, 1156, 1733, 2311, 2600, 2889,
-		/* 40 MHz Channel width, SHORT_GI on, MCS 0-31 */
-		150,  300,  450,  600,  900, 1200, 1350, 1500,
-		300,  600,  900, 1200, 1800, 2400, 2700, 3000,
-		450,  900, 1350, 1800, 2700, 3600, 4050, 4500,
-		600, 1200, 1800, 2400, 3600, 4800, 5400, 6000
-	};
-
-	if (!(rate_ptr->flags & IEEE80211_TX_RC_MCS)) {
-		sband = local->hw.wiphy->bands[local->hw.conf.channel->band];
-		rate_h = sband->bitrates[rate_ptr->idx].bitrate;
-	} else {
-		mcs = rate_ptr->idx;
-
-		/* MCS values over 32 are not yet supported */
-		if (mcs >= 32)
-			return 0;
-
-		if (rate_ptr->flags & IEEE80211_TX_RC_40_MHZ_WIDTH)
-			mcs |= 1 << 5;
-
-		if (rate_ptr->flags & IEEE80211_TX_RC_SHORT_GI)
-			mcs |= 1 << 6;
-
-		rate_h = mcs_rate_table[mcs];
-	}
-
-	return rate_h * 100;
-}
-
-void ieee80211_cqm_bitrate_notify(struct ieee80211_sub_if_data *sdata)
-{
-	struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
-	u32 bitrate, threshold;
-	int prev_rate_below_threshold, cur_rate_below_threshold;
-
-	if (!netif_running(sdata->dev) ||
-	    sdata->vif.type != NL80211_IFTYPE_STATION)
-		return;
-	
-	/*
-	 * Skip sending a notification if a the state was cleared
-	 * after the workproc was scheduled (e.g, if userspace
-	 * canceled CQM monitoring)
-	 */
-	if (!ifmgd->tx_bitrate_changed || ifmgd->cqm_bitrate_thold == 0)
-		return;
-
-	ifmgd->tx_bitrate_changed = false;
-
-	I802_DEBUG_INC(sdata->local->tx_cqm_calculate_count);
-
-	bitrate = ieee80211_rate_calculate(sdata->local, ifmgd);
-
-	threshold = ifmgd->cqm_bitrate_thold;
-	prev_rate_below_threshold = (ifmgd->last_cqm_bitrate < threshold);
-	cur_rate_below_threshold = (bitrate < threshold);
-
-	/*
-	 * Trigger a bitrate notification if one of the following is
-	 * true:
-	 *   - We haven't sent one since the threshold was reconfigured
-	 *   - We have crossed the threshold in either direction
-	 *   - We are below threshold, and the bitrate has decreased yet
-	 *     again.
-	 */
-	if (ifmgd->last_cqm_bitrate == 0 ||
-	    prev_rate_below_threshold != cur_rate_below_threshold ||
-	    (cur_rate_below_threshold && bitrate < ifmgd->last_cqm_bitrate)) {
-		cfg80211_cqm_bitrate_notify(sdata->dev, bitrate,
-					    GFP_KERNEL);
-		ifmgd->last_cqm_bitrate = bitrate;
-		I802_DEBUG_INC(sdata->local->tx_cqm_notify_count);
-	}
-}

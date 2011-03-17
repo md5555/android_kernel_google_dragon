@@ -9,10 +9,6 @@
  */
 
 #include <net/compat.h>
-
-/* All things not in 2.6.22 and 2.6.23 */
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24))
-
 #include <net/arp.h>
 
 /*
@@ -21,15 +17,6 @@
  */
 struct net init_net;
 EXPORT_SYMBOL(init_net);
-
-/* Part of net/ethernet/eth.c as of 2.6.24 */
-char *print_mac(char *buf, const u8 *addr)
-{
-	sprintf(buf, MAC_FMT,
-		addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
-	return buf;
-}
-EXPORT_SYMBOL(print_mac);
 
 /* 2.6.22 and 2.6.23 have eth_header_cache_update defined as extern in include/linux/etherdevice.h
  * and actually defined in net/ethernet/eth.c but 2.6.24 exports it. Lets export it here */
@@ -168,18 +155,4 @@ int eth_rebuild_header(struct sk_buff *skb)
 	return 0;
 }
 EXPORT_SYMBOL(eth_rebuild_header);
-
-/* 2.6.24 will introduce struct pci_dev is_pcie bit. To help
- * with the compatibility code (compat.diff) being smaller, we provide a helper
- * so in cases where that will be used we can simply slap ifdefs with this
- * routine. Use compat_ prefex to not pollute namespace.  */
-int compat_is_pcie(struct pci_dev *pdev)
-{
-	int cap;
-	cap = pci_find_capability(pdev, PCI_CAP_ID_EXP);
-	return cap ? 1 : 0;
-}
-EXPORT_SYMBOL(compat_is_pcie);
-
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24) */
 

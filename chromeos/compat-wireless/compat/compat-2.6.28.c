@@ -9,9 +9,6 @@
  */
 
 #include <linux/compat.h>
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28))
-
 #include <linux/usb.h>
 #include <linux/tty.h>
 #include <asm/poll.h>
@@ -223,62 +220,6 @@ void usb_poison_anchored_urbs(struct usb_anchor *anchor)
 }
 EXPORT_SYMBOL_GPL(usb_poison_anchored_urbs);
 #endif
-
-/**
- * usb_get_from_anchor - get an anchor's oldest urb
- * @anchor: the anchor whose urb you want
- *
- * this will take the oldest urb from an anchor,
- * unanchor and return it
- */
-struct urb *usb_get_from_anchor(struct usb_anchor *anchor)
-{
-	struct urb *victim;
-	unsigned long flags;
-
-	spin_lock_irqsave(&anchor->lock, flags);
-	if (!list_empty(&anchor->urb_list)) {
-		victim = list_entry(anchor->urb_list.next, struct urb,
-				    anchor_list);
-		usb_get_urb(victim);
-		spin_unlock_irqrestore(&anchor->lock, flags);
-		usb_unanchor_urb(victim);
-	} else {
-		spin_unlock_irqrestore(&anchor->lock, flags);
-		victim = NULL;
-	}
-
-	return victim;
-}
-
-EXPORT_SYMBOL_GPL(usb_get_from_anchor);
-
-/**
- * usb_scuttle_anchored_urbs - unanchor all an anchor's urbs
- * @anchor: the anchor whose urbs you want to unanchor
- *
- * use this to get rid of all an anchor's urbs
- */
-void usb_scuttle_anchored_urbs(struct usb_anchor *anchor)
-{
-	struct urb *victim;
-	unsigned long flags;
-
-	spin_lock_irqsave(&anchor->lock, flags);
-	while (!list_empty(&anchor->urb_list)) {
-		victim = list_entry(anchor->urb_list.prev, struct urb,
-				    anchor_list);
-		usb_get_urb(victim);
-		spin_unlock_irqrestore(&anchor->lock, flags);
-		/* this may free the URB */
-		usb_unanchor_urb(victim);
-		usb_put_urb(victim);
-		spin_lock_irqsave(&anchor->lock, flags);
-	}
-	spin_unlock_irqrestore(&anchor->lock, flags);
-}
-
-EXPORT_SYMBOL_GPL(usb_scuttle_anchored_urbs);
 
 /**
  * usb_anchor_empty - is an anchor empty
@@ -498,4 +439,25 @@ int n_tty_ioctl_helper(struct tty_struct *tty, struct file *file,
 }
 EXPORT_SYMBOL(n_tty_ioctl_helper);
 
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28) */
+/**
+ * pci_wake_from_d3 - enable/disable device to wake up from D3_hot or D3_cold
+ * @dev: PCI device to prepare
+ * @enable: True to enable wake-up event generation; false to disable
+ *
+ * Many drivers want the device to wake up the system from D3_hot or D3_cold
+ * and this function allows them to set that up cleanly - pci_enable_wake()
+ * should not be called twice in a row to enable wake-up due to PCI PM vs ACPI
+ * ordering constraints.
+ *
+ * This function only returns error code if the device is not capable of
+ * generating PME# from both D3_hot and D3_cold, and the platform is unable to
+ * enable wake-up power for it.
+ */
+int pci_wake_from_d3(struct pci_dev *dev, bool enable)
+{
+	return pci_pme_capable(dev, PCI_D3cold) ?
+			pci_enable_wake(dev, PCI_D3cold, enable) :
+			pci_enable_wake(dev, PCI_D3hot, enable);
+}
+EXPORT_SYMBOL(pci_wake_from_d3);
+

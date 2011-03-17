@@ -45,7 +45,6 @@
 #include <linux/device.h>
 #include <linux/firmware.h>
 
-#include <pcmcia/cs.h>
 #include <pcmcia/cistpl.h>
 #include <pcmcia/ciscode.h>
 #include <pcmcia/ds.h>
@@ -673,6 +672,10 @@ static int bt3c_probe(struct pcmcia_device *link)
 	info->p_dev = link;
 	link->priv = info;
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,37))
+	link->config_flags |= CONF_ENABLE_IRQ | CONF_AUTO_SET_VPP |
+		CONF_AUTO_SET_IO;
+#else
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36))
 	link->resource[0]->flags |= IO_DATA_PATH_WIDTH_8;
 	link->resource[0]->end = 8;
@@ -689,6 +692,7 @@ static int bt3c_probe(struct pcmcia_device *link)
 
 	link->conf.Attributes = CONF_ENABLE_IRQ;
 	link->conf.IntType = INT_MEMORY_AND_IO;
+#endif
 
 	return bt3c_config(link);
 }
@@ -702,6 +706,46 @@ static void bt3c_detach(struct pcmcia_device *link)
 	kfree(info);
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,37))
+static int bt3c_check_config(struct pcmcia_device *p_dev, void *priv_data)
+{
+	int *try = priv_data;
+
+	if (try == 0)
+		p_dev->io_lines = 16;
+
+	if ((p_dev->resource[0]->end != 8) || (p_dev->resource[0]->start == 0))
+		return -EINVAL;
+
+	p_dev->resource[0]->end = 8;
+	p_dev->resource[0]->flags &= ~IO_DATA_PATH_WIDTH;
+	p_dev->resource[0]->flags |= IO_DATA_PATH_WIDTH_8;
+
+	return pcmcia_request_io(p_dev);
+}
+
+static int bt3c_check_config_notpicky(struct pcmcia_device *p_dev,
+				      void *priv_data)
+{
+	static unsigned int base[5] = { 0x3f8, 0x2f8, 0x3e8, 0x2e8, 0x0 };
+	int j;
+
+	if (p_dev->io_lines > 3)
+		return -ENODEV;
+
+	p_dev->resource[0]->flags &= ~IO_DATA_PATH_WIDTH;
+	p_dev->resource[0]->flags |= IO_DATA_PATH_WIDTH_8;
+	p_dev->resource[0]->end = 8;
+
+	for (j = 0; j < 5; j++) {
+		p_dev->resource[0]->start = base[j];
+		p_dev->io_lines = base[j] ? 16 : 3;
+		if (!pcmcia_request_io(p_dev))
+			return 0;
+	}
+	return -ENODEV;
+}
+#else
 static int bt3c_check_config(struct pcmcia_device *p_dev,
 			     cistpl_cftable_entry_t *cf,
 			     cistpl_cftable_entry_t *dflt,
@@ -757,6 +801,7 @@ static int bt3c_check_config_notpicky(struct pcmcia_device *p_dev,
 	}
 	return -ENODEV;
 }
+#endif
 
 static int bt3c_config(struct pcmcia_device *link)
 {
@@ -790,7 +835,7 @@ found_port:
 		link->irq.AssignedIRQ = 0;
 #endif
 
-	i = pcmcia_request_configuration(link, &link->conf);
+	i = pcmcia_enable_device(link);
 	if (i != 0)
 		goto failed;
 
@@ -823,9 +868,13 @@ MODULE_DEVICE_TABLE(pcmcia, bt3c_ids);
 
 static struct pcmcia_driver bt3c_driver = {
 	.owner		= THIS_MODULE,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,37))
+	.name		= "bt3c_cs",
+#else
 	.drv		= {
 		.name	= "bt3c_cs",
 	},
+#endif
 	.probe		= bt3c_probe,
 	.remove		= bt3c_detach,
 	.id_table	= bt3c_ids,

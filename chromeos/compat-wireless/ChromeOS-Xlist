@@ -4,8 +4,6 @@ defconfigs
 enable-older-kernels
 linux-next-cherry-picks
 linux-next-pending
-log
-log-reg
 .gitignore
 scripts
 udev
@@ -13,3 +11,4 @@ patches
 code-metrics.txt
 pending-stable
 Kconfig
+enable-older-kernels
