@@ -6,16 +6,6 @@ Manually carried forward from merges before compat-wireless-2.6.36-5-spn:
     [local change for testing
      Paul/Sam -- Move code to nl80211 station then upstream]
 
-    commit d75ae7ef752f110c63ab4aadd801da0bd87f7d70
-    Review URL: http://codereview.chromium.org/3687002
-    better beacon miss handling
-    [Sam -- you should upstream this]
-
-    commit 9dc980e33a47d5315b15da8d3369edba489ebf08
-    Review URL: http://codereview.chromium.org/5092003
-    CHROMIUMOS: mac80211: Re-enable powersave if ACK cancels beacon/connection poll
-    [Dependent on d75 above]
-
     commit 9ab070d8e21cb5891c770a0bbc2f9c2b6b66292a
     Review URL: http://codereview.chromium.org/3604012
     CHROMIUMOS: compat-wireless: Create CQM events for transmit bitrate changing
@@ -116,7 +106,33 @@ ore stop"
     Review URL: http://codereview.chromium.org/6274007
     ath9k_hw: ASPM interoperability fix for AR9380/AR9382
 
+New changes pulled from upstream during uprev:
+
+    wireless-testing bfc31df33b162540c6c3e1473e022cd0a312a522
+    Author: Ben Greear <greearb@candelatech.com>
+    mac80211: Show max retry-counts in kernel messages.
+
+    wireless-testing 180205bdb22b79cd7b2a07a5002dd747badc82f3
+    Author: Ben Greear <greearb@candelatech.com>
+    mac80211: Make some mlme timers module paramaters.
+
+    wireless-testing f3e85b9edeaf8ad0446a37a40c873f3f8898c57d
+    Author: Vivek Natarajan <vnatarajan@atheros.com>
+    mac80211: Fix a race on enabling power save.
+
 Dropped changes:
+
+    commit d75ae7ef752f110c63ab4aadd801da0bd87f7d70
+    Review URL: http://codereview.chromium.org/3687002
+    better beacon miss handling
+    [Using Felix's version in this release
+     Paul -- Need to test!]
+
+    commit 9dc980e33a47d5315b15da8d3369edba489ebf08
+    Review URL: http://codereview.chromium.org/5092003
+    CHROMIUMOS: mac80211: Re-enable powersave if ACK cancels beacon/connection poll
+    [Dependent on d75 above, upstream also has a version of this]
+
 
 Other Misc Changes:
 
