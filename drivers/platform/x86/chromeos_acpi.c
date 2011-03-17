@@ -38,6 +38,9 @@
 
 #include "chromeos_acpi.h"
 
+struct chromeos_acpi_if chromeos_acpi_if_data;
+EXPORT_SYMBOL_GPL(chromeos_acpi_if_data);
+
 #define MY_LOGPREFIX "chromeos_acpi: "
 #define MY_ERR KERN_ERR MY_LOGPREFIX
 #define MY_NOTICE KERN_NOTICE MY_LOGPREFIX
@@ -325,31 +328,35 @@ static void handle_nested_acpi_package(union acpi_object *po, char *pm,
 		printk(MY_ERR "failed to create group %s.%d\n", pm, instance);
 }
 
-
-#ifdef CONFIG_CHROMEOS
 /*
- * handle_single_int() extract a single int value
+ * maybe_export_acpi_int() export a single int value when required
  *
- * @po: package contents as returned by ACPI
- * @found:	integer pointer to store the value in
- *
+ * @pm: name of the package
+ * @index: index of the element of the package
+ * @value: value of the element
  */
-static void handle_single_int(union acpi_object *po, int *found)
+static void maybe_export_acpi_int(const char *pm, int index, unsigned value)
 {
-	union acpi_object *element = po->package.elements;
+	struct chromeos_acpi_datum *cad = NULL;
 
-	if (!element) {
-		WARN_ON(1);
-		return;
+	/* Only a couple of variables need to be exported. */
+	if (!strncmp(pm, "VBNV", 4)) {
+		switch (index) {
+		case 0:
+			cad = &chromeos_acpi_if_data.nv_base;
+			break;
+		case 1:
+			cad = &chromeos_acpi_if_data.nv_size;
+			break;
+		}
+	} else if (!strncmp(pm,  "CHSW", 4)) {
+		cad = &chromeos_acpi_if_data.switch_state;
 	}
-
-	if (element->type == ACPI_TYPE_INTEGER)
-		*found = (int) element->integer.value;
-	else
-		printk(MY_ERR "acpi_object unexpected type %d, expected int\n",
-		       element->type);
+	if (cad) {
+		cad->cad_value = value;
+		cad->cad_is_set = true;
+	}
 }
-#endif
 
 /*
  * handle_acpi_package() create sysfs group including attributes
@@ -376,6 +383,8 @@ static void handle_acpi_package(union acpi_object *po, char *pm)
 			copy_size = snprintf(attr_value, sizeof(attr_value),
 					     "%d", (int)element->integer.value);
 			add_sysfs_attribute(attr_value, pm, count, j);
+			maybe_export_acpi_int(pm, j, (unsigned)
+					      element->integer.value);
 			break;
 
 		case ACPI_TYPE_STRING:
@@ -481,13 +490,6 @@ static void add_acpi_method(struct acpi_device *device, char *pm)
 		printk(MY_ERR "%s is not a package, ignored\n", pm);
 	else
 		handle_acpi_package(po, pm);
-#ifdef CONFIG_CHROMEOS
-	/* Need to export a couple of variables to chromeos.c */
-	if (!strncmp(pm, "CHNV", 4))
-		handle_single_int(po, &chromeos_acpi_chnv);
-	else if (!strncmp(pm, "CHSW", 4))
-		handle_single_int(po, &chromeos_acpi_chsw);
-#endif
 	kfree(output.pointer);
 }
 
@@ -586,42 +588,8 @@ static int __init chromeos_acpi_init(void)
 		chromeos_acpi.p_dev = NULL;
 		return ret;
 	}
-
-#ifdef CONFIG_CHROMEOS
-	chromeos_acpi_available = true;
-#endif
+	printk(MY_INFO "installed\n");
 	return 0;
 }
 
-static void chromeos_acpi_exit(void)
-{
-#ifdef CONFIG_CHROMEOS
-	chromeos_acpi_available = false;
-#endif
-	acpi_bus_unregister_driver(&chromeos_acpi_driver);
-
-	while (chromeos_acpi.groups) {
-		struct acpi_attribute_group *aag;
-		aag = chromeos_acpi.groups;
-		chromeos_acpi.groups = aag->next_acpi_attr_group;
-		sysfs_remove_group(&chromeos_acpi.p_dev->dev.kobj, &aag->ag);
-		kfree(aag);
-	}
-
-	while (chromeos_acpi.attributes) {
-		struct acpi_attribute *aa = chromeos_acpi.attributes;
-		chromeos_acpi.attributes = aa->next_acpi_attr;
-		device_remove_file(&chromeos_acpi.p_dev->dev, &aa->dev_attr);
-		kfree(aa);
-	}
-
-	platform_device_unregister(chromeos_acpi.p_dev);
-	printk(MY_INFO "removed\n");
-}
-
-module_init(chromeos_acpi_init);
-module_exit(chromeos_acpi_exit);
-
-MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Google Inc.");
-MODULE_DESCRIPTION("Chrome OS ACPI Driver");
+subsys_initcall(chromeos_acpi_init);
