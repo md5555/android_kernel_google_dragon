@@ -1,7 +1,7 @@
 #ifndef __COMPAT_RFKILL_H
 #define __COMPAT_RFKILL_H
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,33))
 
 #include_next <linux/rfkill.h>
 

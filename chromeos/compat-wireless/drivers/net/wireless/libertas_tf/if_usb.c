@@ -9,6 +9,9 @@
  */
 #define DRV_NAME "lbtf_usb"
 
+#ifdef pr_fmt
+#undef pr_fmt
+#endif
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include "libertas_tf.h"

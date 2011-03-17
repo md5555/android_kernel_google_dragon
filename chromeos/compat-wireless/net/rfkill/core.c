@@ -26,7 +26,7 @@
 #include <linux/capability.h>
 #include <linux/list.h>
 #include <linux/mutex.h>
-#include <linux/rfkill.h>
+#include <linux/rfkill_compat.h>
 #include <linux/sched.h>
 #include <linux/spinlock.h>
 #include <linux/miscdevice.h>

@@ -117,3 +117,17 @@ ore stop"
 
 Dropped changes:
 
+Other Misc Changes:
+
+   - A couple of PCIE functions in include/linux/compat-2.6.33.h needed to
+     be commented out because chromiumos backported these defs to the main
+     tree.
+
+   - There's an rfkill.h in the chromiumos tree which doesn't define
+     everything we need.  Rename the reference to rfkill_compat.h and
+     rename the compat version of the file accordingly.
+
+   - Added an "#undef" of pr_fmt in places it was redefined
+
+   - Added a few config options to scripts, since some more modules need
+     to be configured on in order to cleanly compile.

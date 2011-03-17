@@ -118,6 +118,7 @@ int pccard_loop_tuple(struct pcmcia_socket *s, unsigned int function,
  * need to calculate PCIe capability offset from raw device for some
  * reasons, please use pci_find_capability() instead.
  */
+#if 0 /* CHROMIUMOS: We pulled this function into the main kernel from upstream */
 static inline int pci_pcie_cap(struct pci_dev *dev)
 {
 	return pci_find_capability(dev, PCI_CAP_ID_EXP);
@@ -137,6 +138,7 @@ static inline bool pci_is_pcie(struct pci_dev *dev)
 	return !!pci_pcie_cap(dev);
 #endif
 }
+#endif /* CHROMIUMOS: We pulled this function into the main kernel from upstream */
 
 #endif /* (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,33)) */
 

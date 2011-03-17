@@ -4,6 +4,9 @@
  * Copyright 2006-2010		Johannes Berg <johannes@sipsolutions.net>
  */
 
+#ifdef pr_fmt
+#undef pr_fmt
+#endif
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <linux/if.h>

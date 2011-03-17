@@ -7,6 +7,9 @@
  *  the Free Software Foundation; either version 2 of the License, or (at
  *  your option) any later version.
  */
+#ifdef pr_fmt
+#undef pr_fmt
+#endif
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <linux/slab.h>

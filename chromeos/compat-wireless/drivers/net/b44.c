@@ -10,6 +10,9 @@
  * Distribute under GPL.
  */
 
+#ifdef pr_fmt
+#undef pr_fmt
+#endif
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <linux/kernel.h>
@@ -2379,4 +2382,3 @@ static void __exit b44_cleanup(void)
 
 module_init(b44_init);
 module_exit(b44_cleanup);
-
