@@ -5,16 +5,6 @@ Manually carried forward from merges before compat-wireless-2.6.36-5-spn:
     expose more sta state via debugfs for use in testing
     [local change for testing
      Paul/Sam -- Move code to nl80211 station then upstream]
-
-    commit 9ab070d8e21cb5891c770a0bbc2f9c2b6b66292a
-    Review URL: http://codereview.chromium.org/3604012
-    CHROMIUMOS: compat-wireless: Create CQM events for transmit bitrate changing
-    [Paul -- you should upstream this]
-
-    commit 6e021e6680be21a4ab45ed59bd43495920d5f2aa
-    Review URL: http://codereview.chromium.org/4127006
-    CHROMIUMOS: mac80211: ratelimit dropped data frame msgs
-    [Dependent on d75 above]
     
     
 Carried forward from changes after Compat-wireless-2.6.36-5-spn:
@@ -133,6 +123,16 @@ Dropped changes:
     CHROMIUMOS: mac80211: Re-enable powersave if ACK cancels beacon/connection poll
     [Dependent on d75 above, upstream also has a version of this]
 
+    commit 9ab070d8e21cb5891c770a0bbc2f9c2b6b66292a
+    Review URL: http://codereview.chromium.org/3604012
+   CHROMIUMOS: compat-wireless: Create CQM events for transmit bitrate changing
+    [Johannes has a packet-loss CQM which might help, otherwise 
+     necotiate upstream before pulling in again]
+
+    commit 6e021e6680be21a4ab45ed59bd43495920d5f2aa
+    Review URL: http://codereview.chromium.org/4127006
+    CHROMIUMOS: mac80211: ratelimit dropped data frame msgs
+    [Dependent on d75 above]
 
 Other Misc Changes:
 
