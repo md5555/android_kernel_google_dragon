@@ -1074,8 +1074,10 @@ void i8xx_disable_fbc(struct drm_device *dev)
 	I915_WRITE(FBC_CONTROL, fbc_ctl);
 
 	/* Wait for compressing bit to clear */
-	while (I915_READ(FBC_STATUS) & FBC_STAT_COMPRESSING)
-		; /* nothing */
+	if (wait_for((I915_READ(FBC_STATUS) & FBC_STAT_COMPRESSING) == 0, 10, 0)) {
+		DRM_DEBUG_KMS("FBC idle timed out\n");
+		return;
+	}
 
 	intel_wait_for_vblank(dev);
 
@@ -1761,8 +1763,8 @@ static void ironlake_crtc_dpms(struct drm_crtc *crtc, int mode)
 			I915_WRITE(transconf_reg, temp | TRANS_ENABLE);
 			I915_READ(transconf_reg);
 
-			while ((I915_READ(transconf_reg) & TRANS_STATE_ENABLE) == 0)
-				;
+			if (wait_for(I915_READ(transconf_reg) & TRANS_STATE_ENABLE, 10, 0))
+				DRM_ERROR("failed to enable transcoder\n");
 
 			/* enable normal */
 
@@ -1805,20 +1807,10 @@ static void ironlake_crtc_dpms(struct drm_crtc *crtc, int mode)
 		temp = I915_READ(pipeconf_reg);
 		if ((temp & PIPEACONF_ENABLE) != 0) {
 			I915_WRITE(pipeconf_reg, temp & ~PIPEACONF_ENABLE);
-			I915_READ(pipeconf_reg);
-			n = 0;
+
 			/* wait for cpu pipe off, pipe state */
-			while ((I915_READ(pipeconf_reg) & I965_PIPECONF_ACTIVE) != 0) {
-				n++;
-				if (n < 60) {
-					udelay(500);
-					continue;
-				} else {
-					DRM_DEBUG_KMS("pipe %d off delay\n",
-								pipe);
-					break;
-				}
-			}
+			if (wait_for((I915_READ(pipeconf_reg) & I965_PIPECONF_ACTIVE) == 0, 50, 1))
+				DRM_ERROR("failed to turn off cpu pipe\n");
 		} else
 			DRM_DEBUG_KMS("crtc %d is disabled\n", pipe);
 
@@ -1870,20 +1862,10 @@ static void ironlake_crtc_dpms(struct drm_crtc *crtc, int mode)
 		temp = I915_READ(transconf_reg);
 		if ((temp & TRANS_ENABLE) != 0) {
 			I915_WRITE(transconf_reg, temp & ~TRANS_ENABLE);
-			I915_READ(transconf_reg);
-			n = 0;
+
 			/* wait for PCH transcoder off, transcoder state */
-			while ((I915_READ(transconf_reg) & TRANS_STATE_ENABLE) != 0) {
-				n++;
-				if (n < 60) {
-					udelay(500);
-					continue;
-				} else {
-					DRM_DEBUG_KMS("transcoder %d off "
-							"delay\n", pipe);
-					break;
-				}
-			}
+			if (wait_for((I915_READ(transconf_reg) & TRANS_STATE_ENABLE) == 0, 50, 1))
+				DRM_ERROR("failed to disable transcoder\n");
 		}
 		temp = I915_READ(transconf_reg);
 		/* BPC in transcoder is consistent with that in pipeconf */

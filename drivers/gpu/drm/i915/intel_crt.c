@@ -172,8 +172,9 @@ static bool intel_ironlake_crt_detect_hotplug(struct drm_connector *connector)
 	DRM_DEBUG_KMS("pch crt adpa 0x%x", adpa);
 	I915_WRITE(PCH_ADPA, adpa);
 
-	while ((I915_READ(PCH_ADPA) & ADPA_CRT_HOTPLUG_FORCE_TRIGGER) != 0)
-		;
+	if (wait_for((I915_READ(PCH_ADPA) & ADPA_CRT_HOTPLUG_FORCE_TRIGGER) == 0,
+		     1000, 1))
+		DRM_ERROR("timed out waiting for FORCE_TRIGGER");
 
 	/* Check the status to see if both blue and green are on now */
 	adpa = I915_READ(PCH_ADPA);
@@ -224,17 +225,13 @@ static bool intel_crt_detect_hotplug(struct drm_connector *connector)
 	hotplug_en |= CRT_HOTPLUG_VOLTAGE_COMPARE_50;
 
 	for (i = 0; i < tries ; i++) {
-		unsigned long timeout;
 		/* turn on the FORCE_DETECT */
 		I915_WRITE(PORT_HOTPLUG_EN, hotplug_en);
-		timeout = jiffies + msecs_to_jiffies(1000);
 		/* wait for FORCE_DETECT to go off */
-		do {
-			if (!(I915_READ(PORT_HOTPLUG_EN) &
-					CRT_HOTPLUG_FORCE_DETECT))
-				break;
-			msleep(1);
-		} while (time_after(timeout, jiffies));
+		if (wait_for((I915_READ(PORT_HOTPLUG_EN) &
+			      CRT_HOTPLUG_FORCE_DETECT) == 0,
+			     1000, 1))
+			DRM_ERROR("timed out waiting for FORCE_DETECT to go off");
 	}
 
 	if ((I915_READ(PORT_HOTPLUG_STAT) & CRT_HOTPLUG_MONITOR_MASK) !=
