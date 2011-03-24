@@ -5,8 +5,13 @@ Manually carried forward from merges before compat-wireless-2.6.36-5-spn:
     expose more sta state via debugfs for use in testing
     [local change for testing
      Paul/Sam -- Move code to nl80211 station then upstream]
-    
-    
+
+   commit xxxx [not yet displayed]
+   CHROMIUMOS: Add associated BSS parameters to nl80211 station
+   [This is the first half to the fix above, which will be
+    included in this change.  This file will be updated with
+    the hash of the commit once it is pushed]
+
 Carried forward from changes after Compat-wireless-2.6.36-5-spn:
 
     commit 8f2189315fb1224a000737948db09b076bb9dd5c
