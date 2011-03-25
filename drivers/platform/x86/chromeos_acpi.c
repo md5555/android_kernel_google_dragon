@@ -359,6 +359,100 @@ static void maybe_export_acpi_int(const char *pm, int index, unsigned value)
 }
 
 /*
+ * acpi_buffer_to_string() convert contents of an ACPI buffer element into a
+ *		hex string truncating it if necessary to fit into one page.
+ *
+ * @element: an acpi element known to contain an ACPI buffer.
+ *
+ * Returns: pointer to an ASCII string containing the buffer representation
+ *	    (whatever fit into PAGE_SIZE). The caller is responsible for
+ *	    freeing the memory.
+ */
+static char *acpi_buffer_to_string(union acpi_object *element)
+{
+	char *base, *p;
+	int i;
+	unsigned room_left;
+	/* Include this many characters per line */
+	unsigned char_per_line = 16;
+	unsigned blob_size;
+	unsigned string_buffer_size;
+
+	/*
+	 * As of now the VDAT structure can supply as much as 3700 bytes. When
+	 * expressed as a hex dump it becomes 3700 * 3 + 3700/16 + .. which
+	 * clearly exceeds the maximum allowed sys fs buffer size of one page
+	 * (4k).
+	 *
+	 * What this means is that we can't keep the entire blob in one sysfs
+	 * file. Currently verified boot (the consumer of the VDAT contents)
+	 * does not care about the most of the data, so as a quick fix we will
+	 * truncate it here. Once the blob data beyond the 4K boundary is
+	 * required this approach will have to be reworked.
+	 *
+	 * TODO(vbendeb): Split the data into multiple VDAT instances, each
+	 * not exceeding 4K or consider exporting as a binary using
+	 * sysfs_create_bin_file().
+	 */
+
+	/*
+	 * X, the maximum number of bytes which will fit into a sysfs file
+	 * (one memory page) can be derived from the following equation (where
+	 * N is number of bytes included in every hex string):
+	 *
+	 * 3X + X/N + 4 <= PAGE_SIZE.
+	 *
+	 * Solving this for X gives the following
+	 */
+	blob_size = ((PAGE_SIZE - 4) * char_per_line) / (char_per_line * 3 + 1);
+
+	if (element->buffer.length > blob_size)
+		printk(MY_INFO "truncating buffer from %d to %d\n",
+		       element->buffer.length, blob_size);
+	else
+		blob_size = element->buffer.length;
+
+	string_buffer_size =
+		/* three characters to display one byte */
+		blob_size * 3 +
+		/* one newline per line, all rounded up, plus
+		 * extra newline in the end, plus terminating
+		 * zero, hence + 4
+		 */
+		blob_size/char_per_line + 4;
+
+	p = kzalloc(string_buffer_size, GFP_KERNEL);
+	if (!p) {
+		printk(MY_ERR "out of memory in %s!\n", __func__);
+		return NULL;
+	}
+
+	base = p;
+	room_left = string_buffer_size;
+	for (i = 0; i < blob_size; i++) {
+		int printed;
+		printed = snprintf(p, room_left, " %2.2x",
+				   element->buffer.pointer[i]);
+		room_left -= printed;
+		p += printed;
+		if (((i + 1) % char_per_line) == 0) {
+			if (!room_left)
+				break;
+			room_left--;
+			*p++ = '\n';
+		}
+	}
+	if (room_left < 2) {
+		printk(MY_ERR "%s: no room in the buffer!\n", __func__);
+		*p = '\0';
+	} else {
+		*p++ = '\n';
+		*p++ = '\0';
+	}
+	return base;
+}
+
+/*
  * handle_acpi_package() create sysfs group including attributes
  *			 representing an ACPI package.
  *
@@ -396,57 +490,12 @@ static void handle_acpi_package(union acpi_object *po, char *pm)
 			break;
 
 		case ACPI_TYPE_BUFFER: {
-			char *base, *p;
-			int i;
-			unsigned room_left;
-			/* Include this many characters per line */
-			unsigned char_per_line = 16;
-			unsigned string_buffer_size =
-				/* three characters to display one byte */
-				element->buffer.length * 3 +
-				/* one newline per line, all rounded up, plus
-				 * extra newline in the end, plus terminating
-				 * zero, hence + 4
-				 */
-				element->buffer.length/char_per_line + 4;
-
-			if (string_buffer_size > sizeof(attr_value)) {
-				p = kzalloc(string_buffer_size, GFP_KERNEL);
-				if (!p) {
-					printk(MY_ERR "out of memory in %s!\n",
-					       __func__);
-					break;
-				}
-			} else {
-				p = attr_value;
+			char *buf_str;
+			buf_str = acpi_buffer_to_string(element);
+			if (buf_str) {
+				add_sysfs_attribute(buf_str, pm, count, j);
+				kfree(buf_str);
 			}
-
-			base = p;
-			room_left = string_buffer_size;
-			for (i = 0; i < element->buffer.length; i++) {
-				int printed;
-				printed = snprintf(p, room_left, " %2.2x",
-						   element->buffer.pointer[i]);
-				room_left -= printed;
-				p += printed;
-				if (((i + 1) % char_per_line) == 0) {
-					if (!room_left)
-						break;
-					room_left--;
-					*p++ = '\n';
-				}
-			}
-			if (room_left < 2) {
-				printk(MY_ERR "%s: no room in the buffer!\n",
-				       __func__);
-				*p = '\0';
-			} else {
-				*p++ = '\n';
-				*p++ = '\0';
-			}
-			add_sysfs_attribute(base, pm, count, j);
-			if (string_buffer_size > sizeof(attr_value))
-				kfree(p);
 			break;
 		}
 		case ACPI_TYPE_PACKAGE:
