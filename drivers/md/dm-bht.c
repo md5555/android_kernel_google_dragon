@@ -313,7 +313,6 @@ int dm_bht_create(struct dm_bht *bht, unsigned int depth,
 	if (status)
 		goto bad_entries_alloc;
 
-	bht->entry_readahead = 0;
 	return 0;
 
 bad_entries_alloc:
@@ -1002,26 +1001,6 @@ int dm_bht_populate(struct dm_bht *bht, void *read_cb_ctx,
 		}
 		/* Accrue return code flags */
 		populated |= read_status;
-
-		/* Attempt to pull in up to entry_readahead extra entries on
-		 * this I/O call iff we're doing the read right now.  This
-		 * helps optimize sequential access to the mapped drive.
-		 */
-		if (bht->entry_readahead &&
-		    (read_status & DM_BHT_ENTRY_REQUESTED)) {
-			unsigned int readahead_count;
-			entry_index++;
-			readahead_count = min(bht->entry_readahead,
-					      level->count - entry_index);
-			/* The result is completely ignored since this call is
-			 * critical for the current request.
-			 */
-			if (readahead_count)
-				dm_bht_maybe_read_entries(bht, read_cb_ctx,
-							  depth, entry_index,
-							  readahead_count,
-							  true);
-		}
 	}
 
 	/* All nodes are ready. The hash for the block_index can be verified */
@@ -1151,18 +1130,6 @@ void dm_bht_set_write_cb(struct dm_bht *bht, dm_bht_callback write_cb)
 EXPORT_SYMBOL(dm_bht_set_write_cb);
 
 /**
- * dm_bht_set_entry_readahead - set verify mode
- * @bht:	pointer to a dm_bht_create()d bht
- * @readahead_count:	number of entries to readahead from a given level
- */
-void dm_bht_set_entry_readahead(struct dm_bht *bht,
-				unsigned int readahead_count)
-{
-	bht->entry_readahead = readahead_count;
-}
-EXPORT_SYMBOL(dm_bht_set_entry_readahead);
-
-/**
  * dm_bht_set_root_hexdigest - sets an unverified root digest hash from hex
  * @bht:	pointer to a dm_bht_create()d bht
  * @hexdigest:	array of u8s containing the new digest in binary
@@ -1216,4 +1183,3 @@ int dm_bht_root_hexdigest(struct dm_bht *bht, u8 *hexdigest, int available)
 	return 0;
 }
 EXPORT_SYMBOL(dm_bht_root_hexdigest);
-

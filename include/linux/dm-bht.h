@@ -89,9 +89,6 @@ struct dm_bht {
 	unsigned int depth;  /* Depth of the tree including the root */
 	unsigned int block_count;  /* Number of blocks hashed */
 	char hash_alg[CRYPTO_MAX_ALG_NAME];
-	unsigned int entry_readahead;  /* number of entries to attempt to
-					* pre-read in a level.
-					*/
 
 	/* Computed values */
 	unsigned int node_count;  /* Data size (in hashes) for each entry */
@@ -121,8 +118,6 @@ int dm_bht_destroy(struct dm_bht *bht);
 
 /* Basic accessors for struct dm_bht */
 sector_t dm_bht_sectors(const struct dm_bht *bht);
-void dm_bht_set_entry_readahead(struct dm_bht *bht,
-				unsigned int readahead_count);
 void dm_bht_set_read_cb(struct dm_bht *bht, dm_bht_callback read_cb);
 void dm_bht_set_write_cb(struct dm_bht *bht, dm_bht_callback write_cb);
 int dm_bht_set_root_hexdigest(struct dm_bht *bht, const u8 *hexdigest);
