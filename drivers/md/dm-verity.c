@@ -14,6 +14,7 @@
 #include <linux/async.h>
 #include <linux/bio.h>
 #include <linux/blkdev.h>
+#include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/err.h>
 #include <linux/genhd.h>
