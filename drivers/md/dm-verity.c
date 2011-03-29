@@ -12,25 +12,19 @@
  * See Documentation/device-mapper/dm-verity.txt
  */
 #include <linux/async.h>
-#include <linux/backing-dev.h>
 #include <linux/bio.h>
 #include <linux/blkdev.h>
-#include <linux/completion.h>
-#include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/err.h>
 #include <linux/genhd.h>
 #include <linux/init.h>
-#include <linux/jiffies.h>
 #include <linux/kernel.h>
 #include <linux/mempool.h>
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/workqueue.h>
-#include <linux/reboot.h>
 #include <asm/atomic.h>
 #include <asm/page.h>
-#include <asm/unaligned.h>
 
 /* #define CONFIG_DM_DEBUG 1 */
 #define CONFIG_DM_VERITY_TRACE 1
