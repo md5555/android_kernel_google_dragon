@@ -182,8 +182,8 @@ struct verity_config {
 
 static struct kmem_cache *_verity_io_pool;
 
-static void kverityd_queue_verify(struct dm_verity_io *io);
-static void kverityd_queue_io(struct dm_verity_io *io, bool delayed);
+static void kverityd_verify(struct work_struct *work);
+static void kverityd_io(struct work_struct *work);
 static void kverityd_io_bht_populate(struct dm_verity_io *io);
 static void kverityd_io_bht_populate_end(struct bio *, int error);
 
@@ -604,6 +604,19 @@ static void verity_return_bio_to_caller(struct dm_verity_io *io)
 	mempool_free(io, vc->io_pool);
 }
 
+/* Check for any missing bht hashes. */
+static bool verity_is_bht_populated(struct dm_verity_io *io)
+{
+	struct verity_config *vc = io->target->private;
+	sector_t count;
+
+	for (count = 0; count < io->count; ++count)
+		if (!dm_bht_is_populated(&vc->bht, io->block + count))
+			return false;
+
+	return true;
+}
+
 /* verity_dec_pending manages the lifetime of all dm_verity_io structs.
  * Non-bug error handling is centralized through this interface and
  * all passage from workqueue to workqueue.
@@ -621,15 +634,23 @@ static void verity_dec_pending(struct dm_verity_io *io)
 	if (unlikely(io->error))
 		goto io_error;
 
-	if (io->flags & VERITY_IOFLAGS_PENDING) {
+	/* I/Os that were pending may now be ready */
+	if ((io->flags & VERITY_IOFLAGS_PENDING) &&
+	    !verity_is_bht_populated(io)) {
 		io->flags &= ~VERITY_IOFLAGS_PENDING;
-		kverityd_queue_io(io, true);
-		DMDEBUG("io %p requeued for io");
+		INIT_DELAYED_WORK(&io->work, kverityd_io);
+		queue_delayed_work(vc->io_queue, &io->work, HZ/10);
+		verity_stats_total_requeues_inc(vc);
+		REQTRACE("Block %llu+ is being requeued for io (io:%p)",
+			 ULL(io->block), io);
 	} else {
+		io->flags &= ~VERITY_IOFLAGS_PENDING;
 		verity_stats_io_queue_dec(vc);
 		verity_stats_verify_queue_inc(vc);
-		kverityd_queue_verify(io);
-		DMDEBUG("io %p enqueued for verify");
+		INIT_DELAYED_WORK(&io->work, kverityd_verify);
+		queue_delayed_work(vc->verify_queue, &io->work, 0);
+		REQTRACE("Block %llu+ is being queued for verify (io:%p)",
+			 ULL(io->block), io);
 	}
 
 done:
@@ -708,23 +729,6 @@ static void kverityd_verify(struct work_struct *work)
 	/* Free up the bio and tag with the return value */
 	verity_stats_verify_queue_dec(vc);
 	verity_return_bio_to_caller(io);
-}
-
-/* After all I/O is completed successfully for a request, it is queued on the
- * verify workqueue to ensure its integrity prior to returning it to the
- * caller.  There may be multiple workqueue threads - one per logical
- * processor.
- */
-static void kverityd_queue_verify(struct dm_verity_io *io)
-{
-	struct verity_config *vc = io->target->private;
-	REQTRACE("Block %llu+ is being queued for verify (io:%p)",
-		 ULL(io->block), io);
-	INIT_DELAYED_WORK(&io->work, kverityd_verify);
-	/* No delay needed. But if we move over jobs with pending io, then
-	 * we could probably delay them here.
-	 */
-	queue_delayed_work(vc->verify_queue, &io->work, 0);
 }
 
 /* Asynchronously called upon the completion of dm-bht I/O.  The status
@@ -969,33 +973,6 @@ static void kverityd_io(struct work_struct *work)
 	verity_dec_pending(io);
 }
 
-/* All incoming requests are queued on the I/O workqueue at least once to
- * acquire both the data from the real device (vc->dev) and any data from the
- * hash tree device (vc->hash_dev) needed to verify the integrity of the data.
- * There may be multiple I/O workqueues - one per logical processor.
- */
-static void kverityd_queue_io(struct dm_verity_io *io, bool delayed)
-{
-	struct verity_config *vc = io->target->private;
-	unsigned long delay = 0;  /* jiffies */
-	/* Send all requests through one call to dm_bht_populate on the
-	 * queue to ensure that all blocks are accounted for before
-	 * proceeding on to verification.
-	 */
-	INIT_DELAYED_WORK(&io->work, kverityd_io);
-	/* If this context is dependent on work from another context, we just
-	 * requeue with a delay.  Later we could bounce this work to the verify
-	 * queue and have it wait there. TODO(wad)
-	 */
-	if (delayed) {
-		verity_stats_total_requeues_inc(vc);
-		delay = HZ / 10;
-		REQTRACE("block %llu+ is being delayed %lu jiffies (io:%p)",
-			 ULL(io->block), delay, io);
-	}
-	queue_delayed_work(vc->io_queue, &io->work, delay);
-}
-
 /* Paired with verity_dec_pending, the pending value in the io dictate the
  * lifetime of a request and when it is ready to be processed on the
  * workqueues.
@@ -1058,7 +1035,8 @@ static int verity_map(struct dm_target *ti, struct bio *bio,
 			return DM_MAPIO_REQUEUE;
 		}
 		verity_stats_io_queue_inc(vc);
-		kverityd_queue_io(io, false);
+		INIT_DELAYED_WORK(&io->work, kverityd_io);
+		queue_delayed_work(vc->io_queue, &io->work, 0);
 	}
 
 	return DM_MAPIO_SUBMITTED;

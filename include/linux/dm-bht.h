@@ -129,6 +129,7 @@ int dm_bht_set_root_hexdigest(struct dm_bht *bht, const u8 *hexdigest);
 int dm_bht_root_hexdigest(struct dm_bht *bht, u8 *hexdigest, int available);
 
 /* Functions for loading in data from disk for verification */
+bool dm_bht_is_populated(struct dm_bht *bht, unsigned int block_index);
 int dm_bht_populate(struct dm_bht *bht, void *read_cb_ctx,
 		    unsigned int block_index);
 int dm_bht_verify_block(struct dm_bht *bht, unsigned int block_index,

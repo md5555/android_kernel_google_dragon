@@ -911,6 +911,33 @@ int dm_bht_sync(struct dm_bht *bht, void *write_cb_ctx)
 EXPORT_SYMBOL(dm_bht_sync);
 
 /**
+ * dm_bht_is_populated - check that entries from disk needed to verify a given
+ *                       block are all ready
+ * @bht:	pointer to a dm_bht_create()d bht
+ * @block_index:specific block data is expected from
+ *
+ * Callers may wish to call dm_bht_is_populated() when checking an io
+ * for which entries were already pending.
+ */
+bool dm_bht_is_populated(struct dm_bht *bht, unsigned int block_index)
+{
+	unsigned int depth;
+
+	if (atomic_read(&bht->root_state) < DM_BHT_ENTRY_READY)
+		return false;
+
+	for (depth = bht->depth - 1; depth > 0; depth--) {
+		struct dm_bht_entry *entry = dm_bht_get_entry(bht, depth,
+							      block_index);
+		if (atomic_read(&entry->state) < DM_BHT_ENTRY_READY)
+			return false;
+	}
+
+	return true;
+}
+EXPORT_SYMBOL(dm_bht_is_populated);
+
+/**
  * dm_bht_populate - reads entries from disk needed to verify a given block
  * @bht:	pointer to a dm_bht_create()d bht
  * @read_cb_ctx:context used for all read_cb calls on this request
