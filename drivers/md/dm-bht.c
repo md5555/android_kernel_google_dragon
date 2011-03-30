@@ -105,7 +105,11 @@ static int dm_bht_compute_hash(struct dm_bht *bht, const void *block,
 	 *            offset_into_page + length < page_size
 	 * For now just check that block is page-aligned.
 	 */
-	BUG_ON(!IS_ALIGNED((uintptr_t)block, PAGE_SIZE));
+	/*
+	 * TODO(msb): Re-enable once user-space code is modified to use
+	 *            aligned buffers.
+	 * BUG_ON(!IS_ALIGNED((uintptr_t)block, PAGE_SIZE));
+	 */
 
 	sg_init_table(&sg, 1);
 	sg_set_buf(&sg, block, PAGE_SIZE);
