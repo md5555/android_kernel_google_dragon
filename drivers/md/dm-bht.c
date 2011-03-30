@@ -833,7 +833,6 @@ int dm_bht_compute(struct dm_bht *bht, void *read_cb_ctx)
 		struct dm_bht_level *child_level = level + 1;
 		struct dm_bht_entry *entry = level->entries;
 		struct dm_bht_entry *child = child_level->entries;
-		unsigned int count = min(bht->node_count, child_level->count);
 		unsigned int i, j;
 
 		r = dm_bht_maybe_read_entries(bht, read_cb_ctx, depth,
@@ -844,6 +843,11 @@ int dm_bht_compute(struct dm_bht *bht, void *read_cb_ctx)
 		}
 
 		for (i = 0; i < level->count; i++, entry++) {
+			unsigned int count = bht->node_count;
+			if (i == (level->count - 1))
+				count = child_level->count % bht->node_count;
+			if (count == 0)
+				count = bht->node_count;
 			for (j = 0; j < count; j++, child++) {
 				u8 *block = child->nodes;
 				u8 *digest = dm_bht_node(bht, entry, j);
