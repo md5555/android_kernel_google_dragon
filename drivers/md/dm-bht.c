@@ -766,6 +766,7 @@ int dm_bht_store_block(struct dm_bht *bht, unsigned int block_index,
 			return -ENOMEM;
 		}
 		entry->nodes = page_address(node_page);
+		memset(entry->nodes, 0, PAGE_SIZE);
 		/* TODO(wad) could expose this to the caller to that they
 		 * can transition from unallocated to ready manually.
 		 */
