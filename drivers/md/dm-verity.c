@@ -1103,9 +1103,9 @@ static int verity_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 
 	/* arg3: blocks in a bundle */
 	if (sscanf(argv[3], "%u", &depth) != 1 ||
-	    depth <= 0) {
+	    depth < 0) {
 		ti->error =
-			"Zero or negative depth supplied";
+			"Negative depth supplied";
 		goto bad_depth;
 	}
 	/* Calculate the blocks from the given device size */

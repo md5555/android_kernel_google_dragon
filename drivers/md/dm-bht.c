@@ -265,27 +265,6 @@ int dm_bht_create(struct dm_bht *bht, unsigned int depth,
 		goto bad_block_count;
 	}
 
-	bht->depth = depth;  /* assignment below */
-	DMDEBUG("Setting depth %u", depth);
-	if (!depth || depth > UINT_MAX / sizeof(struct dm_bht_level)) {
-		DMERR("bht depth is invalid: %u", depth);
-		status = -EINVAL;
-		goto bad_depth;
-	}
-
-	/* Allocate levels. Each level of the tree may have an arbitrary number
-	 * of dm_bht_entry structs.  Each entry contains node_count nodes.
-	 * Each node in the tree is a cryptographic digest of either node_count
-	 * nodes on the subsequent level or of a specific block on disk.
-	 */
-	bht->levels = (struct dm_bht_level *)
-			kcalloc(depth, sizeof(struct dm_bht_level), GFP_KERNEL);
-	if (!bht->levels) {
-		DMERR("failed to allocate tree levels");
-		status = -ENOMEM;
-		goto bad_level_alloc;
-	}
-
 	/* Each dm_bht_entry->nodes is one page.  The node code tracks
 	 * how many nodes fit into one entry where a node is a single
 	 * hash (message digest).
@@ -302,11 +281,37 @@ int dm_bht_create(struct dm_bht *bht, unsigned int depth,
 		status = -EINVAL;
 		goto bad_node_count;
 	}
+
+	/* if depth == 0, create a "regular" trie with a single root block */
+	if (depth == 0)
+		depth = DIV_ROUND_UP(fls(block_count - 1),
+				     bht->node_count_shift);
+	if (depth > UINT_MAX / sizeof(struct dm_bht_level)) {
+		DMERR("bht depth is invalid: %u", depth);
+		status = -EINVAL;
+		goto bad_depth;
+	}
+	DMDEBUG("Setting depth to %u.", depth);
+	bht->depth = depth;
+
 	/* Ensure that we can safely shift by this value. */
 	if (depth * bht->node_count_shift >= sizeof(unsigned int) * 8) {
 		DMERR("specified depth and node_count_shift is too large");
 		status = -EINVAL;
 		goto bad_node_count;
+	}
+
+	/* Allocate levels. Each level of the tree may have an arbitrary number
+	 * of dm_bht_entry structs.  Each entry contains node_count nodes.
+	 * Each node in the tree is a cryptographic digest of either node_count
+	 * nodes on the subsequent level or of a specific block on disk.
+	 */
+	bht->levels = (struct dm_bht_level *)
+			kcalloc(depth, sizeof(struct dm_bht_level), GFP_KERNEL);
+	if (!bht->levels) {
+		DMERR("failed to allocate tree levels");
+		status = -ENOMEM;
+		goto bad_level_alloc;
 	}
 
 	/* Setup callback stubs */
@@ -322,8 +327,8 @@ int dm_bht_create(struct dm_bht *bht, unsigned int depth,
 bad_entries_alloc:
 	while (bht->depth-- > 0)
 		kfree(bht->levels[bht->depth].entries);
-bad_node_count:
 	kfree(bht->levels);
+bad_node_count:
 bad_level_alloc:
 bad_block_count:
 bad_depth:
