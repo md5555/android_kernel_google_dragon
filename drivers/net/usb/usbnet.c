@@ -1460,6 +1460,12 @@ int usbnet_suspend (struct usb_interface *intf, pm_message_t message)
 		 * wake the device
 		 */
 		netif_device_attach (dev->net);
+
+		/*
+		 * Stop interrupt urbs while in suspend
+		 */
+		if (dev->interrupt)
+			usb_kill_urb(dev->interrupt);
 	}
 	return 0;
 }
@@ -1495,6 +1501,17 @@ int usbnet_resume (struct usb_interface *intf)
 		if (!(dev->txq.qlen >= TX_QLEN(dev)))
 			netif_start_queue(dev->net);
 		tasklet_schedule (&dev->bh);
+
+		/*
+		 * Restart interrupt URB
+		 */
+		if (dev->interrupt) {
+			retval = usb_submit_urb (dev->interrupt, GFP_KERNEL);
+			if (retval < 0) {
+				if (netif_msg_ifup (dev))
+					deverr (dev, "intr submit %d", retval);
+			}
+		}
 	}
 	return 0;
 }
