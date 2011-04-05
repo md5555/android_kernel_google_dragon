@@ -311,6 +311,7 @@ i2c_new_device(struct i2c_adapter *adap, struct i2c_board_info const *info)
 
 	dev_dbg(&adap->dev, "client [%s] registered with bus id %s\n",
 		client->name, dev_name(&client->dev));
+	device_enable_async_suspend(&client->dev);
 
 	return client;
 
@@ -606,6 +607,7 @@ static int i2c_register_adapter(struct i2c_adapter *adap)
 		dev_warn(&adap->dev,
 			 "Failed to create compatibility class link\n");
 #endif
+	device_enable_async_suspend(&adap->dev);
 
 	/* create pre-declared device nodes */
 	if (adap->nr < __i2c_first_dynamic_bus_num)
