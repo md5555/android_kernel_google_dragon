@@ -811,6 +811,8 @@ int iio_device_register(struct iio_dev *dev_info)
 	if (dev_info->modes & INDIO_RING_TRIGGERED)
 		iio_device_register_trigger_consumer(dev_info);
 
+	device_enable_async_suspend(&dev_info->dev);
+
 	return 0;
 
 error_free_sysfs:
