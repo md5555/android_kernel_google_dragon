@@ -587,8 +587,6 @@ static int acm_tty_open(struct tty_struct *tty, struct file *filp)
 	    (acm->ctrl_caps & USB_CDC_CAP_LINE))
 		goto full_bailout;
 
-	usb_autopm_put_interface(acm->control);
-
 	INIT_LIST_HEAD(&acm->spare_read_urbs);
 	INIT_LIST_HEAD(&acm->spare_read_bufs);
 	INIT_LIST_HEAD(&acm->filled_read_bufs);
@@ -605,6 +603,7 @@ static int acm_tty_open(struct tty_struct *tty, struct file *filp)
 	tasklet_schedule(&acm->urb_task);
 
 	mutex_unlock(&acm->mutex);
+	usb_autopm_put_interface(acm->control);
 out:
 	mutex_unlock(&open_mutex);
 	return rv;
