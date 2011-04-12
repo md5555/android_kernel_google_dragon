@@ -36,6 +36,7 @@
 #include <linux/parser.h>
 #include <linux/fs_stack.h>
 #include <linux/ima.h>
+#include <linux/backing-dev.h>
 #include "ecryptfs_kernel.h"
 
 /**
@@ -122,7 +123,6 @@ int ecryptfs_init_persistent_file(struct dentry *ecryptfs_dentry)
 	int opened_lower_file = 0;
 	int rc = 0;
 
-	mutex_lock(&inode_info->lower_file_mutex);
 	if (!inode_info->lower_file) {
 		struct dentry *lower_dentry;
 		struct vfsmount *lower_mnt =
@@ -139,7 +139,6 @@ int ecryptfs_init_persistent_file(struct dentry *ecryptfs_dentry)
 		} else
 			opened_lower_file = 1;
 	}
-	mutex_unlock(&inode_info->lower_file_mutex);
 	if (opened_lower_file)
 		ima_counts_get(inode_info->lower_file);
 	return rc;
@@ -513,6 +512,7 @@ ecryptfs_fill_super(struct super_block *sb, void *raw_data, int silent)
 		goto out;
 	}
 	sb->s_op = &ecryptfs_sops;
+	sb->s_bdi = &default_backing_dev_info;
 	/* Released through deactivate_super(sb) from get_sb_nodev */
 	sb->s_root = d_alloc(NULL, &(const struct qstr) {
 			     .hash = 0,.name = "/",.len = 1});
