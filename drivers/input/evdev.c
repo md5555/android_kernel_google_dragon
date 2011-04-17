@@ -588,9 +588,12 @@ static long evdev_do_ioctl(struct file *file, unsigned int cmd,
 			return -EINVAL;
 
 		if (_IOC_DIR(cmd) == _IOC_READ) {
-
 			if ((_IOC_NR(cmd) & ~EV_MAX) == _IOC_NR(EVIOCGBIT(0, 0)))
 				return handle_eviocgbit(dev, cmd, p, compat_mode);
+
+			if (_IOC_NR(cmd) == _IOC_NR(EVIOCGPROP(0)))
+				return bits_to_user(dev->propbit, INPUT_PROP_MAX,
+						    _IOC_SIZE(cmd), p, compat_mode);
 
 			if (_IOC_NR(cmd) == _IOC_NR(EVIOCGKEY(0)))
 				return bits_to_user(dev->key, KEY_MAX, _IOC_SIZE(cmd),
