@@ -1205,8 +1205,17 @@ bool ath_drain_all_txq(struct ath_softc *sc, bool retry_tx)
 		ath_err(common, "Failed to stop TX DMA!\n");
 
 	for (i = 0; i < ATH9K_NUM_TX_QUEUES; i++) {
-		if (ATH_TXQ_SETUP(sc, i))
-			ath_draintxq(sc, &sc->tx.txq[i], retry_tx);
+		if (!ATH_TXQ_SETUP(sc, i))
+			continue;
+
+		/*
+		 * The caller will resume queues with ieee80211_wake_queues.
+		 * Mark the queue as not stopped to prevent ath_tx_complete
+		 * from waking the queue too early.
+		 */
+		txq = &sc->tx.txq[i];
+		txq->stopped = false;
+		ath_draintxq(sc, txq, retry_tx);
 	}
 
 	return !npend;
@@ -1860,6 +1869,11 @@ static void ath_tx_complete(struct ath_softc *sc, struct sk_buff *skb,
 			spin_lock_bh(&txq->axq_lock);
 			if (WARN_ON(--txq->pending_frames < 0))
 				txq->pending_frames = 0;
+			if (txq->stopped &&
+					txq->pending_frames < ATH_MAX_QDEPTH) {
+				if (ath_mac80211_start_queue(sc, q))
+					txq->stopped = 0;
+			}
 			spin_unlock_bh(&txq->axq_lock);
 		}
 
@@ -1971,19 +1985,6 @@ static void ath_tx_rc_status(struct ath_buf *bf, struct ath_tx_status *ts,
 	tx_info->status.rates[tx_rateindex].count = ts->ts_longretry + 1;
 }
 
-static void ath_wake_mac80211_queue(struct ath_softc *sc, int qnum)
-{
-	struct ath_txq *txq;
-
-	txq = sc->tx.txq_map[qnum];
-	spin_lock_bh(&txq->axq_lock);
-	if (txq->stopped && txq->pending_frames < ATH_MAX_QDEPTH) {
-		if (ath_mac80211_start_queue(sc, qnum))
-			txq->stopped = 0;
-	}
-	spin_unlock_bh(&txq->axq_lock);
-}
-
 static void ath_tx_processq(struct ath_softc *sc, struct ath_txq *txq)
 {
 	struct ath_hw *ah = sc->sc_ah;
@@ -2080,9 +2081,6 @@ static void ath_tx_processq(struct ath_softc *sc, struct ath_txq *txq)
 					     true);
 		else
 			ath_tx_complete_buf(sc, bf, txq, &bf_head, &ts, txok, 0);
-
-		if (txq == sc->tx.txq_map[qnum])
-			ath_wake_mac80211_queue(sc, qnum);
 
 		spin_lock_bh(&txq->axq_lock);
 		if (sc->sc_flags & SC_OP_TXAGGR)
@@ -2204,9 +2202,6 @@ void ath_tx_edma_tasklet(struct ath_softc *sc)
 		else
 			ath_tx_complete_buf(sc, bf, txq, &bf_head,
 					    &txs, txok, 0);
-
-		if (txq == sc->tx.txq_map[qnum])
-			ath_wake_mac80211_queue(sc, qnum);
 
 		spin_lock_bh(&txq->axq_lock);
 		if (!list_empty(&txq->txq_fifo_pending)) {
