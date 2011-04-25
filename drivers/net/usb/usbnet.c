@@ -735,11 +735,16 @@ int usbnet_open (struct net_device *net)
 
 	/* start any status interrupt transfer */
 	if (dev->interrupt) {
-		retval = usb_submit_urb (dev->interrupt, GFP_KERNEL);
-		if (retval < 0) {
+		int i_retval = usb_submit_urb (dev->interrupt, GFP_KERNEL);
+		if (i_retval < 0) {
 			if (netif_msg_ifup (dev))
-				deverr (dev, "intr submit %d", retval);
-			goto done;
+				deverr (dev, "intr submit %d", i_retval);
+			/*
+			 * Don't set retval or exit due to an error here.
+			 * There's a chance the URB has already been started
+			 * via usb_resume, in which case usb_submit_urb
+			 * returns -EINVAL.
+			 */
 		}
 	}
 
