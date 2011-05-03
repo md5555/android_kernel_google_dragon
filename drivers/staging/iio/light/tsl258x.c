@@ -27,7 +27,7 @@
 #include <linux/mutex.h>
 #include "../iio.h"
 
-#define DEVICE_ID			"skateFN"
+#define DEVICE_ID			"tsl2583"
 
 #define MAX_DEVICE_REGS			32
 
