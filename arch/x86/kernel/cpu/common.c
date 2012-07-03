@@ -19,6 +19,7 @@
 #include <asm/archrandom.h>
 #include <asm/hypervisor.h>
 #include <asm/processor.h>
+#include <asm/virtext.h>
 #include <asm/debugreg.h>
 #include <asm/sections.h>
 #include <asm/vsyscall.h>
@@ -1270,6 +1271,50 @@ static void dbg_restore_debug_regs(void)
 #define dbg_restore_debug_regs()
 #endif /* ! CONFIG_KGDB */
 
+static int disablevmx = 1;
+static int __init dodisablevmx(char *value)
+{
+	if (!value)
+		return 0;
+	if (!strncmp(value, "on", 2))
+		return 0;
+	if (!strncmp(value, "off", 3)) {
+		disablevmx = 0;
+		return 0;
+	}
+	return 1;
+}
+early_param("disablevmx", dodisablevmx);
+
+void cpu_disable_vmx(int cpu)
+{
+	u64 msr;
+	/* ChromeOS currently requires a disablevmx option
+	 * in the cmdline that will make a reasonable
+	 * attempt to set the IA32 FEATURE register to
+	 * 1, meaning vmx disabled and locked out.
+	 */
+	if (!cpu_has_vmx())
+		return;
+
+	rdmsrl(MSR_IA32_FEATURE_CONTROL, msr);
+	/* if it's locked, there's really nothing we can do. */
+	if (msr & FEATURE_CONTROL_LOCKED) {
+		/* But only warn them if it can not be disabled */
+		if (msr  & (FEATURE_CONTROL_VMXON_ENABLED_INSIDE_SMX|
+			FEATURE_CONTROL_VMXON_ENABLED_OUTSIDE_SMX))
+			printk(KERN_WARNING
+				"Can not disable VMX on CPU%d\n", cpu);
+		return;
+	}
+
+	printk(KERN_INFO "Disabling VMX on cpu %d\n", cpu);
+	msr &= ~(FEATURE_CONTROL_VMXON_ENABLED_INSIDE_SMX|
+		FEATURE_CONTROL_VMXON_ENABLED_OUTSIDE_SMX);
+	msr |= FEATURE_CONTROL_LOCKED;
+	wrmsrl(MSR_IA32_FEATURE_CONTROL, msr);
+}
+
 static void wait_for_master_cpu(int cpu)
 {
 #ifdef CONFIG_SMP
@@ -1385,6 +1430,9 @@ void cpu_init(void)
 
 	if (is_uv_system())
 		uv_cpu_init();
+
+	if (disablevmx)
+		cpu_disable_vmx(cpu);
 }
 
 #else
@@ -1432,6 +1480,9 @@ void cpu_init(void)
 	dbg_restore_debug_regs();
 
 	fpu_init();
+
+	if (disablevmx)
+		cpu_disable_vmx(cpu);
 }
 #endif
 
