@@ -1271,6 +1271,7 @@ static void dbg_restore_debug_regs(void)
 #define dbg_restore_debug_regs()
 #endif /* ! CONFIG_KGDB */
 
+#ifdef CONFIG_CHROMEOS
 static int disablevmx = 1;
 static int __init dodisablevmx(char *value)
 {
@@ -1286,7 +1287,7 @@ static int __init dodisablevmx(char *value)
 }
 early_param("disablevmx", dodisablevmx);
 
-void cpu_disable_vmx(int cpu)
+void cpu_control_vmx(int cpu)
 {
 	u64 msr;
 	/* ChromeOS currently requires a disablevmx option
@@ -1294,7 +1295,7 @@ void cpu_disable_vmx(int cpu)
 	 * attempt to set the IA32 FEATURE register to
 	 * 1, meaning vmx disabled and locked out.
 	 */
-	if (!cpu_has_vmx())
+	if (!disablevmx || !cpu_has_vmx())
 		return;
 
 	rdmsrl(MSR_IA32_FEATURE_CONTROL, msr);
@@ -1314,6 +1315,7 @@ void cpu_disable_vmx(int cpu)
 	msr |= FEATURE_CONTROL_LOCKED;
 	wrmsrl(MSR_IA32_FEATURE_CONTROL, msr);
 }
+#endif
 
 static void wait_for_master_cpu(int cpu)
 {
@@ -1431,8 +1433,7 @@ void cpu_init(void)
 	if (is_uv_system())
 		uv_cpu_init();
 
-	if (disablevmx)
-		cpu_disable_vmx(cpu);
+	cpu_control_vmx(cpu);
 }
 
 #else
@@ -1480,9 +1481,7 @@ void cpu_init(void)
 	dbg_restore_debug_regs();
 
 	fpu_init();
-
-	if (disablevmx)
-		cpu_disable_vmx(cpu);
+	cpu_control_vmx(cpu);
 }
 #endif
 
