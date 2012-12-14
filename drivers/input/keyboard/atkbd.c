@@ -1228,6 +1228,9 @@ static int atkbd_reconnect(struct serio *serio)
 
 	mutex_lock(&atkbd->mutex);
 
+	if (atkbd->write)
+		atkbd_deactivate(atkbd);
+
 	atkbd_disable(atkbd);
 
 	if (atkbd->write) {
