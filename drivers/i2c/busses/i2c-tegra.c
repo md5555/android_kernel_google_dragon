@@ -240,6 +240,9 @@ struct tegra_i2c_dev {
 	struct clk *div_clk;
 	struct clk *fast_clk;
 	struct clk *slow_clk;
+	bool needs_cl_dvfs_clock;
+	struct clk *dvfs_ref_clk;
+	struct clk *dvfs_soc_clk;
 	struct clk *host1x_clk;
 	struct clk *sor_clk;
 	struct clk *dpaux_clk;
@@ -557,7 +560,26 @@ static inline int tegra_i2c_clock_enable(struct tegra_i2c_dev *i2c_dev)
 		}
 	}
 
+	if (i2c_dev->needs_cl_dvfs_clock) {
+		ret = clk_enable(i2c_dev->dvfs_soc_clk);
+		if (ret < 0) {
+			dev_err(i2c_dev->dev,
+				"Error in enabling dvfs soc clock %d\n", ret);
+			goto err_dpaux_disable;
+		}
+		ret = clk_enable(i2c_dev->dvfs_ref_clk);
+		if (ret < 0) {
+			dev_err(i2c_dev->dev,
+				"Error in enabling dvfs ref clock %d\n", ret);
+			goto err_ref_clk;
+		}
+	}
+
 	return 0;
+
+err_ref_clk:
+	if (i2c_dev->needs_cl_dvfs_clock)
+		clk_disable(i2c_dev->dvfs_soc_clk);
 
 err_dpaux_disable:
 	if (i2c_dev->hw->is_dpaux)
@@ -587,6 +609,10 @@ static inline void tegra_i2c_clock_disable(struct tegra_i2c_dev *i2c_dev)
 	clk_disable(i2c_dev->div_clk);
 	if (!i2c_dev->hw->has_single_clk_source)
 		clk_disable(i2c_dev->fast_clk);
+	if (i2c_dev->needs_cl_dvfs_clock) {
+		clk_disable(i2c_dev->dvfs_soc_clk);
+		clk_disable(i2c_dev->dvfs_ref_clk);
+	}
 }
 
 static int tegra_i2c_wait_for_config_load(struct tegra_i2c_dev *i2c_dev)
@@ -1025,6 +1051,8 @@ static void tegra_i2c_parse_dt(struct tegra_i2c_dev *i2c_dev)
 			"nvidia,multimaster-mode");
 	i2c_dev->scl_gpio = of_get_named_gpio(np, "nvidia,scl-gpio", 0);
 	i2c_dev->sda_gpio = of_get_named_gpio(np, "nvidia,sda-gpio", 0);
+	i2c_dev->needs_cl_dvfs_clock = of_property_read_bool(np,
+			"nvidia,require-cldvfs-clock");
 }
 
 static const struct i2c_algorithm tegra_i2c_algo = {
@@ -1251,6 +1279,21 @@ static int tegra_i2c_probe(struct platform_device *pdev)
 		}
 	}
 
+	if (i2c_dev->needs_cl_dvfs_clock) {
+		i2c_dev->dvfs_ref_clk = devm_clk_get(&pdev->dev,
+						     "cl_dvfs_ref");
+		if (IS_ERR(i2c_dev->dvfs_ref_clk)) {
+			dev_err(&pdev->dev, "missing cl_dvfs_ref clock\n");
+			return PTR_ERR(i2c_dev->dvfs_ref_clk);
+		}
+		i2c_dev->dvfs_soc_clk = devm_clk_get(&pdev->dev,
+						     "cl_dvfs_soc");
+		if (IS_ERR(i2c_dev->dvfs_soc_clk)) {
+			dev_err(&pdev->dev, "missing cl_dvfs_soc clock\n");
+			return PTR_ERR(i2c_dev->dvfs_soc_clk);
+		}
+	}
+
 	if (i2c_dev->hw->is_vi) {
 		i2c_dev->slow_clk = devm_clk_get(&pdev->dev, "slow-clk");
 		if (IS_ERR(i2c_dev->slow_clk)) {
@@ -1341,14 +1384,38 @@ static int tegra_i2c_probe(struct platform_device *pdev)
 	tegra_i2c_bus_recovery_info.sda_gpio = i2c_dev->sda_gpio;
 	i2c_dev->adapter.bus_recovery_info = &tegra_i2c_bus_recovery_info;
 
+	if (i2c_dev->needs_cl_dvfs_clock) {
+		ret = clk_prepare(i2c_dev->dvfs_ref_clk);
+		if (ret < 0) {
+			dev_err(i2c_dev->dev,
+				"Clock dvfs_ref_clk prepare failed %d\n", ret);
+			goto disable_div_clk;
+		}
+
+		ret = clk_prepare(i2c_dev->dvfs_soc_clk);
+		if (ret < 0) {
+			dev_err(i2c_dev->dev,
+				"Clock dvfs_soc_clk prepare failed %d\n", ret);
+			goto unprepare_dvfs_ref_clk;
+		}
+	}
+
 	ret = i2c_add_numbered_adapter(&i2c_dev->adapter);
 	if (ret) {
 		dev_err(&pdev->dev, "Failed to add I2C adapter\n");
-		goto disable_div_clk;
+		goto unprepare_dvfs_soc_clk;
 	}
 	i2c_dev->cont_id = i2c_dev->adapter.nr & PACKET_HEADER0_CONT_ID_MASK;
 
 	return 0;
+
+unprepare_dvfs_soc_clk:
+	if (i2c_dev->needs_cl_dvfs_clock)
+		clk_unprepare(i2c_dev->dvfs_soc_clk);
+
+unprepare_dvfs_ref_clk:
+	if (i2c_dev->needs_cl_dvfs_clock)
+		clk_unprepare(i2c_dev->dvfs_ref_clk);
 
 disable_div_clk:
 	if (i2c_dev->is_multimaster_mode)
@@ -1376,6 +1443,10 @@ static int tegra_i2c_remove(struct platform_device *pdev)
 	if (!i2c_dev->hw->has_single_clk_source)
 		clk_unprepare(i2c_dev->fast_clk);
 
+	if (i2c_dev->needs_cl_dvfs_clock) {
+		clk_unprepare(i2c_dev->dvfs_ref_clk);
+		clk_unprepare(i2c_dev->dvfs_soc_clk);
+	}
 	return 0;
 }
 
