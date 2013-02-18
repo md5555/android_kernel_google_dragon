@@ -211,6 +211,9 @@ struct tegra_i2c_dev {
 	struct clk *div_clk;
 	struct clk *fast_clk;
 	struct clk *slow_clk;
+	bool needs_cl_dvfs_clock;
+	struct clk *dvfs_ref_clk;
+	struct clk *dvfs_soc_clk;
 	struct clk *host1x_clk;
 	struct clk *sor_clk;
 	struct clk *dpaux_clk;
@@ -479,12 +482,28 @@ static void tegra_dpaux_init(struct tegra_i2c_dev *i2c_dev)
 static inline int tegra_i2c_clock_enable(struct tegra_i2c_dev *i2c_dev)
 {
 	int ret;
+
+	if (i2c_dev->needs_cl_dvfs_clock) {
+		ret = clk_prepare_enable(i2c_dev->dvfs_soc_clk);
+		if (ret < 0) {
+			dev_err(i2c_dev->dev,
+				"Error in enabling dvfs soc clock %d\n", ret);
+			return ret;
+		}
+		ret = clk_prepare_enable(i2c_dev->dvfs_ref_clk);
+		if (ret < 0) {
+			dev_err(i2c_dev->dev,
+				"Error in enabling dvfs ref clock %d\n", ret);
+			goto ref_clk_err;
+		}
+	}
+
 	if (!i2c_dev->hw->has_single_clk_source) {
 		ret = clk_enable(i2c_dev->fast_clk);
 		if (ret < 0) {
 			dev_err(i2c_dev->dev,
 				"Enabling fast clk failed, err %d\n", ret);
-			return ret;
+			goto fast_clk_err;
 		}
 	}
 	ret = clk_enable(i2c_dev->div_clk);
@@ -537,6 +556,12 @@ err_div_disable:
 err_fast_disable:
 	if (!i2c_dev->hw->has_single_clk_source)
 		clk_disable(i2c_dev->fast_clk);
+fast_clk_err:
+	if (i2c_dev->needs_cl_dvfs_clock)
+		clk_disable_unprepare(i2c_dev->dvfs_ref_clk);
+ref_clk_err:
+	if (i2c_dev->needs_cl_dvfs_clock)
+		clk_disable_unprepare(i2c_dev->dvfs_soc_clk);
 
 	return ret;
 }
@@ -554,6 +579,10 @@ static inline void tegra_i2c_clock_disable(struct tegra_i2c_dev *i2c_dev)
 	clk_disable(i2c_dev->div_clk);
 	if (!i2c_dev->hw->has_single_clk_source)
 		clk_disable(i2c_dev->fast_clk);
+	if (i2c_dev->needs_cl_dvfs_clock) {
+		clk_disable_unprepare(i2c_dev->dvfs_soc_clk);
+		clk_disable_unprepare(i2c_dev->dvfs_ref_clk);
+	}
 }
 
 static int tegra_i2c_init(struct tegra_i2c_dev *i2c_dev)
@@ -1069,6 +1098,9 @@ static int tegra_i2c_probe(struct platform_device *pdev)
 		i2c_dev->hw = match->data;
 		i2c_dev->is_dvc = of_device_is_compatible(pdev->dev.of_node,
 						"nvidia,tegra20-i2c-dvc");
+		i2c_dev->needs_cl_dvfs_clock =
+				of_property_read_bool(pdev->dev.of_node,
+						"nvidia,require-cldvfs-clock");
 	} else if (pdev->id == 3) {
 		i2c_dev->is_dvc = 1;
 	}
@@ -1105,6 +1137,21 @@ static int tegra_i2c_probe(struct platform_device *pdev)
 		if (IS_ERR(i2c_dev->dpaux_base)) {
 			dev_err(&pdev->dev, "failed to map dpaux registers\n");
 			return PTR_ERR(i2c_dev->dpaux_base);
+		}
+	}
+
+	if (i2c_dev->needs_cl_dvfs_clock) {
+		i2c_dev->dvfs_ref_clk = devm_clk_get(&pdev->dev,
+						     "cl_dvfs_ref");
+		if (IS_ERR(i2c_dev->dvfs_ref_clk)) {
+			dev_err(&pdev->dev, "missing cl_dvfs_ref clock\n");
+			return PTR_ERR(i2c_dev->dvfs_ref_clk);
+		}
+		i2c_dev->dvfs_soc_clk = devm_clk_get(&pdev->dev,
+						     "cl_dvfs_soc");
+		if (IS_ERR(i2c_dev->dvfs_soc_clk)) {
+			dev_err(&pdev->dev, "missing cl_dvfs_soc clock\n");
+			return PTR_ERR(i2c_dev->dvfs_soc_clk);
 		}
 	}
 
