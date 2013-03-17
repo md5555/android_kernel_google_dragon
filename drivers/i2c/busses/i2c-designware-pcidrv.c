@@ -82,6 +82,7 @@ struct dw_pci_controller {
 				DW_IC_CON_RESTART_EN)
 
 #define DW_DEFAULT_FUNCTIONALITY (I2C_FUNC_I2C |			\
+					I2C_FUNC_10BIT_ADDR |		\
 					I2C_FUNC_SMBUS_BYTE |		\
 					I2C_FUNC_SMBUS_BYTE_DATA |	\
 					I2C_FUNC_SMBUS_WORD_DATA |	\
