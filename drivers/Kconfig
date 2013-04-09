@@ -188,4 +188,6 @@ source "drivers/thunderbolt/Kconfig"
 
 source "drivers/amba/Kconfig"
 
+source "drivers/cpuquiet/Kconfig"
+
 endmenu
