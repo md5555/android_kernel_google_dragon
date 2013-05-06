@@ -30,6 +30,7 @@
 #include <linux/irqchip/chained_irq.h>
 #include <linux/pinctrl/consumer.h>
 #include <linux/pm.h>
+#include <linux/syscore_ops.h>
 
 #define GPIO_BANK(x)		((x) >> 5)
 #define GPIO_PORT(x)		(((x) >> 3) & 0x3)
@@ -306,13 +307,10 @@ static void tegra_gpio_irq_handler(unsigned int irq, struct irq_desc *desc)
 }
 
 #ifdef CONFIG_PM_SLEEP
-static int tegra_gpio_resume(struct device *dev)
+static void tegra_gpio_resume(void)
 {
-	unsigned long flags;
 	int b;
 	int p;
-
-	local_irq_save(flags);
 
 	for (b = 0; b < tegra_gpio_bank_count; b++) {
 		struct tegra_gpio_bank *bank = &tegra_gpio_banks[b];
@@ -326,12 +324,9 @@ static int tegra_gpio_resume(struct device *dev)
 			tegra_gpio_writel(bank->int_enb[p], GPIO_INT_ENB(gpio));
 		}
 	}
-
-	local_irq_restore(flags);
-	return 0;
 }
 
-static int tegra_gpio_suspend(struct device *dev)
+static int tegra_gpio_suspend(void)
 {
 	unsigned long flags;
 	int b;
@@ -375,7 +370,15 @@ static int tegra_gpio_irq_set_wake(struct irq_data *d, unsigned int enable)
 
 	return irq_set_irq_wake(bank->irq, enable);
 }
+#else
+#define tegra_gpio_suspend	NULL
+#define tegra_gpio_resume	NULL
 #endif
+
+static struct syscore_ops tegra_gpio_syscore_ops = {
+	.suspend	= tegra_gpio_suspend,
+	.resume		= tegra_gpio_resume,
+};
 
 static struct irq_chip tegra_gpio_irq_chip = {
 	.name		= "GPIO",
@@ -387,10 +390,6 @@ static struct irq_chip tegra_gpio_irq_chip = {
 #ifdef CONFIG_PM_SLEEP
 	.irq_set_wake	= tegra_gpio_irq_set_wake,
 #endif
-};
-
-static const struct dev_pm_ops tegra_gpio_pm_ops = {
-	SET_SYSTEM_SLEEP_PM_OPS(tegra_gpio_suspend, tegra_gpio_resume)
 };
 
 struct tegra_gpio_soc_config {
@@ -522,6 +521,8 @@ static int tegra_gpio_probe(struct platform_device *pdev)
 			spin_lock_init(&bank->lvl_lock[j]);
 	}
 
+	register_syscore_ops(&tegra_gpio_syscore_ops);
+
 	return 0;
 }
 
@@ -529,7 +530,6 @@ static struct platform_driver tegra_gpio_driver = {
 	.driver		= {
 		.name	= "tegra-gpio",
 		.owner	= THIS_MODULE,
-		.pm	= &tegra_gpio_pm_ops,
 		.of_match_table = tegra_gpio_of_match,
 	},
 	.probe		= tegra_gpio_probe,
