@@ -82,6 +82,12 @@ struct cros_ec_command {
  *     Returns the number of bytes received if the communication succeeded, but
  *     that doesn't mean the EC was happy with the command. The caller
  *     should check msg.result for the EC's result code.
+ * @cmd_read_mem: direct read of the EC memory-mapped region, if supported
+ *     @offset is within EC_LPC_ADDR_MEMMAP region.
+ *     @bytes: number of bytes to read. zero means "read a string" (including
+ *     the trailing '\0'). At most only EC_MEMMAP_SIZE bytes can be read.
+ *     Caller must ensure that the buffer is large enough for the result when
+ *     reading a string.
  * @lock: one transaction at a time
  */
 struct cros_ec_device {
@@ -104,6 +110,8 @@ struct cros_ec_device {
 	bool wake_enabled;
 	int (*cmd_xfer)(struct cros_ec_device *ec,
 			struct cros_ec_command *msg);
+	int (*cmd_readmem)(struct cros_ec_device *ec, unsigned int offset,
+			   unsigned int bytes, void *dest);
 	struct mutex lock;
 };
 
