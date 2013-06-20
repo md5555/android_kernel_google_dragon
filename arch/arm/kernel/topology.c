@@ -98,6 +98,7 @@ static void __init parse_dt_topology(void)
 
 	__cpu_capacity = kcalloc(nr_cpu_ids, sizeof(*__cpu_capacity),
 				 GFP_NOWAIT);
+	BUG_ON(!__cpu_capacity);
 
 	for_each_possible_cpu(cpu) {
 		const u32 *rate;
