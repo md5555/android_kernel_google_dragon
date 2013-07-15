@@ -52,11 +52,13 @@ static int cros_ec_cmd_xfer_lpc(struct cros_ec_device *ec,
 	struct ec_lpc_host_args args;
 	int csum;
 	int i;
-	int ec_result;
 	int ret = 0;
 
 	if (msg->outsize > EC_PROTO2_MAX_PARAM_SIZE ||
 	    msg->insize > EC_PROTO2_MAX_PARAM_SIZE) {
+		dev_err(ec->dev,
+			"invalid buffer sizes (out %d, in %d)\n",
+			msg->outsize, msg->insize);
 		msg->insize = 0;
 		return -EINVAL;
 	}
@@ -97,18 +99,10 @@ static int cros_ec_cmd_xfer_lpc(struct cros_ec_device *ec,
 	}
 
 	/* Check result */
-	/* FIXME (crbug.com/242706): EC error != IO error */
-	ec_result = inb(EC_LPC_ADDR_HOST_DATA);
-	switch (ec_result) {
-	case EC_RES_SUCCESS:
-		break;
-	case EC_RES_IN_PROGRESS:
-		ret = -EBUSY;
+	msg->result = inb(EC_LPC_ADDR_HOST_DATA);
+	ret = cros_ec_check_result(ec, msg);
+	if (ret)
 		goto done;
-	default:
-		ret = -EINVAL;
-		goto done;
-	}
 
 	/* Read back args */
 	args.flags = inb(EC_LPC_ADDR_HOST_ARGS);
@@ -117,8 +111,11 @@ static int cros_ec_cmd_xfer_lpc(struct cros_ec_device *ec,
 	args.checksum = inb(EC_LPC_ADDR_HOST_ARGS + 3);
 
 	if (args.data_size > msg->insize) {
-		/* FIXME (crbug.com/242706): EC_RES_INVALID_RESPONSE */
+		dev_err(ec->dev,
+			"packet too long (%d bytes, expected %d)",
+			args.data_size, msg->insize);
 		msg->insize = 0;
+		ret = -ENOSPC;
 		goto done;
 	}
 
@@ -134,8 +131,11 @@ static int cros_ec_cmd_xfer_lpc(struct cros_ec_device *ec,
 
 	/* Verify checksum */
 	if (args.checksum != (csum & 0xFF)) {
-		/* FIXME (crbug.com/242706): EC_RES_INVALID_CHECKSUM */
+		dev_err(ec->dev,
+			"bad packet checksum, expected %02x, got %02x\n",
+			args.checksum, csum & 0xFF);
 		msg->insize = 0;
+		ret = -EBADMSG;
 		goto done;
 	}
 
