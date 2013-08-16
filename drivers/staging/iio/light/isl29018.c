@@ -73,6 +73,8 @@ struct isl29018_chip {
 	int			type;
 	unsigned int		lux_scale;
 	unsigned int		lux_uscale;
+	unsigned int		ir_comp_scale;
+	unsigned int		ir_comp_uscale;
 	unsigned int		range;
 	unsigned int		adc_bit;
 	int			prox_scheme;
@@ -153,13 +155,15 @@ static int isl29018_read_sensor_input(struct isl29018_chip *chip, int mode)
 	return (msb << 8) | lsb;
 }
 
+/* Reads lux with IR compensation */
 static int isl29018_read_lux(struct isl29018_chip *chip, int *lux)
 {
-	int lux_data;
-	unsigned int data_x_range, lux_unshifted;
+	int lux_data, ir_data;
+	unsigned int data_x_range;
+	/* Use 64 bits to prevent overflow */
+	u64 lux_unshifted, ir_unshifted;
 
 	lux_data = isl29018_read_sensor_input(chip, COMMMAND1_OPMODE_ALS_ONCE);
-
 	if (lux_data < 0)
 		return lux_data;
 
@@ -169,9 +173,34 @@ static int isl29018_read_lux(struct isl29018_chip *chip, int *lux)
 	 * the /1,000,000 in two to reduce the risk of over/underflow.
 	 */
 	data_x_range = lux_data * chip->range;
-	lux_unshifted = data_x_range * chip->lux_scale;
-	lux_unshifted += data_x_range / 1000 * chip->lux_uscale / 1000;
-	*lux = lux_unshifted >> chip->adc_bit;
+	/* Cast to 64 bit before multiplying so we don't get overflow */
+	lux_unshifted = (u64)data_x_range * chip->lux_scale;
+	lux_unshifted += data_x_range / 1000 * (chip->lux_uscale / 1000);
+	lux_data = lux_unshifted >> chip->adc_bit;
+
+	if (!chip->ir_comp_scale && !chip->ir_comp_uscale) {
+		*lux = lux_data;
+		return 0;
+	}
+
+	ir_data = isl29018_read_sensor_input(client,
+				COMMMAND1_OPMODE_IR_ONCE);
+	if (ir_data < 0)
+		return ir_data;
+
+	/*
+	 * The function for lux with IR compensation is
+	 * lux' = lux * lux_scale + ir * ir_scale
+	 *
+	 * Since lux * lux_scale was done above, we just need to do the
+	 * same for ir.  As above, split the /1,000,000 in two to reduce
+	 * the risk of over/underflow.
+	 */
+	data_x_range = ir_data * chip->range;
+	ir_unshifted = (u64)data_x_range * chip->ir_comp_scale;
+	ir_unshifted += data_x_range / 1000 * (chip->ir_comp_uscale / 1000);
+	ir_data = ir_unshifted >> chip->adc_bit;
+	*lux = lux_data + ir_data;
 
 	return 0;
 }
@@ -447,9 +476,14 @@ static int isl29018_write_raw(struct iio_dev *indio_dev,
 
 	mutex_lock(&chip->lock);
 	if (mask == IIO_CHAN_INFO_CALIBSCALE && chan->type == IIO_LIGHT) {
-		chip->lux_scale = val;
 		/* With no write_raw_get_fmt(), val2 is a MICRO fraction. */
-		chip->lux_uscale = val2;
+		if (chan->channel == 0) {
+			chip->lux_scale = val;
+			chip->lux_uscale = val2;
+		} else {
+			chip->ir_comp_scale = val;
+			chip->ir_comp_uscale = val2;
+		}
 		ret = 0;
 	}
 	mutex_unlock(&chip->lock);
@@ -492,11 +526,16 @@ static int isl29018_read_raw(struct iio_dev *indio_dev,
 			ret = IIO_VAL_INT;
 		break;
 	case IIO_CHAN_INFO_CALIBSCALE:
-		if (chan->type == IIO_LIGHT) {
+		if (chan->type != IIO_LIGHT)
+			break;
+		if (chan->channel == 0) {
 			*val = chip->lux_scale;
 			*val2 = chip->lux_uscale;
-			ret = IIO_VAL_INT_PLUS_MICRO;
+		} else {
+			*val = chip->ir_comp_scale;
+			*val2 = chip->ir_comp_uscale;
 		}
+		ret = IIO_VAL_INT_PLUS_MICRO;
 		break;
 	default:
 		break;
@@ -505,10 +544,10 @@ static int isl29018_read_raw(struct iio_dev *indio_dev,
 	return ret;
 }
 
-#define ISL29018_LIGHT_CHANNEL {					\
+#define ISL29018_LIGHT_CHANNEL(ch) {					\
 	.type = IIO_LIGHT,						\
 	.indexed = 1,							\
-	.channel = 0,							\
+	.channel = ch,							\
 	.info_mask_separate = BIT(IIO_CHAN_INFO_PROCESSED) |		\
 	BIT(IIO_CHAN_INFO_CALIBSCALE),					\
 }
@@ -526,13 +565,15 @@ static int isl29018_read_raw(struct iio_dev *indio_dev,
 }
 
 static const struct iio_chan_spec isl29018_channels[] = {
-	ISL29018_LIGHT_CHANNEL,
+	ISL29018_LIGHT_CHANNEL(0),
+	ISL29018_LIGHT_CHANNEL(1),
 	ISL29018_IR_CHANNEL,
 	ISL29018_PROXIMITY_CHANNEL,
 };
 
 static const struct iio_chan_spec isl29023_channels[] = {
-	ISL29018_LIGHT_CHANNEL,
+	ISL29018_LIGHT_CHANNEL(0),
+	ISL29018_LIGHT_CHANNEL(1),
 	ISL29018_IR_CHANNEL,
 };
 
@@ -801,6 +842,8 @@ static int isl29018_probe(struct i2c_client *client,
 	chip->type = dev_id;
 	chip->lux_scale = 1;
 	chip->lux_uscale = 0;
+	chip->ir_comp_scale = 0;
+	chip->ir_comp_uscale = 0;
 	chip->range = 1000;
 	chip->adc_bit = 16;
 	chip->suspended = false;
