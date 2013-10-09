@@ -16,7 +16,7 @@
 #ifndef __LINUX_MFD_CROS_EC_H
 #define __LINUX_MFD_CROS_EC_H
 
-#include <linux/notifier.h>
+#include <linux/power_supply.h>
 #include <linux/mfd/cros_ec_commands.h>
 #include <linux/mutex.h>
 
@@ -112,6 +112,7 @@ struct cros_ec_device {
 			struct cros_ec_command *msg);
 	int (*cmd_readmem)(struct cros_ec_device *ec, unsigned int offset,
 			   unsigned int bytes, void *dest);
+	struct power_supply *charger;
 	struct mutex lock;
 };
 
