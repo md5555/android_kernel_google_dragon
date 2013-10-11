@@ -1467,7 +1467,7 @@ out:
 	return retval;
 }
 
-static int sd_sync_cache(struct scsi_disk *sdkp)
+static int sd_sync_cache(struct scsi_disk *sdkp, int *sense_key)
 {
 	int retries, res;
 	struct scsi_device *sdp = sdkp->device;
@@ -1496,8 +1496,11 @@ static int sd_sync_cache(struct scsi_disk *sdkp)
 	if (res) {
 		sd_print_result(sdkp, res);
 
-		if (driver_byte(res) & DRIVER_SENSE)
+		if (driver_byte(res) & DRIVER_SENSE) {
 			sd_print_sense_hdr(sdkp, &sshdr);
+			if (sense_key)
+				*sense_key = sshdr.sense_key;
+		}
 		/* we need to evaluate the error return  */
 		if (scsi_sense_valid(&sshdr) &&
 			(sshdr.asc == 0x3a ||	/* medium not present */
@@ -3183,7 +3186,7 @@ static void sd_shutdown(struct device *dev)
 
 	if (sdkp->WCE && sdkp->media_present) {
 		sd_printk(KERN_NOTICE, sdkp, "Synchronizing SCSI cache\n");
-		sd_sync_cache(sdkp);
+		sd_sync_cache(sdkp, NULL);
 	}
 
 	if (system_state != SYSTEM_RESTART && sdkp->device->manage_start_stop) {
@@ -3198,6 +3201,7 @@ exit:
 static int sd_suspend_common(struct device *dev, bool ignore_stop_errors)
 {
 	struct scsi_disk *sdkp = scsi_disk_get_from_dev(dev);
+	int sense_key = 0;
 	int ret = 0;
 
 	if (!sdkp)
@@ -3209,12 +3213,20 @@ static int sd_suspend_common(struct device *dev, bool ignore_stop_errors)
 
 	if (sdkp->WCE && sdkp->media_present) {
 		sd_printk(KERN_NOTICE, sdkp, "Synchronizing SCSI cache\n");
-		ret = sd_sync_cache(sdkp);
+		ret = sd_sync_cache(sdkp, &sense_key);
 		if (ret) {
-			/* ignore OFFLINE device */
-			if (ret == -ENODEV)
+			if (sense_key == ILLEGAL_REQUEST) {
+				/*
+				 * If this is a bad drive that doesn't support
+				 * sync, there's not much to do.
+				 */
 				ret = 0;
-			goto done;
+			} else {
+				/* ignore OFFLINE device */
+				if (ret == -ENODEV)
+					ret = 0;
+				goto done;
+			}
 		}
 	}
 

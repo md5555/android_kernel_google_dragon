@@ -183,7 +183,7 @@ static int isl29018_read_lux(struct isl29018_chip *chip, int *lux)
 		return 0;
 	}
 
-	ir_data = isl29018_read_sensor_input(client,
+	ir_data = isl29018_read_sensor_input(chip,
 				COMMMAND1_OPMODE_IR_ONCE);
 	if (ir_data < 0)
 		return ir_data;
