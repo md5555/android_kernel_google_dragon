@@ -563,6 +563,7 @@ mwifiex_close(struct net_device *dev)
 		priv->scan_aborting = true;
 	}
 
+	netif_tx_stop_all_queues(dev);
 	return 0;
 }
 
