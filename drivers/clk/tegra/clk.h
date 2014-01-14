@@ -656,6 +656,7 @@ struct clk *tegra_clk_register_emc(const char *name, const char **parent_names,
  * @div2_index:	bit controlling divide-by-2
  * @pllx_index:	PLLX index in the parent list
  * @lock:	register lock
+ * @prepared:	clock is prepared or not
  *
  * Flags:
  * TEGRA_DIVIDER_2 - LP cluster has additional divider. This flag indicates
@@ -669,6 +670,7 @@ struct tegra_clk_super_mux {
 	u8		div2_index;
 	u8		pllx_index;
 	spinlock_t	*lock;
+	bool		prepared;
 };
 
 #define to_clk_super_mux(_hw) container_of(_hw, struct tegra_clk_super_mux, hw)
@@ -785,6 +787,7 @@ struct tegra_clk_cbus_shared {
 	unsigned long		min_rate;
 	unsigned long		max_rate;
 	bool			rate_updating;
+	bool			prepared;
 	union {
 		struct {
 			struct clk_hw	*top_user;
