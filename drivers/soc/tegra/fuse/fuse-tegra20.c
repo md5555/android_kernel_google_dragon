@@ -146,7 +146,8 @@ static int tegra20_fuse_probe(struct platform_device *pdev)
 	if (err)
 		return err;
 
-	if (tegra_fuse_create_sysfs(&pdev->dev, FUSE_SIZE, tegra20_fuse_readl))
+	if (tegra_fuse_create_sysfs(&pdev->dev, FUSE_SIZE, tegra20_fuse_readl,
+				NULL))
 		return -ENODEV;
 
 	dev_dbg(&pdev->dev, "loaded\n");

@@ -23,7 +23,8 @@
 #define TEGRA_FUSE_SIZE	0x400
 
 int tegra_fuse_create_sysfs(struct device *dev, int size,
-		     u32 (*readl)(const unsigned int offset));
+	u32 (*readl)(const unsigned int offset),
+	u32 (*write)(const unsigned int offset, const char *buf, u32 size));
 
 bool tegra30_spare_fuse(int bit);
 u32 tegra30_fuse_readl(const unsigned int offset);
