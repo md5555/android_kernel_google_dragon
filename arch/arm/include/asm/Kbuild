@@ -22,7 +22,10 @@ generic-y += poll.h
 generic-y += preempt.h
 generic-y += resource.h
 generic-y += rwsem.h
+<<<<<<< HEAD
 generic-y += scatterlist.h
+=======
+>>>>>>> 09cb155... ARM: rwsem: use asm-generic rwsem implementation
 generic-y += sections.h
 generic-y += segment.h
 generic-y += sembuf.h
