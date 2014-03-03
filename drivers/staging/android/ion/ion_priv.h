@@ -39,6 +39,13 @@ struct ion_mapping {
 };
 #define NUM_ION_MAPPING 5 /* FIXME: dynamically allocate more than this */
 
+struct ion_importer {
+	struct device *dev;
+	void *priv;
+	void (*delete)(void *);
+};
+#define NUM_ION_IMPORTER 5 /* FIXME: dynamically allocate more than this */
+
 /**
  * struct ion_buffer - metadata for a particular buffer
  * @ref:		refernce count
@@ -93,6 +100,7 @@ struct ion_buffer {
 	char task_comm[TASK_COMM_LEN];
 	pid_t pid;
 
+	struct ion_importer importer[NUM_ION_IMPORTER];
 	struct ion_mapping mapping[NUM_ION_MAPPING];
 };
 void ion_buffer_destroy(struct ion_buffer *buffer);
