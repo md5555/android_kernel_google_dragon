@@ -1182,6 +1182,20 @@ static void ion_dma_buf_end_cpu_access(struct dma_buf *dmabuf, size_t start,
 	mutex_unlock(&buffer->lock);
 }
 
+static void *ion_dma_buf_vmap(struct dma_buf *dmabuf)
+{
+	void *addr = ion_dma_buf_kmap(dmabuf, 0);
+
+	pr_info("%s() %p\n", __func__, addr);
+	return addr;
+}
+
+static void ion_dma_buf_vunmap(struct dma_buf *dmabuf, void *vaddr)
+{
+	pr_info("%s() %p\n", __func__, vaddr);
+	ion_dma_buf_kunmap(dmabuf, 0, vaddr);
+}
+
 static struct dma_buf_ops dma_buf_ops = {
 	.map_dma_buf = ion_map_dma_buf,
 	.unmap_dma_buf = ion_unmap_dma_buf,
@@ -1193,6 +1207,8 @@ static struct dma_buf_ops dma_buf_ops = {
 	.kunmap_atomic = ion_dma_buf_kunmap,
 	.kmap = ion_dma_buf_kmap,
 	.kunmap = ion_dma_buf_kunmap,
+	.vmap = ion_dma_buf_vmap,
+	.vunmap = ion_dma_buf_vunmap,
 };
 
 struct dma_buf *ion_share_dma_buf(struct ion_client *client,
