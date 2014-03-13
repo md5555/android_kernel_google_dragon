@@ -568,6 +568,7 @@ struct mwifiex_private {
 	u16 rsn_idx;
 	u8 ap_11n_enabled;
 	u8 ap_11ac_enabled;
+	u8 sta_assoc_11ac_enabled;
 	u32 mgmt_frame_mask;
 	struct mwifiex_roc_cfg roc_cfg;
 	bool scan_aborting;
