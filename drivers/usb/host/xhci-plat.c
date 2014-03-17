@@ -217,6 +217,7 @@ static int xhci_plat_suspend(struct device *dev)
 	 * reconsider this when xhci_plat_suspend enlarges its scope, e.g.,
 	 * also applies to runtime suspend.
 	 */
+	usleep_range(10000, 11000);
 	return xhci_suspend(xhci, device_may_wakeup(dev));
 }
 
