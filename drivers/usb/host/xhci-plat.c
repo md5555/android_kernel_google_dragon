@@ -208,7 +208,9 @@ static int xhci_plat_suspend(struct device *dev)
 {
 	struct usb_hcd	*hcd = dev_get_drvdata(dev);
 	struct xhci_hcd	*xhci = hcd_to_xhci(hcd);
+	int ret;
 
+	pm_runtime_get_sync(dev);
 	/*
 	 * xhci_suspend() needs `do_wakeup` to know whether host is allowed
 	 * to do wakeup during suspend. Since xhci_plat_suspend is currently
@@ -218,15 +220,23 @@ static int xhci_plat_suspend(struct device *dev)
 	 * also applies to runtime suspend.
 	 */
 	usleep_range(10000, 11000);
-	return xhci_suspend(xhci, device_may_wakeup(dev));
+	ret = xhci_suspend(xhci, device_may_wakeup(dev));
+	pm_runtime_put(dev);
+
+	return ret;
 }
 
 static int xhci_plat_resume(struct device *dev)
 {
 	struct usb_hcd	*hcd = dev_get_drvdata(dev);
 	struct xhci_hcd	*xhci = hcd_to_xhci(hcd);
+	int ret;
 
-	return xhci_resume(xhci, 0);
+	pm_runtime_get_sync(dev);
+	ret = xhci_resume(xhci, 0);
+	pm_runtime_put(dev);
+
+	return ret;
 }
 
 static const struct dev_pm_ops xhci_plat_pm_ops = {
