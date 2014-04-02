@@ -193,9 +193,6 @@ typedef enum dhd_pno_mode {
 } dhd_pno_mode_t;
 #endif /* GSCAN_SUPPORT */
 struct dhd_pno_ssid {
-	bool		hidden;
-	int8		rssi_thresh;
-
 	uint32		SSID_len;
 	uchar		SSID[DOT11_MAX_SSID_LEN];
 	struct list_head list;
@@ -476,7 +473,7 @@ extern int
 dhd_dev_pno_stop_for_ssid(struct net_device *dev);
 
 extern int
-dhd_dev_pno_set_for_ssid(struct net_device *dev, wlc_ssid_ext_t* ssids_local, int nssid,
+dhd_dev_pno_set_for_ssid(struct net_device *dev, wlc_ssid_t* ssids_local, int nssid,
 	uint16 scan_fr, int pno_repeat, int pno_freq_expo_max, uint16 *channel_list, int nchan);
 
 extern int
@@ -493,35 +490,14 @@ extern int
 dhd_dev_pno_set_for_hotlist(struct net_device *dev, wl_pfn_bssid_t *p_pfn_bssid,
 	struct dhd_pno_hotlist_params *hotlist_params);
 #ifdef GSCAN_SUPPORT
-extern int dhd_pno_enable_full_scan_result(dhd_pub_t *dhd, bool real_time_flag);
-extern int dhd_pno_initiate_gscan_request(dhd_pub_t *dhd, bool run, bool flush);
-extern int dhd_pno_set_cfg_gscan(dhd_pub_t *dhd, dhd_pno_gscan_cmd_cfg_t type,
-    void *buf, uint8 flush);
-extern int dhd_dev_pno_enable_full_scan_result(struct net_device *dev, bool real_time_flag);
-extern int dhd_dev_pno_run_gscan(struct net_device *dev, bool run, bool flush);
-extern int
-dhd_dev_pno_set_cfg_gscan(struct net_device *dev, dhd_pno_gscan_cmd_cfg_t type,
-              void *buf, uint8 flush);
 extern void *
 dhd_dev_pno_get_gscan(struct net_device *dev, dhd_pno_gscan_cmd_cfg_t type, void *info,
         uint32 *len);
-extern int dhd_retreive_batch_scan_results(dhd_pub_t *dhd);
-extern int dhd_wait_batch_results_complete(dhd_pub_t *dhd);
-extern int dhd_dev_wait_batch_results_complete(struct net_device *dev);
-extern int dhd_dev_gscan_batch_cache_cleanup(struct net_device *dev);
-extern int dhd_gscan_batch_cache_cleanup(dhd_pub_t *dhd);
-
-extern int dhd_dev_pno_lock_access_batch_results(struct net_device *dev);
-extern int dhd_dev_pno_unlock_access_batch_results(struct net_device *dev);
-
-extern int dhd_pno_lock_batch_results(dhd_pub_t *dhd);
-extern void dhd_pno_unlock_batch_results(dhd_pub_t *dhd);
-
 #endif /* GSCAN_SUPPORT */
 /* dhd pno fuctions */
 extern int dhd_pno_stop_for_ssid(dhd_pub_t *dhd);
 extern int dhd_pno_enable(dhd_pub_t *dhd, int enable);
-extern int dhd_pno_set_for_ssid(dhd_pub_t *dhd, wlc_ssid_ext_t* ssid_list, int nssid,
+extern int dhd_pno_set_for_ssid(dhd_pub_t *dhd, wlc_ssid_t* ssid_list, int nssid,
 	uint16  scan_fr, int pno_repeat, int pno_freq_expo_max, uint16 *channel_list, int nchan);
 
 extern int dhd_pno_set_for_batch(dhd_pub_t *dhd, struct dhd_pno_batch_params *batch_params);
@@ -543,10 +519,6 @@ extern int dhd_pno_deinit(dhd_pub_t *dhd);
 extern void * dhd_pno_get_gscan(dhd_pub_t *dhd, dhd_pno_gscan_cmd_cfg_t type, void *info,
                        uint32 *len);
 #endif /* GSCAN_SUPPORT */
-
-extern bool dhd_is_pno_supported(dhd_pub_t *dhd);
-extern bool dhd_is_legacy_pno_enabled(dhd_pub_t *dhd);
-
 #endif /* PNO_SUPPORT */
 
 #endif /* __DHD_PNO_H__ */
