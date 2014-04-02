@@ -111,8 +111,7 @@ _dhd_wlfc_prec_enque(struct pktq *pq, int prec, void* p, bool qHead,
 
 
 	ASSERT(prec >= 0 && prec < pq->num_prec);
-	/* queueing chains not allowed */
-	ASSERT(!((PKTLINK(p) != NULL) && (PKTLINK(p) != p)));
+	ASSERT(PKTLINK(p) == NULL);         /* queueing chains not allowed */
 
 	ASSERT(!pktq_full(pq));
 	ASSERT(!pktq_pfull(pq, prec));
@@ -2837,7 +2836,7 @@ dhd_wlfc_transfer_packets(void *data)
 
 #if defined(DHD_WLFC_THREAD)
 	/* wait till someone wakeup me up, will change it at running time */
-	long wait_msec = MAX_JIFFY_OFFSET; 
+	int wait_msec = msecs_to_jiffies(0xFFFFFFFF);
 #endif /* defined(DHD_WLFC_THREAD) */
 
 #if defined(DHD_WLFC_THREAD)
@@ -2889,6 +2888,11 @@ dhd_wlfc_transfer_packets(void *data)
 		}
 
 		if (ctx->pkt_cnt_per_ac[ac] == 0) {
+			continue;
+		}
+
+		if (ctx->FIFO_credit[ac] < 3) {
+			DHD_EVENT(("Avoid pkt processing if credit is low (<3)\n"));
 			continue;
 		}
 
