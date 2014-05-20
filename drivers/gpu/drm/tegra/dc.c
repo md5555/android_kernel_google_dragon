@@ -14,6 +14,7 @@
 
 #include <soc/tegra/pmc.h>
 #include <soc/tegra/tegra-dvfs.h>
+#include <soc/tegra/tegra_emc.h>
 
 #include "dc.h"
 #include "drm.h"
@@ -51,6 +52,7 @@ struct tegra_dc_state {
 	unsigned int div;
 
 	u32 planes;
+	unsigned long emc_bandwidth; /* kbps */
 };
 
 static inline struct tegra_dc_state *to_dc_state(struct drm_crtc_state *state)
@@ -523,6 +525,7 @@ static void tegra_plane_cleanup_fb(struct drm_plane *plane,
 static int tegra_plane_state_add(struct tegra_plane *plane,
 				 struct drm_plane_state *state)
 {
+	struct drm_framebuffer *fb = state->fb;
 	struct drm_crtc_state *crtc_state;
 	struct tegra_dc_state *tegra;
 
@@ -534,7 +537,8 @@ static int tegra_plane_state_add(struct tegra_plane *plane,
 	tegra = to_dc_state(crtc_state);
 
 	tegra->planes |= WIN_A_ACT_REQ << plane->index;
-
+	tegra->emc_bandwidth += crtc_state->mode.clock *
+				fb->bits_per_pixel / 8;
 	return 0;
 }
 
@@ -1077,6 +1081,7 @@ tegra_crtc_atomic_duplicate_state(struct drm_crtc *crtc)
 	copy->pclk = state->pclk;
 	copy->div = state->div;
 	copy->planes = state->planes;
+	copy->emc_bandwidth = 0;
 
 	return &copy->base;
 }
@@ -1346,10 +1351,40 @@ static void tegra_crtc_atomic_begin(struct drm_crtc *crtc)
 	}
 }
 
+#define EMC_FREQ_MIN_RATE (200 * 1000 * 1000)
+
+static int tegra_dc_program_bandwidth(struct tegra_dc *dc,
+				      unsigned long bandwidth)
+{
+	unsigned long freq;
+	struct clk *emc_master;
+
+	if (!dc->emc_clk || !bandwidth)
+		return 0;
+
+	emc_master = clk_get_parent(dc->emc_clk);
+
+	bandwidth *= 2; /* double bandwidth to avoid underflow */
+	freq = tegra_emc_bw_to_freq_req(bandwidth) * 1000;
+
+	if (freq < EMC_FREQ_MIN_RATE)
+		freq = EMC_FREQ_MIN_RATE;
+
+	freq = clk_round_rate(emc_master, freq);
+
+	return clk_set_rate(dc->emc_clk, freq);
+}
+
 static void tegra_crtc_atomic_flush(struct drm_crtc *crtc)
 {
 	struct tegra_dc_state *state = to_dc_state(crtc->state);
 	struct tegra_dc *dc = to_tegra_dc(crtc);
+	int ret;
+
+	ret = tegra_dc_program_bandwidth(dc, state->emc_bandwidth);
+	if (ret)
+		DRM_ERROR("Failed to program emc bandwidth ret=%d\n", ret);
+
 	tegra_dc_writel(dc, state->planes << 8, DC_CMD_STATE_CONTROL);
 	tegra_dc_writel(dc, state->planes, DC_CMD_STATE_CONTROL);
 }
@@ -2016,6 +2051,11 @@ static int tegra_dc_probe(struct platform_device *pdev)
 		}
 	}
 
+	dc->emc_clk = devm_clk_get(&pdev->dev, "emc");
+	if (IS_ERR(dc->emc_clk))
+		dc->emc_clk = NULL;
+	clk_prepare_enable(dc->emc_clk);
+
 	regs = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	dc->regs = devm_ioremap_resource(&pdev->dev, regs);
 	if (IS_ERR(dc->regs))
@@ -2079,6 +2119,7 @@ static int tegra_dc_remove(struct platform_device *pdev)
 		tegra_powergate_power_off(dc->powergate);
 
 	clk_disable_unprepare(dc->clk);
+	clk_disable_unprepare(dc->emc_clk);
 
 	return 0;
 }
