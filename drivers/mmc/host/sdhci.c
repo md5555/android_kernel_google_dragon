@@ -44,6 +44,8 @@
 
 #define MAX_TUNING_LOOP 40
 
+#define CSTATE_EXIT_LATENCY_C1	1
+
 static unsigned int debug_quirks = 0;
 static unsigned int debug_quirks2;
 
@@ -2731,6 +2733,9 @@ int sdhci_runtime_suspend_host(struct sdhci_host *host)
 		host->flags &= ~SDHCI_NEEDS_RETUNING;
 	}
 
+	if (host->mmc->qos)
+		pm_qos_update_request(host->mmc->qos, PM_QOS_DEFAULT_VALUE);
+
 	spin_lock_irqsave(&host->lock, flags);
 	host->ier &= SDHCI_INT_CARD_INT;
 	sdhci_writel(host, host->ier, SDHCI_INT_ENABLE);
@@ -2788,6 +2793,9 @@ int sdhci_runtime_resume_host(struct sdhci_host *host)
 	sdhci_enable_card_detection(host);
 
 	spin_unlock_irqrestore(&host->lock, flags);
+
+	if (host->mmc->qos)
+		pm_qos_update_request(host->mmc->qos, CSTATE_EXIT_LATENCY_C1);
 
 	return 0;
 }

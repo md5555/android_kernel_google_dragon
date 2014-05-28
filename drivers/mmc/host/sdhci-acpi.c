@@ -206,7 +206,8 @@ static const struct sdhci_acpi_slot sdhci_acpi_slot_int_emmc = {
 		   MMC_CAP_HW_RESET | MMC_CAP_1_8V_DDR,
 	.caps2   = MMC_CAP2_HC_ERASE_SZ,
 	.flags   = SDHCI_ACPI_RUNTIME_PM,
-	.quirks2 = SDHCI_QUIRK2_PRESET_VALUE_BROKEN | SDHCI_QUIRK2_STOP_WITH_TC,
+	.quirks2 = SDHCI_QUIRK2_PRESET_VALUE_BROKEN | SDHCI_QUIRK2_STOP_WITH_TC |
+                   SDHCI_QUIRK2_BAYTRAIL_EMMC,
 	.probe_slot	= sdhci_acpi_emmc_probe_slot,
 };
 
@@ -364,6 +365,16 @@ static int sdhci_acpi_probe(struct platform_device *pdev)
 	if (err)
 		goto err_free;
 
+	if (host->quirks2 & SDHCI_QUIRK2_BAYTRAIL_EMMC) {
+		pr_info("%s: Enabling QoS on Baytrail eMMC slot\n",
+			__func__);
+		host->mmc->qos = kzalloc(sizeof(struct pm_qos_request),
+			GFP_KERNEL);
+		if (host->mmc->qos)
+			pm_qos_add_request(host->mmc->qos,
+				PM_QOS_CPU_DMA_LATENCY, PM_QOS_DEFAULT_VALUE);
+	}
+
 	if (c->use_runtime_pm) {
 		pm_runtime_set_active(dev);
 		pm_suspend_ignore_children(dev, 1);
@@ -393,6 +404,11 @@ static int sdhci_acpi_remove(struct platform_device *pdev)
 
 	if (c->slot && c->slot->remove_slot)
 		c->slot->remove_slot(pdev);
+
+	if (c->host->mmc->qos) {
+		pm_qos_remove_request(c->host->mmc->qos);
+		kfree(c->host->mmc->qos);
+	}
 
 	dead = (sdhci_readl(c->host, SDHCI_INT_STATUS) == ~0);
 	sdhci_remove_host(c->host, dead);

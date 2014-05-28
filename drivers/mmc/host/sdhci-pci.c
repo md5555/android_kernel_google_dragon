@@ -302,7 +302,8 @@ static const struct sdhci_pci_fixes sdhci_intel_byt_emmc = {
 	.probe_slot	= byt_emmc_probe_slot,
 	.quirks		= SDHCI_QUIRK_NO_ENDATTR_IN_NOPDESC,
 	.quirks2	= SDHCI_QUIRK2_PRESET_VALUE_BROKEN |
-			  SDHCI_QUIRK2_STOP_WITH_TC,
+			  SDHCI_QUIRK2_STOP_WITH_TC |
+                          SDHCI_QUIRK2_BAYTRAIL_EMMC,
 };
 
 static const struct sdhci_pci_fixes sdhci_intel_byt_sdio = {
@@ -1482,6 +1483,17 @@ static struct sdhci_pci_slot *sdhci_pci_probe_slot(
 
 	sdhci_pci_add_own_cd(slot);
 
+        if (host->quirks2 & SDHCI_QUIRK2_BAYTRAIL_EMMC) {
+                pr_info("%s: Enabling QoS on Baytrail eMMC slot\n",
+                        __func__);
+                host->mmc->qos = kzalloc(sizeof(struct pm_qos_request),
+                        GFP_KERNEL);
+                if (host->mmc->qos)
+                        pm_qos_add_request(host->mmc->qos,
+                                PM_QOS_CPU_DMA_LATENCY, PM_QOS_DEFAULT_VALUE);
+        }
+
+
 	/*
 	 * Check if the chip needs a separate GPIO for card detect to wake up
 	 * from runtime suspend.  If it is not there, don't allow runtime PM.
@@ -1527,6 +1539,11 @@ static void sdhci_pci_remove_slot(struct sdhci_pci_slot *slot)
 	scratch = readl(slot->host->ioaddr + SDHCI_INT_STATUS);
 	if (scratch == (u32)-1)
 		dead = 1;
+
+        if (slot->host->mmc->qos) {
+                pm_qos_remove_request(slot->host->mmc->qos);
+                kfree(slot->host->mmc->qos);
+        }
 
 	sdhci_remove_host(slot->host, dead);
 
