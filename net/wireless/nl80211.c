@@ -371,6 +371,7 @@ static const struct nla_policy nl80211_policy[NUM_NL80211_ATTR] = {
 	[NL80211_ATTR_IE_RIC] = { .type = NLA_BINARY,
 				  .len = IEEE80211_MAX_DATA_LEN },
 	[NL80211_ATTR_PEER_AID] = { .type = NLA_U16 },
+	[NL80211_ATTR_MAC_MASK] = { .len = ETH_ALEN },
 	[NL80211_ATTR_CH_SWITCH_COUNT] = { .type = NLA_U32 },
 	[NL80211_ATTR_CH_SWITCH_BLOCK_TX] = { .type = NLA_FLAG },
 	[NL80211_ATTR_CSA_IES] = { .type = NLA_NESTED },
@@ -5365,6 +5366,43 @@ static int validate_scan_freqs(struct nlattr *freqs)
 	return n_channels;
 }
 
+static int nl80211_parse_random_mac(struct nlattr **attrs,
+				    u8 *mac_addr, u8 *mac_addr_mask)
+{
+	int i;
+
+	if (!attrs[NL80211_ATTR_MAC] && !attrs[NL80211_ATTR_MAC_MASK]) {
+		memset(mac_addr, 0, ETH_ALEN);
+		memset(mac_addr_mask, 0, ETH_ALEN);
+		mac_addr[0] = 0x2;
+		mac_addr_mask[0] = 0x3;
+
+		return 0;
+	}
+
+	/* need both or none */
+	if (!attrs[NL80211_ATTR_MAC] || !attrs[NL80211_ATTR_MAC_MASK])
+		return -EINVAL;
+
+	memcpy(mac_addr, nla_data(attrs[NL80211_ATTR_MAC]), ETH_ALEN);
+	memcpy(mac_addr_mask, nla_data(attrs[NL80211_ATTR_MAC_MASK]), ETH_ALEN);
+
+	/* don't allow or configure an mcast address */
+	if (!is_multicast_ether_addr(mac_addr_mask) ||
+	    is_multicast_ether_addr(mac_addr))
+		return -EINVAL;
+
+	/*
+	 * allow users to pass a MAC address that has bits set outside
+	 * of the mask, but don't bother drivers with having to deal
+	 * with such bits
+	 */
+	for (i = 0; i < ETH_ALEN; i++)
+		mac_addr[i] &= mac_addr_mask[i];
+
+	return 0;
+}
+
 static int nl80211_trigger_scan(struct sk_buff *skb, struct genl_info *info)
 {
 	struct cfg80211_registered_device *rdev = info->user_ptr[0];
@@ -5542,6 +5580,25 @@ static int nl80211_trigger_scan(struct sk_buff *skb, struct genl_info *info)
 			err = -EOPNOTSUPP;
 			goto out_free;
 		}
+
+		if (request->flags & NL80211_SCAN_FLAG_RANDOM_ADDR) {
+			if (!(wiphy->features &
+					NL80211_FEATURE_SCAN_RANDOM_MAC_ADDR)) {
+				err = -EOPNOTSUPP;
+				goto out_free;
+			}
+
+			if (wdev->current_bss) {
+				err = -EOPNOTSUPP;
+				goto out_free;
+			}
+
+			err = nl80211_parse_random_mac(info->attrs,
+						       request->mac_addr,
+						       request->mac_addr_mask);
+			if (err)
+				goto out_free;
+		}
 	}
 
 	request->no_cck =
@@ -5569,7 +5626,7 @@ static int nl80211_trigger_scan(struct sk_buff *skb, struct genl_info *info)
 }
 
 static struct cfg80211_sched_scan_request *
-nl80211_parse_sched_scan(struct wiphy *wiphy,
+nl80211_parse_sched_scan(struct wiphy *wiphy, struct wireless_dev *wdev,
 			 struct nlattr **attrs)
 {
 	struct cfg80211_sched_scan_request *request;
@@ -5818,6 +5875,28 @@ nl80211_parse_sched_scan(struct wiphy *wiphy,
 			err = -EOPNOTSUPP;
 			goto out_free;
 		}
+
+		if (request->flags & NL80211_SCAN_FLAG_RANDOM_ADDR) {
+			u32 flg = NL80211_FEATURE_SCHED_SCAN_RANDOM_MAC_ADDR;
+
+			if (!wdev) /* must be net-detect */
+				flg = NL80211_FEATURE_ND_RANDOM_MAC_ADDR;
+
+			if (!(wiphy->features & flg)) {
+				err = -EOPNOTSUPP;
+				goto out_free;
+			}
+
+			if (wdev && wdev->current_bss) {
+				err = -EOPNOTSUPP;
+				goto out_free;
+			}
+
+			err = nl80211_parse_random_mac(attrs, request->mac_addr,
+						       request->mac_addr_mask);
+			if (err)
+				goto out_free;
+		}
 	}
 
 	if (attrs[NL80211_ATTR_SCHED_SCAN_DELAY])
@@ -5839,6 +5918,7 @@ static int nl80211_start_sched_scan(struct sk_buff *skb,
 {
 	struct cfg80211_registered_device *rdev = info->user_ptr[0];
 	struct net_device *dev = info->user_ptr[1];
+	struct wireless_dev *wdev = dev->ieee80211_ptr;
 	int err;
 
 	if (!(rdev->wiphy.flags & WIPHY_FLAG_SUPPORTS_SCHED_SCAN) ||
@@ -5848,7 +5928,7 @@ static int nl80211_start_sched_scan(struct sk_buff *skb,
 	if (rdev->sched_scan_req)
 		return -EINPROGRESS;
 
-	rdev->sched_scan_req = nl80211_parse_sched_scan(&rdev->wiphy,
+	rdev->sched_scan_req = nl80211_parse_sched_scan(&rdev->wiphy, wdev,
 							info->attrs);
 	err = PTR_ERR_OR_ZERO(rdev->sched_scan_req);
 	if (err)
@@ -8640,7 +8720,7 @@ static int nl80211_parse_wowlan_nd(struct cfg80211_registered_device *rdev,
 	if (err)
 		goto out;
 
-	trig->nd_config = nl80211_parse_sched_scan(&rdev->wiphy, tb);
+	trig->nd_config = nl80211_parse_sched_scan(&rdev->wiphy, NULL, tb);
 	err = PTR_ERR_OR_ZERO(trig->nd_config);
 	if (err)
 		trig->nd_config = NULL;
