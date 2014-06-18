@@ -21,6 +21,31 @@ Required properties:
   - padctl
 - #phy-cells: Should be 1. The specifier is the index of the PHY to reference.
   See <dt-bindings/pinctrl/pinctrl-tegra-xusb.h> for the list of valid values.
+- mboxes: Must contain an entry for the XUSB mailbox channel.
+  See ../mailbox/mailbox.txt for details.
+- mbox-names: Must include the following entries:
+  - xusb
+
+Optional properties:
+--------------------
+- vddio-hsic-supply: VDDIO regulator for the HSIC pads.
+
+PHY nodes:
+----------
+
+An optional child node named "phys" can contain nodes describing additional
+properties of each PHY. Only USB3 and UTMI PHYs can be complemented in this
+way, in which case the name of each node must match one of the following:
+
+  usb3-0, usb3-1, utmi-0, utmi-1, utmi-2
+
+Required properties for USB3 PHYs:
+- nvidia,lanes: specifies the name of the lane that this USB3 PHY uses
+- nvidia,port: specifies the number of the USB2 port that is used for this
+  USB3 PHY
+
+Optional properties for UTMI PHYs:
+- vbus-supply: regulator providing the VBUS voltage for the UTMI pad
 
 Lane muxing:
 ------------
@@ -50,26 +75,42 @@ Optional properties:
   pin or group should be assigned to. Valid values for function names are
   listed below.
 - nvidia,iddq: Enables IDDQ mode of the lane. (0: no, 1: yes)
+- nvidia,hsic-strobe-trim: HSIC strobe trimmer value.
+- nvidia,hsic-rx-strobe-trim: HSIC RX strobe trimmer value. (0 - 7)
+- nvidia,hsic-rx-data-trim: HSIC RX data trimmer value. (0 - 7)
+- nvidia,hsic-tx-rtune-n: HSIC TX RTUNEN value. (0 - 7)
+- nvidia,hsic-tx-rtune-p: HSIC TX RTUNEP value. (0 - 7)
+- nvidia,hsic-tx-slew-n: HSIC TX SLEWN value. (0 - 7)
+- nvidia,hsic-tx-slew-p: HSIC TX SLEWP value. (0 - 7)
+- nvidia,hsic-auto-term: Enables HSIC AUTO_TERM. (0: no, 1: yes)
+- nvidia,otg-hs-curr-level-offset: Offset to be applied to the pad's fused
+  HS_CURR_LEVEL value. (0 - 63)
 
 Note that not all of these properties are valid for all lanes. Lanes can be
-divided into three groups:
+divided into four groups:
 
   - otg-0, otg-1, otg-2:
 
     Valid functions for this group are: "snps", "xusb", "uart", "rsvd".
 
-    The nvidia,iddq property does not apply to this group.
+    Only the nvidia,otg-hs-curr-level-offset property applies.
 
-  - ulpi-0, hsic-0, hsic-1:
+  - ulpi-0:
 
     Valid functions for this group are: "snps", "xusb".
 
-    The nvidia,iddq property does not apply to this group.
+  - hsic-0, hsic-1:
+
+    Valid functions for this group are: "snps", "xusb".
+
+    Only the nvidia,hsic-* properties apply, and only when the function is
+    xusb.
 
   - pcie-0, pcie-1, pcie-2, pcie-3, pcie-4, sata-0:
 
     Valid functions for this group are: "pcie", "usb3", "sata", "rsvd".
 
+    Only the nvidia,iddq property applies.
 
 Example:
 ========
@@ -82,6 +123,8 @@ SoC file extract:
 		reg = <0x0 0x7009f000 0x0 0x1000>;
 		resets = <&tegra_car 142>;
 		reset-names = "padctl";
+		mboxes = <&xusb_mbox>;
+		mbox-names = "xusb";
 
 		#phy-cells = <1>;
 	};
@@ -100,13 +143,48 @@ Board file extract:
 
 	...
 
+	usb@0,70090000 {
+		...
+
+		phys = <&padctl 5>, <&padctl 6>, <&padctl 7>;
+		phy-names = "utmi-1", "utmi-2", "usb3-0";
+
+		...
+	}
+
+	...
+
 	padctl: padctl@0,7009f000 {
 		pinctrl-0 = <&padctl_default>;
 		pinctrl-names = "default";
 
+		phys {
+			usb3-0 {
+				status = "okay";
+
+				nvidia,lanes = "pcie-0";
+				nvidia,port = <2>;
+			};
+
+			utmi-1 {
+				status = "okay";
+			};
+
+			utmi-2 {
+				status = "okay";
+
+				vbus-supply = <&vdd_usb3_vbus>;
+			};
+		};
+
 		padctl_default: pinmux {
-			usb3 {
-				nvidia,lanes = "pcie-0", "pcie-1";
+			otg {
+				nvidia,lanes = "otg-1", "otg-2";
+				nvidia,function = "xusb";
+			};
+
+			usb3p0 {
+				nvidia,lanes = "pcie-0";
 				nvidia,function = "usb3";
 				nvidia,iddq = <0>;
 			};
