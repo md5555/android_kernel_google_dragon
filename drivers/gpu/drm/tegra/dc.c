@@ -11,6 +11,8 @@
 #include <linux/debugfs.h>
 #include <linux/reset.h>
 
+#include <soc/tegra/pmc.h>
+
 #include "dc.h"
 #include "drm.h"
 #include "gem.h"
@@ -22,6 +24,7 @@ struct tegra_dc_soc_info {
 	bool supports_cursor;
 	bool supports_block_linear;
 	unsigned int pitch_align;
+	bool has_powergate;
 };
 
 struct tegra_plane {
@@ -1358,6 +1361,7 @@ static const struct tegra_dc_soc_info tegra20_dc_soc_info = {
 	.supports_cursor = false,
 	.supports_block_linear = false,
 	.pitch_align = 8,
+	.has_powergate = false,
 };
 
 static const struct tegra_dc_soc_info tegra30_dc_soc_info = {
@@ -1365,6 +1369,7 @@ static const struct tegra_dc_soc_info tegra30_dc_soc_info = {
 	.supports_cursor = false,
 	.supports_block_linear = false,
 	.pitch_align = 8,
+	.has_powergate = false,
 };
 
 static const struct tegra_dc_soc_info tegra114_dc_soc_info = {
@@ -1372,6 +1377,7 @@ static const struct tegra_dc_soc_info tegra114_dc_soc_info = {
 	.supports_cursor = false,
 	.supports_block_linear = false,
 	.pitch_align = 64,
+	.has_powergate = true,
 };
 
 static const struct tegra_dc_soc_info tegra124_dc_soc_info = {
@@ -1379,12 +1385,16 @@ static const struct tegra_dc_soc_info tegra124_dc_soc_info = {
 	.supports_cursor = true,
 	.supports_block_linear = true,
 	.pitch_align = 64,
+	.has_powergate = true,
 };
 
 static const struct of_device_id tegra_dc_of_match[] = {
 	{
 		.compatible = "nvidia,tegra124-dc",
 		.data = &tegra124_dc_soc_info,
+	}, {
+		.compatible = "nvidia,tegra114-dc",
+		.data = &tegra114_dc_soc_info,
 	}, {
 		.compatible = "nvidia,tegra30-dc",
 		.data = &tegra30_dc_soc_info,
@@ -1468,9 +1478,34 @@ static int tegra_dc_probe(struct platform_device *pdev)
 		return PTR_ERR(dc->rst);
 	}
 
-	err = clk_prepare_enable(dc->clk);
-	if (err < 0)
-		return err;
+	if (dc->soc->has_powergate) {
+		if (dc->pipe == 0)
+			dc->powergate = TEGRA_POWERGATE_DIS;
+		else
+			dc->powergate = TEGRA_POWERGATE_DISB;
+
+		err = tegra_powergate_sequence_power_up(dc->powergate, dc->clk,
+							dc->rst);
+		if (err < 0) {
+			dev_err(&pdev->dev, "failed to power partition: %d\n",
+				err);
+			return err;
+		}
+	} else {
+		err = clk_prepare_enable(dc->clk);
+		if (err < 0) {
+			dev_err(&pdev->dev, "failed to enable clock: %d\n",
+				err);
+			return err;
+		}
+
+		err = reset_control_deassert(dc->rst);
+		if (err < 0) {
+			dev_err(&pdev->dev, "failed to deassert reset: %d\n",
+				err);
+			return err;
+		}
+	}
 
 	regs = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	dc->regs = devm_ioremap_resource(&pdev->dev, regs);
@@ -1524,6 +1559,10 @@ static int tegra_dc_remove(struct platform_device *pdev)
 	}
 
 	reset_control_assert(dc->rst);
+
+	if (dc->soc->has_powergate)
+		tegra_powergate_power_off(dc->powergate);
+
 	clk_disable_unprepare(dc->clk);
 
 	return 0;
