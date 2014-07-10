@@ -155,6 +155,7 @@ config ARCH_TEGRA
 	select PINCTRL
 	select RESET_CONTROLLER
 	select SOC_BUS
+	select TEGRA_IRQC
 	help
 	  This enables support for the NVIDIA Tegra SoC family.
 
