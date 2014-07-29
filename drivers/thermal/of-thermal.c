@@ -73,6 +73,8 @@ struct __thermal_bind_params {
  * @mode: current thermal zone device mode (enabled/disabled)
  * @passive_delay: polling interval while passive cooling is activated
  * @polling_delay: zone polling interval
+ * @prev_low_trip: previous low trip point temperature
+ * @prev_high_trip: previous high trip point temperature
  * @ntrips: number of trip points
  * @trips: an array of trip points (0..ntrips - 1)
  * @num_tbps: number of thermal bind params
@@ -85,6 +87,7 @@ struct __thermal_zone {
 	enum thermal_device_mode mode;
 	int passive_delay;
 	int polling_delay;
+	long prev_low_trip, prev_high_trip;
 
 	/* trip data */
 	int ntrips;
@@ -99,17 +102,63 @@ struct __thermal_zone {
 	const struct thermal_zone_of_device_ops *ops;
 };
 
+/***   Automatic trip handling   ***/
+
+static int of_thermal_set_trips(struct thermal_zone_device *tz, long temp)
+{
+	struct __thermal_zone *data = tz->devdata;
+	long low = LONG_MIN, high = LONG_MAX;
+	int i;
+
+	/* Hardware trip points not supported */
+	if (!data->ops->set_trips)
+		return 0;
+
+	/* No need to change trip points */
+	if (temp > data->prev_low_trip && temp < data->prev_high_trip)
+		return 0;
+
+	for (i = 0; i < data->ntrips; ++i) {
+		struct __thermal_trip *trip = data->trips + i;
+		long trip_low = trip->temperature - trip->hysteresis;
+
+		if (trip_low < temp && trip_low > low)
+			low = trip_low;
+
+		if (trip->temperature > temp && trip->temperature < high)
+			high = trip->temperature;
+	}
+
+	dev_dbg(&tz->device,
+		"temperature %ld, updating trip points to %ld, %ld\n",
+		temp, low, high);
+
+	data->prev_low_trip = low;
+	data->prev_high_trip = high;
+
+	return data->ops->set_trips(data->sensor_data, low, high);
+}
+
 /***   DT thermal zone device callbacks   ***/
 
 static int of_thermal_get_temp(struct thermal_zone_device *tz,
 			       unsigned long *temp)
 {
 	struct __thermal_zone *data = tz->devdata;
+	int err;
 
 	if (!data->ops->get_temp)
 		return -EINVAL;
 
-	return data->ops->get_temp(data->sensor_data, temp);
+	err = data->ops->get_temp(data->sensor_data, temp);
+	if (err)
+		return err;
+
+	err = of_thermal_set_trips(tz, *temp);
+	if (err)
+		return err;
+
+	return 0;
 }
 
 static int of_thermal_get_trend(struct thermal_zone_device *tz, int trip,
@@ -221,6 +270,22 @@ static int of_thermal_set_mode(struct thermal_zone_device *tz,
 	return 0;
 }
 
+static int of_thermal_update_trips(struct thermal_zone_device *tz)
+{
+	long temp;
+	int err;
+
+	err = of_thermal_get_temp(tz, &temp);
+	if (err)
+		return err;
+
+	err = of_thermal_set_trips(tz, temp);
+	if (err)
+		return err;
+
+	return 0;
+}
+
 static int of_thermal_get_trip_type(struct thermal_zone_device *tz, int trip,
 				    enum thermal_trip_type *type)
 {
@@ -251,12 +316,17 @@ static int of_thermal_set_trip_temp(struct thermal_zone_device *tz, int trip,
 				    unsigned long temp)
 {
 	struct __thermal_zone *data = tz->devdata;
+	int err;
 
 	if (trip >= data->ntrips || trip < 0)
 		return -EDOM;
 
 	/* thermal framework should take care of data->mask & (1 << trip) */
 	data->trips[trip].temperature = temp;
+
+	err = of_thermal_update_trips(tz);
+	if (err)
+		return err;
 
 	return 0;
 }
@@ -278,12 +348,17 @@ static int of_thermal_set_trip_hyst(struct thermal_zone_device *tz, int trip,
 				    unsigned long hyst)
 {
 	struct __thermal_zone *data = tz->devdata;
+	int err;
 
 	if (trip >= data->ntrips || trip < 0)
 		return -EDOM;
 
 	/* thermal framework should take care of data->mask & (1 << trip) */
 	data->trips[trip].hysteresis = hyst;
+
+	err = of_thermal_update_trips(tz);
+	if (err)
+		return err;
 
 	return 0;
 }
@@ -340,6 +415,8 @@ thermal_zone_of_add_sensor(struct device_node *zone,
 	mutex_lock(&tzd->lock);
 	tz->ops = ops;
 	tz->sensor_data = data;
+
+	of_thermal_update_trips(tzd);
 
 	tzd->ops->get_temp = of_thermal_get_temp;
 	tzd->ops->get_trend = of_thermal_get_trend;
@@ -678,6 +755,9 @@ thermal_of_build_thermal_zone(struct device_node *np)
 
 	/* trips */
 	child = of_get_child_by_name(np, "trips");
+
+	tz->prev_high_trip = LONG_MIN;
+	tz->prev_low_trip = LONG_MAX;
 
 	/* No trips provided */
 	if (!child)
