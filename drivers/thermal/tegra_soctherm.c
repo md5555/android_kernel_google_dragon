@@ -104,8 +104,8 @@ struct tegra_tsensor {
 struct tegra_thermctl_zone {
 	struct tegra_soctherm *tegra;
 	int sensor;
-	void __iomem *reg;
-	unsigned int shift;
+	u16 temp_off;
+	unsigned int temp_shift;
 };
 
 static const struct tegra_tsensor_configuration t124_tsensor_config = {
@@ -196,6 +196,43 @@ struct tsensor_shared_calibration {
 	u32 actual_temp_cp, actual_temp_ft;
 };
 
+/**
+ * soctherm_writel() - writes a value to a SOC_THERM register
+ * @ts: pointer to a struct tegra_soctherm
+ * @v: the value to write
+ * @reg: the register offset
+ *
+ * Writes @v to @reg.  No return value.
+ */
+static void soctherm_writel(struct tegra_soctherm *ts, u32 v, u16 reg)
+{
+	writel(v, ts->regs + reg);
+}
+
+/**
+ * soctherm_readl() - reads specified register from SOC_THERM IP block
+ * @ts: pointer to a struct tegra_soctherm
+ * @reg: register address to be read
+ *
+ * Return: the value of the register
+ */
+static u32 soctherm_readl(struct tegra_soctherm *ts, u16 reg)
+{
+	return readl(ts->regs + reg);
+}
+
+/**
+ * soctherm_barrier() - ensure previous writes to SOC_THERM have completed
+ * @ts: pointer to a struct tegra_soctherm
+ *
+ * Ensures that any previous writes to the SOC_THERM IP block have reached
+ * the IP block before continuing.
+ */
+static void soctherm_barrier(struct tegra_soctherm *ts)
+{
+	soctherm_readl(ts, THERMCTL_LEVEL0_GROUP_CPU);
+}
+
 static int calculate_shared_calibration(struct tsensor_shared_calibration *r)
 {
 	u32 val, shifted_cp, shifted_ft;
@@ -282,7 +319,6 @@ static int enable_tsensor(struct tegra_soctherm *tegra,
 			  const struct tegra_tsensor *sensor,
 			  const struct tsensor_shared_calibration *shared)
 {
-	void __iomem *base = tegra->regs + sensor->base;
 	unsigned int val;
 	u32 calib;
 	int err;
@@ -292,15 +328,15 @@ static int enable_tsensor(struct tegra_soctherm *tegra,
 		return err;
 
 	val = sensor->config->tall << SENSOR_CONFIG0_TALL_SHIFT;
-	writel(val, base + SENSOR_CONFIG0);
+	soctherm_writel(tegra, val, sensor->base + SENSOR_CONFIG0);
 
 	val  = (sensor->config->tsample - 1) << SENSOR_CONFIG1_TSAMPLE_SHIFT;
 	val |= sensor->config->tiddq_en << SENSOR_CONFIG1_TIDDQ_EN_SHIFT;
 	val |= sensor->config->ten_count << SENSOR_CONFIG1_TEN_COUNT_SHIFT;
 	val |= SENSOR_CONFIG1_TEMP_ENABLE;
-	writel(val, base + SENSOR_CONFIG1);
+	soctherm_writel(tegra, val, sensor->base + SENSOR_CONFIG1);
 
-	writel(calib, base + SENSOR_CONFIG2);
+	soctherm_writel(tegra, calib, sensor->base + SENSOR_CONFIG2);
 
 	return 0;
 }
@@ -331,8 +367,8 @@ static int tegra_thermctl_get_temp(void *data, long *out_temp)
 	struct tegra_thermctl_zone *zone = data;
 	u32 val;
 
-	val = (readl(zone->reg) >> zone->shift) & SENSOR_TEMP_MASK;
-	*out_temp = translate_temp(val);
+	val = soctherm_readl(zone->tegra, zone->temp_off) >> zone->temp_shift;
+	*out_temp = translate_temp(val & SENSOR_TEMP_MASK);
 
 	return 0;
 }
@@ -352,8 +388,8 @@ static int tegra_thermctl_set_trips(void *data, long low, long high)
 	val |= ((u8) high) << THERMCTL_LEVEL0_GROUP_UP_THRESH_SHIFT;
 	val |= THERMCTL_LEVEL0_GROUP_EN;
 
-	writel(val, zone->tegra->regs +
-		THERMCTL_LEVEL0_GROUP_CPU + zone->sensor * 4);
+	soctherm_writel(zone->tegra, val,
+			THERMCTL_LEVEL0_GROUP_CPU + zone->sensor * 4);
 
 	return 0;
 }
@@ -365,12 +401,12 @@ static irqreturn_t soctherm_isr(int irq, void *dev_id)
 	u32 intr_mask = TH_INTR_UP_DOWN_LVL0_MASK <<
 			t124_thermctl_shifts[zone->sensor];
 
-	val = readl(zone->tegra->regs + THERMCTL_INTR_STATUS);
+	val = soctherm_readl(zone->tegra, THERMCTL_INTR_STATUS);
 
 	if ((val & intr_mask) == 0)
 		return IRQ_NONE;
 
-	writel(val & intr_mask, zone->tegra->regs + THERMCTL_INTR_STATUS);
+	soctherm_writel(zone->tegra, val & intr_mask, THERMCTL_INTR_STATUS);
 
 	return IRQ_WAKE_THREAD;
 }
@@ -477,8 +513,8 @@ static int tegra_soctherm_probe(struct platform_device *pdev)
 			goto disable_clocks;
 	}
 
-	writel(SENSOR_PDIV_T124, tegra->regs + SENSOR_PDIV);
-	writel(SENSOR_HOTSPOT_OFF_T124, tegra->regs + SENSOR_HOTSPOT_OFF);
+	soctherm_writel(tegra, SENSOR_PDIV_T124, SENSOR_PDIV);
+	soctherm_writel(tegra, SENSOR_HOTSPOT_OFF_T124, SENSOR_HOTSPOT_OFF);
 
 	/* Initialize thermctl sensors */
 
@@ -492,8 +528,8 @@ static int tegra_soctherm_probe(struct platform_device *pdev)
 
 		zone->sensor = i;
 		zone->tegra = tegra;
-		zone->reg = tegra->regs + t124_thermctl_temp_zones[i].offset;
-		zone->shift = t124_thermctl_temp_zones[i].shift;
+		zone->temp_off = t124_thermctl_temp_zones[i].offset;
+		zone->temp_shift = t124_thermctl_temp_zones[i].shift;
 
 		tz = thermal_zone_of_sensor_register(&pdev->dev, i, zone,
 						     &tegra_of_thermal_ops);
@@ -517,8 +553,10 @@ static int tegra_soctherm_probe(struct platform_device *pdev)
 			goto unregister_tzs;
 		}
 
-		writel(TH_INTR_UP_DOWN_LVL0_MASK << t124_thermctl_shifts[i],
-		       tegra->regs + THERMCTL_INTR_EN);
+		soctherm_writel(tegra,
+				TH_INTR_UP_DOWN_LVL0_MASK <<
+					t124_thermctl_shifts[i],
+				THERMCTL_INTR_EN);
 	}
 
 	return 0;
