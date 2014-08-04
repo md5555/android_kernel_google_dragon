@@ -38,3 +38,4 @@ obj-$(CONFIG_ST_THERMAL)	+= st/
 obj-$(CONFIG_MAX77620_THERMAL)	+= max77620-thermal.o
 obj-$(CONFIG_TEGRA_SOCTHERM)	+= tegra_soctherm.o tegra_soctherm_fuse.o
 obj-$(CONFIG_TEGRA124_SOCTHERM)	+= tegra124_soctherm.o
+obj-$(CONFIG_TEGRA132_SOCTHERM)	+= tegra132_soctherm.o
