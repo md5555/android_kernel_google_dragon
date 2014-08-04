@@ -207,8 +207,12 @@ config MAX77620_THERMAL
 	  thermal core to orderly power off the system.
 
 config TEGRA_SOCTHERM
-	tristate "Tegra SOCTHERM thermal management"
-	depends on ARCH_TEGRA
+	bool
+
+config TEGRA124_SOCTHERM
+	bool "Tegra124 SOCTHERM thermal management"
+	depends on ARCH_TEGRA_124_SOC
+	select TEGRA_SOCTHERM
 	help
 	  Enable this option for integrated thermal management support on NVIDIA
 	  Tegra124 systems-on-chip. The driver supports four thermal zones
