@@ -32,6 +32,7 @@ void tegra_pmc_restart(enum reboot_mode mode, const char *cmd);
 enum tegra_suspend_mode tegra_pmc_get_suspend_mode(void);
 void tegra_pmc_set_suspend_mode(enum tegra_suspend_mode mode);
 void tegra_pmc_enter_suspend_mode(enum tegra_suspend_mode mode);
+void tegra_pmc_lp0_resume(void);
 void tegra_tsc_suspend(void);
 void tegra_tsc_resume(void);
 #endif /* CONFIG_PM_SLEEP */
