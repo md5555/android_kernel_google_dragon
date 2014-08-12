@@ -6,3 +6,6 @@ obj-$(CONFIG_ARCH_TEGRA) += pm.o
 obj-$(CONFIG_ARCH_TEGRA) += pmc.o
 
 obj-$(CONFIG_TEGRA_PROC_POWER_MODEL) += tegra_ppm.o
+
+obj-$(CONFIG_TEGRA_DVFS)       += tegra-dvfs.o
+obj-$(CONFIG_TEGRA_124_DVFS)   += tegra124-dvfs.o
