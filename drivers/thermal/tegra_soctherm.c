@@ -46,12 +46,25 @@
 #define SENSOR_CONFIG2_THERMA_SHIFT		16
 #define SENSOR_CONFIG2_THERMB_SHIFT		0
 
+#define THERMCTL_LEVEL0_GROUP_CPU		0x0
+#define		THERMCTL_LEVEL0_GROUP_EN	BIT(8)
+#define		THERMCTL_LEVEL0_GROUP_DN_THRESH_SHIFT 9
+#define		THERMCTL_LEVEL0_GROUP_UP_THRESH_SHIFT 17
+
+#define THERMCTL_INTR_STATUS			0x84
+#define THERMCTL_INTR_EN			0x88
+#define		TH_INTR_UP_DOWN_LVL0_MASK	0x3
+
 #define SENSOR_PDIV				0x1c0
 #define SENSOR_PDIV_T124			0x8888
 #define SENSOR_HOTSPOT_OFF			0x1c4
 #define SENSOR_HOTSPOT_OFF_T124			0x00060600
 #define SENSOR_TEMP1				0x1c8
+#define		SENSOR_TEMP1_CPU_TEMP_SHIFT	16
+#define		SENSOR_TEMP1_GPU_TEMP_MASK	0xffff
 #define SENSOR_TEMP2				0x1cc
+#define		SENSOR_TEMP2_MEM_TEMP_SHIFT	16
+#define		SENSOR_TEMP2_PLLX_TEMP_MASK	0xffff
 
 #define SENSOR_TEMP_MASK			0xffff
 #define READBACK_VALUE_MASK			0xff00
@@ -89,6 +102,8 @@ struct tegra_tsensor {
 };
 
 struct tegra_thermctl_zone {
+	struct tegra_soctherm *tegra;
+	int sensor;
 	void __iomem *reg;
 	unsigned int shift;
 };
@@ -160,6 +175,11 @@ static const struct tegra_tsensor t124_tsensors[] = {
 		.fuse_corr_alpha = 1106500,
 		.fuse_corr_beta = -6729300,
 	},
+};
+
+static int t124_thermctl_shifts[] = {
+/*      CPU MEM GPU PLLX */
+	8,  24, 16, 0
 };
 
 struct tegra_soctherm {
@@ -317,8 +337,56 @@ static int tegra_thermctl_get_temp(void *data, long *out_temp)
 	return 0;
 }
 
+static int tegra_thermctl_set_trips(void *data, long low, long high)
+{
+	struct tegra_thermctl_zone *zone = data;
+	u32 val;
+
+	low /= 1000;
+	high /= 1000;
+
+	low = clamp_val(low, -127, 127);
+	high = clamp_val(high, -127, 127);
+
+	val = ((u8) low) << THERMCTL_LEVEL0_GROUP_DN_THRESH_SHIFT;
+	val |= ((u8) high) << THERMCTL_LEVEL0_GROUP_UP_THRESH_SHIFT;
+	val |= THERMCTL_LEVEL0_GROUP_EN;
+
+	writel(val, zone->tegra->regs +
+		THERMCTL_LEVEL0_GROUP_CPU + zone->sensor * 4);
+
+	return 0;
+}
+
+static irqreturn_t soctherm_isr(int irq, void *dev_id)
+{
+	struct tegra_thermctl_zone *zone = dev_id;
+	u32 val;
+	u32 intr_mask = TH_INTR_UP_DOWN_LVL0_MASK <<
+			t124_thermctl_shifts[zone->sensor];
+
+	val = readl(zone->tegra->regs + THERMCTL_INTR_STATUS);
+
+	if ((val & intr_mask) == 0)
+		return IRQ_NONE;
+
+	writel(val & intr_mask, zone->tegra->regs + THERMCTL_INTR_STATUS);
+
+	return IRQ_WAKE_THREAD;
+}
+
+static irqreturn_t soctherm_isr_thread(int irq, void *dev_id)
+{
+	struct tegra_thermctl_zone *zone = dev_id;
+
+	thermal_zone_device_update(zone->tegra->thermctl_tzs[zone->sensor]);
+
+	return IRQ_HANDLED;
+}
+
 static const struct thermal_zone_of_device_ops tegra_of_thermal_ops = {
 	.get_temp = tegra_thermctl_get_temp,
+	.set_trips = tegra_thermctl_set_trips,
 };
 
 static const struct of_device_id tegra_soctherm_of_match[] = {
@@ -346,7 +414,7 @@ static int tegra_soctherm_probe(struct platform_device *pdev)
 	struct tsensor_shared_calibration shared_calib;
 	struct resource *res;
 	unsigned int i;
-	int err;
+	int err, irq;
 
 	const struct tegra_tsensor *tsensors = t124_tsensors;
 
@@ -375,6 +443,12 @@ static int tegra_soctherm_probe(struct platform_device *pdev)
 	if (IS_ERR(tegra->clock_soctherm)) {
 		dev_err(&pdev->dev, "can't get soctherm clock\n");
 		return PTR_ERR(tegra->clock_soctherm);
+	}
+
+	irq = platform_get_irq(pdev, 0);
+	if (irq <= 0) {
+		dev_err(&pdev->dev, "can't get interrupt\n");
+		return -EINVAL;
 	}
 
 	reset_control_assert(tegra->reset);
@@ -416,6 +490,8 @@ static int tegra_soctherm_probe(struct platform_device *pdev)
 			goto unregister_tzs;
 		}
 
+		zone->sensor = i;
+		zone->tegra = tegra;
 		zone->reg = tegra->regs + t124_thermctl_temp_zones[i].offset;
 		zone->shift = t124_thermctl_temp_zones[i].shift;
 
@@ -429,6 +505,20 @@ static int tegra_soctherm_probe(struct platform_device *pdev)
 		}
 
 		tegra->thermctl_tzs[i] = tz;
+
+		err = devm_request_threaded_irq(&pdev->dev, irq, soctherm_isr,
+						soctherm_isr_thread,
+						IRQF_SHARED,
+						dev_name(&pdev->dev),
+						zone);
+		if (err) {
+			dev_err(&pdev->dev, "unable to register isr: %d\n",
+				err);
+			goto unregister_tzs;
+		}
+
+		writel(TH_INTR_UP_DOWN_LVL0_MASK << t124_thermctl_shifts[i],
+		       tegra->regs + THERMCTL_INTR_EN);
 	}
 
 	return 0;
