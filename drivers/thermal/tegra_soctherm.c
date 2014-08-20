@@ -494,7 +494,6 @@ static const struct thermal_zone_of_device_ops tegra_of_thermal_ops = {
 };
 
 int tegra_soctherm_probe(struct platform_device *pdev,
-		struct tegra_tsensor_configuration *tegra_tsensor_configs,
 		struct tegra_tsensor *tsensors,
 		struct tegra_tsensor_group **tegra_tsensor_groups,
 		u8 nominal_calib_cp, u8 nominal_calib_ft)
