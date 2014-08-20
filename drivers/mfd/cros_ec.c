@@ -28,6 +28,8 @@
 
 #define EC_COMMAND_RETRIES	50
 
+static int dev_id;
+
 static int prepare_packet(struct cros_ec_device *ec_dev,
 			  struct cros_ec_command *msg)
 {
@@ -408,8 +410,8 @@ static int cros_ec_accel_register(struct cros_ec_device *ec_dev)
 
 static const struct mfd_cell cros_devs[] = {
 	{
-		.name = "cros-ec-dev",
 		.id = 0,
+		.name = "cros-ec-dev",
 	},
 };
 
@@ -419,7 +421,6 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 	int err = 0;
 #ifdef CONFIG_OF
 	struct device_node *node;
-	int id = ARRAY_SIZE(cros_devs);
 #endif
 
 	ec_dev->max_request = sizeof(struct ec_params_hello);
@@ -427,6 +428,7 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 	ec_dev->max_passthru = 0;
 
 	ec_dev->din = devm_kzalloc(dev, ec_dev->din_size, GFP_KERNEL);
+	ec_dev->id = dev_id;
 	if (!ec_dev->din)
 		return -ENOMEM;
 	ec_dev->dout = devm_kzalloc(dev, ec_dev->dout_size, GFP_KERNEL);
@@ -439,13 +441,13 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 
 	cros_ec_probe_all(ec_dev);
 
-	err = mfd_add_devices(dev, 0, cros_devs,
-			      ARRAY_SIZE(cros_devs),
+	err = mfd_add_devices(dev, dev_id, cros_devs, ARRAY_SIZE(cros_devs),
 			      NULL, ec_dev->irq, NULL);
 	if (err) {
 		dev_err(dev, "failed to add mfd devices\n");
 		return err;
 	}
+	dev_id += ARRAY_SIZE(cros_devs);
 
 	err = cros_ec_accel_register(ec_dev);
 	if (err && err != -ENODEV)
@@ -470,8 +472,8 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 		}
 		dev_dbg(dev, "adding MFD sub-device %s\n", node->name);
 		cell.of_compatible = of_get_property(node, "compatible", NULL);
-		err = mfd_add_devices(dev, ++id, &cell, 1, NULL, ec_dev->irq,
-				      NULL);
+		err = mfd_add_devices(dev, dev_id++, &cell, 1, NULL,
+				ec_dev->irq, NULL);
 		if (err)
 			dev_err(dev, "fail to add %s\n", node->full_name);
 	}
