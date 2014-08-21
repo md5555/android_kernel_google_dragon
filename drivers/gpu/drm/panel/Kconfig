@@ -27,4 +27,10 @@ config DRM_PANEL_S6E8AA0
 	select DRM_MIPI_DSI
 	select VIDEOMODE_HELPERS
 
+config DRM_PANEL_JDI_LPM102A188A
+	tristate "support for jdi lpm102a188a"
+	depends on OF
+	help
+	  DRM panel driver for JDI lpm102a188a
+
 endmenu
