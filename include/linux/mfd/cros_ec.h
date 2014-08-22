@@ -21,6 +21,14 @@
 #include <linux/mutex.h>
 
 /*
+ * Max bus-specific overhead incurred by request/responses.
+ * I2C requires 1 additional byte for requests.
+ * I2C requires 2 additional bytes for responses.
+ * */
+#define EC_MAX_REQUEST_OVERHEAD		1
+#define EC_MAX_RESPONSE_OVERHEAD	2
+
+/*
  * Command interface between EC and AP, for LPC, I2C and SPI interfaces.
  */
 enum {
@@ -102,10 +110,14 @@ struct cros_ec_device {
 	struct class *cros_class;
 
 	/* These are used to implement the platform-specific interface */
+	u16 max_request;
+	u16 max_response;
+	u16 max_passthru;
+	u16 proto_version;
 	void *priv;
 	int irq;
-	uint8_t *din;
-	uint8_t *dout;
+	u8 *din;
+	u8 *dout;
 	int din_size;
 	int dout_size;
 	struct device *parent;
@@ -120,6 +132,8 @@ struct cros_ec_device {
 			    u16 *dest);
 	int (*cmd_read_u8)(struct cros_ec_device *ec, unsigned int offset,
 			   u8 *dest);
+	int (*pkt_xfer)(struct cros_ec_device *ec,
+			struct cros_ec_command *msg);
 	struct power_supply *charger;
 	struct mutex lock;
 };
