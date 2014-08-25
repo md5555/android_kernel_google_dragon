@@ -25,7 +25,7 @@
 #include <asm/asm-offsets.h>
 #include <asm/cache.h>
 
-#include "sleep.h"
+#include <soc/tegra/sleep.h>
 
 #define PMC_SCRATCH41	0x140
 
