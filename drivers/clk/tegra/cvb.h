@@ -44,6 +44,19 @@ struct cvb_cpu_dfll_data {
 	unsigned int tune_high_min_millivolts;
 };
 
+struct thermal_coefficients {
+	struct cvb_coefficients cvb_coef;
+	int c3;
+	int c4;
+	int c5;
+};
+
+/* Thermal trips and voltages */
+struct thermal_tv {
+	int temp;
+	unsigned int millivolts;
+};
+
 struct cvb_table {
 	int speedo_id;
 	int process_id;
@@ -58,11 +71,26 @@ struct cvb_table {
 	struct cvb_cpu_dfll_data cpu_dfll_data;
 };
 
+struct thermal_table {
+	struct thermal_tv *thermal_floor_table;
+	unsigned int thermal_floor_table_size;
+	struct thermal_coefficients coefficients;
+	unsigned int speedo_scale;
+	unsigned int voltage_scale;
+	unsigned int temp_scale;
+
+	const struct thermal_tv *thermal_cap_table;
+	unsigned int thermal_cap_table_size;
+};
+
 const struct cvb_table *tegra_cvb_build_opp_table(
 		const struct cvb_table *cvb_tables,
 		size_t sz, int process_id,
 		int speedo_id, int speedo_value,
 		unsigned long max_rate,
 		struct device *opp_dev);
+
+int tegra_cvb_build_thermal_table(const struct thermal_table *table,
+		int speedo_value);
 
 #endif
