@@ -13,7 +13,7 @@
 
 #include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
-#include "mediatek/mt8173-pinfunc.h"
+#include "mt8173-pinfunc.h"
 
 / {
 	compatible = "mediatek,mt8173";

@@ -1,9 +1,8 @@
-dtb-$(CONFIG_ARCH_MEDIATEK) += mt8173-evb.dtb
-dtb-$(CONFIG_ARCH_THUNDER) += thunder-88xx.dtb
-dtb-$(CONFIG_ARCH_VEXPRESS) += rtsm_ve-aemv8a.dtb foundation-v8.dtb
-dtb-$(CONFIG_ARCH_XGENE) += apm-mustang.dtb
-dtb-$(CONFIG_ARCH_TEGRA) += tegra132-norrin.dtb
-dtb-$(CONFIG_ARCH_TEGRA) += tegra210-foster.dtb
+dts-dirs += apm
+dts-dirs += arm
+dts-dirs += cavium
+dts-dirs += mediatek
+dts-dirs += tegra
 
 DTB_NAMES := $(subst $\",,$(CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE_NAMES))
 ifneq ($(DTB_NAMES),)
