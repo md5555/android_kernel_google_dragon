@@ -13,4 +13,5 @@ DTB_LIST := $(dtb-y)
 endif
 
 always		:= $(DTB_LIST)
+subdir-y	:= $(dts-dirs)
 clean-files	:= dts/*.dtb *.dtb
