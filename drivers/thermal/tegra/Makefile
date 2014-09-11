@@ -13,3 +13,4 @@ obj-$(CONFIG_TEGRA_DRAM_THERMAL)	+= tegra_dram_therm.o
 # Tegra thermally-reactive drivers
 obj-$(CONFIG_TEGRA_DVFS)	+= tegra_core_action.o
 obj-$(CONFIG_TEGRA_CPU_EDP)	+= tegra_cpu_edp_action.o
+obj-$(CONFIG_TEGRA_DFLL_THERMAL_REACTION)	+= tegra_dfll_action.o

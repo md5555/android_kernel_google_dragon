@@ -11,7 +11,7 @@ Tegra DFLL cdev action device.
              "DFLL-cap".
 
 Note: for the trips, the corresponding temperatures are defined in the
-include/dt-bindings/thermal/tegra132-dfll-trips.h.
+tegra210-dfll-trips.h.
 
 Tegra CPU-EDP cdev action device.
 ** Required properties:

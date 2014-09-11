@@ -50,3 +50,12 @@ config TEGRA_DRAM_THERMAL
 	default y
 	help
 	  Enable this option for the DRAM thermal monitoring driver.
+
+config TEGRA_DFLL_THERMAL_REACTION
+	bool "Tegra DFLL thermal reaction driver"
+	depends on ARCH_TEGRA_124_SOC || ARCH_TEGRA_210_SOC
+	help
+	  Enable this to add the ability to automatically adjust the
+	  DFLL's minimum voltage floor, based on the SoC temperature.
+	  As the SoC temperature increases, the minimum voltage floor
+	  can decrease, reducing energy consumption.
