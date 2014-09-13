@@ -657,7 +657,7 @@ static void __fill_v4l2_buffer(struct vb2_buffer *vb, struct v4l2_buffer *b)
 
 	/* Copy back data such as timestamp, flags, etc. */
 	memcpy(b, &vb->v4l2_buf, offsetof(struct v4l2_buffer, m));
-	b->reserved2 = vb->v4l2_buf.reserved2;
+	b->config_store = vb->v4l2_buf.config_store;
 	b->reserved = vb->v4l2_buf.reserved;
 
 	if (V4L2_TYPE_IS_MULTIPLANAR(q->type)) {
@@ -682,6 +682,7 @@ static void __fill_v4l2_buffer(struct vb2_buffer *vb, struct v4l2_buffer *b)
 		else if (q->memory == V4L2_MEMORY_DMABUF)
 			b->m.fd = vb->v4l2_planes[0].m.fd;
 	}
+	b->config_store = vb->v4l2_buf.config_store;
 
 	/*
 	 * Clear any buffer state related flags.
@@ -1326,6 +1327,8 @@ static void __fill_vb2_buffer(struct vb2_buffer *vb, const struct v4l2_buffer *b
 		vb->v4l2_buf.flags &= ~V4L2_BUF_FLAG_TSTAMP_SRC_MASK;
 	}
 
+	vb->v4l2_buf.config_store = b->config_store;	
+	
 	if (V4L2_TYPE_IS_OUTPUT(b->type)) {
 		/*
 		 * For output buffers mask out the timecode flag:
