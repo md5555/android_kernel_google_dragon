@@ -4043,7 +4043,6 @@ static irqreturn_t i8xx_irq_handler(int irq, void *arg)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	u16 iir, new_iir;
 	u32 pipe_stats[2];
-	unsigned long irqflags;
 	int pipe;
 	u16 flip_mask =
 		I915_DISPLAY_PLANE_A_FLIP_PENDING_INTERRUPT |
@@ -4059,7 +4058,7 @@ static irqreturn_t i8xx_irq_handler(int irq, void *arg)
 		 * It doesn't set the bit in iir again, but it still produces
 		 * interrupts (for non-MSI).
 		 */
-		spin_lock_irqsave(&dev_priv->irq_lock, irqflags);
+		spin_lock(&dev_priv->irq_lock);
 		if (iir & I915_RENDER_COMMAND_PARSER_ERROR_INTERRUPT)
 			i915_handle_error(dev, false,
 					  "Command parser error, iir 0x%08x",
@@ -4075,7 +4074,7 @@ static irqreturn_t i8xx_irq_handler(int irq, void *arg)
 			if (pipe_stats[pipe] & 0x8000ffff)
 				I915_WRITE(reg, pipe_stats[pipe]);
 		}
-		spin_unlock_irqrestore(&dev_priv->irq_lock, irqflags);
+		spin_unlock(&dev_priv->irq_lock);
 
 		I915_WRITE16(IIR, iir & ~flip_mask);
 		new_iir = I915_READ16(IIR); /* Flush posted writes */
@@ -4229,7 +4228,6 @@ static irqreturn_t i915_irq_handler(int irq, void *arg)
 	struct drm_device *dev = arg;
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	u32 iir, new_iir, pipe_stats[I915_MAX_PIPES];
-	unsigned long irqflags;
 	u32 flip_mask =
 		I915_DISPLAY_PLANE_A_FLIP_PENDING_INTERRUPT |
 		I915_DISPLAY_PLANE_B_FLIP_PENDING_INTERRUPT;
@@ -4245,7 +4243,7 @@ static irqreturn_t i915_irq_handler(int irq, void *arg)
 		 * It doesn't set the bit in iir again, but it still produces
 		 * interrupts (for non-MSI).
 		 */
-		spin_lock_irqsave(&dev_priv->irq_lock, irqflags);
+		spin_lock(&dev_priv->irq_lock);
 		if (iir & I915_RENDER_COMMAND_PARSER_ERROR_INTERRUPT)
 			i915_handle_error(dev, false,
 					  "Command parser error, iir 0x%08x",
@@ -4261,7 +4259,7 @@ static irqreturn_t i915_irq_handler(int irq, void *arg)
 				irq_received = true;
 			}
 		}
-		spin_unlock_irqrestore(&dev_priv->irq_lock, irqflags);
+		spin_unlock(&dev_priv->irq_lock);
 
 		if (!irq_received)
 			break;
@@ -4456,7 +4454,6 @@ static irqreturn_t i965_irq_handler(int irq, void *arg)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	u32 iir, new_iir;
 	u32 pipe_stats[I915_MAX_PIPES];
-	unsigned long irqflags;
 	int ret = IRQ_NONE, pipe;
 	u32 flip_mask =
 		I915_DISPLAY_PLANE_A_FLIP_PENDING_INTERRUPT |
@@ -4473,7 +4470,7 @@ static irqreturn_t i965_irq_handler(int irq, void *arg)
 		 * It doesn't set the bit in iir again, but it still produces
 		 * interrupts (for non-MSI).
 		 */
-		spin_lock_irqsave(&dev_priv->irq_lock, irqflags);
+		spin_lock(&dev_priv->irq_lock);
 		if (iir & I915_RENDER_COMMAND_PARSER_ERROR_INTERRUPT)
 			i915_handle_error(dev, false,
 					  "Command parser error, iir 0x%08x",
@@ -4491,7 +4488,7 @@ static irqreturn_t i965_irq_handler(int irq, void *arg)
 				irq_received = true;
 			}
 		}
-		spin_unlock_irqrestore(&dev_priv->irq_lock, irqflags);
+		spin_unlock(&dev_priv->irq_lock);
 
 		if (!irq_received)
 			break;
