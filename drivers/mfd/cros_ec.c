@@ -26,7 +26,8 @@
 #include <linux/mfd/cros_ec_dev.h>
 #include <linux/of_platform.h>
 #include <linux/delay.h>
-#include <cros_ec_dev.h>
+
+#include "cros_ec_dev.h"
 
 #define EC_COMMAND_RETRIES	50
 
