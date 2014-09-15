@@ -1186,7 +1186,7 @@ gen5_ring_get_irq(struct intel_engine_cs *ring)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	unsigned long flags;
 
-	if (!dev->irq_enabled)
+	if (WARN_ON(!intel_irqs_enabled(dev_priv)))
 		return false;
 
 	spin_lock_irqsave(&dev_priv->irq_lock, flags);
@@ -1217,7 +1217,7 @@ i9xx_ring_get_irq(struct intel_engine_cs *ring)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	unsigned long flags;
 
-	if (!dev->irq_enabled)
+	if (!intel_irqs_enabled(dev_priv))
 		return false;
 
 	spin_lock_irqsave(&dev_priv->irq_lock, flags);
@@ -1254,7 +1254,7 @@ i8xx_ring_get_irq(struct intel_engine_cs *ring)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	unsigned long flags;
 
-	if (!dev->irq_enabled)
+	if (!intel_irqs_enabled(dev_priv))
 		return false;
 
 	spin_lock_irqsave(&dev_priv->irq_lock, flags);
@@ -1388,8 +1388,8 @@ gen6_ring_get_irq(struct intel_engine_cs *ring)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	unsigned long flags;
 
-	if (!dev->irq_enabled)
-	       return false;
+	if (WARN_ON(!intel_irqs_enabled(dev_priv)))
+		return false;
 
 	spin_lock_irqsave(&dev_priv->irq_lock, flags);
 	if (ring->irq_refcount++ == 0) {
@@ -1431,7 +1431,7 @@ hsw_vebox_get_irq(struct intel_engine_cs *ring)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	unsigned long flags;
 
-	if (!dev->irq_enabled)
+	if (WARN_ON(!intel_irqs_enabled(dev_priv)))
 		return false;
 
 	spin_lock_irqsave(&dev_priv->irq_lock, flags);
@@ -1451,9 +1451,6 @@ hsw_vebox_put_irq(struct intel_engine_cs *ring)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	unsigned long flags;
 
-	if (!dev->irq_enabled)
-		return;
-
 	spin_lock_irqsave(&dev_priv->irq_lock, flags);
 	if (--ring->irq_refcount == 0) {
 		I915_WRITE_IMR(ring, ~0);
@@ -1469,7 +1466,7 @@ gen8_ring_get_irq(struct intel_engine_cs *ring)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	unsigned long flags;
 
-	if (!dev->irq_enabled)
+	if (WARN_ON(!intel_irqs_enabled(dev_priv)))
 		return false;
 
 	spin_lock_irqsave(&dev_priv->irq_lock, flags);
