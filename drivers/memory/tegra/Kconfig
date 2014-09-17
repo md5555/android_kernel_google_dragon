@@ -5,3 +5,11 @@ config TEGRA_MC
 	help
 	  This driver supports the Memory Controller (MC) hardware found on
 	  NVIDIA Tegra SoCs.
+
+config TEGRA124_EMC
+	bool "Tegra124 External Memory Controller(EMC) driver"
+	default y
+	depends on MFD_SYSCON && (ARCH_TEGRA_124_SOC || ARCH_TEGRA_132_SOC)
+	help
+	  This driver is for the External Memory Controller(EMC) module
+	  available in Tegra124 SoCs.
