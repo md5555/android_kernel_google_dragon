@@ -199,7 +199,7 @@ static int cirrus_crtc_mode_set(struct drm_crtc *crtc,
 	struct cirrus_device *cdev = dev->dev_private;
 	int hsyncstart, hsyncend, htotal, hdispend;
 	int vtotal, vdispend;
-	int tmp;
+	int tmp, ret;
 	int sr07 = 0, hdr = 0;
 
 	htotal = mode->htotal / 8;
@@ -308,11 +308,11 @@ static int cirrus_crtc_mode_set(struct drm_crtc *crtc,
 	WREG_GFX(VGA_GFX_MISC, 0x01);
 
 	WREG_HDR(hdr);
-	cirrus_crtc_do_set_base(crtc, old_fb, x, y, 0);
+	ret = cirrus_crtc_do_set_base(crtc, old_fb, x, y, 0);
 
 	/* Unblank (needed on S3 resume, vgabios doesn't do it then) */
 	outb(0x20, 0x3c0);
-	return 0;
+	return ret;
 }
 
 /*
