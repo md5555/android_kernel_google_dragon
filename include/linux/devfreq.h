@@ -68,6 +68,16 @@ struct devfreq_dev_status {
  *			status to devfreq, which is used by governors.
  * @get_cur_freq:	The device should provide the current frequency
  *			at which it is operating.
+ * @set_high_wmark:	This is an optional callback to set high
+ *			watermark for watermark event. The value is
+ *			be scaled between 0 and 1000 where 1000 equals to
+ *			100% load. Setting this value to 1000 disables
+ *			the event
+ * @set_low_wmark:	This is an optional callback to set low
+ *			watermark for watermark event. The value is
+ *			be scaled between 0 and 1000 where 1000 equals to
+ *			100% load. Setting this value to 0 disables the
+ *			event.
  * @exit:		An optional callback that is called when devfreq
  *			is removing the devfreq object due to error or
  *			from devfreq_remove_device() call. If the user
@@ -84,6 +94,8 @@ struct devfreq_dev_profile {
 	int (*get_dev_status)(struct device *dev,
 			      struct devfreq_dev_status *stat);
 	int (*get_cur_freq)(struct device *dev, unsigned long *freq);
+	int (*set_high_wmark)(struct device *dev, unsigned int val);
+	int (*set_low_wmark)(struct device *dev, unsigned int val);
 	void (*exit)(struct device *dev);
 
 	unsigned long *freq_table;
@@ -192,6 +204,14 @@ extern void devm_devfreq_remove_device(struct device *dev,
 /* Supposed to be called by PM_SLEEP/PM_RUNTIME callbacks */
 extern int devfreq_suspend_device(struct devfreq *devfreq);
 extern int devfreq_resume_device(struct devfreq *devfreq);
+
+enum devfreq_watermark_event_type {
+	DEVFREQ_WATERMARK_EVENT_NONE,
+	DEVFREQ_WATERMARK_EVENT_ABOVE,
+	DEVFREQ_WATERMARK_EVENT_BELOW,
+};
+extern int devfreq_watermark_event(struct devfreq *devfreq,
+				   enum devfreq_watermark_event_type type);
 
 /* Helper functions for devfreq user device driver with OPP. */
 extern struct dev_pm_opp *devfreq_recommended_opp(struct device *dev,
@@ -303,6 +323,11 @@ static inline void devm_devfreq_unregister_opp_notifier(struct device *dev,
 static inline int devfreq_update_stats(struct devfreq *df)
 {
 	return -EINVAL;
+}
+
+static inline int devfreq_watermark_event(struct devfreq *devfreq, int type)
+{
+	return 0;
 }
 #endif /* CONFIG_PM_DEVFREQ */
 
