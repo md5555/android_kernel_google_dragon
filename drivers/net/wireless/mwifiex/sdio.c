@@ -1959,7 +1959,7 @@ static void mwifiex_sdio_card_reset_work(struct mwifiex_adapter *adapter)
 	pr_err("Resetting card...\n");
 	mmc_remove_host(target);
 	/* 20ms delay is based on experiment with sdhci controller */
-	mdelay(20);
+	mdelay(40);
 	target->rescan_entered = 0; /* rescan non-removable cards */
 	mmc_add_host(target);
 }
