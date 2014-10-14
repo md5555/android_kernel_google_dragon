@@ -7,6 +7,12 @@ Required properties:
 
 - clocks : the clock provider of SYS_MCLK
 
+- micbias-resistor-k-ohms : the bias resistor to be used in kOmhs
+	The resistor can take values of 2k, 4k or 8k.
+	If set to 0 it will be off.
+	If this node is not mentioned or if the value is unknown, then
+	micbias	resistor is set to 4K.
+
 - VDDA-supply : the regulator provider of VDDA
 
 - VDDIO-supply: the regulator provider of VDDIO
@@ -21,6 +27,7 @@ codec: sgtl5000@0a {
 	compatible = "fsl,sgtl5000";
 	reg = <0x0a>;
 	clocks = <&clks 150>;
+	sgtl5000-micbias-resistor = <1>;
 	VDDA-supply = <&reg_3p3v>;
 	VDDIO-supply = <&reg_3p3v>;
 };
