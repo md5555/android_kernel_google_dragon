@@ -1855,8 +1855,12 @@ int i915_driver_unload(struct drm_device *dev)
 
 	acpi_video_unregister();
 
-	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
+	if (drm_core_check_feature(dev, DRIVER_MODESET))
 		intel_fbdev_fini(dev);
+
+	drm_vblank_cleanup(dev);
+
+	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
 		intel_modeset_cleanup(dev);
 
 		/*
@@ -1896,8 +1900,6 @@ int i915_driver_unload(struct drm_device *dev)
 		if (!I915_NEED_GFX_HWS(dev))
 			i915_free_hws(dev);
 	}
-
-	drm_vblank_cleanup(dev);
 
 	intel_teardown_gmbus(dev);
 	intel_teardown_mchbar(dev);
