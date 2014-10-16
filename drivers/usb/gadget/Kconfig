@@ -190,6 +190,9 @@ config USB_F_UAC2
 config USB_F_UVC
 	tristate
 
+config USB_F_MIDI
+	tristate
+
 config USB_F_MTP
 	tristate
 
