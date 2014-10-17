@@ -245,6 +245,8 @@ struct hid_item {
 #define HID_DG_BARRELSWITCH2	0x000d005a
 #define HID_DG_TOOLSERIALNUMBER	0x000d005b
 
+#define HID_CP_CONSUMERCONTROL	0x000c0001
+
 /*
  * HID report types --- Ouch! HID spec says 1 2 3!
  */
