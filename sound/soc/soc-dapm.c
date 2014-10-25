@@ -849,9 +849,6 @@ static int is_connected_output_ep(struct snd_soc_dapm_widget *widget,
 
 	DAPM_UPDATE_STAT(widget, path_checks);
 
-	if (widget->is_supply)
-		return 0;
-
 	if (widget->is_sink && widget->connected) {
 		widget->outputs = snd_soc_dapm_suspend_check(widget);
 		return widget->outputs;
@@ -860,7 +857,7 @@ static int is_connected_output_ep(struct snd_soc_dapm_widget *widget,
 	list_for_each_entry(path, &widget->sinks, list_source) {
 		DAPM_UPDATE_STAT(widget, neighbour_checks);
 
-		if (path->weak)
+		if (path->weak || path->is_supply)
 			continue;
 
 		if (path->walking)
@@ -910,9 +907,6 @@ static int is_connected_input_ep(struct snd_soc_dapm_widget *widget,
 
 	DAPM_UPDATE_STAT(widget, path_checks);
 
-	if (widget->is_supply)
-		return 0;
-
 	if (widget->is_source && widget->connected) {
 		widget->inputs = snd_soc_dapm_suspend_check(widget);
 		return widget->inputs;
@@ -921,7 +915,7 @@ static int is_connected_input_ep(struct snd_soc_dapm_widget *widget,
 	list_for_each_entry(path, &widget->sources, list_sink) {
 		DAPM_UPDATE_STAT(widget, neighbour_checks);
 
-		if (path->weak)
+		if (path->weak || path->is_supply)
 			continue;
 
 		if (path->walking)
@@ -1719,8 +1713,14 @@ static ssize_t dapm_widget_power_read_file(struct file *file,
 	if (!buf)
 		return -ENOMEM;
 
-	in = is_connected_input_ep(w, NULL);
-	out = is_connected_output_ep(w, NULL);
+	/* Supply widgets are not handled by is_connected_{input,output}_ep() */
+	if (w->is_supply) {
+		in = 0;
+		out = 0;
+	} else {
+		in = is_connected_input_ep(w, NULL);
+		out = is_connected_output_ep(w, NULL);
+	}
 
 	ret = snprintf(buf, PAGE_SIZE, "%s: %s%s  in %d out %d",
 		       w->name, w->power ? "On" : "Off",
@@ -2240,6 +2240,9 @@ static int snd_soc_dapm_add_path(struct snd_soc_dapm_context *dapm,
 	INIT_LIST_HEAD(&path->list_kcontrol);
 	INIT_LIST_HEAD(&path->list_source);
 	INIT_LIST_HEAD(&path->list_sink);
+
+	if (wsource->is_supply || wsink->is_supply)
+		path->is_supply = 1;
 
 	/* connect static paths */
 	if (control == NULL) {
