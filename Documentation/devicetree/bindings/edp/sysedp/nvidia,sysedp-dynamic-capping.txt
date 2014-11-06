@@ -1,0 +1,122 @@
+System-EDP Dynamic Capping
+
+It receives the power constraint in milliwatt (mW) from sysedp,
+then it limits the CPU, GPU, and EMC frequencies to ensure that
+system will operate in the given budget.
+
+Required properties:
+- compatible: "nvidia,tegra124-sysedp-dynamic-capping"
+- clocks : Must be the battery-emc shared clock.
+  Should contain an entry for each entry in clock-names.
+  See ../clocks/clock-bindings.txt for details.
+- clock-names : Must set as cap-battery-emc.
+  Note that the order of AP Power must start with the smallest power and
+  should increase for each entry.
+- nvidia,core-gain: The percentage of gain applied to the AP+DRAM budget power.
+  A value of 100 means to multiply by 1.0.
+- nvidia,init-req-watts defines the initial AP+DRAM budget before the
+  geting a calculated budget from the sysedp module.
+- nvidia,throttle-depth: The percentage of gain applied to the throttle power.
+  A value of 100 means to multiply by 1.0.  Expected values are between 0-100%.
+- nvidia,cap-method: The calculation to use when determining which corecap
+  entry is associated with the AP+DRAM budget. Available values are:
+  SYSEDP_CAP_METHOD_DEFAULT, SYSEDP_CAP_METHOD_DIRECT,
+  SYSEDP_CAP_METHOD_SIGNAL, and SYSEDP_CAP_METHOD_RELAX.
+  For systems with voltage comparators, the value should be SYSEDP_CAP_METHOD_RELAX.
+  For systems without voltage comparators, but with modem overcurrent signals,
+  the value should be SYSEDP_CAP_METHOD_SIGNAL.
+  For all other systems, the value should be set to SYSEDP_CAP_METHOD_DIRECT.
+
+Required nodes:
+- corecaps: This node contains a set of subnodes describing clocks capablity,
+  under different required power.
+
+Required properties of each corecap node:
+- ap-power: AP power (milliwatts) required by the AP+DRAM when the CPU power
+  and GPU and EMC frequencies are capped.
+- cpu-pri-cpu-max-power: Maximum power (milliwatts) given to the CPU
+  when the CPU has the priority.
+- cpu-pri-gpu-max-cap: Maximum GPU frequency (kHz) (or Max Power (mW)) allowed
+  when the CPU has the priority. (See nvidia,gpu-cap-as-mw).
+- cpu-pri-emc-max-freq: Maximum EMC frequency (kHz) allowed when
+  the CPU has the priority.
+- gpu-pri-cpu-max-power: Maximum power (milliwatts) given to the CPU
+  when the GPU has the priority.
+- gpu-pri-gpu-max-cap: Maximum GPU frequency (kHz) (or Max Power (mW)) allowed
+  when the GPU has the priority. (See nvidia,gpu-cap-as-mw).
+- gpu-pri-emc-max-freq: Maximum EMC frequency (kHz) allowed when
+  the GPU has the priority.
+- throttle-power: The amount of power (milliwatts) returned to the system
+  when the SOC_THERM OC signal throttles the CPU and GPU frequencies.
+  This is the amount of power with 100% throttle depth.
+
+  Note that the order of AP Power must start with the smallest power and
+  should increase for each subnodes.
+
+Optional properties of each corecap node:
+- cpu-pri-gpu-supp-freq: Maximum GPU supplemental frequency (kHz) allowed
+  when the CPU has the priority. (See nvidia,gpu-supplement).
+- gpu-pri-gpu-supp-freq: Maximum GPU supplemental frequency (kHz) allowed
+  when the GPU has the priority. (See nvidia,gpu-supplement).
+
++Optional properties:
+- nvidia,gpu-cap-as-mw: if present, this property indicates that the
+  GPU caps "cpu/gpu-pri-gpu-max-cap"are power limits in mW as opposed
+  to frequency limits in kHz.
+- nvidia,gpu_supplement: This property must to be used in tandem with
+  nvidia,gpu-cap-as-mw. If present, this property indicates that there
+  are two additional properties in the corecap node, which contain
+  the gpu frequencies in kHz corresponding to a typical part at 70C.
+  These properties are required if the GPU caps are expressed in terms of mW
+  instead of kHz, to supplement the information available to choose
+  between GPU priority mode vs CPU Priority Mode.
+
+Example:
+	sysedp-dynamic-capping {
+		compatible = "nvidia,tegra124-sysedp-dynamic-capping";
+		clocks = <&tegra_car TEGRA124_CLK_BATTERY_EMC>;
+		clock-names = "cap-battery-emc";
+		nvidia,core-gain = <100>;
+		nvidia,init-req-watts = <20000>;
+		nvidia,throttle-depth = <75>;
+		nvidia,cap-method = <SYSEDP_CAP_METHOD_RELAX>;
+		corecaps {
+			corecap0: corecap@0 {
+				ap-power = <5000>; //power in mW
+				cpu-pri-cpu-max-power = <3000>;  //power in mW
+				cpu-pri-gpu-max-cap = <180000>;  //freq in kHz
+				cpu-pri-emc-max-freq = <933000>; //freq in kHz
+				gpu-pri-cpu-max-power = <3000>;  //power in mW
+				gpu-pri-gpu-max-cap = <180000>;  //freq in kHz
+				gpu-pri-emc-max-freq = <933000>; //freq in kHz
+				throttle-power = <2604>;
+			};
+		};
+	};
+
+Example 2:
+	sysedp-dynamic-capping {
+		compatible = "nvidia,tegra124-sysedp-dynamic-capping";
+		clocks = <&tegra_car TEGRA124_CLK_BATTERY_EMC>;
+		clock-names = "cap-battery-emc";
+		nvidia,core-gain = <100>;
+		nvidia,init-req-watts = <20000>;
+		nvidia,throttle-depth = <75>;
+		nvidia,cap-method = <SYSEDP_CAP_METHOD_RELAX>;
+		nvidia,gpu-cap-as-mw;
+		nvidia,gpu-supplement;
+		corecaps {
+			corecap0: corecap@0 {
+				ap-power = <5000>; //power in mW
+				cpu-pri-cpu-max-power = <3000>;  //power in mW
+				cpu-pri-gpu-max-cap = <1200>;    //power in mW
+				cpu-pri-emc-max-freq = <933000>; //freq in kHz
+				gpu-pri-cpu-max-power = <3000>;  //power in mW
+				gpu-pri-gpu-max-cap = <1200>;    // power in mW
+				gpu-pri-emc-max-freq = <933000>; //freq in kHz
+				throttle-power = <2604>; //power in mW
+				cpu-pri-gpu-supp-freq = <77>; //freq in kHz
+				gpu-pri-gpu-supp-freq = <77>; //freq in kHz
+			};
+		};
+	};

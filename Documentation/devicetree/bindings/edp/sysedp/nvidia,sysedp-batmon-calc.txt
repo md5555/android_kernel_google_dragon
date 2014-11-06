@@ -1,0 +1,87 @@
+System-EDP Battery Monitor
+
+Periodically monitors the state of battery and computes
+the maximum power that the system can draw from the battery
+without violating system EDP constraints. It computes the available
+power budget based on several platform-specific inputs and a few
+runtime variables.
+
+Required properties:
+- compatible : "nvidia,tegra124-sysedp-batmon-calc"
+- power-supply : The phandle of system power supply device.
+- update-interval: The defines the period (in ms) for system to compute
+  battery power and to update the available power budget.
+- vsys-min: The minimum voltage (in uV) needed for PMIC.
+- imax-mode: If exist, the driver will read Imax from battery to compute
+  maximum power. If missing, the following properties are required.
+    - ocv-curve: The property contains several sets of combinations of
+      capacity battery remained and battery open-circuit-voltage (in uV).
+      Take <60 7641110> for exmaple, it means the battery
+      open-circuit-voltage is 7641.11mV when battery remained capacity is
+      60%. Entries must be in descending order wrt capacity and last entry
+      must be <0 ...>.
+    - maxcurrent-curve: This defines the maximum allowed current (in mA) from
+      the battery under specific temperature. The property contains several
+      sets of combinations of temperature and current with the format of
+      <decC mA>. C is the temperature in decicelcius. mA is the maximum current
+      battery can supply under this temperature.
+      Take <600 6150> for example, this means that battery can supply 6150mA
+      when temperature is 60 degree Celsius.
+      Entries must be in descending order wrt temperature and
+      last entry must be <... 0>.
+    - impedance-curve: An array of battery impedance (in uOhm) under different
+      temperatures and capacity.
+    - temp-axis: An array of different temperatures (in decicelsius).
+    - capacity-axis: An array of capacity battery remains.
+    - r-const: This value describes the system impedance (in uOhm).
+
+Example:
+	i2c@7000c400 {
+		ec: cros-ec@1e {
+			i2c_21: i2c-tunnel {
+				battery: bq27742@55 {
+					compatible = "ti,bq27742";
+					reg = <0x55>;
+					battery-name = "battery";
+				};
+			};
+		};
+	};
+
+	sysedp-batmon-calc {
+		compatible = "nvidia,tegra124-sysedp-batmon-calc";
+		power-supply = <&battery>;
+		update-interval = <30000>;
+		vsys-min = <2900000>;
+		imax-mode;
+	};
+
+	sysedp-batmon-calc {
+		compatible = "nvidia,tegra124-sysedp-batmon-calc";
+		power-supply = <&battery>;
+		update-interval = <30000>;
+		vsys-min = <2900000>;
+		ocv-curve = <
+			100 8372010
+			60 7641110
+			0 5999850
+		>;
+		maxcurrent-curve = <
+			600 6150
+			400 6150
+			0 6150
+			-300 0
+		>;
+		impedance-curve = <
+			/* 60C	45C	30C	22C	15C	50C	0C	-10C */
+			67033	67033	65082	65563	74248	101262	142941	142941	/* 100% */
+			67004	67004	65118	64381	73787	100638	142065	142065	/* 80% */
+			67103	67103	65371	64000	70778	90388	114825	114825	/* 60% */
+			67408	67408	65894	64533	70229	87182	104433	104433	/* 40% */
+			68272	68272	67117	65945	71666	89842	108942	108942	/* 20% */
+			72328	72328	71869	71538	81803	95724	118174	118174	/* 0% */
+		>;
+		temp-axis = <600 450 300 220 150 50 0 (-100)>;
+		capacity-axis = <100 80 60 40 20 0>;
+		r-const = <60000>;
+	};

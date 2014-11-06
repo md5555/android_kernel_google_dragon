@@ -1,0 +1,34 @@
+System-EDP Reactive Capping:
+
+It periodically monitors how often SOC_THERM is throttling,
+if too often, it can request more power for itself.
+
+Required properties:
+- compatible: "nvidia,tegra124-sysedp-reactive-capping"
+- nvidia,max-capping-mw: This defines the maximum allowed power for this consumer
+  in milliwatts.
+- nvidia,step-alarm-mw: When the interrupt is triggered, increase the consumer's
+  power by this amount in milliwatts.
+- nvidia,step-relax-mw: After relax_ms time since the last interrupt has fired,
+  reduce this consumer's required power by this amount in milliwatts.
+- nvidia,relax_ms: This defines the delay in milliseconds after an interrupt
+  triggers before relaxing this consumer's power requirements.
+- interrupt-parent: This points to the parent device that will own the
+  translation of the interrupt lines.
+- interrupts: This provides the mapping to the parent which will translate
+  the interrupt into the virtual irq value and flags used by
+  request_threaded_irq(). Only 1 interrupt (2 values) should be defined.
+- sysedpc,name: This is the name of the sysedp consumer defined
+
+Example:
+	sysedp_reactive_capping@1 {
+		compatible = "nvidia,tegra124-sysedp-reactive-capping";
+		nvidia,max-capping-mw = <15000>;
+		nvidia,step-alarm-mw = <1000>;
+		nvidia,step-relax-mw = <500>;
+		nvidia,relax-ms = <250>;
+		interrupt-parent = <&soctherm>;
+		interrupts = <1 0x2002>;
+
+		sysedpc,name = "voltmon_oc1";
+	};
