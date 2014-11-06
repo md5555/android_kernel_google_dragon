@@ -102,6 +102,10 @@ struct sdhci_host {
 #define SDHCI_QUIRK2_STOP_WITH_TC			(1<<8)
 /* Controller does not support 64-bit DMA */
 #define SDHCI_QUIRK2_BROKEN_64_BIT_DMA			(1<<9)
+/* Capability register bit-63 indicates HS400 support */
+#define SDHCI_QUIRK2_CAPS_BIT63_FOR_HS400		(1<<11)
+
+/* CHROMIUM */
 /* Baytrail eMMC slot needs to restrict Cx states during DMA transfer */
 #define SDHCI_QUIRK2_BAYTRAIL_EMMC			(1<<10)
 /* Tegra errata: Turn card clock off while sending tuning command */
