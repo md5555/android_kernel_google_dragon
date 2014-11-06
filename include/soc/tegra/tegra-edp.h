@@ -18,7 +18,40 @@
 #ifndef __TEGRA_EDP_H
 #define __TEGRA_EDP_H
 
+#include <linux/kernel.h>
+#include <linux/errno.h>
 #include <linux/thermal.h>
+
+struct tegra_system_edp_entry {
+	char speedo_id;
+	char power_limit_100mW;
+	unsigned int freq_limits[4];
+};
+
+struct tegra_sysedp_devcap {
+	unsigned int cpu_power;
+	unsigned int gpu_cap; /* be freq or power */
+	unsigned int emcfreq;
+	unsigned int gpu_supp_freq;
+};
+
+struct tegra_sysedp_corecap {
+	unsigned int power;
+	struct tegra_sysedp_devcap cpupri;
+	struct tegra_sysedp_devcap gpupri;
+	unsigned int pthrot;
+};
+
+struct tegra_sysedp_platform_data {
+	struct tegra_sysedp_corecap *corecap;
+	unsigned int corecap_size;
+	unsigned int core_gain;
+	unsigned int init_req_watts;
+	unsigned int pthrot_ratio;
+	unsigned int cap_method;
+	bool gpu_cap_as_mw;
+	bool gpu_supplement;
+};
 
 #ifdef CONFIG_TEGRA_CPU_EDP
 extern int tegra_cpu_edp_get_thermal_index(struct platform_device *pdev);

@@ -1,4 +1,5 @@
 obj-$(CONFIG_ARCH_TEGRA) += fuse/
+obj-$(CONFIG_TEGRA_SYS_EDP) += sysedp/
 
 obj-$(CONFIG_ARCH_TEGRA) += common.o
 obj-$(CONFIG_ARCH_TEGRA) += flowctrl.o
