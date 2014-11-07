@@ -13297,6 +13297,8 @@ void intel_modeset_gem_init(struct drm_device *dev)
 		}
 	}
 	mutex_unlock(&dev->struct_mutex);
+
+	intel_backlight_register(dev);
 }
 
 void intel_connector_unregister(struct intel_connector *intel_connector)
@@ -13311,6 +13313,8 @@ void intel_modeset_cleanup(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct drm_connector *connector;
+
+	intel_backlight_unregister(dev);
 
 	/*
 	 * Interrupts and polling as the first thing to avoid creating havoc.
