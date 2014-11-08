@@ -71,6 +71,10 @@ static irqreturn_t max77620_thermal_irq(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
+static const struct thermal_zone_of_device_ops max77620_of_thermal_ops = {
+	.get_temp = max77620_thermal_read_temp,
+};
+
 static int max77620_thermal_probe(struct platform_device *pdev)
 {
 	struct max77620_chip *max77620 = dev_get_drvdata(pdev->dev.parent);
@@ -108,8 +112,7 @@ static int max77620_thermal_probe(struct platform_device *pdev)
 	ptherm_zone->hd_threshold_temp = hd_threshold_temp;
 
 	ptherm_zone->tz_device = thermal_zone_of_sensor_register(&pdev->dev, 0,
-					ptherm_zone, max77620_thermal_read_temp,
-					NULL);
+					ptherm_zone, &max77620_of_thermal_ops);
 	if (IS_ERR(ptherm_zone->tz_device)) {
 		ret = PTR_ERR(ptherm_zone->tz_device);
 		dev_err(ptherm_zone->dev,
