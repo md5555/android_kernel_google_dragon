@@ -1192,12 +1192,7 @@ static int wm9713_soc_probe(struct snd_soc_codec *codec)
 	struct wm9713_priv *wm9713;
 	int ret = 0, reg;
 
-	wm9713 = kzalloc(sizeof(struct wm9713_priv), GFP_KERNEL);
-	if (wm9713 == NULL)
-		return -ENOMEM;
-	snd_soc_codec_set_drvdata(codec, wm9713);
-
-	ret = snd_soc_new_ac97_codec(codec, soc_ac97_ops, 0);
+	ret = snd_soc_new_ac97_codec(codec);
 	if (ret < 0)
 		goto codec_err;
 

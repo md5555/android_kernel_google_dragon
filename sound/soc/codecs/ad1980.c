@@ -221,9 +221,7 @@ static int ad1980_soc_probe(struct snd_soc_codec *codec)
 	u16 vendor_id2;
 	u16 ext_status;
 
-	printk(KERN_INFO "AD1980 SoC Audio Codec\n");
-
-	ret = snd_soc_new_ac97_codec(codec, soc_ac97_ops, 0);
+	ret = snd_soc_new_ac97_codec(codec);
 	if (ret < 0) {
 		printk(KERN_ERR "ad1980: failed to register AC97 codec\n");
 		return ret;
