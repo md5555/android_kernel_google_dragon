@@ -2595,6 +2595,37 @@ static void mwifiex_unregister_dev(struct mwifiex_adapter *adapter)
 	}
 }
 
+static void mwifiex_pcie_read_regs(struct mwifiex_adapter *adapter)
+{
+	u32 value, reg;
+
+	reg = 0x00000CF0;
+	mwifiex_read_reg(adapter, reg, &value);
+	dev_err(adapter->dev, "reg:%x 32-bit value=%x\n", reg, value);
+
+	reg = 0x00000CF8;
+	mwifiex_read_reg(adapter, reg, &value);
+	dev_err(adapter->dev, "reg:%x 32-bit value=%x\n", reg, value);
+	dev_err(adapter->dev, "reg:%x 8-bit value=%x\n", reg, value & 0xff);
+	dev_err(adapter->dev, "reg:%x 8-bit value=%x\n",
+		reg + 1, (value >> 8) & 0xff);
+	dev_err(adapter->dev, "reg:%x 8-bit value=%x\n",
+		reg + 2, (value >> 16) & 0xff);
+	dev_err(adapter->dev, "reg:%x 8-bit value=%x\n",
+		reg + 3, (value >> 24) & 0xff);
+
+	reg = 0x00000CFC;
+	mwifiex_read_reg(adapter, reg, &value);
+	dev_err(adapter->dev, "reg:%x 32-bit value=%x\n", reg, value);
+	dev_err(adapter->dev, "reg:%x 8-bit value=%x\n", reg, value & 0xff);
+	dev_err(adapter->dev, "reg:%x 8-bit value=%x\n",
+		reg + 1, (value >> 8) & 0xff);
+	dev_err(adapter->dev, "reg:%x 8-bit value=%x\n",
+		reg + 2, (value >> 16) & 0xff);
+	dev_err(adapter->dev, "reg:%x 8-bit value=%x\n",
+		reg + 3, (value >> 24) & 0xff);
+}
+
 static struct mwifiex_if_ops pcie_ops = {
 	.init_if =			mwifiex_pcie_init,
 	.cleanup_if =			mwifiex_pcie_cleanup,
@@ -2616,6 +2647,7 @@ static struct mwifiex_if_ops pcie_ops = {
 	.init_fw_port =			mwifiex_pcie_init_fw_port,
 	.clean_pcie_ring =		mwifiex_clean_pcie_ring_buf,
 	.fw_dump =			mwifiex_pcie_fw_dump,
+	.read_regs =            mwifiex_pcie_read_regs,
 };
 
 /*
