@@ -1872,7 +1872,7 @@ static int intel_init_ring_buffer(struct drm_device *dev,
 	if (ret)
 		goto error;
 
-	ret = ring->init(ring);
+	ret = ring->init_hw(ring);
 	if (ret)
 		goto error;
 
@@ -2444,7 +2444,7 @@ int intel_init_render_ring_buffer(struct drm_device *dev)
 		ring->dispatch_execbuffer = i830_dispatch_execbuffer;
 	else
 		ring->dispatch_execbuffer = i915_dispatch_execbuffer;
-	ring->init = init_render_ring;
+	ring->init_hw = init_render_ring;
 	ring->cleanup = render_ring_cleanup;
 
 	/* Workaround batchbuffer to combat CS tlb bug. */
@@ -2537,7 +2537,7 @@ int intel_init_bsd_ring_buffer(struct drm_device *dev)
 		}
 		ring->dispatch_execbuffer = i965_dispatch_execbuffer;
 	}
-	ring->init = init_ring_common;
+	ring->init_hw = init_ring_common;
 
 	return intel_init_ring_buffer(dev, ring);
 }
@@ -2576,7 +2576,7 @@ int intel_init_bsd2_ring_buffer(struct drm_device *dev)
 		ring->semaphore.signal = gen8_xcs_signal;
 		GEN8_RING_SEMAPHORE_INIT;
 	}
-	ring->init = init_ring_common;
+	ring->init_hw = init_ring_common;
 
 	return intel_init_ring_buffer(dev, ring);
 }
@@ -2633,7 +2633,7 @@ int intel_init_blt_ring_buffer(struct drm_device *dev)
 			ring->semaphore.mbox.signal[VCS2] = GEN6_NOSYNC;
 		}
 	}
-	ring->init = init_ring_common;
+	ring->init_hw = init_ring_common;
 
 	return intel_init_ring_buffer(dev, ring);
 }
@@ -2684,7 +2684,7 @@ int intel_init_vebox_ring_buffer(struct drm_device *dev)
 			ring->semaphore.mbox.signal[VCS2] = GEN6_NOSYNC;
 		}
 	}
-	ring->init = init_ring_common;
+	ring->init_hw = init_ring_common;
 
 	return intel_init_ring_buffer(dev, ring);
 }
