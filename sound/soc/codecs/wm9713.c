@@ -1210,8 +1210,6 @@ static int wm9713_soc_probe(struct snd_soc_codec *codec)
 		goto reset_err;
 	}
 
-	wm9713_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
-
 	/* unmute the adc - move to kcontrol */
 	reg = ac97_read(codec, AC97_CD) & 0x7fff;
 	ac97_write(codec, AC97_CD, reg);
