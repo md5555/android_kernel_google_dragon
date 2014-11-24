@@ -1168,7 +1168,7 @@ i915_gem_check_olr(struct drm_i915_gem_request *req)
 
 	ret = 0;
 	if (req == req->ring->outstanding_lazy_request)
-		ret = i915_add_request(req->ring, NULL);
+		ret = i915_add_request(req->ring);
 
 	return ret;
 }
@@ -2411,8 +2411,7 @@ i915_gem_get_seqno(struct drm_device *dev, u32 *seqno)
 
 int __i915_add_request(struct intel_engine_cs *ring,
 		       struct drm_file *file,
-		       struct drm_i915_gem_object *obj,
-		       u32 *out_seqno)
+		       struct drm_i915_gem_object *obj)
 {
 	struct drm_i915_private *dev_priv = ring->dev->dev_private;
 	struct drm_i915_gem_request *request;
@@ -2511,8 +2510,6 @@ int __i915_add_request(struct intel_engine_cs *ring,
 			   round_jiffies_up_relative(HZ));
 	intel_mark_busy(dev_priv->dev);
 
-	if (out_seqno)
-		*out_seqno = request->seqno;
 	return 0;
 }
 
