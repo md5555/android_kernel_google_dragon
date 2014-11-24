@@ -9634,7 +9634,8 @@ static int intel_queue_mmio_flip(struct drm_device *dev,
 {
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 
-	intel_crtc->mmio_flip.seqno = obj->last_write_seqno;
+	intel_crtc->mmio_flip.seqno =
+			     i915_gem_request_get_seqno(obj->last_write_req);
 	intel_crtc->mmio_flip.ring = obj->ring;
 
 	schedule_work(&intel_crtc->mmio_flip.work);
@@ -9897,7 +9898,8 @@ static int intel_crtc_page_flip(struct drm_crtc *crtc,
 		if (ret)
 			goto cleanup_unpin;
 
-		work->flip_queued_seqno = obj->last_write_seqno;
+		work->flip_queued_seqno =
+			     i915_gem_request_get_seqno(obj->last_write_req);
 		work->flip_queued_ring = obj->ring;
 	} else {
 		ret = dev_priv->display.queue_flip(dev, crtc, fb, obj, ring,
