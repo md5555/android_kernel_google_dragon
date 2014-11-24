@@ -1227,8 +1227,7 @@ int __i915_wait_request(struct drm_i915_gem_request *req,
 
 	WARN(!intel_irqs_enabled(dev_priv), "IRQs disabled");
 
-	if (i915_seqno_passed(ring->get_seqno(ring, true),
-			      i915_gem_request_get_seqno(req)))
+	if (i915_gem_request_completed(req, true))
 		return 0;
 
 	timeout_expire = timeout ?
@@ -1265,8 +1264,7 @@ int __i915_wait_request(struct drm_i915_gem_request *req,
 			break;
 		}
 
-		if (i915_seqno_passed(ring->get_seqno(ring, false),
-				      i915_gem_request_get_seqno(req))) {
+		if (i915_gem_request_completed(req, false)) {
 			ret = 0;
 			break;
 		}
@@ -2332,8 +2330,7 @@ i915_gem_object_retire(struct drm_i915_gem_object *obj)
 	if (ring == NULL)
 		return;
 
-	if (i915_seqno_passed(ring->get_seqno(ring, true),
-			      i915_gem_request_get_seqno(obj->last_read_req)))
+	if (i915_gem_request_completed(obj->last_read_req, true))
 		i915_gem_object_move_to_inactive(obj);
 }
 
@@ -2600,12 +2597,9 @@ struct drm_i915_gem_request *
 i915_gem_find_active_request(struct intel_engine_cs *ring)
 {
 	struct drm_i915_gem_request *request;
-	u32 completed_seqno;
-
-	completed_seqno = ring->get_seqno(ring, false);
 
 	list_for_each_entry(request, &ring->request_list, list) {
-		if (i915_seqno_passed(completed_seqno, request->seqno))
+		if (i915_gem_request_completed(request, false))
 			continue;
 
 		return request;
@@ -2733,14 +2727,10 @@ void i915_gem_reset(struct drm_device *dev)
 void
 i915_gem_retire_requests_ring(struct intel_engine_cs *ring)
 {
-	uint32_t seqno;
-
 	if (list_empty(&ring->request_list))
 		return;
 
 	WARN_ON(i915_verify_lists(ring->dev));
-
-	seqno = ring->get_seqno(ring, true);
 
 	/* Move any buffers on the active list that are no longer referenced
 	 * by the ringbuffer to the flushing/inactive lists as appropriate,
@@ -2753,8 +2743,7 @@ i915_gem_retire_requests_ring(struct intel_engine_cs *ring)
 				      struct drm_i915_gem_object,
 				      ring_list);
 
-		if (!i915_seqno_passed(seqno,
-			     i915_gem_request_get_seqno(obj->last_read_req)))
+		if (!i915_gem_request_completed(obj->last_read_req, true))
 			break;
 
 		i915_gem_object_move_to_inactive(obj);
@@ -2769,7 +2758,7 @@ i915_gem_retire_requests_ring(struct intel_engine_cs *ring)
 					   struct drm_i915_gem_request,
 					   list);
 
-		if (!i915_seqno_passed(seqno, request->seqno))
+		if (!i915_gem_request_completed(request, true))
 			break;
 
 		trace_i915_gem_request_retire(request);
@@ -2796,7 +2785,8 @@ i915_gem_retire_requests_ring(struct intel_engine_cs *ring)
 	}
 
 	if (unlikely(ring->trace_irq_seqno &&
-		     i915_seqno_passed(seqno, ring->trace_irq_seqno))) {
+		     i915_seqno_passed(ring->get_seqno(ring, true),
+				       ring->trace_irq_seqno))) {
 		ring->irq_put(ring);
 		ring->trace_irq_seqno = 0;
 	}
