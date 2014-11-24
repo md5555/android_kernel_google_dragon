@@ -1246,8 +1246,7 @@ int __i915_wait_request(struct drm_i915_gem_request *req,
 		return -ENODEV;
 
 	/* Record current time in case interrupted by signal, or wedged */
-	trace_i915_gem_request_wait_begin(i915_gem_request_get_ring(req),
-					  i915_gem_request_get_seqno(req));
+	trace_i915_gem_request_wait_begin(req);
 	before = ktime_get_raw_ns();
 	for (;;) {
 		struct timer_list timer;
@@ -1299,8 +1298,7 @@ int __i915_wait_request(struct drm_i915_gem_request *req,
 		}
 	}
 	now = ktime_get_raw_ns();
-	trace_i915_gem_request_wait_end(i915_gem_request_get_ring(req),
-					i915_gem_request_get_seqno(req));
+	trace_i915_gem_request_wait_end(req);
 
 	if (!irq_test_in_progress)
 		ring->irq_put(ring);
@@ -2499,7 +2497,7 @@ int __i915_add_request(struct intel_engine_cs *ring,
 		spin_unlock(&file_priv->mm.lock);
 	}
 
-	trace_i915_gem_request_add(ring, request->seqno);
+	trace_i915_gem_request_add(request);
 	ring->outstanding_lazy_request = NULL;
 
 	i915_queue_hangcheck(ring->dev);
@@ -2775,7 +2773,7 @@ i915_gem_retire_requests_ring(struct intel_engine_cs *ring)
 		if (!i915_seqno_passed(seqno, request->seqno))
 			break;
 
-		trace_i915_gem_request_retire(ring, request->seqno);
+		trace_i915_gem_request_retire(request);
 
 		/* This is one of the few common intersection points
 		 * between legacy ringbuffer submission and execlists:
@@ -3005,7 +3003,7 @@ i915_gem_object_sync(struct drm_i915_gem_object *obj,
 	if (ret)
 		return ret;
 
-	trace_i915_gem_ring_sync_to(from, to, seqno);
+	trace_i915_gem_ring_sync_to(from, to, obj->last_read_req);
 	ret = to->semaphore.sync_to(to, from, seqno);
 	if (!ret)
 		/* We use last_read_req because sync_to()
