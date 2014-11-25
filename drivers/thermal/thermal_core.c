@@ -856,6 +856,7 @@ policy_store(struct device *dev, struct device_attribute *attr,
 	snprintf(name, sizeof(name), "%s", buf);
 
 	mutex_lock(&thermal_governor_lock);
+	mutex_lock(&tz->lock);
 
 	gov = __find_governor(strim(name));
 	if (!gov)
@@ -866,6 +867,7 @@ policy_store(struct device *dev, struct device_attribute *attr,
 		ret = count;
 
 exit:
+	mutex_unlock(&tz->lock);
 	mutex_unlock(&thermal_governor_lock);
 	return ret;
 }
