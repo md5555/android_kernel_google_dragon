@@ -780,6 +780,7 @@ struct nand_chip {
  *               @ecc_step_ds in nand_chip{}, also from the datasheet.
  *               For example, the "4bit ECC for each 512Byte" can be set with
  *               NAND_ECC_INFO(4, 512).
+ * @ecc.layout: If the device has on-die ECC, it can provide its own ECC layout.
  * @onfi_timing_mode_default: the default ONFI timing mode entered after a NAND
  *			      reset. Should be deduced from timings described
  *			      in the datasheet.
@@ -803,6 +804,7 @@ struct nand_flash_dev {
 	struct {
 		uint16_t strength_ds;
 		uint16_t step_ds;
+		struct nand_ecclayout *layout;
 	} ecc;
 	int onfi_timing_mode_default;
 };
