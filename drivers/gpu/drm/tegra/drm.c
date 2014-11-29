@@ -341,19 +341,20 @@ int tegra_drm_submit(struct tegra_drm_context *context,
 		(void __user *)(uintptr_t)args->relocs;
 	struct drm_tegra_waitchk __user *waitchks =
 		(void __user *)(uintptr_t)args->waitchks;
-	struct drm_tegra_syncpt syncpt;
+	struct drm_tegra_syncpt __user *syncpts =
+		(void __user *)(uintptr_t)args->syncpts;
+	u32 __user *fences = (void __user *)(uintptr_t)args->fences;
 	struct host1x_job *job;
+	unsigned int i;
 	int err;
 
-	/* We don't yet support other than one syncpt_incr struct per submit */
-	if (args->num_syncpts != 1)
-		return -EINVAL;
-
 	job = host1x_job_alloc(context->channel, args->num_cmdbufs,
-			       args->num_relocs, args->num_waitchks, 1);
+			       args->num_relocs, args->num_waitchks,
+			       args->num_syncpts);
 	if (!job)
 		return -ENOMEM;
 
+	job->num_syncpts = args->num_syncpts;
 	job->num_relocs = args->num_relocs;
 	job->num_waitchk = args->num_waitchks;
 	job->client = (u32)args->context;
@@ -395,16 +396,20 @@ int tegra_drm_submit(struct tegra_drm_context *context,
 		goto fail;
 	}
 
-	if (copy_from_user(&syncpt, (void __user *)(uintptr_t)args->syncpts,
-			   sizeof(syncpt))) {
-		err = -EFAULT;
-		goto fail;
+	for (i = 0; i < args->num_syncpts; i++) {
+		struct drm_tegra_syncpt syncpt;
+
+		if (copy_from_user(&syncpt, &syncpts[i],
+				   sizeof(syncpt))) {
+			err = -EFAULT;
+			goto fail;
+		}
+
+		job->syncpts[i].incrs = syncpt.incrs;
+		job->syncpts[i].id = syncpt.id;
 	}
 
 	job->is_addr_reg = context->client->ops->is_addr_reg;
-	job->num_syncpts = 1;
-	job->syncpts[0].incrs = syncpt.incrs;
-	job->syncpts[0].id = syncpt.id;
 	job->timeout = 10000;
 
 	if (args->timeout && args->timeout < 10000)
@@ -419,6 +424,18 @@ int tegra_drm_submit(struct tegra_drm_context *context,
 		goto fail_submit;
 
 	args->fence = job->syncpts[0].end;
+
+	/* Deliver multiple fences back to the userspace */
+	if (fences) {
+		for (i = 0; i < args->num_syncpts; ++i) {
+			u32 fence = job->syncpts[i].end;
+
+			err = copy_to_user(fences, &fence, sizeof(u32));
+			if (err)
+				break;
+			fences++;
+		}
+	}
 
 	host1x_job_put(job);
 	return 0;
