@@ -338,7 +338,7 @@ int tegra_drm_submit(struct tegra_drm_context *context,
 		return -EINVAL;
 
 	job = host1x_job_alloc(context->channel, args->num_cmdbufs,
-			       args->num_relocs, args->num_waitchks);
+			       args->num_relocs, args->num_waitchks, 1);
 	if (!job)
 		return -ENOMEM;
 
@@ -390,8 +390,9 @@ int tegra_drm_submit(struct tegra_drm_context *context,
 	}
 
 	job->is_addr_reg = context->client->ops->is_addr_reg;
-	job->syncpt_incrs = syncpt.incrs;
-	job->syncpt_id = syncpt.id;
+	job->num_syncpts = 1;
+	job->syncpts[0].incrs = syncpt.incrs;
+	job->syncpts[0].id = syncpt.id;
 	job->timeout = 10000;
 
 	if (args->timeout && args->timeout < 10000)
@@ -405,7 +406,7 @@ int tegra_drm_submit(struct tegra_drm_context *context,
 	if (err)
 		goto fail_submit;
 
-	args->fence = job->syncpt_end;
+	args->fence = job->syncpts[0].end;
 
 	host1x_job_put(job);
 	return 0;

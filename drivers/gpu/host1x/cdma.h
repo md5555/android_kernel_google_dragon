@@ -52,8 +52,8 @@ struct push_buffer {
 struct buffer_timeout {
 	struct delayed_work wq;		/* work queue */
 	bool initialized;		/* timer one-time setup flag */
-	struct host1x_syncpt *syncpt;	/* buffer completion syncpt */
-	u32 syncpt_val;			/* syncpt value when completed */
+	unsigned int num_syncpts;	/* number of syncpoints used */
+	struct host1x_job_syncpt *syncpts; /* buffer completion syncpt */
 	ktime_t start_ktime;		/* starting time */
 	/* context timeout information */
 	int client;

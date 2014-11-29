@@ -176,6 +176,12 @@ struct host1x_reloc {
 	unsigned long shift;
 };
 
+struct host1x_job_syncpt {
+	u32 id;
+	u32 incrs;
+	u32 end;
+};
+
 struct host1x_job {
 	/* When refcount goes to zero, job can be freed */
 	struct kref ref;
@@ -207,10 +213,10 @@ struct host1x_job {
 	dma_addr_t *gather_addr_phys;
 	dma_addr_t *reloc_addr_phys;
 
-	/* Sync point id, number of increments and end related to the submit */
-	u32 syncpt_id;
-	u32 syncpt_incrs;
-	u32 syncpt_end;
+	/* Sync point ids, numbers of increments and ends related to the
+	 * submit */
+	unsigned int num_syncpts;
+	struct host1x_job_syncpt *syncpts;
 
 	/* Maximum time to wait for this job */
 	unsigned int timeout;
@@ -236,7 +242,7 @@ struct host1x_job {
 
 struct host1x_job *host1x_job_alloc(struct host1x_channel *ch,
 				    u32 num_cmdbufs, u32 num_relocs,
-				    u32 num_waitchks);
+				    u32 num_waitchks, u32 num_syncpts);
 void host1x_job_add_gather(struct host1x_job *job, struct host1x_bo *mem_id,
 			   u32 words, u32 offset);
 struct host1x_job *host1x_job_get(struct host1x_job *job);
