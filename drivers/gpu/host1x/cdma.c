@@ -303,6 +303,10 @@ void host1x_cdma_update_sync_queue(struct host1x_cdma *cdma,
 	}
 out:
 
+	/* First, reset the engine */
+	if (job->reset)
+		job->reset(dev);
+
 	/*
 	 * Walk the sync_queue, first incrementing with the CPU syncpts that
 	 * are partially executed (the first buffer) or fully skipped while

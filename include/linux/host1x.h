@@ -233,6 +233,9 @@ struct host1x_job {
 	/* Check if register is marked as an address reg */
 	int (*is_addr_reg)(struct device *dev, u32 reg, u32 class);
 
+	/* Function to reset the engine in case timeout occurs */
+	void (*reset)(struct device *dev);
+
 	/* Request a SETCLASS to this class */
 	u32 class;
 
