@@ -410,6 +410,7 @@ int tegra_drm_submit(struct tegra_drm_context *context,
 	}
 
 	job->is_addr_reg = context->client->ops->is_addr_reg;
+	job->reset = context->client->ops->reset;
 	job->timeout = 10000;
 
 	if (args->timeout && args->timeout < 10000)
