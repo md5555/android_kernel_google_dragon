@@ -11747,6 +11747,31 @@ intel_prepare_plane_fb(struct drm_plane *plane,
 	return ret;
 }
 
+/**
+ * intel_cleanup_plane_fb - Cleans up an fb after plane use
+ * @plane: drm plane to clean up for
+ * @fb: old framebuffer that was on plane
+ *
+ * Cleans up a framebuffer that has just been removed from a plane.
+ */
+void
+intel_cleanup_plane_fb(struct drm_plane *plane,
+		       struct drm_framebuffer *fb)
+{
+	struct drm_device *dev = plane->dev;
+	struct drm_i915_gem_object *obj = intel_fb_obj(fb);
+
+	if (WARN_ON(!obj))
+		return;
+
+	if (plane->type != DRM_PLANE_TYPE_CURSOR ||
+	    !INTEL_INFO(dev)->cursor_needs_physical) {
+		mutex_lock(&dev->struct_mutex);
+		intel_unpin_fb_obj(obj);
+		mutex_unlock(&dev->struct_mutex);
+	}
+}
+
 static int
 intel_check_primary_plane(struct drm_plane *plane,
 			  struct intel_plane_state *state)
@@ -11774,9 +11799,7 @@ intel_commit_primary_plane(struct drm_plane *plane,
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	enum pipe pipe = intel_crtc->pipe;
-	struct drm_framebuffer *old_fb = plane->fb;
 	struct drm_i915_gem_object *obj = intel_fb_obj(fb);
-	struct drm_i915_gem_object *old_obj = intel_fb_obj(plane->fb);
 	struct intel_plane *intel_plane = to_intel_plane(plane);
 	struct drm_rect *src = &state->src;
 
@@ -11847,15 +11870,6 @@ intel_commit_primary_plane(struct drm_plane *plane,
 		intel_update_fbc(dev);
 		mutex_unlock(&dev->struct_mutex);
 	}
-
-	if (old_fb && old_fb != fb) {
-		if (intel_crtc->active)
-			intel_wait_for_vblank(dev, intel_crtc->pipe);
-
-		mutex_lock(&dev->struct_mutex);
-		intel_unpin_fb_obj(old_obj);
-		mutex_unlock(&dev->struct_mutex);
-	}
 }
 
 static int
@@ -11865,6 +11879,7 @@ intel_primary_plane_setplane(struct drm_plane *plane, struct drm_crtc *crtc,
 			     uint32_t src_x, uint32_t src_y,
 			     uint32_t src_w, uint32_t src_h)
 {
+	struct drm_device *dev = plane->dev;
 	struct drm_framebuffer *old_fb = plane->fb;
 	struct intel_plane_state state;
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
@@ -11911,6 +11926,12 @@ intel_primary_plane_setplane(struct drm_plane *plane, struct drm_crtc *crtc,
 	}
 
 	intel_commit_primary_plane(plane, &state);
+
+	if (fb != old_fb && old_fb) {
+		if (intel_crtc->active)
+			intel_wait_for_vblank(dev, intel_crtc->pipe);
+		intel_cleanup_plane_fb(plane, old_fb);
+	}
 
 	return 0;
 }
@@ -12094,14 +12115,6 @@ intel_commit_cursor_plane(struct drm_plane *plane,
 	else
 		addr = obj->phys_handle->busaddr;
 
-	if (intel_crtc->cursor_bo) {
-		if (!INTEL_INFO(dev)->cursor_needs_physical) {
-			mutex_lock(&dev->struct_mutex);
-			intel_unpin_fb_obj(intel_crtc->cursor_bo);
-			mutex_unlock(&dev->struct_mutex);
-		}
-	}
-
 	intel_crtc->cursor_addr = addr;
 	intel_crtc->cursor_bo = obj;
 update:
@@ -12126,6 +12139,7 @@ intel_cursor_plane_update(struct drm_plane *plane, struct drm_crtc *crtc,
 			  uint32_t src_x, uint32_t src_y,
 			  uint32_t src_w, uint32_t src_h)
 {
+	struct drm_device *dev = plane->dev;
 	struct drm_framebuffer *old_fb = plane->fb;
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	struct intel_plane_state state;
@@ -12165,6 +12179,12 @@ intel_cursor_plane_update(struct drm_plane *plane, struct drm_crtc *crtc,
 	}
 
 	intel_commit_cursor_plane(plane, &state);
+
+	if (fb != old_fb && old_fb) {
+		if (intel_crtc->active)
+			intel_wait_for_vblank(dev, intel_crtc->pipe);
+		intel_cleanup_plane_fb(plane, old_fb);
+	}
 
 	return 0;
 }
