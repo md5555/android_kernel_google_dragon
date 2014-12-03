@@ -114,6 +114,7 @@ struct drm_crtc_helper_funcs {
  * @detect: connection status detection
  * @disable: disable encoder when not in use (overrides DPMS off)
  * @enable: enable encoder
+ * @atomic_check: check for validity of an atomic update
  *
  * The helper operations are called by the mid-layer CRTC helper.
  *
@@ -142,7 +143,13 @@ struct drm_encoder_helper_funcs {
 	enum drm_connector_status (*detect)(struct drm_encoder *encoder,
 					    struct drm_connector *connector);
 	void (*disable)(struct drm_encoder *encoder);
+
 	void (*enable)(struct drm_encoder *encoder);
+
+	/* atomic helpers */
+	int (*atomic_check)(struct drm_encoder *encoder,
+			    struct drm_crtc_state *crtc_state,
+			    struct drm_connector_state *conn_state);
 };
 
 /**
