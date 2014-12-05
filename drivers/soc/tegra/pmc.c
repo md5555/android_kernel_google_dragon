@@ -844,21 +844,21 @@ static void tegra_of_device_add_pmc_wake(struct device *dev)
 {
 	struct of_phandle_args ph_args;
 	struct device_node *np = NULL;
-	int child_node_num;
+	int child_node_num, i = 0;
 
 	child_node_num = of_get_child_count(dev->of_node);
 	if (child_node_num == 0) {
-		if (!of_parse_phandle_with_args(dev->of_node,
-					       "nvidia,pmc-wakeup",
-					       "#nvidia,wake-cells",
-					       0, &ph_args))
+		while (!of_parse_phandle_with_args(dev->of_node,
+						   "nvidia,pmc-wakeup",
+						   "#nvidia,wake-cells",
+						   i++, &ph_args))
 			tegra_pmc_add_wakeup_event(&ph_args, dev, dev->of_node);
 	} else {
 		for_each_child_of_node(dev->of_node, np)
-			if (!of_parse_phandle_with_args(np,
-						"nvidia,pmc-wakeup",
-						"#nvidia,wake-cells",
-						0, &ph_args))
+			while (!of_parse_phandle_with_args(np,
+							   "nvidia,pmc-wakeup",
+							   "#nvidia,wake-cells",
+							   i++, &ph_args))
 				tegra_pmc_add_wakeup_event(&ph_args, dev, np);
 	}
 
