@@ -1916,9 +1916,7 @@ static int sdhci_execute_tuning(struct mmc_host *mmc, u32 opcode)
 		/* FALLTHROUGH */
 
 	default:
-		spin_unlock_irqrestore(&host->lock, flags);
-		sdhci_runtime_pm_put(host);
-		return 0;
+		goto out_unlock;
 	}
 
 	if (host->ops->platform_execute_tuning) {
@@ -2102,6 +2100,7 @@ out:
 
 	sdhci_writel(host, host->ier, SDHCI_INT_ENABLE);
 	sdhci_writel(host, host->ier, SDHCI_SIGNAL_ENABLE);
+out_unlock:
 	spin_unlock_irqrestore(&host->lock, flags);
 	sdhci_runtime_pm_put(host);
 
