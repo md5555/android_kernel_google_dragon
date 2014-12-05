@@ -21,6 +21,7 @@
 #ifdef CONFIG_PMAC_BACKLIGHT
 #include <asm/backlight.h>
 #endif
+#include <soc/tegra/sysedp.h>
 
 static struct list_head backlight_dev_list;
 static struct mutex backlight_dev_list_mutex;
@@ -100,6 +101,55 @@ static inline void backlight_unregister_fb(struct backlight_device *bd)
 {
 }
 #endif /* CONFIG_FB */
+
+#ifdef CONFIG_TEGRA_SYS_EDP
+/*
+ * Map the brightness to sysedp consumer states, and use the next state for it
+ * Return value 0..10 : 0=zero brightness, 10=max brightness
+ */
+static unsigned int backlight_calc_sysedp_state(struct backlight_device *bd)
+{
+	unsigned long br, max_br;
+	unsigned int state, num_states;
+
+	br = bd->props.brightness;
+	max_br = bd->props.max_brightness;
+	num_states = bd->sysedpc->num_states - 1;
+	/*
+	 * map the brightness to sysedp consumer states
+	 * and use the next state for it
+	 */
+	state = 1 + br * num_states / max_br;
+	state = clamp_t(unsigned int, state, 0, num_states);
+	if (bd->props.state & BL_CORE_FBBLANK)
+		state = 0;
+	return br ? state : 0;
+}
+
+void backlight_up_sysedp_state(struct backlight_device *bd)
+{
+	unsigned int new_state, prev_state;
+
+	if (bd->sysedpc) {
+		new_state = backlight_calc_sysedp_state(bd);
+		prev_state = bd->sysedpc->state;
+		if (new_state > prev_state)
+			sysedp_set_state(bd->sysedpc, new_state);
+	}
+}
+
+void backlight_down_sysedp_state(struct backlight_device *bd)
+{
+	unsigned int new_state, prev_state;
+
+	if (bd->sysedpc) {
+		new_state = backlight_calc_sysedp_state(bd);
+		prev_state = bd->sysedpc->state;
+		if (new_state < prev_state)
+			sysedp_set_state(bd->sysedpc, new_state);
+	}
+}
+#endif
 
 static void backlight_generate_event(struct backlight_device *bd,
 				     enum backlight_update_reason reason)
@@ -282,6 +332,8 @@ static int backlight_suspend(struct device *dev)
 		bd->props.state |= BL_CORE_SUSPENDED;
 		backlight_update_status(bd);
 	}
+	if (bd->sysedpc)
+		sysedp_set_state(bd->sysedpc, 0);
 	mutex_unlock(&bd->ops_lock);
 
 	return 0;
@@ -424,6 +476,8 @@ struct backlight_device *backlight_device_register(const char *name,
 	blocking_notifier_call_chain(&backlight_notifier,
 				     BACKLIGHT_REGISTERED, new_bd);
 
+	new_bd->sysedpc = sysedp_create_consumer(parent->of_node, name);
+
 	return new_bd;
 }
 EXPORT_SYMBOL(backlight_device_register);
@@ -476,6 +530,8 @@ void backlight_device_unregister(struct backlight_device *bd)
 	mutex_unlock(&bd->ops_lock);
 
 	backlight_unregister_fb(bd);
+	sysedp_free_consumer(bd->sysedpc);
+	bd->sysedpc = NULL;
 	dev_dark_resume_remove_consumer(&bd->dev);
 	device_unregister(&bd->dev);
 }

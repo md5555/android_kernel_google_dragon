@@ -13,6 +13,8 @@
 #include <linux/mutex.h>
 #include <linux/notifier.h>
 
+#include <soc/tegra/sysedp.h>
+
 /* Notes on locking:
  *
  * backlight_device->ops_lock is an internal backlight lock protecting the
@@ -117,13 +119,26 @@ struct backlight_device {
 	bool fb_bl_on[FB_MAX];
 
 	int use_count;
+
+	struct sysedp_consumer *sysedpc;
 };
+
+#ifdef CONFIG_TEGRA_SYS_EDP
+void backlight_up_sysedp_state(struct backlight_device *bd);
+void backlight_down_sysedp_state(struct backlight_device *bd);
+#else
+static inline void backlight_up_sysedp_state(struct backlight_device *bd) {}
+static inline void backlight_down_sysedp_state(struct backlight_device *bd) {}
+#endif
 
 static inline void backlight_update_status(struct backlight_device *bd)
 {
 	mutex_lock(&bd->update_lock);
-	if (bd->ops && bd->ops->update_status)
+	if (bd->ops && bd->ops->update_status) {
+		backlight_up_sysedp_state(bd);
 		bd->ops->update_status(bd);
+		backlight_down_sysedp_state(bd);
+	}
 	mutex_unlock(&bd->update_lock);
 }
 
