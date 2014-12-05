@@ -2035,6 +2035,7 @@ intel_ring_alloc_request(struct intel_engine_cs *ring)
 {
 	int ret;
 	struct drm_i915_gem_request *request;
+	struct drm_i915_private *dev_private = ring->dev->dev_private;
 
 	if (ring->outstanding_lazy_request)
 		return 0;
@@ -2045,6 +2046,7 @@ intel_ring_alloc_request(struct intel_engine_cs *ring)
 
 	kref_init(&request->ref);
 	request->ring = ring;
+	request->uniq = dev_private->request_uniq++;
 
 	ret = i915_gem_get_seqno(ring->dev, &request->seqno);
 	if (ret) {
