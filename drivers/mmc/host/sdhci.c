@@ -1888,9 +1888,13 @@ static int sdhci_execute_tuning(struct mmc_host *mmc, u32 opcode)
 	int tuning_loop_counter = MAX_TUNING_LOOP;
 	int err = 0;
 	unsigned long flags;
+	unsigned int tuning_count = 0;
 
 	sdhci_runtime_pm_get(host);
 	spin_lock_irqsave(&host->lock, flags);
+
+	if (host->tuning_mode == SDHCI_TUNING_MODE_1)
+		tuning_count = host->tuning_count;
 
 	if (host->ops->get_max_tuning_iterations)
 		tuning_loop_counter =
@@ -2069,22 +2073,11 @@ static int sdhci_execute_tuning(struct mmc_host *mmc, u32 opcode)
 	}
 
 out:
-	/*
-	 * If this is the very first time we are here, we start the retuning
-	 * timer. Since only during the first time, SDHCI_NEEDS_RETUNING
-	 * flag won't be set, we check this condition before actually starting
-	 * the timer.
-	 */
-	if (!(host->flags & SDHCI_NEEDS_RETUNING) && host->tuning_count &&
-	    (host->tuning_mode == SDHCI_TUNING_MODE_1)) {
+	host->flags &= ~SDHCI_NEEDS_RETUNING;
+
+	if (tuning_count) {
 		host->flags |= SDHCI_USING_RETUNING_TIMER;
-		mod_timer(&host->tuning_timer, jiffies +
-			host->tuning_count * HZ);
-	} else if (host->flags & SDHCI_USING_RETUNING_TIMER) {
-		host->flags &= ~SDHCI_NEEDS_RETUNING;
-		/* Reload the new initial value for timer */
-		mod_timer(&host->tuning_timer, jiffies +
-			  host->tuning_count * HZ);
+		mod_timer(&host->tuning_timer, jiffies + tuning_count * HZ);
 	}
 
 	/*
