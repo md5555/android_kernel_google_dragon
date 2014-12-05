@@ -135,7 +135,7 @@ static int pch_hc_probe_slot(struct sdhci_pci_slot *slot)
 	return 0;
 }
 
-#ifdef CONFIG_PM_RUNTIME
+#ifdef CONFIG_PM
 
 static irqreturn_t sdhci_pci_sd_cd(int irq, void *dev_id)
 {
@@ -1358,15 +1358,6 @@ static int sdhci_pci_resume(struct device *dev)
 	return 0;
 }
 
-#else /* CONFIG_PM */
-
-#define sdhci_pci_suspend NULL
-#define sdhci_pci_resume NULL
-
-#endif /* CONFIG_PM */
-
-#ifdef CONFIG_PM_RUNTIME
-
 static int sdhci_pci_runtime_suspend(struct device *dev)
 {
 	struct pci_dev *pdev = container_of(dev, struct pci_dev, dev);
@@ -1438,7 +1429,12 @@ static int sdhci_pci_runtime_idle(struct device *dev)
 	return 0;
 }
 
-#endif
+#else /* CONFIG_PM */
+
+#define sdhci_pci_suspend NULL
+#define sdhci_pci_resume NULL
+
+#endif /* CONFIG_PM */
 
 static const struct dev_pm_ops sdhci_pci_pm_ops = {
 	.suspend = sdhci_pci_suspend,
