@@ -4201,7 +4201,7 @@ static void intel_crtc_enable_planes(struct drm_crtc *crtc)
 	hsw_enable_ips(intel_crtc);
 
 	mutex_lock(&dev->struct_mutex);
-	intel_update_fbc(dev);
+	intel_fbc_update(dev);
 	mutex_unlock(&dev->struct_mutex);
 
 	/*
@@ -4223,7 +4223,7 @@ static void intel_crtc_disable_planes(struct drm_crtc *crtc)
 	intel_crtc_wait_for_pending_flips(crtc);
 
 	if (dev_priv->fbc.plane == plane)
-		intel_disable_fbc(dev);
+		intel_fbc_disable(dev);
 
 	hsw_disable_ips(intel_crtc);
 
@@ -4526,7 +4526,7 @@ static void ironlake_crtc_disable(struct drm_crtc *crtc)
 	intel_update_watermarks(crtc);
 
 	mutex_lock(&dev->struct_mutex);
-	intel_update_fbc(dev);
+	intel_fbc_update(dev);
 	mutex_unlock(&dev->struct_mutex);
 }
 
@@ -4581,7 +4581,7 @@ static void haswell_crtc_disable(struct drm_crtc *crtc)
 	intel_update_watermarks(crtc);
 
 	mutex_lock(&dev->struct_mutex);
-	intel_update_fbc(dev);
+	intel_fbc_update(dev);
 	mutex_unlock(&dev->struct_mutex);
 
 	if (intel_crtc_to_shared_dpll(intel_crtc))
@@ -5186,7 +5186,7 @@ static void i9xx_crtc_disable(struct drm_crtc *crtc)
 	intel_update_watermarks(crtc);
 
 	mutex_lock(&dev->struct_mutex);
-	intel_update_fbc(dev);
+	intel_fbc_update(dev);
 	mutex_unlock(&dev->struct_mutex);
 }
 
@@ -8947,7 +8947,7 @@ static void intel_unpin_work_fn(struct work_struct *__work)
 	drm_gem_object_unreference(&work->pending_flip_obj->base);
 	drm_gem_object_unreference(&work->old_fb_obj->base);
 
-	intel_update_fbc(dev);
+	intel_fbc_update(dev);
 
 	if (work->flip_queued_req)
 		i915_gem_request_assign(&work->flip_queued_req, NULL);
@@ -9744,7 +9744,7 @@ static int intel_crtc_page_flip(struct drm_crtc *crtc,
 	i915_gem_track_fb(work->old_fb_obj, obj,
 			  INTEL_FRONTBUFFER_PRIMARY(pipe));
 
-	intel_disable_fbc(dev);
+	intel_fbc_disable(dev);
 	intel_frontbuffer_flip_prepare(dev, INTEL_FRONTBUFFER_PRIMARY(pipe));
 	mutex_unlock(&dev->struct_mutex);
 
@@ -11815,7 +11815,7 @@ intel_commit_primary_plane(struct drm_plane *plane,
 		    INTEL_INFO(dev)->gen <= 4 && !IS_G4X(dev) &&
 		    dev_priv->fbc.plane == intel_crtc->plane &&
 		    intel_plane->rotation != BIT(DRM_ROTATE_0)) {
-			intel_disable_fbc(dev);
+			intel_fbc_disable(dev);
 		}
 
 		if (state->visible) {
@@ -11850,7 +11850,7 @@ intel_commit_primary_plane(struct drm_plane *plane,
 		intel_frontbuffer_flip(dev, INTEL_FRONTBUFFER_PRIMARY(pipe));
 
 		mutex_lock(&dev->struct_mutex);
-		intel_update_fbc(dev);
+		intel_fbc_update(dev);
 		mutex_unlock(&dev->struct_mutex);
 	}
 }
@@ -13043,7 +13043,7 @@ void intel_modeset_init(struct drm_device *dev)
 	intel_setup_outputs(dev);
 
 	/* Just in case the BIOS is doing something questionable. */
-	intel_disable_fbc(dev);
+	intel_fbc_disable(dev);
 
 	drm_modeset_lock_all(dev);
 	intel_modeset_setup_hw_state(dev, false);
@@ -13560,7 +13560,7 @@ void intel_modeset_cleanup(struct drm_device *dev)
 
 	intel_unregister_dsm_handler();
 
-	intel_disable_fbc(dev);
+	intel_fbc_disable(dev);
 
 	ironlake_teardown_rc6(dev);
 
