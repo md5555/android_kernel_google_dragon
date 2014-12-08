@@ -4844,7 +4844,7 @@ static void cherryview_set_cdclk(struct drm_device *dev, int cdclk)
 		cmd = 0;
 		break;
 	default:
-		WARN_ON(1);
+		MISSING_CASE(cdclk);
 		return;
 	}
 
@@ -8221,7 +8221,7 @@ static void i9xx_update_cursor(struct drm_crtc *crtc, u32 base)
 				cntl |= CURSOR_MODE_256_ARGB_AX;
 				break;
 			default:
-				WARN_ON(1);
+				MISSING_CASE(intel_crtc->cursor_width);
 				return;
 		}
 		cntl |= pipe << 28; /* Connect to correct pipe */
