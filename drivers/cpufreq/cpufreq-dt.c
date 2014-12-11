@@ -258,6 +258,15 @@ static int cpufreq_init(struct cpufreq_policy *policy)
 			transition_latency += ret * 1000;
 	}
 
+	rcu_read_lock();
+	ret = dev_pm_opp_get_opp_count(cpu_dev);
+	rcu_read_unlock();
+	if (ret <= 0) {
+		pr_debug("OPP table is not ready, deferring probe\n");
+		ret = -EPROBE_DEFER;
+		goto out_free_priv;
+	}
+
 	ret = dev_pm_opp_init_cpufreq_table(cpu_dev, &freq_table);
 	if (ret) {
 		pr_err("failed to init cpufreq table: %d\n", ret);
