@@ -43,3 +43,10 @@ config TEGRA_THERM_EST
 	  off of the weighted sum of a sequence of readings from
 	  other sensors. The weights can be customized on a per-platform
 	  basis.
+
+config TEGRA_DRAM_THERMAL
+	bool "Tegra DRAM thermal monitoring driver"
+	depends on TEGRA210_EMC
+	default y
+	help
+	  Enable this option for the DRAM thermal monitoring driver.

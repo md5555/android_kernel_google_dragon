@@ -1,0 +1,13 @@
+DRAM thermal driver.
+
+Required properties:
+ - compatible : "nvidia,tegra-dram-therm".
+ - #thermal-sensor-cell : should be 0.
+ - #cooling-cells : should be 2.
+
+Example:
+	dram_therm: dram_therm {
+		compatible = "nvidia,tegra-dram-therm";
+		#thermal-sensor-cells = <0>;
+		#cooling-cells = <2>;
+	};
