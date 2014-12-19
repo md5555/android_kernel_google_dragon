@@ -7,10 +7,12 @@
  */
 
 #include <linux/clk.h>
+#include <linux/delay.h>
 #include <linux/interrupt.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/of.h>
+#include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/sort.h>
@@ -77,6 +79,99 @@ static const struct of_device_id tegra_mc_of_match[] = {
 	{ }
 };
 MODULE_DEVICE_TABLE(of, tegra_mc_of_match);
+
+const struct tegra_mc_flush *tegra_mc_flush_get(struct tegra_mc *mc,
+						unsigned int swgroup)
+{
+	const struct tegra_mc_flush *flush = NULL;
+	int i;
+
+	mutex_lock(&mc->lock);
+
+	for (i = 0; i < mc->soc->num_flushes; i++) {
+		if (mc->soc->flushes[i].swgroup == swgroup) {
+			if (mc->flush_reserved[i] == false) {
+				mc->flush_reserved[i] = true;
+				flush = &mc->soc->flushes[i];
+			}
+			break;
+		}
+	}
+
+	mutex_unlock(&mc->lock);
+
+	return flush;
+}
+EXPORT_SYMBOL(tegra_mc_flush_get);
+
+/*
+ * Must be called with mc->lock held
+ */
+static bool tegra_mc_flush_done(struct tegra_mc *mc,
+				const struct tegra_mc_flush *flush,
+				bool unstable)
+{
+	u32 val;
+	int i;
+
+	WARN_ON(!mutex_is_locked(&mc->lock));
+
+	/*
+	 * There might be a glitch seen with the status register if we program
+	 * the control register and then read the status register in a short
+	 * window (on the order of 5 cycles) due to a HW bug. So here we poll
+	 * for a stable status read.
+	 */
+	val = mc_readl(mc, flush->status);
+
+	if (unstable) {
+		for (i = 0; i < 5; i++) {
+			if (mc_readl(mc, flush->status) != val)
+				return false;
+		}
+	}
+
+	return val & BIT(flush->bit);
+}
+
+int tegra_mc_flush(struct tegra_mc *mc, const struct tegra_mc_flush *flush,
+		   bool enable)
+{
+	u32 val;
+
+	if (!mc || !flush)
+		return -EINVAL;
+
+	mutex_lock(&mc->lock);
+
+	val = mc_readl(mc, flush->ctrl);
+
+	if (enable)
+		val |= BIT(flush->bit);
+	else
+		val &= ~BIT(flush->bit);
+
+	mc_writel(mc, val, flush->ctrl);
+	mc_readl(mc, flush->ctrl);
+
+	/*
+	 * If activating the flush, poll the
+	 * status register until the flush is done.
+	 */
+	if (enable) {
+		do {
+			udelay(10);
+		} while (!tegra_mc_flush_done(mc, flush,
+					     mc->soc->flush_unstable));
+	}
+
+	mutex_unlock(&mc->lock);
+
+	dev_dbg(mc->dev, "%s bit %d\n", __func__, flush->bit);
+
+	return 0;
+}
+EXPORT_SYMBOL(tegra_mc_flush);
 
 static int tegra_mc_setup_latency_allowance(struct tegra_mc *mc)
 {
@@ -366,6 +461,12 @@ static int tegra_mc_probe(struct platform_device *pdev)
 	mc->soc = match->data;
 	mc->dev = &pdev->dev;
 
+	mc->flush_reserved = devm_kcalloc(&pdev->dev, mc->soc->num_flushes,
+					  sizeof(mc->flush_reserved),
+					  GFP_KERNEL);
+	if (!mc->flush_reserved)
+		return -ENOMEM;
+
 	/* length of MC tick in nanoseconds */
 	mc->tick = 30;
 
@@ -416,6 +517,8 @@ static int tegra_mc_probe(struct platform_device *pdev)
 			err);
 		return err;
 	}
+
+	mutex_init(&mc->lock);
 
 	value = MC_INT_DECERR_MTS | MC_INT_SECERR_SEC | MC_INT_DECERR_VPR |
 		MC_INT_INVALID_APB_ASID_UPDATE | MC_INT_INVALID_SMMU_PAGE |

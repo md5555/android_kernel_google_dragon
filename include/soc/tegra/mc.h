@@ -45,6 +45,13 @@ struct tegra_mc_client {
 	struct tegra_mc_la la;
 };
 
+struct tegra_mc_flush {
+	unsigned int swgroup;
+	unsigned int ctrl;
+	unsigned int status;
+	unsigned int bit;
+};
+
 struct tegra_smmu_swgroup {
 	const char *name;
 	unsigned int swgroup;
@@ -96,6 +103,10 @@ struct tegra_mc_soc {
 	const struct tegra_mc_client *clients;
 	unsigned int num_clients;
 
+	const bool flush_unstable;
+	const struct tegra_mc_flush *flushes;
+	unsigned int num_flushes;
+
 	const unsigned long *emem_regs;
 	unsigned int num_emem_regs;
 
@@ -117,9 +128,17 @@ struct tegra_mc {
 
 	struct tegra_mc_timing *timings;
 	unsigned int num_timings;
+
+	bool *flush_reserved;
+
+	struct mutex lock;
 };
 
 void tegra_mc_write_emem_configuration(struct tegra_mc *mc, unsigned long rate);
 unsigned int tegra_mc_get_emem_device_count(struct tegra_mc *mc);
+const struct tegra_mc_flush *tegra_mc_flush_get(struct tegra_mc *mc,
+						  unsigned int swgroup);
+int tegra_mc_flush(struct tegra_mc *mc, const struct tegra_mc_flush *s,
+	bool enable);
 
 #endif /* __SOC_TEGRA_MC_H__ */
