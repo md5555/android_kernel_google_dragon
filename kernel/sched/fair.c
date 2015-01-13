@@ -4334,6 +4334,30 @@ static long effective_load(struct task_group *tg, int cpu, long wl, long wg)
 
 #endif
 
+#ifdef CONFIG_FAIR_GROUP_SCHED
+static inline bool energy_aware(void)
+{
+	return sched_feat(ENERGY_AWARE);
+}
+#else
+static inline bool energy_aware(void)
+{
+	return false;
+}
+#endif
+
+/*
+ * Detect M:N waker/wakee relationships via a switching-frequency heuristic.
+ * A waker of many should wake a different task than the one last awakened
+ * at a frequency roughly N times higher than one of its wakees.  In order
+ * to determine whether we should let the load spread vs consolodating to
+ * shared cache, we look for a minimum 'flip' frequency of llc_size in one
+ * partner, and a factor of lls_size higher frequency in the other.  With
+ * both conditions met, we can be relatively sure that the relationship is
+ * non-monogamous, with partner count exceeding socket size.  Waker/wakee
+ * being client/server, worker/dispatcher, interrupt source or whatever is
+ * irrelevant, spread criteria is apparent partner count exceeds socket size.
+ */
 static int wake_wide(struct task_struct *p)
 {
 	int factor = this_cpu_read(sd_llc_size);
