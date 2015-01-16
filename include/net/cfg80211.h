@@ -1465,6 +1465,10 @@ struct cfg80211_match_set {
  * @channels: channels to scan
  * @min_rssi_thold: for drivers only supporting a single threshold, this
  *	contains the minimum over all matchsets
+ * @delay: delay in seconds to use before starting the first scan
+ *	cycle.  The driver may ignore this parameter and start
+ *	immediately (or at any other time), if this feature is not
+ *	supported.
  */
 struct cfg80211_sched_scan_request {
 	struct cfg80211_ssid *ssids;
@@ -1478,6 +1482,7 @@ struct cfg80211_sched_scan_request {
 	struct cfg80211_match_set *match_sets;
 	int n_match_sets;
 	s32 min_rssi_thold;
+	u32 delay;
 
 	/* internal */
 	struct wiphy *wiphy;

@@ -395,6 +395,7 @@ static const struct nla_policy nl80211_policy[NUM_NL80211_ATTR] = {
 	[NL80211_ATTR_USER_PRIO] = { .type = NLA_U8 },
 	[NL80211_ATTR_ADMITTED_TIME] = { .type = NLA_U16 },
 	[NL80211_ATTR_SMPS_MODE] = { .type = NLA_U8 },
+	[NL80211_ATTR_SCHED_SCAN_DELAY] = { .type = NLA_U32 },
 };
 
 /* policy for the key attributes */
@@ -5815,6 +5816,10 @@ nl80211_parse_sched_scan(struct wiphy *wiphy,
 			goto out_free;
 		}
 	}
+
+	if (attrs[NL80211_ATTR_SCHED_SCAN_DELAY])
+		request->delay =
+			nla_get_u32(attrs[NL80211_ATTR_SCHED_SCAN_DELAY]);
 
 	request->interval = interval;
 	request->scan_start = jiffies;
