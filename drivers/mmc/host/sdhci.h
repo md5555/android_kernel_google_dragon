@@ -538,6 +538,7 @@ struct sdhci_ops {
 					 struct mmc_card *card,
 					 unsigned int max_dtr, int host_drv,
 					 int card_drv, int *drv_type);
+	void	(*init_card)(struct sdhci_host *host, struct mmc_card *card);
 	int	(*get_max_tuning_iterations)(struct sdhci_host *sdhci);
 };
 
