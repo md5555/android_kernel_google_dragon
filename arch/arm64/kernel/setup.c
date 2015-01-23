@@ -56,6 +56,7 @@
 #include <asm/cputable.h>
 #include <asm/cpufeature.h>
 #include <asm/cpu_ops.h>
+#include <asm/kasan.h>
 #include <asm/sections.h>
 #include <asm/setup.h>
 #include <asm/smp_plat.h>
@@ -447,6 +448,9 @@ void __init setup_arch(char **cmdline_p)
 
 	paging_init();
 	relocate_initrd();
+
+	kasan_init();
+
 	request_standard_resources();
 
 	efi_virtmap_init();
