@@ -60,7 +60,7 @@ static int ec_i2c_forward_msg(struct ec_i2c_device *bus, int cmd,
 	msg.outsize = outmsg ? outmsg->len : 0;
 	msg.indata = inmsg ? inmsg->buf : NULL;
 	msg.insize = inmsg ? inmsg->len : 0;
-	return cros_ec_cmd_xfer(bus->ec, &msg);
+	return cros_ec_cmd_xfer_status(bus->ec, &msg);
 }
 
 static int ec_i2c_limited_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[],
@@ -302,7 +302,7 @@ static int ec_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg i2c_msgs[],
 	msg.indata = response;
 	msg.insize = response_len;
 
-	result = cros_ec_cmd_xfer(bus->ec, &msg);
+	result = cros_ec_cmd_xfer_status(bus->ec, &msg);
 	if (result < 0)
 		goto exit;
 
