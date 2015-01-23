@@ -17,6 +17,7 @@
 #define __LINUX_MFD_CROS_EC_H
 
 #include <linux/cdev.h>
+#include <linux/notifier.h>
 #include <linux/power_supply.h>
 #include <linux/mfd/cros_ec_commands.h>
 #include <linux/mutex.h>
@@ -108,6 +109,11 @@ struct cros_ec_command {
  *     Caller must ensure that the buffer is large enough for the result when
  *     reading a string.
  * @lock: one transaction at a time
+ * @event_notifier: interrupt event notifier for transport devices.
+ * @event_data: data associated with the last event.
+ * @event_raw_data: raw payload transfered with the MKBP event.
+ * @event event_type: type of MKBP event as defined by EC_MKBP_EVENT_ constants.
+ * @event_size: size in bytes of the event data.
  */
 struct cros_ec_device {
 
@@ -143,6 +149,13 @@ struct cros_ec_device {
 			struct cros_ec_command *msg);
 	struct power_supply *charger;
 	struct mutex lock;
+	bool mkbp_event_supported;
+	struct blocking_notifier_head event_notifier;
+
+	u8 *event_raw_data;
+	u8 *event_data;
+	u8 event_type;
+	int event_size;
 };
 
 /**
