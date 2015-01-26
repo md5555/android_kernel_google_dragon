@@ -871,6 +871,14 @@ config GPIO_PALMAS
 	  Select this option to enable GPIO driver for the TI PALMAS
 	  series chip family.
 
+config GPIO_MAX77620
+	bool "GPIO suport for PMIC MAX77620"
+	depends on MFD_MAX77620
+	help
+	  Say yes here to enable the max77620 to be used as gpio controller.
+	  MAX77620 PMIC has 8 pins that can be configured as GPIOs. The
+	  driver also provides interrupt support for each of the gpios.
+
 config GPIO_TPS6586X
 	bool "TPS6586X GPIO"
 	depends on MFD_TPS6586X
