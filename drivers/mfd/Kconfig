@@ -434,6 +434,18 @@ config MFD_MAX14577
 	  additional drivers must be enabled in order to use the functionality
 	  of the device.
 
+config MFD_MAX77620
+	bool "Maxim MAX77620"
+	depends on I2C=y
+	select MFD_CORE
+	select REGMAP_I2C
+	select REGMAP_IRQ
+	help
+	  Say yes here to add support for Maxim's Max77620. This only
+	  enables the I2C core functionality of the the device. The individual
+	  components for GPIO/ RTC/ Regulator and others need to be enabled by
+	  their corresponding menus.
+
 config MFD_MAX77686
 	bool "Maxim Semiconductor MAX77686/802 PMIC Support"
 	depends on I2C=y
