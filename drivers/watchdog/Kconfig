@@ -414,6 +414,13 @@ config MAX63XX_WATCHDOG
 	help
 	  Support for memory mapped max63{69,70,71,72,73,74} watchdog timer.
 
+config MAX77620_WATCHDOG
+	tristate "Maxim MAX77620 Watchdog Timer"
+	depends on MFD_MAX77620
+	help
+	  Support for Maxim MAX77620 watchdog timer. Say 'Y' here
+	  to enable the watchdog timer support for MAX77620 chips.
+
 config IMX2_WDT
 	tristate "IMX2+ Watchdog"
 	depends on ARCH_MXC
