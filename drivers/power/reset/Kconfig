@@ -150,5 +150,11 @@ config POWER_RESET_SYSCON
 	help
 	  Reboot support for generic SYSCON mapped register reset.
 
+config POWER_OFF_MAX77620
+	bool "MAX77620 power-off-reset driver"
+	depends on MFD_MAX77620
+	select SYSTEM_PMIC
+	help
+	  This driver supports turning off and resetting board through MAX77620
+	  PMIC.
 endif
-
