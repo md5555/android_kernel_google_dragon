@@ -152,6 +152,13 @@ config COMMON_CLK_BEGIN_ACCOUNTING_FROM_BOOT
 	 Enabling this option starts the frequency accounting right from
 	 the boot.
 
+config CLK_MAX77620
+	tristate "Clock driver for Max77620 PMIC"
+	depends on MFD_MAX77620
+	---help---
+	  Supports the clocking subsystem of the MAX77620
+	  PMIC from Maxim. Say Y here to enable support for the same.
+
 source "drivers/clk/qcom/Kconfig"
 
 endmenu
