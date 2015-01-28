@@ -1591,15 +1591,15 @@ static int mwifiex_cfg80211_inform_ibss_bss(struct mwifiex_private *priv)
 	ie_len = ie_buf[1] + sizeof(struct ieee_types_header);
 
 	band = mwifiex_band_to_radio_type(priv->curr_bss_params.band);
-	chan = __ieee80211_get_channel(priv->wdev->wiphy,
+	chan = __ieee80211_get_channel(priv->wdev.wiphy,
 			ieee80211_channel_to_frequency(bss_info.bss_chan,
 						       band));
 
-	bss = cfg80211_inform_bss(priv->wdev->wiphy, chan,
+	bss = cfg80211_inform_bss(priv->wdev.wiphy, chan,
 				  CFG80211_BSS_FTYPE_UNKNOWN,
 				  bss_info.bssid, 0, WLAN_CAPABILITY_IBSS,
 				  0, ie_buf, ie_len, 0, GFP_KERNEL);
-	cfg80211_put_bss(priv->wdev->wiphy, bss);
+	cfg80211_put_bss(priv->wdev.wiphy, bss);
 	memcpy(priv->cfg_bssid, bss_info.bssid, ETH_ALEN);
 
 	return 0;
@@ -1727,12 +1727,12 @@ done:
 
 		/* Find the BSS we want using available scan results */
 		if (mode == NL80211_IFTYPE_ADHOC)
-			bss = cfg80211_get_bss(priv->wdev->wiphy, channel,
+			bss = cfg80211_get_bss(priv->wdev.wiphy, channel,
 					       bssid, ssid, ssid_len,
 					       WLAN_CAPABILITY_IBSS,
 					       WLAN_CAPABILITY_IBSS);
 		else
-			bss = cfg80211_get_bss(priv->wdev->wiphy, channel,
+			bss = cfg80211_get_bss(priv->wdev.wiphy, channel,
 					       bssid, ssid, ssid_len,
 					       WLAN_CAPABILITY_ESS,
 					       WLAN_CAPABILITY_ESS);
@@ -1791,7 +1791,7 @@ mwifiex_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 		return -EINVAL;
 	}
 
-	if (priv->wdev && priv->wdev->current_bss) {
+	if (priv->wdev.current_bss) {
 		mwifiex_dbg(priv->adapter, MSG,
 			    "%s: already connected\n", dev->name);
 		return -EALREADY;
@@ -2193,7 +2193,6 @@ struct wireless_dev *mwifiex_add_virtual_intf(struct wiphy *wiphy,
 	struct mwifiex_private *priv;
 	struct net_device *dev;
 	void *mdev_priv;
-	struct wireless_dev *wdev;
 
 	if (!adapter)
 		return ERR_PTR(-EFAULT);
@@ -2209,13 +2208,8 @@ struct wireless_dev *mwifiex_add_virtual_intf(struct wiphy *wiphy,
 			return ERR_PTR(-EINVAL);
 		}
 
-		wdev = kzalloc(sizeof(struct wireless_dev), GFP_KERNEL);
-		if (!wdev)
-			return ERR_PTR(-ENOMEM);
-
-		wdev->wiphy = wiphy;
-		priv->wdev = wdev;
-		wdev->iftype = NL80211_IFTYPE_STATION;
+		priv->wdev.wiphy = wiphy;
+		priv->wdev.iftype = NL80211_IFTYPE_STATION;
 
 		if (type == NL80211_IFTYPE_UNSPECIFIED)
 			priv->bss_mode = NL80211_IFTYPE_STATION;
@@ -2238,13 +2232,8 @@ struct wireless_dev *mwifiex_add_virtual_intf(struct wiphy *wiphy,
 			return ERR_PTR(-EINVAL);
 		}
 
-		wdev = kzalloc(sizeof(struct wireless_dev), GFP_KERNEL);
-		if (!wdev)
-			return ERR_PTR(-ENOMEM);
-
-		priv->wdev = wdev;
-		wdev->wiphy = wiphy;
-		wdev->iftype = NL80211_IFTYPE_AP;
+		priv->wdev.wiphy = wiphy;
+		priv->wdev.iftype = NL80211_IFTYPE_AP;
 
 		priv->bss_type = MWIFIEX_BSS_TYPE_UAP;
 		priv->frame_type = MWIFIEX_DATA_FRAME_TYPE_ETH_II;
@@ -2264,17 +2253,12 @@ struct wireless_dev *mwifiex_add_virtual_intf(struct wiphy *wiphy,
 			return ERR_PTR(-EINVAL);
 		}
 
-		wdev = kzalloc(sizeof(struct wireless_dev), GFP_KERNEL);
-		if (!wdev)
-			return ERR_PTR(-ENOMEM);
-
-		priv->wdev = wdev;
-		wdev->wiphy = wiphy;
+		priv->wdev.wiphy = wiphy;
 
 		/* At start-up, wpa_supplicant tries to change the interface
 		 * to NL80211_IFTYPE_STATION if it is not managed mode.
 		 */
-		wdev->iftype = NL80211_IFTYPE_P2P_CLIENT;
+		priv->wdev.iftype = NL80211_IFTYPE_P2P_CLIENT;
 		priv->bss_mode = NL80211_IFTYPE_P2P_CLIENT;
 
 		/* Setting bss_type to P2P tells firmware that this interface
@@ -2290,8 +2274,9 @@ struct wireless_dev *mwifiex_add_virtual_intf(struct wiphy *wiphy,
 		priv->bss_num = 0;
 
 		if (mwifiex_cfg80211_init_p2p_client(priv)) {
-			wdev = ERR_PTR(-EFAULT);
-			goto done;
+			memset(&priv->wdev, 0, sizeof(priv->wdev));
+			priv->wdev.iftype = NL80211_IFTYPE_UNSPECIFIED;
+			return ERR_PTR(-EFAULT);
 		}
 
 		break;
@@ -2306,9 +2291,10 @@ struct wireless_dev *mwifiex_add_virtual_intf(struct wiphy *wiphy,
 	if (!dev) {
 		mwifiex_dbg(adapter, ERROR,
 			    "no memory available for netdevice\n");
+		memset(&priv->wdev, 0, sizeof(priv->wdev));
+		priv->wdev.iftype = NL80211_IFTYPE_UNSPECIFIED;
 		priv->bss_mode = NL80211_IFTYPE_UNSPECIFIED;
-		wdev = ERR_PTR(-ENOMEM);
-		goto done;
+		return ERR_PTR(-ENOMEM);
 	}
 
 	mwifiex_init_priv_params(priv, dev);
@@ -2328,7 +2314,7 @@ struct wireless_dev *mwifiex_add_virtual_intf(struct wiphy *wiphy,
 			&wiphy->bands[IEEE80211_BAND_5GHZ]->vht_cap, priv);
 
 	dev_net_set(dev, wiphy_net(wiphy));
-	dev->ieee80211_ptr = priv->wdev;
+	dev->ieee80211_ptr = &priv->wdev;
 	dev->ieee80211_ptr->iftype = priv->bss_mode;
 	memcpy(dev->dev_addr, wiphy->perm_addr, ETH_ALEN);
 	SET_NETDEV_DEV(dev, wiphy_dev(wiphy));
@@ -2351,8 +2337,9 @@ struct wireless_dev *mwifiex_add_virtual_intf(struct wiphy *wiphy,
 		free_netdev(dev);
 		priv->bss_mode = NL80211_IFTYPE_UNSPECIFIED;
 		priv->netdev = NULL;
-		wdev = ERR_PTR(-EFAULT);
-		goto done;
+		memset(&priv->wdev, 0, sizeof(priv->wdev));
+		priv->wdev.iftype = NL80211_IFTYPE_UNSPECIFIED;
+		return ERR_PTR(-EFAULT);
 	}
 
 	sema_init(&priv->async_sem, 1);
@@ -2365,13 +2352,7 @@ struct wireless_dev *mwifiex_add_virtual_intf(struct wiphy *wiphy,
 #endif
 	mwifiex_sysfs_register(priv);
 
-done:
-	if (IS_ERR(wdev)) {
-		kfree(priv->wdev);
-		priv->wdev = NULL;
-	}
-
-	return wdev;
+	return &priv->wdev;
 }
 EXPORT_SYMBOL_GPL(mwifiex_add_virtual_intf);
 
@@ -2398,8 +2379,7 @@ int mwifiex_del_virtual_intf(struct wiphy *wiphy, struct wireless_dev *wdev)
 	/* Clear the priv in adapter */
 	priv->netdev->ieee80211_ptr = NULL;
 	priv->netdev = NULL;
-	kfree(wdev);
-	priv->wdev = NULL;
+	priv->wdev.iftype = NL80211_IFTYPE_UNSPECIFIED;
 
 	priv->media_connected = false;
 
