@@ -185,6 +185,14 @@ config ARMADA_THERMAL
 	  Enable this option if you want to have support for thermal management
 	  controller present in Armada 370 and Armada XP SoC.
 
+config MAX77620_THERMAL
+	tristate "Maxim 77620 Thermal driver"
+	depends on MFD_MAX77620
+	help
+	  Max77620 pmic chip supports hot die interrupt configurable for two
+	  different critical temperature thresholds from which we can notify
+	  thermal core to orderly power off the system.
+
 config DB8500_CPUFREQ_COOLING
 	tristate "DB8500 cpufreq cooling"
 	depends on ARCH_U8500
