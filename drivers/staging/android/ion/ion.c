@@ -42,6 +42,13 @@
 #include "ion_priv.h"
 #include "compat_ion.h"
 
+#ifdef CONFIG_ARM64
+static inline struct dma_iommu_mapping *to_dma_iommu_mapping(struct device *d)
+{
+	return NULL;
+}
+#endif
+
 /**
  * struct ion_device - the metadata of the ion device node
  * @dev:		the actual misc device
