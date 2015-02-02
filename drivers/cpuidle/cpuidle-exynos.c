@@ -14,7 +14,6 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 
-#include <asm/proc-fns.h>
 #include <asm/suspend.h>
 #include <asm/cpuidle.h>
 

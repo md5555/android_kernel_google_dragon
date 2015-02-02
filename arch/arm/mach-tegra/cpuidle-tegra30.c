@@ -30,7 +30,6 @@
 #include <soc/tegra/sleep.h>
 
 #include <asm/cpuidle.h>
-#include <asm/proc-fns.h>
 #include <asm/smp_plat.h>
 #include <asm/suspend.h>
 
