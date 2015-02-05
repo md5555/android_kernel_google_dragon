@@ -1272,6 +1272,9 @@ static bool ignore_reg_update(struct wiphy *wiphy,
 		return true;
 	}
 
+	if (wiphy->flags & WIPHY_FLAG_SELF_MANAGED_REG)
+		return true;
+
 	if (initiator == NL80211_REGDOM_SET_BY_CORE &&
 	    wiphy->regulatory_flags & REGULATORY_CUSTOM_REG) {
 		REG_DBG_PRINT("Ignoring regulatory request set by %s "
@@ -1363,6 +1366,9 @@ static void wiphy_update_new_beacon(struct wiphy *wiphy,
 {
 	unsigned int i;
 	struct ieee80211_supported_band *sband;
+
+	if (wiphy->flags & WIPHY_FLAG_SELF_MANAGED_REG)
+		return;
 
 	if (!wiphy->bands[reg_beacon->chan.band])
 		return;
