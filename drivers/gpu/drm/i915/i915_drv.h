@@ -773,7 +773,7 @@ struct intel_context {
 };
 
 struct i915_fbc {
-	unsigned long size;
+	unsigned long uncompressed_size;
 	unsigned threshold;
 	unsigned int fb_id;
 	enum plane plane;
