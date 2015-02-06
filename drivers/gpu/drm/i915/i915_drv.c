@@ -1645,11 +1645,9 @@ static int __init i915_init(void)
 
 	if (!(driver.driver_features & DRIVER_MODESET)) {
 		driver.get_vblank_timestamp = NULL;
-#ifndef CONFIG_DRM_I915_UMS
 		/* Silently fail loading to not upset userspace. */
 		DRM_DEBUG_DRIVER("KMS and UMS disabled.\n");
 		return 0;
-#endif
 	}
 
 	/*
@@ -1665,10 +1663,8 @@ static int __init i915_init(void)
 
 static void __exit i915_exit(void)
 {
-#ifndef CONFIG_DRM_I915_UMS
 	if (!(driver.driver_features & DRIVER_MODESET))
 		return; /* Never loaded a driver. */
-#endif
 
 	drm_pci_exit(&driver, &i915_pci_driver);
 }
