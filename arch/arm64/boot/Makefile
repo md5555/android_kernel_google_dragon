@@ -19,6 +19,14 @@ targets := Image Image.gz
 $(obj)/Image: vmlinux FORCE
 	$(call if_changed,objcopy)
 
+quiet_cmd_fitimage = BUILD   $@
+cmd_fitimage = $(CONFIG_SHELL) $(srctree)/scripts/generate-its-script.sh \
+	       -a $(ARCH) $< $(DTB_OBJS) | \
+	       $(objtree)/scripts/dtc/dtc -I dts -O dtb -p 1024 > $@
+
+$(obj)/Image.fit: $(obj)/Image $(DTB_OBJS) FORCE
+	$(call if_changed,fitimage)
+
 $(obj)/Image.gz: $(obj)/Image FORCE
 	$(call if_changed,gzip)
 
