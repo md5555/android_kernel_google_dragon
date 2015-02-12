@@ -126,6 +126,11 @@ static int tegra_dc_format(u32 fourcc, u32 *format, u32 *swap)
 		*format = WIN_COLOR_DEPTH_R8G8B8A8;
 		break;
 
+	case DRM_FORMAT_RGBA8888:
+		if (swap)
+			*swap = BYTE_SWAP_SWAP4;
+		return WIN_COLOR_DEPTH_R8G8B8A8;
+
 	case DRM_FORMAT_ARGB8888:
 	case DRM_FORMAT_XRGB8888:
 		*format = WIN_COLOR_DEPTH_B8G8R8A8;
