@@ -4795,6 +4795,9 @@ i915_gem_init_hw(struct drm_device *dev)
 	if (INTEL_INFO(dev)->gen < 6 && !intel_enable_gtt())
 		return -EIO;
 
+	/* Double layer security blanket, see i915_gem_init() */
+	intel_uncore_forcewake_get(dev_priv, FORCEWAKE_ALL);
+
 	if (dev_priv->ellc_size)
 		I915_WRITE(HSW_IDICR, I915_READ(HSW_IDICR) | IDIHASHMSK(0xf));
 
@@ -4827,7 +4830,7 @@ i915_gem_init_hw(struct drm_device *dev)
 	for_each_ring(ring, dev_priv, i) {
 		ret = ring->init_hw(ring);
 		if (ret)
-			return ret;
+			goto out;
 	}
 
 	for (i = 0; i < NUM_L3_SLICES(dev); i++)
@@ -4844,9 +4847,11 @@ i915_gem_init_hw(struct drm_device *dev)
 		DRM_ERROR("Context enable failed %d\n", ret);
 		i915_gem_cleanup_ringbuffer(dev);
 
-		return ret;
+		goto out;
 	}
 
+out:
+	intel_uncore_forcewake_put(dev_priv, FORCEWAKE_ALL);
 	return ret;
 }
 
@@ -4880,6 +4885,14 @@ int i915_gem_init(struct drm_device *dev)
 		dev_priv->gt.stop_ring = intel_logical_ring_stop;
 	}
 
+	/* This is just a security blanket to placate dragons.
+	 * On some systems, we very sporadically observe that the first TLBs
+	 * used by the CS may be stale, despite us poking the TLB reset. If
+	 * we hold the forcewake during initialisation these problems
+	 * just magically go away.
+	 */
+	intel_uncore_forcewake_get(dev_priv, FORCEWAKE_ALL);
+
 	ret = i915_gem_init_userptr(dev);
 	if (ret)
 		goto out_unlock;
@@ -4906,6 +4919,7 @@ int i915_gem_init(struct drm_device *dev)
 	}
 
 out_unlock:
+	intel_uncore_forcewake_put(dev_priv, FORCEWAKE_ALL);
 	mutex_unlock(&dev->struct_mutex);
 
 	return ret;
