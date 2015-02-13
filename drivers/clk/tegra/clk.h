@@ -1,4 +1,4 @@
-	/*
+/*
  * Copyright (c) 2012, NVIDIA CORPORATION.  All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -110,6 +110,7 @@ struct clk *tegra_clk_register_mc(const char *name, const char *parent_name,
  * @m:			input divider
  * @p:			post divider
  * @cpcon:		charge pump current
+ * @sdm_data:		fraction divider setting (0 = disabled)
  */
 struct tegra_clk_pll_freq_table {
 	unsigned long	input_rate;
@@ -118,6 +119,7 @@ struct tegra_clk_pll_freq_table {
 	u16		m;
 	u8		p;
 	u8		cpcon;
+	u16		sdm_data;
 };
 
 /**
