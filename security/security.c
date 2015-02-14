@@ -861,6 +861,10 @@ int security_kernel_fw_from_file(struct file *file, char *buf, size_t size)
 {
 	int ret;
 
+	ret = chromiumos_security_load_firmware(file, buf, size);
+	if (ret)
+		return ret;
+
 	ret = security_ops->kernel_fw_from_file(file, buf, size);
 	if (ret)
 		return ret;
