@@ -1573,6 +1573,10 @@ static int snd_soc_instantiate_card(struct snd_soc_card *card)
 		snd_soc_dapm_new_controls(&card->dapm, card->dapm_widgets,
 					  card->num_dapm_widgets);
 
+	if (card->of_dapm_widgets)
+		snd_soc_dapm_new_controls(&card->dapm, card->of_dapm_widgets,
+					  card->num_of_dapm_widgets);
+
 	/* initialise the sound card only once */
 	if (card->probe) {
 		ret = card->probe(card);
@@ -1627,6 +1631,10 @@ static int snd_soc_instantiate_card(struct snd_soc_card *card)
 	if (card->dapm_routes)
 		snd_soc_dapm_add_routes(&card->dapm, card->dapm_routes,
 					card->num_dapm_routes);
+
+	if (card->of_dapm_routes)
+		snd_soc_dapm_add_routes(&card->dapm, card->of_dapm_routes,
+					card->num_of_dapm_routes);
 
 	for (i = 0; i < card->num_links; i++) {
 		if (card->dai_link[i].dai_fmt)
@@ -4151,8 +4159,8 @@ int snd_soc_of_parse_audio_simple_widgets(struct snd_soc_card *card,
 		widgets[i].name = wname;
 	}
 
-	card->dapm_widgets = widgets;
-	card->num_dapm_widgets = num_widgets;
+	card->of_dapm_widgets = widgets;
+	card->num_of_dapm_widgets = num_widgets;
 
 	return 0;
 }
@@ -4236,8 +4244,8 @@ int snd_soc_of_parse_audio_routing(struct snd_soc_card *card,
 		}
 	}
 
-	card->num_dapm_routes = num_routes;
-	card->dapm_routes = routes;
+	card->num_of_dapm_routes = num_routes;
+	card->of_dapm_routes = routes;
 
 	return 0;
 }
