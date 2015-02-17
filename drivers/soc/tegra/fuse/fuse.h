@@ -68,4 +68,10 @@ void tegra124_init_speedo_data(struct tegra_sku_info *sku_info);
 static inline void tegra124_init_speedo_data(struct tegra_sku_info *sku_info) {}
 #endif
 
+#ifdef CONFIG_ARCH_TEGRA_210_SOC
+void tegra210_init_speedo_data(struct tegra_sku_info *sku_info);
+#else
+static inline void tegra210_init_speedo_data(struct tegra_sku_info *sku_info) {}
+#endif
+
 #endif

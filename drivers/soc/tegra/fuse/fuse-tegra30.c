@@ -46,6 +46,7 @@ enum speedo_idx {
 	SPEEDO_TEGRA30 = 0,
 	SPEEDO_TEGRA114,
 	SPEEDO_TEGRA124,
+	SPEEDO_TEGRA210,
 };
 
 struct tegra_fuse_info {
@@ -94,10 +95,16 @@ static struct tegra_fuse_info tegra124_info = {
 	.speedo_idx		= SPEEDO_TEGRA124,
 };
 
+static struct tegra_fuse_info tegra210_info = {
+	.size			= 0x300,
+	.speedo_idx		= SPEEDO_TEGRA210,
+};
+
 static const struct of_device_id tegra30_fuse_of_match[] = {
 	{ .compatible = "nvidia,tegra30-efuse", .data = &tegra30_info },
 	{ .compatible = "nvidia,tegra114-efuse", .data = &tegra114_info },
 	{ .compatible = "nvidia,tegra124-efuse", .data = &tegra124_info },
+	{ .compatible = "nvidia,tegra210-efuse", .data = &tegra210_info },
 	{},
 };
 
@@ -149,6 +156,7 @@ static speedo_f __initdata speedo_tbl[] = {
 	[SPEEDO_TEGRA30]	= tegra30_init_speedo_data,
 	[SPEEDO_TEGRA114]	= tegra114_init_speedo_data,
 	[SPEEDO_TEGRA124]	= tegra124_init_speedo_data,
+	[SPEEDO_TEGRA210]	= tegra210_init_speedo_data,
 };
 
 static void __init tegra30_fuse_add_randomness(void)
@@ -184,6 +192,9 @@ static void __init legacy_fuse_init(void)
 		break;
 	case TEGRA124:
 		fuse_info = &tegra124_info;
+		break;
+	case TEGRA210:
+		fuse_info = &tegra210_info;
 		break;
 	default:
 		return;
