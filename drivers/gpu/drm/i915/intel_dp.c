@@ -5117,7 +5117,7 @@ intel_dp_drrs_init(struct intel_connector *intel_connector,
 					(dev, fixed_mode, connector);
 
 	if (!downclock_mode) {
-		DRM_DEBUG_KMS("DRRS not supported\n");
+		DRM_DEBUG_KMS("Downclock mode is not found. DRRS not supported\n");
 		return NULL;
 	}
 
