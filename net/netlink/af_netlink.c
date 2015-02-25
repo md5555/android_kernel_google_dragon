@@ -3140,8 +3140,6 @@ static int __init netlink_proto_init(void)
 		.key_len = sizeof(u32), /* portid */
 		.hashfn = arch_fast_hash,
 		.max_shift = 16, /* 64K */
-		.grow_decision = rht_grow_above_75,
-		.shrink_decision = rht_shrink_below_30,
 	};
 
 	if (err != 0)
