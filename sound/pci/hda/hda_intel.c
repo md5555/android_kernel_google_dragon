@@ -532,10 +532,10 @@ static int azx_position_check(struct azx *chip, struct azx_dev *azx_dev)
 	if (ok == 1) {
 		azx_dev->irq_pending = 0;
 		return ok;
-	} else if (ok == 0 && chip->bus && chip->bus->workq) {
+	} else if (ok == 0) {
 		/* bogus IRQ, process it later */
 		azx_dev->irq_pending = 1;
-		queue_work(chip->bus->workq, &hda->irq_pending_work);
+		schedule_work(&hda->irq_pending_work);
 	}
 	return 0;
 }
@@ -897,8 +897,8 @@ static int azx_runtime_resume(struct device *dev)
 	if (status && bus) {
 		list_for_each_entry(codec, &bus->codec_list, list)
 			if (status & (1 << codec->addr))
-				queue_delayed_work(codec->bus->workq,
-						   &codec->jackpoll_work, codec->jackpoll_interval);
+				schedule_delayed_work(&codec->jackpoll_work,
+						      codec->jackpoll_interval);
 	}
 
 	/* disable controller Wake Up event*/
