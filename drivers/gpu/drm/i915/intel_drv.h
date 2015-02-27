@@ -498,6 +498,7 @@ struct intel_plane_wm_parameters {
 	uint8_t bytes_per_pixel;
 	bool enabled;
 	bool scaled;
+	u64 tiling;
 };
 
 struct intel_plane {
