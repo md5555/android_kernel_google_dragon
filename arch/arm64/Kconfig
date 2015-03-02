@@ -179,6 +179,7 @@ config ARCH_THUNDER
 config ARCH_TEGRA_210_SOC
 	bool "NVIDIA Tegra210 SoC"
 	depends on ARCH_TEGRA
+	select PINCTRL_TEGRA210
 	help
 	  Enable support for the NVIDIA Tegra210 SoC.
 
