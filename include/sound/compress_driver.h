@@ -70,7 +70,7 @@ struct snd_compr_runtime {
  * @device: device pointer
  * @direction: stream direction, playback/recording
  * @metadata_set: metadata set flag, true when set
- * @next_track: has userspace signall next track transistion, true when set
+ * @next_track: has userspace signal next track transition, true when set
  * @private_data: pointer to DSP private data
  */
 struct snd_compr_stream {
@@ -94,6 +94,8 @@ struct snd_compr_stream {
  * This can be called in during stream creation only to set codec params
  * and the stream properties
  * @get_params: retrieve the codec parameters, mandatory
+ * @set_metadata: Set the metadata values for a stream
+ * @get_metadata: retrieves the requested metadata values from stream
  * @trigger: Trigger operations like start, pause, resume, drain, stop.
  * This callback is mandatory
  * @pointer: Retrieve current h/w pointer information. Mandatory
