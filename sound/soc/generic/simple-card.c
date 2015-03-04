@@ -141,11 +141,11 @@ static int asoc_simple_card_dai_init(struct snd_soc_pcm_runtime *rtd)
 		return ret;
 
 	if (gpio_is_valid(priv->gpio_hp_det)) {
-		snd_soc_jack_new(codec->codec, "Headphones", SND_JACK_HEADPHONE,
-				 &simple_card_hp_jack);
-		snd_soc_jack_add_pins(&simple_card_hp_jack,
-				      ARRAY_SIZE(simple_card_hp_jack_pins),
-				      simple_card_hp_jack_pins);
+		snd_soc_card_jack_new(rtd->card, "Headphones",
+				      SND_JACK_HEADPHONE,
+				      &simple_card_hp_jack,
+				      simple_card_hp_jack_pins,
+				      ARRAY_SIZE(simple_card_hp_jack_pins));
 
 		simple_card_hp_jack_gpio.gpio = priv->gpio_hp_det;
 		snd_soc_jack_add_gpios(&simple_card_hp_jack, 1,
@@ -153,11 +153,11 @@ static int asoc_simple_card_dai_init(struct snd_soc_pcm_runtime *rtd)
 	}
 
 	if (gpio_is_valid(priv->gpio_mic_det)) {
-		snd_soc_jack_new(codec->codec, "Mic Jack", SND_JACK_MICROPHONE,
-				 &simple_card_mic_jack);
-		snd_soc_jack_add_pins(&simple_card_mic_jack,
-				      ARRAY_SIZE(simple_card_mic_jack_pins),
-				      simple_card_mic_jack_pins);
+		snd_soc_card_jack_new(rtd->card, "Mic Jack",
+				      SND_JACK_MICROPHONE,
+				      &simple_card_mic_jack,
+				      simple_card_mic_jack_pins,
+				      ARRAY_SIZE(simple_card_mic_jack_pins));
 		simple_card_mic_jack_gpio.gpio = priv->gpio_mic_det;
 		snd_soc_jack_add_gpios(&simple_card_mic_jack, 1,
 				       &simple_card_mic_jack_gpio);
