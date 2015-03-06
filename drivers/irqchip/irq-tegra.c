@@ -344,14 +344,13 @@ static int __init tegra_irq_init(struct device_node *np,
 	distbase = ioremap_nocache(res.start, resource_size(&res));
 	num_ictlrs = readl_relaxed(distbase + GIC_DIST_CTR) & 0x1f;
 
-#ifdef CONFIG_ARCH_TEGRA_132_SOC
 	/*
 	 * On Tegra 132 there are technically 6 controllers, but
 	 * one of them needs to be special cased and so we should
 	 * ignore it here.
 	 */
-	num_ictlrs--;
-#endif
+	if (of_machine_is_compatible("nvidia,tegra132"))
+		num_ictlrs--;
 
 	if (num_ictlrs != max_ictlrs) {
 		WARN(1, "Found %u interrupt controllers; expected %u.\n",
