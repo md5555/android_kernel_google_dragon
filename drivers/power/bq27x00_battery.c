@@ -49,6 +49,7 @@
 #define BQ27x00_REG_FLAGS		0x0A
 #define BQ27x00_REG_TTE			0x16
 #define BQ27x00_REG_TTF			0x18
+#define BQ27x00_REG_IMAX		0x1E
 #define BQ27x00_REG_TTECP		0x26
 #define BQ27x00_REG_NAC			0x0C /* Nominal available capacity */
 #define BQ27x00_REG_LMD			0x12 /* Last measured discharge */
@@ -127,6 +128,7 @@ static enum power_supply_property bq27x00_battery_props[] = {
 	POWER_SUPPLY_PROP_STATUS,
 	POWER_SUPPLY_PROP_PRESENT,
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
+	POWER_SUPPLY_PROP_CURRENT_MAX,
 	POWER_SUPPLY_PROP_CURRENT_NOW,
 	POWER_SUPPLY_PROP_CAPACITY,
 	POWER_SUPPLY_PROP_CAPACITY_LEVEL,
@@ -151,6 +153,7 @@ static enum power_supply_property bq27425_battery_props[] = {
 	POWER_SUPPLY_PROP_STATUS,
 	POWER_SUPPLY_PROP_PRESENT,
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
+	POWER_SUPPLY_PROP_CURRENT_MAX,
 	POWER_SUPPLY_PROP_CURRENT_NOW,
 	POWER_SUPPLY_PROP_CAPACITY,
 	POWER_SUPPLY_PROP_CAPACITY_LEVEL,
@@ -168,6 +171,7 @@ static enum power_supply_property bq27742_battery_props[] = {
 	POWER_SUPPLY_PROP_STATUS,
 	POWER_SUPPLY_PROP_PRESENT,
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
+	POWER_SUPPLY_PROP_CURRENT_MAX,
 	POWER_SUPPLY_PROP_CURRENT_NOW,
 	POWER_SUPPLY_PROP_CAPACITY,
 	POWER_SUPPLY_PROP_CAPACITY_LEVEL,
@@ -588,6 +592,28 @@ static int bq27x00_battery_current(struct bq27x00_device_info *di,
 	return 0;
 }
 
+/*
+ * Return the battery max current in µA
+ */
+static int bq27x00_battery_current_max(struct bq27x00_device_info *di,
+	union power_supply_propval *val)
+{
+	int curr;
+
+	curr = bq27x00_read(di, BQ27x00_REG_IMAX, false);
+	if (curr < 0) {
+		dev_err(di->dev, "error reading current max\n");
+		return curr;
+	}
+
+	if (bq27xxx_is_chip_version_higher(di))
+		val->intval = (int)((s16)curr) * 1000;
+	else
+		val->intval = curr * 3570 / BQ27000_RS;
+
+	return 0;
+}
+
 static int bq27x00_battery_status(struct bq27x00_device_info *di,
 	union power_supply_propval *val)
 {
@@ -709,6 +735,9 @@ static int bq27x00_battery_get_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
 		ret = bq27x00_battery_current(di, val);
+		break;
+	case POWER_SUPPLY_PROP_CURRENT_MAX:
+		ret = bq27x00_battery_current_max(di, val);
 		break;
 	case POWER_SUPPLY_PROP_CAPACITY:
 		ret = bq27x00_simple_value(di->cache.capacity, val);
