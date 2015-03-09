@@ -13,6 +13,7 @@
 #include <linux/reset.h>
 
 #include <soc/tegra/pmc.h>
+#include <soc/tegra/tegra-dvfs.h>
 
 #include "dc.h"
 #include "drm.h"
@@ -1242,6 +1243,7 @@ int tegra_dc_state_setup_clock(struct tegra_dc *dc,
 static void tegra_dc_commit_state(struct tegra_dc *dc,
 				  struct tegra_dc_state *state)
 {
+	struct drm_crtc_state *crtc_state;
 	u32 value;
 	int err;
 
@@ -1271,6 +1273,15 @@ static void tegra_dc_commit_state(struct tegra_dc *dc,
 
 	value = SHIFT_CLK_DIVIDER(state->div) | PIXEL_CLK_DIVIDER_PCD1;
 	tegra_dc_writel(dc, value, DC_DISP_DISP_CLOCK_CONTROL);
+
+	crtc_state = &state->base;
+	if (value != 0) {
+		/*
+		 * Notify DVFS the pixel clock rate since dc
+		 * has internal clock divider.
+		 */
+		tegra_dvfs_set_rate(dc->clk, crtc_state->adjusted_mode.clock * 1000);
+	}
 }
 
 static void tegra_crtc_mode_set_nofb(struct drm_crtc *crtc)
