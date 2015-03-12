@@ -329,27 +329,20 @@ static const struct of_device_id jdi_of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, jdi_of_match);
 
-static int panel_jdi_dsi_probe(struct mipi_dsi_device *dsi)
+static int panel_jdi_setup_primary(struct mipi_dsi_device *dsi,
+			struct device_node *np)
 {
 	struct panel_jdi *jdi;
-	struct device_node *np;
 	struct mipi_dsi_device *slave;
 	enum of_gpio_flags gpio_flags;
 	int ret;
 	unsigned int value;
 
-	/* if this device is the secondary link, there's nothing more to do */
-	np = of_parse_phandle(dsi->dev.of_node, "slave", 0);
-	if (!np)
-		return 0;
-
-	/* this device is the primary interface */
 	slave = of_find_mipi_dsi_device_by_node(np);
 	of_node_put(np);
 
 	if (!slave)
 		return -EPROBE_DEFER;
-
 
 	jdi = devm_kzalloc(&dsi->dev, sizeof(*jdi), GFP_KERNEL);
 	if (!jdi)
@@ -359,10 +352,6 @@ static int panel_jdi_dsi_probe(struct mipi_dsi_device *dsi)
 	jdi->mode = &default_mode;
 	jdi->slave = slave;
 	jdi->dsi = dsi;
-
-	dsi->lanes = 8;
-	dsi->format = MIPI_DSI_FMT_RGB888;
-	dsi->mode_flags = 0;
 
 	jdi->supply = devm_regulator_get(&dsi->dev, "power");
 	if (IS_ERR(jdi->supply))
@@ -444,6 +433,26 @@ static int panel_jdi_dsi_probe(struct mipi_dsi_device *dsi)
 	if (ret < 0) {
 		DRM_ERROR("drm_panel_add failed: %d\n", ret);
 		return ret;
+	}
+
+	return 0;
+}
+
+static int panel_jdi_dsi_probe(struct mipi_dsi_device *dsi)
+{
+	struct device_node *np;
+	int ret;
+
+	dsi->lanes = 4;
+	dsi->format = MIPI_DSI_FMT_RGB888;
+	dsi->mode_flags = 0;
+
+	/* if this device is the primary link, initialize the panel */
+	np = of_parse_phandle(dsi->dev.of_node, "slave", 0);
+	if (np) {
+		ret = panel_jdi_setup_primary(dsi, np);
+		if (ret)
+			return ret;
 	}
 
 	ret = mipi_dsi_attach(dsi);
