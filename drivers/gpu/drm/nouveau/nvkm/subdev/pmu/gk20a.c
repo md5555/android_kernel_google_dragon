@@ -355,7 +355,7 @@ gk20a_pmu_dvfs_work(struct nvkm_alarm *alarm)
 
 resched:
 	gk20a_pmu_dvfs_reset_dev_status(priv);
-	nvkm_timer_alarm(priv, 100000000, alarm);
+	nvkm_timer_alarm(priv, 50000000, alarm);
 }
 
 int
@@ -880,8 +880,8 @@ gk20a_pmu_dtor(struct nvkm_object *object)
 
 struct gk20a_pmu_dvfs_data gk20a_dvfs_data = {
 	.p_load_target = 70,
-	.p_load_max = 90,
-	.p_smooth = 1,
+	.p_load_max = 78,
+	.p_smooth = 0,
 };
 
 static int
