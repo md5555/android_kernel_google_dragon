@@ -36,6 +36,7 @@
 #include <linux/of.h>
 #include <linux/wireless.h>
 #include <net/iw_handler.h>
+#include <linux/inetdevice.h>
 
 #include "decl.h"
 #include "ioctl.h"
