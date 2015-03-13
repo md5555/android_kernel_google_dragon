@@ -7,7 +7,8 @@ notifications. It is also used to manage emergency shutdown in an
 overheating situation.
 
 Required properties :
-- compatible : "nvidia,tegra124-soctherm" or "nvidia,tegra132-soctherm"
+- compatible : "nvidia,tegra124-soctherm", "nvidia,tegra132-soctherm"
+  or "nvidia,tegra210-soctherm".
 - reg : Should contain at least 2 entry:
   - SOCTHERM register set
   - Tegra CAR register set
@@ -49,10 +50,12 @@ Required properties:
     no race if priority of two vectors is set to the same value.
 - cpu-throt-level: Level of pulse skippers, which used to throttle
     clock frequencies. It indicates cpu clock throttling depth, and
-    the depth can be programmed.
+    the depth can be programmed. This property is only for Tegra132.
     Must set as following values:
     TEGRA_SOCTHERM_THROT_LEVEL_LOW, TEGRA_SOCTHERM_THROT_LEVEL_MED
     TEGRA_SOCTHERM_THROT_LEVEL_HIGH, TEGRA_SOCTHERM_THROT_LEVEL_NONE
+- cpu-throt-depth: Throttling depth of pulse skippers, it's the percentage
+    throttling. This property is for Tegra124 or Tegra210.
 Optional properties:
 - alarm-filter: Number of clocks to filter event. When the filter expires
    (which means the OC event has not occurred for a long time), the counter
