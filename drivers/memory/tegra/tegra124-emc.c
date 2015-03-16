@@ -24,10 +24,10 @@
 #include <linux/module.h>
 #include <linux/of_address.h>
 #include <linux/of_platform.h>
-#include <linux/platform_data/tegra_emc.h>
 #include <linux/regmap.h>
 #include <linux/mfd/syscon.h>
 
+#include <soc/tegra/tegra_emc.h>
 #include <soc/tegra/pmc.h>
 #include <soc/tegra/mc.h>
 
