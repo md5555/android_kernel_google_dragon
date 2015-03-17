@@ -367,7 +367,7 @@ void mwifiex_del_all_sta_list(struct mwifiex_private *priv)
 	return;
 }
 
-void *mwifiex_alloc_rx_buf(int rx_len, gfp_t flags)
+void *mwifiex_alloc_dma_align_buf(int rx_len, gfp_t flags)
 {
 	struct sk_buff *skb;
 	int buf_len, pad;
@@ -388,4 +388,4 @@ void *mwifiex_alloc_rx_buf(int rx_len, gfp_t flags)
 
 	return skb;
 }
-EXPORT_SYMBOL_GPL(mwifiex_alloc_rx_buf);
+EXPORT_SYMBOL_GPL(mwifiex_alloc_dma_align_buf);
