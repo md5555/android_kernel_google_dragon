@@ -104,6 +104,8 @@ static int tegra_atomic_commit(struct drm_device *drm,
 	return 0;
 }
 
+extern void host1x_set_drm_device(struct device *dev, struct drm_device *);
+
 static const struct drm_mode_config_funcs tegra_drm_mode_funcs = {
 	.fb_create = tegra_fb_create,
 #ifdef CONFIG_DRM_TEGRA_FBDEV
@@ -133,6 +135,16 @@ static int tegra_drm_load(struct drm_device *drm, unsigned long flags)
 		DRM_DEBUG("IOMMU context initialized\n");
 		drm_mm_init(&tegra->mm, 0, SZ_2G);
 	}
+
+	/* Enable IOMMU for host1x */
+	err = iommu_attach_device(tegra->domain, device->dev.parent);
+	if (err < 0) {
+		dev_err(device->dev.parent, "failed to attach to domain: %d\n",
+			err);
+		return err;
+	}
+
+	host1x_set_drm_device(device->dev.parent, drm);
 
 	mutex_init(&tegra->clients_lock);
 	INIT_LIST_HEAD(&tegra->clients);

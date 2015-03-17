@@ -49,11 +49,12 @@
 static void host1x_pushbuffer_destroy(struct push_buffer *pb)
 {
 	struct host1x_cdma *cdma = pb_to_cdma(pb);
-	struct host1x *host1x = cdma_to_host1x(cdma);
 
-	if (pb->phys != 0)
-		dma_free_writecombine(host1x->dev, pb->size_bytes + 4,
-				      pb->mapped, pb->phys);
+	if (pb->phys != 0) {
+		tegra_bo_free_object(&cdma->pb_bo->gem);
+		vunmap(pb->mapped);
+		cdma->pb_bo = NULL;
+	}
 
 	pb->mapped = NULL;
 	pb->phys = 0;
@@ -66,6 +67,7 @@ static int host1x_pushbuffer_init(struct push_buffer *pb)
 {
 	struct host1x_cdma *cdma = pb_to_cdma(pb);
 	struct host1x *host1x = cdma_to_host1x(cdma);
+	struct tegra_bo *bo;
 
 	pb->mapped = NULL;
 	pb->phys = 0;
@@ -76,10 +78,14 @@ static int host1x_pushbuffer_init(struct push_buffer *pb)
 	pb->pos = 0;
 
 	/* allocate and map pushbuffer memory */
-	pb->mapped = dma_alloc_writecombine(host1x->dev, pb->size_bytes + 4,
-					    &pb->phys, GFP_KERNEL);
+	bo = tegra_bo_create(host1x->drm, pb->size_bytes + 4, 0);
+	bo->vaddr = vmap(bo->pages, bo->num_pages, VM_MAP,
+			 pgprot_writecombine(PAGE_KERNEL));
+	pb->mapped = bo->vaddr;
+	pb->phys = bo->paddr;
 	if (!pb->mapped)
 		goto fail;
+	cdma->pb_bo = bo;
 
 	host1x_hw_pushbuffer_init(host1x, pb);
 

@@ -34,6 +34,7 @@ struct host1x_job;
 struct push_buffer;
 struct output;
 struct dentry;
+struct drm_device;
 
 struct host1x_channel_ops {
 	int (*init)(struct host1x_channel *channel, struct host1x *host,
@@ -130,6 +131,7 @@ struct host1x {
 	struct mutex devices_lock;
 	struct list_head devices;
 
+	struct drm_device *drm;
 	struct list_head list;
 };
 

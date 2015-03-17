@@ -23,6 +23,8 @@
 #include <linux/semaphore.h>
 #include <linux/list.h>
 
+#include "../drm/tegra/gem.h"
+
 struct host1x_syncpt;
 struct host1x_userctx_timeout;
 struct host1x_job;
@@ -78,6 +80,7 @@ struct host1x_cdma {
 	struct buffer_timeout timeout;	/* channel's timeout state/wq */
 	bool running;
 	bool torndown;
+	struct tegra_bo *pb_bo;
 };
 
 #define cdma_to_channel(cdma) container_of(cdma, struct host1x_channel, cdma)

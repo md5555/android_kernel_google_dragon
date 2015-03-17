@@ -87,6 +87,14 @@ static const struct host1x_info host1x04_info = {
 	.sync_offset = 0x2100,
 };
 
+void host1x_set_drm_device(struct device *dev, struct drm_device *drm)
+{
+	struct host1x *host = dev_get_drvdata(dev);
+
+	host->drm = drm;
+}
+EXPORT_SYMBOL(host1x_set_drm_device);
+
 static struct of_device_id host1x_of_match[] = {
 	{ .compatible = "nvidia,tegra124-host1x", .data = &host1x04_info, },
 	{ .compatible = "nvidia,tegra114-host1x", .data = &host1x02_info, },
