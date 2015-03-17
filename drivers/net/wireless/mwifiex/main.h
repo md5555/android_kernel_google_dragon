@@ -1314,6 +1314,7 @@ u8 mwifiex_get_center_freq_index(struct mwifiex_private *priv, u8 band,
 				 u32 pri_chan, u8 chan_bw);
 int mwifiex_init_channel_scan_gap(struct mwifiex_adapter *adapter);
 void *mwifiex_alloc_dma_align_buf(int rx_len, gfp_t flags);
+void mwifiex_queue_main_work(struct mwifiex_adapter *adapter);
 int mwifiex_process_host_command(struct mwifiex_private *priv,
 				 struct iwreq *wrq);
 
