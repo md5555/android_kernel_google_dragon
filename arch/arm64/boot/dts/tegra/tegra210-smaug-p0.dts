@@ -1,0 +1,19 @@
+/dts-v1/;
+
+#include "tegra210-smaug.dtsi"
+
+/ {
+	model = "Google Tegra210 Smaug P0";
+	compatible = "google,smaug-rev0", "google,smaug", "nvidia,tegra210";
+};
+
+// GEN2_I2C
+&i2c2 {
+	status = "okay";
+
+	sensor-hub@1f {
+		// TODO:
+		reg = <0x1f>;
+		status = "disabled";
+	};
+};

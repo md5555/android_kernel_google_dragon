@@ -1,0 +1,8 @@
+/dts-v1/;
+
+#include "tegra210-smaug.dtsi"
+
+/ {
+	model = "Google Tegra210 Smaug P1";
+	compatible = "google,smaug-rev1", "google,smaug", "nvidia,tegra210";
+};

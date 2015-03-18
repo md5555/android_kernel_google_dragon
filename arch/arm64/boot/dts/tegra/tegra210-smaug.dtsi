@@ -1,0 +1,613 @@
+#include <dt-bindings/mfd/max77620.h>
+#include <dt-bindings/gpio/tegra-gpio.h>
+#include <dt-bindings/pinctrl/pinctrl-tegra.h>
+#include <dt-bindings/thermal/thermal.h>
+#include <dt-bindings/input/input.h>
+
+#include "tegra210.dtsi"
+#include "tegra210-smaug-pinmux.dtsi"
+
+/ {
+	compatible = "google,smaug", "nvidia,tegra210";
+
+        chosen {
+		bootargs = "cros_legacy console=ttyS0,115200n8 init=/init rw kgdboc=ttyS0 earlycon=uart8250,mmio32,0x70006000 ignore_loglevel=1 clk_ignore_unused=1 drm.atomic=1";
+	};
+
+	memory {
+		device_type = "memory";
+		/* TODO: replace */
+		reg = < 0x0 0x80000000 0x0 0x7d200000 >,
+		      < 0x1 0x00000000 0x0 0x40000000 >;
+	};
+
+	host1x@50000000 {
+		dsia: dsi@54300000 {
+			status = "okay";
+			avdd-dsi-csi-supply = <&pp1200_avdd>;
+                        nvidia,mipi-calibrate = <&mipi 0x0c0>; /* DSIA & DSIB pads */
+			#address-cells = <2>;
+			#size-cells = <2>;
+
+			secondary_panel: panel@0 {
+				compatible = "jdi,lpm102a188a";
+				reg = <0 0 0 0>;
+			};
+		};
+
+		dsib: dsi@54400000 {
+			status = "okay";
+			avdd-dsi-csi-supply = <&pp1200_avdd>;
+                        nvidia,mipi-calibrate = <&mipi 0x300>; /* DSIC & DSID pads */
+			nvidia,ganged-mode = <&dsia>;
+			#address-cells = <2>;
+			#size-cells = <2>;
+
+			panel@0 {
+				compatible = "jdi,lpm102a188a";
+				reg = <0 0 0 0>;
+				power-supply = <&pplcd_vdd>;
+				ddi-supply = <&pp1800_lcdio>;
+				enable-gpio = <&gpio TEGRA_GPIO(V, 1) GPIO_ACTIVE_HIGH>;
+				reset-gpio = <&gpio TEGRA_GPIO(V, 2) GPIO_ACTIVE_LOW>;
+				slave = <&secondary_panel>;
+			};
+		};
+	};
+
+	udc: udc@7d000000 {
+		status = "okay";
+		// avdd-usb-supply = <&vdd_3v3_reg>;
+		// avdd-pll-utmip-supply = <&palmas_smps8>;
+	};
+
+	usb@7d000000 {
+		status = "disabled";
+	};
+
+	usb-phy@7d000000 {
+		status = "disabled";
+	};
+
+	gpio-keys {
+		compatible = "gpio-keys";
+		gpio-keys,name = "gpio-keys";
+
+		power {
+			label = "Power";
+			gpios = <&gpio TEGRA_GPIO(X, 5) GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_POWER>;
+			debounce-interval = <30>;
+			gpio-key,wakeup;
+		};
+
+		lid {
+			label = "Lid";
+			gpios = <&gpio TEGRA_GPIO(B, 4) GPIO_ACTIVE_LOW>;
+			linux,input-type = <5>; /* EV_SW */
+			linux,code = <0>; /* SW_LID */
+			gpio-key,wakeup;
+		};
+
+		dock {
+			label = "Dock";
+			gpios = <&gpio TEGRA_GPIO(Z, 2) GPIO_ACTIVE_LOW>;
+			linux,input-type = <5>; /* EV_SW */
+			linux,code = <5>; /* SW_DOCK */
+			gpio-key,wakeup;
+		};
+
+		volume_down {
+			label = "Volume Down";
+			gpios = <&gpio TEGRA_GPIO(X, 7) GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_VOLUMEDOWN>;
+		};
+
+		volume_up {
+			label = "Volume Up";
+			gpios = <&gpio TEGRA_GPIO(M, 4) GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_VOLUMEUP>;
+		};
+	};
+
+	regulators {
+		compatible = "simple-bus";
+		device_type = "fixed-regulators";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		ppvar_sys: regulator@0 {
+			compatible = "regulator-fixed";
+			reg = <0>;
+			regulator-name = "PPVAR_SYS";
+			regulator-min-microvolt = <4400000>;
+			regulator-max-microvolt = <4400000>;
+			regulator-always-on;
+		};
+
+		pplcd_vdd: regulator@1 {
+			compatible = "regulator-fixed";
+			reg = <1>;
+			regulator-name = "PPLCD_VDD";
+			regulator-min-microvolt = <4400000>;
+			regulator-max-microvolt = <4400000>;
+			gpio = <&gpio TEGRA_GPIO(V, 4) 0>;
+			enable-active-high;
+		};
+
+		pp3000_always: regulator@2 {
+			compatible = "regulator-fixed";
+			reg = <2>;
+			regulator-name = "PP3000_ALWAYS";
+			regulator-min-microvolt = <3000000>;
+			regulator-max-microvolt = <3000000>;
+			regulator-always-on;
+		};
+
+		pp3300: regulator@3 {
+			compatible = "regulator-fixed";
+			reg = <3>;
+			regulator-name = "PP3300";
+			regulator-min-microvolt = <3000000>;
+			regulator-max-microvolt = <3000000>;
+			gpio = <&max77620 3 0>;
+			enable-active-high;
+		};
+
+		pp5000: regulator@4 {
+			compatible = "regulator-fixed";
+			reg = <4>;
+			regulator-name = "PP5000";
+			regulator-min-microvolt = <5000000>;
+			regulator-max-microvolt = <5000000>;
+			regulator-always-on;
+		};
+
+		pp1800_lcdio: regulator@5 {
+			compatible = "regulator-fixed";
+			reg = <5>;
+			regulator-name = "PP1800_LCDIO";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			gpio = <&gpio TEGRA_GPIO(V, 3) 0>;
+			enable-active-high;
+		};
+
+		pp1800_cam: regulator@6 {
+			compatible = "regulator-fixed";
+			reg= <6>;
+			regulator-name = "PP1800_CAM";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			gpio = <&gpio TEGRA_GPIO(K, 3) 0>;
+			enable-active-high;
+		};
+	};
+};
+
+// GEN1_I2C
+&i2c1 {
+	status = "okay";
+	clock-frequency = <1000000>;
+
+	touchscreen: i2c-hid-dev@20 {
+		compatible = "hid-over-i2c";
+		reg = <0x20>;
+		status = "okay";
+		hid-descr-addr = <0x0020>;
+		interrupt-parent = <&gpio>;
+		interrupts = <TEGRA_GPIO(X, 1) IRQ_TYPE_EDGE_FALLING>;
+	};
+};
+
+// GEN2_I2C
+&i2c2 {
+	status = "okay";
+
+	ec@1e {
+		compatible = "google,cros-ec-i2c";
+		reg = <0x1e>;
+	};
+};
+
+// GEN3_I2C
+&i2c3 {
+	status = "okay";
+
+	tpm@20 {
+		compatible = "infineon,slb9645tt";
+		reg = <0x20>;
+		powered-while-suspended;
+		status = "okay";
+	};
+};
+
+&i2c4 {
+	status = "okay";
+};
+
+// PWR_I2C, I2CPMU
+&i2c5 {
+	status = "okay";
+
+	max77620: max77620@3c {
+		compatible = "maxim,max77620";
+		reg = <0x3c>;
+#if 0
+		// 86 is the correct value but causes a delay at boot
+		interrupts = <0 86 IRQ_TYPE_NONE>;
+#else
+		interrupts = <0 30 IRQ_TYPE_NONE>;
+#endif
+
+		#interrupt-cells = <2>;
+		interrupt-controller;
+
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		maxim,enable-clock32k-out;
+
+		maxim,hot-die-threshold-temp = <110000>;
+		#thermal-sensor-cells = <0>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&max77620_default>;
+
+		max77620_default: pinmux@0 {
+			// TODO: Verify
+			pin_gpio {
+				pins = "gpio0", "gpio1", "gpio2", "gpio5",
+				       "gpio6", "gpio7";
+				function = "gpio";
+			};
+
+			// Not sure why this is needed, but if gpio3 is left as
+			// a gpio then it won't boot.
+			pin_gpio3 {
+				pins = "gpio3";
+				function = "fps-out";
+				drive-open-drain = <1>;
+				maxim,fps-source = <FPS_SRC_0>;
+			};
+
+			pin_32k {
+				pins = "gpio4";
+				function = "32k-out1";
+			};
+		};
+
+		watchdog {
+			maxim,wdt-timeout = <16>;
+			maxim,wdt-clear-time = <13>;
+			status = "disabled";
+		};
+
+		fps {
+			// TODO: Verify
+			#address-cells = <1>;
+			#size-cells = <0>;
+			fps@0 {
+				reg = <0>;
+				maxim,fps-time-period = <2560>;
+				maxim,fps-enable-input = <FPS_EN_SRC_EN0>;
+			};
+
+			fps@1 {
+				reg = <1>;
+				maxim,fps-time-period = <2560>;
+				maxim,fps-enable-input = <FPS_EN_SRC_EN1>;
+				maxim,enable-sleep;
+			};
+
+			fps@2 {
+				reg = <2>;
+				maxim,fps-enable-input = <FPS_EN_SRC_EN0>;
+			};
+		};
+
+		backup-battery {
+			// TODO: Verify
+			maxim,backup-battery-charging-current = <100>;
+			maxim,backup-battery-charging-voltage = <3000000>;
+			maxim,backup-battery-output-resistor = <100>;
+		};
+
+		regulators {
+			/*
+			 * TODO: Verify ramps, FPS, boot-on, always-on
+			 * and DVFS voltage ranges.
+			 */
+
+			in-ldo0-1-supply = <&pp1350>;
+			in-ldo2-supply = <&pp3300>;
+			in-ldo3-5-supply = <&pp3300>;
+			in-ldo7-8-supply = <&pp1350>;
+
+			ppvar_soc: sd0 {
+				regulator-name = "PPVAR_SOC";
+				regulator-min-microvolt = <825000>;
+				regulator-max-microvolt = <1125000>;
+				regulator-enable-ramp-delay = <146>;
+				regulator-disable-ramp-delay = <4080>;
+				regulator-ramp-delay = <27500>;
+				regulator-ramp-delay-scale = <300>;
+				regulator-always-on;
+				regulator-boot-on;
+				maxim,fps-source = <FPS_SRC_NONE>;
+			};
+
+			pp1100_sd1: sd1 {
+				regulator-name = "PP1100";
+				regulator-min-microvolt = <1125000>;
+				regulator-max-microvolt = <1125000>;
+				regulator-enable-ramp-delay = <130>;
+				regulator-disable-ramp-delay = <145800>;
+				regulator-ramp-delay = <27500>;
+				regulator-ramp-delay-scale = <300>;
+				regulator-always-on;
+				regulator-boot-on;
+				maxim,fps-source = <FPS_SRC_NONE>;
+			};
+
+			pp1350: sd2 {
+				regulator-name = "PP1350";
+				regulator-min-microvolt = <1350000>;
+				regulator-max-microvolt = <1350000>;
+				regulator-enable-ramp-delay = <176>;
+				regulator-disable-ramp-delay = <32000>;
+				regulator-ramp-delay = <27500>;
+				regulator-ramp-delay-scale = <350>;
+				regulator-always-on;
+				regulator-boot-on;
+				maxim,fps-source = <FPS_SRC_NONE>;
+			};
+
+			pp1800: sd3 {
+				regulator-name = "PP1800";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+				regulator-enable-ramp-delay = <242>;
+				regulator-disable-ramp-delay = <118000>;
+				regulator-ramp-delay = <27500>;
+				regulator-ramp-delay-scale = <360>;
+				regulator-always-on;
+				regulator-boot-on;
+				maxim,fps-source = <FPS_SRC_NONE>;
+			};
+
+			pp1200_avdd: ldo0 {
+				regulator-name = "PP1200_AVDD";
+				regulator-min-microvolt = <1200000>;
+				regulator-max-microvolt = <1200000>;
+				regulator-enable-ramp-delay = <26>;
+				regulator-disable-ramp-delay = <626>;
+				regulator-ramp-delay = <100000>;
+				regulator-ramp-delay-scale = <200>;
+				regulator-boot-on;
+				maxim,fps-source = <FPS_SRC_NONE>;
+			};
+
+			pp1200_rcam: ldo1 {
+				regulator-name = "PP1200_RCAM";
+				regulator-min-microvolt = <1200000>;
+				regulator-max-microvolt = <1200000>;
+				regulator-enable-ramp-delay = <22>;
+				regulator-disable-ramp-delay = <630>;
+				regulator-ramp-delay = <100000>;
+				regulator-ramp-delay-scale = <200>;
+				maxim,fps-source = <FPS_SRC_NONE>;
+			};
+
+			ldo2 {
+				/* Unused. */
+				regulator-name = "PP_LDO2";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-enable-ramp-delay = <62>;
+				regulator-disable-ramp-delay = <650>;
+				regulator-ramp-delay = <100000>;
+				regulator-ramp-delay-scale = <200>;
+				maxim,fps-source = <FPS_SRC_NONE>;
+			};
+
+			pp2800l_rcam: ldo3 {
+				regulator-name = "PP2800L_RCAM";
+				regulator-min-microvolt = <2800000>;
+				regulator-max-microvolt = <2800000>;
+				regulator-enable-ramp-delay = <50>;
+				regulator-disable-ramp-delay = <1110>;
+				regulator-ramp-delay = <100000>;
+				regulator-ramp-delay-scale = <200>;
+				maxim,fps-source = <FPS_SRC_NONE>;
+			};
+
+			pp100_soc_rtc: ldo4 {
+				regulator-name = "PP1100_SOC_RTC";
+				regulator-min-microvolt = <850000>;
+				regulator-max-microvolt = <850000>;
+				regulator-enable-ramp-delay = <22>;
+				regulator-disable-ramp-delay = <610>;
+				regulator-ramp-delay = <100000>;
+				regulator-ramp-delay-scale = <200>;
+				regulator-always-on; /* Check this */
+				regulator-boot-on;
+				maxim,fps-source = <FPS_SRC_NONE>;
+			};
+
+			pp2800l_fcam: ldo5 {
+				regulator-name = "PP2800L_FCAM";
+				regulator-min-microvolt = <2800000>;
+				regulator-max-microvolt = <2800000>;
+				regulator-enable-ramp-delay = <62>;
+				regulator-disable-ramp-delay = <640>;
+				regulator-ramp-delay = <100000>;
+				regulator-ramp-delay-scale = <200>;
+				maxim,fps-source = <FPS_SRC_NONE>;
+			};
+
+			ldo6 {
+				/* Unused. */
+				regulator-name = "PP_LDO6";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+				regulator-enable-ramp-delay = <36>;
+				regulator-disable-ramp-delay = <674>;
+				regulator-ramp-delay = <100000>;
+				regulator-ramp-delay-scale = <200>;
+				maxim,fps-source = <FPS_SRC_NONE>;
+			};
+
+			pp1050_avdd: ldo7 {
+				regulator-name = "PP1050_AVDD";
+				regulator-min-microvolt = <1050000>;
+				regulator-max-microvolt = <1050000>;
+				regulator-enable-ramp-delay = <24>;
+				regulator-disable-ramp-delay = <2768>;
+				regulator-ramp-delay = <100000>;
+				regulator-ramp-delay-scale = <200>;
+				regulator-always-on;
+				regulator-boot-on;
+				maxim,fps-source = <FPS_SRC_NONE>;
+			};
+
+			avddio_1v05: ldo8 {
+				regulator-name = "AVDDIO_1V05";
+				regulator-min-microvolt = <1050000>;
+				regulator-max-microvolt = <1050000>;
+				regulator-enable-ramp-delay = <22>;
+				regulator-disable-ramp-delay = <1160>;
+				regulator-ramp-delay = <100000>;
+				regulator-ramp-delay-scale = <200>;
+				regulator-boot-on;
+				maxim,fps-source = <FPS_SRC_NONE>;
+			};
+		};
+	};
+
+	max77621_cpu: pmic@1b {
+		compatible = "maxim,max77621";
+		reg = <0x1b>;
+		regulator-name = "PPVAR_CPU";
+		regulator-min-microvolt = <850000>;
+		regulator-max-microvolt = <1170000>;
+		// TODO: Add remaining properties.
+	};
+
+	max77621_gpu: pmic@1c {
+		compatible = "maxim,max77621";
+		reg = <0x1c>;
+		regulator-name = "PPVAR_GPU";
+		regulator-min-microvolt = <840000>;
+		regulator-max-microvolt = <1150000>;
+		// TODO: Add remaining properties.
+	};
+};
+
+// I2C6
+&i2c6 {
+	status = "okay";
+
+	backlight: lp8557-backlight@2c {
+		compatible = "ti,lp8557";
+		reg = <0x2c>;
+
+		power-supply = <&pplcd_vdd>;
+
+		bl-name = "lp8557-backlight";
+		dev-ctrl = /bits/ 8 <0x01>;
+		init-brt = /bits/ 8 <0xFF>;
+
+		/* Full scale current, 20mA */
+		rom_11h {
+			rom-addr = /bits/ 8 <0x11>;
+			rom-val = /bits/ 8 <0x05>;
+		};
+
+		/* Frequency = 4.9kHz, magic undocumented val */
+		rom_12h {
+			rom-addr = /bits/ 8 <0x12>;
+			rom-val = /bits/ 8 <0x29>;
+		};
+
+		/* Boost freq = 1MHz, BComp option = 1 */
+		rom_13h {
+			rom-addr = /bits/ 8 <0x13>;
+			rom-val = /bits/ 8 <0x03>;
+		};
+
+		/* 4V OV, 6 output LED string enabled */
+		rom_14h {
+			rom-addr = /bits/ 8 <0x14>;
+			rom-val = /bits/ 8 <0xbf>;
+		};
+	};
+
+	audio-codec@2d {
+		compatible = "realtek,rt5677";
+		reg = <0x2d>;
+		interrupts-extended = <&gpio TEGRA_GPIO(X, 3) IRQ_TYPE_EDGE_BOTH>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		// TODO: Add more?
+		// See: Documentation/devicetree/bindings/sound/rt5677.txt
+		status = "disabled";
+	};
+
+	audio-jack@3b {
+		// TODO: Describe TI TS3A227E
+		reg = <0x3b>;
+		status = "disabled";
+	};
+
+	tmp451: temperature-sensor@4c {
+		compatible = "ti,tmp451";
+		reg = <0x4c>;
+		interrupt-parent = <&gpio>;
+		interrupts = <TEGRA_GPIO(X, 4) IRQ_TYPE_LEVEL_LOW>;
+		vcc-supply = <&pp1800>;
+
+		#thermal-sensor-cells = <1>;
+	};
+};
+
+// CAM_I2C
+&vii2c {
+	status = "okay";
+};
+
+&efuse {
+	status = "okay";
+	vpp_fuse-supply = <&pp1800>;
+};
+
+&sdmmc4 {
+	bus-width = <8>;
+	non-removable;
+//	vmmc-supply = <&pp3300>;
+//	vqmmc-supply = <&pp1800>;
+	status = "okay";
+};
+
+&uarta {
+	status = "okay";
+};
+
+
+&uartc {
+	compatible = "nvidia,tegra210-hsuart", "nvidia,tegra30-hsuart";
+	status = "okay";
+};
+
+&uartd {
+	compatible = "nvidia,tegra124-hsuart", "nvidia,tegra30-hsuart";
+	status = "okay";
+};
+
+&pmc {
+	status = "okay";
+
+	// TODO: check these properties
+	nvidia,core-power-req-active-high;
+	nvidia,sys-clock-req-active-high;
+};
