@@ -401,6 +401,12 @@
 
 		nvidia,core-power-req-active-high;
 		nvidia,sys-clock-req-active-high;
+
+		i2c-thermtrip {
+			nvidia,pmu = <&max77620>;
+			nvidia,reg-addr = <0x41>;
+			nvidia,reg-data = <0x80>;
+		};
 	};
 
 	adma@702e2000  {
