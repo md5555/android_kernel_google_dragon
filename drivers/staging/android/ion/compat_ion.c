@@ -39,12 +39,21 @@ struct compat_ion_handle_data {
 	compat_int_t handle;
 };
 
+struct compat_ion_cachemaint_data {
+	compat_int_t fd;
+	compat_ulong_t ptr;
+	compat_size_t length;
+	compat_uint_t flags;
+};
+
 #define COMPAT_ION_IOC_ALLOC	_IOWR(ION_IOC_MAGIC, 0, \
 				      struct compat_ion_allocation_data)
 #define COMPAT_ION_IOC_FREE	_IOWR(ION_IOC_MAGIC, 1, \
 				      struct compat_ion_handle_data)
 #define COMPAT_ION_IOC_CUSTOM	_IOWR(ION_IOC_MAGIC, 6, \
 				      struct compat_ion_custom_data)
+#define COMPAT_ION_IOC_CACHEMAINT _IOW(ION_IOC_MAGIC, 8, \
+					struct compat_ion_cachemaint_data)
 
 static int compat_get_ion_allocation_data(
 			struct compat_ion_allocation_data __user *data32,
@@ -121,6 +130,26 @@ static int compat_get_ion_custom_data(
 	return err;
 };
 
+static int compat_get_ion_cachemaint_data(
+			struct compat_ion_cachemaint_data __user *data32,
+			struct ion_cachemaint_data __user *data)
+{
+	compat_uint_t cmd;
+	compat_ulong_t arg;
+	int err;
+
+	err = get_user(cmd, &data32->fd);
+	err |= put_user(cmd, &data->fd);
+	err |= get_user(arg, &data32->ptr);
+	err |= put_user(arg, &data->ptr);
+	err |= get_user(arg, &data32->length);
+	err |= put_user(arg, &data->length);
+	err |= get_user(arg, &data32->flags);
+	err |= put_user(arg, &data->flags);
+
+	return err;
+};
+
 long compat_ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	long ret;
@@ -181,6 +210,23 @@ long compat_ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			return err;
 
 		return filp->f_op->unlocked_ioctl(filp, ION_IOC_CUSTOM,
+							(unsigned long)data);
+	}
+	case COMPAT_ION_IOC_CACHEMAINT: {
+		struct compat_ion_cachemaint_data __user *data32;
+		struct ion_cachemaint_data __user *data;
+		int err;
+
+		data32 = compat_ptr(arg);
+		data = compat_alloc_user_space(sizeof(*data));
+		if (data == NULL)
+			return -EFAULT;
+
+		err = compat_get_ion_cachemaint_data(data32, data);
+		if (err)
+			return err;
+
+		return filp->f_op->unlocked_ioctl(filp, ION_IOC_CACHEMAINT,
 							(unsigned long)data);
 	}
 	case ION_IOC_SHARE:
