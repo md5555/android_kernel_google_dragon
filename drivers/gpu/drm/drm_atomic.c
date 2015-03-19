@@ -350,10 +350,18 @@ int drm_atomic_crtc_set_property(struct drm_crtc *crtc,
 {
 	struct drm_device *dev = crtc->dev;
 	struct drm_mode_config *config = &dev->mode_config;
+	int ret;
 
-	/* FIXME: Mode prop is missing, which also controls ->enable. */
 	if (property == config->prop_active)
 		state->active = val;
+	else if (property == config->prop_mode_id) {
+		struct drm_property_blob *mode =
+			drm_property_lookup_blob(dev, val);
+		ret = drm_atomic_set_mode_prop_for_crtc(state, mode);
+		if (mode)
+			drm_property_unreference_blob(mode);
+		return ret;
+	}
 	else if (crtc->funcs->atomic_set_property)
 		return crtc->funcs->atomic_set_property(crtc, state, property, val);
 	else
@@ -378,6 +386,8 @@ int drm_atomic_crtc_get_property(struct drm_crtc *crtc,
 
 	if (property == config->prop_active)
 		*val = state->active;
+	else if (property == config->prop_mode_id)
+		*val = (state->mode_blob) ? state->mode_blob->base.id : 0;
 	else if (crtc->funcs->atomic_get_property)
 		return crtc->funcs->atomic_get_property(crtc, state, property, val);
 	else
