@@ -677,4 +677,25 @@
 		status = "okay";
 		vbus-supply = <&vdd_usb_5v0>;
 	};
+
+	soctherm: soctherm@0,700e2000 {
+		throttle-cfgs {
+			/* Voltage compartor NCS2202 connect to OC1 */
+			oc1 {
+				alarm-filter = <5100000>;
+				alarm-cnt-threshold = <100>;
+				polarity = <1>; /* ACTIVE_LOW */
+				priority = <70>;
+				cpu-throt-depth = <75>;
+			};
+			/* Battery charger BQ24773 PROCHOT connect to OC3 */
+			oc3 {
+				alarm-filter = <5100000>;
+				alarm-cnt-threshold = <15>;
+				polarity = <1>; /* ACTIVE_LOW */
+				priority = <50>;
+				cpu-throt-depth = <75>;
+			};
+		};
+	};
 };
