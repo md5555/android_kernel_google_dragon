@@ -403,10 +403,10 @@ static ssize_t store_program(struct device *dev, struct device_attribute *attr,
 static DEVICE_ATTR(interval_msec, S_IWUSR | S_IRUGO,
 		   show_interval_msec, store_interval_msec);
 static DEVICE_ATTR(version, S_IRUGO, show_version, NULL);
-static DEVICE_ATTR(brightness, S_IWUGO, NULL, store_brightness);
-static DEVICE_ATTR(led_rgb, S_IWUGO, NULL, store_rgb);
-static DEVICE_ATTR(sequence, S_IWUGO | S_IRUGO, show_seq, store_seq);
-static DEVICE_ATTR(program, S_IWUGO, NULL, store_program);
+static DEVICE_ATTR(brightness, S_IWUSR | S_IWGRP, NULL, store_brightness);
+static DEVICE_ATTR(led_rgb, S_IWUSR | S_IWGRP, NULL, store_rgb);
+static DEVICE_ATTR(sequence, S_IWUSR | S_IWGRP | S_IRUGO, show_seq, store_seq);
+static DEVICE_ATTR(program, S_IWUSR | S_IWGRP, NULL, store_program);
 
 static struct attribute *__lb_cmds_attrs[] = {
 	&dev_attr_interval_msec.attr,
