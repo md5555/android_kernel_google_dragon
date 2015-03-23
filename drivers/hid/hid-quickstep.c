@@ -75,7 +75,7 @@ static ssize_t clear_log(struct device *dev, struct device_attribute *attr,
 }
 
 static DEVICE_ATTR(laser, 0444, show_log, NULL);
-static DEVICE_ATTR(clear, 0222, NULL, clear_log);
+static DEVICE_ATTR(clear, 0220, NULL, clear_log);
 static struct attribute *dev_attrs[] = {
 	&dev_attr_laser.attr,
 	&dev_attr_clear.attr,
