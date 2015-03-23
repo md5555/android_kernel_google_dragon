@@ -17,6 +17,7 @@
  */
 
 #include <linux/cpumask.h>
+#include <linux/export.h>
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/kernel.h>
@@ -136,6 +137,16 @@ void flowctrl_cpu_suspend_exit(unsigned int cpuid)
 	reg |= FLOW_CTRL_CSR_INTR_FLAG;			/* clear intr */
 	reg |= FLOW_CTRL_CSR_EVENT_FLAG;		/* clear event */
 	flowctrl_write_cpu_csr(cpuid, reg);
+}
+
+void flowctrl_cop_halt(void)
+{
+	flowctrl_update(FLOW_CTRL_HALT_COP_EVENTS, FLOW_CTRL_WAITEVENT);
+}
+
+void flowctrl_cop_unhalt(void)
+{
+	flowctrl_update(FLOW_CTRL_HALT_COP_EVENTS, 0);
 }
 
 static const struct of_device_id matches[] __initconst = {
