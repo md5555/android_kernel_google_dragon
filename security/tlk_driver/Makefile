@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013-2015, NVIDIA Corporation. All rights reserved.
+# Copyright (c) 2013-2016, NVIDIA Corporation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@ tlk_driver-objs += ote_comms.o
 tlk_driver-objs += ote_fs.o
 tlk_driver-objs += ote_asm.o
 tlk_driver-objs += ote_log.o
+tlk_driver-objs += ote_memory.o
 
 ifeq ($(CONFIG_ARM),y)
 plus_sec := $(call as-instr,.arch_extension sec,+sec)

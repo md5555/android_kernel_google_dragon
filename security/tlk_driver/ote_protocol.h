@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2014 NVIDIA Corporation. All rights reserved.
+ * Copyright (c) 2013-2016 NVIDIA Corporation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -42,7 +42,9 @@
 /* shared buffer is 2 pages: 1st are requests, 2nd are params */
 #define TE_CMD_DESC_MAX	(PAGE_SIZE / sizeof(struct te_request))
 #define TE_PARAM_MAX	(PAGE_SIZE / sizeof(struct te_oper_param))
+#define TE_PLIST_MAX	(PAGE_SIZE / sizeof(uint64_t))
 
+#define MAX_BUFFER_MAP_SIZE	(TE_PLIST_MAX * PAGE_SIZE)
 #define MAX_EXT_SMC_ARGS	12
 
 extern struct mutex smc_lock;
@@ -64,10 +66,11 @@ struct tlk_device {
 	dma_addr_t req_addr_phys;
 	struct te_oper_param *param_addr;
 	dma_addr_t param_addr_phys;
-
-	char *req_param_buf;
+	uint64_t *plist_addr;
+	dma_addr_t plist_addr_phys;
 
 	unsigned long *param_bitmap;
+	unsigned long *plist_bitmap;
 
 	struct list_head used_cmd_list;
 	struct list_head free_cmd_list;
@@ -81,7 +84,7 @@ struct te_cmd_req_desc {
 struct te_shmem_desc {
 	struct list_head list;
 	uint32_t type;
-	void *buffer;
+	uint32_t idx;
 	size_t size;
 	struct page **pages;
 	unsigned int nr_pages;
@@ -136,6 +139,8 @@ enum {
 	TE_PARAM_TYPE_MEM_RW		= 0x4,
 	TE_PARAM_TYPE_PERSIST_MEM_RO	= 0x100,
 	TE_PARAM_TYPE_PERSIST_MEM_RW	= 0x101,
+	TE_PARAM_TYPE_FLAGS_PHYS_LIST	= 0x80000000,
+	TE_PARAM_TYPE_ALL_FLAGS		= TE_PARAM_TYPE_FLAGS_PHYS_LIST
 };
 
 struct te_oper_param {
@@ -237,9 +242,13 @@ enum ta_event_id {
 };
 
 int te_handle_ss_ioctl(struct file *file, unsigned int ioctl_num,
-		unsigned long ioctl_param);
+			unsigned long ioctl_param);
 void ote_print_logs(void);
 int tlk_ss_op(void);
 int ote_property_is_disabled(const char *str);
+int te_prep_mem_buffers(struct te_request *request,
+			struct te_session *session);
+void te_release_mem_buffers(struct list_head *buflist);
+void te_activate_persist_mem_buffers(struct te_session *session);
 
 #endif
