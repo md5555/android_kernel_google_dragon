@@ -363,6 +363,11 @@
 		vpp_fuse-supply = <&max77620_sd3>;
 	};
 
+	sdhci@700b0000 { /* SDMMC1 for sdcard on foster */
+		bus-width = <4>;
+		status = "okay";
+	};
+
 	sdhci@700b0600 { /* SDMMC4 for EMMC on loki */
 		bus-width = <8>;
 		non-removable;
