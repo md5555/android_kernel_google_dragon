@@ -30,8 +30,6 @@ CONFIG_PREEMPT_VOLUNTARY=y
 # CONFIG_COMPACTION is not set
 CONFIG_CMA=y
 CONFIG_ZSMALLOC=y
-CONFIG_CMDLINE="tegraid=21.1.1.0.0 memtype=0 vpr_resize ddr_die=1536M@2048M ddr_die=1536M@3584M section=256M usb_port_owner_info=0 lane_owner_info=0 emc_max_dvfs=1 video=tegrafb no_console_suspend=1 console=ttyS0,115200n8 debug_uartport=lsport,2 earlyprintk=uart8250-32bit,0x70006000 maxcpus=4 usbcore.old_scheme_first=1 lp0_vec=4096@0xfdfff000 core_edp_mv=1125 core_edp_ma=4000 tegra_fbmem=8388608@0x92cac000 ignore_loglevel=1 root=/dev/mmcblk0p19 rw rootwait clk_ignore_unused=1 keep_bootcon=1"
-CONFIG_CMDLINE_FORCE=y
 CONFIG_BUILD_ARM64_FIT_IMAGE=y
 CONFIG_COMPAT=y
 CONFIG_PM_WAKELOCKS=y
