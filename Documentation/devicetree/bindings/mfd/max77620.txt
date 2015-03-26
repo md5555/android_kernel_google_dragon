@@ -60,7 +60,7 @@ For each pin, the following optional properties specific to max77620 are
 available:
 	Optional properties:
 		Valid values for function properties are:
-			gpio, lpm-control-in, fps-out, 32k-out,
+			gpio, lpm-control-in, fps-out, 32k-out1,
 			sd0-dvs-in, sd1-dvs-in, reference-out
 		Theres is also customised property for the GPIO1,
 			GPIO2 and GPIO3.
