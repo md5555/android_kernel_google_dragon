@@ -281,6 +281,8 @@
 	pmc: pmc@7000e400 {
 		compatible = "nvidia,tegra210-pmc";
 		reg = <0x0 0x7000e400 0x0 0x400>;
+		clocks = <&tegra_car TEGRA124_CLK_PCLK>;
+		clock-names = "pclk";
 		status = "disabled";
 	};
 
