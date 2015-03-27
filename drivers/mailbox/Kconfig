@@ -45,6 +45,14 @@ config PCC
 	  states). Select this driver if your platform implements the
 	  PCC clients mentioned above.
 
+config TEGRA_BPMP_MBOX
+	bool "Tegra BPMP-lite Mailbox support"
+	depends on ARCH_TEGRA_210_SOC
+	default y
+	help
+	  Say y here to support Tegra's BPMP-lite mailbox driver.
+	  If unsure say N.
+
 config TEGRA_XUSB_MBOX
 	tristate "NVIDIA Tegra XUSB Mailbox"
 	depends on MFD_TEGRA_XUSB
