@@ -932,7 +932,7 @@ static int __parse_nl_addr(struct genl_info *info, struct inetpeer_addr *addr,
 	a = info->attrs[v4];
 	if (a) {
 		addr->family = AF_INET;
-		addr->addr.a4 = nla_get_be32(a);
+		addr->addr.a4 = nla_get_in_addr(a);
 		if (hash)
 			*hash = (__force unsigned int) addr->addr.a4;
 		return 0;
@@ -942,7 +942,7 @@ static int __parse_nl_addr(struct genl_info *info, struct inetpeer_addr *addr,
 		if (nla_len(a) != sizeof(struct in6_addr))
 			return -EINVAL;
 		addr->family = AF_INET6;
-		memcpy(addr->addr.a6, nla_data(a), sizeof(addr->addr.a6));
+		*(struct in6_addr *)addr->addr.a6 = nla_get_in6_addr(a);
 		if (hash)
 			*hash = ipv6_addr_hash((struct in6_addr *) addr->addr.a6);
 		return 0;

@@ -182,17 +182,17 @@ static inline bool vxlan_addr_multicast(const union vxlan_addr *ipa)
 
 static int vxlan_nla_get_addr(union vxlan_addr *ip, struct nlattr *nla)
 {
-       if (nla_len(nla) >= sizeof(struct in6_addr)) {
-               nla_memcpy(&ip->sin6.sin6_addr, nla, sizeof(struct in6_addr));
-               ip->sa.sa_family = AF_INET6;
-               return 0;
-       } else if (nla_len(nla) >= sizeof(__be32)) {
-               ip->sin.sin_addr.s_addr = nla_get_be32(nla);
-               ip->sa.sa_family = AF_INET;
-               return 0;
-       } else {
-               return -EAFNOSUPPORT;
-       }
+	if (nla_len(nla) >= sizeof(struct in6_addr)) {
+		ip->sin6.sin6_addr = nla_get_in6_addr(nla);
+		ip->sa.sa_family = AF_INET6;
+		return 0;
+	} else if (nla_len(nla) >= sizeof(__be32)) {
+		ip->sin.sin_addr.s_addr = nla_get_in_addr(nla);
+		ip->sa.sa_family = AF_INET;
+		return 0;
+	} else {
+		return -EAFNOSUPPORT;
+	}
 }
 
 static int vxlan_nla_put_addr(struct sk_buff *skb, int attr,
@@ -224,15 +224,15 @@ static inline bool vxlan_addr_multicast(const union vxlan_addr *ipa)
 
 static int vxlan_nla_get_addr(union vxlan_addr *ip, struct nlattr *nla)
 {
-       if (nla_len(nla) >= sizeof(struct in6_addr)) {
-               return -EAFNOSUPPORT;
-       } else if (nla_len(nla) >= sizeof(__be32)) {
-               ip->sin.sin_addr.s_addr = nla_get_be32(nla);
-               ip->sa.sa_family = AF_INET;
-               return 0;
-       } else {
-               return -EAFNOSUPPORT;
-       }
+	if (nla_len(nla) >= sizeof(struct in6_addr)) {
+		return -EAFNOSUPPORT;
+	} else if (nla_len(nla) >= sizeof(__be32)) {
+		ip->sin.sin_addr.s_addr = nla_get_in_addr(nla);
+		ip->sa.sa_family = AF_INET;
+		return 0;
+	} else {
+		return -EAFNOSUPPORT;
+	}
 }
 
 static int vxlan_nla_put_addr(struct sk_buff *skb, int attr,
@@ -2450,27 +2450,25 @@ static int vxlan_newlink(struct net *net, struct net_device *dev,
 	/* Unless IPv6 is explicitly requested, assume IPv4 */
 	dst->remote_ip.sa.sa_family = AF_INET;
 	if (data[IFLA_VXLAN_GROUP]) {
-		dst->remote_ip.sin.sin_addr.s_addr = nla_get_be32(data[IFLA_VXLAN_GROUP]);
+		dst->remote_ip.sin.sin_addr.s_addr = nla_get_in_addr(data[IFLA_VXLAN_GROUP]);
 	} else if (data[IFLA_VXLAN_GROUP6]) {
 		if (!IS_ENABLED(CONFIG_IPV6))
 			return -EPFNOSUPPORT;
 
-		nla_memcpy(&dst->remote_ip.sin6.sin6_addr, data[IFLA_VXLAN_GROUP6],
-			   sizeof(struct in6_addr));
+		dst->remote_ip.sin6.sin6_addr = nla_get_in6_addr(data[IFLA_VXLAN_GROUP6]);
 		dst->remote_ip.sa.sa_family = AF_INET6;
 		use_ipv6 = true;
 	}
 
 	if (data[IFLA_VXLAN_LOCAL]) {
-		vxlan->saddr.sin.sin_addr.s_addr = nla_get_be32(data[IFLA_VXLAN_LOCAL]);
+		vxlan->saddr.sin.sin_addr.s_addr = nla_get_in_addr(data[IFLA_VXLAN_LOCAL]);
 		vxlan->saddr.sa.sa_family = AF_INET;
 	} else if (data[IFLA_VXLAN_LOCAL6]) {
 		if (!IS_ENABLED(CONFIG_IPV6))
 			return -EPFNOSUPPORT;
 
 		/* TODO: respect scope id */
-		nla_memcpy(&vxlan->saddr.sin6.sin6_addr, data[IFLA_VXLAN_LOCAL6],
-			   sizeof(struct in6_addr));
+		vxlan->saddr.sin6.sin6_addr = nla_get_in6_addr(data[IFLA_VXLAN_LOCAL6]);
 		vxlan->saddr.sa.sa_family = AF_INET6;
 		use_ipv6 = true;
 	}
