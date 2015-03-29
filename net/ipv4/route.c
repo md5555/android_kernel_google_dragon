@@ -2306,11 +2306,11 @@ static int rt_fill_info(struct net *net,  __be32 dst, __be32 src,
 	if (rt->rt_flags & RTCF_NOTIFY)
 		r->rtm_flags |= RTM_F_NOTIFY;
 
-	if (nla_put_be32(skb, RTA_DST, dst))
+	if (nla_put_in_addr(skb, RTA_DST, dst))
 		goto nla_put_failure;
 	if (src) {
 		r->rtm_src_len = 32;
-		if (nla_put_be32(skb, RTA_SRC, src))
+		if (nla_put_in_addr(skb, RTA_SRC, src))
 			goto nla_put_failure;
 	}
 	if (rt->dst.dev &&
@@ -2323,11 +2323,11 @@ static int rt_fill_info(struct net *net,  __be32 dst, __be32 src,
 #endif
 	if (!rt_is_input_route(rt) &&
 	    fl4->saddr != src) {
-		if (nla_put_be32(skb, RTA_PREFSRC, fl4->saddr))
+		if (nla_put_in_addr(skb, RTA_PREFSRC, fl4->saddr))
 			goto nla_put_failure;
 	}
 	if (rt->rt_uses_gateway &&
-	    nla_put_be32(skb, RTA_GATEWAY, rt->rt_gateway))
+	    nla_put_in_addr(skb, RTA_GATEWAY, rt->rt_gateway))
 		goto nla_put_failure;
 
 	expires = rt->dst.expires;
