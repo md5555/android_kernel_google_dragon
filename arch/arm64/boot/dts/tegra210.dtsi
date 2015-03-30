@@ -37,7 +37,7 @@
 		#reset-cells = <1>;
 	};
 
-	gic: interrupt-controller {
+	gic: interrupt-controller@50041000 {
 		compatible = "arm,cortex-a15-gic";
 		#interrupt-cells = <3>;
 		interrupt-controller;
@@ -79,7 +79,7 @@
 			     <GIC_SPI 179 IRQ_TYPE_LEVEL_HIGH>;
 	};
 
-	rtc: rtc {
+	rtc: rtc@7000e000 {
 		compatible = "nvidia,tegra-rtc";
 		reg = <0x0 0x7000e000 0x0 0x100>;
 		interrupts = <0 2 0x04>;
