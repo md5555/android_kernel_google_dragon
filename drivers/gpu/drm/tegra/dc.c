@@ -712,10 +712,16 @@ static int tegra_cursor_atomic_check(struct drm_plane *plane,
 static void tegra_cursor_atomic_update(struct drm_plane *plane,
 				       struct drm_plane_state *old_state)
 {
-	struct tegra_bo *bo = tegra_fb_get_plane(plane->state->fb, 0);
-	struct tegra_dc *dc = to_tegra_dc(plane->state->crtc);
+	struct tegra_bo *bo;
+	struct tegra_dc *dc;
 	struct drm_plane_state *state = plane->state;
 	u32 value = CURSOR_CLIP_DISPLAY;
+
+	if (!plane->state->fb || !plane->state->crtc)
+		return;
+
+	bo = tegra_fb_get_plane(plane->state->fb, 0);
+	dc = to_tegra_dc(plane->state->crtc);
 
 	/* rien ne va plus */
 	if (!plane->state->crtc || !plane->state->fb)
@@ -1306,7 +1312,6 @@ static void tegra_crtc_atomic_flush(struct drm_crtc *crtc)
 {
 	struct tegra_dc_state *state = to_dc_state(crtc->state);
 	struct tegra_dc *dc = to_tegra_dc(crtc);
-
 	tegra_dc_writel(dc, state->planes << 8, DC_CMD_STATE_CONTROL);
 	tegra_dc_writel(dc, state->planes, DC_CMD_STATE_CONTROL);
 }
