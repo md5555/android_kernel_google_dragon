@@ -31,8 +31,6 @@
 
 #define	WM8971_REG_COUNT		43
 
-static struct workqueue_struct *wm8971_workq = NULL;
-
 /* codec private data */
 struct wm8971_priv {
 	unsigned int sysclk;
@@ -635,7 +633,8 @@ static int wm8971_resume(struct snd_soc_codec *codec)
 		reg = snd_soc_read(codec, WM8971_PWR1) & 0xfe3e;
 		snd_soc_write(codec, WM8971_PWR1, reg | 0x01c0);
 		codec->dapm.bias_level = SND_SOC_BIAS_ON;
-		queue_delayed_work(wm8971_workq, &codec->dapm.delayed_work,
+		queue_delayed_work(system_power_efficient_wq,
+			&codec->dapm.delayed_work,
 			msecs_to_jiffies(1000));
 	}
 
@@ -648,9 +647,6 @@ static int wm8971_probe(struct snd_soc_codec *codec)
 	u16 reg;
 
 	INIT_DELAYED_WORK(&codec->dapm.delayed_work, wm8971_work);
-	wm8971_workq = create_workqueue("wm8971");
-	if (wm8971_workq == NULL)
-		return -ENOMEM;
 
 	wm8971_reset(codec);
 
@@ -658,7 +654,8 @@ static int wm8971_probe(struct snd_soc_codec *codec)
 	reg = snd_soc_read(codec, WM8971_PWR1) & 0xfe3e;
 	snd_soc_write(codec, WM8971_PWR1, reg | 0x01c0);
 	codec->dapm.bias_level = SND_SOC_BIAS_STANDBY;
-	queue_delayed_work(wm8971_workq, &codec->dapm.delayed_work,
+	queue_delayed_work(system_power_efficient_wq,
+		&codec->dapm.delayed_work,
 		msecs_to_jiffies(1000));
 
 	/* set the update bits */
@@ -680,8 +677,6 @@ static int wm8971_remove(struct snd_soc_codec *codec)
 {
 	wm8971_set_bias_level(codec, SND_SOC_BIAS_OFF);
 
-	if (wm8971_workq)
-		destroy_workqueue(wm8971_workq);
 	return 0;
 }
 
