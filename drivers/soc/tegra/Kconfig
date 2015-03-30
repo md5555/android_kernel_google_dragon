@@ -1,3 +1,12 @@
+config TEGRA_BPMP_MAILMAN
+	bool "Mailman driver for Tegra BPMP-lite mailbox"
+	depends on ARCH_TEGRA_210_SOC
+	depends on TEGRA_BPMP_MBOX
+	default y
+	help
+	  Say y here to support Tegra's BPMP-lite mailman driver.
+	  If unsure say N.
+
 config TEGRA_PROC_POWER_MODEL
 	bool "Tegra process power model support"
 	depends on ARCH_TEGRA

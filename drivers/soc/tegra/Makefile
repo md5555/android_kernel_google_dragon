@@ -6,6 +6,7 @@ obj-$(CONFIG_ARCH_TEGRA) += flowctrl.o
 obj-$(CONFIG_ARCH_TEGRA) += pm.o
 obj-$(CONFIG_ARCH_TEGRA) += pmc.o
 
+obj-$(CONFIG_TEGRA_BPMP_MAILMAN) += tegra-bpmp-mailman.o
 obj-$(CONFIG_TEGRA_PROC_POWER_MODEL) += tegra_ppm.o
 obj-$(CONFIG_TEGRA_CPU_EDP)	+= tegra_cpu_edp.o
 
