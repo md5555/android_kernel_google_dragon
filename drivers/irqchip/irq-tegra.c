@@ -124,6 +124,13 @@ static int tegra_retrigger(struct irq_data *d)
 	return irq_chip_retrigger_hierarchy(d);
 }
 
+void tegra_legacy_irq_trigger(int irq)
+{
+	struct irq_data *d = irq_get_irq_data(irq);
+	tegra_ictlr_write_mask(d, ICTLR_CPU_IEP_FIR_SET);
+}
+EXPORT_SYMBOL(tegra_legacy_irq_trigger);
+
 #ifdef CONFIG_PM_SLEEP
 static int tegra_set_wake(struct irq_data *d, unsigned int enable)
 {
