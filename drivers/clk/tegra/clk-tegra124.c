@@ -1395,6 +1395,10 @@ static struct tegra_clk_init_table init_table[] __initdata = {
 	{TEGRA124_CLK_CLK_MAX, TEGRA124_CLK_CLK_MAX, 0, 0},
 };
 
+static struct tegra_audio_clk_info tegra124_audio_plls[] = {
+	{ "pll_a", &pll_a_params, tegra_clk_pll_a, "pll_p_out1" },
+};
+
 static void __init tegra124_clock_apply_init_table(void)
 {
 	tegra_init_from_table(init_table, clks, TEGRA124_CLK_CLK_MAX);
@@ -1436,7 +1440,9 @@ static void __init tegra124_clock_init(struct device_node *np)
 	tegra_fixed_clk_init(tegra124_clks);
 	tegra124_pll_init(clk_base, pmc_base);
 	tegra124_periph_clk_init(clk_base, pmc_base);
-	tegra_audio_clk_init(clk_base, pmc_base, tegra124_clks, &pll_a_params);
+	tegra_audio_clk_init(clk_base, pmc_base, tegra124_clks,
+			     tegra124_audio_plls,
+			     ARRAY_SIZE(tegra124_audio_plls));
 	tegra_pmc_clk_init(pmc_base, tegra124_clks);
 
 	tegra_super_clk_gen4_init(clk_base, pmc_base, tegra124_clks,
