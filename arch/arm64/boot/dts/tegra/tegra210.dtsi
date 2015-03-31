@@ -11,6 +11,7 @@
 #include "tegra210-edp.dtsi"
 
 #include "skeleton.dtsi"
+#include "tegra210-throttle.dtsi"
 
 / {
 	compatible = "nvidia,tegra210";
@@ -1165,5 +1166,29 @@
 				};
 			};
 		};
+	};
+
+	balanced_cpu: balanced_cpu {
+		compatible = "nvidia,balanced-throttle";
+		clocks = <&tegra_car TEGRA210_CLK_CAP_THROTTLE_C3BUS>,
+			 <&tegra_car TEGRA210_CLK_CAP_THROTTLE_SCLK>,
+			 <&tegra_car TEGRA210_CLK_CAP_THROTTLE_EMC>;
+		clock-names = "cap.throttle.c3bus", "cap.throttle.sclk", "cap.throttle.emc";
+
+		balanced-states = <&t210_cpu_throttling_state>;
+
+		#cooling-cells = <2>; /* min followed by max */
+	};
+
+	balanced_gpu: balanced_gpu {
+		compatible = "nvidia,balanced-throttle";
+		clocks = <&tegra_car TEGRA210_CLK_CAP_THROTTLE_C3BUS>,
+			 <&tegra_car TEGRA210_CLK_CAP_THROTTLE_SCLK>,
+			 <&tegra_car TEGRA210_CLK_CAP_THROTTLE_EMC>;
+		clock-names = "cap.throttle.c3bus", "cap.throttle.sclk", "cap.throttle.emc";
+
+		balanced-states = <&t210_gpu_throttling_state>;
+
+		#cooling-cells = <2>; /* min followed by max */
 	};
 };
