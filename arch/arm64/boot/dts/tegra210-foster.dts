@@ -583,7 +583,6 @@
 		vdd_usb_5v0: regulator@11 {
 			compatible = "regulator-fixed-sync";
 			reg = <11>;
-			status = "disabled";
 			regulator-name = "vdd-usb-5v0";
 			regulator-min-microvolt = <5000000>;
 			regulator-max-microvolt = <5000000>;
@@ -662,5 +661,12 @@
 		};
 	};
 
+	usb@7d000000 {
+		status = "okay";
+	};
 
+	usb-phy@7d000000 {
+		status = "okay";
+		vbus-supply = <&vdd_usb_5v0>;
+	};
 };
