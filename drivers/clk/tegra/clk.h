@@ -160,6 +160,8 @@ struct div_nmp {
 
 #define MAX_PLL_MISC_REG_COUNT	6
 
+struct tegra_clk_pll;
+
 /**
  * struct tegra_clk_pll_params - PLL parameters
  *
@@ -271,6 +273,8 @@ struct tegra_clk_pll_params {
 			unsigned long rate, unsigned long parent_rate);
 	unsigned long	(*adjust_vco)(struct tegra_clk_pll_params *pll_params,
 				unsigned long parent_rate);
+	int	(*dyn_ramp)(struct tegra_clk_pll *pll,
+			struct tegra_clk_pll_freq_table *cfg);
 };
 
 #define TEGRA_PLL_USE_LOCK BIT(0)
