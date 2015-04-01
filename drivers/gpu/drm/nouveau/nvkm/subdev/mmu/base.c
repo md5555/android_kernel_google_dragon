@@ -32,6 +32,11 @@
 #include <sync.h>
 #endif
 
+enum page_size_index {
+	SMALL_PAGE_INDEX = 0,
+	BIG_PAGE_INDEX = 1
+};
+
 void
 nvkm_vm_map_at(struct nvkm_vma *vma, u64 delta, struct nvkm_mem *node)
 {
@@ -143,6 +148,66 @@ finish:
 }
 
 static void
+nvkm_vm_map_sg_table_with_iommu(struct nvkm_vma *vma, u64 delta, u64 length,
+		     struct nvkm_mem *mem)
+{
+	struct nvkm_vm *vm = vma->vm;
+	struct nvkm_mmu *mmu = vm->mmu;
+	struct nvkm_ltc *ltc = nvkm_ltc(mmu);
+	u32 offset = vma->node->offset + (delta >> 12);
+	u32 bits = vma->node->type - 12;
+	u32 num  = length >> vma->node->type;
+	u32 max  = 1 << (mmu->pgt_bits - bits);
+	u32 lpidx;
+	u64 iova;
+	dma_addr_t *addr_list, *list;
+
+	vma->iommu_mapping = mmu->map_sg_iommu(mmu, mem->sg, length, &iova);
+	if (IS_ERR(vma->iommu_mapping)) {
+		vma->iommu_mapping = NULL;
+		return;
+	}
+
+	addr_list = kmalloc(sizeof(dma_addr_t) * num, GFP_KERNEL);
+	if (!addr_list) {
+		mmu->unmap_iommu(vma, vma->iommu_mapping);
+		nv_error(mmu, "no memory for dma list\n");
+		return;
+	}
+
+	for (lpidx = 0; lpidx < num; lpidx++)
+		addr_list[lpidx] = iova + (lpidx << mmu->lpg_shift);
+
+	lpidx = 0;
+	list = addr_list;
+	while (num) {
+		struct nvkm_gpuobj *pgt;
+		u32 lpoff, pde, pte, end, len;
+
+		lpoff = offset + lpidx * (1 << (mmu->lpg_shift - mmu->spg_shift));
+		pde = (lpoff >> (mmu->pgt_bits)) - vm->fpde;
+		pte = (lpoff & ((1 << mmu->pgt_bits) - 1)) >> bits;
+		pgt = vm->pgt[pde].obj[BIG_PAGE_INDEX];
+
+		end = (pte + num);
+		if (unlikely(end > max))
+			end = max;
+		len = end - pte;
+
+		mmu->map_sg(vma, pgt, mem, pte, len, list);
+
+		num  -= len;
+		list += len;
+		lpidx += len;
+	}
+
+	kfree(addr_list);
+
+	ltc->invalidate(ltc);
+	mmu->flush(vm);
+}
+
+static void
 nvkm_vm_map_sg(struct nvkm_vma *vma, u64 delta, u64 length,
 	       struct nvkm_mem *mem)
 {
@@ -185,13 +250,19 @@ nvkm_vm_map_sg(struct nvkm_vma *vma, u64 delta, u64 length,
 void
 nvkm_vm_map(struct nvkm_vma *vma, struct nvkm_mem *node)
 {
-	if (node->sg)
-		nvkm_vm_map_sg_table(vma, 0, node->size << 12, node);
-	else
-	if (node->pages)
-		nvkm_vm_map_sg(vma, 0, node->size << 12, node);
-	else
+	struct nvkm_vm *vm = vma->vm;
+	struct nvkm_mmu *mmu = vm->mmu;
+
+	if (node->sg) {
+		if (mmu->iommu_capable && vma->node->type == mmu->lpg_shift)
+			nvkm_vm_map_sg_table_with_iommu(vma, 0, node->size << 12, node);
+		else
+			nvkm_vm_map_sg_table(vma, 0, node->size << 12, node);
+	} else if (node->pages) {
+			nvkm_vm_map_sg(vma, 0, node->size << 12, node);
+	} else {
 		nvkm_vm_map_at(vma, 0, node);
+	}
 }
 
 void
@@ -232,9 +303,20 @@ nvkm_vm_unmap_at(struct nvkm_vma *vma, u64 delta, u64 length)
 }
 
 void
+nvkm_vm_unmap_iommu(struct nvkm_vma *vma)
+{
+	struct nvkm_mmu *mmu = vma->vm->mmu;
+
+	mmu->unmap_iommu(vma, vma->iommu_mapping);
+}
+
+void
 nvkm_vm_unmap(struct nvkm_vma *vma)
 {
 	nvkm_vm_unmap_at(vma, 0, (u64)vma->node->length << 12);
+
+	if (vma->iommu_mapping)
+		nvkm_vm_unmap_iommu(vma);
 }
 
 static void

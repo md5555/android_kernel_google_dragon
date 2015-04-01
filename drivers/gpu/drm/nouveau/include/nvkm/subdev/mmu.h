@@ -52,6 +52,7 @@ struct nvkm_vma {
 	struct nvkm_mm_node *node;
 	u64 offset;
 	u32 access;
+	void *iommu_mapping;
 
 	struct nvkm_as *as;
 };
@@ -91,6 +92,7 @@ struct nvkm_mmu {
 	u32 pgt_bits;
 	u8  spg_shift;
 	u8  lpg_shift;
+	bool iommu_capable;
 
 	int  (*create)(struct nvkm_mmu *, u64 offset, u64 length,
 		       u64 mm_offset, struct nvkm_vm **);
@@ -102,7 +104,10 @@ struct nvkm_mmu {
 		    u64 phys, u64 delta);
 	void (*map_sg)(struct nvkm_vma *, struct nvkm_gpuobj *,
 		       struct nvkm_mem *, u32 pte, u32 cnt, dma_addr_t *);
+	void * (*map_sg_iommu)(struct nvkm_mmu *, struct sg_table *, u64 length,
+			u64 *iova);
 	void (*unmap)(struct nvkm_gpuobj *pgt, u32 pte, u32 cnt);
+	void (*unmap_iommu)(struct nvkm_vma *, void *);
 	void (*flush)(struct nvkm_vm *);
 
 	const u8 *storage_type_map;
