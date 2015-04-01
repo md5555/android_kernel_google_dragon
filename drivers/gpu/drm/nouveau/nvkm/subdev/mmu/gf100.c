@@ -29,10 +29,7 @@
 
 #include <core/gpuobj.h>
 
-struct gf100_mmu_priv {
-	struct nvkm_mmu base;
-};
-
+#include "gf100.h"
 
 /* Map from compressed to corresponding uncompressed storage type.
  * The value 0xff represents an invalid storage type.
@@ -74,7 +71,7 @@ const u8 gf100_pte_storage_type_map[256] =
 };
 
 
-static void
+void
 gf100_vm_map_pgt(struct nvkm_gpuobj *pgd, u32 index, struct nvkm_gpuobj *pgt[2])
 {
 	u32 pde[2] = { 0, 0 };
@@ -88,21 +85,7 @@ gf100_vm_map_pgt(struct nvkm_gpuobj *pgd, u32 index, struct nvkm_gpuobj *pgt[2])
 	nv_wo32(pgd, (index * 8) + 4, pde[1]);
 }
 
-static inline u64
-gf100_vm_addr(struct nvkm_vma *vma, u64 phys, u32 memtype, u32 target)
-{
-	phys >>= 8;
-
-	phys |= 0x00000001; /* present */
-	if (vma->access & NV_MEM_ACCESS_SYS)
-		phys |= 0x00000002;
-
-	phys |= ((u64)target  << 32);
-	phys |= ((u64)memtype << 36);
-	return phys;
-}
-
-static void
+void
 gf100_vm_map(struct nvkm_vma *vma, struct nvkm_gpuobj *pgt,
 	     struct nvkm_mem *mem, u32 pte, u32 cnt, u64 phys, u64 delta)
 {
@@ -127,7 +110,7 @@ gf100_vm_map(struct nvkm_vma *vma, struct nvkm_gpuobj *pgt,
 	}
 }
 
-static void
+void
 gf100_vm_map_sg(struct nvkm_vma *vma, struct nvkm_gpuobj *pgt,
 		struct nvkm_mem *mem, u32 pte, u32 cnt, dma_addr_t *list)
 {
@@ -144,7 +127,7 @@ gf100_vm_map_sg(struct nvkm_vma *vma, struct nvkm_gpuobj *pgt,
 	}
 }
 
-static void
+void
 gf100_vm_unmap(struct nvkm_gpuobj *pgt, u32 pte, u32 cnt)
 {
 	pte <<= 3;
@@ -155,7 +138,7 @@ gf100_vm_unmap(struct nvkm_gpuobj *pgt, u32 pte, u32 cnt)
 	}
 }
 
-static void
+void
 gf100_vm_flush(struct nvkm_vm *vm)
 {
 	struct gf100_mmu_priv *priv = (void *)vm->mmu;
@@ -191,14 +174,14 @@ gf100_vm_flush(struct nvkm_vm *vm)
 	mutex_unlock(&nv_subdev(priv)->mutex);
 }
 
-static int
+int
 gf100_vm_create(struct nvkm_mmu *mmu, u64 offset, u64 length, u64 mm_offset,
 		struct nvkm_vm **pvm)
 {
 	return nvkm_vm_create(mmu, offset, length, mm_offset, 4096, pvm);
 }
 
-static int
+int
 gf100_mmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	       struct nvkm_oclass *oclass, void *data, u32 size,
 	       struct nvkm_object **pobject)
