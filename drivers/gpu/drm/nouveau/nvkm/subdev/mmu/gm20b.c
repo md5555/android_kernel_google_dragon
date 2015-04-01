@@ -68,7 +68,7 @@ gm20b_mmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	       struct nvkm_oclass *oclass, void *data, u32 size,
 	       struct nvkm_object **pobject)
 {
-	struct gf100_mmu_priv *priv;
+	struct gk20a_mmu_priv *priv;
 	int ret;
 
 	ret = gk20a_mmu_ctor(parent, engine, oclass, data, size, pobject);

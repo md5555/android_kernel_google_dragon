@@ -24,6 +24,7 @@
 #include <linux/power_supply.h>
 #include <linux/clk.h>
 #include <linux/regulator/consumer.h>
+#include <linux/radix-tree.h>
 
 #include <asm/unaligned.h>
 
