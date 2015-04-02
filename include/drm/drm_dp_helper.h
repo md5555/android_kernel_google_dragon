@@ -610,4 +610,14 @@ int drm_dp_link_configure(struct drm_dp_aux *aux, struct drm_dp_link *link);
 int drm_dp_aux_register(struct drm_dp_aux *aux);
 void drm_dp_aux_unregister(struct drm_dp_aux *aux);
 
+#define DP_PS8617_OUI 0x1cf8
+
+static inline bool drm_dp_branch_is_ps8617(const u8 buf[3])
+{
+	if (buf[0] == ((DP_PS8617_OUI >> 16) & 0xff) &&
+	    buf[1] == ((DP_PS8617_OUI >> 8) & 0xff) &&
+	    buf[2] == ((DP_PS8617_OUI & 0xff)))
+		return true;
+	return false;
+}
 #endif /* _DRM_DP_HELPER_H_ */
