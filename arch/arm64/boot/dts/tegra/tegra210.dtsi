@@ -462,6 +462,24 @@
 		#iommu-cells = <1>;
         };
 
+	memory-controller@7001b000 {
+		compatible = "nvidia,tegra210-emc";
+		reg = <0x0 0x7001b000 0x0 0x1000>,
+		      <0x0 0x7001e000 0x0 0x1000>,
+		      <0x0 0x7001f000 0x0 0x1000>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		clocks = <&tegra_car TEGRA210_CLK_EMC>,
+			 <&tegra_car TEGRA210_CLK_PLL_M>,
+			 <&tegra_car TEGRA210_CLK_PLL_C>,
+			 <&tegra_car TEGRA210_CLK_PLL_P>,
+			 <&tegra_car TEGRA210_CLK_CLK_M>,
+			 <&tegra_car TEGRA210_CLK_PLL_MB>,
+			 <&tegra_car TEGRA210_CLK_OVERRIDE_EMC>;
+		clock-names = "emc", "pll_m", "pll_c", "pll_p", "clk_m",
+			"pll_mb", "emc_override";
+	};
+
 	adma: adma@702e2000 {
 		compatible = "nvidia,tegra210-adma";
 		reg = <0x0 0x702e2000 0x0 0x2000>;
