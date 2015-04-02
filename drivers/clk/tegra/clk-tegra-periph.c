@@ -257,6 +257,7 @@
 
 #define PLLP_BASE 0xa0
 #define PLLP_MISC 0xac
+#define PLLP_MISC1 0x680
 #define PLLP_OUTA 0xa4
 #define PLLP_OUTB 0xa8
 #define PLLP_OUTC 0x67c
@@ -816,6 +817,8 @@ static struct tegra_periph_init_data gate_clks[] = {
 	GATE("pllg_ref", "pll_ref", 189, 0, tegra_clk_pll_g_ref, 0),
 	GATE("hsic_trk", "usb2_hsic_trk", 209, TEGRA_PERIPH_NO_RESET, tegra_clk_hsic_trk, 0),
 	GATE("usb2_trk", "usb2_hsic_trk", 210, TEGRA_PERIPH_NO_RESET, tegra_clk_usb2_trk, 0),
+	GATE("pll_p_out_cpu", "pll_p", 223, 0, tegra_clk_pll_p_out_cpu, 0),
+	GATE("pll_p_out_adsp", "pll_p", 187, 0, tegra_clk_pll_p_out_adsp, 0),
 };
 
 static struct tegra_periph_init_data div_clks[] = {
@@ -971,6 +974,51 @@ static void __init init_pllp(void __iomem *clk_base, void __iomem *pmc_base,
 				data->rst_shift + 1, data->rst_shift,
 				CLK_IGNORE_UNUSED | CLK_SET_RATE_PARENT, 0,
 				data->lock);
+		*dt_clk = clk;
+	}
+
+	dt_clk = tegra_lookup_dt_id(tegra_clk_pll_p_out_cpu,
+			tegra_clks);
+	if (dt_clk) {
+		/*
+		 * Tegra210 has control on enabling/disabling PLLP branches to
+		 * CPU, register a gate clock "pll_p_out_cpu" for this gating
+		 * function and parent "pll_p_out4" to it, so when we are
+		 * re-parenting CPU off from "pll_p_out4" the PLLP branching to
+		 * CPU can be disabled automatically.
+		 */
+		clk = tegra_clk_register_divider("pll_p_out4_div",
+				"pll_p_out_cpu", clk_base + PLLP_OUTB, 0, 0, 24,
+				8, 1, &PLLP_OUTB_lock);
+
+		dt_clk = tegra_lookup_dt_id(tegra_clk_pll_p_out4_cpu, tegra_clks);
+		if (dt_clk) {
+			clk = tegra_clk_register_pll_out("pll_p_out4",
+					"pll_p_out4_div", clk_base + PLLP_OUTB,
+					17, 16, CLK_IGNORE_UNUSED |
+					CLK_SET_RATE_PARENT, 0,
+					&PLLP_OUTB_lock);
+			*dt_clk = clk;
+		}
+	}
+
+	dt_clk = tegra_lookup_dt_id(tegra_clk_pll_p_out_hsio, tegra_clks);
+	if (dt_clk) {
+		/* PLLP_OUT_HSIO */
+		clk = clk_register_gate(NULL, "pll_p_out_hsio", "pll_p",
+				CLK_SET_RATE_PARENT | CLK_IGNORE_UNUSED,
+				clk_base + PLLP_MISC1, 29, 0, NULL);
+		*dt_clk = clk;
+	}
+
+	dt_clk = tegra_lookup_dt_id(tegra_clk_pll_p_out_xusb, tegra_clks);
+	if (dt_clk) {
+		/* PLLP_OUT_XUSB */
+		clk = clk_register_gate(NULL, "pll_p_out_xusb",
+				"pll_p_out_hsio", CLK_SET_RATE_PARENT |
+				CLK_IGNORE_UNUSED, clk_base + PLLP_MISC1, 28, 0,
+				NULL);
+		clk_register_clkdev(clk, "pll_p_out_xusb", NULL);
 		*dt_clk = clk;
 	}
 }

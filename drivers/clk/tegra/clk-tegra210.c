@@ -2104,9 +2104,12 @@ static struct tegra_clk tegra210_clks[tegra_clk_max] __initdata = {
 	[tegra_clk_pll_m_out1] = { .dt_id = TEGRA210_CLK_PLL_M_OUT1, .present = true },
 	[tegra_clk_pll_p] = { .dt_id = TEGRA210_CLK_PLL_P, .present = true },
 	[tegra_clk_pll_p_out1] = { .dt_id = TEGRA210_CLK_PLL_P_OUT1, .present = true },
-	[tegra_clk_pll_p_out2] = { .dt_id = TEGRA210_CLK_PLL_P_OUT2, .present = true },
 	[tegra_clk_pll_p_out3] = { .dt_id = TEGRA210_CLK_PLL_P_OUT3, .present = true },
-	[tegra_clk_pll_p_out4] = { .dt_id = TEGRA210_CLK_PLL_P_OUT4, .present = true },
+	[tegra_clk_pll_p_out4_cpu] = { .dt_id = TEGRA210_CLK_PLL_P_OUT4, .present = true },
+	[tegra_clk_pll_p_out_hsio] = { .dt_id = TEGRA210_CLK_PLL_P_OUT_HSIO, .present = true },
+	[tegra_clk_pll_p_out_xusb] = { .dt_id = TEGRA210_CLK_PLL_P_OUT_XUSB, .present = true },
+	[tegra_clk_pll_p_out_cpu] = { .dt_id = TEGRA210_CLK_PLL_P_OUT_CPU, .present = true },
+	[tegra_clk_pll_p_out_adsp] = { .dt_id = TEGRA210_CLK_PLL_P_OUT_ADSP, .present = true },
 	[tegra_clk_pll_a] = { .dt_id = TEGRA210_CLK_PLL_A, .present = true },
 	[tegra_clk_pll_a_out0] = { .dt_id = TEGRA210_CLK_PLL_A_OUT0, .present = true },
 	[tegra_clk_pll_d] = { .dt_id = TEGRA210_CLK_PLL_D, .present = true },
@@ -2609,6 +2612,11 @@ static void __init tegra210_pll_init(void __iomem *clk_base,
 	clk_register_clkdev(clk, "pll_d2_out0", NULL);
 	clks[TEGRA210_CLK_PLL_D2_OUT0] = clk;
 
+	/* PLLP_OUT2 */
+	clk = clk_register_fixed_factor(NULL, "pll_p_out2", "pll_p",
+					CLK_SET_RATE_PARENT, 1, 2);
+	clk_register_clkdev(clk, "pll_p_out2", NULL);
+	clks[TEGRA210_CLK_PLL_P_OUT2] = clk;
 }
 
 /* Tegra210 CPU clock and reset control functions */
