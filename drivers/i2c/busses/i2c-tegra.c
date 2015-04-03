@@ -173,6 +173,8 @@ struct tegra_i2c_dev {
 	int msg_read;
 	u32 bus_clk_rate;
 	bool is_suspended;
+	void __iomem *i2c6_padctl_reg;
+	void __iomem *i2c6_powerup_reg;
 };
 
 static void dvc_writel(struct tegra_i2c_dev *i2c_dev, u32 val, unsigned long reg)
@@ -707,9 +709,24 @@ static const struct of_device_id tegra_i2c_of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, tegra_i2c_of_match);
 
+static void tegra_i2c_set_i2c6_padctl(void __iomem *padctl_reg)
+{
+	pr_info("DPAUX_HYBRID_PADCTL_0 value was %08x\n", readl(padctl_reg));
+	writel(0xc001, padctl_reg);
+	pr_info("DPAUX_HYBRID_PADCTL_0 value is %08x\n", readl(padctl_reg));
+}
+
+static void tegra_i2c_set_i2c6_powerup(void __iomem *powerup_reg)
+{
+	pr_info("DPAUX_HYBRID_SPARE_0 value was %08x\n", readl(powerup_reg));
+	writel(0x0, powerup_reg);
+	pr_info("DPAUX_HYBRID_SPARE_0 value is %08x\n", readl(powerup_reg));
+}
+
 static int tegra_i2c_probe(struct platform_device *pdev)
 {
 	struct tegra_i2c_dev *i2c_dev;
+	struct resource *mem;
 	struct resource *res;
 	struct clk *div_clk;
 	struct clk *fast_clk;
@@ -717,9 +734,10 @@ static int tegra_i2c_probe(struct platform_device *pdev)
 	int irq;
 	int ret = 0;
 	int clk_multiplier = I2C_CLK_MULTIPLIER_STD_FAST_MODE;
+	struct clk *c;
 
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	base = devm_ioremap_resource(&pdev->dev, res);
+	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	base = devm_ioremap_resource(&pdev->dev, mem);
 	if (IS_ERR(base))
 		return PTR_ERR(base);
 
@@ -739,6 +757,36 @@ static int tegra_i2c_probe(struct platform_device *pdev)
 	i2c_dev = devm_kzalloc(&pdev->dev, sizeof(*i2c_dev), GFP_KERNEL);
 	if (!i2c_dev)
 		return -ENOMEM;
+
+	/*
+	 * I2C6 of t124/t132/t210 needs DPAUX_HYBRID_PADCTL_0 set to 0xc001
+	 * which requires bringing up the dpaux and sor0 blocks.
+	 * t210 also needs pads to be powered up via DPAUX_HYBRID_SPARE_0.
+	 */
+	if ((of_device_is_compatible(pdev->dev.of_node,
+					"nvidia,tegra124-i2c") ||
+	     of_device_is_compatible(pdev->dev.of_node,
+					"nvidia,tegra210-i2c")) &&
+	    mem->start == 0x7000d100) {
+		c = clk_get_sys(NULL, "dpaux");
+		WARN_ON(IS_ERR_OR_NULL(c));
+		clk_prepare_enable(c);
+
+		c = clk_get_sys(NULL, "sor0");
+		WARN_ON(IS_ERR_OR_NULL(c));
+		clk_prepare_enable(c);
+
+		i2c_dev->i2c6_padctl_reg =
+			devm_ioremap(&pdev->dev, 0x545c0124, 4);
+		tegra_i2c_set_i2c6_padctl(i2c_dev->i2c6_padctl_reg);
+
+		if (of_device_is_compatible(pdev->dev.of_node,
+					"nvidia,tegra210-i2c")) {
+			i2c_dev->i2c6_powerup_reg =
+				devm_ioremap(&pdev->dev, 0x545c0134, 4);
+			tegra_i2c_set_i2c6_powerup(i2c_dev->i2c6_powerup_reg);
+		}
+	}
 
 	i2c_dev->base = base;
 	i2c_dev->div_clk = div_clk;
@@ -873,6 +921,11 @@ static int tegra_i2c_resume(struct device *dev)
 {
 	struct tegra_i2c_dev *i2c_dev = dev_get_drvdata(dev);
 	int ret;
+
+	if (i2c_dev->i2c6_padctl_reg)
+		tegra_i2c_set_i2c6_padctl(i2c_dev->i2c6_padctl_reg);
+	if (i2c_dev->i2c6_powerup_reg)
+		tegra_i2c_set_i2c6_powerup(i2c_dev->i2c6_powerup_reg);
 
 	i2c_lock_adapter(&i2c_dev->adapter);
 
