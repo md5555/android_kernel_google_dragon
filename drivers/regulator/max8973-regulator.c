@@ -27,6 +27,8 @@
 #include <linux/init.h>
 #include <linux/err.h>
 #include <linux/of.h>
+#include <linux/of_device.h>
+#include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/driver.h>
 #include <linux/regulator/machine.h>
@@ -91,6 +93,11 @@
 #define MAX8973_VOLATGE_STEP				6250
 #define MAX8973_BUCK_N_VOLTAGE				0x80
 
+enum device_id {
+	MAX8973,
+	MAX77621,
+};
+
 /* Maxim 8973 chip information */
 struct max8973_chip {
 	struct device *dev;
@@ -103,6 +110,7 @@ struct max8973_chip {
 	int curr_vout_reg;
 	int curr_gpio_val;
 	struct regulator_ops ops;
+	enum device_id id;
 };
 
 /*
@@ -383,10 +391,24 @@ static int max8973_init_dcdc(struct max8973_chip *max,
 		return ret;
 	}
 
-	/* If external control is enabled then disable EN bit */
+	/*
+	 * MAX8973 and MAX77621 vary in how they can be configured to
+	 * be controlled via a pin externally.
+	 * MAX8973:
+	 *   - 1 in EN bit means regulator is forced on
+	 *   - 0 in EN bit means regulator is controlled by EN pin
+	 * MAX77621:
+	 *   - 1 in EN bit: means regulator is controlled via nSHDN pin
+	 *   - 0 in EN bit: means regulator is forced off
+	 */
 	if (max->enable_external_control) {
+		int en_bit = 0;
+
+		if (max->id == MAX77621)
+			en_bit = MAX8973_VOUT_ENABLE;
+
 		ret = regmap_update_bits(max->regmap, MAX8973_VOUT,
-						MAX8973_VOUT_ENABLE, 0);
+					MAX8973_VOUT_ENABLE, en_bit);
 		if (ret < 0)
 			dev_err(max->dev, "register %d update failed, err = %d",
 				MAX8973_VOUT, ret);
@@ -445,6 +467,13 @@ static struct max8973_regulator_platform_data *max8973_parse_dt(
 	return pdata;
 }
 
+static const struct of_device_id of_max8973_match_tbl[] = {
+	{ .compatible = "maxim,max8973", .data = (void *)MAX8973, },
+	{ .compatible = "maxim,max77621", .data = (void *)MAX77621, },
+	{ },
+};
+MODULE_DEVICE_TABLE(of, of_max8973_match_tbl);
+
 static int max8973_probe(struct i2c_client *client,
 			 const struct i2c_device_id *id)
 {
@@ -452,6 +481,7 @@ static int max8973_probe(struct i2c_client *client,
 	struct regulator_config config = { };
 	struct regulator_dev *rdev;
 	struct max8973_chip *max;
+	unsigned int chip_id;
 	int ret;
 
 	pdata = client->dev.platform_data;
@@ -475,6 +505,29 @@ static int max8973_probe(struct i2c_client *client,
 		ret = PTR_ERR(max->regmap);
 		dev_err(&client->dev, "regmap init failed, err %d\n", ret);
 		return ret;
+	}
+
+	if (client->dev.of_node) {
+		const struct of_device_id *match;
+
+		match = of_match_device(of_max8973_match_tbl, &client->dev);
+		if (!match)
+			return -ENODATA;
+		max->id = (u32)((uintptr_t)match->data);
+	} else {
+		max->id = id->driver_data;
+	}
+
+	if (max->id == MAX77621) {
+		ret = regmap_read(max->regmap, MAX8973_CHIPID1, &chip_id);
+		if (ret < 0) {
+			dev_err(&client->dev,
+				"register CHIPID1 read failed, %d", ret);
+			return ret;
+		}
+
+		dev_info(&client->dev, "CHIP-ID OTP: %#04x ID_M: %#04x\n",
+				(chip_id >> 4) & 0xF, (chip_id >> 1) & 0x7);
 	}
 
 	i2c_set_clientdata(client, max);
@@ -556,15 +609,16 @@ static int max8973_probe(struct i2c_client *client,
 }
 
 static const struct i2c_device_id max8973_id[] = {
-	{.name = "max8973",},
+	{.name = "max8973", MAX8973},
+	{.name = "max77621", MAX77621},
 	{},
 };
-
 MODULE_DEVICE_TABLE(i2c, max8973_id);
 
 static struct i2c_driver max8973_i2c_driver = {
 	.driver = {
 		.name = "max8973",
+		.of_match_table = of_max8973_match_tbl,
 		.owner = THIS_MODULE,
 	},
 	.probe = max8973_probe,
