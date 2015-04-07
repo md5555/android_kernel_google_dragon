@@ -854,8 +854,9 @@ static int tegra_pmc_probe(struct platform_device *pdev)
 #ifdef CONFIG_PM_SLEEP
 static int tegra_pmc_suspend(struct device *dev)
 {
+#ifndef CONFIG_ARM64
 	tegra_pmc_writel(virt_to_phys(tegra_resume), PMC_SCRATCH41);
-
+#endif
 	return 0;
 }
 
