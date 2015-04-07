@@ -48,7 +48,7 @@
 #define TEGRA124_THERMTRIP_CPU_THRESH_MASK	(0xff << 8)
 #define TEGRA124_THERMTRIP_TSENSE_THRESH_MASK	0xff
 
-static struct tegra_tsensor_configuration tegra124_tsensor_config = {
+static const struct tegra_tsensor_configuration tegra124_tsensor_config = {
 	.tall = 16300,
 	.tsample = 120,
 	.tiddq_en = 1,
@@ -56,7 +56,7 @@ static struct tegra_tsensor_configuration tegra124_tsensor_config = {
 	.tsample_ate = 481,
 };
 
-static struct tegra_tsensor_group tegra124_tsensor_group_cpu = {
+static const struct tegra_tsensor_group tegra124_tsensor_group_cpu = {
 	.id				= TEGRA124_SOCTHERM_SENSOR_CPU,
 	.name				= "cpu",
 	.thermctl_isr_shift		= 8,
@@ -76,7 +76,7 @@ static struct tegra_tsensor_group tegra124_tsensor_group_cpu = {
 	.bptt				= TEGRA124_BPTT,
 };
 
-static struct tegra_tsensor_group tegra124_tsensor_group_gpu = {
+static const struct tegra_tsensor_group tegra124_tsensor_group_gpu = {
 	.id				= TEGRA124_SOCTHERM_SENSOR_GPU,
 	.name				= "gpu",
 	.thermctl_isr_shift		= 16,
@@ -96,7 +96,7 @@ static struct tegra_tsensor_group tegra124_tsensor_group_gpu = {
 	.bptt				= TEGRA124_BPTT,
 };
 
-static struct tegra_tsensor_group tegra124_tsensor_group_pll = {
+static const struct tegra_tsensor_group tegra124_tsensor_group_pll = {
 	.id				= TEGRA124_SOCTHERM_SENSOR_PLLX,
 	.name				= "pll",
 	.thermctl_isr_shift		= 0,
@@ -114,7 +114,7 @@ static struct tegra_tsensor_group tegra124_tsensor_group_pll = {
 	.bptt				= TEGRA124_BPTT,
 };
 
-static struct tegra_tsensor_group tegra124_tsensor_group_mem = {
+static const struct tegra_tsensor_group tegra124_tsensor_group_mem = {
 	.id				= TEGRA124_SOCTHERM_SENSOR_MEM,
 	.name				= "mem",
 	.thermctl_isr_shift		= 24,
@@ -134,7 +134,7 @@ static struct tegra_tsensor_group tegra124_tsensor_group_mem = {
 	.bptt				= TEGRA124_BPTT,
 };
 
-static struct tegra_tsensor_group *tegra124_tsensor_groups[] = {
+static const struct tegra_tsensor_group *tegra124_tsensor_groups[] = {
 	&tegra124_tsensor_group_cpu,
 	&tegra124_tsensor_group_gpu,
 	&tegra124_tsensor_group_pll,

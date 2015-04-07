@@ -424,7 +424,7 @@ struct tegra_soctherm {
 
 	struct thermal_zone_device *therm_tzs[4];
 	struct tegra_thermctl_zone *thermctl_tzs[4];
-	struct tegra_tsensor_group **sensor_groups;
+	const struct tegra_tsensor_group **sensor_groups;
 	struct tegra_tsensor *tsensors;
 	struct tsensor_shared_calibration *shared_calib;
 	struct soctherm_oc_irq_chip_data *soc_irq_cdata;
@@ -440,7 +440,7 @@ struct tegra_soctherm {
 
 struct tegra_thermctl_zone {
 	struct tegra_soctherm *tegra;
-	struct tegra_tsensor_group *sensor_group;
+	const struct tegra_tsensor_group *sensor_group;
 	struct thermal_zone_device *tz;
 	long cur_low_trip;
 	long cur_high_trip;
@@ -730,7 +730,7 @@ static irqreturn_t soctherm_thermal_isr_thread(int irq, void *dev_id)
 
 	/* enable interrupt */
 	for (i = 0; ts->sensor_groups[i]; ++i) {
-		struct tegra_tsensor_group *ttg = ts->sensor_groups[i];
+		const struct tegra_tsensor_group *ttg = ts->sensor_groups[i];
 		if (!(ttg->flags & SKIP_THERMAL_FW_REGISTRATION))
 			st |= TH_INTR_UP_DOWN_LVL0_MASK <<
 				ttg->thermctl_isr_shift;
@@ -967,7 +967,8 @@ static int enforce_temp_range(struct device *dev, long trip_temp)
  *
  * Return: 0 upon success, or %-EINVAL upon failure.
  */
-static int thermtrip_clear(struct device *dev, struct tegra_tsensor_group *sg)
+static int thermtrip_clear(struct device *dev,
+			   const struct tegra_tsensor_group *sg)
 {
 	struct tegra_soctherm *ts = dev_get_drvdata(dev);
 	u32 r;
@@ -1008,7 +1009,8 @@ static int thermtrip_clear(struct device *dev, struct tegra_tsensor_group *sg)
  *
  * Return: 0 upon success, or %-EINVAL upon failure.
  */
-static int thermtrip_program(struct device *dev, struct tegra_tsensor_group *sg,
+static int thermtrip_program(struct device *dev,
+			     const struct tegra_tsensor_group *sg,
 			     long trip_temp)
 {
 	struct tegra_soctherm *ts = dev_get_drvdata(dev);
@@ -1048,7 +1050,7 @@ static int thermtrip_program(struct device *dev, struct tegra_tsensor_group *sg,
  * Return: a pointer to a struct tegra_tsensor_group upon success, or
  * NULL upon failure.
  */
-static struct tegra_tsensor_group *find_sensor_group_by_name(
+static const struct tegra_tsensor_group *find_sensor_group_by_name(
 						struct tegra_soctherm *ts,
 						const char *name)
 {
@@ -1077,7 +1079,7 @@ static int thermtrip_configure_limits_from_dt(struct device *dev,
 					      struct device_node *ttn)
 {
 	struct tegra_soctherm *ts = dev_get_drvdata(dev);
-	struct tegra_tsensor_group *sg;
+	const struct tegra_tsensor_group *sg;
 	struct device_node *sgn, *sgsn;
 	const char *name;
 	u32 temperature;
@@ -1169,7 +1171,7 @@ static int thermtrip_configure_from_dt(struct device *dev)
 
 static inline void prog_hw_threshold(struct device *dev,
 				     long trip_temp,
-				     struct tegra_tsensor_group *sg,
+				     const struct tegra_tsensor_group *sg,
 				     int throt)
 {
 	struct tegra_soctherm *ts = dev_get_drvdata(dev);
@@ -1201,7 +1203,8 @@ static inline void prog_hw_threshold(struct device *dev,
 	soctherm_writel(ts, r, reg_off);
 }
 
-static int throttrip_program(struct device *dev, struct tegra_tsensor_group *sg,
+static int throttrip_program(struct device *dev,
+			     const struct tegra_tsensor_group *sg,
 			     long trip_temp)
 {
 	if (!dev || !sg)
@@ -1216,7 +1219,7 @@ static int throttrip_configure_limits_from_dt(struct device *dev,
 					      struct device_node *ttn)
 {
 	struct tegra_soctherm *ts = dev_get_drvdata(dev);
-	struct tegra_tsensor_group *sg;
+	const struct tegra_tsensor_group *sg;
 	struct device_node *sgn, *sgsn;
 	const char *name;
 	u32 temperature;
@@ -1655,7 +1658,7 @@ static int soctherm_init_platform_data(struct platform_device *pdev)
 {
 	struct tegra_soctherm *tegra = platform_get_drvdata(pdev);
 	struct tegra_tsensor *tsensors = tegra->tsensors;
-	struct tegra_tsensor_group **tegra_tsensor_groups;
+	const struct tegra_tsensor_group **tegra_tsensor_groups;
 	int i;
 	u32 v, state;
 
@@ -1676,7 +1679,7 @@ static int soctherm_init_platform_data(struct platform_device *pdev)
 
 	/* Initialize thermctl sensors */
 	for (i = 0; tegra_tsensor_groups[i]; ++i) {
-		struct tegra_tsensor_group *ttg;
+		const struct tegra_tsensor_group *ttg;
 
 		ttg = tegra_tsensor_groups[i];
 
@@ -1934,7 +1937,7 @@ static int regs_show(struct seq_file *s, void *data)
 	struct platform_device *pdev = s->private;
 	struct tegra_soctherm *ts = platform_get_drvdata(pdev);
 	struct tegra_tsensor *tsensors = ts->tsensors;
-	struct tegra_tsensor_group **tsensor_groups = ts->sensor_groups;
+	const struct tegra_tsensor_group **tsensor_groups = ts->sensor_groups;
 	u32 r;
 	u32 state;
 	int i, j, level;
@@ -2344,12 +2347,12 @@ static const struct thermal_zone_of_device_ops tegra_of_thermal_ops = {
 
 int tegra_soctherm_probe(struct platform_device *pdev,
 		struct tegra_tsensor *tsensors,
-		struct tegra_tsensor_group **tegra_tsensor_groups,
+		const struct tegra_tsensor_group **tegra_tsensor_groups,
 		enum soctherm_chipid chipid)
 {
 	struct tegra_soctherm *tegra;
 	struct thermal_zone_device *tz;
-	struct tegra_tsensor_group *ttg;
+	const struct tegra_tsensor_group *ttg;
 	struct tsensor_shared_calibration *shared_calib;
 	struct resource *reg_res;
 	int i, irq_num;

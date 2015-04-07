@@ -42,7 +42,7 @@
 
 #define TEGRA132_FUSE_CP_REV			0x90
 
-static struct tegra_tsensor_configuration tegra132_tsensor_config = {
+static const struct tegra_tsensor_configuration tegra132_tsensor_config = {
 	.tall = 16300,
 	.tsample = 120,
 	.tiddq_en = 1,
@@ -50,7 +50,7 @@ static struct tegra_tsensor_configuration tegra132_tsensor_config = {
 	.tsample_ate = 480,
 };
 
-static struct tegra_tsensor_group tegra132_tsensor_group_cpu_pre_0_12 = {
+static const struct tegra_tsensor_group tegra132_tsensor_group_cpu_pre_0_12 = {
 	.id				= TEGRA124_SOCTHERM_SENSOR_CPU,
 	.name				= "cpu",
 	.thermctl_isr_shift		= 8,
@@ -72,7 +72,7 @@ static struct tegra_tsensor_group tegra132_tsensor_group_cpu_pre_0_12 = {
 					  SKIP_THERMTRIP_REGISTRATION,
 };
 
-static struct tegra_tsensor_group tegra132_tsensor_group_cpu_0_12_plus = {
+static const struct tegra_tsensor_group tegra132_tsensor_group_cpu_0_12_plus = {
 	.id				= TEGRA124_SOCTHERM_SENSOR_CPU,
 	.name				= "cpu",
 	.thermctl_isr_shift		= 8,
@@ -92,7 +92,7 @@ static struct tegra_tsensor_group tegra132_tsensor_group_cpu_0_12_plus = {
 	.bptt				= TEGRA132_BPTT,
 };
 
-static struct tegra_tsensor_group tegra132_tsensor_group_gpu = {
+static const struct tegra_tsensor_group tegra132_tsensor_group_gpu = {
 	.id				= TEGRA124_SOCTHERM_SENSOR_GPU,
 	.name				= "gpu",
 	.thermctl_isr_shift		= 16,
@@ -112,7 +112,7 @@ static struct tegra_tsensor_group tegra132_tsensor_group_gpu = {
 	.bptt				= TEGRA132_BPTT,
 };
 
-static struct tegra_tsensor_group tegra132_tsensor_group_pll_pre_0_12 = {
+static const struct tegra_tsensor_group tegra132_tsensor_group_pll_pre_0_12 = {
 	.id				= TEGRA124_SOCTHERM_SENSOR_PLLX,
 	.name				= "pll",
 	.thermctl_isr_shift		= 0,
@@ -130,7 +130,7 @@ static struct tegra_tsensor_group tegra132_tsensor_group_pll_pre_0_12 = {
 	.bptt				= TEGRA132_BPTT,
 };
 
-static struct tegra_tsensor_group tegra132_tsensor_group_pll_0_12_plus = {
+static const struct tegra_tsensor_group tegra132_tsensor_group_pll_0_12_plus = {
 	.id				= TEGRA124_SOCTHERM_SENSOR_PLLX,
 	.name				= "pll",
 	.thermctl_isr_shift		= 0,
@@ -150,7 +150,7 @@ static struct tegra_tsensor_group tegra132_tsensor_group_pll_0_12_plus = {
 					  SKIP_THERMTRIP_REGISTRATION,
 };
 
-static struct tegra_tsensor_group tegra132_tsensor_group_mem = {
+static const struct tegra_tsensor_group tegra132_tsensor_group_mem = {
 	.id				= TEGRA124_SOCTHERM_SENSOR_MEM,
 	.name				= "mem",
 	.thermctl_isr_shift		= 24,
@@ -170,7 +170,7 @@ static struct tegra_tsensor_group tegra132_tsensor_group_mem = {
 	.bptt				= TEGRA132_BPTT,
 };
 
-static struct tegra_tsensor_group *tegra132_tsensor_groups_pre_0_12[] = {
+static const struct tegra_tsensor_group *tegra132_tsensor_groups_pre_0_12[] = {
 	&tegra132_tsensor_group_cpu_pre_0_12,
 	&tegra132_tsensor_group_gpu,
 	&tegra132_tsensor_group_pll_pre_0_12,
@@ -178,7 +178,7 @@ static struct tegra_tsensor_group *tegra132_tsensor_groups_pre_0_12[] = {
 	NULL,
 };
 
-static struct tegra_tsensor_group *tegra132_tsensor_groups_0_12_plus[] = {
+static const struct tegra_tsensor_group *tegra132_tsensor_groups_0_12_plus[] = {
 	&tegra132_tsensor_group_cpu_0_12_plus,
 	&tegra132_tsensor_group_gpu,
 	&tegra132_tsensor_group_pll_0_12_plus,
@@ -423,7 +423,7 @@ MODULE_DEVICE_TABLE(of, tegra_soctherm_of_match);
 
 static int tegra132_soctherm_probe(struct platform_device *pdev)
 {
-	struct tegra_tsensor_group **tegra132_tsensor_groups = NULL;
+	const struct tegra_tsensor_group **tegra132_tsensor_groups = NULL;
 	struct tegra_tsensor *tegra132_tsensors = NULL;
 	u32 rev, rev_major, rev_minor;
 	int err;

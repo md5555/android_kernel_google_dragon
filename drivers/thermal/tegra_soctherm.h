@@ -144,11 +144,11 @@ struct tegra_tsensor_configuration {
 struct tegra_tsensor {
 	const char *name;
 	u32 base;
-	struct tegra_tsensor_configuration *config;
+	const struct tegra_tsensor_configuration *config;
 	u32 calib_fuse_offset;
 	s32 fuse_corr_alpha, fuse_corr_beta;
 	u32 calib;
-	struct tegra_tsensor_group *group;
+	const struct tegra_tsensor_group *group;
 };
 
 struct tsensor_shared_calibration {
@@ -165,7 +165,7 @@ int tegra_soctherm_calculate_tsensor_calibration(
 int tegra_soctherm_probe(
 		struct platform_device *pdev,
 		struct tegra_tsensor *tsensors,
-		struct tegra_tsensor_group **tegra_tsensor_groups,
+		const struct tegra_tsensor_group **tegra_tsensor_groups,
 		enum soctherm_chipid chipid);
 int tegra_soctherm_remove(struct platform_device *pdev);
 

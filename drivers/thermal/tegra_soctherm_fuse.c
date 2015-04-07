@@ -135,7 +135,7 @@ int tegra_soctherm_calculate_tsensor_calibration(
 				struct tegra_tsensor *sensor,
 				struct tsensor_shared_calibration *shared)
 {
-	struct tegra_tsensor_group *sensor_group;
+	const struct tegra_tsensor_group *sensor_group;
 	u32 val, calib;
 	s32 actual_tsensor_ft, actual_tsensor_cp;
 	s32 delta_sens, delta_temp;
