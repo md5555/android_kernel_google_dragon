@@ -261,6 +261,7 @@ struct tegra_clk_pll_params {
 	int		stepb_shift;
 	int		lock_delay;
 	int		max_p;
+	bool		defaults_set;
 	struct pdiv_map *pdiv_tohw;
 	struct div_nmp	*div_nmp;
 	struct tegra_clk_pll_freq_table	*freq_table;
@@ -275,6 +276,7 @@ struct tegra_clk_pll_params {
 				unsigned long parent_rate);
 	int	(*dyn_ramp)(struct tegra_clk_pll *pll,
 			struct tegra_clk_pll_freq_table *cfg);
+	void	(*set_defaults)(struct tegra_clk_pll *pll);
 };
 
 #define TEGRA_PLL_USE_LOCK BIT(0)
