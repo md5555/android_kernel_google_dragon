@@ -281,6 +281,28 @@
 		reg = <0x0 0x6000c004 0x0 0x14c>;
 	};
 
+	bpmp-mailman@6000f200 {
+		compatible = "nvidia,tegra210-bpmp-mailman";
+		reg = <0x0 0x6000f200 0x0 0x4>;
+		reg-names = "cop-reset-vec";
+		mboxes = <&bpmp_mbox 0		/* CPU 0 outbox channel */
+			  &bpmp_mbox 1		/* CPU 1 outbox channel */
+			  &bpmp_mbox 2		/* CPU 2 outbox channel */
+			  &bpmp_mbox 3		/* CPU 3 outbox channel */
+			  &bpmp_mbox 4		/* thread channel */
+			  &bpmp_mbox 5		/* thread channel */
+			  &bpmp_mbox 6		/* thread channel */
+			  &bpmp_mbox 7		/* thread channel */
+			  &bpmp_mbox 8		/* CPU 0 inbox channel */
+			  &bpmp_mbox 9		/* CPU 1 inbox channel */
+			  &bpmp_mbox 10		/* CPU 2 inbox channel */
+			  &bpmp_mbox 11>;	/* CPU 3 inbox channel */
+
+		resets = <&tegra_car TEGRA210_CLK_COP>;
+		reset-names = "cop";
+		nvidia,bpmp-mbox = <&bpmp_mbox>;
+	};
+
 	rtc: rtc@7000e000 {
 		compatible = "nvidia,tegra-rtc";
 		reg = <0x0 0x7000e000 0x0 0x100>;
