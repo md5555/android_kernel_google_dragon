@@ -17,7 +17,7 @@
 #define _DT_BINDINGS_CLOCK_TEGRA210_CAR_H
 
 /* 0 */
-/* 1 */
+#define TEGRA210_CLK_COP 1
 /* 2 */
 #define TEGRA210_CLK_ISPB 3
 #define TEGRA210_CLK_RTC 4
