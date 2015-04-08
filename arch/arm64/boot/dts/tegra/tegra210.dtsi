@@ -241,6 +241,20 @@
 			(GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_HIGH)>;
 	};
 
+	bpmp_mbox: mailbox@60001000 {
+		compatible = "nvidia,tegra210-bpmp-mbox";
+		reg = <0x0 0x60001000 0x0 0x1000>,
+		      <0x0 0x70016000 0x0 0x1000>;
+		reg-names = "sema", "atomics";
+		interrupts = <GIC_SPI 4 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 5 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 7 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 18 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 6 IRQ_TYPE_LEVEL_HIGH>;
+
+		#mbox-cells = <1>;
+	};
+
 	lic: interrupt-controller@60004000 {
 		compatible = "nvidia,tegra210-ictlr", "nvidia,tegra30-ictlr";
 		interrupt-controller;
