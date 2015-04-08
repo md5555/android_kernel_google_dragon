@@ -52,7 +52,7 @@ struct sdhci_tegra {
 	int power_gpio;
 };
 
-static u16 tegra_sdhci_readw(struct sdhci_host *host, int reg)
+static u16 sdhci_tegra_readw(struct sdhci_host *host, int reg)
 {
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct sdhci_tegra *tegra_host = pltfm_host->priv;
@@ -67,7 +67,7 @@ static u16 tegra_sdhci_readw(struct sdhci_host *host, int reg)
 	return readw(host->ioaddr + reg);
 }
 
-static void tegra_sdhci_writew(struct sdhci_host *host, u16 val, int reg)
+static void sdhci_tegra_writew(struct sdhci_host *host, u16 val, int reg)
 {
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 
@@ -88,7 +88,7 @@ static void tegra_sdhci_writew(struct sdhci_host *host, u16 val, int reg)
 	writew(val, host->ioaddr + reg);
 }
 
-static void tegra_sdhci_writel(struct sdhci_host *host, u32 val, int reg)
+static void sdhci_tegra_writel(struct sdhci_host *host, u32 val, int reg)
 {
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct sdhci_tegra *tegra_host = pltfm_host->priv;
@@ -115,12 +115,12 @@ static void tegra_sdhci_writel(struct sdhci_host *host, u32 val, int reg)
 	}
 }
 
-static unsigned int tegra_sdhci_get_ro(struct sdhci_host *host)
+static unsigned int sdhci_tegra_get_ro(struct sdhci_host *host)
 {
 	return mmc_gpio_get_ro(host->mmc);
 }
 
-static void tegra_sdhci_reset(struct sdhci_host *host, u8 mask)
+static void sdhci_tegra_reset(struct sdhci_host *host, u8 mask)
 {
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct sdhci_tegra *tegra_host = pltfm_host->priv;
@@ -146,7 +146,7 @@ static void tegra_sdhci_reset(struct sdhci_host *host, u8 mask)
 	sdhci_writew(host, misc_ctrl, SDHCI_TEGRA_VENDOR_MISC_CTRL);
 }
 
-static void tegra_sdhci_set_bus_width(struct sdhci_host *host, int bus_width)
+static void sdhci_tegra_set_bus_width(struct sdhci_host *host, int bus_width)
 {
 	u32 ctrl;
 
@@ -165,13 +165,13 @@ static void tegra_sdhci_set_bus_width(struct sdhci_host *host, int bus_width)
 	sdhci_writeb(host, ctrl, SDHCI_HOST_CONTROL);
 }
 
-static const struct sdhci_ops tegra_sdhci_ops = {
-	.get_ro     = tegra_sdhci_get_ro,
-	.read_w     = tegra_sdhci_readw,
-	.write_l    = tegra_sdhci_writel,
+static const struct sdhci_ops sdhci_tegra_ops = {
+	.get_ro     = sdhci_tegra_get_ro,
+	.read_w     = sdhci_tegra_readw,
+	.write_l    = sdhci_tegra_writel,
 	.set_clock  = sdhci_set_clock,
-	.set_bus_width = tegra_sdhci_set_bus_width,
-	.reset      = tegra_sdhci_reset,
+	.set_bus_width = sdhci_tegra_set_bus_width,
+	.reset      = sdhci_tegra_reset,
 	.set_uhs_signaling = sdhci_set_uhs_signaling,
 	.get_max_clock = sdhci_pltfm_clk_get_max_clock,
 };
@@ -182,7 +182,7 @@ static const struct sdhci_pltfm_data sdhci_tegra20_pdata = {
 		  SDHCI_QUIRK_NO_HISPD_BIT |
 		  SDHCI_QUIRK_BROKEN_ADMA_ZEROLEN_DESC |
 		  SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN,
-	.ops  = &tegra_sdhci_ops,
+	.ops  = &sdhci_tegra_ops,
 };
 
 static struct sdhci_tegra_soc_data soc_data_tegra20 = {
@@ -198,7 +198,7 @@ static const struct sdhci_pltfm_data sdhci_tegra30_pdata = {
 		  SDHCI_QUIRK_NO_HISPD_BIT |
 		  SDHCI_QUIRK_BROKEN_ADMA_ZEROLEN_DESC |
 		  SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN,
-	.ops  = &tegra_sdhci_ops,
+	.ops  = &sdhci_tegra_ops,
 };
 
 static struct sdhci_tegra_soc_data soc_data_tegra30 = {
@@ -208,14 +208,14 @@ static struct sdhci_tegra_soc_data soc_data_tegra30 = {
 		    NVQUIRK_DISABLE_SDR104,
 };
 
-static const struct sdhci_ops tegra114_sdhci_ops = {
-	.get_ro     = tegra_sdhci_get_ro,
-	.read_w     = tegra_sdhci_readw,
-	.write_w    = tegra_sdhci_writew,
-	.write_l    = tegra_sdhci_writel,
+static const struct sdhci_ops sdhci_tegra114_ops = {
+	.get_ro     = sdhci_tegra_get_ro,
+	.read_w     = sdhci_tegra_readw,
+	.write_w    = sdhci_tegra_writew,
+	.write_l    = sdhci_tegra_writel,
 	.set_clock  = sdhci_set_clock,
-	.set_bus_width = tegra_sdhci_set_bus_width,
-	.reset      = tegra_sdhci_reset,
+	.set_bus_width = sdhci_tegra_set_bus_width,
+	.reset      = sdhci_tegra_reset,
 	.set_uhs_signaling = sdhci_set_uhs_signaling,
 	.get_max_clock = sdhci_pltfm_clk_get_max_clock,
 };
@@ -227,7 +227,7 @@ static const struct sdhci_pltfm_data sdhci_tegra114_pdata = {
 		  SDHCI_QUIRK_NO_HISPD_BIT |
 		  SDHCI_QUIRK_BROKEN_ADMA_ZEROLEN_DESC |
 		  SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN,
-	.ops  = &tegra114_sdhci_ops,
+	.ops  = &sdhci_tegra114_ops,
 };
 
 static struct sdhci_tegra_soc_data soc_data_tegra114 = {
@@ -244,7 +244,7 @@ static const struct sdhci_pltfm_data sdhci_tegra132_pdata = {
 		  SDHCI_QUIRK_NO_HISPD_BIT |
 		  SDHCI_QUIRK_BROKEN_ADMA_ZEROLEN_DESC |
 		  SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN,
-	.ops  = &tegra_sdhci_ops,
+	.ops  = &sdhci_tegra_ops,
 };
 
 static struct sdhci_tegra_soc_data soc_data_tegra132 = {
