@@ -110,6 +110,7 @@ struct nvkm_mmu {
 	void (*unmap)(struct nvkm_gpuobj *pgt, u32 pte, u32 cnt);
 	void (*unmap_iommu)(struct nvkm_vma *, void *);
 	void (*flush)(struct nvkm_vm *);
+	u32 (*uc_type)(struct nvkm_mmu *, u32);
 
 	const u8 *storage_type_map;
 };

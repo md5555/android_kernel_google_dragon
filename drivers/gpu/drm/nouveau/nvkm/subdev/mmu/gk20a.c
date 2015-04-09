@@ -267,6 +267,12 @@ gk20a_vm_unmap_iommu(struct nvkm_vma *vma, void *priv)
 
 extern const u8 gf100_pte_storage_type_map[256];
 
+static u32
+gk20a_vm_uc_type(struct nvkm_mmu *mmu, u32 type)
+{
+	return mmu->storage_type_map[(u8)(type & 0xff)];
+}
+
 int
 gk20a_mmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	       struct nvkm_oclass *oclass, void *data, u32 size,
@@ -298,6 +304,7 @@ gk20a_mmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	priv->base.unmap = gk20a_vm_unmap;
 	priv->base.unmap_iommu = gk20a_vm_unmap_iommu;
 	priv->base.flush = gf100_vm_flush;
+	priv->base.uc_type = gk20a_vm_uc_type;
 	priv->base.storage_type_map = gf100_pte_storage_type_map;
 	INIT_RADIX_TREE(&priv->mapping_tree, GFP_KERNEL);
 	mutex_init(&priv->mapping_lock);
