@@ -25,3 +25,13 @@ config TEGRA_124_DVFS
 	  specific initialization code to be invoked by probe function
 	  defined in generic Tegra DVFS driver, so while enabled it
 	  needs the config TEGRA_DVFS to be enabled as well.
+
+config TEGRA_210_DVFS
+	bool "Tegra210 DVFS support"
+	depends on ARCH_TEGRA_210_SOC
+	select TEGRA_DVFS
+	help
+	  This enable Tegra210 DVFS functionality, it implements SoC
+	  specific initialization code to be invoked by probe function
+	  defined in generic Tegra DVFS driver, so while enabled it
+	  needs the config TEGRA_DVFS to be enabled as well.

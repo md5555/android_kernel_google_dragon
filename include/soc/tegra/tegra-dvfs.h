@@ -214,4 +214,11 @@ static inline int tegra124_init_dvfs(void)
 { return -EINVAL; }
 #endif
 
+#ifdef CONFIG_TEGRA_210_DVFS
+int tegra210_init_dvfs(void);
+#else
+static inline int tegra210_init_dvfs(void)
+{ return -EINVAL; }
+#endif
+
 #endif

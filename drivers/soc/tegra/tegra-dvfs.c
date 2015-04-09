@@ -1309,6 +1309,7 @@ typedef int (*dvfs_init_cb_t)(void);
 
 static const struct of_device_id tegra_dvfs_of_match[] = {
 	{ .compatible = "nvidia,tegra124-dvfs", .data = tegra124_init_dvfs },
+	{ .compatible = "nvidia,tegra210-dvfs", .data = tegra210_init_dvfs },
 	{},
 };
 
