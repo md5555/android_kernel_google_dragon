@@ -20,6 +20,8 @@ struct nvkm_ltc {
 
 	void (*invalidate)(struct nvkm_ltc *);
 	void (*flush)(struct nvkm_ltc *);
+
+	struct mutex tags_lock;
 };
 
 static inline struct nvkm_ltc *

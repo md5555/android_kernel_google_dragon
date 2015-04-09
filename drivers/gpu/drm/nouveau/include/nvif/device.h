@@ -3,6 +3,7 @@
 
 #include <nvif/object.h>
 #include <nvif/class.h>
+#include <subdev/ltc.h>
 
 struct nvif_device {
 	struct nvif_object base;
@@ -49,6 +50,7 @@ void nvif_device_ref(struct nvif_device *, struct nvif_device **);
 #define nvxx_wait(a,b,c,d) nv_wait(nvxx_timer(a), (b), (c), (d))
 #define nvxx_wait_cb(a,b,c) nv_wait_cb(nvxx_timer(a), (b), (c))
 #define nvxx_therm(a) nvkm_therm(nvxx_device(a))
+#define nvxx_ltc(a) nvkm_ltc(nvxx_device(a))
 
 #include <core/device.h>
 #include <engine/fifo.h>

@@ -119,6 +119,7 @@ nvkm_ltc_create_(struct nvkm_object *parent, struct nvkm_object *engine,
 {
 	const struct nvkm_ltc_impl *impl = (void *)oclass;
 	struct nvkm_ltc_priv *priv;
+	struct nvkm_ltc *ltc;
 	int ret;
 
 	ret = nvkm_subdev_create_(parent, engine, oclass, 0, "PLTCG",
@@ -141,5 +142,9 @@ nvkm_ltc_create_(struct nvkm_object *parent, struct nvkm_object *engine,
 	priv->base.zbc_depth_get = nvkm_ltc_zbc_depth_get;
 	priv->base.invalidate = nvkm_ltc_invalidate;
 	priv->base.flush = nvkm_ltc_flush;
+
+	ltc = (void *)priv;
+	mutex_init(&ltc->tags_lock);
+
 	return 0;
 }

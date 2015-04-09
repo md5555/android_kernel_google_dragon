@@ -6,6 +6,12 @@
 #include "nouveau_drm.h"
 #include "nouveau_bo.h"
 
+struct nouveau_gem_dma_buf_priv {
+	struct nouveau_drm *drm;
+	struct dma_buf_attachment *attach;
+	void *tags;
+};
+
 #define nouveau_bo_tile_layout(nvbo)				\
 	((nvbo)->tile_flags & NOUVEAU_GEM_TILE_LAYOUT_MASK)
 

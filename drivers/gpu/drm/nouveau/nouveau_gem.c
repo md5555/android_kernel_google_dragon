@@ -24,6 +24,7 @@
  *
  */
 
+#include <linux/dma-buf.h>
 #include <linux/workqueue.h>
 #include <sync.h>
 
@@ -120,6 +121,105 @@ struct nouveau_vma_delete_work
 	struct nvkm_vma *vma;
 	struct nouveau_bo *nvbo;
 };
+
+static void
+nouveau_gem_free_tags(void *_priv)
+{
+	struct nouveau_gem_dma_buf_priv *priv = _priv;
+	struct nvkm_ltc *ltc;
+
+	if (!_priv)
+		return;
+
+	ltc = nvxx_ltc(&priv->drm->device);
+
+	if (priv->tags) {
+		struct nvkm_mm_node **pnode = (struct nvkm_mm_node **)&priv->tags;
+		mutex_lock(&ltc->tags_lock);
+		ltc->tags_free(ltc, pnode);
+		mutex_unlock(&ltc->tags_lock);
+	}
+
+	kfree(priv);
+}
+
+static int
+nouveau_gem_alloc_tags(struct nouveau_drm *drm, struct nouveau_bo *nvbo,
+		int size, struct nvkm_mem *node)
+{
+	struct nvkm_ltc *ltc = nvxx_ltc(&drm->device);
+	struct drm_gem_object *gem = &nvbo->gem;
+	struct dma_buf *dma_buf = gem->import_attach->dmabuf;
+	struct nouveau_gem_dma_buf_priv *priv;
+	struct device *dev = drm->dev->dev;
+	int err = 0;
+
+	mutex_lock(&ltc->tags_lock);
+	priv = dma_buf_get_drvdata(dma_buf, dev);
+	if (!IS_ERR_OR_NULL(priv)) {
+		node->tag = priv->tags;
+		mutex_unlock(&ltc->tags_lock);
+		return 0;
+	}
+
+	priv = kzalloc(sizeof (*priv), GFP_KERNEL);
+	if (!priv) {
+		err = -ENOMEM;
+		goto alloc_err;
+	}
+
+	ltc->tags_alloc(ltc, size, &node->tag);
+	if (unlikely(!node->tag)) {
+		err = -ENOMEM;
+		goto tags_alloc_err;
+	}
+
+	priv->drm = drm;
+	priv->tags = node->tag;
+
+	dma_buf_set_drvdata(dma_buf, dev, priv, nouveau_gem_free_tags);
+
+	ltc->tags_clear(ltc, node->tag->offset, size);
+
+	mutex_unlock(&ltc->tags_lock);
+
+	return 0;
+
+tags_alloc_err:
+	kfree(priv);
+alloc_err:
+	mutex_unlock(&ltc->tags_lock);
+	return err;
+}
+
+static int
+nouveau_gem_init_tags(struct nouveau_drm *drm, struct nouveau_bo *nvbo)
+{
+	struct nvkm_mmu *mmu = nvxx_mmu(&drm->device);
+	struct ttm_mem_reg *mem = &(nvbo->bo.mem);
+	struct nvkm_mem *node = mem->mm_node;
+	u32 type = (node->memtype & 0x0ff);
+	int ret = -EINVAL;
+
+	if (!mmu->uc_type)
+		return 0;
+
+	if (mmu->uc_type(mmu, type) != type) {
+
+		/* compression only works with lpages */
+		if (mem->page_alignment ==
+				(1 << (mmu->lpg_shift - mmu->spg_shift))) {
+			int n = mem->num_pages >> (mmu->lpg_shift - mmu->spg_shift);
+			ret = nouveau_gem_alloc_tags(drm, nvbo, n, node);
+		}
+
+		if (unlikely(ret))
+			type = mmu->uc_type(mmu, type);
+	}
+	node->memtype = type;
+
+	return 0;
+}
 
 static void gem_unmap_work(struct work_struct *__work)
 {
@@ -264,6 +364,12 @@ nouveau_gem_ioctl_set_tiling(struct drm_device *dev, void *data,
 
 		/* Need to rewrite page tables */
 		mem->memtype = (nvbo->tile_flags >> 8) & 0xff;
+		if (gem->import_attach) {
+			ret = nouveau_gem_init_tags(drm, nvbo);
+			if (ret)
+				NV_PRINTK(error, cli, "failed to allocate tagline\n");
+		}
+
 		nouveau_defer_vm_map(vma, nvbo);
 
 unreserve:
@@ -451,6 +557,11 @@ nouveau_gem_ioctl_set_info(struct drm_device *dev, void *data,
 		/* Need to rewrite page tables */
 		mem->memtype = (nvbo->tile_flags >> 8) & 0xff;
 		mem->cached = nvbo->gpu_cacheable;
+		if (gem->import_attach) {
+			ret = nouveau_gem_init_tags(drm, nvbo);
+			if (ret)
+				NV_PRINTK(error, cli, "failed to allocate tagline\n");
+		}
 		nouveau_defer_vm_map(vma, nvbo);
 
 unreserve:
