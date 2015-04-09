@@ -224,6 +224,11 @@ nouveau_bo_new(struct drm_device *dev, int size, int align,
 	if (drm->client.vm) {
 		if (!(flags & TTM_PL_FLAG_TT) && size > 256 * 1024)
 			nvbo->page_shift = drm->client.vm->mmu->lpg_shift;
+
+		if ((flags & TTM_PL_FLAG_TT) &&
+				drm->client.vm->mmu->iommu_capable &&
+				(size % (1 << drm->client.vm->mmu->lpg_shift)) == 0)
+			nvbo->page_shift = drm->client.vm->mmu->lpg_shift;
 	}
 
 	nouveau_bo_fixup_align(nvbo, flags, &align, &size);
@@ -1736,6 +1741,22 @@ nouveau_cancel_defer_vm_map(struct nvkm_vma *vma, struct nouveau_bo *nvbo)
 	mutex_unlock(&vm->dirty_vma_lock);
 }
 
+static bool
+nouveau_bo_vma_mappable(struct nouveau_bo *nvbo, struct nvkm_vma *vma)
+{
+	if (nvbo->bo.mem.mem_type != TTM_PL_SYSTEM &&
+	    (nvbo->bo.mem.mem_type == TTM_PL_VRAM ||
+	     nvbo->page_shift != vma->vm->mmu->lpg_shift))
+		return true;
+
+	if (nvbo->bo.mem.mem_type == TTM_PL_TT &&
+		vma->vm->mmu->iommu_capable &&
+		nvbo->page_shift == vma->vm->mmu->lpg_shift)
+		return true;
+
+	return false;
+}
+
 int
 nouveau_bo_vma_add_offset(struct nouveau_bo *nvbo, struct nvkm_vm *vm,
 			  struct nvkm_vma *vma, u64 offset, bool lazy)
@@ -1748,9 +1769,7 @@ nouveau_bo_vma_add_offset(struct nouveau_bo *nvbo, struct nvkm_vm *vm,
 	if (ret)
 		return ret;
 
-	if ( nvbo->bo.mem.mem_type != TTM_PL_SYSTEM &&
-	    (nvbo->bo.mem.mem_type == TTM_PL_VRAM ||
-	     nvbo->page_shift != vma->vm->mmu->lpg_shift)) {
+	if (nouveau_bo_vma_mappable(nvbo, vma)) {
 		if (lazy)
 			nouveau_defer_vm_map(vma, nvbo);
 		else
