@@ -67,6 +67,26 @@
 			status = "disabled";
 		};
 
+		vic: vic@54340000 {
+			compatible = "nvidia,tegra210-vic";
+			reg = <0x0 0x54340000 0x0 0x00040000>;
+			clocks = <&tegra_car TEGRA210_CLK_VIC03>;
+			clock-names = "vic";
+			resets = <&tegra_car TEGRA210_CLK_VIC03>;
+			reset-names = "vic";
+			iommus = <&mc TEGRA_SWGROUP_VIC>;
+		};
+
+		nvjpg: nvjpg@54380000 {
+			compatible = "nvidia,tegra210-nvjpg";
+			reg = <0x0 0x54380000 0x0 0x00040000>;
+			clocks = <&tegra_car TEGRA210_CLK_NVJPG>;
+			clock-names = "nvjpg";
+			resets = <&tegra_car TEGRA210_CLK_NVJPG>;
+			reset-names = "nvjpg";
+			iommus = <&mc TEGRA_SWGROUP_NVJPG>;
+		};
+
 		dsi@54400000 {
 			compatible = "nvidia,tegra210-dsi";
 			reg = <0x0 0x54400000 0x0 0x00040000>;
@@ -77,6 +97,27 @@
 			resets = <&tegra_car TEGRA210_CLK_DSIB>;
 			reset-names = "dsi";
 			status = "disabled";
+		};
+
+		nvdec: nvdec@54480000 {
+			compatible = "nvidia,tegra210-nvdec";
+			reg = <0x0 0x54480000 0x0 0x00040000>;
+			clocks = <&tegra_car TEGRA210_CLK_NVDEC>;
+			clock-names = "nvdec";
+			resets = <&tegra_car TEGRA210_CLK_NVDEC>;
+			reset-names = "nvdec";
+			iommus = <&mc TEGRA_SWGROUP_NVDEC>;
+		};
+
+		nvenc: nvenc@544c0000 {
+			compatible = "nvidia,tegra210-nvenc";
+			reg = <0x0 0x544c0000 0x0 0x00040000>;
+			interrupts = <GIC_SPI 68 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&tegra_car TEGRA210_CLK_NVENC>;
+			clock-names = "nvenc";
+			resets = <&tegra_car TEGRA210_CLK_NVENC>;
+			reset-names = "nvenc";
+			iommus = <&mc TEGRA_SWGROUP_NVENC>;
 		};
 	};
 
