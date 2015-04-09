@@ -1,5 +1,5 @@
 #include <dt-bindings/clock/tegra124-car.h>
-#include <dt-bindings/memory/tegra-swgroup.h>
+#include <dt-bindings/memory/tegra210-mc.h>
 #include <dt-bindings/gpio/tegra-gpio.h>
 #include <dt-bindings/pinctrl/pinctrl-tegra.h>
 #include <dt-bindings/pinctrl/pinctrl-tegra-xusb.h>
@@ -269,6 +269,16 @@
 		clock-names = "pclk";
 		status = "disabled";
 	};
+
+	mc: memory-controller@70019000 {
+		compatible = "nvidia,tegra210-mc";
+		reg = <0x0 0x70019000 0x0 0x1000>;
+		clocks = <&tegra_car TEGRA210_CLK_MC>;
+		clock-names = "mc";
+		interrupts = <GIC_SPI 77 IRQ_TYPE_LEVEL_HIGH>;
+
+		#iommu-cells = <1>;
+        };
 
 	adma: adma@702e2000 {
 		compatible = "nvidia,tegra210-adma";
