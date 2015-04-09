@@ -1591,6 +1591,8 @@ static int snd_soc_instantiate_card(struct snd_soc_card *card)
 		goto base_error;
 	}
 
+	soc_init_card_debugfs(card);
+
 	card->dapm.bias_level = SND_SOC_BIAS_OFF;
 	card->dapm.dev = card->dev;
 	card->dapm.card = card;
@@ -1720,8 +1722,6 @@ static int snd_soc_instantiate_card(struct snd_soc_card *card)
 	mutex_unlock(&card->mutex);
 	mutex_unlock(&client_mutex);
 
-	soc_init_card_debugfs(card);
-
 	return 0;
 
 probe_aux_dev_err:
@@ -1735,6 +1735,7 @@ card_probe_error:
 	if (card->remove)
 		card->remove(card);
 
+	soc_cleanup_card_debugfs(card);
 	snd_card_free(card->snd_card);
 
 base_error:
