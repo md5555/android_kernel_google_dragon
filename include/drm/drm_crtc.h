@@ -1237,6 +1237,7 @@ extern int drm_plane_init(struct drm_device *dev,
 			  bool is_primary);
 extern void drm_plane_cleanup(struct drm_plane *plane);
 extern unsigned int drm_plane_index(struct drm_plane *plane);
+extern struct drm_plane * drm_plane_from_index(struct drm_device *dev, int idx);
 extern void drm_plane_force_disable(struct drm_plane *plane);
 extern void drm_crtc_get_hv_timing(const struct drm_display_mode *mode,
 				   int *hdisplay, int *vdisplay);
