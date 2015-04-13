@@ -581,6 +581,23 @@
 		status = "disabled";
 	};
 
+	udc: udc@7d000000 {
+		compatible = "nvidia,tegra210-udc";
+		reg = <0x0 0x7d000000 0x0 0x4000>,
+		      <0x0 0x7c000000 0x0 0x10000>,
+		      <0x0 0x6000C004 0x0 0x10C>;
+		interrupts = <0 20 0x04>;
+		clocks = <&tegra_car TEGRA210_CLK_USBD>,
+			 <&tegra_car TEGRA210_CLK_PLL_U>,
+			 <&tegra_car TEGRA210_CLK_USBD>,
+			 /* TEGRA210_CLK_USBD_SCLK */
+			 <&tegra_car 432>,
+			 /* TEGRA210_CLK_USBD_EMC */
+			 <&tegra_car 457>;
+		clock-names = "reg", "pll_u", "utmi-pads", "sclk", "emc";
+		status = "disabled";
+	};
+
 	usb@7d000000 {
 		compatible = "nvidia,tegra30-ehci", "usb-ehci";
 		reg = <0x0 0x7d000000 0x0 0x4000>;
