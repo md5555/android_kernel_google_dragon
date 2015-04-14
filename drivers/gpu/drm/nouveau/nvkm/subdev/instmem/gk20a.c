@@ -90,6 +90,7 @@ struct gk20a_instmem_priv {
 	struct nvkm_mm *mm;
 	struct iommu_domain *domain;
 	unsigned long iommu_pgshift;
+	unsigned long iommu_addr_bit;
 
 	/* Only used by DMA API */
 	struct dma_attrs attrs;
@@ -262,8 +263,8 @@ gk20a_instobj_dtor_iommu(struct gk20a_instobj_priv *_node)
 	r = list_first_entry(&_node->mem->regions, struct nvkm_mm_node,
 			     rl_entry);
 
-	/* clear bit 34 to unmap pages */
-	r->offset &= ~BIT(34 - priv->iommu_pgshift);
+	/* clear IOMMU translation bit to unmap pages */
+	r->offset &= ~BIT(priv->iommu_addr_bit - priv->iommu_pgshift);
 
 	/* Unmap pages from GPU address space and free them */
 	for (i = 0; i < _node->mem->size; i++) {
@@ -406,8 +407,11 @@ gk20a_instobj_ctor_iommu(struct nvkm_object *parent, struct nvkm_object *engine,
 		}
 	}
 
-	/* Bit 34 tells that an address is to be resolved through the IOMMU */
-	r->offset |= BIT(34 - priv->iommu_pgshift);
+	/*
+	 * The iommu_addr_bit tells that an address is to be resolved through
+	 * the IOMMU
+	 */
+	r->offset |= BIT(priv->iommu_addr_bit - priv->iommu_pgshift);
 
 	node->base._mem.offset = ((u64)r->offset) << priv->iommu_pgshift;
 
@@ -524,6 +528,7 @@ gk20a_instmem_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 		priv->domain = plat->gpu->iommu.domain;
 		priv->mm = plat->gpu->iommu.mm;
 		priv->iommu_pgshift = plat->gpu->iommu.pgshift;
+		priv->iommu_addr_bit = plat->gpu->iommu.translation_enable_bit;
 		priv->mm_mutex = &plat->gpu->iommu.mutex;
 
 		nv_info(priv, "using IOMMU\n");
