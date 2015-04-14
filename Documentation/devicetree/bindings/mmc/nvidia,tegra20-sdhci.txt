@@ -17,6 +17,11 @@ Required properties:
 
 Optional properties:
 - power-gpios : Specify GPIOs for power control
+- nvidia,use-bdsdmem-pads : Use BDSDMEM pads instead of BDEMMC_IOBRICK pads
+- nvidia,pu-1v8-offset : Specifies pullup offset for 1.8V signal modes
+- nvidia,pd-1v8-offset : Specifies pulldown offset for 1.8V signal modes
+- nvidia,pu-3v3-offset : Specifies pullup offset for 3.3V signal modes
+- nvidia,pd-3v3-offset : Specifies pulldown offset for 3.3V signal modes
 
 Example:
 
