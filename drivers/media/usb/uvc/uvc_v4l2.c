@@ -1024,6 +1024,16 @@ static long uvc_v4l2_do_ioctl(struct file *file, unsigned int cmd, void *arg)
 		return uvc_dequeue_buffer(&stream->queue, arg,
 			file->f_flags & O_NONBLOCK);
 
+	case VIDIOC_EXPBUF:
+	{
+		struct v4l2_exportbuffer *exp = arg;
+
+		if (!uvc_has_privileges(handle))
+			return -EBUSY;
+
+		return uvc_export_buffer(&stream->queue, exp);
+	}
+
 	case VIDIOC_STREAMON:
 	{
 		int *type = arg;
