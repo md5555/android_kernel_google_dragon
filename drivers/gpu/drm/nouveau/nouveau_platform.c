@@ -141,6 +141,8 @@ static int nouveau_platform_power_down(struct nouveau_platform_gpu *gpu)
 static void nouveau_platform_probe_iommu(struct device *dev,
 					 struct nouveau_platform_gpu *gpu)
 {
+	const struct of_device_id *match;
+	const struct nouveau_platform_data *pdata;
 	int err;
 	unsigned long pgsize_bitmap;
 
@@ -150,6 +152,23 @@ static void nouveau_platform_probe_iommu(struct device *dev,
 		gpu->iommu.domain = iommu_domain_alloc(&platform_bus_type);
 		if (IS_ERR(gpu->iommu.domain))
 			goto error;
+
+		match = of_match_device(dev->driver->of_match_table, dev);
+		if (!match || !match->data) {
+			dev_warn(dev, "cannot find platform data for device\n");
+			goto free_domain;
+		}
+		pdata = match->data;
+		if (!pdata->phys_addr_bits_num) {
+			dev_warn(dev, "invalid address bits number\n");
+			goto free_domain;
+		}
+		/*
+		 * The IOMMU translation bit is always the bit after the physical
+		 * address bits. e.g. the physical address bits are 0 - 33 (34
+		 * bits in total), then the translation bit is bit 34.
+		 */
+		gpu->iommu.translation_enable_bit = pdata->phys_addr_bits_num;
 
 		/*
 		 * A IOMMU is only usable if it supports page sizes smaller
@@ -370,9 +389,19 @@ static int nouveau_platform_remove(struct platform_device *pdev)
 }
 
 #if IS_ENABLED(CONFIG_OF)
+static const struct nouveau_platform_data gk20a_platform_data = {
+	.phys_addr_bits_num = 34,
+};
+
 static const struct of_device_id nouveau_platform_match[] = {
-	{ .compatible = "nvidia,gk20a" },
-	{ .compatible = "nvidia,gm20b" },
+	{
+		.compatible = "nvidia,gk20a",
+		.data = &gk20a_platform_data,
+	},
+	{
+		.compatible = "nvidia,gm20b",
+		.data = &gk20a_platform_data,
+	},
 	{ }
 };
 

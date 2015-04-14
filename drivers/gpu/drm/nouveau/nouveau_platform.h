@@ -60,6 +60,9 @@ struct nouveau_platform_gpu {
 		struct nvkm_mm *mm;
 		struct iommu_domain *domain;
 		unsigned long pgshift;
+
+		/* Bit number that enables IOMMU translation */
+		unsigned long translation_enable_bit;
 	} iommu;
 };
 
@@ -70,6 +73,15 @@ struct nouveau_platform_device {
 
 	int gpu_speedo_id;
 	int gpu_speedo_value;
+};
+
+/*
+ * struct nouveau_platform_data - SoC specific data
+ *
+ * @phys_addr_bit_num: the physical address bits number of SoC
+ */
+struct nouveau_platform_data {
+	int phys_addr_bits_num;
 };
 
 #define nv_device_to_platform(d)                                               \
