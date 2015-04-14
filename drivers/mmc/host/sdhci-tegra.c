@@ -31,14 +31,33 @@
 #include "sdhci-pltfm.h"
 
 /* Tegra SDHOST controller vendor register definitions */
+#define SDHCI_TEGRA_VENDOR_CLK_CTRL		0x100
+#define SDHCI_CLK_CTRL_INPUT_IO_CLK		0x2
+#define SDHCI_CLK_CTRL_SPI_MODE_CLKEN_OVERRIDE	0x4
+#define SDHCI_CLK_CTRL_PADPIPE_CLKEN_OVERRIDE	0x8
+
+#define SDHCI_VNDR_SYS_SW_CTRL			0x104
+#define SDHCI_VNDR_SYS_SW_CTRL_WR_CRC_TMCLK	0x40000000
+
 #define SDHCI_TEGRA_VENDOR_MISC_CTRL		0x120
+#define SDHCI_MISC_CTRL_INFINITE_ERASE_TIMEOUT	0x1
 #define SDHCI_MISC_CTRL_ENABLE_SDR104		0x8
 #define SDHCI_MISC_CTRL_ENABLE_SDR50		0x10
 #define SDHCI_MISC_CTRL_ENABLE_SDHCI_SPEC_300	0x20
 #define SDHCI_MISC_CTRL_ENABLE_DDR50		0x200
+#define SDHCI_MISC_CTRL_EN_EXT_LOOPBACK		0x20000
 
 #define SDMMC_VNDR_IO_TRIM_CTRL			0x1ac
 #define SDMMC_VNDR_IO_TRIM_CTRL_SEL_VREG	0x4
+
+#define SDHCI_VNDR_TUN_CTRL0			0x1c0
+#define SDHCI_VNDR_TUN_CTRL0_MUL_M_MASK		0x7f
+#define SDHCI_VNDR_TUN_CTRL0_MUL_M_SHIFT	6
+#define SDHCI_VNDR_TUN_CTRL0_MUL_M_VAL		0x1
+#define SDHCI_VNDR_TUN_CTRL0_RETUNE_REQ_EN	0x8000000
+
+#define SDHCI_VNDR_TUN_CTRL1			0x1c4
+#define SDHCI_VNDR_TUN_CTRL1_TUN_STEP_SIZE_MASK	0x77
 
 #define SDHCI_PAD_CTRL				0x1e0
 #define SDHCI_PAD_CTRL_VREF_SEL_MASK		0xf
@@ -57,6 +76,9 @@
 #define SDHCI_AUTO_CAL_STATUS			0x1ec
 #define SDHCI_AUTO_CAL_STATUS_ACTIVE		0x80000000
 
+#define SDHCI_IO_SPARE				0x1f0
+#define SDHCI_IO_SPARE_BIT_19			0x80000
+
 #define NVQUIRK_FORCE_SDHCI_SPEC_200	BIT(0)
 #define NVQUIRK_ENABLE_BLOCK_GAP_DET	BIT(1)
 #define NVQUIRK_ENABLE_SDHCI_SPEC_300	BIT(2)
@@ -66,6 +88,14 @@
 #define NVQUIRK_ADD_AUTOCAL_DELAY	BIT(6)
 #define NVQUIRK_SET_PAD_E_INPUT_OR_PWRD BIT(7)
 #define NVQUIRK_SELECT_TRIMMER		BIT(8)
+#define NVQUIRK_ENABLE_PADPIPE_CLKEN	BIT(9)
+#define NVQUIRK_DISABLE_SPI_MODE_CLKEN	BIT(10)
+#define NVQUIRK_EN_FEEDBACK_CLK		BIT(11)
+#define NVQUIRK_UPDATE_HW_TUNING_CONFIG	BIT(12)
+#define NVQUIRK_TMCLK_WR_CRC_TIMEOUT	BIT(13)
+#define NVQUIRK_DISABLE_EXT_LOOPBACK	BIT(14)
+#define NVQUIRK_IO_SPARE_BIT		BIT(15)
+#define NVQUIRK_INFINITE_ERASE_TIMEOUT	BIT(16)
 
 #define TEGRA_SDHCI_AUTOSUSPEND_DELAY	1500
 
@@ -264,7 +294,7 @@ static void sdhci_tegra_reset(struct sdhci_host *host, u8 mask)
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct sdhci_tegra *tegra_host = pltfm_host->priv;
 	const struct sdhci_tegra_soc_data *soc_data = tegra_host->soc_data;
-	u32 misc_ctrl;
+	u32 misc_ctrl, vendor_ctrl;
 
 	sdhci_reset(host, mask);
 
@@ -285,7 +315,49 @@ static void sdhci_tegra_reset(struct sdhci_host *host, u8 mask)
 		misc_ctrl &= ~SDHCI_MISC_CTRL_ENABLE_DDR50;
 	if (soc_data->nvquirks & NVQUIRK_DISABLE_SDR104)
 		misc_ctrl &= ~SDHCI_MISC_CTRL_ENABLE_SDR104;
-	sdhci_writew(host, misc_ctrl, SDHCI_TEGRA_VENDOR_MISC_CTRL);
+	if (soc_data->nvquirks & NVQUIRK_INFINITE_ERASE_TIMEOUT)
+		misc_ctrl |= SDHCI_MISC_CTRL_INFINITE_ERASE_TIMEOUT;
+	if (soc_data->nvquirks & NVQUIRK_DISABLE_EXT_LOOPBACK)
+		misc_ctrl &= ~SDHCI_MISC_CTRL_EN_EXT_LOOPBACK;
+	sdhci_writel(host, misc_ctrl, SDHCI_TEGRA_VENDOR_MISC_CTRL);
+
+	vendor_ctrl = sdhci_readl(host, SDHCI_TEGRA_VENDOR_CLK_CTRL);
+	if (soc_data->nvquirks & NVQUIRK_ENABLE_PADPIPE_CLKEN)
+		vendor_ctrl &= ~SDHCI_CLK_CTRL_PADPIPE_CLKEN_OVERRIDE;
+	if (soc_data->nvquirks & NVQUIRK_DISABLE_SPI_MODE_CLKEN)
+		vendor_ctrl &= ~SDHCI_CLK_CTRL_SPI_MODE_CLKEN_OVERRIDE;
+	if (soc_data->nvquirks & NVQUIRK_EN_FEEDBACK_CLK)
+		vendor_ctrl &= ~SDHCI_CLK_CTRL_INPUT_IO_CLK;
+	else
+		vendor_ctrl |= SDHCI_CLK_CTRL_INPUT_IO_CLK;
+	sdhci_writel(host, vendor_ctrl, SDHCI_TEGRA_VENDOR_CLK_CTRL);
+
+	if (soc_data->nvquirks & NVQUIRK_IO_SPARE_BIT) {
+		misc_ctrl = sdhci_readl(host, SDHCI_IO_SPARE);
+		misc_ctrl |= SDHCI_IO_SPARE_BIT_19;
+		sdhci_writel(host, misc_ctrl, SDHCI_IO_SPARE);
+	}
+
+	if (soc_data->nvquirks & NVQUIRK_UPDATE_HW_TUNING_CONFIG) {
+		vendor_ctrl = sdhci_readl(host, SDHCI_VNDR_TUN_CTRL0);
+		vendor_ctrl &= ~(SDHCI_VNDR_TUN_CTRL0_MUL_M_MASK <<
+				SDHCI_VNDR_TUN_CTRL0_MUL_M_SHIFT);
+		vendor_ctrl |= SDHCI_VNDR_TUN_CTRL0_MUL_M_VAL <<
+				SDHCI_VNDR_TUN_CTRL0_MUL_M_SHIFT;
+		vendor_ctrl |= SDHCI_VNDR_TUN_CTRL0_RETUNE_REQ_EN;
+		sdhci_writel(host, vendor_ctrl, SDHCI_VNDR_TUN_CTRL0);
+
+		vendor_ctrl = sdhci_readl(host, SDHCI_VNDR_TUN_CTRL1);
+		vendor_ctrl &= ~SDHCI_VNDR_TUN_CTRL1_TUN_STEP_SIZE_MASK;
+		sdhci_writel(host, vendor_ctrl, SDHCI_VNDR_TUN_CTRL1);
+	}
+
+	/* Use timeout clk data timeout counter for generating wr crc status */
+	if (soc_data->nvquirks & NVQUIRK_TMCLK_WR_CRC_TIMEOUT) {
+		vendor_ctrl = sdhci_readl(host, SDHCI_VNDR_SYS_SW_CTRL);
+		vendor_ctrl |= SDHCI_VNDR_SYS_SW_CTRL_WR_CRC_TMCLK;
+		sdhci_writel(host, vendor_ctrl, SDHCI_VNDR_SYS_SW_CTRL);
+	}
 }
 
 static void sdhci_tegra_set_bus_width(struct sdhci_host *host, int bus_width)
@@ -417,7 +489,34 @@ static struct sdhci_tegra_soc_data soc_data_tegra132 = {
 		    NVQUIRK_DISABLE_SDR104,
 };
 
+static const struct sdhci_pltfm_data sdhci_tegra210_pdata = {
+	.quirks = SDHCI_QUIRK_BROKEN_TIMEOUT_VAL |
+		  SDHCI_QUIRK_DATA_TIMEOUT_USES_SDCLK |
+		  SDHCI_QUIRK_SINGLE_POWER_WRITE |
+		  SDHCI_QUIRK_NO_HISPD_BIT |
+		  SDHCI_QUIRK_BROKEN_ADMA_ZEROLEN_DESC |
+		  SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN,
+	.quirks2 = SDHCI_QUIRK2_BROKEN_64_BIT_DMA,
+	.ops  = &sdhci_tegra_ops,
+};
+
+static struct sdhci_tegra_soc_data soc_data_tegra210 = {
+	.pdata = &sdhci_tegra210_pdata,
+	.nvquirks = NVQUIRK_ADD_AUTOCAL_DELAY |
+		    NVQUIRK_SET_PAD_E_INPUT_OR_PWRD |
+		    NVQUIRK_SELECT_TRIMMER |
+		    NVQUIRK_ENABLE_PADPIPE_CLKEN |
+		    NVQUIRK_DISABLE_SPI_MODE_CLKEN |
+		    NVQUIRK_EN_FEEDBACK_CLK |
+		    NVQUIRK_UPDATE_HW_TUNING_CONFIG |
+		    NVQUIRK_TMCLK_WR_CRC_TIMEOUT |
+		    NVQUIRK_DISABLE_EXT_LOOPBACK |
+		    NVQUIRK_IO_SPARE_BIT |
+		    NVQUIRK_INFINITE_ERASE_TIMEOUT,
+};
+
 static const struct of_device_id sdhci_tegra_dt_match[] = {
+	{ .compatible = "nvidia,tegra210-sdhci", .data = &soc_data_tegra210 },
 	{ .compatible = "nvidia,tegra132-sdhci", .data = &soc_data_tegra132 },
 	{ .compatible = "nvidia,tegra124-sdhci", .data = &soc_data_tegra114 },
 	{ .compatible = "nvidia,tegra114-sdhci", .data = &soc_data_tegra114 },
