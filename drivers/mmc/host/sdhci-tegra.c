@@ -37,6 +37,9 @@
 #define SDHCI_MISC_CTRL_ENABLE_SDHCI_SPEC_300	0x20
 #define SDHCI_MISC_CTRL_ENABLE_DDR50		0x200
 
+#define SDMMC_VNDR_IO_TRIM_CTRL			0x1ac
+#define SDMMC_VNDR_IO_TRIM_CTRL_SEL_VREG	0x4
+
 #define SDHCI_PAD_CTRL				0x1e0
 #define SDHCI_PAD_CTRL_VREF_SEL_MASK		0xf
 #define SDHCI_PAD_CTRL_PAD_E_INPUT_OR_PWRD	0x80000000
@@ -62,6 +65,7 @@
 #define NVQUIRK_DISABLE_DDR50		BIT(5)
 #define NVQUIRK_ADD_AUTOCAL_DELAY	BIT(6)
 #define NVQUIRK_SET_PAD_E_INPUT_OR_PWRD BIT(7)
+#define NVQUIRK_SELECT_TRIMMER		BIT(8)
 
 #define TEGRA_SDHCI_AUTOSUSPEND_DELAY	1500
 
@@ -148,6 +152,23 @@ static unsigned int sdhci_tegra_get_ro(struct sdhci_host *host)
 	return mmc_gpio_get_ro(host->mmc);
 }
 
+static void sdhci_tegra_set_trim_sel_vreg(struct sdhci_host *host, bool enable)
+{
+	unsigned int wait_usecs;
+	u32 misc_ctrl;
+
+	misc_ctrl = sdhci_readl(host, SDMMC_VNDR_IO_TRIM_CTRL);
+	if (enable) {
+		misc_ctrl &= ~SDMMC_VNDR_IO_TRIM_CTRL_SEL_VREG;
+		wait_usecs = 3;
+	} else {
+		misc_ctrl |= SDMMC_VNDR_IO_TRIM_CTRL_SEL_VREG;
+		wait_usecs = 1;
+	}
+	sdhci_writel(host, misc_ctrl, SDMMC_VNDR_IO_TRIM_CTRL);
+	udelay(wait_usecs);
+}
+
 static int sdhci_tegra_do_calibration(struct sdhci_host *host)
 {
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
@@ -173,6 +194,9 @@ static int sdhci_tegra_do_calibration(struct sdhci_host *host)
 	default:
 		return -EINVAL;
 	}
+
+	if (soc_data->nvquirks & NVQUIRK_SELECT_TRIMMER)
+		sdhci_tegra_set_trim_sel_vreg(host, true);
 
 	val = sdhci_readl(host, SDHCI_PAD_CTRL);
 	val &= ~SDHCI_PAD_CTRL_VREF_SEL_MASK;
@@ -246,6 +270,9 @@ static void sdhci_tegra_reset(struct sdhci_host *host, u8 mask)
 
 	if (!(mask & SDHCI_RESET_ALL))
 		return;
+
+	if (soc_data->nvquirks & NVQUIRK_SELECT_TRIMMER)
+		sdhci_tegra_set_trim_sel_vreg(host, false);
 
 	misc_ctrl = sdhci_readw(host, SDHCI_TEGRA_VENDOR_MISC_CTRL);
 	/* Erratum: Enable SDHCI spec v3.00 support */
