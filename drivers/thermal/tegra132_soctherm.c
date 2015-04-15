@@ -25,19 +25,22 @@
 
 #include "tegra_soctherm.h"
 
-#define NOMINAL_CALIB_FT_T132			105
-#define NOMINAL_CALIB_CP_T132			25
+/* bits_per_temp_threshold */
+#define TEGRA132_BPTT				0x8
 
-#define		SENSOR_PDIV_CPU_MASK		(0xf << 12)
-#define		SENSOR_PDIV_GPU_MASK		(0xf << 8)
-#define		SENSOR_PDIV_MEM_MASK		(0xf << 4)
-#define		SENSOR_PDIV_PLLX_MASK		(0xf << 0)
+#define TEGRA132_THERMCTL_LVL0_UP_THRESH_MASK	(0xff << 17)
+#define TEGRA132_THERMCTL_LVL0_DN_THRESH_MASK	(0xff << 9)
 
-#define		SENSOR_HOTSPOT_CPU_MASK		(0xff << 16)
-#define		SENSOR_HOTSPOT_GPU_MASK		(0xff << 8)
-#define		SENSOR_HOTSPOT_MEM_MASK		(0xff << 0)
+#define TEGRA132_THERMTRIP_ANY_EN_MASK		(0x1 << 28)
+#define TEGRA132_THERMTRIP_MEM_EN_MASK		(0x1 << 27)
+#define TEGRA132_THERMTRIP_GPU_EN_MASK		(0x1 << 26)
+#define TEGRA132_THERMTRIP_CPU_EN_MASK		(0x1 << 25)
+#define TEGRA132_THERMTRIP_TSENSE_EN_MASK	(0x1 << 24)
+#define TEGRA132_THERMTRIP_GPUMEM_THRESH_MASK	(0xff << 16)
+#define TEGRA132_THERMTRIP_CPU_THRESH_MASK	(0xff << 8)
+#define TEGRA132_THERMTRIP_TSENSE_THRESH_MASK	0xff
 
-#define FUSE_CP_REV				0x90
+#define TEGRA132_FUSE_CP_REV			0x90
 
 static struct tegra_tsensor_configuration tegra132_tsensor_config = {
 	.tall = 16300,
@@ -51,7 +54,9 @@ static struct tegra_tsensor_group tegra132_tsensor_group_cpu_pre_0_12 = {
 	.id				= TEGRA124_SOCTHERM_SENSOR_CPU,
 	.name				= "cpu",
 	.thermctl_isr_shift		= 8,
-	.thermctl_level0_offset		= THERMCTL_LEVEL0_GROUP_CPU,
+	.thermctl_lvl0_offset		= THERMCTL_LEVEL0_GROUP_CPU,
+	.thermctl_lvl0_up_thresh_mask	= TEGRA132_THERMCTL_LVL0_UP_THRESH_MASK,
+	.thermctl_lvl0_dn_thresh_mask	= TEGRA132_THERMCTL_LVL0_DN_THRESH_MASK,
 	.sensor_temp_offset		= SENSOR_TEMP1,
 	.sensor_temp_mask		= SENSOR_TEMP1_CPU_TEMP_MASK,
 	.pdiv				= 8,
@@ -59,9 +64,10 @@ static struct tegra_tsensor_group tegra132_tsensor_group_cpu_pre_0_12 = {
 	.pdiv_mask			= SENSOR_PDIV_CPU_MASK,
 	.pllx_hotspot_mask		= SENSOR_HOTSPOT_CPU_MASK,
 	.pllx_hotspot_diff		= 10000,
-	.thermtrip_enable_shift		= THERMTRIP_CPU_EN_SHIFT,
-	.thermtrip_threshold_mask	= THERMTRIP_CPU_THRESH_MASK <<
-					  THERMTRIP_CPU_THRESH_SHIFT,
+	.thermtrip_any_en_mask		= TEGRA132_THERMTRIP_ANY_EN_MASK,
+	.thermtrip_enable_mask		= TEGRA132_THERMTRIP_CPU_EN_MASK,
+	.thermtrip_threshold_mask	= TEGRA132_THERMTRIP_CPU_THRESH_MASK,
+	.bptt				= TEGRA132_BPTT,
 	.flags				= SKIP_THERMAL_FW_REGISTRATION |
 					  SKIP_THERMTRIP_REGISTRATION,
 };
@@ -70,7 +76,9 @@ static struct tegra_tsensor_group tegra132_tsensor_group_cpu_0_12_plus = {
 	.id				= TEGRA124_SOCTHERM_SENSOR_CPU,
 	.name				= "cpu",
 	.thermctl_isr_shift		= 8,
-	.thermctl_level0_offset		= THERMCTL_LEVEL0_GROUP_CPU,
+	.thermctl_lvl0_offset		= THERMCTL_LEVEL0_GROUP_CPU,
+	.thermctl_lvl0_up_thresh_mask	= TEGRA132_THERMCTL_LVL0_UP_THRESH_MASK,
+	.thermctl_lvl0_dn_thresh_mask	= TEGRA132_THERMCTL_LVL0_DN_THRESH_MASK,
 	.sensor_temp_offset		= SENSOR_TEMP1,
 	.sensor_temp_mask		= SENSOR_TEMP1_CPU_TEMP_MASK,
 	.pdiv				= 8,
@@ -78,16 +86,19 @@ static struct tegra_tsensor_group tegra132_tsensor_group_cpu_0_12_plus = {
 	.pdiv_mask			= SENSOR_PDIV_CPU_MASK,
 	.pllx_hotspot_mask		= SENSOR_HOTSPOT_CPU_MASK,
 	.pllx_hotspot_diff		= 10000,
-	.thermtrip_enable_shift		= THERMTRIP_CPU_EN_SHIFT,
-	.thermtrip_threshold_mask	= THERMTRIP_CPU_THRESH_MASK <<
-					  THERMTRIP_CPU_THRESH_SHIFT,
+	.thermtrip_any_en_mask		= TEGRA132_THERMTRIP_ANY_EN_MASK,
+	.thermtrip_enable_mask		= TEGRA132_THERMTRIP_CPU_EN_MASK,
+	.thermtrip_threshold_mask	= TEGRA132_THERMTRIP_CPU_THRESH_MASK,
+	.bptt				= TEGRA132_BPTT,
 };
 
 static struct tegra_tsensor_group tegra132_tsensor_group_gpu = {
 	.id				= TEGRA124_SOCTHERM_SENSOR_GPU,
 	.name				= "gpu",
 	.thermctl_isr_shift		= 16,
-	.thermctl_level0_offset		= THERMCTL_LEVEL0_GROUP_GPU,
+	.thermctl_lvl0_offset		= THERMCTL_LEVEL0_GROUP_GPU,
+	.thermctl_lvl0_up_thresh_mask	= TEGRA132_THERMCTL_LVL0_UP_THRESH_MASK,
+	.thermctl_lvl0_dn_thresh_mask	= TEGRA132_THERMCTL_LVL0_DN_THRESH_MASK,
 	.sensor_temp_offset		= SENSOR_TEMP1,
 	.sensor_temp_mask		= SENSOR_TEMP1_GPU_TEMP_MASK,
 	.pdiv				= 8,
@@ -95,39 +106,46 @@ static struct tegra_tsensor_group tegra132_tsensor_group_gpu = {
 	.pdiv_mask			= SENSOR_PDIV_GPU_MASK,
 	.pllx_hotspot_mask		= SENSOR_HOTSPOT_GPU_MASK,
 	.pllx_hotspot_diff		= 5000,
-	.thermtrip_enable_shift		= THERMTRIP_GPU_EN_SHIFT,
-	.thermtrip_threshold_mask	= THERMTRIP_GPUMEM_THRESH_MASK <<
-					  THERMTRIP_GPUMEM_THRESH_SHIFT,
+	.thermtrip_any_en_mask		= TEGRA132_THERMTRIP_ANY_EN_MASK,
+	.thermtrip_enable_mask		= TEGRA132_THERMTRIP_GPU_EN_MASK,
+	.thermtrip_threshold_mask	= TEGRA132_THERMTRIP_GPUMEM_THRESH_MASK,
+	.bptt				= TEGRA132_BPTT,
 };
 
 static struct tegra_tsensor_group tegra132_tsensor_group_pll_pre_0_12 = {
 	.id				= TEGRA124_SOCTHERM_SENSOR_PLLX,
 	.name				= "pll",
 	.thermctl_isr_shift		= 0,
-	.thermctl_level0_offset		= THERMCTL_LEVEL0_GROUP_TSENSE,
+	.thermctl_lvl0_offset		= THERMCTL_LEVEL0_GROUP_TSENSE,
+	.thermctl_lvl0_up_thresh_mask	= TEGRA132_THERMCTL_LVL0_UP_THRESH_MASK,
+	.thermctl_lvl0_dn_thresh_mask	= TEGRA132_THERMCTL_LVL0_DN_THRESH_MASK,
 	.sensor_temp_offset		= SENSOR_TEMP2,
 	.sensor_temp_mask		= SENSOR_TEMP2_PLLX_TEMP_MASK,
 	.pdiv				= 8,
 	.pdiv_ate			= 8,
 	.pdiv_mask			= SENSOR_PDIV_PLLX_MASK,
-	.thermtrip_enable_shift		= THERMTRIP_TSENSE_EN_SHIFT,
-	.thermtrip_threshold_mask	= THERMTRIP_TSENSE_THRESH_MASK <<
-					  THERMTRIP_TSENSE_THRESH_SHIFT,
+	.thermtrip_any_en_mask		= TEGRA132_THERMTRIP_ANY_EN_MASK,
+	.thermtrip_enable_mask		= TEGRA132_THERMTRIP_TSENSE_EN_MASK,
+	.thermtrip_threshold_mask	= TEGRA132_THERMTRIP_TSENSE_THRESH_MASK,
+	.bptt				= TEGRA132_BPTT,
 };
 
 static struct tegra_tsensor_group tegra132_tsensor_group_pll_0_12_plus = {
 	.id				= TEGRA124_SOCTHERM_SENSOR_PLLX,
 	.name				= "pll",
 	.thermctl_isr_shift		= 0,
-	.thermctl_level0_offset		= THERMCTL_LEVEL0_GROUP_TSENSE,
+	.thermctl_lvl0_offset		= THERMCTL_LEVEL0_GROUP_TSENSE,
+	.thermctl_lvl0_up_thresh_mask	= TEGRA132_THERMCTL_LVL0_UP_THRESH_MASK,
+	.thermctl_lvl0_dn_thresh_mask	= TEGRA132_THERMCTL_LVL0_DN_THRESH_MASK,
 	.sensor_temp_offset		= SENSOR_TEMP2,
 	.sensor_temp_mask		= SENSOR_TEMP2_PLLX_TEMP_MASK,
 	.pdiv				= 8,
 	.pdiv_ate			= 8,
 	.pdiv_mask			= SENSOR_PDIV_PLLX_MASK,
-	.thermtrip_enable_shift		= THERMTRIP_TSENSE_EN_SHIFT,
-	.thermtrip_threshold_mask	= THERMTRIP_TSENSE_THRESH_MASK <<
-					  THERMTRIP_TSENSE_THRESH_SHIFT,
+	.thermtrip_any_en_mask		= TEGRA132_THERMTRIP_ANY_EN_MASK,
+	.thermtrip_enable_mask		= TEGRA132_THERMTRIP_TSENSE_EN_MASK,
+	.thermtrip_threshold_mask	= TEGRA132_THERMTRIP_TSENSE_THRESH_MASK,
+	.bptt				= TEGRA132_BPTT,
 	.flags				= SKIP_THERMAL_FW_REGISTRATION |
 					  SKIP_THERMTRIP_REGISTRATION,
 };
@@ -136,16 +154,20 @@ static struct tegra_tsensor_group tegra132_tsensor_group_mem = {
 	.id				= TEGRA124_SOCTHERM_SENSOR_MEM,
 	.name				= "mem",
 	.thermctl_isr_shift		= 24,
-	.thermctl_level0_offset		= THERMCTL_LEVEL0_GROUP_MEM,
+	.thermctl_lvl0_offset		= THERMCTL_LEVEL0_GROUP_MEM,
+	.thermctl_lvl0_up_thresh_mask	= TEGRA132_THERMCTL_LVL0_UP_THRESH_MASK,
+	.thermctl_lvl0_dn_thresh_mask	= TEGRA132_THERMCTL_LVL0_DN_THRESH_MASK,
 	.sensor_temp_offset		= SENSOR_TEMP2,
 	.sensor_temp_mask		= SENSOR_TEMP2_MEM_TEMP_MASK,
 	.pdiv				= 8,
 	.pdiv_ate			= 8,
 	.pdiv_mask			= SENSOR_PDIV_MEM_MASK,
 	.pllx_hotspot_mask		= SENSOR_HOTSPOT_MEM_MASK,
-	.thermtrip_enable_shift		= THERMTRIP_MEM_EN_SHIFT,
-	.thermtrip_threshold_mask	= THERMTRIP_GPUMEM_THRESH_MASK <<
-					  THERMTRIP_GPUMEM_THRESH_SHIFT,
+	.pllx_hotspot_diff		= 0,
+	.thermtrip_any_en_mask		= TEGRA132_THERMTRIP_ANY_EN_MASK,
+	.thermtrip_enable_mask		= TEGRA132_THERMTRIP_MEM_EN_MASK,
+	.thermtrip_threshold_mask	= TEGRA132_THERMTRIP_GPUMEM_THRESH_MASK,
+	.bptt				= TEGRA132_BPTT,
 };
 
 static struct tegra_tsensor_group *tegra132_tsensor_groups_pre_0_12[] = {
@@ -393,10 +415,6 @@ static struct tegra_tsensor tegra132_tsensors_0_12_plus[] = {
 };
 
 
-/*
- *
- */
-
 static struct of_device_id tegra132_soctherm_of_match[] = {
 	{ .compatible = "nvidia,tegra132-soctherm" },
 	{ },
@@ -411,7 +429,7 @@ static int tegra132_soctherm_probe(struct platform_device *pdev)
 	int err;
 
 	/* Apply temperature sensor correction values from fuses */
-	err = tegra_fuse_readl(FUSE_CP_REV, &rev);
+	err = tegra_fuse_readl(TEGRA132_FUSE_CP_REV, &rev);
 	if (err) {
 		dev_err(&pdev->dev, "could not read CP_REV fuse: %d\n", err);
 		return err;
@@ -436,9 +454,7 @@ static int tegra132_soctherm_probe(struct platform_device *pdev)
 
 	return tegra_soctherm_probe(pdev,
 				    tegra132_tsensors, tegra132_tsensor_groups,
-				    NOMINAL_CALIB_CP_T132,
-				    NOMINAL_CALIB_FT_T132,
-				    true);
+				    CHIPID_TEGRA13X);
 }
 
 #ifdef CONFIG_PM_SLEEP

@@ -39,66 +39,25 @@
 
 #include "tegra_soctherm.h"
 
-#define SENSOR_CONFIG0				0
-#define SENSOR_CONFIG0_STOP			BIT(0)
-#define SENSOR_CONFIG0_TALL_SHIFT		8
-#define SENSOR_CONFIG0_TCALC_OVER		BIT(4)
-#define SENSOR_CONFIG0_OVER			BIT(3)
-#define SENSOR_CONFIG0_CPTR_OVER		BIT(2)
-
-#define SENSOR_CONFIG1				4
-#define SENSOR_CONFIG1_TSAMPLE_SHIFT		0
-#define SENSOR_CONFIG1_TIDDQ_EN_SHIFT		15
-#define SENSOR_CONFIG1_TEN_COUNT_SHIFT		24
-#define SENSOR_CONFIG1_TEMP_ENABLE		BIT(31)
-
-#define SENSOR_CONFIG2				8
-#define SENSOR_CONFIG2_THERMA_SHIFT		16
-#define SENSOR_CONFIG2_THERMB_SHIFT		0
-
-#define		THERMCTL_LEVEL0_GROUP_EN	BIT(8)
-#define		THERMCTL_LEVEL0_GROUP_DN_THRESH_SHIFT 9
-#define		THERMCTL_LEVEL0_GROUP_UP_THRESH_SHIFT 17
-
-#define CTL_LVL0_CPU0				0x0
-#define CTL_LVL0_CPU0_UP_THRESH_SHIFT		17
-#define CTL_LVL0_CPU0_UP_THRESH_MASK		0xff
-#define CTL_LVL0_CPU0_DN_THRESH_SHIFT		9
-#define CTL_LVL0_CPU0_DN_THRESH_MASK		0xff
-#define CTL_LVL0_CPU0_EN_SHIFT			8
-#define CTL_LVL0_CPU0_EN_MASK			0x1
-#define CTL_LVL0_CPU0_CPU_THROT_SHIFT		5
-#define CTL_LVL0_CPU0_CPU_THROT_MASK		0x3
-#define CTL_LVL0_CPU0_CPU_THROT_LIGHT		0x1
-#define CTL_LVL0_CPU0_CPU_THROT_HEAVY		0x2
-#define CTL_LVL0_CPU0_GPU_THROT_SHIFT		3
-#define CTL_LVL0_CPU0_GPU_THROT_MASK		0x3
-#define CTL_LVL0_CPU0_GPU_THROT_LIGHT		0x1
-#define CTL_LVL0_CPU0_GPU_THROT_HEAVY		0x2
-#define CTL_LVL0_CPU0_MEM_THROT_SHIFT		2
-#define CTL_LVL0_CPU0_MEM_THROT_MASK		0x1
-#define CTL_LVL0_CPU0_STATUS_SHIFT		0
-#define CTL_LVL0_CPU0_STATUS_MASK		0x3
-
 #define THERMCTL_INTR_STATUS			0x84
 #define THERMCTL_INTR_EN			0x88
 #define THERMCTL_INTR_DISABLE			0x8c
 #define		TH_INTR_UP_DOWN_LVL0_MASK	0x3
 
-#define TH_INTR_POS_GD0_SHIFT		17
-#define TH_INTR_POS_GD0_MASK		0x1
-#define TH_INTR_POS_GU0_SHIFT		16
-#define TH_INTR_POS_GU0_MASK		0x1
-#define TH_INTR_POS_CD0_SHIFT		9
-#define TH_INTR_POS_CD0_MASK		0x1
-#define TH_INTR_POS_CU0_SHIFT		8
-#define TH_INTR_POS_CU0_MASK		0x1
-#define TH_INTR_POS_PD0_SHIFT		1
-#define TH_INTR_POS_PD0_MASK		0x1
-#define TH_INTR_POS_PU0_SHIFT		0
-#define TH_INTR_POS_PU0_MASK		0x1
+#define TH_INTR_POS_GD0_SHIFT			17
+#define TH_INTR_POS_GD0_MASK			0x1
+#define TH_INTR_POS_GU0_SHIFT			16
+#define TH_INTR_POS_GU0_MASK			0x1
+#define TH_INTR_POS_CD0_SHIFT			9
+#define TH_INTR_POS_CD0_MASK			0x1
+#define TH_INTR_POS_CU0_SHIFT			8
+#define TH_INTR_POS_CU0_MASK			0x1
+#define TH_INTR_POS_PD0_SHIFT			1
+#define TH_INTR_POS_PD0_MASK			0x1
+#define TH_INTR_POS_PU0_SHIFT			0
+#define TH_INTR_POS_PU0_MASK			0x1
 
-#define TH_INTR_POS_IGNORE_MASK		0xfffbfbfb
+#define TH_INTR_POS_IGNORE_MASK			0xfffbfbfb
 
 #define SENSOR_TEMP_MASK			0xffff
 #define READBACK_VALUE_MASK			0xff00
@@ -152,6 +111,12 @@
 #define TS_CPU0_STATUS1_TEMP_SHIFT		0
 #define TS_CPU0_STATUS1_TEMP_MASK		0xffff
 
+#define TS_CPU0_STATUS2				0xd4
+#define TS_CPU0_STATUS2_TEMP_MAX_SHIFT		16
+#define TS_CPU0_STATUS2_TEMP_MAX_MASK		0xff
+#define TS_CPU0_STATUS2_TEMP_MIN_SHIFT		0
+#define TS_CPU0_STATUS2_TEMP_MIN_MASK		0xff
+
 #define TS_PDIV					0x1c0
 #define TS_PDIV_CPU_SHIFT			12
 #define TS_PDIV_CPU_MASK			0xf
@@ -182,44 +147,44 @@
 #define TS_TEMP2_PLLX_TEMP_SHIFT		0
 #define TS_TEMP2_PLLX_TEMP_MASK			0xffff
 
-#define OC1_CFG				0x310
-#define OC1_CFG_LONG_LATENCY_SHIFT	6
-#define OC1_CFG_LONG_LATENCY_MASK	0x1
-#define OC1_CFG_HW_RESTORE_SHIFT	5
-#define OC1_CFG_HW_RESTORE_MASK		0x1
-#define OC1_CFG_PWR_GOOD_MASK_SHIFT	4
-#define OC1_CFG_PWR_GOOD_MASK_MASK	0x1
-#define OC1_CFG_THROTTLE_MODE_SHIFT	2
-#define OC1_CFG_THROTTLE_MODE_MASK	0x3
-#define OC1_CFG_ALARM_POLARITY_SHIFT	1
-#define OC1_CFG_ALARM_POLARITY_MASK	0x1
-#define OC1_CFG_EN_THROTTLE_SHIFT	0
-#define OC1_CFG_EN_THROTTLE_MASK	0x1
+#define OC1_CFG					0x310
+#define OC1_CFG_LONG_LATENCY_SHIFT		6
+#define OC1_CFG_LONG_LATENCY_MASK		0x1
+#define OC1_CFG_HW_RESTORE_SHIFT		5
+#define OC1_CFG_HW_RESTORE_MASK			0x1
+#define OC1_CFG_PWR_GOOD_MASK_SHIFT		4
+#define OC1_CFG_PWR_GOOD_MASK_MASK		0x1
+#define OC1_CFG_THROTTLE_MODE_SHIFT		2
+#define OC1_CFG_THROTTLE_MODE_MASK		0x3
+#define OC1_CFG_ALARM_POLARITY_SHIFT		1
+#define OC1_CFG_ALARM_POLARITY_MASK		0x1
+#define OC1_CFG_EN_THROTTLE_SHIFT		0
+#define OC1_CFG_EN_THROTTLE_MASK		0x1
 
-#define OC1_CNT_THRESHOLD		0x314
-#define OC1_THROTTLE_PERIOD		0x318
-#define OC1_ALARM_COUNT			0x31c
-#define OC1_FILTER			0x320
+#define OC1_CNT_THRESHOLD			0x314
+#define OC1_THROTTLE_PERIOD			0x318
+#define OC1_ALARM_COUNT				0x31c
+#define OC1_FILTER				0x320
 
-#define OC1_STATS			0x3a8
+#define OC1_STATS				0x3a8
 
-#define OC_INTR_STATUS			0x39c
-#define OC_INTR_ENABLE			0x3a0
-#define OC_INTR_DISABLE			0x3a4
-#define OC_INTR_POS_OC1_SHIFT		0
-#define OC_INTR_POS_OC1_MASK		0x1
-#define OC_INTR_POS_OC2_SHIFT		1
-#define OC_INTR_POS_OC2_MASK		0x1
-#define OC_INTR_POS_OC3_SHIFT		2
-#define OC_INTR_POS_OC3_MASK		0x1
-#define OC_INTR_POS_OC4_SHIFT		3
-#define OC_INTR_POS_OC4_MASK		0x1
-#define OC_INTR_POS_OC5_SHIFT		4
-#define OC_INTR_POS_OC5_MASK		0x1
+#define OC_INTR_STATUS				0x39c
+#define OC_INTR_ENABLE				0x3a0
+#define OC_INTR_DISABLE				0x3a4
+#define OC_INTR_POS_OC1_SHIFT			0
+#define OC_INTR_POS_OC1_MASK			0x1
+#define OC_INTR_POS_OC2_SHIFT			1
+#define OC_INTR_POS_OC2_MASK			0x1
+#define OC_INTR_POS_OC3_SHIFT			2
+#define OC_INTR_POS_OC3_MASK			0x1
+#define OC_INTR_POS_OC4_SHIFT			3
+#define OC_INTR_POS_OC4_MASK			0x1
+#define OC_INTR_POS_OC5_SHIFT			4
+#define OC_INTR_POS_OC5_MASK			0x1
 
-#define OC_STATS_CTL			0x3c4
-#define OC_STATS_CTL_CLR_ALL		0x2
-#define OC_STATS_CTL_EN_ALL		0x1
+#define OC_STATS_CTL				0x3c4
+#define OC_STATS_CTL_CLR_ALL			0x2
+#define OC_STATS_CTL_EN_ALL			0x1
 
 #define THROT_GLOBAL_CFG			0x400
 #define THROT_GLOBAL_ENB_SHIFT			0
@@ -356,17 +321,19 @@
 						(4 * (throt - THROTTLE_OC1)))
 
 #define REG_SET(r, _name, val)	(((r) & ~(_name##_MASK << _name##_SHIFT)) | \
-				(((val) & _name##_MASK) << _name##_SHIFT))
+				 (((val) & _name##_MASK) << _name##_SHIFT))
 #define REG_GET_BIT(r, _name)	((r) & (_name##_MASK << _name##_SHIFT))
 #define REG_GET(r, _name)	(REG_GET_BIT(r, _name) >> _name##_SHIFT)
+
+#define REG_GET_MASK(r, m)	(((r) & (m)) >> (ffs(m) - 1))
+#define REG_SET_MASK(r, m, v)	(((r) & ~(m)) | \
+				 (((v) & (m >> (ffs(m) - 1))) << (ffs(m) - 1)))
 
 #define TS_TSENSE_REGS_SIZE		0x20
 #define TS_TSENSE_REG_OFFSET(reg, ts)	((reg) + ((ts) * TS_TSENSE_REGS_SIZE))
 
 #define TS_THERM_LVL_REGS_SIZE		0x20
-#define TS_THERM_GRP_REGS_SIZE		0x04
-#define TS_THERM_REG_OFFSET(rg, lv, gr)	((rg) + ((lv) * TS_THERM_LVL_REGS_SIZE)\
-					+ ((gr) * TS_THERM_GRP_REGS_SIZE))
+#define TS_THERM_REG_OFFSET(rg, lv)	((rg) + ((lv) * TS_THERM_LVL_REGS_SIZE))
 
 #define THROT_DEPTH_DIVIDEND(depth)	((256 * (100 - (depth)) / 100) - 1)
 
@@ -438,6 +405,7 @@ struct soctherm_throttle {
 	u32 alarm_cnt_threshold;
 	u32 alarm_filter;
 	u8 cpu_throt_level;
+	u32 cpu_throt_depth;
 	bool intr;
 };
 
@@ -464,6 +432,8 @@ struct tegra_soctherm {
 	struct soctherm_throttle throttle[THROTTLE_SIZE];
 
 	bool is_ccroc;
+	enum soctherm_chipid chipid;
+	int thresh_grain;
 
 	struct delayed_work throt_state_work;
 };
@@ -571,13 +541,39 @@ static void enable_tsensor(struct tegra_soctherm *tegra,
 	val = sensor->config->tall << SENSOR_CONFIG0_TALL_SHIFT;
 	soctherm_writel(tegra, val, sensor->base + SENSOR_CONFIG0);
 
-	val  = (sensor->config->tsample - 1) << SENSOR_CONFIG1_TSAMPLE_SHIFT;
+	val = (sensor->config->tsample - 1) << SENSOR_CONFIG1_TSAMPLE_SHIFT;
 	val |= sensor->config->tiddq_en << SENSOR_CONFIG1_TIDDQ_EN_SHIFT;
 	val |= sensor->config->ten_count << SENSOR_CONFIG1_TEN_COUNT_SHIFT;
 	val |= SENSOR_CONFIG1_TEMP_ENABLE;
 	soctherm_writel(tegra, val, sensor->base + SENSOR_CONFIG1);
 
 	soctherm_writel(tegra, sensor->calib, sensor->base + SENSOR_CONFIG2);
+}
+
+/**
+ * temp_convert() - convert raw sensor readings to temperature
+ * @cap:        raw TSOSC count
+ * @a:          slope of count/temperature linear regression
+ * @b:          x-intercept of count/temperature linear regression
+ *
+ * This is a software version of what happens in the hardware when
+ * temp_translate() is called. However, when the hardware does the conversion,
+ * it cannot do it with the same precision that can be done with software.
+ *
+ * This function is not in use as long as @read_hw_temp is set to true, however
+ * software temperature conversion could be used to monitor temperatures with a
+ * higher degree of precision as they near a temperature threshold.
+ *
+ * Return: temperature in millicelsius.
+ */
+static long temp_convert(int cap, int a, int b)
+{
+	cap *= a;
+	cap >>= 10;
+	cap += (b << 3);
+	cap *= 500;
+	cap /= 8;
+	return cap;
 }
 
 /*
@@ -608,8 +604,7 @@ static int tegra_thermctl_get_temp(void *data, long *out_temp)
 
 	val = soctherm_readl(zone->tegra,
 			     zone->sensor_group->sensor_temp_offset);
-	val &= zone->sensor_group->sensor_temp_mask;
-	val >>= ffs(zone->sensor_group->sensor_temp_mask) - 1;
+	val = REG_GET_MASK(val, zone->sensor_group->sensor_temp_mask);
 
 	*out_temp = translate_temp(val);
 
@@ -624,18 +619,22 @@ static int tegra_thermctl_set_trips(void *data, long low, long high)
 	zone->cur_low_trip = low;
 	zone->cur_high_trip = high;
 
-	low /= 1000;
-	high /= 1000;
+	low = clamp_val(low, min_low_temp, max_high_temp);
+	high = clamp_val(high, min_low_temp, max_high_temp);
 
-	low = clamp_val(low, -127, 127);
-	high = clamp_val(high, -127, 127);
+	low /= zone->tegra->thresh_grain;
+	high /= zone->tegra->thresh_grain;
 
-	val = ((u8) low) << THERMCTL_LEVEL0_GROUP_DN_THRESH_SHIFT;
-	val |= ((u8) high) << THERMCTL_LEVEL0_GROUP_UP_THRESH_SHIFT;
-	val |= THERMCTL_LEVEL0_GROUP_EN;
+	val = soctherm_readl(zone->tegra,
+			     zone->sensor_group->thermctl_lvl0_offset);
+	val |= REG_SET_MASK(val,
+		zone->sensor_group->thermctl_lvl0_dn_thresh_mask, low);
+	val |= REG_SET_MASK(val,
+		zone->sensor_group->thermctl_lvl0_up_thresh_mask, high);
+	val |= REG_SET(val, THERMCTL_LVL0_CPU0_EN, 1);
 
 	soctherm_writel(zone->tegra, val,
-	       zone->sensor_group->thermctl_level0_offset);
+	       zone->sensor_group->thermctl_lvl0_offset);
 
 	return 0;
 }
@@ -948,18 +947,12 @@ static irqreturn_t soctherm_edp_isr_thread(int irq, void *dev_id)
  */
 static int enforce_temp_range(struct device *dev, long trip_temp)
 {
-	long temp = trip_temp;
+	long temp;
 
-	if (temp < min_low_temp) {
-		dev_info(dev, "soctherm: trip_point temp %ld forced to %d\n",
-			 trip_temp, min_low_temp);
-		temp = min_low_temp;
-	} else if (temp > max_high_temp) {
-		dev_info(dev, "soctherm: trip_point temp %ld forced to %d\n",
-			 trip_temp, max_high_temp);
-		temp = max_high_temp;
-	}
-
+	temp = clamp_val(trip_temp, min_low_temp, max_high_temp);
+	if (temp != trip_temp)
+		dev_info(dev, "soctherm: trip temp %ld forced to %ld\n",
+			 trip_temp, temp);
 	return temp;
 }
 
@@ -988,14 +981,11 @@ static int thermtrip_clear(struct device *dev, struct tegra_tsensor_group *sg)
 	r = soctherm_readl(ts, THERMTRIP);
 
 	r &= ~sg->thermtrip_threshold_mask;
-	r |= 0 << sg->thermtrip_enable_shift;
+	r &= ~sg->thermtrip_enable_mask;
+	r &= ~sg->thermtrip_any_en_mask;
 
-	dev_err(dev, "thermtrip mask %08x\n", sg->thermtrip_threshold_mask);
-	dev_err(dev, "thermtrip enable shift %d\n", sg->thermtrip_enable_shift);
-
-	r = REG_SET(r, THERMTRIP_ANY_EN, 0);
-
-	dev_err(dev, "write %08x to thermtrip\n", r);
+	dev_warn(dev, "Write %08x to thermtrip to disable it for %s\n",
+		 r, sg->name);
 	soctherm_writel(ts, r, THERMTRIP);
 	soctherm_barrier(ts);
 
@@ -1031,17 +1021,15 @@ static int thermtrip_program(struct device *dev, struct tegra_tsensor_group *sg,
 	if (!sg->thermtrip_threshold_mask)
 		return -EINVAL;
 
-	temp = enforce_temp_range(dev, trip_temp) / 1000;
+	temp = enforce_temp_range(dev, trip_temp) / ts->thresh_grain;
 
 	/* XXX Do some sanity-checking here */
 
 	r = soctherm_readl(ts, THERMTRIP);
 
-	r &= ~sg->thermtrip_threshold_mask;
-	r |= temp << (ffs(sg->thermtrip_threshold_mask) - 1);
-
-	r |= 1 << sg->thermtrip_enable_shift;
-	r = REG_SET(r, THERMTRIP_ANY_EN, 0);
+	r = REG_SET_MASK(r, sg->thermtrip_threshold_mask, temp);
+	r = REG_SET_MASK(r, sg->thermtrip_enable_mask, 1);
+	r = REG_SET_MASK(r, sg->thermtrip_any_en_mask, 0);
 
 	soctherm_writel(ts, r, THERMTRIP);
 	soctherm_barrier(ts);
@@ -1066,7 +1054,7 @@ static struct tegra_tsensor_group *find_sensor_group_by_name(
 {
 	int i;
 
-	for (i = 0; ts->sensor_groups[i]->name; i++)
+	for (i = 0; ts->sensor_groups[i]; i++)
 		if (!strcmp(ts->sensor_groups[i]->name, name))
 			return ts->sensor_groups[i];
 
@@ -1188,28 +1176,28 @@ static inline void prog_hw_threshold(struct device *dev,
 	int temp, cpu_throt, gpu_throt;
 	u32 r, reg_off;
 
-	temp = enforce_temp_range(dev, trip_temp) / 1000;
+	temp = enforce_temp_range(dev, trip_temp) / ts->thresh_grain;
 
 	/* Hardcode LITE on level-1 and HEAVY on level-2 */
-	reg_off = TS_THERM_REG_OFFSET(CTL_LVL0_CPU0, throt + 1, sg->id);
+	reg_off = TS_THERM_REG_OFFSET(sg->thermctl_lvl0_offset, throt + 1);
 
 	if (throt == THROTTLE_LIGHT) {
-		cpu_throt = CTL_LVL0_CPU0_CPU_THROT_LIGHT;
-		gpu_throt = CTL_LVL0_CPU0_GPU_THROT_LIGHT;
+		cpu_throt = THERMCTL_LVL0_CPU0_CPU_THROT_LIGHT;
+		gpu_throt = THERMCTL_LVL0_CPU0_GPU_THROT_LIGHT;
 	} else {
-		cpu_throt = CTL_LVL0_CPU0_CPU_THROT_HEAVY;
-		gpu_throt = CTL_LVL0_CPU0_GPU_THROT_HEAVY;
+		cpu_throt = THERMCTL_LVL0_CPU0_CPU_THROT_HEAVY;
+		gpu_throt = THERMCTL_LVL0_CPU0_GPU_THROT_HEAVY;
 		if (throt != THROTTLE_HEAVY)
 			pr_warn("soctherm: invalid throt %d - assuming HEAVY",
 				throt);
 	}
 
 	r = soctherm_readl(ts, reg_off);
-	r = REG_SET(r, CTL_LVL0_CPU0_UP_THRESH, temp);
-	r = REG_SET(r, CTL_LVL0_CPU0_DN_THRESH, temp);
-	r = REG_SET(r, CTL_LVL0_CPU0_CPU_THROT, cpu_throt);
-	r = REG_SET(r, CTL_LVL0_CPU0_GPU_THROT, gpu_throt);
-	r = REG_SET(r, CTL_LVL0_CPU0_EN, 1);
+	r = REG_SET_MASK(r, sg->thermctl_lvl0_up_thresh_mask, temp);
+	r = REG_SET_MASK(r, sg->thermctl_lvl0_dn_thresh_mask, temp);
+	r = REG_SET(r, THERMCTL_LVL0_CPU0_CPU_THROT, cpu_throt);
+	r = REG_SET(r, THERMCTL_LVL0_CPU0_GPU_THROT, gpu_throt);
+	r = REG_SET(r, THERMCTL_LVL0_CPU0_EN, 1);
 	soctherm_writel(ts, r, reg_off);
 }
 
@@ -1377,14 +1365,27 @@ static void soctherm_init_throttle_data(struct platform_device *pdev)
 		} else
 			st->priority = val;
 
-		r = of_property_read_u32(dn_st, "cpu-throt-level", &val);
-		if (r) {
-			dev_info(dev,
-				"throttle-cfg: %s: missing cpu_throt_level\n",
-				name);
-			continue;
-		} else
-			st->cpu_throt_level = val;
+		if (ts->chipid == CHIPID_TEGRA13X) {
+			r = of_property_read_u32(dn_st, "cpu-throt-level",
+						 &val);
+			if (r) {
+				dev_info(dev,
+					"throttle-cfg: %s: missing cpu_throt_level\n",
+					name);
+				continue;
+			} else
+				st->cpu_throt_level = val;
+		} else {
+			r = of_property_read_u32(dn_st, "cpu-throt-depth",
+						 &val);
+			if (r) {
+				dev_info(dev,
+					"throttle-cfg: %s: missing cpu_throt_depth\n",
+					name);
+				continue;
+			} else
+				st->cpu_throt_depth = val;
+		}
 
 		if (!strcmp(name, throt_names[THROTTLE_LIGHT]) ||
 		    !strcmp(name, throt_names[THROTTLE_HEAVY])) {
@@ -1538,18 +1539,11 @@ static bool throttlectl_cpu_mn(struct tegra_soctherm *ts,
 			       enum soctherm_throttle_id throt)
 {
 	u32 r;
+	int depth;
 	u8 dividend;
 
-	switch (throt) {
-	case THROTTLE_LIGHT:
-		dividend = 229;
-		break;
-	case THROTTLE_HEAVY:
-		dividend = 51;
-		break;
-	default:
-		return false;
-	}
+	depth = ts->throttle[throt].cpu_throt_depth;
+	dividend = THROT_DEPTH_DIVIDEND(depth);
 
 	r = soctherm_readl(ts, THROT_PSKIP_CTRL(throt, THROTTLE_DEV_CPU));
 	r = REG_SET(r, THROT_PSKIP_CTRL_ENABLE, 1);
@@ -1589,6 +1583,10 @@ static void soctherm_throttle_program(struct tegra_soctherm *ts,
 	else
 		throttlectl_cpu_mn(ts, throt);
 
+	/* TODO:
+	throttlectl_gpu_level_select(ts, throt);
+	*/
+
 	r = REG_SET(0, THROT_PRIORITY_LITE_PRIO, st.priority);
 	soctherm_writel(ts, r, THROT_PRIORITY_CTRL(throt));
 
@@ -1627,20 +1625,22 @@ static void soctherm_throttle_program(struct tegra_soctherm *ts,
 static int tegra_soctherm_hw_throttle(struct platform_device *pdev)
 {
 	struct tegra_soctherm *ts = platform_get_drvdata(pdev);
-	bool is_ccroc;
 	int i;
 
 	if (!ts)
 		return -EINVAL;
 
-	is_ccroc = ts->is_ccroc;
-
 	/* configure low, med and heavy levels for CCROC NV_THERM */
-	if (is_ccroc) {
+	if (ts->is_ccroc) {
 		throttlectl_cpu_level_cfg(ts, TEGRA_SOCTHERM_THROT_LEVEL_LOW);
 		throttlectl_cpu_level_cfg(ts, TEGRA_SOCTHERM_THROT_LEVEL_MED);
 		throttlectl_cpu_level_cfg(ts, TEGRA_SOCTHERM_THROT_LEVEL_HIGH);
 	}
+
+	/*
+	 * configure low, med and heavy levels for GK20a NV_THERM
+	 * in GK20a driver
+	 */
 
 	/* Thermal HW throttle programming */
 	for (i = 0; i < THROTTLE_SIZE; i++)
@@ -1681,15 +1681,15 @@ static int soctherm_init_platform_data(struct platform_device *pdev)
 		ttg = tegra_tsensor_groups[i];
 
 		v = soctherm_readl(tegra, TS_PDIV);
-		v &= ~ttg->pdiv_mask;
-		v |= ttg->pdiv << (ffs(ttg->pdiv_mask) - 1);
+		v = REG_SET_MASK(v, ttg->pdiv_mask, ttg->pdiv);
 		soctherm_writel(tegra, v, TS_PDIV);
 
-		v = soctherm_readl(tegra, TS_HOTSPOT_OFF);
-		v &= ~ttg->pllx_hotspot_mask;
-		v |= (ttg->pllx_hotspot_diff / 1000) <<
-			(ffs(ttg->pllx_hotspot_mask) - 1);
-		soctherm_writel(tegra, v, TS_HOTSPOT_OFF);
+		if (ttg->id != TEGRA124_SOCTHERM_SENSOR_PLLX) {
+			v = soctherm_readl(tegra, TS_HOTSPOT_OFF);
+			v = REG_SET_MASK(v, ttg->pllx_hotspot_mask,
+					 (ttg->pllx_hotspot_diff / 1000));
+			soctherm_writel(tegra, v, TS_HOTSPOT_OFF);
+		}
 
 		if (!(ttg->flags & SKIP_THERMAL_FW_REGISTRATION)) {
 			soctherm_writel(tegra,
@@ -1944,6 +1944,8 @@ static int regs_show(struct seq_file *s, void *data)
 	seq_puts(s, "-----TSENSE (convert HW)-----\n");
 
 	for (i = 0; tsensors[i].name; i++) {
+		s16 therm_a, therm_b;
+
 		r = soctherm_readl(ts,
 				TS_TSENSE_REG_OFFSET(TS_CPU0_CONFIG1, i));
 		state = REG_GET(r, TS_CPU0_CONFIG1_EN);
@@ -1966,6 +1968,15 @@ static int regs_show(struct seq_file *s, void *data)
 		seq_printf(s, "Temp(%d/", state);
 		state = REG_GET(r, TS_CPU0_STATUS1_TEMP);
 		seq_printf(s, "%ld) ", translate_temp(state));
+
+		r = soctherm_readl(ts,
+				TS_TSENSE_REG_OFFSET(TS_CPU0_STATUS0, i));
+		state = REG_GET(r, TS_CPU0_STATUS0_VALID);
+		seq_printf(s, "Capture(%d/", state);
+		state = REG_GET(r, TS_CPU0_STATUS0_CAPTURE);
+		therm_a = (s16)(REG_GET_MASK(tsensors[i].calib, SENSOR_CONFIG2_THERMA_MASK));
+		therm_b = (s16)(REG_GET_MASK(tsensors[i].calib, SENSOR_CONFIG2_THERMB_MASK));
+		seq_printf(s, "%d) (Converted-temp(%ld) ", state, temp_convert(state, therm_a, therm_b));
 
 		r = soctherm_readl(ts,
 				TS_TSENSE_REG_OFFSET(TS_CPU0_CONFIG0, i));
@@ -2008,32 +2019,39 @@ static int regs_show(struct seq_file *s, void *data)
 	for (i = 0; tsensor_groups[i]; i++) {
 		seq_printf(s, "%s:\n", tsensor_groups[i]->name);
 		for (level = 0; level < 4; level++) {
-			u8 id = tsensor_groups[i]->id;
-			r = soctherm_readl(ts,
-					TS_THERM_REG_OFFSET(CTL_LVL0_CPU0,
-					level, id));
-			state = REG_GET(r, CTL_LVL0_CPU0_UP_THRESH);
-			seq_printf(s, "   %d: Up/Dn(%d/", level, state);
-			state = REG_GET(r, CTL_LVL0_CPU0_DN_THRESH);
-			seq_printf(s, "%d) ", (s8)state);
-			state = REG_GET(r, CTL_LVL0_CPU0_EN);
+			s32 v;
+			u16 off = tsensor_groups[i]->thermctl_lvl0_offset;
+			r = soctherm_readl(ts, TS_THERM_REG_OFFSET(off, level));
+
+			state = REG_GET_MASK(r,
+			    tsensor_groups[i]->thermctl_lvl0_up_thresh_mask);
+			v = sign_extend32(state, tsensor_groups[i]->bptt - 1);
+			v *= ts->thresh_grain;
+			seq_printf(s, "   %d: Up/Dn(%d /", level, v);
+			state = REG_GET_MASK(r,
+			    tsensor_groups[i]->thermctl_lvl0_dn_thresh_mask);
+			v = sign_extend32(state, tsensor_groups[i]->bptt - 1);
+			v *= ts->thresh_grain;
+			seq_printf(s, "%d ) ", v);
+
+			state = REG_GET(r, THERMCTL_LVL0_CPU0_EN);
 			seq_printf(s, "En(%d) ", state);
 
-			state = REG_GET(r, CTL_LVL0_CPU0_CPU_THROT);
+			state = REG_GET(r, THERMCTL_LVL0_CPU0_CPU_THROT);
 			seq_puts(s, "CPU Throt");
 			seq_printf(s, "(%s) ", state ?
-			state == CTL_LVL0_CPU0_CPU_THROT_LIGHT ? "L" :
-			state == CTL_LVL0_CPU0_CPU_THROT_HEAVY ? "H" :
+			state == THERMCTL_LVL0_CPU0_CPU_THROT_LIGHT ? "L" :
+			state == THERMCTL_LVL0_CPU0_CPU_THROT_HEAVY ? "H" :
 				"H+L" : "none");
 
-			state = REG_GET(r, CTL_LVL0_CPU0_GPU_THROT);
+			state = REG_GET(r, THERMCTL_LVL0_CPU0_GPU_THROT);
 			seq_puts(s, "GPU Throt");
 			seq_printf(s, "(%s) ", state ?
-			state == CTL_LVL0_CPU0_GPU_THROT_LIGHT ? "L" :
-			state == CTL_LVL0_CPU0_GPU_THROT_HEAVY ? "H" :
+			state == THERMCTL_LVL0_CPU0_GPU_THROT_LIGHT ? "L" :
+			state == THERMCTL_LVL0_CPU0_GPU_THROT_HEAVY ? "H" :
 				"H+L" : "none");
 
-			state = REG_GET(r, CTL_LVL0_CPU0_STATUS);
+			state = REG_GET(r, THERMCTL_LVL0_CPU0_STATUS);
 			seq_printf(s, "Status(%s)\n",
 				   state == 0 ? "LO" :
 				   state == 1 ? "in" :
@@ -2055,28 +2073,18 @@ static int regs_show(struct seq_file *s, void *data)
 	}
 
 	r = soctherm_readl(ts, THERMTRIP);
-	state = REG_GET(r, THERMTRIP_ANY_EN);
+	state = REG_GET_MASK(r, tsensor_groups[0]->thermtrip_any_en_mask);
 	seq_printf(s, "ThermTRIP ANY En(%d)\n", state);
-
-	state = REG_GET(r, THERMTRIP_CPU_EN);
-	seq_printf(s, "     CPU En(%d) ", state);
-	state = REG_GET(r, THERMTRIP_CPU_THRESH);
-	seq_printf(s, "Thresh(%d)\n", state);
-
-	state = REG_GET(r, THERMTRIP_GPU_EN);
-	seq_printf(s, "     GPU En(%d) ", state);
-	state = REG_GET(r, THERMTRIP_GPUMEM_THRESH);
-	seq_printf(s, "Thresh(%d)\n", state);
-
-	state = REG_GET(r, THERMTRIP_MEM_EN);
-	seq_printf(s, "     MEM En(%d) ", state);
-	state = REG_GET(r, THERMTRIP_GPUMEM_THRESH);
-	seq_printf(s, "Thresh(%d)\n", state);
-
-	state = REG_GET(r, THERMTRIP_TSENSE_EN);
-	seq_printf(s, "    PLLX En(%d) ", state);
-	state = REG_GET(r, THERMTRIP_TSENSE_THRESH);
-	seq_printf(s, "Thresh(%d)\n", state);
+	for (i = 0; tsensor_groups[i]; i++) {
+		state = REG_GET_MASK(r,
+				tsensor_groups[i]->thermtrip_enable_mask);
+		seq_printf(s, "     %s En(%d) ",
+			   tsensor_groups[i]->name, state);
+		state = REG_GET_MASK(r,
+				tsensor_groups[i]->thermtrip_threshold_mask);
+		state *= ts->thresh_grain;
+		seq_printf(s, "Thresh(%d)\n", state);
+	}
 
 	r = soctherm_readl(ts, THROT_GLOBAL_CFG);
 	seq_printf(s, "GLOBAL THROTTLE CONFIG: 0x%08x\n", r);
@@ -2166,13 +2174,14 @@ static int regs_show(struct seq_file *s, void *data)
 				}
 			}
 
-			if (level == TEGRA_SOCTHERM_THROT_LEVEL_NONE)
-				r = 0;
-			else if (ts->is_ccroc && j == THROTTLE_DEV_CPU)
-				r = ccroc_readl(ts,
-					CCROC_THROT_PSKIP_CTRL_CPU_REG(level));
-			else
-				r = soctherm_readl(ts, THROT_PSKIP_CTRL(i, j));
+			if (ts->is_ccroc && j == THROTTLE_DEV_CPU) {
+				if (level == TEGRA_SOCTHERM_THROT_LEVEL_NONE)
+					r = 0;
+				else
+					r = ccroc_readl(ts,
+						CCROC_THROT_PSKIP_CTRL_CPU_REG(
+									level));
+			}
 
 			m = REG_GET(r, THROT_PSKIP_CTRL_DIVIDEND);
 			n = REG_GET(r, THROT_PSKIP_CTRL_DIVISOR);
@@ -2336,8 +2345,7 @@ static const struct thermal_zone_of_device_ops tegra_of_thermal_ops = {
 int tegra_soctherm_probe(struct platform_device *pdev,
 		struct tegra_tsensor *tsensors,
 		struct tegra_tsensor_group **tegra_tsensor_groups,
-		u8 nominal_calib_cp, u8 nominal_calib_ft,
-		bool is_ccroc)
+		enum soctherm_chipid chipid)
 {
 	struct tegra_soctherm *tegra;
 	struct thermal_zone_device *tz;
@@ -2355,7 +2363,26 @@ int tegra_soctherm_probe(struct platform_device *pdev,
 	tegra->pdev = pdev;
 	tegra->sensor_groups = tegra_tsensor_groups;
 	tegra->tsensors = tsensors;
-	tegra->is_ccroc = is_ccroc;
+	tegra->chipid = chipid;
+
+	switch (chipid) {
+	case CHIPID_TEGRA12X:
+		tegra->is_ccroc = false;
+		tegra->thresh_grain = 1000;
+		break;
+	case CHIPID_TEGRA13X:
+		tegra->is_ccroc = true;
+		tegra->thresh_grain = 1000;
+		break;
+	case CHIPID_TEGRA21X:
+		tegra->is_ccroc = false;
+		tegra->thresh_grain = 500;
+		break;
+	default:
+		tegra->is_ccroc = false;
+		tegra->thresh_grain = 1000;
+		break;
+	}
 
 	reg_res = platform_get_resource_byname(pdev,
 						IORESOURCE_MEM,
@@ -2375,7 +2402,7 @@ int tegra_soctherm_probe(struct platform_device *pdev,
 		return PTR_ERR(tegra->clk_regs);
 	}
 
-	if (is_ccroc) {
+	if (tegra->is_ccroc) {
 		reg_res = platform_get_resource_byname(pdev,
 							IORESOURCE_MEM,
 							"ccroc-reg");
@@ -2410,9 +2437,7 @@ int tegra_soctherm_probe(struct platform_device *pdev,
 	if (!shared_calib)
 		return -ENOMEM;
 	tegra->shared_calib = shared_calib;
-	err = tegra_soctherm_calculate_shared_calibration(shared_calib,
-							  nominal_calib_cp,
-							  nominal_calib_ft);
+	err = tegra_soctherm_calculate_shared_calibration(shared_calib, chipid);
 	if (err)
 		goto disable_clocks;
 
