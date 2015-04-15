@@ -199,7 +199,7 @@ struct azx {
 	snd_hdac_stream_readb(&(dev)->core, reg)
 
 #define azx_has_pm_runtime(chip) \
-	(!AZX_DCAPS_PM_RUNTIME || ((chip)->driver_caps & AZX_DCAPS_PM_RUNTIME))
+	((chip)->driver_caps & AZX_DCAPS_PM_RUNTIME)
 
 /* PCM setup */
 static inline struct azx_dev *get_azx_dev(struct snd_pcm_substream *substream)
