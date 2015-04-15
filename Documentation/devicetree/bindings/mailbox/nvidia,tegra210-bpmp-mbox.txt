@@ -1,0 +1,81 @@
+NVIDIA Tegra BPMP mailbox
+=========================
+
+The Tegra BPMP mailbox is used by the Tegra BPMP firmware for request
+communication between the host and BPMP.
+
+Refer to ./mailbox.txt for generic information about mailbox device-tree
+bindings.
+
+* BPMP Mailbox Controller
+
+Required properties:
+--------------------
+ - compatible: Should be "nvidia,tegra210-bpmp-mbox".
+ - reg: Should contain two entries:
+   - Address and length of Semaphores registers.
+   - Address and length of Atomics registers.
+ - reg-names: Must include the followings:
+   - sema
+   - atomics
+ - interrupts: BPMP-lite mailbox interrupts. Must contain 5 entries:
+   - First four entries: interrupts from COP to CPU
+   - The last entry: the interrupt from CPU to COP
+ - #mbox-cells: Should be 1.
+
+Example:
+--------
+	bpmp_mbox: mailbox@60001000 {
+		compatible = "nvidia,tegra210-bpmp-mbox";
+		reg = <0x0 0x60001000 0x0 0x1000>,
+		      <0x0 0x70016000 0x0 0x1000>;
+		reg-names = "sema", "atomics";
+		interrupts = <GIC_SPI 4 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 5 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 7 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 18 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 6 IRQ_TYPE_LEVEL_HIGH>;
+
+		#mbox-cells = <1>;
+	};
+
+* BPMP Mailman
+
+Acting as mailbox clients, mailman makes use of mailbox channels and
+exports interfaces to its users.
+
+Required properties:
+--------------------
+ - compatible: Should be "nvidia,tegra210-bpmp-mailman".
+ - reg: Address and length of COP reset vector address register.
+ - reg-names: cop-reset-vec
+ - mboxes: List of phandle and mailbox channel specifiers. For Tegra210,
+	   should contain twelve channels as the example below.
+ - resets: Must contain an entry for each entry in reset-names.
+	   See ../reset/reset.txt for details.
+ - reset-names: cop
+ - nvidia,bpmp-mbox: the phandle of the BPMP mailbox device node
+
+Example:
+--------
+	bpmp-mailman@6000f200 {
+		compatible = "nvidia,tegra210-bpmp-mailman";
+		reg = <0x0 0x6000f200 0x0 0x4>;
+		reg-names = "cop-reset-vec";
+		mboxes = <&bpmp_mbox 0		/* CPU 0 outbox channel */
+			  &bpmp_mbox 1		/* CPU 1 outbox channel */
+			  &bpmp_mbox 2		/* CPU 2 outbox channel */
+			  &bpmp_mbox 3		/* CPU 3 outbox channel */
+			  &bpmp_mbox 4		/* thread channel */
+			  &bpmp_mbox 5		/* thread channel */
+			  &bpmp_mbox 6		/* thread channel */
+			  &bpmp_mbox 7		/* thread channel */
+			  &bpmp_mbox 8		/* CPU 0 inbox channel */
+			  &bpmp_mbox 9		/* CPU 1 inbox channel */
+			  &bpmp_mbox 10		/* CPU 2 inbox channel */
+			  &bpmp_mbox 11>;	/* CPU 3 inbox channel */
+
+		resets = <&tegra_car TEGRA210_CLK_COP>;
+		reset-names = "cop";
+		nvidia,bpmp-mbox = <&bpmp_mbox>;
+	};
