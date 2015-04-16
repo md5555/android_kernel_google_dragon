@@ -136,6 +136,10 @@ static int tegra_dc_format(u32 fourcc, u32 *format, u32 *swap)
 		*format = WIN_COLOR_DEPTH_B8G8R8A8;
 		break;
 
+	case DRM_FORMAT_BGR565:
+		*format = WIN_COLOR_DEPTH_R5G6B5;
+		break;
+
 	case DRM_FORMAT_RGB565:
 		*format = WIN_COLOR_DEPTH_B5G6R5;
 		break;
@@ -421,6 +425,7 @@ static const u32 tegra_primary_plane_formats[] = {
 	DRM_FORMAT_XBGR8888,
 	DRM_FORMAT_XRGB8888,
 	DRM_FORMAT_RGB565,
+	DRM_FORMAT_BGR565,
 };
 
 static void tegra_primary_plane_destroy(struct drm_plane *plane)
@@ -854,6 +859,7 @@ static const uint32_t tegra_overlay_plane_formats[] = {
 	DRM_FORMAT_XBGR8888,
 	DRM_FORMAT_XRGB8888,
 	DRM_FORMAT_RGB565,
+	DRM_FORMAT_BGR565,
 	DRM_FORMAT_UYVY,
 	DRM_FORMAT_YUYV,
 	DRM_FORMAT_YUV420,

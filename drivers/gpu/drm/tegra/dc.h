@@ -381,6 +381,7 @@
 #define WIN_COLOR_DEPTH_YUV422R        23
 #define WIN_COLOR_DEPTH_YCbCr422RA     24
 #define WIN_COLOR_DEPTH_YUV422RA       25
+#define WIN_COLOR_DEPTH_R5G6B5	       34
 
 #define DC_WIN_POSITION				0x704
 #define H_POSITION(x) (((x) & 0x1fff) <<  0)
