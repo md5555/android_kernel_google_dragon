@@ -236,6 +236,8 @@ EXPORT_SYMBOL(drm_atomic_get_crtc_state);
 int drm_atomic_set_mode_for_crtc(struct drm_crtc_state *state,
 				 struct drm_display_mode *mode)
 {
+	struct drm_mode_modeinfo umode;
+
 	/* Early return for no change. */
 	if (!mode && !state->enable)
 		return 0;
@@ -243,9 +245,20 @@ int drm_atomic_set_mode_for_crtc(struct drm_crtc_state *state,
 	    memcmp(&state->mode, mode, sizeof(*mode)) == 0)
 		return 0;
 
+	if (state->mode_blob)
+		drm_property_unreference_blob(state->mode_blob);
+	state->mode_blob = NULL;
 	state->mode_changed = true;
 
 	if (mode) {
+		drm_mode_convert_to_umode(&umode, mode);
+		state->mode_blob =
+			drm_property_create_blob(state->crtc->dev,
+		                                 sizeof(umode),
+		                                 &umode);
+		if (!state->mode_blob)
+			return -ENOMEM;
+
 		drm_mode_copy(&state->mode, mode);
 		state->enable = true;
 	} else {
@@ -265,6 +278,55 @@ int drm_atomic_set_mode_for_crtc(struct drm_crtc_state *state,
 }
 EXPORT_SYMBOL(drm_atomic_set_mode_for_crtc);
 
+/**
+ * drm_atomic_set_mode_prop_for_crtc - set mode for CRTC
+ * @state: the CRTC whose incoming state to update
+ * @blob: pointer to blob property to use for mode
+ *
+ * Set a mode (originating from a blob property) on the desired CRTC state.
+ * This function will take a reference on the blob property for the CRTC state,
+ * and release the reference held on the state's existing mode property, if any
+ * was set.
+ */
+int drm_atomic_set_mode_prop_for_crtc(struct drm_crtc_state *state,
+                                      struct drm_property_blob *blob)
+{
+	if (blob == state->mode_blob)
+		return 0;
+
+	if (state->mode_blob)
+		drm_property_unreference_blob(state->mode_blob);
+	state->mode_blob = NULL;
+
+	if (blob) {
+		if (blob->length != sizeof(struct drm_mode_modeinfo) ||
+		    drm_mode_convert_umode(&state->mode,
+		                           (const struct drm_mode_modeinfo *)
+		                            blob->data))
+			return -EINVAL;
+
+		state->mode_blob = drm_property_reference_blob(blob);
+		state->mode_changed = true;
+		state->enable = true;
+	} else {
+		memset(&state->mode, 0, sizeof(state->mode));
+
+		if (state->enable)
+			state->mode_changed = true;
+		state->enable = false;
+		state->active = false;
+	}
+
+	if (state->enable)
+		DRM_DEBUG_ATOMIC("Set [MODE:%s] for CRTC state %p\n",
+				 state->mode.name, state);
+	else
+		DRM_DEBUG_ATOMIC("Set [NOMODE] for CRTC state %p\n",
+				 state);
+
+	return 0;
+}
+EXPORT_SYMBOL(drm_atomic_set_mode_prop_for_crtc);
 
 /**
  * drm_atomic_crtc_set_property - set property on CRTC

@@ -1904,7 +1904,8 @@ int drm_mode_getcrtc(struct drm_device *dev,
 		crtc_resp->x = crtc->primary->state->src_x >> 16;
 		crtc_resp->y = crtc->primary->state->src_y >> 16;
 		if (crtc->state->enable) {
-			drm_mode_convert_to_umode(&crtc_resp->mode, &crtc->state->mode);
+			memcpy(&crtc_resp->mode, &crtc->state->mode_blob->data,
+			       sizeof(crtc_resp->mode));
 			crtc_resp->mode_valid = 1;
 
 		} else {
