@@ -411,11 +411,18 @@
 #define DC_WIN_BUFFER_ADDR_MODE_TILE_UV		(1 << 16)
 #define DC_WIN_DV_CONTROL			0x70e
 
+/* V1 Blending registers */
 #define DC_WIN_BLEND_NOKEY			0x70f
 #define DC_WIN_BLEND_1WIN			0x710
 #define DC_WIN_BLEND_2WIN_X			0x711
 #define DC_WIN_BLEND_2WIN_Y			0x712
 #define DC_WIN_BLEND_3WIN_XY			0x713
+
+/* V2 Blending registers */
+#define DC_WIN_BLEND_LAYER_CONTROL		0x716
+#define DC_WIN_BLEND_MATCH_SELECT		0x717
+#define DC_WIN_BLEND_NOMATCH_SELECT		0x718
+#define DC_WIN_BLEND_ALPHA_1BIT			0x719
 
 #define DC_WIN_HP_FETCH_CONTROL			0x714
 

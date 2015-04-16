@@ -29,6 +29,7 @@ struct tegra_dc_soc_info {
 	bool supports_block_linear;
 	unsigned int pitch_align;
 	bool has_powergate;
+	bool has_v2_blend;
 };
 
 struct tegra_plane {
@@ -383,31 +384,40 @@ static void tegra_dc_setup_window(struct tegra_dc *dc, unsigned int index,
 
 	tegra_dc_writel(dc, value, DC_WIN_WIN_OPTIONS);
 
-	/*
-	 * Disable blending and assume Window A is the bottom-most window,
-	 * Window C is the top-most window and Window B is in the middle.
-	 */
-	tegra_dc_writel(dc, 0xffff00, DC_WIN_BLEND_NOKEY);
-	tegra_dc_writel(dc, 0xffff00, DC_WIN_BLEND_1WIN);
+	if (dc->soc->has_v2_blend) {
+		/* Assume pre-mult alpha blending */
+		tegra_dc_writel(dc, 0xff00, DC_WIN_BLEND_LAYER_CONTROL);
+		tegra_dc_writel(dc, 0x3262, DC_WIN_BLEND_MATCH_SELECT);
+		tegra_dc_writel(dc, 0x3222, DC_WIN_BLEND_NOMATCH_SELECT);
 
-	switch (index) {
-	case 0:
-		tegra_dc_writel(dc, 0x000000, DC_WIN_BLEND_2WIN_X);
-		tegra_dc_writel(dc, 0x000000, DC_WIN_BLEND_2WIN_Y);
-		tegra_dc_writel(dc, 0x000000, DC_WIN_BLEND_3WIN_XY);
-		break;
+	} else {
+		/*
+		 * Disable blending and assume Window A is the bottom-most
+		 * window, Window C is the top-most window and Window B is in
+		 * the middle.
+		 */
+		tegra_dc_writel(dc, 0xffff00, DC_WIN_BLEND_NOKEY);
+		tegra_dc_writel(dc, 0xffff00, DC_WIN_BLEND_1WIN);
 
-	case 1:
-		tegra_dc_writel(dc, 0xffff00, DC_WIN_BLEND_2WIN_X);
-		tegra_dc_writel(dc, 0x000000, DC_WIN_BLEND_2WIN_Y);
-		tegra_dc_writel(dc, 0x000000, DC_WIN_BLEND_3WIN_XY);
-		break;
+		switch (index) {
+		case 0:
+			tegra_dc_writel(dc, 0x000000, DC_WIN_BLEND_2WIN_X);
+			tegra_dc_writel(dc, 0x000000, DC_WIN_BLEND_2WIN_Y);
+			tegra_dc_writel(dc, 0x000000, DC_WIN_BLEND_3WIN_XY);
+			break;
 
-	case 2:
-		tegra_dc_writel(dc, 0xffff00, DC_WIN_BLEND_2WIN_X);
-		tegra_dc_writel(dc, 0xffff00, DC_WIN_BLEND_2WIN_Y);
-		tegra_dc_writel(dc, 0xffff00, DC_WIN_BLEND_3WIN_XY);
-		break;
+		case 1:
+			tegra_dc_writel(dc, 0xffff00, DC_WIN_BLEND_2WIN_X);
+			tegra_dc_writel(dc, 0x000000, DC_WIN_BLEND_2WIN_Y);
+			tegra_dc_writel(dc, 0x000000, DC_WIN_BLEND_3WIN_XY);
+			break;
+
+		case 2:
+			tegra_dc_writel(dc, 0xffff00, DC_WIN_BLEND_2WIN_X);
+			tegra_dc_writel(dc, 0xffff00, DC_WIN_BLEND_2WIN_Y);
+			tegra_dc_writel(dc, 0xffff00, DC_WIN_BLEND_3WIN_XY);
+			break;
+		}
 	}
 
 	spin_unlock_irqrestore(&dc->lock, flags);
@@ -1813,6 +1823,7 @@ static const struct tegra_dc_soc_info tegra20_dc_soc_info = {
 	.supports_block_linear = false,
 	.pitch_align = 8,
 	.has_powergate = false,
+	.has_v2_blend = false,
 };
 
 static const struct tegra_dc_soc_info tegra30_dc_soc_info = {
@@ -1822,6 +1833,7 @@ static const struct tegra_dc_soc_info tegra30_dc_soc_info = {
 	.supports_block_linear = false,
 	.pitch_align = 8,
 	.has_powergate = false,
+	.has_v2_blend = false,
 };
 
 static const struct tegra_dc_soc_info tegra114_dc_soc_info = {
@@ -1831,6 +1843,7 @@ static const struct tegra_dc_soc_info tegra114_dc_soc_info = {
 	.supports_block_linear = false,
 	.pitch_align = 64,
 	.has_powergate = true,
+	.has_v2_blend = false,
 };
 
 static const struct tegra_dc_soc_info tegra124_dc_soc_info = {
@@ -1840,6 +1853,7 @@ static const struct tegra_dc_soc_info tegra124_dc_soc_info = {
 	.supports_block_linear = true,
 	.pitch_align = 64,
 	.has_powergate = true,
+	.has_v2_blend = true,
 };
 
 static const struct tegra_dc_soc_info tegra210_dc_soc_info = {
