@@ -3,6 +3,7 @@
 #
 config ARM_CPUIDLE
         bool "Generic ARM/ARM64 CPU idle Driver"
+        select CPU_IDLE_MULTIPLE_DRIVERS
         select DT_IDLE_STATES
         help
           Select this to enable generic cpuidle driver for ARM.
