@@ -141,6 +141,7 @@ static int __init tegra124_dfll_fcpu_init(void)
 	}
 
 	soc.min_millivolts = cvb->min_millivolts;
+	soc.alignment = cvb->alignment.step_uv;
 	soc.tune0_low = cvb->cpu_dfll_data.tune0_low;
 	soc.tune0_high = cvb->cpu_dfll_data.tune0_high;
 	soc.tune1 = cvb->cpu_dfll_data.tune1;
