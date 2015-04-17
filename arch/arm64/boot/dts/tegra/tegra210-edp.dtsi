@@ -27,4 +27,12 @@
 
 		nvidia,tz = <&cpu_therm>;
 	};
+
+	cpu-edp-cdev-cap {
+		compatible = "nvidia,tegra124-cpu-edp-cdev-action";
+		act-dev = <&cpu_edp>;
+		cdev-type = "CPU-EDP-cap";
+
+		#cooling-cells = <2>; /* min followed by max */
+	};
 };
