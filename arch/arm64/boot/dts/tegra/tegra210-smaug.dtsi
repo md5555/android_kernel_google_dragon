@@ -212,6 +212,10 @@
 			regulator-max-microvolt = <5000000>;
 		};
 	};
+
+	cpu_edp: cpu-edp {
+		nvidia,edp-limit = <16000>;
+	};
 };
 
 // GEN1_I2C

@@ -7,6 +7,7 @@
 #include <dt-bindings/thermal/thermal.h>
 #include <dt-bindings/thermal/tegra124-soctherm.h>
 #include <dt-bindings/reset/tegra210-car.h>
+#include "tegra210-edp.dtsi"
 
 #include "skeleton.dtsi"
 
@@ -930,7 +931,7 @@
 	thermal-zones {
 		status = "okay";
 
-		cpu {
+		cpu_therm: cpu {
 			polling-delay-passive = <0>;
 			polling-delay = <0>;
 
