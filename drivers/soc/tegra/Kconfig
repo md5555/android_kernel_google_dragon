@@ -1,0 +1,6 @@
+config TEGRA_PROC_POWER_MODEL
+	bool "Tegra process power model support"
+	depends on ARCH_TEGRA
+	help
+	  A simple model of processor power relating voltage, frequency,
+	  cores, and chip specific data. Used by various drivers.
