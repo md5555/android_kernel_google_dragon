@@ -1,3 +1,16 @@
+#define MAKE_EDP_TRIP(proc, temp) \
+	proc##_edp_##temp: proc##_edp@temp { \
+		temperature = <temp##000>; \
+		hysteresis = <1000>; \
+		type = "active"; \
+	}
+
+#define MAP_CPU_EDP(temp) \
+	map_cpu_edp_##temp { \
+		trip = <&cpu_edp_##temp>; \
+		cooling-device = <&cpu_edp_cap temp temp>; \
+	}
+
 / {
 	cpu_edp: cpu-edp {
 		compatible = "nvidia,tegra124-cpu-edp-capping";
@@ -28,11 +41,47 @@
 		nvidia,tz = <&cpu_therm>;
 	};
 
-	cpu-edp-cdev-cap {
+	cpu_edp_cap: cpu-edp-cdev-cap {
 		compatible = "nvidia,tegra124-cpu-edp-cdev-action";
 		act-dev = <&cpu_edp>;
 		cdev-type = "CPU-EDP-cap";
 
 		#cooling-cells = <2>; /* min followed by max */
+	};
+
+	thermal-zones {
+		cpu_therm: cpu {
+			trips {
+				MAKE_EDP_TRIP(cpu, 23);
+				MAKE_EDP_TRIP(cpu, 40);
+				MAKE_EDP_TRIP(cpu, 50);
+				MAKE_EDP_TRIP(cpu, 60);
+				MAKE_EDP_TRIP(cpu, 70);
+				MAKE_EDP_TRIP(cpu, 74);
+				MAKE_EDP_TRIP(cpu, 78);
+				MAKE_EDP_TRIP(cpu, 82);
+				MAKE_EDP_TRIP(cpu, 86);
+				MAKE_EDP_TRIP(cpu, 90);
+				MAKE_EDP_TRIP(cpu, 94);
+				MAKE_EDP_TRIP(cpu, 98);
+				MAKE_EDP_TRIP(cpu, 102);
+			};
+
+			cooling-maps {
+				MAP_CPU_EDP(23);
+				MAP_CPU_EDP(40);
+				MAP_CPU_EDP(50);
+				MAP_CPU_EDP(60);
+				MAP_CPU_EDP(70);
+				MAP_CPU_EDP(74);
+				MAP_CPU_EDP(78);
+				MAP_CPU_EDP(82);
+				MAP_CPU_EDP(86);
+				MAP_CPU_EDP(90);
+				MAP_CPU_EDP(94);
+				MAP_CPU_EDP(98);
+				MAP_CPU_EDP(102);
+			};
+		};
 	};
 };
