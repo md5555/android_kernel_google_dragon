@@ -1,0 +1,37 @@
+NVIDIA Tegra XUSB host complex
+==============================
+
+The XUSB host complex on Tegra124 and later SoCs contains an xHCI host
+controller and a mailbox for communication with the XUSB micro-controller.
+
+Required properties:
+--------------------
+ - compatible: For Tegra124, must contain "nvidia,tegra124-xusb".
+   Otherwise, must contain '"nvidia,<chip>-xusb", "nvidia,tegra124-xusb"'
+   where <chip> is tegra132.
+ - reg: Must contain the base and length of the XUSB FPCI registers.
+ - ranges: Bus address mapping for the XUSB block.  Can be empty since the
+   mapping is 1:1.
+ - #address-cells: Must be 2.
+ - #size-cells: Must be 2.
+
+Example:
+--------
+	usb@0,70098000 {
+		compatible = "nvidia,tegra124-xusb";
+		reg = <0x0 0x70098000 0x0 0x1000>;
+		ranges;
+
+		#address-cells = <2>;
+		#size-cells = <2>;
+
+		usb-host@0,70090000 {
+			compatible = "nvidia,tegra124-xhci";
+			...
+		};
+
+		mailbox {
+			compatible = "nvidia,tegra124-xusb-mbox";
+			...
+		};
+	};
