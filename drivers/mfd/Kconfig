@@ -1382,6 +1382,13 @@ config MFD_STW481X
 	  in various ST Microelectronics and ST-Ericsson embedded
 	  Nomadik series.
 
+config MFD_TEGRA_XUSB
+	tristate "NVIDIA Tegra XUSB"
+	depends on ARCH_TEGRA
+	select MFD_CORE
+	help
+	  Support for the XUSB complex found on NVIDIA Tegra124 and later SoCs.
+
 menu "Multimedia Capabilities Port drivers"
 	depends on ARCH_SA1100
 
