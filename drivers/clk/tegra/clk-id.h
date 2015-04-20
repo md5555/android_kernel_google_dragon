@@ -73,6 +73,7 @@ enum clk_id {
 	tegra_clk_dmic3,
 	tegra_clk_dp2,
 	tegra_clk_dpaux,
+	tegra_clk_dpaux1,
 	tegra_clk_dsia,
 	tegra_clk_dsialp,
 	tegra_clk_dsia_mux,
