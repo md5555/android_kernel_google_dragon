@@ -174,7 +174,7 @@ struct clk *tegra_clk_register_emc(const char *name, const char **parent_names,
 	struct tegra_clk_emc *emc;
 	struct clk *clk;
 	struct clk_init_data init;
-	struct tegra_clk_periph_regs *bank;
+	const struct tegra_clk_periph_regs *bank;
 
 	emc = kzalloc(sizeof(*emc), GFP_KERNEL);
 	if (!emc) {
