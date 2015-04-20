@@ -2517,6 +2517,20 @@ static __init void tegra210_emc_clk_init(void __iomem *clk_base)
 	clks[TEGRA210_CLK_MC] = clk;
 }
 
+static const char *tegra_clk_sor1_parents[] = {
+	"sor_safe", "sor1_brick", "pll_p_out0", "pll_d_out0", "pll_d2_out0",
+	"clk_m"
+};
+
+static const struct tegra_clk_parent tegra_clk_sor1_mux[] = {
+	{ "sor_safe",    0x0000c000, 0x00000000 },
+	{ "sor1_brick",  0x0000c000, 0x00004000 },
+	{ "pll_p_out0",  0xe000c000, 0x00008000 },
+	{ "pll_d_out0",  0xe000c000, 0x40008000 },
+	{ "pll_d2_out0", 0xe000c000, 0xa0008000 },
+	{ "clk_m",       0xe000c000, 0xc0008000 },
+};
+
 static __init void tegra210_periph_clk_init(void __iomem *clk_base,
 					    void __iomem *pmc_base)
 {
@@ -2539,6 +2553,12 @@ static __init void tegra210_periph_clk_init(void __iomem *clk_base,
 					      CLK_IGNORE_UNUSED, clk_base,
 					      1, 17, 222);
 	clks[TEGRA210_CLK_SOR_SAFE] = clk;
+
+	clk = tegra_clk_register_sor("sor1", clk_base, tegra_clk_sor1_parents,
+				     tegra_clk_sor1_mux,
+				     ARRAY_SIZE(tegra_clk_sor1_parents), 0,
+				     0x410, 183);
+	clks[TEGRA210_CLK_SOR1] = clk;
 
 	/* pll_d_dsi_out */
 	clk = clk_register_gate(NULL, "pll_d_dsi_out", "pll_d_out0", 0,
