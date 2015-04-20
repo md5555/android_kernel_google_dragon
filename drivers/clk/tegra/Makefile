@@ -4,6 +4,7 @@ obj-y					+= clk-dfll.o
 obj-y					+= clk-divider.o
 obj-y					+= clk-emc.o
 obj-y					+= clk-periph.o
+obj-y					+= clk-periph-fixed.o
 obj-y					+= clk-periph-gate.o
 obj-y					+= clk-pll.o
 obj-y					+= clk-pll-out.o
