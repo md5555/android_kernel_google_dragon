@@ -231,6 +231,7 @@ struct tegra_clk_pll;
  *     it may be more accurate (especially if SDM present)
  * TEGRA_PLLMB - PLLMB has should be treated similar to PLLM. This
  *     flag indicated that it is PLLMB.
+ * TEGRA_PLL_VCO_OUT - Used to indicate that the PLL has a VCO output
  */
 struct tegra_clk_pll_params {
 	unsigned long	input_min;
@@ -296,6 +297,7 @@ struct tegra_clk_pll_params {
 #define TEGRA_PLL_HAS_LOCK_ENABLE BIT(10)
 #define TEGRA_MDIV_NEW BIT(11)
 #define TEGRA_PLLMB BIT(12)
+#define TEGRA_PLL_VCO_OUT BIT(13)
 
 /**
  * struct tegra_clk_pll - Tegra PLL clock

@@ -18,3 +18,4 @@ obj-$(CONFIG_ARCH_TEGRA_114_SOC)	+= clk-tegra114.o
 ifneq ($(filter y, $(CONFIG_ARCH_TEGRA_124_SOC) $(CONFIG_ARCH_TEGRA_132_SOC)),)
 obj-y					+= clk-tegra124.o
 endif
+obj-$(CONFIG_ARCH_TEGRA_210_SOC)	+= clk-tegra210.o
