@@ -800,6 +800,142 @@ static struct tegra_periph_init_data periph_clks[] = {
 	MUX8("maud", mux_pllp_pllp_out3_clkm_clk32k_plla, CLK_SOURCE_MAUD, 202, TEGRA_PERIPH_ON_APB | TEGRA_PERIPH_NO_RESET, tegra_clk_maud),
 };
 
+struct tegra_clk_sor {
+	struct clk_hw hw;
+	void __iomem *base;
+	const struct tegra_clk_periph_regs *regs;
+	const struct tegra_clk_parent *parents;
+	unsigned int num_parents;
+	unsigned int num;
+
+	unsigned int source;
+};
+
+static inline struct tegra_clk_sor *to_tegra_clk_sor(struct clk_hw *hw)
+{
+	return container_of(hw, struct tegra_clk_sor, hw);
+}
+
+static int tegra_clk_sor_is_enabled(struct clk_hw *hw)
+{
+	struct tegra_clk_sor *sor= to_tegra_clk_sor(hw);
+	u32 mask = 1 << (sor->num % 32), value;
+
+	value = readl(sor->base + sor->regs->enb_reg);
+	if (value & mask) {
+		value = readl(sor->base + sor->regs->rst_reg);
+		if ((value & mask) == 0)
+			return 1;
+	}
+
+	return 0;
+}
+
+static int tegra_clk_sor_enable(struct clk_hw *hw)
+{
+	struct tegra_clk_sor *sor = to_tegra_clk_sor(hw);
+	u32 mask = 1 << (sor->num % 32);
+
+	writel(mask, sor->base + sor->regs->enb_set_reg);
+
+	return 0;
+}
+
+static void tegra_clk_sor_disable(struct clk_hw *hw)
+{
+	struct tegra_clk_sor *sor = to_tegra_clk_sor(hw);
+	u32 mask = 1 << (sor->num % 32);
+
+	writel(mask, sor->base + sor->regs->enb_clr_reg);
+}
+
+static u8 tegra_clk_sor_get_parent(struct clk_hw *hw)
+{
+	struct tegra_clk_sor *sor = to_tegra_clk_sor(hw);
+	unsigned int i;
+	u32 value;
+
+	value = readl(sor->base + sor->source);
+
+	for (i = 0; i < sor->num_parents; i++) {
+		const struct tegra_clk_parent *parent = &sor->parents[i];
+
+		if ((value & parent->mask) == parent->value)
+			return i;
+	}
+
+	return -EINVAL;
+}
+
+static int tegra_clk_sor_set_parent(struct clk_hw *hw, u8 index)
+{
+	struct tegra_clk_sor *sor = to_tegra_clk_sor(hw);
+	const struct tegra_clk_parent *parent;
+	u32 value;
+
+	if (index >= sor->num_parents)
+		return -EINVAL;
+
+	parent = &sor->parents[index];
+
+	value = readl(sor->base + sor->source);
+	value &= ~parent->mask;
+	value |= parent->value;
+	writel(value, sor->base + sor->source);
+
+	return 0;
+}
+
+static const struct clk_ops tegra_clk_sor_ops = {
+	.is_enabled = tegra_clk_sor_is_enabled,
+	.enable = tegra_clk_sor_enable,
+	.disable = tegra_clk_sor_disable,
+	.get_parent = tegra_clk_sor_get_parent,
+	.set_parent = tegra_clk_sor_set_parent,
+};
+
+struct clk *tegra_clk_register_sor(const char *name, void __iomem *base,
+				   const char **parent_names,
+				   const struct tegra_clk_parent *parents,
+				   unsigned int num_parents,
+				   unsigned long flags, unsigned int source,
+				   unsigned int num)
+{
+	const struct tegra_clk_periph_regs *regs;
+	struct tegra_clk_sor *sor;
+	struct clk_init_data init;
+	struct clk *clk;
+
+	regs = get_reg_bank(num);
+	if (!regs)
+		return ERR_PTR(-EINVAL);
+
+	sor = kzalloc(sizeof(*sor), GFP_KERNEL);
+	if (!sor)
+		return ERR_PTR(-ENOMEM);
+
+	init.name = name;
+	init.flags = flags;
+	init.parent_names = parent_names;
+	init.num_parents = num_parents;
+	init.ops = &tegra_clk_sor_ops;
+
+	sor->base = base;
+	sor->regs = regs;
+	sor->num = num;
+	sor->parents = parents;
+	sor->num_parents = num_parents;
+	sor->source = source;
+
+	sor->hw.init = &init;
+
+	clk = clk_register(NULL, &sor->hw);
+	if (IS_ERR(clk))
+		kfree(sor);
+
+	return clk;
+}
+
 static struct tegra_periph_init_data gate_clks[] = {
 	GATE("rtc", "clk_32k", 4, TEGRA_PERIPH_ON_APB | TEGRA_PERIPH_NO_RESET, tegra_clk_rtc, 0),
 	GATE("timer", "clk_m", 5, 0, tegra_clk_timer, 0),
