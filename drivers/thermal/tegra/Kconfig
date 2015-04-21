@@ -33,3 +33,13 @@ config TEGRA210_SOCTHERM
 	  (CPU, GPU, MEM, PLLX). Cooling devices can be bound to the thermal
 	  zones to manage temperatures. This option is also required for the
 	  emergency thermal reset (thermtrip) feature to function.
+
+config TEGRA_THERM_EST
+	bool "Tegra thermal estimator driver"
+	depends on THERMAL_OF
+	default n
+	help
+	  Tegra thermal driver which estimates temperature based
+	  off of the weighted sum of a sequence of readings from
+	  other sensors. The weights can be customized on a per-platform
+	  basis.
