@@ -222,6 +222,7 @@ static struct mbox_chan *tegra_xusb_mbox_of_xlate(struct mbox_controller *ctlr,
 
 static const struct of_device_id tegra_xusb_mbox_of_match[] = {
 	{ .compatible = "nvidia,tegra124-xusb-mbox" },
+	{ .compatible = "nvidia,tegra210-xusb-mbox" },
 	{ },
 };
 MODULE_DEVICE_TABLE(of, tegra_xusb_mbox_of_match);

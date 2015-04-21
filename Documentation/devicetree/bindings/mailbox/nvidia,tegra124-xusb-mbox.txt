@@ -9,9 +9,10 @@ bindings.
 
 Required properties:
 --------------------
- - compatible: For Tegra124, must contain "nvidia,tegra124-xusb-mbox".
-   Otherwise, must contain '"nvidia,<chip>-xusb-mbox",
-   "nvidia,tegra124-xusb-mbox"' where <chip> is tegra132.
+ - compatible: For Tegra210, must contain "nvidia,tegra210-xusb-mbox".
+   For Tegra124, must contain "nvidia,tegra124-xusb-mbox".  Otherwise, must
+   contain '"nvidia,<chip>-xusb-mbox", "nvidia,tegra124-xusb-mbox"' where
+   <chip> is tegra132.
  - interrupts: Must contain the XUSB mailbox interrupt.
  - #mbox-cells: Should be 0.  There is only one physical channel.
 
