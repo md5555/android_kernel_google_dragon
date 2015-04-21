@@ -1,0 +1,38 @@
+Thermal estimator driver.
+This driver is used to estimate temperature based on the weighted
+sum of a sequence of readings from other sensors.
+
+Required properties:
+ - compatible:	"nvidia,tegra124-therm-est".
+ - toffset:	Temperature offset for thermal estimation, in milli-celsius.
+ - polling-period: Polling wait times for thermal estimation, in milli-seconds.
+ - sub-devs:	A sub-node which is a container of devices which
+		used to estimate temperature.
+
+Properties in sub-devs node:
+ - dev:	device node of the thermal zone device, which the thermal estimation
+	based on.
+ - coeffs:	An array of coefficients, which are for the history twenty
+		temperatures of the thermal zones, so the number of entries
+		should be twenty.
+
+Example:
+	skin_temp: therm-est {
+		compatible = "nvidia,tegra124-therm-est";
+		toffset = <9793>;
+		polling-period = <1100>;
+
+		#thermal-sensor-cells = <0>;
+
+		sub-devs {
+			dev0 {
+				dev = <&diode>;
+				coeffs = <2 1 1 1 1 1 1 1 1 1 1 0 1 1 0 0 0 0 -1 -7>;
+			};
+
+			dev1 {
+				dev = <&board>;
+				coeffs = <-11 -7 -5 -3 -3 -2 -1 0 0 0 1 1 1 2 2 3 4 6 11 18>;
+			};
+		};
+	};
