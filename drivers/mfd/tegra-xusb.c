@@ -20,6 +20,7 @@
 
 static const struct of_device_id tegra_xusb_of_match[] = {
 	{ .compatible = "nvidia,tegra124-xusb", },
+	{ .compatible = "nvidia,tegra210-xusb", },
 	{},
 };
 MODULE_DEVICE_TABLE(of, tegra_xusb_of_match);

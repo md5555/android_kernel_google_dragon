@@ -6,9 +6,9 @@ controller and a mailbox for communication with the XUSB micro-controller.
 
 Required properties:
 --------------------
- - compatible: For Tegra124, must contain "nvidia,tegra124-xusb".
-   Otherwise, must contain '"nvidia,<chip>-xusb", "nvidia,tegra124-xusb"'
-   where <chip> is tegra132.
+ - compatible: For Tegra210, must contain "nvidia,tegra210-xusb".
+   For Tegra124, must contain "nvidia,tegra124-xusb".  Otherwise, must contain
+   '"nvidia,<chip>-xusb", "nvidia,tegra124-xusb"' where <chip> is tegra132.
  - reg: Must contain the base and length of the XUSB FPCI registers.
  - ranges: Bus address mapping for the XUSB block.  Can be empty since the
    mapping is 1:1.
