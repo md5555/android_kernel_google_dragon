@@ -135,6 +135,7 @@ struct tegra_xhci_soc_data {
 	unsigned int num_supplies;
 	const struct tegra_xhci_phy_type *phy_types;
 	unsigned int num_types;
+	bool scale_ss_clock;
 };
 
 struct tegra_xhci_hcd {
@@ -429,9 +430,12 @@ static int tegra_xhci_clk_enable(struct tegra_xhci_hcd *tegra)
 	ret = clk_prepare_enable(tegra->hs_src_clk);
 	if (ret < 0)
 		goto disable_fs_src;
-	ret = tegra_xhci_set_ss_clk(tegra, TEGRA_XHCI_SS_CLK_HIGH_SPEED);
-	if (ret < 0)
-		goto disable_hs_src;
+	if (tegra->soc->scale_ss_clock) {
+		ret = tegra_xhci_set_ss_clk(tegra,
+					    TEGRA_XHCI_SS_CLK_HIGH_SPEED);
+		if (ret < 0)
+			goto disable_hs_src;
+	}
 
 	return 0;
 
@@ -520,8 +524,13 @@ static void tegra_xhci_mbox_work(struct work_struct *work)
 	switch (msg->cmd) {
 	case MBOX_CMD_INC_SSPI_CLOCK:
 	case MBOX_CMD_DEC_SSPI_CLOCK:
-		ret = tegra_xhci_set_ss_clk(tegra, msg->data * 1000);
-		resp.data = clk_get_rate(tegra->ss_src_clk) / 1000;
+		if (tegra->soc->scale_ss_clock) {
+			ret = tegra_xhci_set_ss_clk(tegra, msg->data * 1000);
+			resp.data = clk_get_rate(tegra->ss_src_clk) / 1000;
+		} else {
+			ret = 0;
+			resp.data = msg->data;
+		}
 		if (ret)
 			resp.cmd = MBOX_CMD_NAK;
 		else
@@ -594,11 +603,39 @@ static const struct tegra_xhci_soc_data tegra124_soc_data = {
 	.num_supplies = ARRAY_SIZE(tegra124_supply_names),
 	.phy_types = tegra124_phy_types,
 	.num_types = ARRAY_SIZE(tegra124_phy_types),
+	.scale_ss_clock = true,
 };
 MODULE_FIRMWARE("nvidia/tegra124/xusb.bin");
 
+static const char * const tegra210_supply_names[] = {
+	"dvddio-pex",
+	"hvddio-pex",
+	"avdd-usb",
+	"avdd-pll-utmip",
+	"avdd-pll-uerefe",
+	"dvdd-usb-ss-pll",
+	"hvdd-usb-ss-pll-e",
+};
+
+static const struct tegra_xhci_phy_type tegra210_phy_types[] = {
+	{ .name = "usb3", .num = 4, },
+	{ .name = "utmi", .num = 4, },
+	{ .name = "hsic", .num = 1, },
+};
+
+static const struct tegra_xhci_soc_data tegra210_soc_data = {
+	.firmware_file = "nvidia/tegra210/xusb.bin",
+	.supply_names = tegra210_supply_names,
+	.num_supplies = ARRAY_SIZE(tegra210_supply_names),
+	.phy_types = tegra210_phy_types,
+	.num_types = ARRAY_SIZE(tegra210_phy_types),
+	.scale_ss_clock = false,
+};
+MODULE_FIRMWARE("nvidia/tegra210/xusb.bin");
+
 static const struct of_device_id tegra_xhci_of_match[] = {
 	{ .compatible = "nvidia,tegra124-xhci", .data = &tegra124_soc_data },
+	{ .compatible = "nvidia,tegra210-xhci", .data = &tegra210_soc_data },
 	{ },
 };
 MODULE_DEVICE_TABLE(of, tegra_xhci_of_match);

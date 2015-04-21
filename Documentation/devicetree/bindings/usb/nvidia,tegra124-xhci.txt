@@ -6,6 +6,10 @@ by the Tegra XUSB pad controller.
 
 Required properties:
 --------------------
+ - compatible: For Tegra210, must contain "nvidia,tegra210-xhci".
+   For Tegra124, must contain "nvidia,tegra124-xhci".  Otherwise, must
+   contain '"nvidia,<chip>-xhci", "nvidia,tegra124-xhci"' where <chip> is
+   tegra132.
  - compatible: For Tegra124, must contain "nvidia,tegra124-xhci".
    Otherwise, must contain '"nvidia,<chip>-xhci", "nvidia,tegra124-xhci"'
    where <chip> is tegra132.
@@ -37,6 +41,9 @@ Required properties:
    See ../mailbox/mailbox.txt for details.
  - mbox-names: Must include the following entries:
    - xusb
+
+Required properties for Tegra124:
+---------------------------------
  - avddio-pex-supply: PCIe/USB3 analog logic power supply.  Must supply 1.05V.
  - dvddio-pex-supply: PCIe/USB3 digital logic power supply.  Must supply 1.05V.
  - avdd-usb-supply: USB controller power supply.  Must supply 3.3V.
@@ -46,14 +53,32 @@ Required properties:
  - hvdd-usb-ss-supply: High-voltage PCIe/USB3 power supply.  Must supply 3.3V.
  - hvdd-usb-ss-pll-e-supply: High-voltage PLLE power supply.  Must supply 3.3V.
 
+Required properties for Tegra210:
+---------------------------------
+ - dvddio-pex-supply: PCIe/USB3 digital logic power supply.  Must supply 1.05V.
+ - hvddio-pex-supply: High-voltage PCIe/USB3 logic power supply.
+   Must supply 1.8V.
+ - avdd-usb-supply: USB controller power supply.  Must supply 3.3V.
+ - avdd-pll-utmip-supply: UTMI PLL power supply.  Must supply 1.8V.
+ - avdd-pll-uerefe-supply: PLLE reference PLL power supply.  Must supply 1.05V.
+ - dvdd-usb-ss-pll-supply: PCIe/USB3 PLL power supply.  Must supply 1.05V.
+ - hvdd-usb-ss-pll-e-supply: High-voltage PLLE power supply.  Must supply 1.8V.
+
 Optional properties:
 --------------------
  - phys: Must contain an entry for each entry in phy-names.
    See ../phy/phy-bindings.txt for details.
  - phy-names: Should include an entry for each PHY used by the controller.
    Names must be of the form "<type>-<number>" where <type> is one of "utmi",
-   "hsic", or "usb3" and <number> is a 0-based index.  On Tegra124, there may
-   be up to 3 UTMI, 2 HSIC, and 2 USB3 PHYs.
+   "hsic", or "usb3" and <number> is a 0-based index.
+   On Tegra124, there may be up to:
+   - 3 UTMI PHYs
+   - 2 HSIC PHYs
+   - 2 USB3 PHYs
+   On Tegra210, there may be up to:
+   - 4 UTMI PHYs
+   - 1 HSIC PHY
+   - 4 USB3 PHYs
 
 Example:
 --------
