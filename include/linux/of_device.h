@@ -95,4 +95,9 @@ static inline void of_dma_configure(struct device *dev, struct device_node *np)
 {}
 #endif /* CONFIG_OF */
 
+static inline int of_device_match(struct device *dev, void *data)
+{
+	return dev->of_node == data;
+}
+
 #endif /* _LINUX_OF_DEVICE_H */
