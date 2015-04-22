@@ -299,10 +299,12 @@ enum clk_id {
 	tegra_clk_xusb_host_src,
 	tegra_clk_xusb_host_src_8,
 	tegra_clk_xusb_hs_src,
+	tegra_clk_xusb_hs_src_4,
 	tegra_clk_xusb_ss,
 	tegra_clk_xusb_ss_src,
 	tegra_clk_xusb_ss_src_8,
 	tegra_clk_xusb_ss_div2,
+	tegra_clk_xusb_ssp_src,
 	tegra_clk_sclk_mux,
 	tegra_clk_max,
 };

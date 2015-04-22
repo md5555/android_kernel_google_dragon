@@ -530,10 +530,20 @@ static u32 mux_pllp_out3_pllp_pllc_clkm_idx[] = {
 	[0] = 0, [1] = 1, [2] = 2, [3] = 6,
 };
 
-static const char *mux_ss_60M[] = {
+static const char *mux_ss_div2_60M[] = {
 	"xusb_ss_div2", "pll_u_60M"
 };
-#define mux_ss_60M_idx NULL
+#define mux_ss_div2_60M_idx NULL
+
+static const char *mux_ss_div2_60M_ss[] = {
+	"xusb_ss_div2", "pll_u_60M", "xusb_ss_src"
+};
+#define mux_ss_div2_60M_ss_idx NULL
+
+static const char *mux_ss_clkm[] = {
+	"xusb_ss_src", "clk_m"
+};
+#define mux_ss_clkm_idx NULL
 
 static const char *mux_d_audio_clk[] = {
 	"pll_a_out0", "pll_p", "clk_m", "spdif_in_sync", "i2s0_sync",
@@ -758,7 +768,9 @@ static struct tegra_periph_init_data periph_clks[] = {
 	XUSB("xusb_fs_src", mux_clkm_48M_pllp_480M, CLK_SOURCE_XUSB_FS_SRC, 143, TEGRA_PERIPH_NO_RESET, tegra_clk_xusb_fs_src),
 	XUSB("xusb_ss_src", mux_clkm_pllre_clk32_480M_pllc_ref, CLK_SOURCE_XUSB_SS_SRC, 143, TEGRA_PERIPH_NO_RESET, tegra_clk_xusb_ss_src),
 	XUSB("xusb_ss_src", mux_clkm_pllre_clk32_480M, CLK_SOURCE_XUSB_SS_SRC, 143, TEGRA_PERIPH_NO_RESET, tegra_clk_xusb_ss_src_8),
-	NODIV("xusb_hs_src", mux_ss_60M, CLK_SOURCE_XUSB_SS_SRC, 25, MASK(1), 143, TEGRA_PERIPH_NO_RESET, tegra_clk_xusb_hs_src, NULL),
+	NODIV("xusb_hs_src", mux_ss_div2_60M, CLK_SOURCE_XUSB_SS_SRC, 25, MASK(1), 143, TEGRA_PERIPH_NO_RESET, tegra_clk_xusb_hs_src, NULL),
+	NODIV("xusb_hs_src", mux_ss_div2_60M_ss, CLK_SOURCE_XUSB_SS_SRC, 25, MASK(2), 143, TEGRA_PERIPH_NO_RESET, tegra_clk_xusb_hs_src_4, NULL),
+	NODIV("xusb_ssp_src", mux_ss_clkm, CLK_SOURCE_XUSB_SS_SRC, 24, MASK(1), 143, TEGRA_PERIPH_NO_RESET, tegra_clk_xusb_ssp_src, NULL),
 	XUSB("xusb_dev_src", mux_clkm_pllp_pllc_pllre, CLK_SOURCE_XUSB_DEV_SRC, 95, TEGRA_PERIPH_ON_APB | TEGRA_PERIPH_NO_RESET, tegra_clk_xusb_dev_src),
 	XUSB("xusb_dev_src", mux_clkm_pllp_pllre, CLK_SOURCE_XUSB_DEV_SRC, 95, TEGRA_PERIPH_ON_APB | TEGRA_PERIPH_NO_RESET, tegra_clk_xusb_dev_src_8),
 	MUX8("dbgapb", mux_pllp_clkm_2, CLK_SOURCE_DBGAPB, 185, TEGRA_PERIPH_NO_RESET, tegra_clk_dbgapb),
