@@ -46,6 +46,7 @@
 #include <linux/mmc/sd.h>
 
 #include <asm/uaccess.h>
+#include <linux/mmc/ffu.h>
 
 #include "queue.h"
 
@@ -296,7 +297,15 @@ static int mmc_blk_open(struct block_device *bdev, fmode_t mode)
 			check_disk_change(bdev);
 		ret = 0;
 
-		if ((mode & FMODE_WRITE) && md->read_only) {
+		/*
+		 * Reject read/write access to the RPMB partition.  It should
+		 * only be accessed through ioctls.
+		 */
+		if ((mode & (FMODE_READ | FMODE_WRITE)) &&
+		    md->area_type & MMC_BLK_DATA_AREA_RPMB) {
+			mmc_blk_put(md);
+			ret = -EACCES;
+		} else if ((mode & FMODE_WRITE) && md->read_only) {
 			mmc_blk_put(md);
 			ret = -EROFS;
 		}
@@ -478,6 +487,11 @@ static int mmc_blk_ioctl_cmd(struct block_device *bdev,
 	card = md->queue.card;
 	if (IS_ERR(card)) {
 		err = PTR_ERR(card);
+		goto cmd_done;
+	}
+
+	if (idata->ic.opcode == MMC_FFU_INVOKE_OP) {
+		err = mmc_ffu_invoke(card, (struct mmc_ffu_args *)idata->buf);
 		goto cmd_done;
 	}
 

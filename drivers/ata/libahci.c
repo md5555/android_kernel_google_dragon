@@ -1459,11 +1459,8 @@ static int ahci_hardreset(struct ata_link *link, unsigned int *class,
 
 	hpriv->start_engine(ap);
 
-	if (online)
-		*class = ahci_dev_classify(ap);
-
-	DPRINTK("EXIT, rc=%d, class=%u\n", rc, *class);
-	return rc;
+	DPRINTK("EXIT\n");
+	return online ? -EAGAIN : rc;
 }
 
 static void ahci_postreset(struct ata_link *link, unsigned int *class)

@@ -1325,7 +1325,7 @@ static int ata_hpa_resize(struct ata_device *dev)
 	int print_info = ehc->i.flags & ATA_EHI_PRINTINFO;
 	bool unlock_hpa = ata_ignore_hpa || dev->flags & ATA_DFLAG_UNLOCK_HPA;
 	u64 sectors = ata_id_n_sectors(dev->id);
-	u64 native_sectors;
+	u64 native_sectors = 0;
 	int rc;
 
 	/* do we need to do it? */
@@ -3607,12 +3607,6 @@ int sata_link_resume(struct ata_link *link, const unsigned long *params,
 		scontrol = (scontrol & 0x0f0) | 0x300;
 		if ((rc = sata_scr_write(link, SCR_CONTROL, scontrol)))
 			return rc;
-		/*
-		 * Some PHYs react badly if SStatus is pounded
-		 * immediately after resuming.  Delay 200ms before
-		 * debouncing.
-		 */
-		ata_msleep(link->ap, 200);
 
 		/* is SControl restored correctly? */
 		if ((rc = sata_scr_read(link, SCR_CONTROL, &scontrol)))

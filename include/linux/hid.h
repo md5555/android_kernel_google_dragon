@@ -159,6 +159,7 @@ struct hid_item {
 #define HID_UP_LED		0x00080000
 #define HID_UP_BUTTON		0x00090000
 #define HID_UP_ORDINAL		0x000a0000
+#define HID_UP_TELEPHONY	0x000b0000
 #define HID_UP_CONSUMER		0x000c0000
 #define HID_UP_DIGITIZER	0x000d0000
 #define HID_UP_PID		0x000f0000
@@ -244,6 +245,8 @@ struct hid_item {
 #define HID_DG_CONTACTMAX	0x000d0055
 #define HID_DG_BARRELSWITCH2	0x000d005a
 #define HID_DG_TOOLSERIALNUMBER	0x000d005b
+
+#define HID_CP_CONSUMERCONTROL	0x000c0001
 
 /*
  * HID report types --- Ouch! HID spec says 1 2 3!

@@ -154,7 +154,7 @@ int freeze_processes(void)
 	int error;
 	int oom_kills_saved;
 
-	error = __usermodehelper_disable(UMH_FREEZING);
+	error = usermodehelper_disable();
 	if (error)
 		return error;
 
@@ -170,7 +170,7 @@ int freeze_processes(void)
 	oom_kills_saved = oom_kills_count();
 	error = try_to_freeze_tasks(true);
 	if (!error) {
-		__usermodehelper_set_disable_depth(UMH_DISABLED);
+		printk("done.");
 		oom_killer_disable();
 
 		/*
@@ -180,7 +180,7 @@ int freeze_processes(void)
 		 */
 		if (oom_kills_count() != oom_kills_saved &&
 		    !check_frozen_processes()) {
-			__usermodehelper_set_disable_depth(UMH_ENABLED);
+			usermodehelper_enable();
 			printk("OOM in progress.");
 			error = -EBUSY;
 		} else {
@@ -236,7 +236,7 @@ void thaw_processes(void)
 
 	printk("Restarting tasks ... ");
 
-	__usermodehelper_set_disable_depth(UMH_FREEZING);
+	usermodehelper_disable();
 	thaw_workqueues();
 
 	read_lock(&tasklist_lock);

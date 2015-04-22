@@ -613,12 +613,26 @@ config HID_PICOLCD_CIR
 	---help---
 	  Provide access to PicoLCD's CIR interface via remote control (LIRC).
 
+config HID_PLANTRONICS
+	tristate "Plantronics USB HID Driver"
+	default !EXPERT
+	depends on HID
+	---help---
+	Provides HID support for Plantronics telephony devices.
+
 config HID_PRIMAX
 	tristate "Primax non-fully HID-compliant devices"
 	depends on HID
 	---help---
 	Support for Primax devices that are not fully compliant with the
 	HID standard.
+
+config HID_QUICKSTEP
+	tristate "ChromeOS Touch Latency Measurement Device -- Quickstep"
+	depends on USB_HID
+	---help---
+	This module is the driver for the ChromeOS Touch Latency Measurement
+	Device known as Quickstep.
 
 config HID_ROCCAT
 	tristate "Roccat device support"

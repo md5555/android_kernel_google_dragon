@@ -154,6 +154,15 @@
  */
 #define PLAT_PHYS_OFFSET	UL(CONFIG_PHYS_OFFSET)
 
+/* Max physical memory supported */
+#ifndef MAX_PHYSMEM_BITS
+#ifdef CONFIG_ARM_LPAE
+#define MAX_PHYSMEM_BITS	40
+#else /* !CONFIG_ARM_LPAE */
+#define MAX_PHYSMEM_BITS	32
+#endif
+#endif
+
 #ifndef __ASSEMBLY__
 
 /*

@@ -16,6 +16,7 @@
 #define _ZRAM_DRV_H_
 
 #include <linux/spinlock.h>
+#include <linux/atomic.h>
 #include <linux/zsmalloc.h>
 
 #include "zcomp.h"
@@ -112,6 +113,7 @@ struct zram {
 	 */
 	u64 disksize;	/* bytes */
 	int max_comp_streams;
+	atomic_t nr_opens;	/* number of active file handles */
 	struct zram_stats stats;
 	/*
 	 * the number of pages zram can consume for storing compressed data

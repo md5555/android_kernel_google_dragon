@@ -1062,6 +1062,40 @@ static inline dma_addr_t __alloc_iova(struct dma_iommu_mapping *mapping,
 	return iova;
 }
 
+static dma_addr_t __alloc_iova_at(struct dma_iommu_mapping *mapping,
+				  dma_addr_t iova, size_t size)
+{
+	unsigned int count, start, orig;
+	unsigned long flags;
+	size_t bytes;
+
+	count = ((PAGE_ALIGN(size) >> PAGE_SHIFT) +
+		 (1 << mapping->order) - 1) >> mapping->order;
+
+	bytes = count << (mapping->order + PAGE_SHIFT);
+
+	spin_lock_irqsave(&mapping->lock, flags);
+
+	if (iova < mapping->base)
+		goto err_out;
+
+	orig = (iova - mapping->base) >> (mapping->order + PAGE_SHIFT);
+	start = bitmap_find_next_zero_area(mapping->bitmap, mapping->bits,
+					   orig, count, 0);
+
+	if ((start > mapping->bits) || (orig != start))
+		goto err_out;
+
+	bitmap_set(mapping->bitmap, start, count);
+	spin_unlock_irqrestore(&mapping->lock, flags);
+
+	return mapping->base + (start << (mapping->order + PAGE_SHIFT));
+
+err_out:
+	spin_unlock_irqrestore(&mapping->lock, flags);
+	return DMA_ERROR_CODE;
+}
+
 static inline void __free_iova(struct dma_iommu_mapping *mapping,
 			       dma_addr_t addr, size_t size)
 {
@@ -1135,13 +1169,28 @@ static struct page **__iommu_alloc_buffer(struct device *dev, size_t size,
 	gfp |= __GFP_NOWARN | __GFP_HIGHMEM;
 
 	while (count) {
-		int j, order = __fls(count);
+		int j, order;
 
-		pages[i] = alloc_pages(gfp, order);
-		while (!pages[i] && order)
-			pages[i] = alloc_pages(gfp, --order);
-		if (!pages[i])
-			goto error;
+		for (order = __fls(count); order > 0; --order) {
+			/*
+			 * We do not want OOM killer to be invoked as long
+			 * as we can fall back to single pages, so we force
+			 * __GFP_NORETRY for orders higher than zero.
+			 */
+			pages[i] = alloc_pages(gfp | __GFP_NORETRY, order);
+			if (pages[i])
+				break;
+		}
+
+		if (!pages[i]) {
+			/*
+			 * Fall back to single page allocation.
+			 * Might invoke OOM killer as last resort.
+			 */
+			pages[i] = alloc_pages(gfp, 0);
+			if (!pages[i])
+				goto error;
+		}
 
 		if (order) {
 			split_page(pages[i], order);
@@ -1204,14 +1253,19 @@ __iommu_alloc_remap(struct page **pages, size_t size, gfp_t gfp, pgprot_t prot,
  * Create a mapping in device IO address space for specified pages
  */
 static dma_addr_t
-__iommu_create_mapping(struct device *dev, struct page **pages, size_t size)
+__iommu_create_mapping_at(struct device *dev, dma_addr_t *req,
+		struct page **pages, size_t size)
 {
 	struct dma_iommu_mapping *mapping = dev->archdata.mapping;
 	unsigned int count = PAGE_ALIGN(size) >> PAGE_SHIFT;
 	dma_addr_t dma_addr, iova;
 	int i, ret = DMA_ERROR_CODE;
 
-	dma_addr = __alloc_iova(mapping, size);
+	if (req)
+		dma_addr = __alloc_iova_at(mapping, *req, size);
+	else
+		dma_addr = __alloc_iova(mapping, size);
+
 	if (dma_addr == DMA_ERROR_CODE)
 		return dma_addr;
 
@@ -1238,6 +1292,12 @@ fail:
 	iommu_unmap(mapping->domain, dma_addr, iova-dma_addr);
 	__free_iova(mapping, dma_addr, size);
 	return DMA_ERROR_CODE;
+}
+
+static dma_addr_t
+__iommu_create_mapping(struct device *dev, struct page **pages, size_t size)
+{
+	return __iommu_create_mapping_at(dev, NULL, pages, size);
 }
 
 static int __iommu_remove_mapping(struct device *dev, dma_addr_t iova, size_t size)
@@ -1318,7 +1378,6 @@ static void *arm_iommu_alloc_attrs(struct device *dev, size_t size,
 	struct page **pages;
 	void *addr = NULL;
 
-	*handle = DMA_ERROR_CODE;
 	size = PAGE_ALIGN(size);
 
 	if (!(gfp & __GFP_WAIT))
@@ -1337,7 +1396,11 @@ static void *arm_iommu_alloc_attrs(struct device *dev, size_t size,
 	if (!pages)
 		return NULL;
 
-	*handle = __iommu_create_mapping(dev, pages, size);
+	if (*handle == DMA_ERROR_CODE)
+		*handle = __iommu_create_mapping(dev, pages, size);
+	else
+		*handle = __iommu_create_mapping_at(dev, handle, pages, size);
+
 	if (*handle == DMA_ERROR_CODE)
 		goto err_buffer;
 

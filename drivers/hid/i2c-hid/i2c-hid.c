@@ -369,7 +369,7 @@ static int i2c_hid_hwreset(struct i2c_client *client)
 static void i2c_hid_get_input(struct i2c_hid *ihid)
 {
 	int ret, ret_size;
-	int size = le16_to_cpu(ihid->hdesc.wMaxInputLength);
+	int size = ihid->bufsize;
 
 	ret = i2c_master_recv(ihid->client, ihid->inbuf, size);
 	if (ret != size) {
@@ -886,6 +886,7 @@ static int i2c_hid_of_probe(struct i2c_client *client,
 		struct i2c_hid_platform_data *pdata)
 {
 	struct device *dev = &client->dev;
+	union i2c_smbus_data dummy;
 	u32 val;
 	int ret;
 
@@ -900,6 +901,24 @@ static int i2c_hid_of_probe(struct i2c_client *client,
 		return -EINVAL;
 	}
 	pdata->hid_descriptor_address = val;
+
+	/*
+	 * Unfortunately vendors like to interchange touchpad parts
+	 * between factory runs, but keep the same DTS, so we can't
+	 * be quite sure that the device is actually present in the
+	 * system even if it is described in the DTS.
+	 * Before trying to properly initialize the touchpad let's
+	 * first see it there is anything at the given address.
+	 */
+
+	ret = i2c_smbus_xfer(client->adapter, client->addr, 0,
+			     I2C_SMBUS_READ, 0, I2C_SMBUS_BYTE, &dummy);
+	if (ret) {
+		dev_dbg(&client->dev,
+			"basic IO failed (%d), assuming device is not present\n",
+			ret);
+		return -ENXIO;
+	}
 
 	return 0;
 }
@@ -1058,15 +1077,18 @@ static int i2c_hid_suspend(struct device *dev)
 	struct hid_device *hid = ihid->hid;
 	int ret = 0;
 
-	disable_irq(client->irq);
-	if (device_may_wakeup(&client->dev))
-		enable_irq_wake(client->irq);
+	if (!pm_runtime_suspended(dev)) {
+		/* Save some power */
+		i2c_hid_set_power(client, I2C_HID_PWR_SLEEP);
+
+		disable_irq(client->irq);
+	}
 
 	if (hid->driver && hid->driver->suspend)
 		ret = hid->driver->suspend(hid, PMSG_SUSPEND);
 
-	/* Save some power */
-	i2c_hid_set_power(client, I2C_HID_PWR_SLEEP);
+	if (device_may_wakeup(&client->dev))
+		enable_irq_wake(client->irq);
 
 	return ret;
 }
@@ -1077,6 +1099,11 @@ static int i2c_hid_resume(struct device *dev)
 	struct i2c_client *client = to_i2c_client(dev);
 	struct i2c_hid *ihid = i2c_get_clientdata(client);
 	struct hid_device *hid = ihid->hid;
+
+	/* We'll resume to full power */
+	pm_runtime_disable(dev);
+	pm_runtime_set_active(dev);
+	pm_runtime_enable(dev);
 
 	enable_irq(client->irq);
 	ret = i2c_hid_hwreset(client);
@@ -1123,6 +1150,7 @@ static const struct dev_pm_ops i2c_hid_pm = {
 
 static const struct i2c_device_id i2c_hid_id_table[] = {
 	{ "hid", 0 },
+	{ "hid-over-i2c", 0 },
 	{ },
 };
 MODULE_DEVICE_TABLE(i2c, i2c_hid_id_table);

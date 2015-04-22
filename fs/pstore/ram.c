@@ -34,6 +34,7 @@
 #include <linux/slab.h>
 #include <linux/compiler.h>
 #include <linux/pstore_ram.h>
+#include <linux/of_address.h>
 
 #define RAMOOPS_KERNMSG_HDR "===="
 #define MIN_MEM_SIZE 4096UL
@@ -143,25 +144,27 @@ ramoops_get_next_prz(struct persistent_ram_zone *przs[], uint *c, uint max,
 	return prz;
 }
 
-static void ramoops_read_kmsg_hdr(char *buffer, struct timespec *time,
+static int ramoops_read_kmsg_hdr(char *buffer, struct timespec *time,
 				  bool *compressed)
 {
 	char data_type;
+	int header_length = 0;
 
-	if (sscanf(buffer, RAMOOPS_KERNMSG_HDR "%lu.%lu-%c\n",
-			&time->tv_sec, &time->tv_nsec, &data_type) == 3) {
+	if (sscanf(buffer, RAMOOPS_KERNMSG_HDR "%lu.%lu-%c\n%n", &time->tv_sec,
+			&time->tv_nsec, &data_type, &header_length) == 3) {
 		if (data_type == 'C')
 			*compressed = true;
 		else
 			*compressed = false;
-	} else if (sscanf(buffer, RAMOOPS_KERNMSG_HDR "%lu.%lu\n",
-			&time->tv_sec, &time->tv_nsec) == 2) {
+	} else if (sscanf(buffer, RAMOOPS_KERNMSG_HDR "%lu.%lu\n%n",
+			&time->tv_sec, &time->tv_nsec, &header_length) == 2) {
 			*compressed = false;
 	} else {
 		time->tv_sec = 0;
 		time->tv_nsec = 0;
 		*compressed = false;
 	}
+	return header_length;
 }
 
 static bool prz_ok(struct persistent_ram_zone *prz)
@@ -178,11 +181,34 @@ static ssize_t ramoops_pstore_read(u64 *id, enum pstore_type_id *type,
 	ssize_t size;
 	ssize_t ecc_notice_size;
 	struct ramoops_context *cxt = psi->data;
-	struct persistent_ram_zone *prz;
+	struct persistent_ram_zone *prz = NULL;
+	int header_length = 0;
 
-	prz = ramoops_get_next_prz(cxt->przs, &cxt->dump_read_cnt,
-				   cxt->max_dump_cnt, id, type,
-				   PSTORE_TYPE_DMESG, 1);
+	/* Ramoops headers provide time stamps for PSTORE_TYPE_DMESG, but
+	 * PSTORE_TYPE_CONSOLE and PSTORE_TYPE_FTRACE don't currently have
+	 * valid time stamps, so it is initialized to zero.
+	 */
+	time->tv_sec = 0;
+	time->tv_nsec = 0;
+	*compressed = false;
+
+	/* Find the next valid persistent_ram_zone for DMESG */
+	while (cxt->dump_read_cnt < cxt->max_dump_cnt && !prz) {
+		prz = ramoops_get_next_prz(cxt->przs, &cxt->dump_read_cnt,
+					   cxt->max_dump_cnt, id, type,
+					   PSTORE_TYPE_DMESG, 1);
+		if (!prz)
+			continue;
+		header_length = ramoops_read_kmsg_hdr(persistent_ram_old(prz),
+						      time, compressed);
+		/* Clear and skip this DMESG record if it has no valid header */
+		if (!header_length) {
+			persistent_ram_free_old(prz);
+			persistent_ram_zap(prz);
+			prz = NULL;
+		}
+	}
+
 	if (!prz_ok(prz))
 		prz = ramoops_get_next_prz(&cxt->cprz, &cxt->console_read_cnt,
 					   1, id, type, PSTORE_TYPE_CONSOLE, 0);
@@ -195,7 +221,7 @@ static ssize_t ramoops_pstore_read(u64 *id, enum pstore_type_id *type,
 	if (!prz_ok(prz))
 		return 0;
 
-	size = persistent_ram_old_size(prz);
+	size = persistent_ram_old_size(prz) - header_length;
 
 	/* ECC correction notice */
 	ecc_notice_size = persistent_ram_ecc_string(prz, NULL, 0);
@@ -204,8 +230,7 @@ static ssize_t ramoops_pstore_read(u64 *id, enum pstore_type_id *type,
 	if (*buf == NULL)
 		return -ENOMEM;
 
-	memcpy(*buf, persistent_ram_old(prz), size);
-	ramoops_read_kmsg_hdr(*buf, time, compressed);
+	memcpy(*buf, (char *)persistent_ram_old(prz) + header_length, size);
 	persistent_ram_ecc_string(prz, *buf + size, ecc_notice_size + 1);
 
 	return size + ecc_notice_size;
@@ -435,6 +460,42 @@ void notrace ramoops_console_write_buf(const char *buf, size_t size)
 	persistent_ram_write(cxt->cprz, buf, size);
 }
 
+#ifdef CONFIG_OF
+static struct ramoops_platform_data * __init
+of_ramoops_platform_data(struct device *dev)
+{
+	struct device_node *node = dev->of_node;
+	struct ramoops_platform_data *pdata;
+	const __be32 *addrp;
+	u64 size;
+	u32 val;
+
+	pdata = devm_kzalloc(dev, sizeof(*pdata), GFP_KERNEL);
+	if (pdata == NULL)
+		return NULL;
+
+	addrp = of_get_address(node, 0, &size, NULL);
+	if (addrp == NULL)
+		return NULL;
+	pdata->mem_address = of_translate_address(node, addrp);
+	pdata->mem_size = size;
+
+	if (of_property_read_u32(node, "record-size", &val))
+		return NULL;
+	pdata->record_size = val;
+
+	/* TODO(bfreed): add a console-size of property. */
+	pdata->console_size = val;
+
+	if (of_get_property(node, "dump-oops", NULL))
+		pdata->dump_oops = 1;
+
+	return pdata;
+}
+#else
+#define of_ramoops_platform_data(dev) NULL
+#endif
+
 static int ramoops_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -449,6 +510,14 @@ static int ramoops_probe(struct platform_device *pdev)
 	 */
 	if (cxt->max_dump_cnt)
 		goto fail_out;
+
+	if (!pdata && pdev->dev.of_node) {
+		pdata = of_ramoops_platform_data(&pdev->dev);
+		if (!pdata) {
+			pr_err("Invalid ramoops device tree data\n");
+			goto fail_out;
+		}
+	}
 
 	if (!pdata->mem_size || (!pdata->record_size && !pdata->console_size &&
 			!pdata->ftrace_size && !pdata->pmsg_size)) {
@@ -573,12 +642,21 @@ static int __exit ramoops_remove(struct platform_device *pdev)
 	return -EBUSY;
 }
 
+#ifdef CONFIG_OF
+static const struct of_device_id ramoops_of_match[] = {
+	{ .compatible = "ramoops", },
+	{ },
+};
+MODULE_DEVICE_TABLE(of, ramoops_of_match);
+#endif
+
 static struct platform_driver ramoops_driver = {
 	.probe		= ramoops_probe,
 	.remove		= __exit_p(ramoops_remove),
 	.driver		= {
 		.name	= "ramoops",
 		.owner	= THIS_MODULE,
+		.of_match_table = of_match_ptr(ramoops_of_match),
 	},
 };
 
