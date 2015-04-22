@@ -209,6 +209,16 @@ static int max8973_dcdc_set_voltage_sel(struct regulator_dev *rdev,
 	return 0;
 }
 
+static int max8973_dcdc_get_voltage_sel_register(struct regulator_dev *rdev,
+		unsigned *vsel_reg, unsigned *vsel_mask)
+{
+	struct max8973_chip *max = rdev_get_drvdata(rdev);
+
+	*vsel_reg = max->curr_vout_reg;
+	*vsel_mask = MAX8973_VOUT_MASK;
+	return 0;
+}
+
 static int max8973_dcdc_set_mode(struct regulator_dev *rdev, unsigned int mode)
 {
 	struct max8973_chip *max = rdev_get_drvdata(rdev);
@@ -282,6 +292,7 @@ static const struct regulator_ops max8973_dcdc_ops = {
 	.get_voltage_sel	= max8973_dcdc_get_voltage_sel,
 	.set_voltage_sel	= max8973_dcdc_set_voltage_sel,
 	.list_voltage		= regulator_list_voltage_linear,
+	.get_voltage_sel_register = max8973_dcdc_get_voltage_sel_register,
 	.set_mode		= max8973_dcdc_set_mode,
 	.get_mode		= max8973_dcdc_get_mode,
 	.set_voltage_time_sel	= regulator_set_voltage_time_sel,
