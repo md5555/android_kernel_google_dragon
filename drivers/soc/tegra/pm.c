@@ -38,6 +38,7 @@
 
 #include <asm/cacheflush.h>
 #ifdef CONFIG_ARM64
+#include <asm/cpuidle.h>
 #include <asm/mmu.h>
 #else
 #include <asm/idmap.h>
