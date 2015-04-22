@@ -17,6 +17,7 @@
 
 #include <drm/drmP.h>
 #include "udl_drv.h"
+#include "udl_cursor.h"
 
 #define MAX_CMD_PIXELS		255
 
@@ -82,12 +83,27 @@ static inline u16 pixel32_to_be16(const uint32_t pixel)
 		((pixel >> 8) & 0xf800));
 }
 
-static bool pixel_repeats(const void *pixel, const uint32_t repeat, int bpp)
+static inline u16 get_pixel_val16(const uint8_t *pixel, int bpp)
 {
+	u16 pixel_val16 = 0;
 	if (bpp == 2)
-		return *(const uint16_t *)pixel == repeat;
-	else
-		return *(const uint32_t *)pixel == repeat;
+		pixel_val16 = *(const uint16_t *)pixel;
+	else if (bpp == 4)
+		pixel_val16 = pixel32_to_be16(*(const uint32_t *)pixel);
+	return pixel_val16;
+}
+
+static inline u16 blend_alpha(const uint16_t pixel_val16, uint32_t blend_val32)
+{
+	uint32_t alpha = (blend_val32 >> 16);
+	uint32_t alpha_inv = 64 - alpha;
+
+	return (((pixel_val16 & 0x1f) * alpha_inv +
+		(blend_val32 & 0x1f) * alpha) >> 6) |
+		((((pixel_val16 & 0x7e0) * alpha_inv +
+		(blend_val32 & 0x7e0) * alpha) >> 6) & 0x7e0) |
+		((((pixel_val16 & 0xf800) * alpha_inv +
+		(blend_val32 & 0xf800) * alpha) >> 6) & 0xf800);
 }
 
 /*
@@ -121,12 +137,16 @@ static void udl_compress_hline16(
 	const u8 **pixel_start_ptr,
 	const u8 *const pixel_end,
 	uint32_t *device_address_ptr,
+	struct udl_cursor_hline *cursor_hline,
 	uint8_t **command_buffer_ptr,
 	const uint8_t *const cmd_buffer_end, int bpp)
 {
 	const u8 *pixel = *pixel_start_ptr;
 	uint32_t dev_addr  = *device_address_ptr;
 	uint8_t *cmd = *command_buffer_ptr;
+	const uint32_t *cursor_buf = cursor_hline ? cursor_hline->buffer : NULL;
+	int cursor_pos = cursor_buf ? cursor_hline->offset : 0;
+	int cursor_width = cursor_buf ? cursor_hline->width : 0;
 
 	while ((pixel_end > pixel) &&
 	       (cmd_buffer_end - MIN_RLX_CMD_BYTES > cmd)) {
@@ -134,6 +154,7 @@ static void udl_compress_hline16(
 		uint8_t *cmd_pixels_count_byte = NULL;
 		const u8 *raw_pixel_start = NULL;
 		const u8 *cmd_pixel_start, *cmd_pixel_end = NULL;
+		uint16_t pixel_val16;
 
 		prefetchw((void *) cmd); /* pull in one cache line at least */
 
@@ -154,32 +175,40 @@ static void udl_compress_hline16(
 			    (int)(cmd_buffer_end - cmd) / 2))) * bpp;
 
 		prefetch_range((void *) pixel, (cmd_pixel_end - pixel) * bpp);
+		pixel_val16 = get_pixel_val16(pixel, bpp);
+		if (cursor_buf && cursor_pos >= 0 &&
+			cursor_pos < cursor_width) {
+			pixel_val16 = blend_alpha(pixel_val16,
+				cursor_buf[cursor_pos]);
+		}
 
 		while (pixel < cmd_pixel_end) {
 			const u8 *const start = pixel;
-			u32 repeating_pixel;
+			const uint16_t repeating_pixel_val16 = pixel_val16;
 
-			if (bpp == 2) {
-				repeating_pixel = *(uint16_t *)pixel;
-				*(uint16_t *)cmd = cpu_to_be16(repeating_pixel);
-			} else {
-				repeating_pixel = *(uint32_t *)pixel;
-				*(uint16_t *)cmd = cpu_to_be16(pixel32_to_be16(repeating_pixel));
-			}
+			*(uint16_t *)cmd = cpu_to_be16(pixel_val16);
 
 			cmd += 2;
 			pixel += bpp;
+			cursor_pos++;
 
-			if (unlikely((pixel < cmd_pixel_end) &&
-				     (pixel_repeats(pixel, repeating_pixel, bpp)))) {
+			while (pixel < cmd_pixel_end) {
+				pixel_val16 = get_pixel_val16(pixel, bpp);
+				if (cursor_buf && cursor_pos >= 0 &&
+					cursor_pos < cursor_width) {
+					pixel_val16 = blend_alpha(pixel_val16,
+						cursor_buf[cursor_pos]);
+				}
+				if (pixel_val16 != repeating_pixel_val16)
+					break;
+				pixel += bpp;
+				cursor_pos++;
+			}
+
+			if (unlikely(pixel > start + bpp)) {
 				/* go back and fill in raw pixel count */
 				*raw_pixels_count_byte = (((start -
 						raw_pixel_start) / bpp) + 1) & 0xFF;
-
-				while ((pixel < cmd_pixel_end) &&
-				       (pixel_repeats(pixel, repeating_pixel, bpp))) {
-					pixel += bpp;
-				}
 
 				/* immediately after raw data is repeat byte */
 				*cmd++ = (((pixel - start) / bpp) - 1) & 0xFF;
@@ -209,6 +238,8 @@ static void udl_compress_hline16(
 	*command_buffer_ptr = cmd;
 	*pixel_start_ptr = pixel;
 	*device_address_ptr = dev_addr;
+	if (cursor_buf)
+		cursor_hline->offset = cursor_pos;
 
 	return;
 }
@@ -222,7 +253,7 @@ static void udl_compress_hline16(
 int udl_render_hline(struct drm_device *dev, int bpp, struct urb **urb_ptr,
 		     const char *front, char **urb_buf_ptr,
 		     u32 byte_offset, u32 device_byte_offset,
-		     u32 byte_width,
+		     u32 byte_width, struct udl_cursor_hline *cursor_hline,
 		     int *ident_ptr, int *sent_ptr)
 {
 	const u8 *line_start, *line_end, *next_pixel;
@@ -240,7 +271,7 @@ int udl_render_hline(struct drm_device *dev, int bpp, struct urb **urb_ptr,
 	while (next_pixel < line_end) {
 
 		udl_compress_hline16(&next_pixel,
-			     line_end, &base16,
+			     line_end, &base16, cursor_hline,
 			     (u8 **) &cmd, (u8 *) cmd_end, bpp);
 
 		if (cmd >= cmd_end) {

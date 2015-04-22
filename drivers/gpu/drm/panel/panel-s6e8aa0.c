@@ -141,7 +141,7 @@ static void s6e8aa0_dcs_write(struct s6e8aa0 *ctx, const void *data, size_t len)
 	if (ctx->error < 0)
 		return;
 
-	ret = mipi_dsi_dcs_write(dsi, data, len);
+	ret = mipi_dsi_dcs_write_buffer(dsi, data, len);
 	if (ret < 0) {
 		dev_err(ctx->dev, "error %zd writing dcs seq: %*ph\n", ret, len,
 			data);
@@ -800,27 +800,15 @@ static void s6e8aa0_panel_init(struct s6e8aa0 *ctx)
 }
 
 static void s6e8aa0_set_maximum_return_packet_size(struct s6e8aa0 *ctx,
-						   int size)
+						   u16 size)
 {
 	struct mipi_dsi_device *dsi = to_mipi_dsi_device(ctx->dev);
-	const struct mipi_dsi_host_ops *ops = dsi->host->ops;
-	u8 buf[] = {size, 0};
-	struct mipi_dsi_msg msg = {
-		.channel = dsi->channel,
-		.type = MIPI_DSI_SET_MAXIMUM_RETURN_PACKET_SIZE,
-		.tx_len = sizeof(buf),
-		.tx_buf = buf
-	};
 	int ret;
 
 	if (ctx->error < 0)
 		return;
 
-	if (!ops || !ops->transfer)
-		ret = -EIO;
-	else
-		ret = ops->transfer(dsi->host, &msg);
-
+	ret = mipi_dsi_set_maximum_return_packet_size(dsi, size);
 	if (ret < 0) {
 		dev_err(ctx->dev,
 			"error %d setting maximum return packet size to %d\n",
@@ -1069,7 +1057,6 @@ static struct mipi_dsi_driver s6e8aa0_driver = {
 	.remove = s6e8aa0_remove,
 	.driver = {
 		.name = "panel_s6e8aa0",
-		.owner = THIS_MODULE,
 		.of_match_table = s6e8aa0_of_match,
 	},
 };

@@ -98,7 +98,57 @@ static const struct drm_plane_funcs mdp4_plane_funcs = {
 		.set_property = mdp4_plane_set_property,
 };
 
-void mdp4_plane_set_scanout(struct drm_plane *plane,
+static int mdp4_plane_prepare_fb(struct drm_plane *plane,
+		struct drm_framebuffer *fb)
+{
+	struct mdp4_plane *mdp4_plane = to_mdp4_plane(plane);
+	struct mdp4_kms *mdp4_kms = get_kms(plane);
+
+	DBG("%s: prepare: FB[%u]", mdp4_plane->name, fb->base.id);
+	return msm_framebuffer_prepare(fb, mdp4_kms->id);
+}
+
+static void mdp4_plane_cleanup_fb(struct drm_plane *plane,
+		struct drm_framebuffer *fb)
+{
+	struct mdp4_plane *mdp4_plane = to_mdp4_plane(plane);
+	struct mdp4_kms *mdp4_kms = get_kms(plane);
+
+	DBG("%s: cleanup: FB[%u]", mdp4_plane->name, fb->base.id);
+	msm_framebuffer_cleanup(fb, mdp4_kms->id);
+}
+
+
+static int mdp4_plane_atomic_check(struct drm_plane *plane,
+		struct drm_plane_state *state)
+{
+	return 0;
+}
+
+static void mdp4_plane_atomic_update(struct drm_plane *plane,
+				     struct drm_plane_state *old_state)
+{
+	struct drm_plane_state *state = plane->state;
+	int ret;
+
+	ret = mdp4_plane_mode_set(plane,
+			state->crtc, state->fb,
+			state->crtc_x, state->crtc_y,
+			state->crtc_w, state->crtc_h,
+			state->src_x,  state->src_y,
+			state->src_w, state->src_h);
+	/* atomic_check should have ensured that this doesn't fail */
+	WARN_ON(ret < 0);
+}
+
+static const struct drm_plane_helper_funcs mdp4_plane_helper_funcs = {
+		.prepare_fb = mdp4_plane_prepare_fb,
+		.cleanup_fb = mdp4_plane_cleanup_fb,
+		.atomic_check = mdp4_plane_atomic_check,
+		.atomic_update = mdp4_plane_atomic_update,
+};
+
+static void mdp4_plane_set_scanout(struct drm_plane *plane,
 		struct drm_framebuffer *fb)
 {
 	struct mdp4_plane *mdp4_plane = to_mdp4_plane(plane);

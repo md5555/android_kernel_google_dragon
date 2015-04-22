@@ -580,6 +580,7 @@ struct intel_dp {
 	enum pipe pps_pipe;
 
 	bool use_tps3;
+	bool is_ps8617;
 	bool can_mst; /* this port supports mst */
 	bool is_mst;
 	int active_mst_links;
