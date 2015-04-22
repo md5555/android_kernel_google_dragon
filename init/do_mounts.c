@@ -113,7 +113,7 @@ no_match:
  *
  * Returns the matching dev_t on success or 0 on failure.
  */
-static dev_t devt_from_partuuid(const char *uuid_str)
+dev_t devt_from_partuuid(const char *uuid_str)
 {
 	dev_t res = 0;
 	struct uuidcmp cmp;
@@ -226,8 +226,9 @@ dev_t name_to_dev_t(const char *name)
 
 	if (strncmp(name, "/dev/", 5) != 0) {
 		unsigned maj, min;
+		char dummy;
 
-		if (sscanf(name, "%u:%u", &maj, &min) == 2) {
+		if (sscanf(name, "%u:%u%c", &maj, &min, &dummy) == 2) {
 			res = MKDEV(maj, min);
 			if (maj != MAJOR(res) || min != MINOR(res))
 				goto fail;
@@ -559,6 +560,7 @@ void __init prepare_namespace(void)
 	async_synchronize_full();
 
 	md_run_setup();
+	dm_run_setup();
 
 	if (saved_root_name[0]) {
 		root_device_name = saved_root_name;
