@@ -24,6 +24,7 @@
 #include <linux/i2c.h>
 #include <linux/module.h>
 #include <linux/wait.h>
+#include <linux/workqueue.h>
 #include "tpm.h"
 
 /* max. buffer size supported by our TPM */
@@ -69,6 +70,8 @@ struct tpm_inf_dev {
 	u8 buf[TPM_BUFSIZE + sizeof(u8)]; /* max. buffer size + addr */
 	struct tpm_chip *chip;
 	enum i2c_chip_type chip_type;
+	bool powered_while_suspended;
+	struct work_struct init_work;
 };
 
 static struct tpm_inf_dev tpm_dev;
@@ -106,39 +109,30 @@ static int iic_tpm_read(u8 addr, u8 *buffer, size_t len)
 		.len = len,
 		.buf = buffer
 	};
-	struct i2c_msg msgs[] = {msg1, msg2};
 
 	int rc = 0;
 	int count;
+	unsigned int adapterlimit = len;
+
+	if (work_pending(&tpm_dev.init_work))
+		flush_work(&tpm_dev.init_work);
 
 	/* Lock the adapter for the duration of the whole sequence. */
 	if (!tpm_dev.client->adapter->algo->master_xfer)
 		return -EOPNOTSUPP;
 	i2c_lock_adapter(tpm_dev.client->adapter);
 
-	if (tpm_dev.chip_type == SLB9645) {
-		/* use a combined read for newer chips
-		 * unfortunately the smbus functions are not suitable due to
-		 * the 32 byte limit of the smbus.
-		 * retries should usually not be needed, but are kept just to
-		 * be on the safe side.
-		 */
-		for (count = 0; count < MAX_COUNT; count++) {
-			rc = __i2c_transfer(tpm_dev.client->adapter, msgs, 2);
-			if (rc > 0)
-				break;	/* break here to skip sleep */
-			usleep_range(SLEEP_DURATION_LOW, SLEEP_DURATION_HI);
-		}
-	} else {
+	/* Expect to send one command message and one data message, but
+	 * support looping over each or both if necessary.
+	 */
+	while (len > 0) {
 		/* slb9635 protocol should work in all cases */
 		for (count = 0; count < MAX_COUNT; count++) {
 			rc = __i2c_transfer(tpm_dev.client->adapter, &msg1, 1);
 			if (rc > 0)
-				break;	/* break here to skip sleep */
-
+				break;
 			usleep_range(SLEEP_DURATION_LOW, SLEEP_DURATION_HI);
 		}
-
 		if (rc <= 0)
 			goto out;
 
@@ -147,11 +141,30 @@ static int iic_tpm_read(u8 addr, u8 *buffer, size_t len)
 		 * retrieving the data
 		 */
 		for (count = 0; count < MAX_COUNT; count++) {
+			unsigned int msglen = msg2.len = min(adapterlimit, len);
 			usleep_range(SLEEP_DURATION_LOW, SLEEP_DURATION_HI);
 			rc = __i2c_transfer(tpm_dev.client->adapter, &msg2, 1);
-			if (rc > 0)
+			if (rc > 0) {
+				/* Since len is unsigned, make doubly sure we
+				 * do not underflow it.
+				 */
+				if (msglen > len)
+					len = 0;
+				else
+					len -= msglen;
+				msg2.buf += msglen;
 				break;
+			}
+			/* If the I2C adapter rejected the request,
+			 * try a smaller chunk.
+			 */
+			if (rc == -EINVAL) {
+				adapterlimit = (adapterlimit + 1) / 2;
+				adapterlimit = max(adapterlimit, 32U);
+			}
 		}
+		if (rc <= 0)
+			goto out;
 	}
 
 out:
@@ -181,6 +194,9 @@ static int iic_tpm_write_generic(u8 addr, u8 *buffer, size_t len,
 		.len = len + 1,
 		.buf = tpm_dev.buf
 	};
+
+	if (work_pending(&tpm_dev.init_work))
+		flush_work(&tpm_dev.init_work);
 
 	if (len > TPM_BUFSIZE)
 		return -EINVAL;
@@ -575,6 +591,11 @@ static const struct tpm_class_ops tpm_tis_i2c = {
 	.req_canceled = tpm_tis_i2c_req_canceled,
 };
 
+static void tpm_tis_i2c_selftest(struct work_struct *work)
+{
+	tpm_do_selftest(tpm_dev.chip);
+}
+
 static int tpm_tis_i2c_init(struct device *dev)
 {
 	u32 vendor;
@@ -625,8 +646,19 @@ static int tpm_tis_i2c_init(struct device *dev)
 	INIT_LIST_HEAD(&chip->vendor.list);
 	tpm_dev.chip = chip;
 
-	tpm_get_timeouts(chip);
-	tpm_do_selftest(chip);
+	if (tpm_get_timeouts(chip)) {
+		dev_err(dev, "Could not get TPM timeouts and durations\n");
+		rc = -ENODEV;
+		goto out_release;
+	}
+
+	INIT_WORK(&tpm_dev.init_work, tpm_tis_i2c_selftest);
+	schedule_work(&tpm_dev.init_work);
+
+	if (dev->of_node &&
+	    of_get_property(dev->of_node, "powered-while-suspended", NULL)) {
+		tpm_dev.powered_while_suspended = true;
+	}
 
 	return 0;
 
@@ -682,7 +714,24 @@ static const struct of_device_id tpm_tis_i2c_of_match[] = {
 MODULE_DEVICE_TABLE(of, tpm_tis_i2c_of_match);
 #endif
 
-static SIMPLE_DEV_PM_OPS(tpm_tis_i2c_ops, tpm_pm_suspend, tpm_pm_resume);
+static int tpm_tis_i2c_suspend(struct device *dev)
+{
+	if (tpm_dev.powered_while_suspended)
+		return 0;
+
+	return tpm_pm_suspend(dev);
+}
+
+static int tpm_tis_i2c_resume(struct device *dev)
+{
+	if (tpm_dev.powered_while_suspended)
+		return 0;
+
+	return tpm_pm_resume(dev);
+}
+
+static SIMPLE_DEV_PM_OPS(tpm_tis_i2c_ops, tpm_tis_i2c_suspend,
+			 tpm_tis_i2c_resume);
 
 static int tpm_tis_i2c_probe(struct i2c_client *client,
 			     const struct i2c_device_id *id)
@@ -713,6 +762,8 @@ static int tpm_tis_i2c_remove(struct i2c_client *client)
 {
 	struct tpm_chip *chip = tpm_dev.chip;
 	release_locality(chip, chip->vendor.locality, 1);
+
+	cancel_work_sync(&tpm_dev.init_work);
 
 	/* close file handles */
 	tpm_dev_vendor_release(chip);
