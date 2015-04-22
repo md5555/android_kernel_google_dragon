@@ -2309,14 +2309,20 @@ int regulator_get_hardware_vsel_register(struct regulator *regulator,
 {
 	struct regulator_dev *rdev = regulator->rdev;
 	const struct regulator_ops *ops = rdev->desc->ops;
+	int ret = 0;
 
-	if (ops->set_voltage_sel != regulator_set_voltage_sel_regmap)
+	if (ops->set_voltage_sel == regulator_set_voltage_sel_regmap) {
+		*vsel_reg = rdev->desc->vsel_reg;
+		*vsel_mask = rdev->desc->vsel_mask;
+	} else if (ops->get_voltage_sel_register) {
+		mutex_lock(&rdev->mutex);
+		ret = ops->get_voltage_sel_register(rdev, vsel_reg, vsel_mask);
+		mutex_unlock(&rdev->mutex);
+	} else {
 		return -EOPNOTSUPP;
+	}
 
-	 *vsel_reg = rdev->desc->vsel_reg;
-	 *vsel_mask = rdev->desc->vsel_mask;
-
-	 return 0;
+	return ret;
 }
 EXPORT_SYMBOL_GPL(regulator_get_hardware_vsel_register);
 
@@ -2339,7 +2345,8 @@ int regulator_list_hardware_vsel(struct regulator *regulator,
 
 	if (selector >= rdev->desc->n_voltages)
 		return -EINVAL;
-	if (ops->set_voltage_sel != regulator_set_voltage_sel_regmap)
+	if ((ops->set_voltage_sel != regulator_set_voltage_sel_regmap) &&
+		!ops->get_voltage_sel_register)
 		return -EOPNOTSUPP;
 
 	return selector;

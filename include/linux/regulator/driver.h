@@ -101,6 +101,9 @@ struct regulator_linear_range {
  * @set_bypass: Set the regulator in bypass mode.
  * @get_bypass: Get the regulator bypass mode state.
  *
+ * @get_voltage_sel_register: Get hardware voltage sel register address
+ *                    and its voltage mask.
+ *
  * @enable_time: Time taken for the regulator voltage output voltage to
  *               stabilise after being enabled, in microseconds.
  * @set_ramp_delay: Set the ramp delay for the regulator. The driver should
@@ -170,6 +173,10 @@ struct regulator_ops {
 	/* control and report on bypass mode */
 	int (*set_bypass)(struct regulator_dev *dev, bool enable);
 	int (*get_bypass)(struct regulator_dev *dev, bool *enable);
+
+	/* Get HW VSEL register */
+	int (*get_voltage_sel_register)(struct regulator_dev *dev,
+			unsigned *vsel_reg, unsigned *vsel_mask);
 
 	/* the operations below are for configuration of regulator state when
 	 * its parent PMIC enters a global STANDBY/HIBERNATE state */
