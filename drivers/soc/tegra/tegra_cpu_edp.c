@@ -28,6 +28,8 @@
 #include <linux/of_platform.h>
 #include <linux/suspend.h>
 #include <linux/debugfs.h>
+#include <linux/pm_qos.h>
+#include <trace/events/sysedp.h>
 #include <soc/tegra/fuse.h>
 #include <soc/tegra/tegra-dvfs.h>
 #include <soc/tegra/tegra-edp.h>
@@ -48,6 +50,8 @@ struct cpu_edp {
 	int temperature;
 	cpumask_t edp_cpumask;
 	unsigned long freq_limit;
+	unsigned long sysedp_freq_limit;
+	unsigned long sysedp_cpupwr;
 	struct thermal_zone_device *tz;
 	unsigned long edp_thermal_index;
 	struct mutex edp_lock;
@@ -57,7 +61,26 @@ struct cpu_edp {
 static struct cpu_edp s_cpu = {
 	/* assume we're running hot */
 	.temperature = 75,
+
+	/* default cpu power (mW) */
+#ifdef CONFIG_TEGRA_SYS_EDP
+	.sysedp_cpupwr = 2000,
+#else
+	/* no cpu power limitation from sysedp */
+	.sysedp_cpupwr = 100000,
+#endif
 };
+
+static unsigned int tegra_get_sysedp_max_freq(struct cpu_edp *ctx,
+					      int online_cpus)
+{
+	if (WARN_ONCE(!ctx->edp_init_done, "Tegra PPM is not ready\n"))
+		return 0;
+
+	return tegra_ppm_get_maxf(ctx->ppm, ctx->sysedp_cpupwr,
+				  TEGRA_PPM_UNITS_MILLIWATTS,
+				  ctx->temperature, online_cpus);
+}
 
 static unsigned int tegra_get_edp_max_freq(struct cpu_edp *ctx, int online_cpus)
 {
@@ -73,12 +96,27 @@ static unsigned int tegra_get_edp_max_freq(struct cpu_edp *ctx, int online_cpus)
 static void tegra_edp_update_limit(struct device *dev)
 {
 	struct cpu_edp *ctx = dev_get_drvdata(dev);
-	unsigned int limit;
+	unsigned int limit, cpus;
 
 	BUG_ON(!mutex_is_locked(&ctx->edp_lock));
 
-	limit = tegra_get_edp_max_freq(ctx, cpumask_weight(&ctx->edp_cpumask));
+	cpus = cpumask_weight(&ctx->edp_cpumask);
+
+	limit = tegra_get_edp_max_freq(ctx, cpus);
 	ctx->freq_limit = limit;
+
+	limit = tegra_get_sysedp_max_freq(ctx, cpus);
+	if (ctx->sysedp_freq_limit != limit) {
+		if (IS_ENABLED(CONFIG_DEBUG_KERNEL))
+			dev_dbg(dev, "sysedp: ncpus %u, cpu %lu mW %u kHz\n",
+				cpus, ctx->sysedp_cpupwr, limit);
+#ifdef CONFIG_TEGRA_SYS_EDP
+		trace_sysedp_max_cpu_pwr(cpus, ctx->sysedp_cpupwr,
+					 limit);
+#endif
+	}
+
+	ctx->sysedp_freq_limit = limit;
 }
 
 /*
@@ -216,17 +254,45 @@ static unsigned int tegra_edp_get_max_cpu_freq(void)
 }
 
 /* Governor requested frequency, not higher than edp limits */
-static unsigned int tegra_edp_governor_speed(struct device *dev,
+static unsigned int tegra_edp_governor_speed(struct cpu_edp *ctx,
 					unsigned int requested_speed)
 {
-	struct cpu_edp *ctx = dev_get_drvdata(dev);
+	unsigned int speed;
 
-	if ((!ctx->freq_limit) ||
-	    (requested_speed <= ctx->freq_limit))
+	if ((!ctx->freq_limit) || (!ctx->sysedp_freq_limit))
+		speed = max(ctx->freq_limit, ctx->sysedp_freq_limit);
+	else
+		speed = min(ctx->freq_limit, ctx->sysedp_freq_limit);
+
+	if ((!speed) ||
+	    ((requested_speed) && (requested_speed <= speed)))
 		return requested_speed;
 	else
-		return ctx->freq_limit;
+		return speed;
 }
+
+static int max_cpu_power_notifier(struct notifier_block *b,
+				unsigned long cpupwr, void *v)
+{
+	struct platform_device *pdev = s_cpu.pdev;
+	struct device *dev = &pdev->dev;
+
+	dev_dbg(dev, "PM QoS Max CPU Power Notify: %lu\n", cpupwr);
+
+	mutex_lock(&s_cpu.edp_lock);
+	/* store the new cpu power */
+	s_cpu.sysedp_cpupwr = cpupwr;
+
+	tegra_edp_update_limit(dev);
+	cpufreq_update_policy(0);
+	mutex_unlock(&s_cpu.edp_lock);
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block max_cpu_pwr_notifier_block = {
+	.notifier_call = max_cpu_power_notifier,
+};
 
 /**
  * tegra_cpu_edp_notifier - Notifier callback for cpu hotplug.
@@ -256,7 +322,7 @@ static int tegra_cpu_edp_notifier(
 		tegra_edp_update_limit(dev);
 
 		cpu_speed = cpufreq_get(0);
-		new_speed = tegra_edp_governor_speed(dev, cpu_speed);
+		new_speed = tegra_edp_governor_speed(&s_cpu, cpu_speed);
 		if (new_speed < cpu_speed) {
 			ret = cpufreq_update_policy(0);
 			dev_dbg(dev, "cpu-tegra:%sforce EDP limit %u kHz\n",
@@ -300,13 +366,15 @@ static int edp_cpufreq_policy_notifier(struct notifier_block *nb,
 				       unsigned long event, void *data)
 {
 	struct cpufreq_policy *policy = data;
+	unsigned int limit;
 
 	if (event != CPUFREQ_ADJUST)
 		return 0;
 
 	/* Limit max freq to be within edp limit. */
-	if (policy->max != s_cpu.freq_limit)
-		cpufreq_verify_within_limits(policy, 0, s_cpu.freq_limit);
+	limit = tegra_edp_governor_speed(&s_cpu, 0);
+	if (limit && (policy->max != limit))
+		cpufreq_verify_within_limits(policy, 0, limit);
 
 	return 0;
 }
@@ -368,6 +436,8 @@ static int tegra_cpu_edp_probe(struct platform_device *pdev)
 		return PTR_ERR(ctx->ppm);
 	}
 
+	pm_qos_add_notifier(PM_QOS_MAX_CPU_POWER, &max_cpu_pwr_notifier_block);
+
 	cpufreq_register_notifier(&edp_cpufreq_notifier_block,
 				  CPUFREQ_POLICY_NOTIFIER);
 
@@ -388,6 +458,8 @@ static int tegra_cpu_edp_remove(struct platform_device *pdev)
 	unregister_hotcpu_notifier(&tegra_cpu_edp_notifier_block);
 	cpufreq_unregister_notifier(&edp_cpufreq_notifier_block,
 				    CPUFREQ_POLICY_NOTIFIER);
+	pm_qos_remove_notifier(PM_QOS_MAX_CPU_POWER,
+				&max_cpu_pwr_notifier_block);
 	tegra_ppm_destroy(ctx->ppm, NULL, NULL);
 
 	return 0;
