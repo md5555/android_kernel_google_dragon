@@ -959,6 +959,12 @@ static int mmc_sdio_pre_suspend(struct mmc_host *host)
  */
 static int mmc_sdio_suspend(struct mmc_host *host)
 {
+	if (host->sdio_irqs) {
+		mmc_claim_host(host);
+		atomic_set(&host->sdio_irq_thread_suspend, 1);
+		mmc_release_host(host);
+	}
+
 	if (mmc_card_keep_power(host) && mmc_card_wake_sdio_irq(host)) {
 		mmc_claim_host(host);
 		sdio_disable_wide(host->card);
@@ -1013,6 +1019,7 @@ static int mmc_sdio_resume(struct mmc_host *host)
 	}
 
 	if (!err && host->sdio_irqs) {
+		atomic_set(&host->sdio_irq_thread_suspend, 0);
 		if (!(host->caps2 & MMC_CAP2_SDIO_IRQ_NOTHREAD)) {
 			wake_up_process(host->sdio_irq_thread);
 		} else if (host->caps & MMC_CAP_SDIO_IRQ) {

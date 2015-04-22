@@ -39,6 +39,10 @@
 
 #define DRIVER_NAME "i2c-designware-pci"
 
+static bool force_std_mode;
+module_param(force_std_mode, bool, 0);
+MODULE_PARM_DESC(force_std_mode, "Force standard mode (100 kHz)");
+
 enum dw_pci_ctl_id_t {
 	moorestown_0,
 	moorestown_1,
@@ -78,6 +82,7 @@ struct dw_pci_controller {
 				DW_IC_CON_RESTART_EN)
 
 #define DW_DEFAULT_FUNCTIONALITY (I2C_FUNC_I2C |			\
+					I2C_FUNC_10BIT_ADDR |		\
 					I2C_FUNC_SMBUS_BYTE |		\
 					I2C_FUNC_SMBUS_BYTE_DATA |	\
 					I2C_FUNC_SMBUS_WORD_DATA |	\
@@ -221,6 +226,7 @@ static int i2c_dw_pci_probe(struct pci_dev *pdev,
 	struct dw_i2c_dev *dev;
 	struct i2c_adapter *adap;
 	int r;
+	u32 mode;
 	struct  dw_pci_controller *controller;
 	struct dw_scl_sda_cfg *cfg;
 
@@ -258,6 +264,12 @@ static int i2c_dw_pci_probe(struct pci_dev *pdev,
 	dev->dev = &pdev->dev;
 	dev->functionality = controller->functionality |
 				DW_DEFAULT_FUNCTIONALITY;
+
+	mode = controller->bus_cfg & (DW_IC_CON_SPEED_STD | DW_IC_CON_SPEED_FAST);
+	if (force_std_mode && !(mode & DW_IC_CON_SPEED_STD)){
+		controller->bus_cfg &= ~mode;
+		controller->bus_cfg |= DW_IC_CON_SPEED_STD;
+	}
 
 	dev->master_cfg =  controller->bus_cfg;
 	if (controller->scl_sda_cfg) {

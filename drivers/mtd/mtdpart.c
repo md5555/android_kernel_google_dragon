@@ -30,6 +30,7 @@
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/partitions.h>
 #include <linux/err.h>
+#include <linux/kconfig.h>
 
 #include "mtdcore.h"
 
@@ -380,10 +381,17 @@ static struct mtd_part *allocate_partition(struct mtd_info *master,
 	slave->mtd.owner = master->owner;
 	slave->mtd.backing_dev_info = master->backing_dev_info;
 
-	/* NOTE:  we don't arrange MTDs as a tree; it'd be error-prone
-	 * to have the same data be in two different partitions.
+	/* NOTE: Historically, we didn't arrange MTDs as a tree out of
+	 * concern for showing the same data in multiple partitions.
+	 * However, it is very useful to have the master node present,
+	 * so the MTD_PARTITIONED_MASTER option allows that. The master
+	 * will have device nodes etc only if this is set, so make the
+	 * parent conditional on that option. Note, this is a way to
+	 * distinguish between the master and the partition in sysfs.
 	 */
-	slave->mtd.dev.parent = master->dev.parent;
+	slave->mtd.dev.parent = IS_ENABLED(CONFIG_MTD_PARTITIONED_MASTER) ?
+				&master->dev :
+				master->dev.parent;
 
 	slave->mtd._read = part_read;
 	slave->mtd._write = part_write;
@@ -551,7 +559,7 @@ int mtd_add_partition(struct mtd_info *master, const char *name,
 		      long long offset, long long length)
 {
 	struct mtd_partition part;
-	struct mtd_part *p, *new;
+	struct mtd_part *new;
 	uint64_t start, end;
 	int ret = 0;
 
@@ -580,27 +588,12 @@ int mtd_add_partition(struct mtd_info *master, const char *name,
 	end = offset + length;
 
 	mutex_lock(&mtd_partitions_mutex);
-	list_for_each_entry(p, &mtd_partitions, list)
-		if (p->master == master) {
-			if ((start >= p->offset) &&
-			    (start < (p->offset + p->mtd.size)))
-				goto err_inv;
-
-			if ((end >= p->offset) &&
-			    (end < (p->offset + p->mtd.size)))
-				goto err_inv;
-		}
-
 	list_add(&new->list, &mtd_partitions);
 	mutex_unlock(&mtd_partitions_mutex);
 
 	add_mtd_device(&new->mtd);
 
 	return ret;
-err_inv:
-	mutex_unlock(&mtd_partitions_mutex);
-	free_partition(new);
-	return -EINVAL;
 }
 EXPORT_SYMBOL_GPL(mtd_add_partition);
 
@@ -632,8 +625,8 @@ EXPORT_SYMBOL_GPL(mtd_del_partition);
  * and registers slave MTD objects which are bound to the master according to
  * the partition definitions.
  *
- * We don't register the master, or expect the caller to have done so,
- * for reasons of data integrity.
+ * For historical reasons, this function's caller only registers the master
+ * if the MTD_PARTITIONED_MASTER config option is set.
  */
 
 int add_mtd_partitions(struct mtd_info *master,

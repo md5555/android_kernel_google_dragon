@@ -8,6 +8,7 @@
 #include <linux/memblock.h>
 #include <linux/bootmem.h>
 #include <linux/acpi.h>
+#include <linux/debugfs.h>
 #include <asm/efi.h>
 #include <asm/uv/uv.h>
 
@@ -40,6 +41,26 @@ static int __init setup_storage_paranoia(char *arg)
 	return 0;
 }
 early_param("efi_no_storage_paranoia", setup_storage_paranoia);
+
+/*
+ * Add efi smbios base debugfs export.
+ *
+ * This can then be used by mosys to get to the DMI table. Scraping from
+ * dmesg is fragile at best.
+ */
+static int __init efi_debugfs_setup(void)
+{
+	static u64 efi_smbios_base;
+
+	efi_smbios_base = (u64) efi.smbios;
+
+	if (efi_smbios_base && efi_smbios_base != EFI_INVALID_TABLE_ADDR)
+		debugfs_create_u64("efi_smbios_base", 0444, NULL,
+							&efi_smbios_base);
+
+	return 0;
+}
+late_initcall(efi_debugfs_setup);
 
 /*
  * Deleting the dummy variable which kicks off garbage collection

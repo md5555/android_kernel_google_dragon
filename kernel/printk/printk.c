@@ -46,6 +46,7 @@
 #include <linux/irq_work.h>
 #include <linux/utsname.h>
 #include <linux/ctype.h>
+#include <linux/pm.h>
 
 #include <asm/uaccess.h>
 
@@ -81,7 +82,7 @@ EXPORT_SYMBOL(oops_in_progress);
  * provides serialisation for access to the entire console
  * driver system.
  */
-static DEFINE_SEMAPHORE(console_sem);
+static __suspend_volatile DEFINE_SEMAPHORE(console_sem);
 struct console *console_drivers;
 EXPORT_SYMBOL_GPL(console_drivers);
 
@@ -234,28 +235,28 @@ struct printk_log {
  * within the scheduler's rq lock. It must be released before calling
  * console_unlock() or anything else that might wake up a process.
  */
-static DEFINE_RAW_SPINLOCK(logbuf_lock);
+static __suspend_volatile DEFINE_RAW_SPINLOCK(logbuf_lock);
 
 #ifdef CONFIG_PRINTK
 DECLARE_WAIT_QUEUE_HEAD(log_wait);
 /* the next printk record to read by syslog(READ) or /proc/kmsg */
-static u64 syslog_seq;
-static u32 syslog_idx;
+static __suspend_volatile_bss u64 syslog_seq;
+static __suspend_volatile_bss u32 syslog_idx;
 static enum log_flags syslog_prev;
 static size_t syslog_partial;
 
 /* index and sequence number of the first record stored in the buffer */
-static u64 log_first_seq;
-static u32 log_first_idx;
+static __suspend_volatile_bss u64 log_first_seq;
+static __suspend_volatile_bss u32 log_first_idx;
 
 /* index and sequence number of the next record to store in the buffer */
-static u64 log_next_seq;
-static u32 log_next_idx;
+static __suspend_volatile_bss u64 log_next_seq;
+static __suspend_volatile_bss u32 log_next_idx;
 
 /* the next printk record to write to the console */
-static u64 console_seq;
-static u32 console_idx;
-static enum log_flags console_prev;
+static __suspend_volatile_bss u64 console_seq;
+static __suspend_volatile_bss u32 console_idx;
+static __suspend_volatile_bss enum log_flags console_prev;
 
 /* the next printk record to read after the last 'clear' command */
 static u64 clear_seq;
@@ -1263,7 +1264,7 @@ static int syslog_print_all(char __user *buf, int size, bool clear)
 int do_syslog(int type, char __user *buf, int len, bool from_file)
 {
 	bool clear = false;
-	static int saved_console_loglevel = -1;
+	static __suspend_volatile int saved_console_loglevel = -1;
 	int error;
 
 	error = check_syslog_permissions(type, from_file);
@@ -1622,7 +1623,7 @@ asmlinkage int vprintk_emit(int facility, int level,
 			    const char *fmt, va_list args)
 {
 	static int recursion_bug;
-	static char textbuf[LOG_LINE_MAX];
+	static __suspend_volatile_bss char textbuf[LOG_LINE_MAX];
 	char *text = textbuf;
 	size_t text_len = 0;
 	enum log_flags lflags = 0;
@@ -1631,7 +1632,7 @@ asmlinkage int vprintk_emit(int facility, int level,
 	int printed_len = 0;
 	bool in_sched = false;
 	/* cpu currently holding logbuf_lock in this function */
-	static volatile unsigned int logbuf_cpu = UINT_MAX;
+	static volatile __suspend_volatile unsigned int logbuf_cpu = UINT_MAX;
 
 	if (level == SCHED_MESSAGE_LOGLEVEL) {
 		level = -1;
@@ -2174,8 +2175,8 @@ out:
  */
 void console_unlock(void)
 {
-	static char text[LOG_LINE_MAX + PREFIX_MAX];
-	static u64 seen_seq;
+	static __suspend_volatile_bss char text[LOG_LINE_MAX + PREFIX_MAX];
+	static __suspend_volatile_bss u64 seen_seq;
 	unsigned long flags;
 	bool wake_klogd = false;
 	bool retry;
