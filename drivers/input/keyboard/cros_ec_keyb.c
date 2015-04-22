@@ -32,6 +32,7 @@
 #include <linux/input/matrix_keypad.h>
 #include <linux/mfd/cros_ec.h>
 #include <linux/mfd/cros_ec_commands.h>
+#include <linux/mfd/cros_ec_dev.h>
 
 /*
  * @rows: Number of rows in the keypad
@@ -108,11 +109,11 @@ static void cros_ec_keyb_process(struct cros_ec_keyb *ckdev,
 			 uint8_t *kb_state, int len)
 {
 	struct input_dev *idev = ckdev->idev;
+	struct cros_ec_device *ec = ckdev->ec;
 	int col, row;
 	int new_state;
 	int old_state;
 	int num_cols;
-
 	num_cols = len;
 
 	if (ckdev->ghost_filter && cros_ec_keyb_has_ghosting(ckdev, kb_state)) {
@@ -129,16 +130,21 @@ static void cros_ec_keyb_process(struct cros_ec_keyb *ckdev,
 		for (row = 0; row < ckdev->rows; row++) {
 			int pos = MATRIX_SCAN_CODE(row, col, ckdev->row_shift);
 			const unsigned short *keycodes = idev->keycode;
+			int code;
 
+			code = keycodes[pos];
 			new_state = kb_state[col] & (1 << row);
 			old_state = ckdev->old_kb_state[col] & (1 << row);
 			if (new_state != old_state) {
 				dev_dbg(ckdev->dev,
 					"changed: [r%d c%d]: byte %02x\n",
 					row, col, new_state);
-
-				input_report_key(idev, keycodes[pos],
-						 new_state);
+				/* Change to power supply status */
+				if ((ec->charger && code == KEY_BATTERY)) {
+					power_supply_changed(ec->charger);
+					continue;
+				}
+				input_report_key(idev, code, new_state);
 			}
 		}
 		ckdev->old_kb_state[col] = kb_state[col];
@@ -157,7 +163,7 @@ static int cros_ec_keyb_get_state(struct cros_ec_keyb *ckdev, uint8_t *kb_state)
 		.insize = ckdev->cols,
 	};
 
-	return cros_ec_cmd_xfer(ckdev->ec, &msg);
+	return cros_ec_cmd_xfer_status(ckdev->ec, &msg);
 }
 
 static irqreturn_t cros_ec_keyb_irq(int irq, void *data)
@@ -263,7 +269,7 @@ static int cros_ec_keyb_probe(struct platform_device *pdev)
 	ckdev->dev = dev;
 	dev_set_drvdata(&pdev->dev, ckdev);
 
-	idev->name = ec->ec_name;
+	idev->name = CROS_EC_DEV_NAME;
 	idev->phys = ec->phys_name;
 	__set_bit(EV_REP, idev->evbit);
 
@@ -338,7 +344,7 @@ static int cros_ec_keyb_resume(struct device *dev)
 	 * wake source (e.g. the lid is open and the user might press a key to
 	 * wake) then the key scan buffer should be preserved.
 	 */
-	if (ckdev->ec->was_wake_device)
+	if (!ckdev->ec->was_wake_device)
 		cros_ec_keyb_clear_keyboard(ckdev);
 
 	return 0;

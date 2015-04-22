@@ -16,9 +16,30 @@
 #ifndef __LINUX_MFD_CROS_EC_H
 #define __LINUX_MFD_CROS_EC_H
 
-#include <linux/notifier.h>
+#include <linux/cdev.h>
+#include <linux/power_supply.h>
 #include <linux/mfd/cros_ec_commands.h>
 #include <linux/mutex.h>
+
+/*
+ * The EC is unresponsive for a time after a reboot command.  Add a
+ * simple delay to make sure that the bus stays locked.
+ */
+#define EC_REBOOT_DELAY_MS		50
+
+/*
+ * Max bus-specific overhead incurred by request/responses.
+ * I2C requires 1 additional byte for requests.
+ * I2C requires 2 additional bytes for responses.
+ * SPI requires up to 32 additional bytes for responses.
+ * */
+#define EC_MAX_REQUEST_OVERHEAD		1
+#define EC_MAX_RESPONSE_OVERHEAD	32
+
+#define EC_PROTO_VERSION_UNKNOWN	0
+
+/* ec_command return value for non-success result from EC */
+#define EECRESULT 1000
 
 /*
  * Command interface between EC and AP, for LPC, I2C and SPI interfaces.
@@ -57,9 +78,8 @@ struct cros_ec_command {
 /**
  * struct cros_ec_device - Information about a ChromeOS EC device
  *
- * @ec_name: name of EC device (e.g. 'chromeos-ec')
  * @phys_name: name of physical comms layer (e.g. 'i2c-4')
- * @dev: Device pointer
+ * @dev: Device pointer for physical comms device
  * @was_wake_device: true if this device was set to wake the system from
  * sleep at the last suspend
  *
@@ -76,34 +96,52 @@ struct cros_ec_command {
  * to using dword.
  * @din_size: size of din buffer to allocate (zero to use static din)
  * @dout_size: size of dout buffer to allocate (zero to use static dout)
- * @parent: pointer to parent device (e.g. i2c or spi device)
  * @wake_enabled: true if this device can wake the system from sleep
  * @cmd_xfer: send command to EC and get response
  *     Returns the number of bytes received if the communication succeeded, but
  *     that doesn't mean the EC was happy with the command. The caller
  *     should check msg.result for the EC's result code.
+ * @cmd_read_mem: direct read of the EC memory-mapped region, if supported
+ *     @offset is within EC_LPC_ADDR_MEMMAP region.
+ *     @bytes: number of bytes to read. zero means "read a string" (including
+ *     the trailing '\0'). At most only EC_MEMMAP_SIZE bytes can be read.
+ *     Caller must ensure that the buffer is large enough for the result when
+ *     reading a string.
  * @lock: one transaction at a time
  */
 struct cros_ec_device {
 
 	/* These are used by other drivers that want to talk to the EC */
-	const char *ec_name;
 	const char *phys_name;
 	struct device *dev;
 	bool was_wake_device;
 	struct class *cros_class;
 
 	/* These are used to implement the platform-specific interface */
+	u16 max_request;
+	u16 max_response;
+	u16 max_passthru;
+	u16 proto_version;
 	void *priv;
 	int irq;
-	uint8_t *din;
-	uint8_t *dout;
+	u8 *din;
+	u8 *dout;
 	int din_size;
 	int dout_size;
-	struct device *parent;
 	bool wake_enabled;
 	int (*cmd_xfer)(struct cros_ec_device *ec,
 			struct cros_ec_command *msg);
+	int (*cmd_readmem)(struct cros_ec_device *ec, unsigned int offset,
+			   unsigned int bytes, void *dest);
+	int (*cmd_read_u32)(struct cros_ec_device *ec, unsigned int offset,
+			    u32 *dest);
+	int (*cmd_read_u16)(struct cros_ec_device *ec, unsigned int offset,
+			    u16 *dest);
+	int (*cmd_read_u8)(struct cros_ec_device *ec, unsigned int offset,
+			   u8 *dest);
+	int (*pkt_xfer)(struct cros_ec_device *ec,
+			struct cros_ec_command *msg);
+	struct power_supply *charger;
 	struct mutex lock;
 };
 
@@ -156,13 +194,31 @@ int cros_ec_check_result(struct cros_ec_device *ec_dev,
  * cros_ec_cmd_xfer - Send a command to the ChromeOS EC
  *
  * Call this to send a command to the ChromeOS EC.  This should be used
- * instead of calling the EC's cmd_xfer() callback directly.
+ * instead of calling the EC's cmd_xfer() callback directly. Note that
+ * msg->result should be checked before assuming that the command ran
+ * successfully on the EC.
  *
  * @ec_dev: EC device
  * @msg: Message to write
+ * @return: Num. of bytes transferred on success, <0 on failure
  */
 int cros_ec_cmd_xfer(struct cros_ec_device *ec_dev,
 		     struct cros_ec_command *msg);
+
+/**
+ * cros_ec_cmd_xfer_status - Send a command to the ChromeOS EC
+ *
+ * This function is identical to cros_ec_cmd_xfer, except it returns succes
+ * status only if both the command was transmitted successfully and the EC
+ * replied with success status. It's not necessary to check msg->result when
+ * using this function.
+ *
+ * @ec_dev: EC device
+ * @msg: Message to write
+ * @return: Num. of bytes transferred on success, <0 on failure
+ */
+int cros_ec_cmd_xfer_status(struct cros_ec_device *ec_dev,
+			    struct cros_ec_command *msg);
 
 /**
  * cros_ec_remove - Remove a ChromeOS EC
