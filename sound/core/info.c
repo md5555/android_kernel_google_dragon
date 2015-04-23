@@ -33,12 +33,6 @@
 #include <linux/mutex.h>
 #include <stdarg.h>
 
-/*
- *
- */
-
-#ifdef CONFIG_PROC_FS
-
 int snd_info_check_reserved_words(const char *str)
 {
 	static char *reserved[] =
@@ -953,5 +947,3 @@ static int __exit snd_info_version_done(void)
 	snd_info_free_entry(snd_info_version_entry);
 	return 0;
 }
-
-#endif /* CONFIG_PROC_FS */
