@@ -120,4 +120,9 @@ static inline void tegra_cpu_clock_resume(void)
 }
 #endif
 
+bool tegra_pll_can_ramp_to_rate(struct clk *c, unsigned long rate);
+bool tegra_pll_can_ramp_to_min(struct clk *c, unsigned long *min_rate);
+int tegra_pll_get_min_ramp_rate(struct clk *c, unsigned long rate,
+		unsigned long *min_rate);
+
 #endif /* __LINUX_CLK_TEGRA_H_ */

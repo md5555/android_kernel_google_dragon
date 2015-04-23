@@ -20,6 +20,7 @@
 #include <linux/err.h>
 #include <linux/clk-provider.h>
 #include <linux/clk.h>
+#include <linux/clk/tegra.h>
 
 #include "clk.h"
 
@@ -623,6 +624,75 @@ static void _get_pll_mnp(struct tegra_clk_pll *pll,
 		}
 	}
 }
+
+bool tegra_pll_can_ramp_to_rate(struct clk *c, unsigned long rate)
+{
+	struct clk_hw *hw = __clk_get_hw(c);
+	struct tegra_clk_pll *pll = to_clk_pll(hw);
+	struct tegra_clk_pll_params *params = pll->params;
+	struct tegra_clk_pll_freq_table cfg, old_cfg;
+	unsigned long parent_rate = clk_get_rate(clk_get_parent(c));
+
+	if (!params->dyn_ramp || !params->defaults_set)
+		return false;
+
+	if (_get_table_rate(hw, &cfg, rate, parent_rate)) {
+		if (params->calc_rate(hw, &cfg, rate, parent_rate))
+			return false;
+	}
+
+	_get_pll_mnp(pll, &old_cfg);
+
+	return (cfg.m == old_cfg.m) && (cfg.p == old_cfg.p);
+}
+EXPORT_SYMBOL(tegra_pll_can_ramp_to_rate);
+
+bool tegra_pll_can_ramp_to_min(struct clk *c, unsigned long *min_rate)
+{
+	struct tegra_clk_pll *pll = to_clk_pll(__clk_get_hw(c));
+	struct tegra_clk_pll_params *params = pll->params;
+	struct tegra_clk_pll_freq_table cfg;
+	u32 pdiv;
+
+	if (!params->dyn_ramp || !params->defaults_set)
+		return false;
+
+	_get_pll_mnp(pll, &cfg);
+	pdiv = _hw_to_p_div(__clk_get_hw(c), cfg.p);
+
+	/* output rate after VCO ramped down to min with current M, P */
+	*min_rate = DIV_ROUND_UP(params->vco_min, pdiv);
+
+	return true;
+}
+EXPORT_SYMBOL(tegra_pll_can_ramp_to_min);
+
+int tegra_pll_get_min_ramp_rate(struct clk *c, unsigned long rate,
+		unsigned long *min_rate)
+{
+	struct clk_hw *hw = __clk_get_hw(c);
+	struct tegra_clk_pll *pll = to_clk_pll(__clk_get_hw(c));
+	struct tegra_clk_pll_params *params = pll->params;
+	struct tegra_clk_pll_freq_table cfg;
+	unsigned long parent_rate = clk_get_rate(clk_get_parent(c));
+	u32 pdiv;
+
+	if (!params->dyn_ramp || !params->defaults_set)
+		return -EINVAL;
+
+	if (_get_table_rate(hw, &cfg, rate, parent_rate)) {
+		if (params->calc_rate(hw, &cfg, rate, parent_rate))
+			return -EINVAL;
+	}
+
+	pdiv = _hw_to_p_div(__clk_get_hw(c), cfg.p);
+
+	/* output rate before VCO ramped up from min with target M, P */
+	*min_rate = DIV_ROUND_UP(params->vco_min, pdiv);
+
+	return 0;
+}
+EXPORT_SYMBOL(tegra_pll_get_min_ramp_rate);
 
 static void _update_pll_cpcon(struct tegra_clk_pll *pll,
 			      struct tegra_clk_pll_freq_table *cfg,
