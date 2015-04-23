@@ -3927,6 +3927,26 @@ int num_ioctls;</synopsis>
       those have basic support through the gma500 drm driver.
     </para>
     <sect1>
+      <title>Core Driver Infrastructure</title>
+      <para>
+	This section covers core driver infrastructure used by both the display
+	and the GEM parts of the driver.
+      </para>
+      <sect2>
+        <title>Runtime Power Management</title>
+!Pdrivers/gpu/drm/i915/intel_runtime_pm.c runtime pm
+!Idrivers/gpu/drm/i915/intel_runtime_pm.c
+      </sect2>
+      <sect2>
+        <title>Interrupt Handling</title>
+!Pdrivers/gpu/drm/i915/i915_irq.c interrupt handling
+!Fdrivers/gpu/drm/i915/i915_irq.c intel_irq_init intel_irq_init_hw intel_hpd_init
+!Fdrivers/gpu/drm/i915/i915_irq.c intel_irq_fini
+!Fdrivers/gpu/drm/i915/i915_irq.c intel_runtime_pm_disable_interrupts
+!Fdrivers/gpu/drm/i915/i915_irq.c intel_runtime_pm_enable_interrupts
+      </sect2>
+    </sect1>
+    <sect1>
       <title>Display Hardware Handling</title>
       <para>
         This section covers everything related to the display hardware including
@@ -3941,6 +3961,18 @@ int num_ioctls;</synopsis>
           has its own tailor-made infrastructure for executing a display
           configuration change.
         </para>
+      </sect2>
+      <sect2>
+        <title>Frontbuffer Tracking</title>
+!Pdrivers/gpu/drm/i915/intel_frontbuffer.c frontbuffer tracking
+!Idrivers/gpu/drm/i915/intel_frontbuffer.c
+!Fdrivers/gpu/drm/i915/intel_drv.h intel_frontbuffer_flip
+!Fdrivers/gpu/drm/i915/i915_gem.c i915_gem_track_fb
+      </sect2>
+      <sect2>
+        <title>Display FIFO Underrun Reporting</title>
+!Pdrivers/gpu/drm/i915/intel_fifo_underrun.c fifo underrun handling
+!Idrivers/gpu/drm/i915/intel_fifo_underrun.c
       </sect2>
       <sect2>
         <title>Plane Configuration</title>
@@ -3960,6 +3992,16 @@ int num_ioctls;</synopsis>
 	  i915 driver still uses most of the common DRM helper code for output
 	  probing, so those sections fully apply.
         </para>
+      </sect2>
+      <sect2>
+	<title>High Definition Audio</title>
+!Pdrivers/gpu/drm/i915/intel_audio.c High Definition Audio over HDMI and Display Port
+!Idrivers/gpu/drm/i915/intel_audio.c
+      </sect2>
+      <sect2>
+	<title>Panel Self Refresh PSR (PSR/SRD)</title>
+!Pdrivers/gpu/drm/i915/intel_psr.c Panel Self Refresh (PSR/SRD)
+!Idrivers/gpu/drm/i915/intel_psr.c
       </sect2>
       <sect2>
         <title>DPIO</title>
@@ -4070,6 +4112,28 @@ int num_ioctls;</synopsis>
 !Idrivers/gpu/drm/i915/intel_lrc.c
       </sect2>
     </sect1>
+
+    <sect1>
+      <title> Tracing </title>
+      <para>
+    This sections covers all things related to the tracepoints implemented in
+    the i915 driver.
+      </para>
+      <sect2>
+        <title> i915_ppgtt_create and i915_ppgtt_release </title>
+!Pdrivers/gpu/drm/i915/i915_trace.h i915_ppgtt_create and i915_ppgtt_release tracepoints
+      </sect2>
+      <sect2>
+        <title> i915_context_create and i915_context_free </title>
+!Pdrivers/gpu/drm/i915/i915_trace.h i915_context_create and i915_context_free tracepoints
+      </sect2>
+      <sect2>
+        <title> switch_mm </title>
+!Pdrivers/gpu/drm/i915/i915_trace.h switch_mm tracepoint
+      </sect2>
+    </sect1>
+
   </chapter>
+!Cdrivers/gpu/drm/i915/i915_irq.c
 </part>
 </book>

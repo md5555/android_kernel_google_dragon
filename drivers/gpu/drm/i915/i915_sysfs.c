@@ -49,14 +49,14 @@ static u32 calc_residency(struct drm_device *dev, const u32 reg)
 
 	/* On VLV and CHV, residency time is in CZ units rather than 1.28us */
 	if (IS_VALLEYVIEW(dev)) {
-		u32 reg, czcount_30ns;
+		u32 clk_reg, czcount_30ns;
 
 		if (IS_CHERRYVIEW(dev))
-			reg = CHV_CLK_CTL1;
+			clk_reg = CHV_CLK_CTL1;
 		else
-			reg = VLV_CLK_CTL2;
+			clk_reg = VLV_CLK_CTL2;
 
-		czcount_30ns = I915_READ(reg) >> CLK_CTL2_CZCOUNT_30NS_SHIFT;
+		czcount_30ns = I915_READ(clk_reg) >> CLK_CTL2_CZCOUNT_30NS_SHIFT;
 
 		if (!czcount_30ns) {
 			WARN(!czcount_30ns, "bogus CZ count value");
@@ -116,8 +116,6 @@ show_rc6p_ms(struct device *kdev, struct device_attribute *attr, char *buf)
 {
 	struct drm_minor *dminor = dev_to_drm_minor(kdev);
 	u32 rc6p_residency = calc_residency(dminor->dev, GEN6_GT_GFX_RC6p);
-	if (IS_VALLEYVIEW(dminor->dev))
-		rc6p_residency = 0;
 	return snprintf(buf, PAGE_SIZE, "%u\n", rc6p_residency);
 }
 
@@ -126,8 +124,6 @@ show_rc6pp_ms(struct device *kdev, struct device_attribute *attr, char *buf)
 {
 	struct drm_minor *dminor = dev_to_drm_minor(kdev);
 	u32 rc6pp_residency = calc_residency(dminor->dev, GEN6_GT_GFX_RC6pp);
-	if (IS_VALLEYVIEW(dminor->dev))
-		rc6pp_residency = 0;
 	return snprintf(buf, PAGE_SIZE, "%u\n", rc6pp_residency);
 }
 
@@ -139,14 +135,23 @@ static DEVICE_ATTR(rc6pp_residency_ms, S_IRUGO, show_rc6pp_ms, NULL);
 static struct attribute *rc6_attrs[] = {
 	&dev_attr_rc6_enable.attr,
 	&dev_attr_rc6_residency_ms.attr,
-	&dev_attr_rc6p_residency_ms.attr,
-	&dev_attr_rc6pp_residency_ms.attr,
 	NULL
 };
 
 static struct attribute_group rc6_attr_group = {
 	.name = power_group_name,
 	.attrs =  rc6_attrs
+};
+
+static struct attribute *rc6p_attrs[] = {
+	&dev_attr_rc6p_residency_ms.attr,
+	&dev_attr_rc6pp_residency_ms.attr,
+	NULL
+};
+
+static struct attribute_group rc6p_attr_group = {
+	.name = power_group_name,
+	.attrs =  rc6p_attrs
 };
 #endif
 
@@ -595,11 +600,17 @@ void i915_setup_sysfs(struct drm_device *dev)
 	int ret;
 
 #ifdef CONFIG_PM
-	if (INTEL_INFO(dev)->gen >= 6) {
+	if (HAS_RC6(dev)) {
 		ret = sysfs_merge_group(&dev->primary->kdev->kobj,
 					&rc6_attr_group);
 		if (ret)
 			DRM_ERROR("RC6 residency sysfs setup failed\n");
+	}
+	if (HAS_RC6p(dev)) {
+		ret = sysfs_merge_group(&dev->primary->kdev->kobj,
+					&rc6p_attr_group);
+		if (ret)
+			DRM_ERROR("RC6p residency sysfs setup failed\n");
 	}
 #endif
 	if (HAS_L3_DPF(dev)) {
@@ -640,5 +651,6 @@ void i915_teardown_sysfs(struct drm_device *dev)
 	device_remove_bin_file(dev->primary->kdev,  &dpf_attrs);
 #ifdef CONFIG_PM
 	sysfs_unmerge_group(&dev->primary->kdev->kobj, &rc6_attr_group);
+	sysfs_unmerge_group(&dev->primary->kdev->kobj, &rc6p_attr_group);
 #endif
 }

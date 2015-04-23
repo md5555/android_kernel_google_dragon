@@ -35,10 +35,10 @@ struct i915_params i915 __read_mostly = {
 	.vbt_sdvo_panel_type = -1,
 	.enable_rc6 = -1,
 	.enable_fbc = -1,
-	.enable_execlists = 0,
+	.enable_execlists = -1,
 	.enable_hangcheck = true,
 	.enable_ppgtt = -1,
-	.enable_psr = 0,
+	.enable_psr = 1,
 	.preliminary_hw_support = IS_ENABLED(CONFIG_DRM_I915_PRELIMINARY_HW_SUPPORT),
 	.disable_power_well = 1,
 	.enable_ips = 1,
@@ -122,10 +122,10 @@ MODULE_PARM_DESC(enable_ppgtt,
 module_param_named(enable_execlists, i915.enable_execlists, int, 0400);
 MODULE_PARM_DESC(enable_execlists,
 	"Override execlists usage. "
-	"(-1=auto, 0=disabled [default], 1=enabled)");
+	"(-1=auto [default], 0=disabled, 1=enabled)");
 
 module_param_named(enable_psr, i915.enable_psr, int, 0600);
-MODULE_PARM_DESC(enable_psr, "Enable PSR (default: false)");
+MODULE_PARM_DESC(enable_psr, "Enable PSR (default: true)");
 
 module_param_named(preliminary_hw_support, i915.preliminary_hw_support, int, 0600);
 MODULE_PARM_DESC(preliminary_hw_support,
