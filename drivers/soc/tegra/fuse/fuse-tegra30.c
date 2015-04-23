@@ -97,6 +97,7 @@ static struct tegra_fuse_info tegra124_info = {
 
 static struct tegra_fuse_info tegra210_info = {
 	.size			= 0x300,
+	.spare_bit		= 0x280,
 	.speedo_idx		= SPEEDO_TEGRA210,
 };
 
