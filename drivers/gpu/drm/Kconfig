@@ -40,6 +40,10 @@ config DRM_KMS_FB_HELPER
 	help
 	  FBDEV helpers for KMS drivers.
 
+config DRM_HDCP
+	bool
+	depends on DRM_KMS_HELPER
+
 config DRM_LOAD_EDID_FIRMWARE
 	bool "Allow to specify an EDID data set instead of probing for it"
 	depends on DRM_KMS_HELPER
