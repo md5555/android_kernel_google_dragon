@@ -15,10 +15,12 @@
 #include <linux/regulator/consumer.h>
 #include <linux/reset.h>
 
+#include <soc/tegra/kfuse.h>
 #include <soc/tegra/pmc.h>
 
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_dp_helper.h>
+#include <drm/drm_hdcp_helper.h>
 #include <drm/drm_panel.h>
 
 #include "dc.h"
@@ -188,6 +190,9 @@ struct tegra_sor {
 	struct regulator *avdd_io_supply;
 	struct regulator *vdd_pll_supply;
 	struct regulator *hdmi_supply;
+
+	struct tegra_kfuse *kfuse;
+	struct drm_hdcp hdcp;
 };
 
 struct tegra_sor_config {
@@ -972,6 +977,230 @@ static const struct drm_connector_helper_funcs tegra_sor_connector_helper_funcs 
 static const struct drm_encoder_funcs tegra_sor_encoder_funcs = {
 	.destroy = tegra_output_encoder_destroy,
 };
+
+static int tegra_sor_hdmi_hdcp(struct tegra_sor *sor)
+{
+	unsigned long weight;
+	u64 aksv, bksv, an;
+	size_t size, i, j;
+	u8 caps, info = 0;
+	ssize_t err;
+	void *keys;
+	u32 value;
+	u16 ri;
+
+	err = drm_hdcp_read_caps(&sor->hdcp, &caps);
+	if (err < 0) {
+		dev_err(sor->dev, "failed to read HDCP capabilities: %zd\n",
+			err);
+		return err;
+	}
+
+	if (caps & HDCP_CAPS_1_1)
+		info = HDCP_INFO_1_1;
+
+	err = drm_hdcp_write_info(&sor->hdcp, info);
+	if (err < 0) {
+		dev_err(sor->dev, "failed to write info: %zd\n", err);
+		return err;
+	}
+
+	err = tegra_kfuse_read(sor->kfuse, NULL, 0);
+	if (err < 0) {
+		dev_err(sor->dev, "failed to query KFUSE size: %zd\n",
+			err);
+		return err;
+	}
+
+	size = err;
+
+	keys = kmalloc(size, GFP_KERNEL);
+	if (!keys)
+		return -ENOMEM;
+
+	err = tegra_kfuse_read(sor->kfuse, keys, size);
+	if (err < 0) {
+		dev_err(sor->dev, "failed to read HDMI keys: %zd\n",
+			err);
+		kfree(keys);
+		return err;
+	}
+
+	if (err != size) {
+		dev_err(sor->dev, "not enough data available from KFUSE: got %zd, requested %zu\n", err, size);
+		kfree(keys);
+		return err;
+	}
+
+	dev_info(sor->dev, "  %zu bytes loaded from HDMI key store\n",
+		 size);
+
+	print_hex_dump(KERN_INFO, "", DUMP_PREFIX_OFFSET, 16, 1, keys, size,
+		       true);
+
+	value = tegra_sor_readl(sor, SOR_KEY_CTRL);
+	value &= ~SOR_KEY_CTRL_LOAD_ADDRESS_MASK;
+	value |= SOR_KEY_CTRL_LOCAL_KEYS;
+	tegra_sor_writel(sor, value, SOR_KEY_CTRL);
+
+	value = tegra_sor_readl(sor, SOR_KEY_CTRL);
+	value |= SOR_KEY_CTRL_PKEY_REQUEST_RELOAD;
+	tegra_sor_writel(sor, value, SOR_KEY_CTRL);
+
+	while (true) {
+		value = tegra_sor_readl(sor, SOR_KEY_CTRL);
+		if (value & SOR_KEY_CTRL_PKEY_LOADED)
+			break;
+
+		usleep_range(100, 1000);
+	}
+
+	dev_info(sor->dev, "  private key loaded\n");
+
+	/*
+	 * XXX introduce enable/disable API for KFUSE so that it can
+	 * be disabled here since it's no longer used?
+	 */
+
+	for (i = 0; i < size / 4; i += 4) {
+		for (j = 0; j < 4; j++) {
+			memcpy(&value, keys + (i + j) * 4, 4);
+			tegra_sor_writel(sor, value, SOR_KEY_HDCP_KEY_0 + j);
+		}
+
+		value = tegra_sor_readl(sor, SOR_KEY_HDCP_KEY_TRIG);
+		value |= SOR_KEY_HDCP_KEY_TRIG_LOAD;
+		tegra_sor_writel(sor, value, SOR_KEY_HDCP_KEY_TRIG);
+
+		value = tegra_sor_readl(sor, SOR_KEY_CTRL);
+
+		if (i == 0)
+			value &= ~SOR_KEY_CTRL_AUTOINC;
+		else
+			value |= SOR_KEY_CTRL_AUTOINC;
+
+		value |= SOR_KEY_CTRL_WRITE16;
+
+		tegra_sor_writel(sor, value, SOR_KEY_CTRL);
+
+		while (true) {
+			value = tegra_sor_readl(sor, SOR_KEY_CTRL);
+			if ((value & SOR_KEY_CTRL_WRITE16) == 0)
+				break;
+
+			usleep_range(100, 1000);
+		}
+	}
+
+	dev_info(sor->dev, "  keys loaded to HDMI SRAM\n");
+	kfree(keys);
+
+	tegra_sor_writel(sor, 0, SOR_KEY_SKEY_INDEX);
+
+	dev_info(sor->dev, "  key 0 selected\n");
+
+	value = tegra_sor_readl(sor, SOR_TMDS_HDCP_CTRL);
+	value |= SOR_TMDS_HDCP_CTRL_RUN;
+	tegra_sor_writel(sor, value, SOR_TMDS_HDCP_CTRL);
+
+	while (true) {
+		value = tegra_sor_readl(sor, SOR_TMDS_HDCP_CTRL);
+		if (value & SOR_TMDS_HDCP_CTRL_AN)
+			break;
+
+		usleep_range(100, 1000);
+	}
+
+	value = tegra_sor_readl(sor, SOR_TMDS_HDCP_AKSV_MSB);
+	aksv = (u64)value << 32;
+
+	value = tegra_sor_readl(sor, SOR_TMDS_HDCP_AKSV_LSB);
+	aksv |= value;
+
+	dev_info(sor->dev, "  AN ready: aksv: %llx\n", aksv);
+	weight = hweight64(aksv);
+
+	if (weight == 20)
+		dev_info(sor->dev, "    valid\n");
+	else
+		dev_info(sor->dev, "    invalid: weight: %lu\n", weight);
+
+	value = tegra_sor_readl(sor, SOR_TMDS_HDCP_AN_MSB);
+	an = (u64)value << 32;
+
+	value = tegra_sor_readl(sor, SOR_TMDS_HDCP_AN_LSB);
+	an |= value;
+
+	dev_info(sor->dev, "AN: %llx\n", an);
+
+	err = drm_hdcp_write_an(&sor->hdcp, an);
+	if (err < 0) {
+		dev_err(sor->dev, "failed to write AN to HDCP: %zd\n", err);
+	}
+
+	err = drm_hdcp_write_aksv(&sor->hdcp, aksv);
+	if (err < 0) {
+		dev_err(sor->dev, "failed to write AKSV to HDCP: %zd\n", err);
+	}
+
+	err = drm_hdcp_read_bksv(&sor->hdcp, &bksv);
+	if (err < 0) {
+		dev_err(sor->dev, "failed to read BKSV: %zd\n", err);
+		return err;
+	}
+
+	dev_info(sor->dev, "  BKSV: %llx\n", bksv);
+
+	weight = hweight64(bksv);
+
+	if (weight == 20)
+		dev_info(sor->dev, "    valid\n");
+	else
+		dev_info(sor->dev, "    invalid: weight: %lu\n", weight);
+
+	/* LSB must be written first */
+	value = bksv & 0xffffffff;
+	tegra_sor_writel(sor, value, SOR_TMDS_HDCP_BKSV_LSB);
+
+	value = (bksv >> 32) & 0xff;
+	tegra_sor_writel(sor, value, SOR_TMDS_HDCP_BKSV_MSB);
+
+	while (true) {
+		value = tegra_sor_readl(sor, SOR_TMDS_HDCP_CTRL);
+		if (value & SOR_TMDS_HDCP_CTRL_R0)
+			break;
+
+		usleep_range(100, 1000);
+	}
+
+	value = tegra_sor_readl(sor, SOR_TMDS_HDCP_RI);
+	dev_info(sor->dev, "  RI: %04x\n", value);
+
+	/* can't read Ri until 100 ms after Aksv was written */
+	msleep(100);
+
+	err = drm_hdcp_read_ri(&sor->hdcp, &ri);
+	if (err < 0) {
+		dev_err(sor->dev, "failed to read RI from HDCP: %zd\n", err);
+	}
+
+	dev_info(sor->dev, "  RI: %04x\n", ri);
+
+	if (ri != value) {
+		dev_err(sor->dev, "Ri doesn't match: %04x != %04x\n", ri, value);
+		return -EIO;
+	}
+
+	value = tegra_sor_readl(sor, SOR_TMDS_HDCP_CTRL);
+
+	if (caps & HDCP_CAPS_1_1)
+		value |= SOR_TMDS_HDCP_CTRL_ONE_ONE;
+
+	value |= SOR_TMDS_HDCP_CTRL_CRYPT;
+	tegra_sor_writel(sor, value, SOR_TMDS_HDCP_CTRL);
+
+	return 0;
+}
 
 static void tegra_sor_edp_disable(struct drm_encoder *encoder)
 {
@@ -2017,6 +2246,9 @@ static void tegra_sor_hdmi_enable(struct drm_encoder *encoder)
 	err = tegra_sor_wakeup(sor);
 	if (err < 0)
 		dev_err(sor->dev, "failed to wakeup SOR: %d\n", err);
+
+	if (sor->kfuse)
+		tegra_sor_hdmi_hdcp(sor);
 }
 
 static const struct drm_encoder_helper_funcs tegra_sor_hdmi_helpers = {
@@ -2292,6 +2524,15 @@ static int tegra_sor_probe(struct platform_device *pdev)
 			return -EPROBE_DEFER;
 	}
 
+	np = of_parse_phandle(pdev->dev.of_node, "nvidia,kfuse", 0);
+	if (np) {
+		sor->kfuse = tegra_kfuse_find_by_of_node(np);
+		of_node_put(np);
+
+		if (!sor->kfuse)
+			return -EPROBE_DEFER;
+	}
+
 	if (!sor->dpaux) {
 		if (sor->soc->supports_hdmi) {
 			sor->ops = &tegra_sor_hdmi_ops;
@@ -2329,46 +2570,56 @@ static int tegra_sor_probe(struct platform_device *pdev)
 		}
 	}
 
+	if (sor->kfuse) {
+		err = drm_hdcp_register(&sor->hdcp, sor->output.ddc);
+		if (err < 0) {
+			dev_err(&pdev->dev,
+				"failed to register HDCP helper: %d\n",
+				err);
+			goto remove;
+		}
+	}
+
 	regs = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	sor->regs = devm_ioremap_resource(&pdev->dev, regs);
 	if (IS_ERR(sor->regs)) {
 		err = PTR_ERR(sor->regs);
-		goto remove;
+		goto hdcp;
 	}
 
 	sor->rst = devm_reset_control_get(&pdev->dev, "sor");
 	if (IS_ERR(sor->rst)) {
 		err = PTR_ERR(sor->rst);
 		dev_err(&pdev->dev, "failed to get reset control: %d\n", err);
-		goto remove;
+		goto hdcp;
 	}
 
 	sor->clk = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(sor->clk)) {
 		err = PTR_ERR(sor->clk);
 		dev_err(&pdev->dev, "failed to get module clock: %d\n", err);
-		goto remove;
+		goto hdcp;
 	}
 
 	sor->clk_parent = devm_clk_get(&pdev->dev, "parent");
 	if (IS_ERR(sor->clk_parent)) {
 		err = PTR_ERR(sor->clk_parent);
 		dev_err(&pdev->dev, "failed to get parent clock: %d\n", err);
-		goto remove;
+		goto hdcp;
 	}
 
 	sor->clk_safe = devm_clk_get(&pdev->dev, "safe");
 	if (IS_ERR(sor->clk_safe)) {
 		err = PTR_ERR(sor->clk_safe);
 		dev_err(&pdev->dev, "failed to get safe clock: %d\n", err);
-		goto remove;
+		goto hdcp;
 	}
 
 	sor->clk_dp = devm_clk_get(&pdev->dev, "dp");
 	if (IS_ERR(sor->clk_dp)) {
 		err = PTR_ERR(sor->clk_dp);
 		dev_err(&pdev->dev, "failed to get DP clock: %d\n", err);
-		goto remove;
+		goto hdcp;
 	}
 
 	INIT_LIST_HEAD(&sor->client.list);
@@ -2379,13 +2630,15 @@ static int tegra_sor_probe(struct platform_device *pdev)
 	if (err < 0) {
 		dev_err(&pdev->dev, "failed to register host1x client: %d\n",
 			err);
-		goto remove;
+		goto hdcp;
 	}
 
 	platform_set_drvdata(pdev, sor);
 
 	return 0;
 
+hdcp:
+	drm_hdcp_unregister(&sor->hdcp);
 remove:
 	if (sor->ops && sor->ops->remove)
 		sor->ops->remove(sor);
@@ -2405,6 +2658,9 @@ static int tegra_sor_remove(struct platform_device *pdev)
 			err);
 		return err;
 	}
+
+	if (sor->kfuse)
+		drm_hdcp_unregister(&sor->hdcp);
 
 	if (sor->ops && sor->ops->remove) {
 		err = sor->ops->remove(sor);
