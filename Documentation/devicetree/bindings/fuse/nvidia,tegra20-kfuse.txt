@@ -1,0 +1,31 @@
+NVIDIA Tegra KFUSE block
+
+The KFUSE module stores encrypted HDCP keys in a large array of fuses.
+These keys are used to protect audio/video content over an HDMI or DP
+connection.
+
+Required properties:
+- compatible: Should be one of the following:
+  - "nvidia,tegra20-kfuse": for Tegra20 and Tegra30
+  - "nvidia,tegra114-kfuse": for Tegra114, Tegra124 and Tegra132
+  - "nvidia,tegra210-kfuse": for Tegra210
+- reg: Should contain a single entry that specifies the physical address and
+  length of the KFUSE registers.
+- clocks: Must contain an entry for each entry in the clock-names property.
+  See ../clocks/clock-bindings.txt for details.
+- clock-names: Must include the following entries:
+  - "kfuse"
+- resets: Must contain an entry for each entry in the reset-names property.
+- reset-names: Must include the following entries:
+  - "kfuse"
+
+Example:
+
+	kfuse@0,7000fc00 {
+		compatible = "nvidia,tegra210-kfuse";
+		reg = <0x0 0x7000fc00 0x0 0x400>;
+		clocks = <&tegra_car TEGRA210_CLK_KFUSE>;
+		clock-names = "kfuse";
+		resets = <&tegra_car 40>;
+		reset-names = "kfuse";
+	};
