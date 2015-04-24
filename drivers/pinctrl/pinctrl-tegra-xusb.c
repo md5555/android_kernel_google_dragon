@@ -650,6 +650,12 @@ static const struct of_device_id tegra_xusb_padctl_of_match[] = {
 		.data = &tegra124_xusb_padctl_soc
 	},
 #endif
+#ifdef CONFIG_PINCTRL_TEGRA210_XUSB
+	{
+		.compatible = "nvidia,tegra210-xusb-padctl",
+		.data = &tegra210_xusb_padctl_soc
+	},
+#endif
 	{ }
 };
 MODULE_DEVICE_TABLE(of, tegra_xusb_padctl_of_match);

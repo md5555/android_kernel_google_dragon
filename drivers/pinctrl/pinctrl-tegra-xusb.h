@@ -165,19 +165,22 @@ static inline u32 padctl_readl(struct tegra_xusb_padctl *padctl,
 #define PIN_OTG_0   0
 #define PIN_OTG_1   1
 #define PIN_OTG_2   2
-#define PIN_ULPI_0  3
-#define PIN_HSIC_0  4
-#define PIN_HSIC_1  5
-#define PIN_PCIE_0  6
-#define PIN_PCIE_1  7
-#define PIN_PCIE_2  8
-#define PIN_PCIE_3  9
-#define PIN_PCIE_4 10
-#define PIN_SATA_0 11
+#define PIN_OTG_3   3 /* on Tegra210 */
+#define PIN_ULPI_0  4 /* on Tegra124 */
+#define PIN_HSIC_0  5
+#define PIN_HSIC_1  6
+#define PIN_PCIE_0  7
+#define PIN_PCIE_1  8
+#define PIN_PCIE_2  9
+#define PIN_PCIE_3 10
+#define PIN_PCIE_4 11
+#define PIN_PCIE_5 12 /* on Tegra210 */
+#define PIN_PCIE_6 13 /* on Tegra210 */
+#define PIN_SATA_0 14
 
 static inline bool lane_is_otg(unsigned int lane)
 {
-	return lane >= PIN_OTG_0 && lane <= PIN_OTG_2;
+	return lane >= PIN_OTG_0 && lane <= PIN_OTG_3;
 }
 
 static inline bool lane_is_hsic(unsigned int lane)
@@ -208,6 +211,9 @@ lane_to_hsic_phy(struct tegra_xusb_padctl *padctl, unsigned int lane)
 
 #ifdef CONFIG_PINCTRL_TEGRA124_XUSB
 extern const struct tegra_xusb_padctl_soc tegra124_xusb_padctl_soc;
+#endif
+#ifdef CONFIG_PINCTRL_TEGRA210_XUSB
+extern const struct tegra_xusb_padctl_soc tegra210_xusb_padctl_soc;
 #endif
 
 #endif /* __PINCTRL_TEGRA_XUSB_H */

@@ -13,12 +13,23 @@ how to describe and reference PHYs in device trees.
 
 Required properties:
 --------------------
-- compatible: should be "nvidia,tegra124-xusb-padctl"
+- compatible: For Tegra210, must contain "nvidia,tegra210-xusb-padctl".
+  For Tegra124, must contain "nvidia,tegra124-xusb-padctl".  Otherwise, must
+  contain '"nvidia,<chip>-xusb-padctl", "nvidia,tegra124-xusb-padctl"' where
+  <chip> is tegra132.
 - reg: Physical base address and length of the controller's registers.
+- clocks: Must contain an entry for each entry in clock-names.
+  See ../clock/clock-bindings.txt for details.
+- clock-names: Must include the following entries:
+  - usb2_trk (Tegra210 only)
+  - hsic_trk (Tegra210 only)
+  - pll_e (Tegra210 only)
 - resets: Must contain an entry for each entry in reset-names.
   See ../reset/reset.txt for details.
 - reset-names: Must include the following entries:
   - padctl
+  - pex_uphy (Tegra210 only)
+  - sata_uphy (Tegra210 only)
 - #phy-cells: Should be 1. The specifier is the index of the PHY to reference.
   See <dt-bindings/pinctrl/pinctrl-tegra-xusb.h> for the list of valid values.
 - mboxes: Must contain an entry for the XUSB mailbox channel.
@@ -37,7 +48,7 @@ An optional child node named "phys" can contain nodes describing additional
 properties of each PHY. Only USB3 and UTMI PHYs can be complemented in this
 way, in which case the name of each node must match one of the following:
 
-  usb3-0, usb3-1, utmi-0, utmi-1, utmi-2
+  usb3-0, usb3-1, usb3-2, usb3-3, utmi-0, utmi-1, utmi-2, utmi-3
 
 Required properties for USB3 PHYs:
 - nvidia,lanes: specifies the name of the lane that this USB3 PHY uses
@@ -89,7 +100,7 @@ Optional properties:
 Note that not all of these properties are valid for all lanes. Lanes can be
 divided into four groups:
 
-  - otg-0, otg-1, otg-2:
+  - otg-0, otg-1, otg-2, otg-3:
 
     Valid functions for this group are: "snps", "xusb", "uart", "rsvd".
 
@@ -106,9 +117,13 @@ divided into four groups:
     Only the nvidia,hsic-* properties apply, and only when the function is
     xusb.
 
-  - pcie-0, pcie-1, pcie-2, pcie-3, pcie-4, sata-0:
+  - pcie-0, pcie-1, pcie-2, pcie-3, pcie-4, pcie-5, pcie-6, sata-0:
 
-    Valid functions for this group are: "pcie", "usb3", "sata", "rsvd".
+    Valid functions for this group on Tegra124 are: "pcie", "usb3", "sata",
+    "rsvd".
+
+    Valid functions for this group on Tegra210 are: "pciex1", "usb3", "sata",
+    "pciex4".
 
     Only the nvidia,iddq property applies.
 
