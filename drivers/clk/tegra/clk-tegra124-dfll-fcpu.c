@@ -21,6 +21,7 @@
 #include <linux/err.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/of_device.h>
 #include <linux/platform_device.h>
 #include <soc/tegra/fuse.h>
 
@@ -28,8 +29,15 @@
 #include "clk-dfll.h"
 #include "cvb.h"
 
+struct dfll_fcpu_data {
+	const unsigned long *cpu_max_freq_table;
+	unsigned int cpu_max_freq_table_size;
+	const struct cvb_table *cpu_cvb_tables;
+	unsigned int cpu_cvb_tables_size;
+};
+
 /* Maximum CPU frequency, indexed by CPU speedo id */
-static const unsigned long cpu_max_freq_table[] = {
+static const unsigned long tegra124_cpu_max_freq_table[] = {
 	[0] = 2014500000UL,
 	[1] = 2320500000UL,
 	[2] = 2116500000UL,
@@ -84,16 +92,65 @@ static const struct cvb_table tegra124_cpu_cvb_tables[] = {
 
 static struct tegra_dfll_soc_data soc;
 
-static int tegra124_dfll_fcpu_probe(struct platform_device *pdev)
-{
-	return tegra_dfll_register(pdev, &soc);
-}
+static const struct dfll_fcpu_data tegra124_dfll_fcpu_data = {
+	.cpu_max_freq_table = tegra124_cpu_max_freq_table,
+	.cpu_max_freq_table_size = ARRAY_SIZE(tegra124_cpu_max_freq_table),
+	.cpu_cvb_tables = tegra124_cpu_cvb_tables,
+	.cpu_cvb_tables_size = ARRAY_SIZE(tegra124_cpu_cvb_tables)
+};
 
 static const struct of_device_id tegra124_dfll_fcpu_of_match[] = {
-	{ .compatible = "nvidia,tegra124-dfll", },
+	{
+		.compatible = "nvidia,tegra124-dfll",
+		.data = &tegra124_dfll_fcpu_data
+	},
 	{ },
 };
 MODULE_DEVICE_TABLE(of, tegra124_dfll_fcpu_of_match);
+
+static int tegra124_dfll_fcpu_probe(struct platform_device *pdev)
+{
+	int process_id, speedo_id, speedo_value;
+	const struct cvb_table *cvb;
+	const struct of_device_id *of_id;
+	const struct dfll_fcpu_data *fcpu_data;
+
+	of_id = of_match_device(tegra124_dfll_fcpu_of_match, &pdev->dev);
+	fcpu_data = of_id->data;
+
+	process_id = tegra_sku_info.cpu_process_id;
+	speedo_id = tegra_sku_info.cpu_speedo_id;
+	speedo_value = tegra_sku_info.cpu_speedo_value;
+
+	if (speedo_id >= fcpu_data->cpu_max_freq_table_size) {
+		pr_err("unknown max CPU freq for speedo_id=%d\n", speedo_id);
+		return -ENODEV;
+	}
+
+	soc.opp_dev = get_cpu_device(0);
+	if (!soc.opp_dev) {
+		pr_err("no CPU0 device\n");
+		return -ENODEV;
+	}
+
+	cvb = tegra_cvb_build_opp_table(fcpu_data->cpu_cvb_tables,
+					fcpu_data->cpu_cvb_tables_size,
+					process_id, speedo_id, speedo_value,
+					fcpu_data->cpu_max_freq_table[speedo_id],
+					soc.opp_dev);
+	if (IS_ERR(cvb)) {
+		pr_err("couldn't build OPP table: %ld\n", PTR_ERR(cvb));
+		return PTR_ERR(cvb);
+	}
+
+	soc.min_millivolts = cvb->min_millivolts;
+	soc.alignment = cvb->alignment.step_uv;
+	soc.tune0_low = cvb->cpu_dfll_data.tune0_low;
+	soc.tune0_high = cvb->cpu_dfll_data.tune0_high;
+	soc.tune1 = cvb->cpu_dfll_data.tune1;
+
+	return tegra_dfll_register(pdev, &soc);
+}
 
 static const struct dev_pm_ops tegra124_dfll_pm_ops = {
 	SET_RUNTIME_PM_OPS(tegra_dfll_runtime_suspend,
@@ -110,51 +167,7 @@ static struct platform_driver tegra124_dfll_fcpu_driver = {
 	},
 };
 
-static int __init tegra124_dfll_fcpu_init(void)
-{
-	int process_id, speedo_id, speedo_value;
-	const struct cvb_table *cvb;
-
-	process_id = tegra_sku_info.cpu_process_id;
-	speedo_id = tegra_sku_info.cpu_speedo_id;
-	speedo_value = tegra_sku_info.cpu_speedo_value;
-
-	if (speedo_id >= ARRAY_SIZE(cpu_max_freq_table)) {
-		pr_err("unknown max CPU freq for speedo_id=%d\n", speedo_id);
-		return -ENODEV;
-	}
-
-	soc.opp_dev = get_cpu_device(0);
-	if (!soc.opp_dev) {
-		pr_err("no CPU0 device\n");
-		return -ENODEV;
-	}
-
-	cvb = tegra_cvb_build_opp_table(tegra124_cpu_cvb_tables,
-					ARRAY_SIZE(tegra124_cpu_cvb_tables),
-					process_id, speedo_id, speedo_value,
-					cpu_max_freq_table[speedo_id],
-					soc.opp_dev);
-	if (IS_ERR(cvb)) {
-		pr_err("couldn't build OPP table: %ld\n", PTR_ERR(cvb));
-		return PTR_ERR(cvb);
-	}
-
-	soc.min_millivolts = cvb->min_millivolts;
-	soc.alignment = cvb->alignment.step_uv;
-	soc.tune0_low = cvb->cpu_dfll_data.tune0_low;
-	soc.tune0_high = cvb->cpu_dfll_data.tune0_high;
-	soc.tune1 = cvb->cpu_dfll_data.tune1;
-
-	return platform_driver_register(&tegra124_dfll_fcpu_driver);
-}
-module_init(tegra124_dfll_fcpu_init);
-
-static void __exit tegra124_dfll_fcpu_exit(void)
-{
-	platform_driver_unregister(&tegra124_dfll_fcpu_driver);
-}
-module_exit(tegra124_dfll_fcpu_exit);
+module_platform_driver(tegra124_dfll_fcpu_driver);
 
 MODULE_DESCRIPTION("Tegra124 DFLL clock source driver");
 MODULE_LICENSE("GPL v2");
