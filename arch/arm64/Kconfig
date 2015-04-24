@@ -154,6 +154,7 @@ config ARCH_TEGRA
 	select HAVE_CLK
 	select PINCTRL
 	select RESET_CONTROLLER
+	select SOC_BUS
 	help
 	  This enables support for the NVIDIA Tegra SoC family.
 
