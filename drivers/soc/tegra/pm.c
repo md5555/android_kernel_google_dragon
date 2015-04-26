@@ -205,7 +205,6 @@ static void tegra_pm_set(enum tegra_suspend_mode mode)
 	switch (tegra_get_chip_id()) {
 	case TEGRA20:
 	case TEGRA30:
-	case TEGRA132:
 		break;
 	default:
 		/* Turn off CRAIL */
@@ -246,7 +245,6 @@ enum tegra_suspend_mode tegra_pm_validate_suspend_mode(
 	switch (tegra_get_chip_id()) {
 	case TEGRA114:
 	case TEGRA124:
-	case TEGRA132:
 		avail_mode = mode;
 		break;
 	default:
