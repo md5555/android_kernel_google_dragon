@@ -125,4 +125,9 @@ bool tegra_pll_can_ramp_to_min(struct clk *c, unsigned long *min_rate);
 int tegra_pll_get_min_ramp_rate(struct clk *c, unsigned long rate,
 		unsigned long *min_rate);
 
+extern void tegra210_xusb_pll_hw_control_enable(void);
+extern void tegra210_xusb_pll_hw_sequence_start(void);
+extern void tegra210_sata_pll_hw_control_enable(void);
+extern void tegra210_sata_pll_hw_sequence_start(void);
+
 #endif /* __LINUX_CLK_TEGRA_H_ */

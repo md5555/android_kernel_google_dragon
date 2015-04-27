@@ -2170,7 +2170,6 @@ static int clk_plle_tegra210_enable(struct clk_hw *hw)
 	pll_writel(val, PLLE_SS_CTRL, pll);
 	udelay(1);
 
-	/* Enable hw control of xusb brick pll */
 	val = pll_readl_misc(pll);
 	val &= ~PLLE_MISC_IDDQ_SW_CTRL;
 	pll_writel_misc(val, pll);
@@ -2182,29 +2181,6 @@ static int clk_plle_tegra210_enable(struct clk_hw *hw)
 	udelay(1);
 	val |= PLLE_AUX_SEQ_ENABLE;
 	pll_writel(val, pll->params->aux_reg, pll);
-
-	val = pll_readl(XUSBIO_PLL_CFG0, pll);
-	val |= (XUSBIO_PLL_CFG0_PADPLL_USE_LOCKDET |
-		XUSBIO_PLL_CFG0_SEQ_START_STATE);
-	val &= ~(XUSBIO_PLL_CFG0_CLK_ENABLE_SWCTL |
-		 XUSBIO_PLL_CFG0_PADPLL_RESET_SWCTL);
-	pll_writel(val, XUSBIO_PLL_CFG0, pll);
-	udelay(1);
-	val |= XUSBIO_PLL_CFG0_SEQ_ENABLE;
-	pll_writel(val, XUSBIO_PLL_CFG0, pll);
-
-	/* Enable hw control of SATA pll */
-	val = pll_readl(SATA_PLL_CFG0, pll);
-	val &= ~SATA_PLL_CFG0_PADPLL_RESET_SWCTL;
-	val |= SATA_PLL_CFG0_PADPLL_USE_LOCKDET;
-	val |= SATA_PLL_CFG0_SEQ_START_STATE;
-	pll_writel(val, SATA_PLL_CFG0, pll);
-
-	udelay(1);
-
-	val = pll_readl(SATA_PLL_CFG0, pll);
-	val |= SATA_PLL_CFG0_SEQ_ENABLE;
-	pll_writel(val, SATA_PLL_CFG0, pll);
 
 out:
 	if (pll->lock)
