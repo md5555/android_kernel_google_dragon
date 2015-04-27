@@ -138,6 +138,7 @@
 			     <GIC_SPI 177 IRQ_TYPE_LEVEL_HIGH>,
 			     <GIC_SPI 178 IRQ_TYPE_LEVEL_HIGH>,
 			     <GIC_SPI 179 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&tegra_car TEGRA210_CLK_TIMER>;
 	};
 
 	ahb: ahb@6000c004 {
