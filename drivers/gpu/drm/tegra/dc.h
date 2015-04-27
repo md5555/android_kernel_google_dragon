@@ -120,9 +120,9 @@
 #define DSC_SLCG_OVERRIDE (1 << 2)
 
 #define DC_DISP_DISP_SIGNAL_OPTIONS0		0x400
-#define H_PULSE_0_ENABLE (1 <<  8)
-#define H_PULSE_1_ENABLE (1 << 10)
-#define H_PULSE_2_ENABLE (1 << 12)
+#define H_PULSE0_ENABLE (1 <<  8)
+#define H_PULSE1_ENABLE (1 << 10)
+#define H_PULSE2_ENABLE (1 << 12)
 
 #define DC_DISP_DISP_SIGNAL_OPTIONS1		0x401
 
