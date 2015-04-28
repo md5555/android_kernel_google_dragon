@@ -122,6 +122,11 @@
 			     <GIC_SPI 179 IRQ_TYPE_LEVEL_HIGH>;
 	};
 
+	ahb: ahb@6000c004 {
+		compatible = "nvidia,tegra210-ahb", "nvidia,tegra30-ahb";
+		reg = <0x0 0x6000c004 0x0 0x14c>;
+	};
+
 	rtc: rtc@7000e000 {
 		compatible = "nvidia,tegra-rtc";
 		reg = <0x0 0x7000e000 0x0 0x100>;
