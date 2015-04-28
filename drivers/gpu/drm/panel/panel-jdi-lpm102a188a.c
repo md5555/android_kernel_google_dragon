@@ -445,7 +445,7 @@ static int panel_jdi_dsi_probe(struct mipi_dsi_device *dsi)
 
 	dsi->lanes = 4;
 	dsi->format = MIPI_DSI_FMT_RGB888;
-	dsi->mode_flags = 0;
+	dsi->mode_flags = MIPI_DSI_MODE_LPM;
 
 	/* if this device is the primary link, initialize the panel */
 	np = of_parse_phandle(dsi->dev.of_node, "slave", 0);
