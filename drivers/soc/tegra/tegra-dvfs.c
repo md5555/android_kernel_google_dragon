@@ -276,11 +276,29 @@ out:
 
 static inline int dvfs_rail_apply_limits(struct dvfs_rail *rail, int millivolts)
 {
+	int min_mv = rail->min_millivolts;
+	int max_mv = rail->max_millivolts;
+
+	if (rail->therm_floors) {
+		int i = rail->therm_floor_idx;
+
+		if (i < rail->therm_floors_size)
+			min_mv = rail->therm_floors[i].mv;
+	}
+
+	if (rail->therm_caps) {
+		int i = rail->therm_cap_idx;
+
+		if (i > 0)
+			max_mv = rail->therm_caps[i - 1].mv;
+	}
+
 	if (rail->override_millivolts)
 		millivolts = rail->override_millivolts;
 
-	return millivolts < rail->min_millivolts ?
-		rail->min_millivolts : millivolts;
+	clamp_val(millivolts, min_mv, max_mv);
+
+	return millivolts;
 }
 
 /**
@@ -1008,6 +1026,135 @@ int tegra_dvfs_get_dfll_threshold(struct clk *c, unsigned long *rate)
 }
 EXPORT_SYMBOL(tegra_dvfs_get_dfll_threshold);
 
+int tegra_dvfs_core_count_thermal_states(enum tegra_dvfs_core_thermal_type type)
+{
+	if (IS_ERR_OR_NULL(tegra_core_rail) || !tegra_core_rail->is_ready)
+		return -EINVAL;
+
+	if (type == TEGRA_DVFS_CORE_THERMAL_FLOOR)
+		return tegra_core_rail->therm_floors_size;
+	else if (type == TEGRA_DVFS_CORE_THERMAL_CAP)
+		return tegra_core_rail->therm_caps_size;
+	else
+		return -EINVAL;
+}
+EXPORT_SYMBOL(tegra_dvfs_core_count_thermal_states);
+
+int tegra_dvfs_core_get_thermal_index(enum tegra_dvfs_core_thermal_type type)
+{
+	if (IS_ERR_OR_NULL(tegra_core_rail) || !tegra_core_rail->is_ready)
+		return -EINVAL;
+
+	if (type == TEGRA_DVFS_CORE_THERMAL_FLOOR)
+		return tegra_core_rail->therm_floor_idx;
+	else if (type == TEGRA_DVFS_CORE_THERMAL_CAP)
+		return tegra_core_rail->therm_cap_idx;
+	else
+		return -EINVAL;
+}
+EXPORT_SYMBOL(tegra_dvfs_core_get_thermal_index);
+
+int tegra_dvfs_core_update_thermal_index(enum tegra_dvfs_core_thermal_type type,
+					 unsigned long new_idx)
+{
+	struct dvfs_rail *rail = tegra_core_rail;
+	int ret = 0;
+
+	if (IS_ERR_OR_NULL(tegra_core_rail) || !tegra_core_rail->is_ready)
+		return -EINVAL;
+
+	mutex_lock(&dvfs_lock);
+	if (type == TEGRA_DVFS_CORE_THERMAL_FLOOR) {
+		if (rail->therm_floor_idx != new_idx) {
+			rail->therm_floor_idx = new_idx;
+			dvfs_rail_update(rail);
+		}
+	} else if (type == TEGRA_DVFS_CORE_THERMAL_CAP) {
+		if (rail->therm_cap_idx != new_idx) {
+			rail->therm_cap_idx = new_idx;
+			dvfs_rail_update(rail);
+		}
+	} else {
+		ret = -EINVAL;
+	}
+	mutex_unlock(&dvfs_lock);
+
+	return ret;
+}
+EXPORT_SYMBOL(tegra_dvfs_core_update_thermal_index);
+
+/*
+ * Validate rail thermal floors/caps, and get its size.
+ * Valid floors/caps:
+ * - voltage limits are descending with temperature increasing.
+ * - the lowest limit is above rail minimum voltage in pll and
+ *   in dfll mode (if applicable).
+ * - the highest limit is below rail nominal voltage.
+ */
+static int get_thermal_limits_size(struct dvfs_rail *rail,
+				   enum tegra_dvfs_core_thermal_type type)
+{
+	const struct dvfs_therm_limits *limits;
+	int i;
+
+	if (type == TEGRA_DVFS_CORE_THERMAL_FLOOR)
+		limits = rail->therm_floors;
+	else if (type == TEGRA_DVFS_CORE_THERMAL_CAP)
+		limits = rail->therm_caps;
+	else
+		return -EINVAL;
+
+	if (!limits[0].mv) {
+		pr_warn("%s: Missing thermal limits\n", rail->reg_id);
+		return -EINVAL;
+	}
+
+	for (i = 0; i < MAX_THERMAL_LIMITS - 1; i++) {
+		if (!limits[i + 1].mv)
+			break;
+
+		if ((limits[i].temperature >= limits[i + 1].temperature) ||
+		    (limits[i].mv < limits[i + 1].mv)) {
+			pr_warn("%s: Unordered thermal limits\n",
+				rail->reg_id);
+			return -EINVAL;
+		}
+	}
+
+	if (limits[i].mv < rail->min_millivolts) {
+		pr_warn("%s: Thermal floors below minimum voltage\n",
+			rail->reg_id);
+		return -EINVAL;
+	}
+
+	return i + 1;
+}
+
+void tegra_dvfs_init_therm_limits(struct dvfs_rail *rail)
+{
+	int size;
+
+	size = get_thermal_limits_size(rail, TEGRA_DVFS_CORE_THERMAL_FLOOR);
+	if (size <= 0 || rail->therm_floors[0].mv > rail->nominal_millivolts) {
+		rail->therm_floors = NULL;
+		rail->therm_floors_size = 0;
+		pr_warn("%s: invalid Vmin thermal floors\n", rail->reg_id);
+	} else {
+		rail->therm_floors_size = size;
+		rail->therm_floor_idx = 0;
+	}
+
+	size = get_thermal_limits_size(rail, TEGRA_DVFS_CORE_THERMAL_CAP);
+	if (size <= 0) {
+		rail->therm_caps = NULL;
+		rail->therm_caps_size = 0;
+		pr_warn("%s: invalid Vmax thermal caps\n", rail->reg_id);
+	} else {
+		rail->therm_caps_size = size;
+		rail->therm_cap_idx = size;
+	}
+}
+
 static int tegra_config_dvfs(struct dvfs_rail *rail)
 {
 	int i;
@@ -1102,6 +1249,8 @@ static int dvfs_tree_show(struct seq_file *s, void *data)
 	mutex_lock(&dvfs_lock);
 
 	list_for_each_entry(rail, &dvfs_rail_list, node) {
+		int therm_mv = 0;
+
 		seq_printf(s, "%s %d mV%s:\n", rail->reg_id,
 			   rail->stats.off ? 0 : rail->millivolts,
 			   rail->dfll_mode ? " dfll mode" :
@@ -1118,6 +1267,18 @@ static int dvfs_tree_show(struct seq_file *s, void *data)
 		}
 		seq_printf(s, "   nominal    %-7d mV\n",
 			   rail->nominal_millivolts);
+
+		if ((rail->therm_floors) &&
+		    (rail->therm_floor_idx < rail->therm_floors_size)) {
+			therm_mv = rail->therm_floors[rail->therm_floor_idx].mv;
+		}
+		seq_printf(s, "   therm_floor    %-7d mV\n", therm_mv);
+
+		if ((rail->therm_caps) &&
+		    (rail->therm_cap_idx > 0)) {
+			therm_mv = rail->therm_caps[rail->therm_cap_idx - 1].mv;
+		}
+		seq_printf(s, "   therm_cap    %-7d mV\n", therm_mv);
 
 		list_sort(NULL, &rail->dvfs, dvfs_tree_sort_cmp);
 
@@ -1317,6 +1478,7 @@ static int tegra_dvfs_probe(struct platform_device *pdev)
 {
 	const struct of_device_id *match;
 	dvfs_init_cb_t dvfs_init_cb;
+	struct dvfs_rail *rail;
 	int ret = -EINVAL;
 
 	match = of_match_node(tegra_dvfs_of_match, pdev->dev.of_node);
@@ -1331,6 +1493,10 @@ static int tegra_dvfs_probe(struct platform_device *pdev)
 	ret = tegra_dvfs_regulator_init(&pdev->dev);
 	if (ret)
 		goto out;
+
+	list_for_each_entry(rail, &dvfs_rail_list, node) {
+		rail->is_ready = true;
+	}
 
 #ifdef CONFIG_DEBUG_FS
 	dvfs_debugfs_init();

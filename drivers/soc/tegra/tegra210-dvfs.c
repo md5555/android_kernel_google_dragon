@@ -33,6 +33,18 @@ static int cpu_millivolts[MAX_DVFS_FREQS];
 static int cpu_dfll_millivolts[MAX_DVFS_FREQS];
 static int cpu_lp_millivolts[MAX_DVFS_FREQS];
 
+static const struct dvfs_therm_limits
+tegra210_core_therm_floors[MAX_THERMAL_LIMITS] = {
+	{15, 950},
+	{0, 0},
+};
+
+static const struct dvfs_therm_limits
+tegra210_core_therm_caps[MAX_THERMAL_LIMITS] = {
+	{86, 1132},
+	{0, 0},
+};
+
 static struct dvfs_rail tegra210_dvfs_rail_vdd_cpu = {
 	.reg_id = "vdd-cpu",
 	.max_millivolts = 1300,
@@ -47,6 +59,7 @@ static struct dvfs_rail tegra210_dvfs_rail_vdd_cpu = {
 	.stats = {
 		.bin_uv = 6250, /* 6.25mV */
 	},
+	.is_ready = false,
 };
 
 static struct dvfs_rail tegra210_dvfs_rail_vdd_core = {
@@ -57,6 +70,9 @@ static struct dvfs_rail tegra210_dvfs_rail_vdd_core = {
 	.alignment = {
 		.step_uv = 12500, /* 12.5mV */
 	},
+	.therm_floors = tegra210_core_therm_floors,
+	.therm_caps = tegra210_core_therm_caps,
+	.is_ready = false,
 };
 
 static struct dvfs_rail *tegra210_dvfs_rails[] = {
@@ -815,6 +831,9 @@ int tegra210_init_dvfs(void)
 	init_cpu_lp_dvfs_table(&cpu_lp_max_freq_index);
 	if (ret)
 		goto out;
+
+	/* Init core thermal floors */
+	tegra_dvfs_init_therm_limits(&tegra210_dvfs_rail_vdd_core);
 
 	/* Init rail structures and dependencies */
 	tegra_dvfs_init_rails(tegra210_dvfs_rails,

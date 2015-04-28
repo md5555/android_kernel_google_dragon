@@ -17,9 +17,17 @@
 #ifndef _TEGRA_DVFS_H_
 #define _TEGRA_DVFS_H_
 
+#include <linux/platform_device.h>
+
 #define MAX_DVFS_FREQS		40
 #define DVFS_RAIL_STATS_TOP_BIN	100
 #define DVFS_RAIL_STATS_BIN	10000
+#define MAX_THERMAL_LIMITS	8
+
+enum tegra_dvfs_core_thermal_type {
+	TEGRA_DVFS_CORE_THERMAL_FLOOR = 0,
+	TEGRA_DVFS_CORE_THERMAL_CAP,
+};
 
 /*
  * dvfs_relationship between to rails, "from" and "to"
@@ -65,6 +73,11 @@ struct rail_alignment {
 	int step_uv;
 };
 
+struct dvfs_therm_limits {
+	u32 temperature;
+	u32 mv;
+};
+
 struct dvfs_rail {
 	const char *reg_id;
 	int min_millivolts;
@@ -93,6 +106,15 @@ struct dvfs_rail {
 
 	struct rail_alignment alignment;
 	struct rail_stats stats;
+
+	const struct dvfs_therm_limits *therm_floors;
+	int therm_floors_size;
+	int therm_floor_idx;
+	const struct dvfs_therm_limits *therm_caps;
+	int therm_caps_size;
+	int therm_cap_idx;
+
+	bool is_ready;
 };
 
 enum dfll_range {
@@ -169,6 +191,12 @@ int tegra_dvfs_predict_millivolts(struct clk *c, unsigned long rate);
 bool tegra_dvfs_is_dfll_range(struct clk *c, unsigned long rate);
 int tegra_dvfs_set_dfll_range(struct clk *c, int range);
 int tegra_get_cpu_fv_table(int *num_freqs, unsigned long **freqs, int **mvs);
+void tegra_dvfs_init_therm_limits(struct dvfs_rail *rail);
+int tegra_dvfs_core_get_thermal_index(enum tegra_dvfs_core_thermal_type type);
+int
+tegra_dvfs_core_count_thermal_states(enum tegra_dvfs_core_thermal_type type);
+int tegra_dvfs_core_update_thermal_index(enum tegra_dvfs_core_thermal_type type,
+					 unsigned long new_idx);
 #else
 static inline int tegra_dvfs_dfll_mode_set(struct clk *c, unsigned long rate)
 { return -EINVAL; }
@@ -204,6 +232,18 @@ static inline int tegra_dvfs_set_dfll_range(struct clk *c, int range)
 { return -EINVAL; }
 static inline int tegra_get_cpu_fv_table(
 		int *num_freqs, unsigned long **freqs, int **mvs)
+{ return -EINVAL; }
+static inline void tegra_dvfs_init_therm_limits(struct dvfs_rail *rail)
+{ return; }
+static inline int tegra_dvfs_core_get_thermal_index(
+					enum tegra_dvfs_core_thermal_type type)
+{ return -EINVAL; }
+static inline int tegra_dvfs_core_count_thermal_states(
+					enum tegra_dvfs_core_thermal_type type)
+{ return -EINVAL; }
+static inline int tegra_dvfs_core_update_thermal_index(
+					enum tegra_dvfs_core_thermal_type type,
+					unsigned long new_idx)
 { return -EINVAL; }
 #endif
 
