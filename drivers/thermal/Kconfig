@@ -206,42 +206,6 @@ config MAX77620_THERMAL
 	  different critical temperature thresholds from which we can notify
 	  thermal core to orderly power off the system.
 
-config TEGRA_SOCTHERM
-	bool
-
-config TEGRA124_SOCTHERM
-	bool "Tegra124 SOCTHERM thermal management"
-	depends on ARCH_TEGRA_124_SOC
-	select TEGRA_SOCTHERM
-	help
-	  Enable this option for integrated thermal management support on NVIDIA
-	  Tegra124 systems-on-chip. The driver supports four thermal zones
-	  (CPU, GPU, MEM, PLLX). Cooling devices can be bound to the thermal
-	  zones to manage temperatures. This option is also required for the
-	  emergency thermal reset (thermtrip) feature to function.
-
-config TEGRA132_SOCTHERM
-	bool "Tegra132 SOCTHERM thermal management"
-	depends on ARCH_TEGRA_132_SOC
-	select TEGRA_SOCTHERM
-	help
-	  Enable this option for integrated thermal management support on NVIDIA
-	  Tegra132 systems-on-chip. The driver supports four thermal zones
-	  (CPU, GPU, MEM, PLLX). Cooling devices can be bound to the thermal
-	  zones to manage temperatures. This option is also required for the
-	  emergency thermal reset (thermtrip) feature to function.
-
-config TEGRA210_SOCTHERM
-	bool "Tegra210 SOCTHERM thermal management"
-	depends on ARCH_TEGRA_210_SOC
-	select TEGRA_SOCTHERM
-	help
-	  Enable this option for integrated thermal management support on NVIDIA
-	  Tegra210 systems-on-chip. The driver supports four thermal zones
-	  (CPU, GPU, MEM, PLLX). Cooling devices can be bound to the thermal
-	  zones to manage temperatures. This option is also required for the
-	  emergency thermal reset (thermtrip) feature to function.
-
 config DB8500_CPUFREQ_COOLING
 	tristate "DB8500 cpufreq cooling"
 	depends on ARCH_U8500
@@ -322,6 +286,11 @@ endmenu
 menu "STMicroelectronics thermal drivers"
 depends on ARCH_STI && OF
 source "drivers/thermal/st/Kconfig"
+endmenu
+
+menu "Tegra thermal drivers"
+depends on ARCH_TEGRA
+source "drivers/thermal/tegra/Kconfig"
 endmenu
 
 endif
