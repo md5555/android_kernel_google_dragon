@@ -58,25 +58,19 @@ struct max77620_pin_function {
 	int mux_option;
 };
 
-struct max77620_cfg_param {
-	const char *property;
-	enum max77620_pinconf_param param;
+static const struct pinconf_generic_dt_params max77620_dt_params[] = {
+	{ "maxim,fps-source",            MAX77620_FPS_SOURCE,           0},
+	{ "maxim,fps-power-up-period",   MAX77620_FPS_POWER_ON_PERIOD,  0},
+	{ "maxim,fps-power-down-period", MAX77620_FPS_POWER_OFF_PERIOD, 0},
 };
 
-static const struct max77620_cfg_param  max77620_cfg_params[] = {
-	{
-		.property = "maxim,fps-source",
-		.param = MAX77620_FPS_SOURCE,
-	},
-	{
-		.property = "maxim,fps-power-up-period",
-		.param = MAX77620_FPS_POWER_ON_PERIOD,
-	},
-	{
-		.property = "maxim,fps-power-down-period",
-		.param = MAX77620_FPS_POWER_OFF_PERIOD,
-	},
+#ifdef CONFIG_DEBUG_FS
+static const struct pin_config_item max77620_conf_items[] = {
+	PCONFDUMP(MAX77620_FPS_SOURCE, "FPS-source", NULL, true),
+	PCONFDUMP(MAX77620_FPS_POWER_ON_PERIOD, "FPS-power-up-period", NULL, true),
+	PCONFDUMP(MAX77620_FPS_POWER_OFF_PERIOD, "FPS-power-down-period", NULL, true),
 };
+#endif
 
 enum max77620_alternate_pinmux_option {
 	MAX77620_PINMUX_GPIO				= 0,
@@ -196,39 +190,6 @@ static int max77620_pinctrl_get_group_pins(struct pinctrl_dev *pctldev,
 	*num_pins = max77620_pci->pin_groups[group].npins;
 	return 0;
 }
-static int max77620_pinctrl_max_cfg(struct pinctrl_dev *pctldev)
-{
-	return ARRAY_SIZE(max77620_cfg_params);
-}
-
-static int max77620_pinctrl_parse_dt_config(struct pinctrl_dev *pctldev,
-	struct device_node *np, unsigned long *configs, unsigned int *nconfigs)
-{
-	int max_cfg = max77620_pinctrl_max_cfg(pctldev);
-	int i;
-	int ncfg = 0;
-	u32 val;
-	int ret;
-	unsigned long *cfg = configs;
-
-	for (i = 0; i < max_cfg; i++) {
-                const struct max77620_cfg_param *par = &max77620_cfg_params[i];
-                ret = of_property_read_u32(np, par->property, &val);
-
-                /* property not found */
-                if (ret == -EINVAL)
-                        continue;
-		if (ret)
-			return -EINVAL;
-
-                pr_debug("found %s with value %u\n", par->property, val);
-                cfg[ncfg] = pinconf_to_config_packed(par->param, val);
-                ncfg++;
-        }
-
-	*nconfigs = ncfg;
-	return 0;
-}
 
 static const struct pinctrl_ops max77620_pinctrl_ops = {
 	.get_groups_count = max77620_pinctrl_get_groups_count,
@@ -236,7 +197,6 @@ static const struct pinctrl_ops max77620_pinctrl_ops = {
 	.get_group_pins = max77620_pinctrl_get_group_pins,
 	.dt_node_to_map = pinconf_generic_dt_node_to_map_pin,
 	.dt_free_map = pinctrl_utils_dt_free_map,
-	.dt_node_to_custom_config = max77620_pinctrl_parse_dt_config,
 };
 
 static int max77620_pinctrl_get_funcs_count(struct pinctrl_dev *pctldev)
@@ -396,13 +356,15 @@ static int max77620_pinconf_set(struct pinctrl_dev *pctldev,
 static const struct pinconf_ops max77620_pinconf_ops = {
 	.pin_config_get = max77620_pinconf_get,
 	.pin_config_set = max77620_pinconf_set,
-	.pin_config_get_max_custom_config = max77620_pinctrl_max_cfg,
 };
 
 static struct pinctrl_desc max77620_pinctrl_desc = {
 	.pctlops = &max77620_pinctrl_ops,
 	.pmxops = &max77620_pinmux_ops,
 	.confops = &max77620_pinconf_ops,
+	.num_dt_params = ARRAY_SIZE(max77620_dt_params),
+	.params = max77620_dt_params,
+	.conf_items = max77620_conf_items,
 	.owner = THIS_MODULE,
 };
 
