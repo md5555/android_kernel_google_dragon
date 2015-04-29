@@ -35,7 +35,8 @@ extern void save_stack_trace_user(struct stack_trace *trace);
 # define save_stack_trace_user(trace)			do { } while (0)
 # define print_stack_trace(trace, spaces)		do { } while (0)
 # define clear_dup_stack_traces()			do { } while (0)
-# define save_dup_stack_trace(tsk)			do { } while (0)
+# define save_dup_stack_trace(tsk)			(0)
+# define show_stack_dedup(task, sp, dup_stack_pid)	do { } while (0)
 #endif
 
 #endif
