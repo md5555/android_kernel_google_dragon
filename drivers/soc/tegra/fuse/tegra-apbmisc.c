@@ -27,6 +27,7 @@
 #define APBMISC_BASE	0x70000800
 #define APBMISC_SIZE	0x64
 #define FUSE_SKU_INFO	0x10
+#define FUSE_OPT_SUBVER	0x148
 
 #define PMC_STRAPPING_OPT_A_RAM_CODE_SHIFT	4
 #define PMC_STRAPPING_OPT_A_RAM_CODE_MASK_LONG	\
@@ -89,7 +90,11 @@ void __init tegra_init_revision(void)
 
 	switch (minor_rev) {
 	case 1:
-		rev = TEGRA_REVISION_A01;
+		if (chip_id == TEGRA210 &&
+			(tegra30_fuse_readl(FUSE_OPT_SUBVER) & 0xf) == 0x2)
+			rev = TEGRA_REVISION_A01Q;
+		else
+			rev = TEGRA_REVISION_A01;
 		break;
 	case 2:
 		rev = TEGRA_REVISION_A02;
