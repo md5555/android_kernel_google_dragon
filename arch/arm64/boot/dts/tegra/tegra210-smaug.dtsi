@@ -78,6 +78,12 @@
 		status = "disabled";
 	};
 
+	wifi_bcm4354 {
+		compatible = "bcm,bcm4354";
+		wl_reg_on = <&gpio TEGRA_GPIO(H, 1) GPIO_ACTIVE_HIGH>;
+		wl_host_wake = <&gpio TEGRA_GPIO(H, 2) IRQ_TYPE_LEVEL_HIGH>;
+	};
+
 	gpio-keys {
 		compatible = "gpio-keys";
 		gpio-keys,name = "gpio-keys";
@@ -640,6 +646,15 @@
 &dfll {
 	vdd-cpu-supply = <&max77621_cpu>;
 	nvidia,i2c-fs-rate = <400000>;
+	status = "okay";
+};
+
+&sdmmc2 {
+	power-gpios = <&gpio TEGRA_GPIO(H, 1) GPIO_ACTIVE_HIGH>;
+	bus-width = <4>;
+	no-1-8-v;
+	keep-power-in-suspend;
+	non-removable;
 	status = "okay";
 };
 
