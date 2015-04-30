@@ -42,7 +42,11 @@
 #define  MC_ERR_STATUS_ADR_HI_MASK 0x3
 #define  MC_ERR_STATUS_SECURITY (1 << 17)
 #define  MC_ERR_STATUS_RW (1 << 16)
+#ifdef CONFIG_ARCH_TEGRA_210_SOC
+#define  MC_ERR_STATUS_CLIENT_MASK 0xff
+#else
 #define  MC_ERR_STATUS_CLIENT_MASK 0x7f
+#endif
 
 #define MC_ERR_ADR 0x0c
 
