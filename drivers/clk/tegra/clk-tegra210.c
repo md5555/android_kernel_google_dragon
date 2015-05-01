@@ -162,8 +162,11 @@
 #define UTMIP_PLL_CFG2_STABLE_COUNT(x) (((x) & 0xfff) << 6)
 #define UTMIP_PLL_CFG2_ACTIVE_DLY_COUNT(x) (((x) & 0x3f) << 18)
 #define UTMIP_PLL_CFG2_FORCE_PD_SAMP_A_POWERDOWN BIT(0)
+#define UTMIP_PLL_CFG2_FORCE_PD_SAMP_A_POWERUP BIT(1)
 #define UTMIP_PLL_CFG2_FORCE_PD_SAMP_B_POWERDOWN BIT(2)
+#define UTMIP_PLL_CFG2_FORCE_PD_SAMP_B_POWERUP BIT(3)
 #define UTMIP_PLL_CFG2_FORCE_PD_SAMP_C_POWERDOWN BIT(4)
+#define UTMIP_PLL_CFG2_FORCE_PD_SAMP_C_POWERUP BIT(5)
 
 #define UTMIP_PLL_CFG1 0x484
 #define UTMIP_PLL_CFG1_ENABLE_DLY_COUNT(x) (((x) & 0x1f) << 27)
@@ -196,6 +199,17 @@
 #define UTMIPLL_HW_PWRDN_CFG0_CLK_ENABLE_SWCTL	BIT(2)
 #define UTMIPLL_HW_PWRDN_CFG0_IDDQ_OVERRIDE	BIT(1)
 #define UTMIPLL_HW_PWRDN_CFG0_IDDQ_SWCTL	BIT(0)
+
+#define PLLU_HW_PWRDN_CFG0			0x530
+#define PLLU_HW_PWRDN_CFG0_IDDQ_PD_INCLUDE	BIT(28)
+#define PLLU_HW_PWRDN_CFG0_SEQ_ENABLE		BIT(24)
+#define PLLU_HW_PWRDN_CFG0_USE_SWITCH_DETECT	BIT(7)
+#define PLLU_HW_PWRDN_CFG0_USE_LOCKDET		BIT(6)
+#define PLLU_HW_PWRDN_CFG0_CLK_ENABLE_SWCTL	BIT(2)
+#define PLLU_HW_PWRDN_CFG0_CLK_SWITCH_SWCTL	BIT(0)
+
+#define XUSB_PLL_CFG0				0x534
+#define XUSB_PLL_CFG0_UTMIPLL_LOCK_DLY		0x3ff
 
 #define SPARE_REG0 0x55c
 #define CLK_M_DIVISOR_SHIFT 2
@@ -2344,6 +2358,27 @@ static void tegra210_utmi_param_configure(void __iomem *clk_base)
 		return;
 	}
 
+	reg = readl_relaxed(clk_base + PLLU_HW_PWRDN_CFG0);
+	reg |= PLLU_HW_PWRDN_CFG0_IDDQ_PD_INCLUDE |
+	       PLLU_HW_PWRDN_CFG0_USE_SWITCH_DETECT |
+	       PLLU_HW_PWRDN_CFG0_USE_LOCKDET;
+	reg &= ~(PLLU_HW_PWRDN_CFG0_CLK_ENABLE_SWCTL |
+		  PLLU_HW_PWRDN_CFG0_CLK_SWITCH_SWCTL);
+	writel_relaxed(reg, clk_base + PLLU_HW_PWRDN_CFG0);
+
+	reg = readl_relaxed(clk_base + PLLU_HW_PWRDN_CFG0);
+	reg |= PLLU_HW_PWRDN_CFG0_SEQ_ENABLE;
+	writel_relaxed(reg, clk_base + PLLU_HW_PWRDN_CFG0);
+	udelay(1);
+
+	reg = readl_relaxed(clk_base + PLLU_BASE);
+	reg &= ~PLLU_BASE_CLKENABLE_USB;
+	writel_relaxed(reg, clk_base + PLLU_BASE);
+
+	reg = readl_relaxed(clk_base + UTMIPLL_HW_PWRDN_CFG0);
+	reg &= ~UTMIPLL_HW_PWRDN_CFG0_IDDQ_OVERRIDE;
+	writel_relaxed(reg, clk_base + UTMIPLL_HW_PWRDN_CFG0);
+
 	reg = readl_relaxed(clk_base + UTMIP_PLL_CFG2);
 
 	/* Program UTMIP PLL stable and active counts */
@@ -2355,12 +2390,6 @@ static void tegra210_utmi_param_configure(void __iomem *clk_base)
 
 	reg |= UTMIP_PLL_CFG2_ACTIVE_DLY_COUNT(utmi_parameters[i].
 					    active_delay_count);
-
-	/* Remove power downs from UTMIP PLL control bits */
-	reg &= ~UTMIP_PLL_CFG2_FORCE_PD_SAMP_A_POWERDOWN;
-	reg &= ~UTMIP_PLL_CFG2_FORCE_PD_SAMP_B_POWERDOWN;
-	reg &= ~UTMIP_PLL_CFG2_FORCE_PD_SAMP_C_POWERDOWN;
-
 	writel_relaxed(reg, clk_base + UTMIP_PLL_CFG2);
 
 	/* Program UTMIP PLL delay and oscillator frequency counts */
@@ -2374,33 +2403,42 @@ static void tegra210_utmi_param_configure(void __iomem *clk_base)
 	reg |= UTMIP_PLL_CFG1_XTAL_FREQ_COUNT(utmi_parameters[i].
 					   xtal_freq_count);
 
-	/* Remove power downs from UTMIP PLL control bits */
-	reg &= ~UTMIP_PLL_CFG1_FORCE_PLL_ENABLE_POWERDOWN;
-	reg &= ~UTMIP_PLL_CFG1_FORCE_PLL_ACTIVE_POWERDOWN;
-	reg &= ~UTMIP_PLL_CFG1_FORCE_PLLU_POWERUP;
-	reg &= ~UTMIP_PLL_CFG1_FORCE_PLLU_POWERDOWN;
+	reg |= UTMIP_PLL_CFG1_FORCE_PLLU_POWERDOWN;
 	writel_relaxed(reg, clk_base + UTMIP_PLL_CFG1);
 
+	/* Remove power downs from UTMIP PLL control bits */
+	reg = readl_relaxed(clk_base + UTMIP_PLL_CFG1);
+	reg &= ~UTMIP_PLL_CFG1_FORCE_PLL_ENABLE_POWERDOWN;
+	reg |= UTMIP_PLL_CFG1_FORCE_PLL_ENABLE_POWERUP;
+	writel_relaxed(reg, clk_base + UTMIP_PLL_CFG1);
+	udelay(1);
+
+	/* Enable samplers for SNPS, XUSB_HOST, XUSB_DEV */
+	reg = readl_relaxed(clk_base + UTMIP_PLL_CFG2);
+	reg |= UTMIP_PLL_CFG2_FORCE_PD_SAMP_A_POWERUP;
+	reg |= UTMIP_PLL_CFG2_FORCE_PD_SAMP_B_POWERUP;
+	reg |= UTMIP_PLL_CFG2_FORCE_PD_SAMP_C_POWERUP;
+	reg &= ~UTMIP_PLL_CFG2_FORCE_PD_SAMP_A_POWERDOWN;
+	reg &= ~UTMIP_PLL_CFG2_FORCE_PD_SAMP_B_POWERDOWN;
+	reg &= ~UTMIP_PLL_CFG2_FORCE_PD_SAMP_C_POWERDOWN;
+	writel_relaxed(reg, clk_base + UTMIP_PLL_CFG2);
+
 	/* Setup HW control of UTMIPLL */
+	reg = readl_relaxed(clk_base + UTMIP_PLL_CFG1);
+	reg &= ~UTMIP_PLL_CFG1_FORCE_PLL_ENABLE_POWERDOWN;
+	reg &= ~UTMIP_PLL_CFG1_FORCE_PLL_ENABLE_POWERUP;
+	writel_relaxed(reg, clk_base + UTMIP_PLL_CFG1);
+
 	reg = readl_relaxed(clk_base + UTMIPLL_HW_PWRDN_CFG0);
 	reg |= UTMIPLL_HW_PWRDN_CFG0_USE_LOCKDET;
 	reg &= ~UTMIPLL_HW_PWRDN_CFG0_CLK_ENABLE_SWCTL;
-	reg |= UTMIPLL_HW_PWRDN_CFG0_SEQ_START_STATE;
 	writel_relaxed(reg, clk_base + UTMIPLL_HW_PWRDN_CFG0);
-
-	reg = readl_relaxed(clk_base + UTMIP_PLL_CFG1);
-	reg &= ~UTMIP_PLL_CFG1_FORCE_PLL_ENABLE_POWERUP;
-	reg &= ~UTMIP_PLL_CFG1_FORCE_PLL_ENABLE_POWERDOWN;
-	writel_relaxed(reg, clk_base + UTMIP_PLL_CFG1);
 
 	udelay(1);
 
-	/* Setup SW override of UTMIPLL assuming USB2.0
-	   ports are assigned to USB2 */
-	reg = readl_relaxed(clk_base + UTMIPLL_HW_PWRDN_CFG0);
-	reg |= UTMIPLL_HW_PWRDN_CFG0_IDDQ_SWCTL;
-	reg &= ~UTMIPLL_HW_PWRDN_CFG0_IDDQ_OVERRIDE;
-	writel_relaxed(reg, clk_base + UTMIPLL_HW_PWRDN_CFG0);
+	reg = readl_relaxed(clk_base + XUSB_PLL_CFG0);
+	reg &= ~XUSB_PLL_CFG0_UTMIPLL_LOCK_DLY;
+	writel_relaxed(reg, clk_base + XUSB_PLL_CFG0);
 
 	udelay(1);
 
