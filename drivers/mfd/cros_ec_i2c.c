@@ -62,7 +62,6 @@ static int cros_ec_pkt_xfer_i2c(struct cros_ec_device *ec_dev,
 	struct i2c_client *client = ec_dev->priv;
 	int ret = -ENOMEM;
 	int i;
-	int len;
 	int packet_len;
 	u8 *out_buf = NULL;
 	u8 *in_buf = NULL;
@@ -149,15 +148,6 @@ static int cros_ec_pkt_xfer_i2c(struct cros_ec_device *ec_dev,
 			msg->insize,
 			ec_response->data_len);
 		ret = -EMSGSIZE;
-		goto done;
-	}
-
-	/* FIXME: Do we still need this check or is the above check enough? */
-	len = in_buf[1];
-	if (len > msg->insize) {
-		dev_err(ec_dev->dev, "packet too long (%d bytes, expected %d)",
-			len, msg->insize);
-		ret = -ENOSPC;
 		goto done;
 	}
 
