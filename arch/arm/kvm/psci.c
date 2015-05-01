@@ -22,6 +22,8 @@
 #include <asm/kvm_emulate.h>
 #include <asm/kvm_psci.h>
 
+#include <uapi/linux/psci.h>
+
 /*
  * This is an implementation of the Power State Coordination Interface
  * as described in ARM document number ARM DEN 0022A.
