@@ -20,6 +20,7 @@ config PINCTRL_CHERRYVIEW
 	select PINMUX
 	select PINCONF
 	select GENERIC_PINCONF
+	select OF
 	select GPIOLIB
 	select GPIOLIB_IRQCHIP
 	help
