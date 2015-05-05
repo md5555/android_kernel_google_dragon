@@ -21,7 +21,10 @@ struct nvkm_pmu {
 		u32 data[2];
 	} recv;
 
-	int  (*message)(struct nvkm_pmu *, u32[2], u32, u32, u32, u32);
+	bool fecs_secure_boot;
+	bool gpccs_secure_boot;
+	int (*secure_bootstrap)(struct nvkm_pmu *);
+	int (*message)(struct nvkm_pmu *, u32[2], u32, u32, u32, u32);
 	void (*pgob)(struct nvkm_pmu *, bool);
 };
 
