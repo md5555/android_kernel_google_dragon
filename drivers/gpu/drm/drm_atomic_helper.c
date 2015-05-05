@@ -367,20 +367,6 @@ drm_atomic_helper_check_modeset(struct drm_device *dev,
 	struct drm_connector_state *connector_state;
 	int i, ret;
 
-	for_each_crtc_in_state(state, crtc, crtc_state, i) {
-		if (!drm_mode_equal(&crtc->state->mode, &crtc_state->mode)) {
-			DRM_DEBUG_ATOMIC("[CRTC:%d] mode changed\n",
-					 crtc->base.id);
-			crtc_state->mode_changed = true;
-		}
-
-		if (crtc->state->enable != crtc_state->enable) {
-			DRM_DEBUG_ATOMIC("[CRTC:%d] enable changed\n",
-					 crtc->base.id);
-			crtc_state->mode_changed = true;
-		}
-	}
-
 	for_each_connector_in_state(state, connector, connector_state, i) {
 		/*
 		 * This only sets crtc->mode_changed for routing changes,
@@ -1521,8 +1507,9 @@ retry:
 		WARN_ON(set->fb);
 		WARN_ON(set->num_connectors);
 
-		crtc_state->enable = false;
-		crtc_state->active = false;
+		ret = drm_atomic_set_mode_for_crtc(crtc_state, NULL);
+		if (ret != 0)
+			goto fail;
 
 		ret = drm_atomic_set_crtc_for_plane(primary_state, NULL);
 		if (ret != 0)
@@ -1536,9 +1523,10 @@ retry:
 	WARN_ON(!set->fb);
 	WARN_ON(!set->num_connectors);
 
-	crtc_state->enable = true;
+	ret = drm_atomic_set_mode_for_crtc(crtc_state, set->mode);
+	if (ret != 0)
+		goto fail;
 	crtc_state->active = true;
-	drm_mode_copy(&crtc_state->mode, set->mode);
 
 	ret = drm_atomic_set_crtc_for_plane(primary_state, crtc);
 	if (ret != 0)
