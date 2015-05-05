@@ -43,6 +43,28 @@
 		iommus = <&mc TEGRA_SWGROUP_HC>;
 		ranges = <0x0 0x54000000 0x0 0x54000000 0x0 0x0c000000>;
 
+		vi: vi@54080000 {
+			compatible = "nvidia,tegra210-vi";
+			reg = <0x0 0x54080000 0x0 0x00040000>;
+			interrupts = <GIC_SPI 69 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&tegra_car TEGRA210_CLK_VI>,
+				 <&tegra_car TEGRA210_CLK_CSI>,
+				 <&tegra_car TEGRA210_CLK_CSUS>,
+				 <&tegra_car TEGRA210_CLK_CAMERA_SCLK>,
+				 <&tegra_car TEGRA210_CLK_CILAB>,
+				 <&tegra_car TEGRA210_CLK_CILCD>,
+				 <&tegra_car TEGRA210_CLK_CILE>,
+				 <&tegra_car TEGRA210_CLK_VI_SENSOR>,
+				 <&tegra_car TEGRA210_CLK_VI_SENSOR2>,
+				 <&tegra_car TEGRA210_CLK_VIM2_CLK>;
+			clock-names = "vi", "csi", "csus", "sclk", "cilab",
+				      "cilcd", "cile", "vi_sensor",
+				      "vi_sensor2", "vim2_clk";
+			resets = <&tegra_car 20>;
+			reset-names = "vi";
+			iommus = <&mc TEGRA_SWGROUP_VI>;
+		};
+
 		dc@54200000 {
 			compatible = "nvidia,tegra124-dc";
 			reg = <0x0 0x54200000 0x0 0x00040000>;
