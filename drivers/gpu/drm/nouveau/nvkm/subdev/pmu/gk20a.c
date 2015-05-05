@@ -21,6 +21,7 @@
  */
 
 #include "priv.h"
+#include "gk20a.h"
 #include <core/client.h>
 #include <core/gpuobj.h>
 #include <subdev/bar.h>
@@ -43,8 +44,6 @@
 
 #define GK20A_PMU_TRACE_BUFSIZE             0x4000   /* 4K */
 #define GK20A_PMU_DMEM_BLKSIZE2		    8
-#define GK20A_PMU_UCODE_NB_MAX_OVERLAY	    32
-#define GK20A_PMU_UCODE_NB_MAX_DATE_LENGTH  64
 
 #define PMU_UNIT_REWIND		(0x00)
 #define PMU_UNIT_PG		(0x03)
@@ -66,76 +65,11 @@
 #define CLK_SLOT	7
 #define GK20A_PMU_UCODE_IMAGE	"gpmu_ucode.bin"
 
-/*Choices for DMA to use*/
-enum {
-	GK20A_PMU_DMAIDX_UCODE		= 0,
-	GK20A_PMU_DMAIDX_VIRT		= 1,
-	GK20A_PMU_DMAIDX_PHYS_VID	= 2,
-	GK20A_PMU_DMAIDX_PHYS_SYS_COH	= 3,
-	GK20A_PMU_DMAIDX_PHYS_SYS_NCOH	= 4,
-	GK20A_PMU_DMAIDX_RSVD		= 5,
-	GK20A_PMU_DMAIDX_PELPG		= 6,
-	GK20A_PMU_DMAIDX_END		= 7
-};
-
-struct pmu_buf_desc {
-	struct nvkm_gpuobj *obj;
-	struct nvkm_vma vma;
-	size_t size;
-};
-
-struct nvkm_pmu_priv_vm {
-	struct nvkm_gpuobj *mem;
-	struct nvkm_gpuobj *pgd;
-	struct nvkm_vm *vm;
-};
-
 /*Choices for pmu_state*/
 enum {
 	PMU_STATE_OFF,             /*0  PMU is off */
 	PMU_STATE_STARTING,        /*1  PMU is on, but not booted */
 	PMU_STATE_INIT_RECEIVED    /*2  PMU init message received */
-};
-
-struct pmu_mem_gk20a {
-	u32 dma_base;
-	u8  dma_offset;
-	u8  dma_idx;
-	u16 fb_size;
-};
-
-struct pmu_cmdline_args_gk20a {
-	u32 cpu_freq_hz;		/* Frequency of the clock driving PMU */
-	u32 falc_trace_size;		/* falctrace buffer size (bytes) */
-	u32 falc_trace_dma_base;	/* 256-byte block address */
-	u32 falc_trace_dma_idx;		/* dmaIdx for DMA operations */
-	u8 secure_mode;
-	struct pmu_mem_gk20a gc6_ctx;		/* dmem offset of gc6 context */
-};
-
-/*pmu ucode descriptor*/
-struct pmu_ucode_desc {
-	u32 descriptor_size;
-	u32 image_size;
-	u32 tools_version;
-	u32 app_version;
-	char date[GK20A_PMU_UCODE_NB_MAX_DATE_LENGTH];
-	u32 bootloader_start_offset;
-	u32 bootloader_size;
-	u32 bootloader_imem_offset;
-	u32 bootloader_entry_point;
-	u32 app_start_offset;
-	u32 app_size;
-	u32 app_imem_offset;
-	u32 app_imem_entry;
-	u32 app_dmem_offset;
-	u32 app_resident_code_offset;
-	u32 app_resident_code_size;
-	u32 app_resident_data_offset;
-	u32 app_resident_data_size;
-	u32 nb_overlays;
-	struct {u32 start; u32 size; } load_ovl[GK20A_PMU_UCODE_NB_MAX_OVERLAY];
-	u32 compressed;
 };
 
 /*pmu msg header*/
@@ -207,45 +141,68 @@ struct gk20a_pmu_dvfs_data {
 	unsigned int avg_load;
 };
 
-struct gk20a_pmu_priv {
-	struct nvkm_pmu base;
-	struct nvkm_alarm alarm;
-	struct gk20a_pmu_dvfs_data *data;
-	struct pmu_ucode_desc *desc;
-	struct pmu_buf_desc ucode;
-	struct pmu_buf_desc trace_buf;
-	struct mutex pmu_copy_lock;
-	bool pmu_ready;
-	int pmu_state;
-	struct nvkm_pmu_priv_vm pmuvm;
-	struct mutex isr_mutex;
-	bool isr_enabled;
-};
-
-#define to_gk20a_priv(ptr) container_of(ptr, struct gk20a_pmu_priv, base)
-
 struct gk20a_pmu_dvfs_dev_status {
 	unsigned long total;
 	unsigned long busy;
 	int cur_state;
 };
 
-static int
-gk20a_pmu_load_firmware(struct nvkm_pmu *pmu, const struct firmware **pfw)
-{
-	struct nvkm_device *dev;
-	char fw[32];
 
-	dev = nv_device(pmu);
-	snprintf(fw, sizeof(fw), "nvidia/tegra124/%s", GK20A_PMU_UCODE_IMAGE);
-	return request_firmware(pfw, fw, nv_device_base(dev));
+void
+gk20a_release_firmware(struct nvkm_pmu *ppmu, const struct firmware *pfw)
+{
+	nv_debug(ppmu, "firmware released\n");
+	release_firmware(pfw);
 }
 
-static void
-gk20a_pmu_release_firmware(struct nvkm_pmu *pmu, const struct firmware *pfw)
+int
+gk20a_load_firmware(struct nvkm_pmu *ppmu, const struct firmware **pfw, const
+char *fw_name)
 {
-	nv_debug(pmu, "firmware released\n");
-	release_firmware(pfw);
+	struct nvkm_device *dev;
+	char name[72];
+	int ret;
+
+	dev = nv_device(ppmu);
+	snprintf(name, sizeof(name), "nouveau/%s", fw_name);
+	ret = request_firmware(pfw, name, nv_device_base(dev));
+	return ret;
+}
+
+/*reads memory allocated to nvgpu object*/
+void
+gpu_obj_memwr(struct nvkm_gpuobj *ucodeobj, int offset, void *src, int size)
+{
+	int temp = size;
+	u32 *source32;
+	u16 *source16;
+	u8 *source8;
+	int four_bytes_cnt, two_bytes_cnt, one_bytes_cnt;
+
+	four_bytes_cnt = temp / 4;
+	temp = temp % 4;
+	two_bytes_cnt = temp / 2;
+	temp = temp % 2;
+	one_bytes_cnt = temp;
+	source32 = (u32 *)src;
+	for (temp = 0; temp < four_bytes_cnt; temp++) {
+		source32 = (u32 *)src + temp;
+		nv_wo32(ucodeobj, offset, *source32);
+		offset += 4;
+	}
+	source16 = (u16 *)source32;
+	for (temp = 0; temp < two_bytes_cnt; temp++) {
+		source16 = (u16 *)source32 + temp;
+		nv_wo16(ucodeobj, offset, *source16);
+		offset += 2;
+	}
+	source8 = (u8 *)source16;
+	for (temp = 0; temp < one_bytes_cnt; temp++) {
+		source8 = (u8 *)source16 + temp;
+		nv_wo08(ucodeobj, offset, *source8);
+		offset += 1;
+	}
+
 }
 
 static void
@@ -395,7 +352,7 @@ resched:
 	nvkm_timer_alarm(priv, 100000000, alarm);
 }
 
-static int
+int
 gk20a_pmu_enable_hw(struct gk20a_pmu_priv *priv, struct nvkm_mc *pmc, bool enable)
 {
 	if (enable) {
@@ -411,7 +368,8 @@ gk20a_pmu_enable_hw(struct gk20a_pmu_priv *priv, struct nvkm_mc *pmc, bool enabl
 		return 0;
 	}
 }
-static void
+
+void
 gk20a_pmu_enable_irq(struct gk20a_pmu_priv *priv, struct nvkm_mc *pmc, bool enable)
 {
 	if (enable) {
@@ -428,7 +386,7 @@ gk20a_pmu_enable_irq(struct gk20a_pmu_priv *priv, struct nvkm_mc *pmc, bool enab
 
 }
 
-static int
+int
 gk20a_pmu_idle(struct gk20a_pmu_priv *priv)
 {
 	if (!nv_wait(priv, 0x0010a04c, 0x0000ffff, 0x00000000)) {
@@ -439,7 +397,7 @@ gk20a_pmu_idle(struct gk20a_pmu_priv *priv)
 	return 0;
 }
 
-static int
+int
 gk20a_pmu_enable(struct gk20a_pmu_priv *priv, struct nvkm_mc *pmc, bool enable)
 {
 	u32 pmc_enable;
@@ -466,7 +424,7 @@ gk20a_pmu_enable(struct gk20a_pmu_priv *priv, struct nvkm_mc *pmc, bool enable)
 	return 0;
 }
 
-static void
+void
 gk20a_pmu_copy_to_dmem(struct gk20a_pmu_priv *priv, u32 dst, u8 *src, u32 size,
 		       u8 port)
 {
@@ -618,7 +576,6 @@ gk20a_pmu_init_vm(struct gk20a_pmu_priv *priv, const struct firmware *fw)
 	int ret = 0;
 	u32 *ucode_image;
 	struct pmu_ucode_desc *desc = (struct pmu_ucode_desc *)fw->data;
-	int i;
 	struct nvkm_pmu_priv_vm *pmuvm = &priv->pmuvm;
 	struct nvkm_device *device = nv_device(&priv->base);
 	struct nvkm_vm *vm;
@@ -659,8 +616,8 @@ gk20a_pmu_init_vm(struct gk20a_pmu_priv *priv, const struct firmware *fw)
 		return ret;
 
 	ucode_image = (u32 *)((u8 *)desc + desc->descriptor_size);
-	for (i = 0; i < (desc->app_start_offset + desc->app_size); i += 4)
-		nv_wo32(priv->ucode.obj, i, ucode_image[i/4]);
+	gpu_obj_memwr(priv->ucode.obj, 0,
+			ucode_image, desc->app_start_offset + desc->app_size);
 
 	/* map allocated memory into GMMU */
 	ret = nvkm_gpuobj_map_vm(priv->ucode.obj, vm, NV_MEM_ACCESS_RW,
@@ -947,7 +904,7 @@ gk20a_pmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	pmc = nvkm_mc(pmu);
 	nv_subdev(pmu)->intr = gk20a_pmu_intr;
 
-	ret = gk20a_pmu_load_firmware(pmu, &pmufw);
+	ret = gk20a_load_firmware(pmu, &pmufw, GK20A_PMU_UCODE_IMAGE);
 	if (ret < 0) {
 		nv_error(priv, "failed to load pmu fimware\n");
 		return ret;
@@ -979,7 +936,7 @@ gk20a_pmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	return 0;
 
 err:
-	gk20a_pmu_release_firmware(pmu, pmufw);
+	gk20a_release_firmware(pmu, pmufw);
 	return ret;
 }
 
