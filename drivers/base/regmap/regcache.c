@@ -244,6 +244,18 @@ int regcache_write(struct regmap *map,
 	return 0;
 }
 
+static bool regcache_reg_needs_sync(struct regmap *map, unsigned int reg,
+				    unsigned int val)
+{
+	int ret;
+
+	/* Is this the hardware default?  If so skip. */
+	ret = regcache_lookup_reg(map, reg);
+	if (ret >= 0 && val == map->reg_defaults[ret].def)
+		return false;
+	return true;
+}
+
 static int regcache_default_sync(struct regmap *map, unsigned int min,
 				 unsigned int max)
 {
@@ -261,9 +273,7 @@ static int regcache_default_sync(struct regmap *map, unsigned int min,
 		if (ret)
 			return ret;
 
-		/* Is this the hardware default?  If so skip. */
-		ret = regcache_lookup_reg(map, reg);
-		if (ret >= 0 && val == map->reg_defaults[ret].def)
+		if (!regcache_reg_needs_sync(map, reg, val))
 			continue;
 
 		map->cache_bypass = 1;
@@ -608,10 +618,7 @@ static int regcache_sync_block_single(struct regmap *map, void *block,
 			continue;
 
 		val = regcache_get_val(map, block, i);
-
-		/* Is this the hardware default?  If so skip. */
-		ret = regcache_lookup_reg(map, regtmp);
-		if (ret >= 0 && val == map->reg_defaults[ret].def)
+		if (!regcache_reg_needs_sync(map, regtmp, val))
 			continue;
 
 		map->cache_bypass = 1;
@@ -683,10 +690,7 @@ static int regcache_sync_block_raw(struct regmap *map, void *block,
 		}
 
 		val = regcache_get_val(map, block, i);
-
-		/* Is this the hardware default?  If so skip. */
-		ret = regcache_lookup_reg(map, regtmp);
-		if (ret >= 0 && val == map->reg_defaults[ret].def) {
+		if (!regcache_reg_needs_sync(map, regtmp, val)) {
 			ret = regcache_sync_block_raw_flush(map, &data,
 							    base, regtmp);
 			if (ret != 0)
