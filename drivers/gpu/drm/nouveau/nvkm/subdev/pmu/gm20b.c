@@ -1403,6 +1403,385 @@ gm20b_prepare_ucode_blob(struct nvkm_pmu *ppmu)
 
 	return 0;
 }
+/*!
+*	Wait for PMU halt interrupt status to be cleared
+*	@param[in]	g		GPU object pointer
+*	@param[in]	timeout_us	Timeout in Us for PMU to halt
+*	@return '0' if PMU halt irq status is clear
+*/
+int clear_halt_interrupt_status(struct nvkm_pmu *pmu, unsigned int timeout)
+{
+	u32 data = 0;
+
+	while (timeout != 0) {
+		nv_mask(pmu, 0x0010a004, 0x10, 0x10);
+		data = nv_rd32(pmu, 0x0010a008);
+		if ((data & 0x10) != 0x10)
+			break;
+		timeout--;
+		udelay(1);
+	}
+
+	if (timeout == 0)
+		return -EBUSY;
+	return 0;
+}
+
+/*!
+*	Wait for PMU to halt
+*	@param[in]	g		GPU object pointer
+*	@param[in]	timeout_us	Timeout in Us for PMU to halt
+*	@return '0' if PMU halts
+*/
+int pmu_wait_for_halt(struct nvkm_pmu *pmu, unsigned int timeout)
+{
+	u32 data = 0;
+
+	udelay(10);
+	data = nv_rd32(pmu, 0x0010a100);
+	nv_debug(pmu, "cpuctl %x, timeout %d\n", data, timeout);
+	while (timeout != 0) {
+		data = nv_rd32(pmu, 0x0010a100);
+		if (data & (0x1 << 4))
+			break;
+		timeout--;
+		udelay(1);
+	}
+
+	if (timeout == 0) {
+		nv_error(pmu, "Timeout happens in pmu_wait_for_halt.\n");
+		return -EBUSY;
+	}
+
+	data = nv_rd32(pmu, 0x0010a040);
+	if (data) {
+		nv_error(pmu, "ACR boot failed, err %x", data);
+		return -EAGAIN;
+	}
+
+	return 0;
+}
+
+static int bl_bootstrap(struct nvkm_pmu *ppmu,
+	struct flcn_bl_dmem_desc *pbl_desc, u32 bl_sz)
+{
+	struct gk20a_pmu_priv *pmu = to_gk20a_priv(ppmu);
+	struct gm20b_acr *acr = &pmu->acr;
+	u32 imem_dst_blk = 0;
+	u32 virt_addr = 0;
+	u32 tag = 0;
+	u32 index = 0;
+	struct hsflcn_bl_desc *pmu_bl_gm10x_desc = acr->pmu_hsbl_desc;
+
+	nv_mask(ppmu, 0x0010a048, 0x1, 0x1);
+	nv_wr32(ppmu, 0x0010a480, (0xfffffff &
+			pmu->pmuvm.mem->addr >> 12) |
+			((0x1) << 30) | 0x20000000);
+
+	/*copy bootloader interface structure to dmem*/
+	nv_wr32(ppmu, 0x0010a1c0, (0 | (0x1 << 24)));
+	gk20a_pmu_copy_to_dmem(pmu, 0, (u8 *)pbl_desc,
+		sizeof(struct flcn_bl_dmem_desc), 0);
+
+	/* Now copy bootloader to TOP of IMEM */
+	imem_dst_blk = (nv_rd32(ppmu, 0x0010a108) & 0x1ff) - bl_sz/256;
+
+	/* Set Auto-Increment on write */
+	nv_wr32(ppmu, 0x0010a180,
+			((imem_dst_blk & 0xff) << 8) | (0x1 << 24));
+	virt_addr = pmu_bl_gm10x_desc->bl_start_tag << 8;
+	tag = virt_addr >> 8; /* tag is always 256B aligned */
+	for (index = 0; index < bl_sz/4; index++) {
+		if ((index % 64) == 0) {
+			nv_wr32(ppmu, 0x0010a188, (tag & 0xffff) << 0);
+			tag++;
+		}
+		nv_wr32(ppmu, 0x0010a184,
+				nv_ro32(acr->hsbl_ucode.obj, index * 4));
+	}
+
+	nv_wr32(ppmu, 0x0010a188, (0 & 0xffff) << 0);
+	nv_debug(ppmu, "Before starting falcon with BL\n");
+	nv_wr32(ppmu, 0x0010a104, (virt_addr & 0xffffffff));
+	nv_wr32(ppmu, 0x0010a100, 0x2);
+
+	return 0;
+}
+
+static int gm20b_init_pmu_setup_hw1(struct nvkm_pmu *ppmu,
+		struct flcn_bl_dmem_desc *desc, u32 bl_sz)
+{
+
+	struct nvkm_mc *pmc = nvkm_mc(ppmu);
+	struct gk20a_pmu_priv *pmu = to_gk20a_priv(ppmu);
+	struct gm20b_acr *acr = &pmu->acr;
+	int err;
+	struct pmu_cmdline_args_v1 args;
+
+	mutex_lock(&pmu->isr_mutex);
+	pmu_reset(ppmu, pmc);
+	pmu->isr_enabled = true;
+	mutex_unlock(&pmu->isr_mutex);
+
+	/* setup apertures - virtual */
+	nv_wr32(ppmu, 0x0010ae00 + 4 * (GK20A_PMU_DMAIDX_UCODE),
+			0x4 | 0x0);
+	nv_wr32(ppmu, 0x0010ae00 + 4 * (GK20A_PMU_DMAIDX_VIRT),
+		0x0);
+	/* setup apertures - physical */
+	nv_wr32(ppmu, 0x0010ae00 + 4 * (GK20A_PMU_DMAIDX_PHYS_VID),
+		0x4);
+	nv_wr32(ppmu, 0x0010ae00 + 4 * (GK20A_PMU_DMAIDX_PHYS_SYS_COH),
+			0x4 | 0x1);
+	nv_wr32(ppmu, 0x0010ae00 + 4 * (GK20A_PMU_DMAIDX_PHYS_SYS_NCOH),
+			0x4 | 0x2);
+
+	args.cpu_freq_hz = 0;
+	args.secure_mode = 1;
+	args.falc_trace_size = GK20A_PMU_TRACE_BUFSIZE;
+	args.falc_trace_dma_base = 0;
+	args.falc_trace_dma_idx = 0;
+	gk20a_pmu_copy_to_dmem(pmu, acr->pmu_args,
+			(u8 *)(&args), sizeof(args), 0);
+	/*disable irqs for hs falcon booting as we will poll for halt*/
+	mutex_lock(&pmu->isr_mutex);
+	gk20a_pmu_enable_irq(pmu, pmc, false);
+	pmu->isr_enabled = false;
+	mutex_unlock(&pmu->isr_mutex);
+	err = bl_bootstrap(ppmu, desc, bl_sz);
+	if (err)
+		return err;
+	return 0;
+}
+
+/*
+* Executes a generic bootloader and wait for PMU to halt.
+* This BL will be used for those binaries that are loaded
+* and executed at times other than RM PMU Binary execution.
+*
+* @param[in] g			gk20a pointer
+* @param[in] desc		Bootloader descriptor
+* @param[in] dma_idx		DMA Index
+* @param[in] b_wait_for_halt	Wait for PMU to HALT
+*/
+int pmu_exec_gen_bl(struct nvkm_pmu *pmu, void *desc, u8 b_wait_for_halt)
+{
+	int i, err = 0;
+	struct gk20a_pmu_priv *priv = to_gk20a_priv(pmu);
+	struct gm20b_acr *acr = &priv->acr;
+	u32 bl_sz;
+	const struct firmware *hsbl_fw = acr->hsbl_fw;
+	struct hsflcn_bl_desc *pmu_bl_gm10x_desc;
+	u32 *pmu_bl_gm10x = NULL;
+
+	if (!hsbl_fw) {
+		err = gk20a_load_firmware(pmu, &hsbl_fw,
+			GM20B_HSBIN_PMU_BL_UCODE_IMAGE);
+		if (err) {
+			nv_error(pmu, "HSbin BL ucode load failed\n");
+			return -ENOENT;
+		}
+		acr->hsbl_fw = hsbl_fw;
+		acr->bl_bin_hdr = (struct bin_hdr *)hsbl_fw->data;
+		acr->pmu_hsbl_desc = (struct hsflcn_bl_desc *)(hsbl_fw->data +
+				acr->bl_bin_hdr->header_offset);
+		pmu_bl_gm10x_desc = acr->pmu_hsbl_desc;
+		pmu_bl_gm10x = (u32 *)(hsbl_fw->data +
+			acr->bl_bin_hdr->data_offset);
+		bl_sz = ALIGN(pmu_bl_gm10x_desc->bl_img_hdr.bl_code_size,
+				256);
+		acr->hsbl_ucode.size = bl_sz;
+		nv_debug(pmu, "Executing Generic Bootloader\n");
+
+		err = nvkm_gpuobj_new(nv_object(pmu), NULL, bl_sz, 0x1000, 0,
+				&acr->hsbl_ucode.obj);
+		if (err) {
+			nv_error(pmu, "acr bl ucode alloc failed\n");
+			goto err_done;
+		}
+
+		err = nvkm_gpuobj_map_vm(nv_gpuobj(acr->hsbl_ucode.obj),
+					priv->pmuvm.vm, NV_MEM_ACCESS_RW,
+					&acr->hsbl_ucode.vma);
+		if (err) {
+			nv_error(pmu, "acr bl ucode mapping to vm failed\n");
+			goto err_free_gpuobj;
+		}
+		nv_debug(pmu, "acr->hsbl_ucode.vma.offset is: 0x%llx\n",
+			acr->hsbl_ucode.vma.offset);
+
+		for (i = 0; i < (bl_sz) >> 2; i++)
+			nv_wo32(acr->hsbl_ucode.obj, i*4, pmu_bl_gm10x[i]);
+		nv_debug(pmu, "Copied HSBL ucode to iova\n");
+	}
+	/*
+	 * Disable interrupts to avoid kernel hitting breakpoint due
+	 * to PMU halt
+	 */
+
+	if (clear_halt_interrupt_status(pmu, GK20A_IDLE_CHECK_DEFAULT))
+		goto err_unmap_bl;
+
+	nv_debug(pmu, "err reg :%x\n", ioread32_native(mc +
+			MC_ERR_GENERALIZED_CARVEOUT_STATUS_0));
+	nv_debug(pmu, "phys sec reg %x\n", nv_rd32(pmu, 0x00100ce4));
+	nv_debug(pmu, "before ACR exec sctl %x\n", nv_rd32(pmu, 0x0010a240));
+
+	gm20b_init_pmu_setup_hw1(pmu, desc, acr->hsbl_ucode.size);
+	/* Poll for HALT */
+	if (b_wait_for_halt) {
+		err = pmu_wait_for_halt(pmu, GK20A_IDLE_CHECK_DEFAULT);
+		if (err == 0) {
+			/* Clear the HALT interrupt */
+		  if (clear_halt_interrupt_status(pmu,
+						GK20A_IDLE_CHECK_DEFAULT))
+			goto err_unmap_bl;
+		} else
+			goto err_unmap_bl;
+	}
+
+	nv_debug(pmu, "after waiting for halt, err %x\n", err);
+	nv_debug(pmu, "MC_ERR_GENERALIZED_CARVEOUT_STATUS_0: 0x%X\n",
+		ioread32_native(mc + MC_ERR_GENERALIZED_CARVEOUT_STATUS_0));
+	nv_debug(pmu, "MC_ERR_GENERALIZED_CARVEOUT_ADR_0: 0x%X\n",
+		ioread32_native(mc + 0xc04));
+
+	nv_debug(pmu, "phys sec reg %x\n", nv_rd32(pmu,
+		0x00100ce4));
+	nv_debug(pmu, "sctl reg %x\n", nv_rd32(pmu, 0x0010a240));
+
+	start_gm20b_pmu(pmu);
+
+	return 0;
+err_unmap_bl:
+err_free_gpuobj:
+err_done:
+	release_firmware(hsbl_fw);
+	return err;
+}
+
+
+/*Loads ACR bin to FB mem and bootstraps PMU with bootloader code
+ * start and end are addresses of ucode blob in non-WPR region*/
+
+int gm20b_bootstrap_hs_flcn(struct nvkm_pmu *ppmu)
+{
+	int i, err = 0, offset = 0;
+	u64 *acr_dmem;
+	u32 img_size_in_bytes = 0;
+	u32 size;
+	u64 start;
+	struct gk20a_pmu_priv *pmu = to_gk20a_priv(ppmu);
+	struct gm20b_acr *acr = &pmu->acr;
+	const struct firmware *acr_fw = acr->acr_fw;
+	struct flcn_bl_dmem_desc *bl_dmem_desc = &acr->bl_dmem_desc;
+	u32 *acr_ucode_header_t210_load;
+	u32 *acr_ucode_data_t210_load;
+
+	start = acr->ucode_blob_start;
+	size = acr->ucode_blob_size;
+
+	if (!acr_fw) {
+		/*First time init case*/
+		err = gk20a_load_firmware(ppmu, &acr_fw,
+						GM20B_HSBIN_PMU_UCODE_IMAGE);
+		if (err) {
+			nv_error(ppmu, "pmu ucode get fail\n");
+			return -ENOENT;
+		}
+		acr->acr_fw = acr_fw;
+		acr->hsbin_hdr = (struct bin_hdr *)acr_fw->data;
+		acr->fw_hdr = (struct acr_fw_header *)(acr_fw->data +
+				acr->hsbin_hdr->header_offset);
+		acr_ucode_data_t210_load = (u32 *)(acr_fw->data +
+				acr->hsbin_hdr->data_offset);
+		acr_ucode_header_t210_load = (u32 *)(acr_fw->data +
+				acr->fw_hdr->hdr_offset);
+		img_size_in_bytes = ALIGN((acr->hsbin_hdr->data_size), 256);
+
+		/*Lets patch the signatures first..*/
+		if (acr_ucode_patch_sig(ppmu, acr_ucode_data_t210_load,
+					(u32 *)(acr_fw->data +
+						acr->fw_hdr->sig_prod_offset),
+					(u32 *)(acr_fw->data +
+						acr->fw_hdr->sig_dbg_offset),
+					(u32 *)(acr_fw->data +
+						acr->fw_hdr->patch_loc),
+					(u32 *)(acr_fw->data +
+						acr->fw_hdr->patch_sig)) < 0) {
+			nv_error(ppmu, "patch signatures fail\n");
+			err = -1;
+			goto err_release_acr_fw;
+		}
+
+		err = nvkm_gpuobj_new(nv_object(ppmu), NULL,
+				img_size_in_bytes, 0x1000, 0,
+				&acr->acr_ucode.obj);
+		if (err) {
+			nv_error(ppmu, "alloc for acr ucode failed\n");
+			goto err_release_acr_fw;
+		}
+		err = nvkm_gpuobj_map_vm(nv_gpuobj(acr->acr_ucode.obj),
+						pmu->pmuvm.vm,
+						NV_MEM_ACCESS_RW,
+						&acr->acr_ucode.vma);
+		if (err) {
+			nv_error(ppmu, "alloc for acr ucode failed\n");
+			goto err_release_acr_fw;
+		}
+		nv_debug(ppmu, "acr_ucode.vma.offset is: 0x%llX\n",
+			acr->acr_ucode.vma.offset);
+
+		acr_dmem = (u64 *)
+			&(((u8 *)acr_ucode_data_t210_load)[
+					acr_ucode_header_t210_load[2]]);
+		((struct flcn_acr_desc *)acr_dmem)->nonwpr_ucode_blob_start =
+			start;
+		((struct flcn_acr_desc *)acr_dmem)->nonwpr_ucode_blob_size =
+			size;
+		((struct flcn_acr_desc *)acr_dmem)->regions.no_regions = 2;
+		((struct flcn_acr_desc *)acr_dmem)->wpr_offset = 0;
+
+		for (i = 0; i < (img_size_in_bytes/4); i++) {
+			nv_wo32(acr->acr_ucode.obj,
+				offset , acr_ucode_data_t210_load[i]);
+			offset += 4;
+		}
+
+		acr->acr_ucode.size = img_size_in_bytes;
+
+		/* * In order to execute this binary, we will be using
+		   * a bootloader which will load this image into PMU IMEM/DMEM.
+		   * Fill up the bootloader descriptor for PMU HAL to use..*/
+
+
+		bl_dmem_desc->signature[0] = 0;
+		bl_dmem_desc->signature[1] = 0;
+		bl_dmem_desc->signature[2] = 0;
+		bl_dmem_desc->signature[3] = 0;
+		bl_dmem_desc->ctx_dma = GK20A_PMU_DMAIDX_VIRT;
+		bl_dmem_desc->code_dma_base =
+			lower_32_bits(((u64)acr->acr_ucode.vma.offset >> 8));
+		bl_dmem_desc->non_sec_code_off  = acr_ucode_header_t210_load[0];
+		bl_dmem_desc->non_sec_code_size = acr_ucode_header_t210_load[1];
+		bl_dmem_desc->sec_code_off = acr_ucode_header_t210_load[5];
+		bl_dmem_desc->sec_code_size = acr_ucode_header_t210_load[6];
+		bl_dmem_desc->code_entry_point = 0;
+		bl_dmem_desc->data_dma_base =
+			bl_dmem_desc->code_dma_base +
+			((acr_ucode_header_t210_load[2]) >> 8);
+		bl_dmem_desc->data_size = acr_ucode_header_t210_load[3];
+	}
+	err = pmu_exec_gen_bl(ppmu, bl_dmem_desc, 1);
+	if (err)
+		goto err_release_acr_fw;
+
+	return 0;
+err_release_acr_fw:
+	release_firmware(acr_fw);
+	acr->acr_fw = NULL;
+	return err;
+}
 
 int gm20b_boot_secure(struct nvkm_pmu *ppmu)
 {
@@ -1413,6 +1792,12 @@ int gm20b_boot_secure(struct nvkm_pmu *ppmu)
 		nv_error(ppmu, "%s failed\n", __func__);
 		return ret;
 	}
+	ret = gm20b_bootstrap_hs_flcn(ppmu);
+	if (ret) {
+		nv_error(ppmu, "%s failed\n", __func__);
+		return ret;
+	}
+
 	return ret;
 }
 
