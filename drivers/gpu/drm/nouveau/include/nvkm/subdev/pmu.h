@@ -41,6 +41,7 @@ extern struct nvkm_oclass *gk104_pmu_oclass;
 extern struct nvkm_oclass *gk110_pmu_oclass;
 extern struct nvkm_oclass *gk208_pmu_oclass;
 extern struct nvkm_oclass *gk20a_pmu_oclass;
+extern struct nvkm_oclass *gm20b_pmu_oclass;
 
 /* interface to MEMX process running on PMU */
 struct nvkm_memx;
