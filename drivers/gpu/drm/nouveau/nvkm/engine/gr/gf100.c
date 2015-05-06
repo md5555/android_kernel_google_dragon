@@ -33,7 +33,7 @@
 #include <subdev/fb.h>
 #include <subdev/mc.h>
 #include <subdev/timer.h>
-
+#include <subdev/pmu.h>
 #include <nvif/class.h>
 #include <nvif/unpack.h>
 
@@ -1278,22 +1278,27 @@ gf100_gr_init_ctxctl(struct gf100_gr_priv *priv)
 	struct gf100_gr_oclass *oclass = (void *)nv_object(priv)->oclass;
 	struct gf100_grctx_oclass *cclass = (void *)nv_engine(priv)->cclass;
 	int i;
+	struct nvkm_pmu *pmu = nvkm_pmu(priv);
 
 	if (priv->firmware) {
-		/* load fuc microcode */
 		nvkm_mc(priv)->unk260(nvkm_mc(priv), 0);
-		gf100_gr_init_fw(priv, 0x409000, &priv->fuc409c,
-						 &priv->fuc409d);
-		gf100_gr_init_fw(priv, 0x41a000, &priv->fuc41ac,
-						 &priv->fuc41ad);
+		/* load fuc microcode if not done securely*/
+		if (pmu->fecs_secure_boot)
+			pmu->secure_bootstrap(pmu);
+		else
+			gf100_gr_init_fw(priv, 0x409000,
+				&priv->fuc409c, &priv->fuc409d);
+		if (!pmu->gpccs_secure_boot)
+			gf100_gr_init_fw(priv, 0x41a000,
+				&priv->fuc41ac, &priv->fuc41ad);
 		nvkm_mc(priv)->unk260(nvkm_mc(priv), 1);
-
+		nv_debug(priv, "fecs secure boot %d\n", pmu->fecs_secure_boot);
 		/* start both of them running */
 		nv_wr32(priv, 0x409840, 0xffffffff);
 		nv_wr32(priv, 0x41a10c, 0x00000000);
 		nv_wr32(priv, 0x40910c, 0x00000000);
 		nv_wr32(priv, 0x41a100, 0x00000002);
-		nv_wr32(priv, 0x409100, 0x00000002);
+		nv_wr32(priv, 0x409130, 0x2);
 		if (!nv_wait(priv, 0x409800, 0x00000001, 0x00000001))
 			nv_warn(priv, "0x409800 wait failed\n");
 
@@ -1371,7 +1376,6 @@ gf100_gr_init_ctxctl(struct gf100_gr_priv *priv)
 	if (!oclass->fecs.ucode) {
 		return -ENOSYS;
 	}
-
 	/* load HUB microcode */
 	nvkm_mc(priv)->unk260(nvkm_mc(priv), 0);
 	nv_wr32(priv, 0x4091c0, 0x01000000);
@@ -1406,7 +1410,8 @@ gf100_gr_init_ctxctl(struct gf100_gr_priv *priv)
 
 	/* start HUB ucode running, it'll init the GPCs */
 	nv_wr32(priv, 0x40910c, 0x00000000);
-	nv_wr32(priv, 0x409100, 0x00000002);
+	nv_wr32(priv, 0x409130, 0x2);
+	nv_wr32(priv, 0x41a100, 0x00000002);
 	if (!nv_wait(priv, 0x409800, 0x80000000, 0x80000000)) {
 		nv_error(priv, "HUB_INIT timed out\n");
 		gf100_gr_ctxctl_debug(priv);
@@ -1555,6 +1560,7 @@ gf100_gr_ctor_fw(struct gf100_gr_priv *priv, const char *fwname,
 
 	snprintf(f, sizeof(f), "nouveau/nv%02x_%s", device->chipset, fwname);
 	ret = request_firmware(&fw, f, nv_device_base(device));
+	nv_debug(priv, "firmware %s\n", f);
 	if (ret) {
 		snprintf(f, sizeof(f), "nouveau/%s", fwname);
 		ret = request_firmware(&fw, f, nv_device_base(device));
@@ -1574,13 +1580,20 @@ void
 gf100_gr_dtor(struct nvkm_object *object)
 {
 	struct gf100_gr_priv *priv = (void *)object;
+	struct nvkm_pmu *pmu;
 
 	kfree(priv->data);
+	pmu = nvkm_pmu(priv);
 
-	gf100_gr_dtor_fw(&priv->fuc409c);
-	gf100_gr_dtor_fw(&priv->fuc409d);
-	gf100_gr_dtor_fw(&priv->fuc41ac);
-	gf100_gr_dtor_fw(&priv->fuc41ad);
+	if (!pmu->fecs_secure_boot) {
+		gf100_gr_dtor_fw(&priv->fuc409c);
+		gf100_gr_dtor_fw(&priv->fuc409d);
+	}
+
+	if (!pmu->gpccs_secure_boot) {
+		gf100_gr_dtor_fw(&priv->fuc41ac);
+		gf100_gr_dtor_fw(&priv->fuc41ad);
+	}
 
 	nvkm_gpuobj_ref(NULL, &priv->unk4188b8);
 	nvkm_gpuobj_ref(NULL, &priv->unk4188b4);
@@ -1596,11 +1609,13 @@ gf100_gr_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	struct gf100_gr_oclass *oclass = (void *)bclass;
 	struct nvkm_device *device = nv_device(parent);
 	struct gf100_gr_priv *priv;
-	bool use_ext_fw, enable;
+	bool use_ext_fw, enable, ext_fw;
 	int ret, i, j;
+	struct nvkm_pmu *pmu;
 
 	use_ext_fw = nvkm_boolopt(device->cfgopt, "NvGrUseFW",
 				  oclass->fecs.ucode == NULL);
+	ext_fw = false;
 	enable = use_ext_fw || oclass->fecs.ucode != NULL;
 
 	ret = nvkm_gr_create(parent, engine, bclass, enable, &priv);
@@ -1610,17 +1625,29 @@ gf100_gr_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 
 	nv_subdev(priv)->unit = 0x08001000;
 	nv_subdev(priv)->intr = gf100_gr_intr;
+	pmu = nvkm_pmu(priv);
 
 	priv->base.units = gf100_gr_units;
 
 	if (use_ext_fw) {
 		nv_info(priv, "using external firmware\n");
-		if (gf100_gr_ctor_fw(priv, "fuc409c", &priv->fuc409c) ||
-		    gf100_gr_ctor_fw(priv, "fuc409d", &priv->fuc409d) ||
+		nv_debug(priv, "fecs secure boot %d\n", pmu->fecs_secure_boot);
+		if (!pmu->fecs_secure_boot) {
+			ext_fw =
+		    gf100_gr_ctor_fw(priv, "fuc409c", &priv->fuc409c) ||
+		    gf100_gr_ctor_fw(priv, "fuc409d", &priv->fuc409d);
+		}
+
+		if (!pmu->gpccs_secure_boot) {
+			ext_fw = ext_fw ||
 		    gf100_gr_ctor_fw(priv, "fuc41ac", &priv->fuc41ac) ||
-		    gf100_gr_ctor_fw(priv, "fuc41ad", &priv->fuc41ad))
+		    gf100_gr_ctor_fw(priv, "fuc41ad", &priv->fuc41ad);
+		}
+
+		if (!ext_fw)
+			priv->firmware = true;
+		else
 			return -ENODEV;
-		priv->firmware = true;
 	}
 
 	ret = nvkm_gpuobj_new(nv_object(priv), NULL, 0x1000, 256, 0,
