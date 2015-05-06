@@ -55,6 +55,11 @@
 		};
 	};
 
+	gpu@57000000 {
+		status = "okay";
+		vdd-supply = <&max77621_gpu>;
+	};
+
 	udc: udc@7d000000 {
 		status = "okay";
 		// avdd-usb-supply = <&vdd_3v3_reg>;
@@ -269,6 +274,12 @@
 				function = "fps-out";
 				drive-open-drain = <1>;
 				maxim,fps-source = <FPS_SRC_0>;
+			};
+
+			pin_gpio5_6_7 {
+				pins = "gpio5", "gpio6";
+				function = "gpio";
+				drive-push-pull = <1>;
 			};
 
 			pin_32k {
@@ -491,7 +502,9 @@
 		regulator-name = "PPVAR_CPU";
 		regulator-min-microvolt = <850000>;
 		regulator-max-microvolt = <1170000>;
-		// TODO: Add remaining properties.
+		maxim,externally-enable;
+		maxim,external-enable-gpio = <&max77620 5 0>;
+		regulator-always-on;
 	};
 
 	max77621_gpu: pmic@1c {
@@ -500,7 +513,8 @@
 		regulator-name = "PPVAR_GPU";
 		regulator-min-microvolt = <840000>;
 		regulator-max-microvolt = <1150000>;
-		// TODO: Add remaining properties.
+		maxim,externally-enable;
+		maxim,external-enable-gpio = <&max77620 6 0>;
 	};
 };
 
