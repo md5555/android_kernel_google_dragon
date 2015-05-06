@@ -595,7 +595,7 @@ static u32 mux_pllm_pllc2_c_c3_pllp_plla_pllc4_idx[] = {
 	[0] = 0, [1] = 1, [2] = 2, [3] = 3, [4] = 4, [5] = 6, [6] = 7,
 };
 
-/* SOR1 mux'es */
+/* DISP1/2 mux'es */
 static const char *mux_pllp_plld_plld2_clkm[] = {
 	"pll_p", "pll_d_out0", "pll_d2_out0", "clk_m"
 };
