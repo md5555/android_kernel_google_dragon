@@ -757,6 +757,7 @@ int drm_dp_dpcd_read_link_status(struct drm_dp_aux *aux,
  * DisplayPort link
  */
 #define DP_LINK_CAP_ENHANCED_FRAMING (1 << 0)
+#define DP_LINK_CAP_FAST_TRAINING (1 << 1)
 
 struct drm_dp_link {
 	unsigned char revision;

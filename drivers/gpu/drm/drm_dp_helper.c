@@ -486,7 +486,7 @@ EXPORT_SYMBOL(drm_dp_dpcd_read_link_status);
  */
 int drm_dp_link_probe(struct drm_dp_aux *aux, struct drm_dp_link *link)
 {
-	u8 values[3];
+	u8 values[4];
 	int err;
 
 	memset(link, 0, sizeof(*link));
@@ -501,6 +501,9 @@ int drm_dp_link_probe(struct drm_dp_aux *aux, struct drm_dp_link *link)
 
 	if (values[2] & DP_ENHANCED_FRAME_CAP)
 		link->capabilities |= DP_LINK_CAP_ENHANCED_FRAMING;
+
+	if (values[3] & DP_NO_AUX_HANDSHAKE_LINK_TRAINING)
+		link->capabilities |= DP_LINK_CAP_FAST_TRAINING;
 
 	return 0;
 }
