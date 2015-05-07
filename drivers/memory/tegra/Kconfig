@@ -13,3 +13,11 @@ config TEGRA124_EMC
 	help
 	  This driver is for the External Memory Controller(EMC) module
 	  available in Tegra124 SoCs.
+
+config TEGRA210_EMC
+	bool "Tegra210 External Memory Controller(EMC) driver"
+	default y
+	depends on ARCH_TEGRA_210_SOC
+	help
+	  This driver is for the External Memory Controller(EMC) module
+	  available in Tegra210 SoCs.

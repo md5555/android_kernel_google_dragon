@@ -21,6 +21,14 @@
 
 #define TEGRA_EMC_NUM_REGS 46
 
+enum {
+	TEGRA_DRAM_OVER_TEMP_NONE = 0,
+	TEGRA_DRAM_OVER_TEMP_REFRESH_X2,
+	TEGRA_DRAM_OVER_TEMP_REFRESH_X4,
+	TEGRA_DRAM_OVER_TEMP_THROTTLE, /* 4x Refresh + derating. */
+	TEGRA_DRAM_OVER_TEMP_MAX,
+};
+
 enum emc_user_id {
 	EMC_USER_DC1 = 0,
 	EMC_USER_DC2,
@@ -78,6 +86,25 @@ static inline unsigned long tegra124_predict_emc_rate(int millivolts)
 { return -ENODEV; }
 static inline const struct emc_clk_ops *tegra124_emc_get_ops(void)
 { return NULL; }
+#endif
+
+#ifdef CONFIG_TEGRA210_EMC
+void tegra210_emc_timing_invalidate(void);
+bool tegra210_emc_is_ready(void);
+unsigned long tegra210_predict_emc_rate(int millivolts);
+const struct emc_clk_ops *tegra210_emc_get_ops(void);
+int tegra210_emc_get_dram_temp(void);
+int tegra210_emc_set_over_temp_state(unsigned long state);
+#else
+static inline void tegra210_emc_timing_invalidate(void) { return; };
+static inline bool tegra210_emc_is_ready(void) { return true; };
+static inline unsigned long tegra210_predict_emc_rate(int millivolts)
+{ return -ENODEV; }
+static inline const struct emc_clk_ops *tegra210_emc_get_ops(void)
+{ return NULL; }
+static inline int tegra210_emc_get_dram_temp(void) {return -ENODEV; };
+static inline int tegra210_emc_set_over_temp_state(unsigned long state)
+{ return -ENODEV; }
 #endif
 
 static __maybe_unused inline int tegra_mc_get_effective_bytes_width(void)
