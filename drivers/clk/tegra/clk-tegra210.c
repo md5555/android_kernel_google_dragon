@@ -26,6 +26,8 @@
 #include <dt-bindings/clock/tegra210-car.h>
 #include <dt-bindings/reset/tegra210-car.h>
 
+#include <soc/tegra/tegra_emc.h>
+
 #include "clk.h"
 #include "clk-id.h"
 
@@ -255,7 +257,8 @@ static unsigned long tegra210_input_freq[] = {
 };
 
 static const char *mux_pllmcp_clkm[] = {
-	"pll_m", "pll_c", "pll_p", "clk_m", "pll_m_ud", "pll_c2", "pll_c3",
+	"pll_m", "pll_c", "pll_p", "clk_m", "pll_m", "pll_mb", "pll_mb",
+	"pll_p",
 };
 #define mux_pllmcp_clkm_idx NULL
 
@@ -2543,6 +2546,26 @@ static void tegra210_utmi_param_configure(void __iomem *clk_base)
 	writel_relaxed(reg, clk_base + UTMIPLL_HW_PWRDN_CFG0);
 }
 
+static struct tegra_clk_periph tegra_emc_periph =
+	TEGRA_CLK_PERIPH(29, 7, 0, 0, 8, 1, 0, TEGRA210_CLK_EMC, 0, NULL, NULL);
+
+static __init void tegra210_emc_clk_init(void __iomem *clk_base)
+{
+	struct clk *clk;
+	const struct emc_clk_ops *emc_ops;
+
+	emc_ops = tegra210_emc_get_ops();
+	clk = tegra_clk_register_emc("emc", mux_pllmcp_clkm,
+		ARRAY_SIZE(mux_pllmcp_clkm), &tegra_emc_periph, clk_base,
+		CLK_SOURCE_EMC, CLK_IGNORE_UNUSED | CLK_GET_RATE_NOCACHE,
+		emc_ops);
+	clks[TEGRA210_CLK_EMC] = clk;
+
+	clk = tegra_clk_register_mc("mc", "emc", clk_base + CLK_SOURCE_EMC,
+		&emc_lock);
+	clks[TEGRA210_CLK_MC] = clk;
+}
+
 static __init void tegra210_periph_clk_init(void __iomem *clk_base,
 					    void __iomem *pmc_base)
 {
@@ -2569,16 +2592,6 @@ static __init void tegra210_periph_clk_init(void __iomem *clk_base,
 					     clk_base, 0, 82,
 					     periph_clk_enb_refcnt);
 	clks[TEGRA210_CLK_DSIB] = clk;
-
-	/* emc mux */
-	clk = clk_register_mux(NULL, "emc_mux", mux_pllmcp_clkm,
-			       ARRAY_SIZE(mux_pllmcp_clkm), 0,
-			       clk_base + CLK_SOURCE_EMC,
-			       29, 3, 0, &emc_lock);
-
-	clk = tegra_clk_register_mc("mc", "emc_mux", clk_base + CLK_SOURCE_EMC,
-				    &emc_lock);
-	clks[TEGRA210_CLK_MC] = clk;
 
 	/* cml0 */
 	clk = clk_register_gate(NULL, "cml0", "pll_e", 0, clk_base + PLLE_AUX,
@@ -3111,6 +3124,7 @@ static void __init tegra210_clock_init(struct device_node *np)
 	tegra_fixed_clk_init(tegra210_clks);
 	tegra210_pll_init(clk_base, pmc_base);
 	tegra210_periph_clk_init(clk_base, pmc_base);
+	tegra210_emc_clk_init(clk_base);
 	tegra_audio_clk_init(clk_base, pmc_base, tegra210_clks,
 			     tegra210_audio_plls,
 			     ARRAY_SIZE(tegra210_audio_plls));
