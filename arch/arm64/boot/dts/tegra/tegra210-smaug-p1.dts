@@ -1,6 +1,7 @@
 /dts-v1/;
 
 #include "tegra210-smaug.dtsi"
+#include "tegra210-smaug-emc.dtsi"
 
 / {
 	model = "Google Tegra210 Smaug Rev 1+";
