@@ -2750,9 +2750,6 @@ int sdhci_runtime_suspend_host(struct sdhci_host *host)
 	mmc_retune_timer_stop(host->mmc);
 	mmc_retune_needed(host->mmc);
 
-	if (host->mmc->qos)
-		pm_qos_update_request(host->mmc->qos, PM_QOS_DEFAULT_VALUE);
-
 	spin_lock_irqsave(&host->lock, flags);
 	host->ier &= SDHCI_INT_CARD_INT;
 	sdhci_writel(host, host->ier, SDHCI_INT_ENABLE);
