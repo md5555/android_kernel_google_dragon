@@ -187,8 +187,8 @@ static void fence_check_cb_func(struct fence *f, struct fence_cb *cb)
 		wake_up_all(&fence->wq);
 }
 
-/* TODO: implement a create which takes more that one sync_pt */
-struct sync_fence *sync_fence_create(const char *name, struct sync_pt *pt)
+/* TODO: implement a create which takes more that one pt */
+struct sync_fence *sync_fence_create(const char *name, struct fence *pt)
 {
 	struct sync_fence *fence;
 
@@ -199,10 +199,11 @@ struct sync_fence *sync_fence_create(const char *name, struct sync_pt *pt)
 	fence->num_fences = 1;
 	atomic_set(&fence->status, 1);
 
-	fence->cbs[0].sync_pt = &pt->base;
+	fence_get(pt);
+	fence->cbs[0].sync_pt = pt;
 	fence->cbs[0].fence = fence;
-	if (fence_add_callback(&pt->base, &fence->cbs[0].cb,
-			       fence_check_cb_func))
+	if (fence_add_callback(pt, &fence->cbs[0].cb,
+				fence_check_cb_func))
 		atomic_dec(&fence->status);
 
 	sync_fence_debug_add(fence);
