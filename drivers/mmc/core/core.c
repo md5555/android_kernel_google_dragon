@@ -1960,6 +1960,7 @@ static int mmc_do_erase(struct mmc_card *card, unsigned int from,
 	fr = from;
 	nr = to - from + 1;
 	trace_mmc_blk_erase_start(arg, fr, nr);
+	mmc_retune_hold(card->host);
 
 	/*
 	 * qty is used to calculate the erase timeout which depends on how many
@@ -2066,6 +2067,7 @@ static int mmc_do_erase(struct mmc_card *card, unsigned int from,
 out:
 
 	trace_mmc_blk_erase_end(arg, fr, nr);
+	mmc_retune_release(card->host);
 	return err;
 }
 
