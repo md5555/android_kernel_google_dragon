@@ -76,7 +76,7 @@ int nouveau_runtime_pm = -1;
 module_param_named(runpm, nouveau_runtime_pm, int, 0400);
 
 MODULE_PARM_DESC(staging, "enable staging APIs");
-int nouveau_staging = 0;
+int nouveau_staging = 1;
 module_param_named(staging, nouveau_staging, int, 0400);
 
 static struct drm_driver driver_stub;
