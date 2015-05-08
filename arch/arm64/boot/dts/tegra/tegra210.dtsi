@@ -37,6 +37,7 @@
 		#address-cells = <2>;
 		#size-cells = <2>;
 
+		iommus = <&mc TEGRA_SWGROUP_HC>;
 		ranges = <0x0 0x54000000 0x0 0x54000000 0x0 0x0c000000>;
 
 		dc@54200000 {
