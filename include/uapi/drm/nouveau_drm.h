@@ -161,8 +161,11 @@ struct drm_nouveau_gem_cpu_fini {
 #define DRM_NOUVEAU_GEM_CPU_PREP       0x42
 #define DRM_NOUVEAU_GEM_CPU_FINI       0x43
 #define DRM_NOUVEAU_GEM_INFO           0x44
-/* range 0x90..DRM_COMMAND_END is reserved for staging, unstable ioctls */
-#define DRM_NOUVEAU_STAGING_IOCTL      0x90
+/*
+ * range (0x50+DRM_COMMAND_BASE)..DRM_COMMAND_END is reserved for staging,
+ * unstable ioctls
+ */
+#define DRM_NOUVEAU_STAGING_IOCTL      0x50
 #define DRM_NOUVEAU_GEM_SET_TILING     (DRM_NOUVEAU_STAGING_IOCTL + 0x0)
 #define DRM_NOUVEAU_GEM_PUSHBUF_2      (DRM_NOUVEAU_STAGING_IOCTL + 0x1)
 
