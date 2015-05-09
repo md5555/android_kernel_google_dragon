@@ -15,6 +15,15 @@
 
 #include "sched.h"
 
+/**
+ * sched_idle_set_state - Record idle state for the current CPU.
+ * @idle_state: State to record.
+ */
+void sched_idle_set_state(struct cpuidle_state *idle_state)
+{
+	idle_set_state(this_rq(), idle_state);
+}
+
 static int __read_mostly cpu_idle_force_poll;
 
 void cpu_idle_poll_ctrl(bool enable)
@@ -161,18 +170,12 @@ static void cpuidle_idle_call(void)
 	    clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_ENTER, &dev->cpu))
 		goto use_default;
 
-	/* Take note of the planned idle state. */
-	idle_set_state(this_rq(), &drv->states[next_state]);
-
 	/*
 	 * Enter the idle state previously returned by the governor decision.
 	 * This function will block until an interrupt occurs and will take
 	 * care of re-enabling the local interrupts
 	 */
 	entered_state = cpuidle_enter(drv, dev, next_state);
-
-	/* The cpu is no longer idle or about to enter idle. */
-	idle_set_state(this_rq(), NULL);
 
 	if (broadcast)
 		clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_EXIT, &dev->cpu);
