@@ -19,7 +19,6 @@
 
 #include <linux/cpu_pm.h>
 #include <linux/interrupt.h>
-#include <linux/init.h>
 #include <linux/io.h>
 #include <linux/irqchip/arm-gic.h>
 #include <linux/irq.h>
@@ -28,10 +27,10 @@
 #include <linux/of.h>
 #include <linux/syscore_ops.h>
 
-#include <soc/tegra/fuse.h>
 #include <soc/tegra/iomap.h>
 
-#include "irqchip.h"
+#include "board.h"
+#include <soc/tegra/fuse.h>
 
 #define ICTLR_CPU_IEP_VFIQ	0x08
 #define ICTLR_CPU_IEP_FIR	0x14
@@ -285,19 +284,16 @@ static const struct of_device_id gic_matches[] = {
 	{ }
 };
 
-static int __init tegra_irq_init(struct device_node *np,
-				 struct device_node *parent)
+void __init tegra_init_irq(void)
 {
 	unsigned int max_ictlrs = ARRAY_SIZE(ictlr_regs), i;
 	const struct of_device_id *match;
-	struct device_node *gic;
+	struct device_node *np;
 	struct resource res;
 
+	np = of_find_matching_node_and_match(NULL, ictlr_matches, &match);
 	if (np) {
-		const struct tegra_ictlr_soc *soc;
-
-		match = of_match_node(ictlr_matches, np);
-		soc = match->data;
+		const struct tegra_ictlr_soc *soc = match->data;
 
 		for (i = 0; i < soc->num_ictlrs; i++) {
 			if (of_address_to_resource(np, i, &res) < 0)
@@ -311,6 +307,7 @@ static int __init tegra_irq_init(struct device_node *np,
 		     i, soc->num_ictlrs);
 
 		max_ictlrs = soc->num_ictlrs;
+		of_node_put(np);
 	} else {
 		/*
 		 * If no matching device node was found, fall back to using
@@ -327,12 +324,12 @@ static int __init tegra_irq_init(struct device_node *np,
 
 	memset(&res, 0, sizeof(res));
 
-	gic = of_find_matching_node(NULL, gic_matches);
-	if (gic) {
-		if (of_address_to_resource(gic, 0, &res) < 0)
+	np = of_find_matching_node(NULL, gic_matches);
+	if (np) {
+		if (of_address_to_resource(np, 0, &res) < 0)
 			WARN(1, "GIC registers are missing from DT\n");
 
-		of_node_put(gic);
+		of_node_put(np);
 	}
 
 	if (res.start == 0 || res.end == 0) {
@@ -378,36 +375,4 @@ static int __init tegra_irq_init(struct device_node *np,
 	}
 
 	tegra114_gic_cpu_pm_registration();
-
-	pr_info("Tegra Legacy Interrupt Controller initialized.\n");
-
-	return 0;
 }
-#ifdef CONFIG_ARCH_TEGRA_132_SOC
-IRQCHIP_DECLARE(tegra30_irq_chip, "nvidia,tegra30-ictlr", tegra_irq_init);
-IRQCHIP_DECLARE(tegra20_irq_chip, "nvidia,tegra20-ictlr", tegra_irq_init);
-#else
-void __init tegra_init_irq(void)
-{
-	const struct of_device_id *match;
-	struct device_node *np, *parent;
-
-	np = of_find_matching_node_and_match(NULL, ictlr_matches, &match);
-	if (!np) {
-		pr_err("Can't find matching ictrl node\n");
-		return;
-	}
-
-	parent = of_get_parent(np);
-	if (!parent) {
-		pr_err("Can't get ictrl parent\n");
-		of_node_put(np);
-		return;
-	};
-
-	tegra_irq_init(np, parent);
-
-	of_node_put(parent);
-	of_node_put(np);
-}
-#endif

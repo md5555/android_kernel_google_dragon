@@ -126,7 +126,3 @@ config KEYSTONE_IRQ
 	help
 		Support for Texas Instruments Keystone 2 IRQ controller IP which
 		is part of the Keystone 2 IPC mechanism
-
-config TEGRA_IRQC
-	bool
-	depends on ARCH_TEGRA
