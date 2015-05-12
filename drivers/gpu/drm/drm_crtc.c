@@ -4506,7 +4506,9 @@ bool drm_property_change_valid_get(struct drm_property *property,
 		for (i = 0; i < property->num_values; i++)
 			valid_mask |= (1ULL << property->values[i]);
 		return !(value & ~valid_mask);
-	} else if (drm_property_type_is(property, DRM_MODE_PROP_BLOB)) {
+	} else if (drm_property_type_is(property, DRM_MODE_PROP_BLOB) ||
+		   (drm_property_type_is(property, DRM_MODE_PROP_OBJECT) &&
+		    property->values[0] == DRM_MODE_OBJECT_BLOB)) {
 		struct drm_property_blob *blob;
 
 		if (value == 0)
@@ -4555,6 +4557,8 @@ void drm_property_change_valid_put(struct drm_property *property,
 	if (drm_property_type_is(property, DRM_MODE_PROP_OBJECT)) {
 		if (property->values[0] == DRM_MODE_OBJECT_FB)
 			drm_framebuffer_unreference(obj_to_fb(ref));
+		else if (property->values[0] == DRM_MODE_OBJECT_BLOB)
+			drm_property_unreference_blob(obj_to_blob(ref));
 	}
 }
 
