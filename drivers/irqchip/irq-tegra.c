@@ -347,11 +347,9 @@ static int __init tegra_irq_init(struct device_node *np,
 	/*
 	 * On Tegra 132 there are technically 6 controllers, but
 	 * one of them needs to be special cased and so we should
-	 * ignore it here. On T210, its the same case except thre
-	 * are technically 7 controllers.
+	 * ignore it here.
 	 */
-	if (of_machine_is_compatible("nvidia,tegra132") ||
-	    of_machine_is_compatible("nvidia,tegra210"))
+	if (of_machine_is_compatible("nvidia,tegra132"))
 		num_ictlrs--;
 
 	if (num_ictlrs != max_ictlrs) {
