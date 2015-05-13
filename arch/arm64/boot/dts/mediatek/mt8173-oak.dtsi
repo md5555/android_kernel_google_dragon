@@ -103,6 +103,11 @@
 
 &i2c4 {
 	status = "okay";
+
+	thermal@4c {
+		compatible = "ti,tmp432";
+		reg = <0x4c>;
+	};
 };
 
 &pwrap {
