@@ -62,6 +62,12 @@
 
 &i2c2 {
 	status = "okay";
+
+	tpm: tpm@20 {
+		compatible = "infineon,slb9645tt";
+		reg = <0x20>;
+		powered-while-suspended;
+	};
 };
 
 &i2c3 {
