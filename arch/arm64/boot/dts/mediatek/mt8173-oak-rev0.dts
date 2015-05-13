@@ -27,3 +27,7 @@
 &pmic {
 	interrupts = <5 IRQ_TYPE_LEVEL_HIGH>;
 };
+
+&trackpad {
+	interrupts = <7 IRQ_TYPE_LEVEL_LOW>;
+};
