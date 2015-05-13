@@ -12,6 +12,7 @@
 #include <dt-bindings/input/input.h>
 #include <dt-bindings/gpio/gpio.h>
 #include "mt8173.dtsi"
+#include "mt8173-pinfunc.h"
 
 / {
 	aliases {
@@ -48,6 +49,37 @@
 			linux,input-type = <5>; /* EV_SW */
 			debounce-interval = <1>;
 			gpio-key,wakeup;
+		};
+	};
+
+	spi_gpio0: ec@0 {
+		compatible = "spi-gpio";
+		#address-cells = <0x1>;
+		#size-cells = <0>;
+		gpio-sck = <&pio 102 GPIO_ACTIVE_HIGH>;
+		gpio-miso = <&pio 103 GPIO_ACTIVE_HIGH>;
+		gpio-mosi = <&pio 104 GPIO_ACTIVE_HIGH>;
+		cs-gpios = <&pio 105 GPIO_ACTIVE_HIGH>;
+		num-chipselects = <1>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&spi_gpio0_pins>;
+		status = "okay";
+
+		cros_ec: ec@0 {
+			compatible = "google,cros-ec-spi";
+			reg = <0x0>;
+			spi-max-frequency = <18000000>;
+			interrupt-parent = <&pio>;
+			interrupts = <0 IRQ_TYPE_LEVEL_LOW>;
+			google,cros-ec-spi-msg-delay = <500>;
+			google,cros-ec-spi-pre-delay = <500>;
+
+			i2c_tunnel: i2c-tunnel {
+				compatible = "google,cros-ec-i2c-tunnel";
+				google,remote-bus = <0>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+			};
 		};
 	};
 };
@@ -116,6 +148,23 @@
 	thermal@4c {
 		compatible = "ti,tmp432";
 		reg = <0x4c>;
+	};
+};
+
+&pio {
+	spi_gpio0_pins: spi@ec0 {
+		pins1 {
+			pinmux = <MT8173_PIN_102_MSDC2_DAT2__FUNC_GPIO102>,
+				 <MT8173_PIN_103_MSDC2_DAT3__FUNC_GPIO103>,
+				 <MT8173_PIN_104_MSDC2_CLK__FUNC_GPIO104>,
+				 <MT8173_PIN_105_MSDC2_CMD__FUNC_GPIO105>;
+			bias-disable;
+		};
+
+		pins2 {
+			pinmux = <MT8173_PIN_0_EINT0__FUNC_GPIO0>;
+			bias-pull-up;
+		};
 	};
 };
 
