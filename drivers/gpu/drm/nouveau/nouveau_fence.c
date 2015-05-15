@@ -259,12 +259,11 @@ err:
 	func(data);
 }
 
-int
-nouveau_fence_emit(struct nouveau_fence *fence, struct nouveau_channel *chan)
+void
+nouveau_fence_init(struct nouveau_fence *fence, struct nouveau_channel *chan)
 {
 	struct nouveau_fence_chan *fctx = chan->fence;
 	struct nouveau_fence_priv *priv = (void*)chan->drm->fence;
-	int ret;
 
 	fence->channel  = chan;
 	fence->timeout  = jiffies + (15 * HZ);
@@ -276,6 +275,14 @@ nouveau_fence_emit(struct nouveau_fence *fence, struct nouveau_channel *chan)
 		fence_init(&fence->base, &nouveau_fence_ops_legacy,
 			   &fctx->lock, fctx->context, ++fctx->sequence);
 	kref_get(&fctx->fence_ref);
+}
+
+int
+nouveau_fence_emit_initted(struct nouveau_fence *fence,
+			   struct nouveau_channel *chan)
+{
+	struct nouveau_fence_chan *fctx = chan->fence;
+	int ret;
 
 	trace_fence_emit(&fence->base);
 	ret = fctx->emit(fence);
@@ -291,6 +298,13 @@ nouveau_fence_emit(struct nouveau_fence *fence, struct nouveau_channel *chan)
 	}
 
 	return ret;
+}
+
+int
+nouveau_fence_emit(struct nouveau_fence *fence, struct nouveau_channel *chan)
+{
+	nouveau_fence_init(fence, chan);
+	return nouveau_fence_emit_initted(fence, chan);;
 }
 
 bool

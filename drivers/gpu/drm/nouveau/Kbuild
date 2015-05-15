@@ -1,4 +1,5 @@
 ccflags-y := -Iinclude/drm
+ccflags-$(CONFIG_SYNC) += -Idrivers/staging/android
 ccflags-y += -I$(src)/include
 ccflags-y += -I$(src)/include/nvkm
 ccflags-y += -I$(src)/nvkm

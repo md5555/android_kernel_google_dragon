@@ -24,6 +24,9 @@
  *
  */
 
+#include <linux/workqueue.h>
+#include <sync.h>
+
 #include "nouveau_drm.h"
 #include "nouveau_dma.h"
 #include "nouveau_fence.h"
@@ -724,6 +727,169 @@ nouveau_gem_pushbuf_reloc_apply(struct nouveau_cli *cli,
 	return ret;
 }
 
+struct nouveau_chan_waiter {
+	struct sync_fence_waiter base;
+	struct nouveau_channel *chan;
+};
+
+struct nouveau_pushbuf_data {
+	struct drm_device *dev;
+	struct drm_file *file_priv;
+	struct nouveau_channel *chan;
+	struct sync_fence *input_fence;
+	struct nouveau_fence *fence;
+	uint32_t nr_push;
+	uint32_t nr_buffers;
+	uint32_t *push;
+	struct drm_nouveau_gem_pushbuf_bo *bo;
+	struct validate_op op;
+	struct list_head queue;
+};
+
+static
+void nouveau_free_pushbuf_data(struct nouveau_pushbuf_data *pb_data)
+{
+	if (pb_data->input_fence)
+		sync_fence_put(pb_data->input_fence);
+
+	if (pb_data->nr_buffers)
+		validate_fini(&pb_data->op, pb_data->fence, pb_data->bo);
+
+	nouveau_fence_unref(&pb_data->fence);
+	u_free(pb_data->push);
+	u_free(pb_data->bo);
+	kfree(pb_data);
+}
+
+static int
+nouveau_gem_do_pushbuf(struct nouveau_pushbuf_data *pb_data)
+{
+	struct nouveau_abi16 *abi16 = nouveau_abi16_get(pb_data->file_priv,
+							pb_data->dev);
+	struct nouveau_cli *cli = nouveau_cli(pb_data->file_priv);
+	struct nouveau_channel *chan = pb_data->chan;
+	uint32_t *push = pb_data->push;
+	int i, ret;
+
+	if (unlikely(!abi16)) {
+		return -ENOMEM;
+	}
+
+	ret = nouveau_dma_wait(chan, pb_data->nr_push + 1, 16);
+	if (ret) {
+		NV_PRINTK(error, cli, "nv50cal_space: %d\n", ret);
+		goto out;
+	}
+
+	for (i = 0; i < pb_data->nr_push * 2; i+=2)
+		nv50_dma_push(chan, push[i], push[i+1]);
+
+	ret = nouveau_fence_emit_initted(pb_data->fence, pb_data->chan);
+	if (ret) {
+		NV_PRINTK(error, cli, "error fencing pushbuf: %d\n", ret);
+		WIND_RING(chan);
+		goto out;
+	}
+
+out:
+	return nouveau_abi16_put(abi16, ret);
+}
+
+
+static void
+nouveau_gem_pushbuf_queue_on_awaken(struct sync_fence *fence,
+				    struct sync_fence_waiter *waiter);
+
+static int
+nouveau_gem_pushbuf_queue_process(struct nouveau_channel *chan)
+{
+	struct nouveau_pushbuf_data *pb_data;
+	struct nouveau_pushbuf_data *next;
+	unsigned long flags;
+	int ret = 0;
+
+	if (!chan)
+		return -EINVAL;
+
+	spin_lock_irqsave(&chan->pushbuf_lock, flags);
+	pb_data = list_first_entry(&chan->pushbuf_queue,
+				   struct nouveau_pushbuf_data, queue),
+	spin_unlock_irqrestore(&chan->pushbuf_lock, flags);
+
+	if (!pb_data)
+		return -EINVAL;
+
+	for (;;) {
+		int fence_status = pb_data->input_fence ?
+				atomic_read(&pb_data->input_fence->status) : 0;
+		if (fence_status <= 0) {
+			if (!ret && fence_status == 0) {
+				ret = nouveau_gem_do_pushbuf(pb_data);
+			}
+
+			spin_lock_irqsave(&chan->pushbuf_lock, flags);
+			next = list_next_entry(pb_data, queue);
+			list_del(&pb_data->queue);
+			next = list_empty(&chan->pushbuf_queue) ? NULL : next;
+			spin_unlock_irqrestore(&chan->pushbuf_lock, flags);
+
+			nouveau_free_pushbuf_data(pb_data);
+			if (ret)
+				return ret;
+		} else {
+			struct nouveau_chan_waiter *waiter;
+
+			waiter = kzalloc(sizeof(*waiter), GFP_KERNEL);
+			if (!waiter)
+				return -ENOMEM;
+
+			waiter->chan = chan;
+			sync_fence_waiter_init(&waiter->base,
+					nouveau_gem_pushbuf_queue_on_awaken);
+			ret = sync_fence_wait_async(pb_data->input_fence,
+						    &waiter->base);
+			if (ret == 1) {
+				ret = 0;
+				kfree(waiter);
+				continue;
+			}
+			ret = 0;
+			break;
+		}
+		pb_data = next;
+		if (pb_data == NULL)
+			break;
+	}
+
+	return ret;
+}
+
+static void
+nouveau_gem_pushbuf_queue_process_work(struct work_struct *work)
+{
+	struct nouveau_channel *chan = container_of(work,
+			struct nouveau_channel,  pushbuf_work);
+	int ret;
+
+	ret = nouveau_gem_pushbuf_queue_process(chan);
+	if (ret)
+		printk(KERN_ERR "nouveau pushbuf_2 failed: %d", ret);
+}
+
+static void
+nouveau_gem_pushbuf_queue_on_awaken(struct sync_fence *fence,
+				    struct sync_fence_waiter *waiter)
+{
+	struct nouveau_chan_waiter *chan_waiter = container_of(waiter,
+			struct nouveau_chan_waiter, base);
+	struct nouveau_channel *chan = chan_waiter->chan;
+
+	INIT_WORK(&chan->pushbuf_work, nouveau_gem_pushbuf_queue_process_work);
+	queue_work(chan->pushbuf_wq, &chan->pushbuf_work);
+
+	kfree(chan_waiter);
+}
+
 int
 nouveau_gem_ioctl_pushbuf_2(struct drm_device *dev, void *data,
                             struct drm_file *file_priv)
@@ -735,10 +901,13 @@ nouveau_gem_ioctl_pushbuf_2(struct drm_device *dev, void *data,
 	struct drm_nouveau_gem_pushbuf_2 *req = data;
 	struct drm_nouveau_gem_pushbuf_bo *bo = NULL;
 	struct nouveau_channel *chan = NULL;
-	struct validate_op op;
+	struct sync_fence *input_fence = NULL;
 	struct nouveau_fence *fence = NULL;
 	uint32_t *push = NULL;
-	int i, ret = 0;
+	struct nouveau_pushbuf_data *pb_data = NULL;
+	unsigned long flags;
+	int run_queue = 0;
+	int ret = 0;
 
 	if (unlikely(!abi16))
 		return -ENOMEM;
@@ -785,61 +954,82 @@ nouveau_gem_ioctl_pushbuf_2(struct drm_device *dev, void *data,
 		}
 	}
 
+	pb_data = kzalloc(sizeof(*pb_data), GFP_KERNEL);
+	if (!pb_data) {
+		ret = -ENOMEM;
+		goto out_push_bo;
+	}
+
 	/* Validate buffer list */
 	ret = nouveau_gem_pushbuf_validate(chan, file_priv, bo, req->buffers,
-					   req->nr_buffers, &op, NULL);
+					   req->nr_buffers, &pb_data->op, NULL);
 	if (ret) {
 		if (ret != -ERESTARTSYS)
 			NV_PRINTK(error, cli, "validate: %d\n", ret);
 
-		goto out_prevalid;
+		goto out_pb_data;
 	}
 
 	if (req->flags & NOUVEAU_GEM_PUSHBUF_2_FENCE_WAIT) {
-		ret = nouveau_fence_sync_fd(req->fence, chan, true);
-		if (ret) {
-			NV_PRINTK(error, cli, "fence wait: %d\n", ret);
-			goto out;
+		input_fence = sync_fence_fdget(req->fence);
+		if (!input_fence) {
+			ret = -EINVAL;
+			goto out_validate;
 		}
 	}
 
-	ret = nouveau_dma_wait(chan, req->nr_push + 1, 16);
-	if (ret) {
-		NV_PRINTK(error, cli, "nv50cal_space: %d\n", ret);
-		goto out;
+	fence = kzalloc(sizeof(*fence), GFP_KERNEL);
+	if (!fence) {
+		ret = -ENOMEM;
+		goto out_input_fence;
 	}
 
-	for (i = 0; i < req->nr_push * 2; i += 2)
-		nv50_dma_push(chan, push[i], push[i + 1]);
-
-	ret = nouveau_fence_new(chan, false, &fence);
-	if (ret) {
-		NV_PRINTK(error, cli, "error fencing pushbuf: %d\n", ret);
-		WIND_RING(chan);
-		goto out;
-	}
+	nouveau_fence_init(fence, chan);
 
 	if (req->flags & NOUVEAU_GEM_PUSHBUF_2_FENCE_EMIT) {
 		struct fence *f = fence_get(&fence->base);
 		ret = nouveau_fence_install(f, "nv-pushbuf", &req->fence);
 
 		if (ret) {
-			fence_put(f);
 			NV_PRINTK(error, cli, "fence install: %d\n", ret);
 			WIND_RING(chan);
-			goto out;
+			goto out_fence;
 		}
 	}
 
-out:
-	if (req->nr_buffers)
-		validate_fini(&op, fence, bo);
+	pb_data->dev = dev;
+	pb_data->file_priv = file_priv;
+	pb_data->chan = chan;
+	pb_data->input_fence = input_fence;
+	pb_data->fence = fence;
+	pb_data->nr_push = req->nr_push;
+	pb_data->nr_buffers = req->nr_buffers;
+	pb_data->push = push;
+	pb_data->bo = bo;
+	ret = nouveau_abi16_put(abi16, ret);
 
+	spin_lock_irqsave(&chan->pushbuf_lock, flags);
+	run_queue = list_empty(&chan->pushbuf_queue);
+	list_add_tail(&pb_data->queue, &chan->pushbuf_queue);
+	spin_unlock_irqrestore(&chan->pushbuf_lock, flags);
+
+	if (run_queue)
+		ret = nouveau_gem_pushbuf_queue_process(chan);
+
+	return ret;
+
+out_fence:
 	nouveau_fence_unref(&fence);
-
-out_prevalid:
-	u_free(bo);
+out_input_fence:
+	sync_fence_put(input_fence);
+out_validate:
+	if (req->nr_buffers)
+		validate_fini(&pb_data->op, fence, bo);
+out_pb_data:
+	kfree(pb_data);
+out_push_bo:
 	u_free(push);
+	u_free(bo);
 
 	return nouveau_abi16_put(abi16, ret);
 }

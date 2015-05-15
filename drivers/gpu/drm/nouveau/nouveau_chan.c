@@ -63,6 +63,11 @@ nouveau_channel_del(struct nouveau_channel **pchan)
 {
 	struct nouveau_channel *chan = *pchan;
 	if (chan) {
+		if (chan->pushbuf_wq) {
+			while (!list_empty(&chan->pushbuf_queue))
+				nouveau_channel_idle(chan);
+			destroy_workqueue(chan->pushbuf_wq);
+		}
 		if (chan->fence) {
 			nouveau_channel_idle(chan);
 			nouveau_fence(chan->drm)->context_del(chan);
@@ -418,6 +423,10 @@ nouveau_channel_new(struct nouveau_drm *drm, struct nvif_device *device,
 		NV_PRINTK(error, cli, "channel failed to initialise, %d\n", ret);
 		nouveau_channel_del(pchan);
 	}
+
+	spin_lock_init(&(*pchan)->pushbuf_lock);
+	INIT_LIST_HEAD(&(*pchan)->pushbuf_queue);
+	(*pchan)->pushbuf_wq = create_singlethread_workqueue("nouveau_channel pushbuf workqueue");
 
 done:
 	cli->base.super = super;

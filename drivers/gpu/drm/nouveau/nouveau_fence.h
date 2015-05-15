@@ -22,6 +22,10 @@ int  nouveau_fence_new(struct nouveau_channel *, bool sysmem,
 		       struct nouveau_fence **);
 void nouveau_fence_unref(struct nouveau_fence **);
 
+void nouveau_fence_init(struct nouveau_fence *fence,
+			struct nouveau_channel *chan);
+int  nouveau_fence_emit_initted(struct nouveau_fence *fence,
+				struct nouveau_channel *chan);
 int  nouveau_fence_emit(struct nouveau_fence *, struct nouveau_channel *);
 bool nouveau_fence_done(struct nouveau_fence *);
 void nouveau_fence_work(struct fence *, void (*)(void *), void *);

@@ -38,6 +38,11 @@ struct nouveau_channel {
 	u32 user_put;
 
 	struct nvif_object *object;
+
+	spinlock_t pushbuf_lock;
+	struct list_head pushbuf_queue;
+	struct workqueue_struct *pushbuf_wq;
+	struct work_struct pushbuf_work;
 };
 
 
