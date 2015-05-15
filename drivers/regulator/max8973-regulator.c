@@ -39,6 +39,7 @@
 #include <linux/i2c.h>
 #include <linux/slab.h>
 #include <linux/regmap.h>
+#include <linux/gpio/consumer.h>
 
 /* Register definitions */
 #define MAX8973_VOUT					0x0
@@ -111,6 +112,7 @@ struct max8973_chip {
 	int curr_gpio_val;
 	struct regulator_ops ops;
 	enum device_id id;
+	struct gpio_desc *external_control_gpio;
 };
 
 /*
@@ -483,6 +485,7 @@ static int max8973_probe(struct i2c_client *client,
 	struct max8973_chip *max;
 	unsigned int chip_id;
 	int ret;
+	int output;
 
 	pdata = client->dev.platform_data;
 	if (!pdata && client->dev.of_node)
@@ -542,12 +545,38 @@ static int max8973_probe(struct i2c_client *client,
 	max->desc.uV_step = MAX8973_VOLATGE_STEP;
 	max->desc.n_voltages = MAX8973_BUCK_N_VOLTAGE;
 
+	max->external_control_gpio =
+		devm_gpiod_get_optional(&client->dev, "maxim,external-control");
+	if (IS_ERR(max->external_control_gpio)) {
+		dev_err(&client->dev, "cannot get external-control %ld\n",
+			PTR_ERR(max->external_control_gpio));
+		return PTR_ERR(max->external_control_gpio);
+	}
+
 	if (!pdata->enable_ext_control) {
 		max->desc.enable_reg = MAX8973_VOUT;
 		max->desc.enable_mask = MAX8973_VOUT_ENABLE;
 		max->ops.enable = regulator_enable_regmap;
 		max->ops.disable = regulator_disable_regmap;
 		max->ops.is_enabled = regulator_is_enabled_regmap;
+
+		/*
+		 * External control is not configured, but external pin is
+		 * provided so ensure it does not affect regulator state.
+		 * (EN Pin to LOW for MAX8973, nSHDN pin HIGH for MAX77621)
+		 */
+		if (max->external_control_gpio) {
+			output = (max->id == MAX77621) ? 1 : 0;
+			ret =
+			  gpiod_direction_output_raw(max->external_control_gpio,
+				output);
+			if (ret < 0) {
+				dev_err(max->dev,
+					"cannot set external-control-gpios %d\n",
+					ret);
+				return ret;
+			}
+		}
 	}
 
 	max->dvs_gpio = pdata->dvs_gpio;

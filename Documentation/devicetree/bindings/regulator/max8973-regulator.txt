@@ -13,6 +13,14 @@ Optional properties:
 
 -maxim,externally-enable: boolean, externally control the regulator output
 		enable/disable.  Otherwise, enable/disable via I2C registers.
+-maxim,external-control-gpios: gpio, can be provided to configure a gpio for the
+		enable/shutdown pin.  If "maxim,externally-enable" is NOT set,
+		the pin will be set to a non-interfering state so that I2C
+		registers control the regulator enabling/disabling.
+			- max8973: Has enable pin.  Will be set LOW if
+				provided and no "maxim,externally-enable"
+			- max77621: Has shutdown pin.  Will be set HIGH
+				if provided and no "maxim,externally,enable"
 -maxim,dvs-gpios: GPIO which is connected to DVS pin of device.
 -maxim,dvs-default-state: Default state of GPIO during initialisation.
 		1 for HIGH and 0 for LOW.
