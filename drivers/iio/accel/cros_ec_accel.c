@@ -710,6 +710,9 @@ static int ec_accel_probe(struct platform_device *pdev)
 			case MOTIONSENSE_TYPE_GYRO:
 				channel->type = IIO_ANGL_VEL;
 				break;
+			case MOTIONSENSE_TYPE_MAG:
+				channel->type = IIO_MAGN;
+				break;
 			default:
 				dev_warn(&pdev->dev, "unknown\n");
 			}
