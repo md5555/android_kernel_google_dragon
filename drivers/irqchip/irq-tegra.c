@@ -92,9 +92,10 @@ static struct tegra_ictlr_info *lic;
 
 static inline void tegra_ictlr_write_mask(struct irq_data *d, unsigned long reg)
 {
-	void __iomem *base = d->chip_data;
+	void __iomem *base;
 	u32 mask;
 
+	base = lic->base[(d->hwirq - 32) / 32];
 	mask = BIT(d->hwirq % 32);
 	writel_relaxed(mask, base + reg);
 }
