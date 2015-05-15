@@ -370,7 +370,7 @@ static irqreturn_t si114x_irq(int irq, void *private)
 		return IRQ_HANDLED;
 
 	if (iio_buffer_enabled(indio_dev))
-		iio_trigger_poll_chained(indio_dev->trig, 0);
+		iio_trigger_poll_chained(indio_dev->trig);
 	else {
 		data->got_data = true;
 		wake_up_interruptible(&data->data_avail);
@@ -652,7 +652,13 @@ static inline unsigned int si114x_leds(struct si114x_data *data)
 	.type = IIO_LIGHT, \
 	.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) | \
 			      BIT(IIO_CHAN_INFO_HARDWAREGAIN), \
-	.scan_type = IIO_ST('u', 16, 16, 0), \
+	.scan_type = { \
+		.sign = 'u', \
+		.realbits = 16, \
+		.storagebits = 16, \
+		.shift = 0, \
+		.endianness = IIO_LE, \
+	}, \
 	.scan_index = _si, \
 	.address = SI114X_REG_ALSVIS_DATA0, \
 }
@@ -663,7 +669,13 @@ static inline unsigned int si114x_leds(struct si114x_data *data)
 			      BIT(IIO_CHAN_INFO_HARDWAREGAIN), \
 	.modified = 1, \
 	.channel2 = IIO_MOD_LIGHT_IR, \
-	.scan_type = IIO_ST('u', 16, 16, 0), \
+	.scan_type = { \
+		.sign = 'u', \
+		.realbits = 16, \
+		.storagebits = 16, \
+		.shift = 0, \
+		.endianness = IIO_LE, \
+	}, \
 	.scan_index = _si, \
 	.address = SI114X_REG_ALSIR_DATA0 \
 }
@@ -671,7 +683,13 @@ static inline unsigned int si114x_leds(struct si114x_data *data)
 #define SI114X_TEMP_CHANNEL(_si) { \
 	.type = IIO_TEMP, \
 	.info_mask_separate = BIT(IIO_CHAN_INFO_RAW), \
-	.scan_type = IIO_ST('u', 16, 16, 0), \
+	.scan_type = { \
+		.sign = 'u', \
+		.realbits = 16, \
+		.storagebits = 16, \
+		.shift = 0, \
+		.endianness = IIO_LE, \
+	}, \
 	.scan_index = _si, \
 	.address = SI114X_REG_AUX_DATA0 \
 }
@@ -682,7 +700,13 @@ static inline unsigned int si114x_leds(struct si114x_data *data)
 	.channel = _ch, \
 	.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) | \
 			      BIT(IIO_CHAN_INFO_HARDWAREGAIN), \
-	.scan_type = IIO_ST('u', 16, 16, 0), \
+	.scan_type = { \
+		.sign = 'u', \
+		.realbits = 16, \
+		.storagebits = 16, \
+		.shift = 0, \
+		.endianness = IIO_LE, \
+	}, \
 	.scan_index = _si, \
 	.address = SI114X_REG_PS1_DATA0 + _ch*2 \
 }
