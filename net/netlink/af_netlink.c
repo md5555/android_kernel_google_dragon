@@ -1103,6 +1103,7 @@ static int netlink_insert(struct sock *sk, struct net *net, u32 portid)
 	if (err) {
 		if (err == -EEXIST)
 			err = -EADDRINUSE;
+		nlk_sk(sk)->portid = 0;
 		sock_put(sk);
 	}
 
