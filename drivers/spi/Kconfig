@@ -517,6 +517,13 @@ config SPI_TEGRA114
 	  is different than the older SoCs SPI controller and also register interface
 	  get changed with this controller.
 
+config QSPI_TEGRA210
+	tristate "Nvidia Tegra210 QSPI Controller"
+	depends on ARCH_TEGRA && TEGRA20_APB_DMA
+	help
+	  QSPI driver for Nvidia Tegra210 QSPI Controller interface. This controller
+	  is different from the spi controller and first time introduces on Tegra210 soc.
+
 config SPI_TEGRA20_SFLASH
 	tristate "Nvidia Tegra20 Serial flash Controller"
 	depends on ARCH_TEGRA || COMPILE_TEST
