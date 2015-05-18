@@ -3,6 +3,7 @@
 #include <dt-bindings/pinctrl/pinctrl-tegra.h>
 #include <dt-bindings/thermal/thermal.h>
 #include <dt-bindings/input/input.h>
+#include <dt-bindings/soc/tegra-pmc.h>
 
 #include "tegra210.dtsi"
 #include "tegra210-audio.dtsi"
@@ -192,6 +193,8 @@
 			linux,code = <KEY_POWER>;
 			debounce-interval = <30>;
 			gpio-key,wakeup;
+			nvidia,pmc-wakeup = <&pmc
+				PMC_WAKE_TYPE_GPIO 24 PMC_TRIGGER_TYPE_NONE>;
 		};
 
 		lid {
@@ -200,6 +203,8 @@
 			linux,input-type = <5>; /* EV_SW */
 			linux,code = <0>; /* SW_LID */
 			gpio-key,wakeup;
+			nvidia,pmc-wakeup = <&pmc
+				PMC_WAKE_TYPE_GPIO 3 PMC_TRIGGER_TYPE_NONE>;
 		};
 
 		dock {
@@ -208,6 +213,8 @@
 			linux,input-type = <5>; /* EV_SW */
 			linux,code = <5>; /* SW_DOCK */
 			gpio-key,wakeup;
+			nvidia,pmc-wakeup = <&pmc
+				PMC_WAKE_TYPE_GPIO 36 PMC_TRIGGER_TYPE_NONE>;
 		};
 
 		volume_down {
@@ -542,6 +549,8 @@
 		compatible = "maxim,max77620";
 		reg = <0x3c>;
 		interrupts = <0 86 IRQ_TYPE_NONE>;
+		nvidia,pmc-wakeup = <&pmc
+				PMC_WAKE_TYPE_EVENT 51 PMC_TRIGGER_TYPE_LOW>;
 
 		#interrupt-cells = <2>;
 		interrupt-controller;
