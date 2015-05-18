@@ -432,7 +432,9 @@ static void tegra_plane_destroy(struct drm_plane *plane)
 }
 
 static const u32 tegra_primary_plane_formats[] = {
+	DRM_FORMAT_ABGR8888,
 	DRM_FORMAT_XBGR8888,
+	DRM_FORMAT_ARGB8888,
 	DRM_FORMAT_XRGB8888,
 	DRM_FORMAT_RGB565,
 	DRM_FORMAT_BGR565,
@@ -872,7 +874,9 @@ static const struct drm_plane_funcs tegra_overlay_plane_funcs = {
 };
 
 static const uint32_t tegra_overlay_plane_formats[] = {
+	DRM_FORMAT_ABGR8888,
 	DRM_FORMAT_XBGR8888,
+	DRM_FORMAT_ARGB8888,
 	DRM_FORMAT_XRGB8888,
 	DRM_FORMAT_RGB565,
 	DRM_FORMAT_BGR565,
