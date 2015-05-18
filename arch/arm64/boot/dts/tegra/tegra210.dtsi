@@ -24,6 +24,7 @@
 		serial1 = &uartb;
 		serial2 = &uartc;
 		serial3 = &uartd;
+		qspi6 = &qspi6;
 	};
 
 	host1x@50000000 {
@@ -440,6 +441,21 @@
 		resets = <&tegra_car 68>;
 		reset-names = "spi";
 		dmas = <&apbdma 18>, <&apbdma 18>;
+		dma-names = "rx", "tx";
+		status = "disabled";
+	};
+
+	qspi6: spi@70410000 {
+		compatible = "nvidia,tegra210-qspi";
+		reg = <0x0 0x70410000 0x0 0x1000>;
+		interrupts = <GIC_SPI 10 IRQ_TYPE_LEVEL_HIGH>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		clocks = <&tegra_car TEGRA210_CLK_QSPI>;
+		clock-names = "qspi";
+		resets = <&tegra_car 211>;
+		reset-names = "qspi";
+		dmas = <&apbdma 5>, <&apbdma 5>;
 		dma-names = "rx", "tx";
 		status = "disabled";
 	};
