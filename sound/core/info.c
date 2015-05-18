@@ -606,22 +606,51 @@ int snd_info_card_create(struct snd_card *card)
 	return 0;
 }
 
+/* register all pending info entries */
+static int snd_info_register_recursive(struct snd_info_entry *entry)
+{
+	struct snd_info_entry *p;
+	int err;
+
+	if (!entry->p) {
+		err = snd_info_register(entry);
+		if (err < 0)
+			return err;
+	}
+
+	list_for_each_entry(p, &entry->children, list) {
+		err = snd_info_register_recursive(p);
+		if (err < 0)
+			return err;
+	}
+
+	return 0;
+}
+
 /*
  * register the card proc file
  * called from init.c
+ * can be called multiple times for reinitialization
  */
 int snd_info_card_register(struct snd_card *card)
 {
 	struct proc_dir_entry *p;
+	int err;
 
 	if (snd_BUG_ON(!card))
 		return -ENXIO;
 
+	err = snd_info_register_recursive(card->proc_root);
+	if (err < 0)
+		return err;
+
 	if (!strcmp(card->id, card->proc_root->name))
 		return 0;
 
+	if (card->proc_root_link)
+		return 0;
 	p = proc_symlink(card->id, snd_proc_root, card->proc_root->name);
-	if (p == NULL)
+	if (!p)
 		return -ENOMEM;
 	card->proc_root_link = p;
 	return 0;
@@ -796,6 +825,8 @@ struct snd_info_entry *snd_info_create_module_entry(struct module * module,
 	if (entry) {
 		entry->module = module;
 		entry->parent = parent;
+		if (parent)
+			list_add_tail(&entry->list, &parent->children);
 	}
 	return entry;
 }
@@ -821,6 +852,8 @@ struct snd_info_entry *snd_info_create_card_entry(struct snd_card *card,
 		entry->module = card->module;
 		entry->card = card;
 		entry->parent = parent;
+		if (parent)
+			list_add_tail(&entry->list, &parent->children);
 	}
 	return entry;
 }
@@ -905,8 +938,6 @@ int snd_info_register(struct snd_info_entry * entry)
 		proc_set_size(p, entry->size);
 	}
 	entry->p = p;
-	if (entry->parent)
-		list_add_tail(&entry->list, &entry->parent->children);
 	mutex_unlock(&info_mutex);
 	return 0;
 }
