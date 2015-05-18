@@ -58,6 +58,8 @@ struct nvkm_mmu {
 		       struct nvkm_mem *, u32 pte, u32 cnt, dma_addr_t *);
 	void (*unmap)(struct nvkm_gpuobj *pgt, u32 pte, u32 cnt);
 	void (*flush)(struct nvkm_vm *);
+
+	const u8 *storage_type_map;
 };
 
 static inline struct nvkm_mmu *

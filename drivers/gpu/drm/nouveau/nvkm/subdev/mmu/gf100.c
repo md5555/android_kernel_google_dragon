@@ -133,7 +133,7 @@ gf100_vm_map_sg(struct nvkm_vma *vma, struct nvkm_gpuobj *pgt,
 {
 	u32 target = (vma->access & NV_MEM_ACCESS_NOSNOOP) ? 7 : 5;
 	/* compressed storage types are invalid for system memory */
-	u32 memtype = gf100_pte_storage_type_map[mem->memtype & 0xff];
+	u32 memtype = vma->vm->mmu->storage_type_map[mem->memtype & 0xff];
 
 	pte <<= 3;
 	while (cnt--) {
@@ -222,6 +222,7 @@ gf100_mmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	priv->base.map_sg = gf100_vm_map_sg;
 	priv->base.unmap = gf100_vm_unmap;
 	priv->base.flush = gf100_vm_flush;
+	priv->base.storage_type_map = gf100_pte_storage_type_map;
 	return 0;
 }
 

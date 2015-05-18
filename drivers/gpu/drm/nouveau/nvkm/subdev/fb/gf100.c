@@ -25,13 +25,13 @@
 
 #include <core/device.h>
 
-extern const u8 gf100_pte_storage_type_map[256];
-
 bool
 gf100_fb_memtype_valid(struct nvkm_fb *pfb, u32 tile_flags)
 {
+	struct nvkm_mmu *mmu = nvkm_mmu(pfb);
+
 	u8 memtype = (tile_flags & 0x0000ff00) >> 8;
-	return likely((gf100_pte_storage_type_map[memtype] != 0xff));
+	return likely((mmu->storage_type_map[memtype] != 0xff));
 }
 
 static void
