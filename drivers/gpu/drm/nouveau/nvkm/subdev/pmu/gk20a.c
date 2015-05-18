@@ -61,8 +61,6 @@
 		(((id) < PMU_UNIT_END) || ((id) >= PMU_UNIT_TEST_START))
 #define PMU_DMEM_ALIGNMENT		(4)
 
-#define BUSY_SLOT	0
-#define CLK_SLOT	7
 #define GK20A_PMU_UCODE_IMAGE	"gpmu_ucode.bin"
 
 /*Choices for pmu_state*/
@@ -303,7 +301,15 @@ gk20a_pmu_dvfs_reset_dev_status(struct gk20a_pmu_priv *priv)
 	nv_wr32(priv, 0x10a508 + (CLK_SLOT * 0x10), 0x80000000);
 }
 
-static void
+void
+gk20a_pmu_dvfs_init(struct gk20a_pmu_priv *priv)
+{
+	nv_wr32(priv, 0x10a504 + (BUSY_SLOT * 0x10), 0x00200001);
+	nv_wr32(priv, 0x10a50c + (BUSY_SLOT * 0x10), 0x00000002);
+	nv_wr32(priv, 0x10a50c + (CLK_SLOT * 0x10), 0x00000003);
+}
+
+void
 gk20a_pmu_dvfs_work(struct nvkm_alarm *alarm)
 {
 	struct gk20a_pmu_priv *priv =
@@ -828,9 +834,7 @@ gk20a_pmu_init(struct nvkm_object *object)
 	if (ret)
 		return ret;
 
-	nv_wr32(priv, 0x10a504 + (BUSY_SLOT * 0x10), 0x00200001);
-	nv_wr32(priv, 0x10a50c + (BUSY_SLOT * 0x10), 0x00000002);
-	nv_wr32(priv, 0x10a50c + (CLK_SLOT * 0x10), 0x00000003);
+	gk20a_pmu_dvfs_init(priv);
 
 	nvkm_timer_alarm(priv, 2000000000, &priv->alarm);
 
@@ -874,8 +878,7 @@ gk20a_pmu_dtor(struct nvkm_object *object)
 	nvkm_gpuobj_ref(NULL, &priv->pmuvm.mem);
 }
 
-static struct gk20a_pmu_dvfs_data
-gk20a_dvfs_data = {
+struct gk20a_pmu_dvfs_data gk20a_dvfs_data = {
 	.p_load_target = 70,
 	.p_load_max = 90,
 	.p_smooth = 1,

@@ -18,6 +18,9 @@
 #include <subdev/timer.h>
 #include <subdev/mc.h>
 
+#define BUSY_SLOT	0
+#define CLK_SLOT	7
+
 #define GK20A_PMU_UCODE_NB_MAX_OVERLAY	    32
 #define GK20A_PMU_UCODE_NB_MAX_DATE_LENGTH  64
 
@@ -246,6 +249,11 @@ void
 gk20a_pmu_copy_to_dmem(struct gk20a_pmu_priv *priv, u32 dst,
 					u8 *src, u32 size, u8 port);
 
+void
+gk20a_pmu_dvfs_init(struct gk20a_pmu_priv *priv);
+
+void
+gk20a_pmu_dvfs_work(struct nvkm_alarm *alarm);
 
 #define to_gk20a_priv(ptr) container_of(ptr, struct gk20a_pmu_priv, base)
 

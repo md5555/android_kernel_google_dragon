@@ -1785,6 +1785,7 @@ err_release_acr_fw:
 
 int gm20b_boot_secure(struct nvkm_pmu *ppmu)
 {
+	struct gk20a_pmu_priv *priv = to_gk20a_priv(ppmu);
 	int ret;
 
 	ret = gm20b_prepare_ucode_blob(ppmu);
@@ -1798,8 +1799,13 @@ int gm20b_boot_secure(struct nvkm_pmu *ppmu)
 		return ret;
 	}
 
+	/* Have to re-init the idle count ctrl after secure boot */
+	gk20a_pmu_dvfs_init(priv);
+
 	return ret;
 }
+
+extern struct gk20a_pmu_dvfs_data gk20a_dvfs_data;
 
 static int
 gm20b_pmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
@@ -1818,12 +1824,18 @@ gm20b_pmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	ppmu = &priv->base;
 	mc = ioremap(TEGRA_MC_BASE, 0x00000d00);
 
+	priv->data = &gk20a_dvfs_data;
+	nvkm_alarm_init(&priv->alarm, gk20a_pmu_dvfs_work);
+
 	return ret;
 }
 
 static int
 gm20b_pmu_fini(struct nvkm_object *object, bool suspend)
 {
+	struct gk20a_pmu_priv *priv = (void *)object;
+	nvkm_timer_alarm_cancel(priv, &priv->alarm);
+
 	return 0;
 }
 
@@ -1861,6 +1873,10 @@ gm20b_pmu_init(struct nvkm_object *object) {
 	ppmu->secure_bootstrap = gm20b_boot_secure;
 	ppmu->fecs_secure_boot = true;
 	ppmu->gpccs_secure_boot = false;
+
+	gk20a_pmu_dvfs_init(priv);
+
+	nvkm_timer_alarm(priv, 2000000000, &priv->alarm);
 
 	return ret;
 }
