@@ -582,6 +582,65 @@
 		status = "disabled";
 	};
 
+	xusb: usb@0,70098000 {
+		compatible = "nvidia,tegra210-xusb";
+		reg = <0x0 0x70098000 0x0 0x1000>;
+		ranges;
+		status = "disabled";
+
+		#address-cells = <2>;
+		#size-cells = <2>;
+
+		usb-host@0,70090000 {
+			compatible = "nvidia,tegra210-xhci";
+			reg = <0x0 0x70090000 0x0 0x8000>,
+			      <0x0 0x70099000 0x0 0x1000>;
+			interrupts = <GIC_SPI 39 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&tegra_car TEGRA210_CLK_XUSB_HOST>,
+				 <&tegra_car TEGRA210_CLK_XUSB_HOST_SRC>,
+				 <&tegra_car TEGRA210_CLK_XUSB_FALCON_SRC>,
+				 <&tegra_car TEGRA210_CLK_XUSB_SS>,
+				 <&tegra_car TEGRA210_CLK_XUSB_SS_DIV2>,
+				 <&tegra_car TEGRA210_CLK_XUSB_SS_SRC>,
+				 <&tegra_car TEGRA210_CLK_XUSB_HS_SRC>,
+				 <&tegra_car TEGRA210_CLK_XUSB_FS_SRC>,
+				 <&tegra_car TEGRA210_CLK_PLL_U_480M>,
+				 <&tegra_car TEGRA210_CLK_CLK_M>,
+				 <&tegra_car TEGRA210_CLK_PLL_E>;
+			clock-names = "xusb_host", "xusb_host_src",
+				      "xusb_falcon_src", "xusb_ss",
+				      "xusb_ss_div2", "xusb_ss_src",
+				      "xusb_hs_src", "xusb_fs_src",
+				      "pll_u_480m", "clk_m", "pll_e";
+			resets = <&tegra_car 89>, <&tegra_car 156>,
+				 <&tegra_car 143>;
+			reset-names = "xusb_host", "xusb_ss", "xusb_src";
+			mboxes = <&xusb_mbox>;
+			mbox-names = "xusb";
+		};
+
+		xusb_mbox: mailbox {
+			compatible = "nvidia,tegra210-xusb-mbox";
+			interrupts = <GIC_SPI 40 IRQ_TYPE_LEVEL_HIGH>;
+			#mbox-cells = <0>;
+		};
+	};
+
+	padctl: padctl@0,7009f000 {
+		compatible = "nvidia,tegra210-xusb-padctl";
+		reg = <0x0 0x7009f000 0x0 0x1000>;
+		clocks = <&tegra_car TEGRA210_CLK_HSIC_TRK>,
+			 <&tegra_car TEGRA210_CLK_USB2_TRK>,
+			 <&tegra_car TEGRA210_CLK_PLL_E>;
+		clock-names = "hsic_trk", "usb2_trk", "pll_e";
+		resets = <&tegra_car 142>, <&tegra_car 204>, <&tegra_car 205>;
+		reset-names = "padctl", "sata_uphy", "pex_uphy";
+		mboxes = <&xusb_mbox>;
+		mbox-names = "xusb";
+
+		#phy-cells = <1>;
+	};
+
 	udc: udc@7d000000 {
 		compatible = "nvidia,tegra210-udc";
 		reg = <0x0 0x7d000000 0x0 0x4000>,
