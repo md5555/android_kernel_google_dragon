@@ -104,6 +104,7 @@
 #define PLLE_AUX_SEQ_ENABLE	BIT(24)
 #define PLLE_AUX_SEQ_START_STATE BIT(25)
 #define PLLE_AUX_PLLRE_SEL	BIT(28)
+#define PLLE_AUX_SS_SEQ_INCLUDE	BIT(31)
 
 #define XUSBIO_PLL_CFG0		0x51c
 #define XUSBIO_PLL_CFG0_PADPLL_RESET_SWCTL	BIT(0)
@@ -2117,7 +2118,7 @@ static int clk_plle_tegra210_enable(struct clk_hw *hw)
 		spin_lock_irqsave(pll->lock, flags);
 
 	val = pll_readl_base(pll);
-	val &= ~BIT(29); /* Disable lock override */
+	val &= ~BIT(30); /* Disable lock override */
 	pll_writel_base(val, pll);
 
 	val = pll_readl(pll->params->aux_reg, pll);
@@ -2175,7 +2176,7 @@ static int clk_plle_tegra210_enable(struct clk_hw *hw)
 	pll_writel_misc(val, pll);
 
 	val = pll_readl(pll->params->aux_reg, pll);
-	val |= (PLLE_AUX_USE_LOCKDET | PLLE_AUX_SEQ_START_STATE);
+	val |= (PLLE_AUX_USE_LOCKDET | PLLE_AUX_SS_SEQ_INCLUDE);
 	val &= ~(PLLE_AUX_ENABLE_SWCTL | PLLE_AUX_SS_SWCTL);
 	pll_writel(val, pll->params->aux_reg, pll);
 	udelay(1);
