@@ -1,4 +1,4 @@
-#include <dt-bindings/clock/tegra124-car.h>
+#include <dt-bindings/clock/tegra210-car.h>
 #include <dt-bindings/memory/tegra210-mc.h>
 #include <dt-bindings/gpio/tegra-gpio.h>
 #include <dt-bindings/pinctrl/pinctrl-tegra.h>
@@ -104,7 +104,7 @@
 			     <GIC_SPI 141 IRQ_TYPE_LEVEL_HIGH>,
 			     <GIC_SPI 142 IRQ_TYPE_LEVEL_HIGH>,
 			     <GIC_SPI 143 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&tegra_car TEGRA124_CLK_APBDMA>;
+		clocks = <&tegra_car TEGRA210_CLK_APBDMA>;
 		resets = <&tegra_car 34>;
 		reset-names = "dma";
 		#dma-cells = <1>;
@@ -148,7 +148,7 @@
 		reg = <0x0 0x70006000 0x0 0x40>;
 		reg-shift = <2>;
 		interrupts = <GIC_SPI 36 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&tegra_car TEGRA124_CLK_UARTA>;
+		clocks = <&tegra_car TEGRA210_CLK_UARTA>;
 		resets = <&tegra_car 6>;
 		reset-names = "serial";
 		dmas = <&apbdma 8>, <&apbdma 8>;
@@ -161,7 +161,7 @@
 		reg = <0x0 0x70006040 0x0 0x40>;
 		reg-shift = <2>;
 		interrupts = <GIC_SPI 37 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&tegra_car TEGRA124_CLK_UARTB>;
+		clocks = <&tegra_car TEGRA210_CLK_UARTB>;
 		resets = <&tegra_car 7>;
 		reset-names = "serial";
 		dmas = <&apbdma 9>, <&apbdma 9>;
@@ -174,7 +174,7 @@
 		reg = <0x0 0x70006200 0x0 0x40>;
 		reg-shift = <2>;
 		interrupts = <GIC_SPI 46 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&tegra_car TEGRA124_CLK_UARTC>;
+		clocks = <&tegra_car TEGRA210_CLK_UARTC>;
 		resets = <&tegra_car 55>;
 		reset-names = "serial";
 		dmas = <&apbdma 10>, <&apbdma 10>;
@@ -187,7 +187,7 @@
 		reg = <0x0 0x70006300 0x0 0x40>;
 		reg-shift = <2>;
 		interrupts = <GIC_SPI 90 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&tegra_car TEGRA124_CLK_UARTD>;
+		clocks = <&tegra_car TEGRA210_CLK_UARTD>;
 		resets = <&tegra_car 65>;
 		reset-names = "serial";
 		dmas = <&apbdma 19>, <&apbdma 19>;
@@ -208,7 +208,7 @@
 		interrupts = <GIC_SPI 59 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <1>;
 		#size-cells = <0>;
-		clocks = <&tegra_car TEGRA124_CLK_SBC1>;
+		clocks = <&tegra_car TEGRA210_CLK_SBC1>;
 		clock-names = "spi";
 		resets = <&tegra_car 41>;
 		reset-names = "spi";
@@ -223,7 +223,7 @@
 		interrupts = <GIC_SPI 82 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <1>;
 		#size-cells = <0>;
-		clocks = <&tegra_car TEGRA124_CLK_SBC2>;
+		clocks = <&tegra_car TEGRA210_CLK_SBC2>;
 		clock-names = "spi";
 		resets = <&tegra_car 44>;
 		reset-names = "spi";
@@ -238,7 +238,7 @@
 		interrupts = <GIC_SPI 83 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <1>;
 		#size-cells = <0>;
-		clocks = <&tegra_car TEGRA124_CLK_SBC3>;
+		clocks = <&tegra_car TEGRA210_CLK_SBC3>;
 		clock-names = "spi";
 		resets = <&tegra_car 46>;
 		reset-names = "spi";
@@ -253,7 +253,7 @@
 		interrupts = <GIC_SPI 93 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <1>;
 		#size-cells = <0>;
-		clocks = <&tegra_car TEGRA124_CLK_SBC4>;
+		clocks = <&tegra_car TEGRA210_CLK_SBC4>;
 		clock-names = "spi";
 		resets = <&tegra_car 68>;
 		reset-names = "spi";
@@ -265,7 +265,7 @@
 	pmc: pmc@7000e400 {
 		compatible = "nvidia,tegra210-pmc";
 		reg = <0x0 0x7000e400 0x0 0x400>;
-		clocks = <&tegra_car TEGRA124_CLK_PCLK>;
+		clocks = <&tegra_car TEGRA210_CLK_PCLK>;
 		clock-names = "pclk";
 		status = "disabled";
 	};
@@ -316,7 +316,7 @@
 		interrupts = <GIC_SPI 38 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <1>;
 		#size-cells = <0>;
-		clocks = <&tegra_car TEGRA124_CLK_I2C1>;
+		clocks = <&tegra_car TEGRA210_CLK_I2C1>;
 		clock-names = "div-clk";
 		resets = <&tegra_car 12>;
 		reset-names = "i2c";
@@ -333,7 +333,7 @@
 		interrupts = <GIC_SPI 84 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <1>;
 		#size-cells = <0>;
-		clocks = <&tegra_car TEGRA124_CLK_I2C2>;
+		clocks = <&tegra_car TEGRA210_CLK_I2C2>;
 		clock-names = "div-clk";
 		resets = <&tegra_car 54>;
 		reset-names = "i2c";
@@ -350,7 +350,7 @@
 		interrupts = <GIC_SPI 92 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <1>;
 		#size-cells = <0>;
-		clocks = <&tegra_car TEGRA124_CLK_I2C3>;
+		clocks = <&tegra_car TEGRA210_CLK_I2C3>;
 		clock-names = "div-clk";
 		resets = <&tegra_car 67>;
 		reset-names = "i2c";
@@ -367,7 +367,7 @@
 		interrupts = <GIC_SPI 120 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <1>;
 		#size-cells = <0>;
-		clocks = <&tegra_car TEGRA124_CLK_I2C4>;
+		clocks = <&tegra_car TEGRA210_CLK_I2C4>;
 		clock-names = "div-clk";
 		resets = <&tegra_car 103>;
 		reset-names = "i2c";
@@ -384,7 +384,7 @@
 		interrupts = <GIC_SPI 53 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <1>;
 		#size-cells = <0>;
-		clocks = <&tegra_car TEGRA124_CLK_I2C5>;
+		clocks = <&tegra_car TEGRA210_CLK_I2C5>;
 		clock-names = "div-clk";
 		resets = <&tegra_car 47>;
 		reset-names = "i2c";
@@ -404,7 +404,7 @@
 		interrupts = <GIC_SPI 63 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <1>;
 		#size-cells = <0>;
-		clocks = <&tegra_car TEGRA124_CLK_I2C6>;
+		clocks = <&tegra_car TEGRA210_CLK_I2C6>;
 		clock-names = "div-clk";
 		resets = <&tegra_car 166>;
 		reset-names = "i2c";
@@ -431,7 +431,7 @@
 		compatible = "nvidia,tegra210-sdhci", "nvidia,tegra132-sdhci";
 		reg = <0x0 0x700b0600 0x0 0x200>;
 		interrupts = <GIC_SPI 31 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&tegra_car TEGRA124_CLK_SDMMC4>;
+		clocks = <&tegra_car TEGRA210_CLK_SDMMC4>;
 		resets = <&tegra_car 15>;
 		reset-names = "sdhci";
 		status = "disabled";
@@ -441,7 +441,7 @@
 		compatible = "nvidia,tegra210-sdhci", "nvidia,tegra132-sdhci";
 		reg = <0x0 0x700b0000 0x0 0x200>;
 		interrupts = <GIC_SPI 14 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&tegra_car TEGRA124_CLK_SDMMC1>;
+		clocks = <&tegra_car TEGRA210_CLK_SDMMC1>;
 		resets = <&tegra_car 14>;
 		reset-names = "sdhci";
 		status = "disabled";
@@ -451,7 +451,7 @@
 		compatible = "nvidia,tegra210-sdhci", "nvidia,tegra132-sdhci";
 		reg = <0x0 0x700b0200 0x0 0x200>;
 		interrupts = <GIC_SPI 15 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&tegra_car TEGRA124_CLK_SDMMC2>;
+		clocks = <&tegra_car TEGRA210_CLK_SDMMC2>;
 		resets = <&tegra_car 9>;
 		reset-names = "sdhci";
 		status = "disabled";
@@ -461,7 +461,7 @@
 		compatible = "nvidia,tegra210-sdhci", "nvidia,tegra132-sdhci";
 		reg = <0x0 0x700b0400 0x0 0x200>;
 		interrupts = <GIC_SPI 19 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&tegra_car TEGRA124_CLK_SDMMC3>;
+		clocks = <&tegra_car TEGRA210_CLK_SDMMC3>;
 		resets = <&tegra_car 69>;
 		reset-names = "sdhci";
 		status = "disabled";
@@ -470,7 +470,7 @@
 	efuse: efuse@7000f800 {
 		compatible = "nvidia,tegra210-efuse";
 		reg = <0x0 0x7000f800 0x0 0x400>;
-		clocks = <&tegra_car TEGRA124_CLK_FUSE>;
+		clocks = <&tegra_car TEGRA210_CLK_FUSE>;
 		clock-names = "fuse";
 		resets = <&tegra_car 39>;
 		reset-names = "fuse";
@@ -481,7 +481,7 @@
 		reg = <0x0 0x7d000000 0x0 0x4000>;
 		interrupts = <GIC_SPI 20 IRQ_TYPE_LEVEL_HIGH>;
 		phy_type = "utmi";
-		clocks = <&tegra_car TEGRA124_CLK_USBD>;
+		clocks = <&tegra_car TEGRA210_CLK_USBD>;
 		resets = <&tegra_car 22>;
 		reset-names = "usb";
 		nvidia,phy = <&phy1>;
@@ -493,9 +493,9 @@
 		reg = <0x0 0x7d000000 0x0 0x4000>,
 		      <0x0 0x7d000000 0x0 0x4000>;
 		phy_type = "utmi";
-		clocks = <&tegra_car TEGRA124_CLK_USBD>,
-			 <&tegra_car TEGRA124_CLK_PLL_U>,
-			 <&tegra_car TEGRA124_CLK_USBD>;
+		clocks = <&tegra_car TEGRA210_CLK_USBD>,
+			 <&tegra_car TEGRA210_CLK_PLL_U>,
+			 <&tegra_car TEGRA210_CLK_USBD>;
 		clock-names = "reg", "pll_u", "utmi-pads";
 		nvidia,hssync-start-delay = <0>;
 		nvidia,idle-wait-delay = <17>;
@@ -615,10 +615,10 @@
 		reg-names = "soctherm-reg", "car-reg", "ccroc-reg";
 		interrupts = <GIC_SPI 48 IRQ_TYPE_LEVEL_HIGH
 			      GIC_SPI 51 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&tegra_car TEGRA124_CLK_TSENSOR>,
-			<&tegra_car TEGRA124_CLK_SOC_THERM>;
+		clocks = <&tegra_car TEGRA210_CLK_TSENSOR>,
+			<&tegra_car TEGRA210_CLK_SOC_THERM>;
 		clock-names = "tsensor", "soctherm";
-		resets = <&tegra_car TEGRA124_CLK_SOC_THERM>;
+		resets = <&tegra_car TEGRA210_CLK_SOC_THERM>;
 		reset-names = "soctherm";
 
 		#thermal-sensor-cells = <1>;
