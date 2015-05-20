@@ -2580,7 +2580,6 @@ int soctherm_suspend(struct device *dev)
 	soctherm_writel(tegra, (u32)-1, THERMCTL_INTR_DISABLE);
 	disable_irq(tegra->edp_irq);
 	disable_irq(tegra->thermal_irq);
-	soctherm_clk_enable(pdev, false);
 
 	return 0;
 }
@@ -2591,6 +2590,7 @@ int soctherm_resume(struct device *dev)
 	struct tegra_soctherm *tegra = platform_get_drvdata(pdev);
 	int err, i;
 
+	soctherm_clk_enable(pdev, false);
 	err = soctherm_init_platform_data(pdev);
 	if (err) {
 		dev_err(&pdev->dev,
