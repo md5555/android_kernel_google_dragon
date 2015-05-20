@@ -63,7 +63,7 @@ static int nouveau_platform_power_up(struct nouveau_platform_gpu *gpu)
 	reset_control_assert(gpu->rst);
 	udelay(10);
 
-	err = tegra_powergate_remove_clamping(TEGRA_POWERGATE_3D);
+	err = tegra_powergate_gpu_set_clamping(false);
 	if (err)
 		goto err_clamp;
 	udelay(10);
