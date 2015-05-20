@@ -1115,6 +1115,23 @@
 		#phy-cells = <1>;
 	};
 
+	xudc: usb-device@0,700d0000 {
+		compatible = "nvidia,tegra210-xudc";
+		reg = <0x0 0x700d0000 0x0 0x8000>,
+		      <0x0 0x700d8000 0x0 0x1000>,
+		      <0x0 0x700d9000 0x0 0x1000>;
+		interrupts = <GIC_SPI 44 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&tegra_car TEGRA210_CLK_XUSB_DEV>,
+			 <&tegra_car TEGRA210_CLK_XUSB_SS>,
+			 <&tegra_car TEGRA210_CLK_PLL_U_480M>,
+			 <&tegra_car TEGRA210_CLK_PLL_E>;
+		clock-names = "xusb_dev", "xusb_ss", "pll_u_480M", "pll_e";
+		resets = <&tegra_car 95>, <&tegra_car 156>;
+		reset-names = "xusb_dev", "xusb_ss";
+		mc = <&mc TEGRA_SWGROUP_XUSB_DEV>;
+		status = "disabled";
+	};
+
 	udc: udc@7d000000 {
 		compatible = "nvidia,tegra210-udc";
 		reg = <0x0 0x7d000000 0x0 0x4000>,
