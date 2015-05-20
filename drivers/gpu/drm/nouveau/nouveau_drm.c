@@ -554,7 +554,7 @@ nouveau_drm_remove(struct pci_dev *pdev)
 	nouveau_drm_device_remove(dev);
 }
 
-static int
+int
 nouveau_do_suspend(struct drm_device *dev, bool runtime)
 {
 	struct nouveau_drm *drm = nouveau_drm(dev);
@@ -570,8 +570,10 @@ nouveau_do_suspend(struct drm_device *dev, bool runtime)
 			return ret;
 	}
 
-	NV_INFO(drm, "evicting buffers...\n");
-	ttm_bo_evict_mm(&drm->ttm.bdev, TTM_PL_VRAM);
+	if (dev->pdev) {
+		NV_INFO(drm, "evicting buffers...\n");
+		ttm_bo_evict_mm(&drm->ttm.bdev, TTM_PL_VRAM);
+	}
 
 	NV_INFO(drm, "waiting for kernel channels to go idle...\n");
 	if (drm->cechan) {
@@ -624,7 +626,7 @@ fail_display:
 	return ret;
 }
 
-static int
+int
 nouveau_do_resume(struct drm_device *dev, bool runtime)
 {
 	struct nouveau_drm *drm = nouveau_drm(dev);
@@ -646,7 +648,8 @@ nouveau_do_resume(struct drm_device *dev, bool runtime)
 		nvif_client_resume(&cli->base);
 	}
 
-	nouveau_run_vbios_init(dev);
+	if (dev->pdev)
+		nouveau_run_vbios_init(dev);
 
 	if (dev->mode_config.num_crtc) {
 		NV_INFO(drm, "resuming display...\n");

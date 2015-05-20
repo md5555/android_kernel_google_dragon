@@ -180,6 +180,8 @@ nouveau_drm(struct drm_device *dev)
 
 int nouveau_pmops_suspend(struct device *);
 int nouveau_pmops_resume(struct device *);
+int nouveau_do_suspend(struct drm_device *dev, bool runtime);
+int nouveau_do_resume(struct drm_device *dev, bool runtime);
 
 #define nouveau_platform_device_create(p, u)                                   \
 	nouveau_platform_device_create_(p, sizeof(**u), (void **)u)
