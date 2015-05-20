@@ -25,11 +25,13 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/of.h>
+#include <linux/of_platform.h>
 #include <linux/reset.h>
 #include <linux/regulator/consumer.h>
 #include <linux/iommu.h>
 #include <soc/tegra/fuse.h>
 #include <soc/tegra/pmc.h>
+#include <soc/tegra/mc.h>
 
 #include "nouveau_drm.h"
 #include "nouveau_platform.h"
@@ -76,7 +78,15 @@ static int nouveau_platform_power_up(struct nouveau_platform_gpu *gpu)
 		goto err_clamp;
 	udelay(10);
 
+	clk_disable_unprepare(gpu->clk);
 	reset_control_deassert(gpu->rst);
+	clk_prepare_enable(gpu->clk);
+	udelay(10);
+
+	tegra_mc_flush(gpu->mc, gpu->mc_flush, true);
+	udelay(10);
+
+	tegra_mc_flush(gpu->mc, gpu->mc_flush, false);
 	udelay(10);
 
 	return 0;
@@ -100,7 +110,15 @@ static int nouveau_platform_power_down(struct nouveau_platform_gpu *gpu)
 {
 	int err;
 
+	tegra_mc_flush(gpu->mc, gpu->mc_flush, true);
+	udelay(10);
+
 	reset_control_assert(gpu->rst);
+	udelay(10);
+
+	err = tegra_powergate_gpu_set_clamping(true);
+	if (err)
+		return err;
 	udelay(10);
 
 	clk_disable_unprepare(gpu->clk_pwr);
@@ -200,6 +218,37 @@ static void nouveau_platform_remove_iommu(struct device *dev,
 
 #endif
 
+static int nouveau_platform_get_mc(struct device *dev,
+		struct tegra_mc **mc, unsigned int *swgroup)
+{
+	struct of_phandle_args args;
+	struct platform_device *pdev;
+	int ret;
+
+	ret = of_parse_phandle_with_fixed_args(dev->of_node, "mc",
+				1, 0, &args);
+	if (ret)
+		return ret;
+
+	pdev = of_find_device_by_node(args.np);
+	if (!pdev)
+		goto err;
+
+	*mc = platform_get_drvdata(pdev);
+	if (!*mc)
+		goto err;
+
+	*swgroup = args.args[0];
+
+	of_node_put(args.np);
+
+	return 0;
+
+err:
+	of_node_put(args.np);
+	return -EINVAL;
+}
+
 static int nouveau_platform_probe(struct platform_device *pdev)
 {
 	struct nouveau_platform_gpu *gpu;
@@ -245,9 +294,19 @@ static int nouveau_platform_probe(struct platform_device *pdev)
 
 	nouveau_platform_probe_iommu(&pdev->dev, gpu);
 
+	err = nouveau_platform_get_mc(&pdev->dev, &gpu->mc, &gpu->swgroup);
+	if (err)
+		goto err_remove_iommu;
+
+	gpu->mc_flush = tegra_mc_flush_get(gpu->mc, gpu->swgroup);
+	if (!gpu->mc_flush) {
+		err = -EINVAL;
+		goto err_remove_iommu;
+	}
+
 	err = nouveau_platform_power_up(gpu);
 	if (err)
-		return err;
+		goto err_flush_put;
 
 	drm = nouveau_platform_device_create(pdev, &device);
 	if (IS_ERR(drm)) {
@@ -270,6 +329,11 @@ err_unref:
 
 power_down:
 	nouveau_platform_power_down(gpu);
+
+err_flush_put:
+	tegra_mc_flush_put(gpu->mc, gpu->swgroup);
+
+err_remove_iommu:
 	nouveau_platform_remove_iommu(&pdev->dev, gpu);
 
 	return err;
@@ -286,6 +350,9 @@ static int nouveau_platform_remove(struct platform_device *pdev)
 	nouveau_drm_device_remove(drm_dev);
 
 	err = nouveau_platform_power_down(gpu);
+
+	tegra_mc_flush_put(gpu->mc, gpu->swgroup);
+	gpu->mc_flush = NULL;
 
 	nouveau_platform_remove_iommu(&pdev->dev, gpu);
 

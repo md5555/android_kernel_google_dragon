@@ -42,6 +42,10 @@ struct nouveau_platform_gpu {
 
 	struct regulator *vdd;
 
+	struct tegra_mc *mc;
+	unsigned int swgroup;
+	const struct tegra_mc_flush *mc_flush;
+
 	struct {
 		/*
 		 * Protects accesses to mm from subsystems
