@@ -26,6 +26,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/reset.h>
 #include <linux/slab.h>
+#include <linux/usb/of.h>
 
 #include <soc/tegra/fuse.h>
 #include <soc/tegra/xusb.h>
@@ -87,6 +88,7 @@
 #define XUSB_PADCTL_USB2_BATTERY_CHRG_OTGPADX_CTL1(x) (0x084 + (x) * 0x40)
 #define XUSB_PADCTL_USB2_BATTERY_CHRG_OTGPAD_CTL1_VREG_LEV_SHIFT 7
 #define XUSB_PADCTL_USB2_BATTERY_CHRG_OTGPAD_CTL1_VREG_LEV_MASK 0x3
+#define XUSB_PADCTL_USB2_BATTERY_CHRG_OTGPAD_CTL1_VREG_LEV_EN 0x1
 #define XUSB_PADCTL_USB2_BATTERY_CHRG_OTGPAD_CTL1_VREG_FIX18 (1 << 6)
 
 #define XUSB_PADCTL_USB2_OTG_PADX_CTL0(x) (0x088 + (x) * 0x40)
@@ -248,6 +250,12 @@
 #define XUSB_PADCTL_UPHY_USB3_PADX_ECTL6(x) (0xa74 + (x) * 0x40)
 #define XUSB_PADCTL_UPHY_USB3_PAD_ECTL6_RX_EQ_CTRL_H_VAL 0xfcf01368
 
+#define XUSB_PADCTL_USB2_VBUS_ID 0xc60
+#define XUSB_PADCTL_USB2_VBUS_ID_ID_OVERRIDE_SHIFT 18
+#define XUSB_PADCTL_USB2_VBUS_ID_ID_OVERRIDE_MASK 0xf
+#define XUSB_PADCTL_USB2_VBUS_ID_ID_OVERRIDE_FLOAT 0x8
+#define XUSB_PADCTL_USB2_VBUS_ID_ID_OVERRIDE_GND 0x0
+#define XUSB_PADCTL_USB2_VBUS_ID_VBUS_OVERRIDE (1 << 14)
 
 struct tegra210_xusb_fuse_calibration {
 	u32 hs_curr_level[4];
@@ -1104,8 +1112,21 @@ static int tegra210_utmi_phy_power_on(struct phy *phy)
 	value = padctl_readl(padctl, XUSB_PADCTL_USB2_PORT_CAP);
 	value &= ~(XUSB_PADCTL_USB2_PORT_CAP_PORT_CAP_MASK <<
 		   XUSB_PADCTL_USB2_PORT_CAP_PORTX_CAP_SHIFT(port));
-	value |= XUSB_PADCTL_USB2_PORT_CAP_HOST <<
-		 XUSB_PADCTL_USB2_PORT_CAP_PORTX_CAP_SHIFT(port);
+	switch (utmi->dr_mode) {
+	case USB_DR_MODE_PERIPHERAL:
+		value |= XUSB_PADCTL_USB2_PORT_CAP_DEVICE <<
+			 XUSB_PADCTL_USB2_PORT_CAP_PORTX_CAP_SHIFT(port);
+		break;
+	case USB_DR_MODE_OTG:
+		value |= XUSB_PADCTL_USB2_PORT_CAP_OTG <<
+			 XUSB_PADCTL_USB2_PORT_CAP_PORTX_CAP_SHIFT(port);
+		break;
+	case USB_DR_MODE_HOST:
+	default:
+		value |= XUSB_PADCTL_USB2_PORT_CAP_HOST <<
+			 XUSB_PADCTL_USB2_PORT_CAP_PORTX_CAP_SHIFT(port);
+		break;
+	}
 	padctl_writel(padctl, value, XUSB_PADCTL_USB2_PORT_CAP);
 
 	value = padctl_readl(padctl, XUSB_PADCTL_USB2_OTG_PADX_CTL0(port));
@@ -1253,6 +1274,55 @@ tegra210_utmi_phy_get_pad_config(struct tegra_xusb_utmi_phy *utmi,
 	value = padctl_readl(padctl, XUSB_PADCTL_USB2_OTG_PADX_CTL1(index));
 	config->rpd_ctrl = (value & XUSB_PADCTL_USB2_OTG_PAD_CTL1_RPD_CTRL_MASK) >>
 		XUSB_PADCTL_USB2_OTG_PAD_CTL1_RPD_CTRL_SHIFT;
+}
+
+static void tegra210_utmi_pad_protect(struct tegra_xusb_utmi_phy *utmi,
+				      bool enable)
+{
+	struct tegra_xusb_padctl *padctl = utmi->padctl;
+	unsigned int port = utmi->index;
+	u32 value;
+
+	value = padctl_readl(padctl,
+			     XUSB_PADCTL_USB2_BATTERY_CHRG_OTGPADX_CTL1(port));
+	value &= ~(XUSB_PADCTL_USB2_BATTERY_CHRG_OTGPAD_CTL1_VREG_FIX18 |
+		   (XUSB_PADCTL_USB2_BATTERY_CHRG_OTGPAD_CTL1_VREG_LEV_MASK <<
+		    XUSB_PADCTL_USB2_BATTERY_CHRG_OTGPAD_CTL1_VREG_LEV_SHIFT));
+	if (enable) {
+		value |= XUSB_PADCTL_USB2_BATTERY_CHRG_OTGPAD_CTL1_VREG_LEV_EN <<
+			 XUSB_PADCTL_USB2_BATTERY_CHRG_OTGPAD_CTL1_VREG_LEV_SHIFT;
+	} else {
+		value |= XUSB_PADCTL_USB2_BATTERY_CHRG_OTGPAD_CTL1_VREG_FIX18;
+	}
+	padctl_writel(padctl, value,
+		      XUSB_PADCTL_USB2_BATTERY_CHRG_OTGPADX_CTL1(port));
+}
+
+static void tegra210_utmi_vbus_override(struct tegra_xusb_utmi_phy *utmi,
+					bool enable)
+{
+	struct tegra_xusb_padctl *padctl = utmi->padctl;
+	u32 value;
+
+	value = padctl_readl(padctl, XUSB_PADCTL_USB2_VBUS_ID);
+	value &= ~(XUSB_PADCTL_USB2_VBUS_ID_ID_OVERRIDE_MASK <<
+		   XUSB_PADCTL_USB2_VBUS_ID_ID_OVERRIDE_SHIFT);
+	if (enable) {
+		/* Enable VBUS override  set ID override to floating. */
+		value |= (XUSB_PADCTL_USB2_VBUS_ID_ID_OVERRIDE_FLOAT <<
+			  XUSB_PADCTL_USB2_VBUS_ID_ID_OVERRIDE_SHIFT) |
+			 XUSB_PADCTL_USB2_VBUS_ID_VBUS_OVERRIDE;
+
+		tegra210_utmi_pad_protect(utmi, true);
+	} else {
+		/* Disable VBUS override, set ID override to grounded. */
+		value &= ~XUSB_PADCTL_USB2_VBUS_ID_VBUS_OVERRIDE;
+		value |= XUSB_PADCTL_USB2_VBUS_ID_ID_OVERRIDE_GND <<
+			 XUSB_PADCTL_USB2_VBUS_ID_ID_OVERRIDE_SHIFT;
+
+		tegra210_utmi_pad_protect(utmi, false);
+	}
+	padctl_writel(padctl, value, XUSB_PADCTL_USB2_VBUS_ID);
 }
 
 static const struct phy_ops tegra210_utmi_phy_ops = {
@@ -1780,6 +1850,7 @@ const struct tegra_xusb_padctl_soc tegra210_xusb_padctl_soc = {
 	.utmi_phy_ops = &tegra210_utmi_phy_ops,
 	.utmi_set_wake = tegra210_utmi_phy_set_wake,
 	.utmi_get_pad_config = tegra210_utmi_phy_get_pad_config,
+	.utmi_vbus_override = tegra210_utmi_vbus_override,
 	.num_hsic_phys = 2,
 	.hsic_phy_ops = &tegra210_hsic_phy_ops,
 	.hsic_set_wake = tegra210_hsic_phy_set_wake,

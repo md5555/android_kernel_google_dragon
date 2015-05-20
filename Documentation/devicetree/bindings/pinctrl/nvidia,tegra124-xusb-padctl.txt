@@ -57,6 +57,7 @@ Required properties for USB3 PHYs:
 
 Optional properties for UTMI PHYs:
 - vbus-supply: regulator providing the VBUS voltage for the UTMI pad
+- dr_mode: must be one of "host", "peripheral", or "otg"
 
 Lane muxing:
 ------------

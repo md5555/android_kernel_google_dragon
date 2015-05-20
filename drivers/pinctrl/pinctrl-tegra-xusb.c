@@ -23,6 +23,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/reset.h>
 #include <linux/slab.h>
+#include <linux/usb/of.h>
 #include <linux/workqueue.h>
 
 #include <soc/tegra/fuse.h>
@@ -735,6 +736,44 @@ tegra_xusb_utmi_phy_get_pad_config(struct phy *phy,
 }
 EXPORT_SYMBOL_GPL(tegra_xusb_utmi_phy_get_pad_config);
 
+int tegra_xusb_utmi_set_vbus_override(struct phy *phy)
+{
+	struct tegra_xusb_utmi_phy *utmi;
+	struct tegra_xusb_padctl *padctl;
+
+	if (!phy)
+		return 0;
+
+	utmi = phy_get_drvdata(phy);
+	padctl = utmi->padctl;
+
+	if (!padctl->soc->utmi_vbus_override)
+		return -ENOTSUPP;
+
+	padctl->soc->utmi_vbus_override(utmi, true);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(tegra_xusb_utmi_set_vbus_override);
+
+int tegra_xusb_utmi_clear_vbus_override(struct phy *phy)
+{
+	struct tegra_xusb_utmi_phy *utmi;
+	struct tegra_xusb_padctl *padctl;
+
+	if (!phy)
+		return 0;
+
+	utmi = phy_get_drvdata(phy);
+	padctl = utmi->padctl;
+
+	if (!padctl->soc->utmi_vbus_override)
+		return -ENOTSUPP;
+
+	padctl->soc->utmi_vbus_override(utmi, false);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(tegra_xusb_utmi_clear_vbus_override);
+
 static inline struct tegra_xusb_padctl *
 mbox_work_to_padctl(struct work_struct *work)
 {
@@ -945,6 +984,7 @@ static struct phy *tegra_xusb_utmi_phy_create(struct tegra_xusb_padctl *padctl,
 	phy_set_drvdata(phy, utmi);
 	utmi->padctl = padctl;
 	utmi->index = index;
+	utmi->dr_mode = of_usb_get_dr_mode(np);
 
 	utmi->supply = devm_regulator_get(&phy->dev, "vbus");
 	if (IS_ERR(utmi->supply))

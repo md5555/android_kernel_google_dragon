@@ -19,6 +19,7 @@
 #include <linux/mailbox_client.h>
 #include <linux/mutex.h>
 #include <linux/pinctrl/pinctrl.h>
+#include <linux/usb/of.h>
 #include <linux/workqueue.h>
 
 #include <soc/tegra/pmc.h>
@@ -68,6 +69,8 @@ struct tegra_xusb_padctl_soc {
 	void (*utmi_set_wake)(struct tegra_xusb_utmi_phy *utmi, bool enable);
 	void (*utmi_get_pad_config)(struct tegra_xusb_utmi_phy *utmi,
 				    struct tegra_utmi_pad_config *config);
+	void (*utmi_vbus_override)(struct tegra_xusb_utmi_phy *utmi,
+				   bool enable);
 
 	const struct phy_ops *hsic_phy_ops;
 	unsigned int num_hsic_phys;
@@ -77,7 +80,6 @@ struct tegra_xusb_padctl_soc {
 	bool (*is_phy_message)(struct tegra_xusb_mbox_msg *msg);
 	void (*handle_message)(struct tegra_xusb_padctl *padctl,
 			       struct tegra_xusb_mbox_msg *msg);
-
 	int (*probe)(struct tegra_xusb_padctl *padctl);
 	void (*remove)(struct tegra_xusb_padctl *padctl);
 
@@ -116,6 +118,7 @@ struct tegra_xusb_utmi_phy {
 
 	u32 hs_curr_level_offset;
 	struct regulator *supply;
+	enum usb_dr_mode dr_mode;
 };
 
 struct tegra_xusb_hsic_phy {
