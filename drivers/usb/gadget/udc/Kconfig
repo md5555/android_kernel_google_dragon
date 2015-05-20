@@ -134,6 +134,18 @@ config USB_TEGRA
 	   dynamically linked module called "tegra_udc" and force all
 	   gadget drivers to also be dynamically linked.
 
+config USB_TEGRA_XUDC
+	tristate "NVIDIA Tegra XUSB Device Controller"
+	depends on ARCH_TEGRA
+	help
+	   NVIDIA's Tegra XUSB device-mode controller, found on Tegra210
+	   and later SoCs.  Supports SuperSpeed USB3.0 and up to 30
+	   configurable endpoints, plus endpoint zero.
+
+	   Say "y" to link the driver statically, or "m" to build a
+	   dynamically linked module called "tegra_xudc" and force all
+	   gadget drivers to also be dynamically linked.
+
 config USB_PXA25X
 	tristate "PXA 25x or IXP 4xx"
 	depends on (ARCH_PXA && PXA25x) || ARCH_IXP4XX
