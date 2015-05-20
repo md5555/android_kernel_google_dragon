@@ -151,6 +151,15 @@
 	};
 };
 
+&i2c_tunnel {
+	battery: sbs-battery@b {
+		compatible = "sbs,sbs-battery";
+		reg = <0xb>;
+		sbs,i2c-retry-count = <2>;
+		sbs,poll-retry-count = <1>;
+	};
+};
+
 &pio {
 	spi_gpio0_pins: spi@ec0 {
 		pins1 {
