@@ -45,3 +45,4 @@ obj-$(CONFIG_INT340X_THERMAL)  += int340x_thermal/
 obj-$(CONFIG_ST_THERMAL)	+= st/
 obj-$(CONFIG_MAX77620_THERMAL)	+= max77620-thermal.o
 obj-y				+= tegra/
+obj-$(CONFIG_HISI_THERMAL)     += hisi_thermal.o
