@@ -391,3 +391,5 @@
 &uart0 {
 	status = "okay";
 };
+
+#include "../../../../arm/boot/dts/cros-ec-keyboard.dtsi"
