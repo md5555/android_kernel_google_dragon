@@ -369,6 +369,66 @@ static const struct of_device_id nouveau_platform_match[] = {
 MODULE_DEVICE_TABLE(of, nouveau_platform_match);
 #endif
 
+static int
+nouveau_platform_pmops_suspend(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct drm_device *drm_dev = platform_get_drvdata(pdev);
+	struct nouveau_drm *drm = nouveau_drm(drm_dev);
+	struct nvkm_device *device = nvxx_device(&drm->device);
+	struct nouveau_platform_gpu *gpu = nv_device_to_platform(device)->gpu;
+	int ret;
+
+	if (drm_dev->switch_power_state == DRM_SWITCH_POWER_OFF ||
+	    drm_dev->switch_power_state == DRM_SWITCH_POWER_DYNAMIC_OFF)
+		return 0;
+
+	ret = nouveau_do_suspend(drm_dev, false);
+	if (ret)
+		return ret;
+
+	ret = nouveau_platform_power_down(gpu);
+	if (ret) {
+		dev_err(dev, "failed to power down gpu (err:%d)\n", ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+static int
+nouveau_platform_pmops_resume(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct drm_device *drm_dev = platform_get_drvdata(pdev);
+	struct nouveau_drm *drm = nouveau_drm(drm_dev);
+	struct nvkm_device *device = nvxx_device(&drm->device);
+	struct nouveau_platform_gpu *gpu = nv_device_to_platform(device)->gpu;
+	int ret;
+
+	if (drm_dev->switch_power_state == DRM_SWITCH_POWER_OFF ||
+	    drm_dev->switch_power_state == DRM_SWITCH_POWER_DYNAMIC_OFF)
+		return 0;
+
+	ret = nouveau_platform_power_up(gpu);
+	if (ret) {
+		dev_err(dev, "failed to power up gpu\n");
+		return ret;
+	}
+
+	ret = nouveau_do_resume(drm_dev, false);
+	if (ret)
+		return ret;
+
+	return 0;
+}
+
+static const struct dev_pm_ops nouveau_platform_pm_ops = {
+	.suspend = nouveau_platform_pmops_suspend,
+	.resume = nouveau_platform_pmops_resume,
+};
+
+
 struct platform_driver nouveau_platform_driver = {
 	.driver = {
 		.name = "nouveau",
@@ -376,4 +436,5 @@ struct platform_driver nouveau_platform_driver = {
 	},
 	.probe = nouveau_platform_probe,
 	.remove = nouveau_platform_remove,
+	.driver.pm = &nouveau_platform_pm_ops,
 };
