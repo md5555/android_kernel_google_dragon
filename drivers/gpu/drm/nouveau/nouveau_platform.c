@@ -322,6 +322,9 @@ static int nouveau_platform_probe(struct platform_device *pdev)
 	if (err < 0)
 		goto err_unref;
 
+	if (nouveau_runtime_pm != 0)
+		pm_runtime_enable(&pdev->dev);
+
 	return 0;
 
 err_unref:
@@ -346,6 +349,10 @@ static int nouveau_platform_remove(struct platform_device *pdev)
 	struct nvkm_device *device = nvxx_device(&drm->device);
 	struct nouveau_platform_gpu *gpu = nv_device_to_platform(device)->gpu;
 	int err;
+
+	if (nouveau_runtime_pm != 0)
+		pm_runtime_disable(&pdev->dev);
+
 
 	nouveau_drm_device_remove(drm_dev);
 
@@ -423,9 +430,74 @@ nouveau_platform_pmops_resume(struct device *dev)
 	return 0;
 }
 
+static int
+nouveau_platform_pmops_runtime_suspend(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct drm_device *drm_dev = platform_get_drvdata(pdev);
+	struct nouveau_drm *drm = nouveau_drm(drm_dev);
+	struct nvkm_device *device = nvxx_device(&drm->device);
+	struct nouveau_platform_gpu *gpu = nv_device_to_platform(device)->gpu;
+	int ret;
+
+	ret = nouveau_do_suspend(drm_dev, true);
+	if (ret) {
+		dev_err(dev, "failed to suspend drm device (err:%d)\n", ret);
+		return ret;
+	}
+
+	ret = nouveau_platform_power_down(gpu);
+	if (ret) {
+		dev_err(dev, "failed to power down gpu (err:%d)\n", ret);
+		return ret;
+	}
+
+	drm_dev->switch_power_state = DRM_SWITCH_POWER_DYNAMIC_OFF;
+	return ret;
+}
+
+static int
+nouveau_platform_pmops_runtime_resume(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct drm_device *drm_dev = platform_get_drvdata(pdev);
+	struct nouveau_drm *drm = nouveau_drm(drm_dev);
+	struct nvkm_device *device = nvxx_device(&drm->device);
+	struct nouveau_platform_gpu *gpu = nv_device_to_platform(device)->gpu;
+	int ret;
+
+	ret = nouveau_platform_power_up(gpu);
+	if (ret) {
+		dev_err(dev, "failed to power up gpu\n");
+		return ret;
+	}
+
+	ret = nouveau_do_resume(drm_dev, true);
+	if (ret) {
+		dev_err(dev, "failed to resume\n");
+		return ret;
+	}
+
+	drm_dev->switch_power_state = DRM_SWITCH_POWER_ON;
+	return ret;
+}
+
+static int
+nouveau_platform_pmops_runtime_idle(struct device *dev)
+{
+	pm_runtime_mark_last_busy(dev);
+	pm_runtime_autosuspend(dev);
+
+	return 1;
+}
+
+
 static const struct dev_pm_ops nouveau_platform_pm_ops = {
 	.suspend = nouveau_platform_pmops_suspend,
 	.resume = nouveau_platform_pmops_resume,
+	.runtime_suspend = nouveau_platform_pmops_runtime_suspend,
+	.runtime_resume = nouveau_platform_pmops_runtime_resume,
+	.runtime_idle = nouveau_platform_pmops_runtime_idle,
 };
 
 
