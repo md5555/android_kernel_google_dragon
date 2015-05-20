@@ -212,6 +212,10 @@
 	ec@1e {
 		compatible = "google,cros-ec-i2c";
 		reg = <0x1e>;
+
+		extcon {
+			compatible = "google,extcon-cros-ec";
+		};
 	};
 };
 
