@@ -114,6 +114,8 @@ int tegra_powergate_is_powered(int id);
 int tegra_powergate_power_on(int id);
 int tegra_powergate_power_off(int id);
 int tegra_powergate_remove_clamping(int id);
+/* Only for Tegra124 and later */
+int tegra_powergate_gpu_set_clamping(bool assert);
 
 /* Must be called with clk disabled, and returns with clk enabled */
 int tegra_powergate_sequence_power_up(int id, struct clk *clk,

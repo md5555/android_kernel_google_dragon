@@ -245,17 +245,6 @@ int tegra_powergate_remove_clamping(int id)
 		return -EINVAL;
 
 	/*
-	 * On Tegra124 and later, the clamps for the GPU are controlled by a
-	 * separate register (with different semantics).
-	 */
-	if (id == TEGRA_POWERGATE_3D) {
-		if (pmc->soc->has_gpu_clamps) {
-			tegra_pmc_writel(0, GPU_RG_CNTRL);
-			return 0;
-		}
-	}
-
-	/*
 	 * Tegra 2 has a bug where PCIE and VDE clamping masks are
 	 * swapped relatively to the partition ids
 	 */
@@ -271,6 +260,29 @@ int tegra_powergate_remove_clamping(int id)
 	return 0;
 }
 EXPORT_SYMBOL(tegra_powergate_remove_clamping);
+
+/**
+ * tegra_powergate_gpu_set_clamping - control GPU-SOC clamps
+ *
+ * The post-Tegra114 chips have a separate rail gating register to configure
+ * clamps.
+ *
+ * @assert: true to assert clamp, and false to remove
+ */
+int tegra_powergate_gpu_set_clamping(bool assert)
+{
+	if (!pmc->soc)
+		return -EINVAL;
+
+	if (pmc->soc->has_gpu_clamps) {
+		tegra_pmc_writel(assert ? 1 : 0, GPU_RG_CNTRL);
+		tegra_pmc_readl(GPU_RG_CNTRL);
+		return 0;
+	}
+
+	return -EINVAL;
+}
+EXPORT_SYMBOL(tegra_powergate_gpu_set_clamping);
 
 /**
  * tegra_powergate_sequence_power_up() - power up partition
