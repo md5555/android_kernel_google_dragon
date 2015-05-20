@@ -869,17 +869,19 @@
 &sdmmc2 {
 	power-gpios = <&gpio TEGRA_GPIO(H, 1) GPIO_ACTIVE_HIGH>;
 	bus-width = <4>;
-	no-1-8-v;
 	keep-power-in-suspend;
 	non-removable;
+	nvidia,pu-1v8-offset = <0x05>;
+	nvidia,pd-1v8-offset = <0x05>;
 	status = "okay";
 };
 
 &sdmmc4 {
 	bus-width = <8>;
 	non-removable;
-//	vmmc-supply = <&pp3300>;
-//	vqmmc-supply = <&pp1800>;
+	vmmc-supply = <&pp3300>;
+	nvidia,pu-1v8-offset = <0x05>;
+	nvidia,pd-1v8-offset = <0x05>;
 	status = "okay";
 };
 
