@@ -106,13 +106,13 @@ struct max8973_chip {
 	struct regmap *regmap;
 	bool enable_external_control;
 	int dvs_gpio;
+	int ext_control_gpio;
 	int lru_index[MAX8973_MAX_VOUT_REG];
 	int curr_vout_val[MAX8973_MAX_VOUT_REG];
 	int curr_vout_reg;
 	int curr_gpio_val;
 	struct regulator_ops ops;
 	enum device_id id;
-	struct gpio_desc *external_control_gpio;
 };
 
 /*
@@ -484,8 +484,7 @@ static int max8973_probe(struct i2c_client *client,
 	struct regulator_dev *rdev;
 	struct max8973_chip *max;
 	unsigned int chip_id;
-	int ret;
-	int output;
+	int gpio_flags, ret;
 
 	pdata = client->dev.platform_data;
 	if (!pdata && client->dev.of_node)
@@ -545,13 +544,10 @@ static int max8973_probe(struct i2c_client *client,
 	max->desc.uV_step = MAX8973_VOLATGE_STEP;
 	max->desc.n_voltages = MAX8973_BUCK_N_VOLTAGE;
 
-	max->external_control_gpio =
-		devm_gpiod_get_optional(&client->dev, "maxim,external-control");
-	if (IS_ERR(max->external_control_gpio)) {
-		dev_err(&client->dev, "cannot get external-control %ld\n",
-			PTR_ERR(max->external_control_gpio));
-		return PTR_ERR(max->external_control_gpio);
-	}
+	max->ext_control_gpio = of_get_named_gpio(client->dev.of_node,
+				"maxim,external-control-gpio", 0);
+	if (max->ext_control_gpio == -EPROBE_DEFER)
+		return -EPROBE_DEFER;
 
 	if (!pdata->enable_ext_control) {
 		max->desc.enable_reg = MAX8973_VOUT;
@@ -565,17 +561,26 @@ static int max8973_probe(struct i2c_client *client,
 		 * provided so ensure it does not affect regulator state.
 		 * (EN Pin to LOW for MAX8973, nSHDN pin HIGH for MAX77621)
 		 */
-		if (max->external_control_gpio) {
-			output = (max->id == MAX77621) ? 1 : 0;
-			ret =
-			  gpiod_direction_output_raw(max->external_control_gpio,
-				output);
+		if (gpio_is_valid(max->ext_control_gpio)) {
+			gpio_flags = (max->id == MAX77621) ?
+				GPIOF_OUT_INIT_HIGH : GPIOF_OUT_INIT_LOW;
+			ret = devm_gpio_request_one(max->dev,
+				max->ext_control_gpio, gpio_flags,
+				"max8973-enable");
 			if (ret < 0) {
-				dev_err(max->dev,
-					"cannot set external-control-gpios %d\n",
+				dev_err(max->dev, "failed to request external control gpio: %d\n",
 					ret);
 				return ret;
 			}
+		}
+	} else if (gpio_is_valid(max->ext_control_gpio)) {
+		config.ena_gpio = max->ext_control_gpio;
+		if (max->id == MAX77621) {
+			config.ena_gpio_flags = GPIOF_OUT_INIT_HIGH;
+			config.ena_gpio_invert = false;
+		} else {
+			config.ena_gpio_flags = GPIOF_OUT_INIT_LOW;
+			config.ena_gpio_invert = true;
 		}
 	}
 
@@ -587,7 +592,6 @@ static int max8973_probe(struct i2c_client *client,
 	max->lru_index[0] = max->curr_vout_reg;
 
 	if (gpio_is_valid(max->dvs_gpio)) {
-		int gpio_flags;
 		int i;
 
 		gpio_flags = (pdata->dvs_def_state) ?
