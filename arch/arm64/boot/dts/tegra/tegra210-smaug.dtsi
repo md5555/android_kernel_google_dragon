@@ -508,6 +508,7 @@
 		regulator-max-microvolt = <1170000>;
 		maxim,externally-enable;
 		maxim,external-control-gpio = <&max77620 5 0>;
+		maxim,dvs-default-state = <1>;
 		regulator-always-on;
 	};
 
@@ -519,6 +520,7 @@
 		regulator-max-microvolt = <1150000>;
 		maxim,externally-enable;
 		maxim,external-control-gpio = <&max77620 6 0>;
+		maxim,dvs-default-state = <1>;
 	};
 };
 
