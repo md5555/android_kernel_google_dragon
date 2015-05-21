@@ -284,8 +284,10 @@
 			compatible = "regulator-fixed";
 			reg = <3>;
 			regulator-name = "PP3300";
-			regulator-min-microvolt = <3000000>;
-			regulator-max-microvolt = <3000000>;
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-boot-on;
+			regulator-always-on;
 			gpio = <&max77620 3 0>;
 			enable-active-high;
 		};
