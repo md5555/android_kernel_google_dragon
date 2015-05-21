@@ -343,11 +343,12 @@ static int cros_ec_pd_get_num_ports(struct device *dev,
  * @fw: RW FW update file
  * @port: Port# to which update device is attached
  */
-static int cros_ec_pd_fw_update(struct device *dev,
+static int cros_ec_pd_fw_update(struct cros_ec_pd_update_data *drv_data,
 				struct cros_ec_dev *pd_dev,
 				const struct firmware *fw,
 				uint8_t port)
 {
+	struct device *dev = drv_data->dev;
 	int i, ret;
 
 	uint8_t cmd_buf[sizeof(struct ec_params_usb_pd_fw_update) +
@@ -355,6 +356,9 @@ static int cros_ec_pd_fw_update(struct device *dev,
 	struct ec_params_usb_pd_fw_update *pd_cmd =
 		(struct ec_params_usb_pd_fw_update *)cmd_buf;
 	uint8_t *pd_cmd_data = cmd_buf + sizeof(*pd_cmd);
+
+	if (drv_data->is_suspending)
+		return -EBUSY;
 
 	/* Common port */
 	pd_cmd->port = port;
@@ -387,6 +391,9 @@ static int cros_ec_pd_fw_update(struct device *dev,
 	 */
 	msleep(4000);
 
+	if (drv_data->is_suspending)
+		return -EBUSY;
+
 	/*
 	 * Force re-entry into GFU mode for USBPD devices that don't enter
 	 * it by default.
@@ -411,6 +418,8 @@ static int cros_ec_pd_fw_update(struct device *dev,
 	/* Write RW flash */
 	pd_cmd->cmd = USB_PD_FW_FLASH_WRITE;
 	for (i = 0; i < fw->size; i += PD_FLASH_WRITE_STEP) {
+		if (drv_data->is_suspending)
+			return -EBUSY;
 		pd_cmd->size = min(fw->size - i, (size_t)PD_FLASH_WRITE_STEP);
 		memcpy(pd_cmd_data, fw->data + i, pd_cmd->size);
 		ret = cros_ec_pd_send_fw_update_cmd(dev, pd_dev, pd_cmd);
@@ -617,6 +626,10 @@ static void cros_ec_pd_update_check(struct work_struct *work)
 
 	/* Received notification, send command to check on PD status. */
 	for (port = 0; port < drv_data->num_ports; ++port) {
+		/* Don't try to update if we're going to suspend. */
+		if (drv_data->is_suspending)
+			return;
+
 		ret = cros_ec_pd_get_status(dev, pd_ec, port, &hash_entry,
 					    &discovery_entry);
 		if (ret < 0) {
@@ -652,8 +665,10 @@ static void cros_ec_pd_update_check(struct work_struct *work)
 			/* Update firmware */
 			dev_info(dev, "Updating Port%d RW to %s\n", port,
 				 img->filename);
-			cros_ec_pd_fw_update(dev, pd_ec, fw, port);
-			dev_info(dev, "Port%d FW update completed\n", port);
+			ret = cros_ec_pd_fw_update(drv_data, pd_ec, fw, port);
+			dev_info(dev,
+				 "Port%d FW update completed with status %d\n",
+				  port, ret);
 done:
 			release_firmware(fw);
 			break;
@@ -750,6 +765,7 @@ static int cros_ec_pd_add(struct device *dev)
 		goto fail;
 	}
 	drv_data->force_update = 1;
+	drv_data->is_suspending = 0;
 	dev_set_drvdata(dev, drv_data);
 	ret = sysfs_create_groups(&dev->kobj, pd_groups);
 	if (ret) {
@@ -786,6 +802,7 @@ static int cros_ec_pd_resume(struct device *dev)
 
 	if (drv_data) {
 		drv_data->force_update = 1;
+		drv_data->is_suspending = 0;
 		queue_delayed_work(drv_data->workqueue, &drv_data->work,
 			PD_UPDATE_CHECK_DELAY);
 	}
@@ -798,8 +815,10 @@ static int cros_ec_pd_remove(struct device *dev)
 		(struct cros_ec_pd_update_data *)
 		dev_get_drvdata(dev);
 
-	if (drv_data)
-		flush_delayed_work(&drv_data->work);
+	if (drv_data) {
+		drv_data->is_suspending = 1;
+		cancel_delayed_work_sync(&drv_data->work);
+	}
 	return 0;
 }
 
@@ -809,7 +828,8 @@ static int cros_ec_pd_suspend(struct device *dev)
 		(struct cros_ec_pd_update_data *)dev_get_drvdata(dev);
 
 	if (drv_data) {
-		flush_delayed_work(&drv_data->work);
+		drv_data->is_suspending = 1;
+		cancel_delayed_work_sync(&drv_data->work);
 		disable = 0;
 	}
 	return 0;
