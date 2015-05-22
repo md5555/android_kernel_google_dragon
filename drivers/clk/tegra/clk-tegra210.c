@@ -2638,15 +2638,13 @@ static void __init tegra210_pll_init(void __iomem *clk_base,
 
 	/* PLLM */
 	clk = tegra_clk_register_pllm("pll_m", "osc", clk_base, pmc,
-			     CLK_IGNORE_UNUSED | CLK_SET_RATE_GATE,
-			     &pll_m_params, NULL);
+			     CLK_SET_RATE_GATE, &pll_m_params, NULL);
 	clk_register_clkdev(clk, "pll_m", NULL);
 	clks[TEGRA210_CLK_PLL_M] = clk;
 
 	/* PLLMB */
 	clk = tegra_clk_register_pllmb("pll_mb", "osc", clk_base, pmc,
-			     CLK_IGNORE_UNUSED | CLK_SET_RATE_GATE,
-			     &pll_mb_params, NULL);
+			     CLK_SET_RATE_GATE, &pll_mb_params, NULL);
 	clk_register_clkdev(clk, "pll_mb", NULL);
 	clks[TEGRA210_CLK_PLL_MB] = clk;
 
