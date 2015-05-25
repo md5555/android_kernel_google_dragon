@@ -279,7 +279,8 @@ static int dw_i2c_remove(struct platform_device *pdev)
 
 	i2c_dw_disable(dev);
 
-	pm_runtime_put(&pdev->dev);
+	pm_runtime_dont_use_autosuspend(&pdev->dev);
+	pm_runtime_put_sync(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
 
 	if (ACPI_COMPANION(&pdev->dev))
