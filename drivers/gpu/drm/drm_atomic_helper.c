@@ -1955,6 +1955,8 @@ EXPORT_SYMBOL(drm_atomic_helper_connector_dpms);
  */
 void drm_atomic_helper_crtc_reset(struct drm_crtc *crtc)
 {
+	if (crtc->state && crtc->state->mode_blob)
+		drm_property_unreference_blob(crtc->state->mode_blob);
 	kfree(crtc->state);
 	crtc->state = kzalloc(sizeof(*crtc->state), GFP_KERNEL);
 
@@ -1976,6 +1978,8 @@ void __drm_atomic_helper_crtc_duplicate_state(struct drm_crtc *crtc,
 {
 	memcpy(state, crtc->state, sizeof(*state));
 
+	if (state->mode_blob)
+		drm_property_reference_blob(state->mode_blob);
 	state->mode_changed = false;
 	state->active_changed = false;
 	state->planes_changed = false;
@@ -2018,11 +2022,8 @@ EXPORT_SYMBOL(drm_atomic_helper_crtc_duplicate_state);
 void __drm_atomic_helper_crtc_destroy_state(struct drm_crtc *crtc,
 					    struct drm_crtc_state *state)
 {
-	/*
-	 * This is currently a placeholder so that drivers that subclass the
-	 * state will automatically do the right thing if code is ever added
-	 * to this function.
-	 */
+	if (state->mode_blob)
+		drm_property_unreference_blob(state->mode_blob);
 }
 EXPORT_SYMBOL(__drm_atomic_helper_crtc_destroy_state);
 
