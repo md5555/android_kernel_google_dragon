@@ -1449,9 +1449,11 @@ static int dfll_build_i2c_lut(struct tegra_dfll *td)
 	v_max = dev_pm_opp_get_voltage(opp);
 
 	v = td->soc->min_millivolts * 1000;
-	td->i2c_lut[0] = find_vdd_map_entry_exact(td, v);
-	if (td->i2c_lut[0] < 0)
+	ret = find_vdd_map_entry_exact(td, v);
+	if (ret < 0)
 		goto out;
+
+	td->i2c_lut[0] = ret;
 
 	for (j = 1, rate = 0; ; rate++) {
 		opp = dev_pm_opp_find_freq_ceil(td->soc->opp_dev, &rate);
