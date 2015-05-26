@@ -146,24 +146,6 @@
 		};
 	};
 
-	udc: udc@7d000000 {
-		status = "okay";
-		nvidia,enable-pmu-vbus-detection;
-		extcon-cables = <&usbc_extcon>;
-		extcon-cable-names = "vbus";
-		pinctrl-0 = <&padctl_default>;
-		pinctrl-1 = <&padctl_usb_device>;
-		pinctrl-names = "host", "device";
-	};
-
-	usb@7d000000 {
-		status = "disabled";
-	};
-
-	usb-phy@7d000000 {
-		status = "disabled";
-	};
-
 	dvfs {
 		compatible = "nvidia,tegra210-dvfs";
 		vdd-cpu-supply = <&max77621_cpu>;
@@ -985,6 +967,22 @@
 	};
 };
 
+&xudc {
+	status = "okay";
+
+	phys = <&padctl TEGRA_XUSB_PADCTL_UTMI_P0>,
+	       <&padctl TEGRA_XUSB_PADCTL_USB3_P0>;
+	phy-names = "utmi", "usb3";
+	avdd-usb-supply = <&pp3300>;
+	dvddio-pex-supply = <&avddio_1v05>;
+	hvddio-pex-supply = <&pp1800>;
+	avdd-pll-utmip-supply = <&pp1800>;
+	dvdd-usb-ss-pll-supply = <&avddio_1v05>;
+	hvdd-usb-ss-pll-e-supply = <&pp1800>;
+	extcon-cables = <&usbc_extcon>;
+	extcon-cable-names = "data-role";
+};
+
 &padctl {
 	pinctrl-0 = <&padctl_default>;
 	pinctrl-names = "default";
@@ -1012,6 +1010,7 @@
 	phys {
 		utmi-0 {
 			vbus-supply = <&usbc_vbus>;
+			dr_mode = "otg";
 		};
 
 		usb3-0 {
