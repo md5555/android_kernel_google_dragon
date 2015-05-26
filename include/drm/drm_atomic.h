@@ -55,6 +55,9 @@ int drm_atomic_connector_set_property(struct drm_connector *connector,
 		uint64_t val);
 
 int __must_check
+drm_atomic_set_mode_for_crtc(struct drm_crtc_state *state,
+			     struct drm_display_mode *mode);
+int __must_check
 drm_atomic_set_crtc_for_plane(struct drm_plane_state *plane_state,
 			      struct drm_crtc *crtc);
 void drm_atomic_set_fb_for_plane(struct drm_plane_state *plane_state,
