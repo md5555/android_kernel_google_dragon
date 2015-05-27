@@ -3610,7 +3610,7 @@ static int __init udc_init(void)
 	printk(KERN_INFO "%s (%s)\n", driver_desc, DRIVER_VERSION);
 	return platform_driver_probe(&tegra_udc_driver, tegra_udc_probe);
 }
-module_init(udc_init);
+late_initcall(udc_init);
 static void __exit udc_exit(void)
 {
 	platform_driver_unregister(&tegra_udc_driver);
