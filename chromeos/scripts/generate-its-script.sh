@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # Generate an its script used to build a u-boot fitImage kernel binary
 # that contains the kernel as well as device trees used when booting it
