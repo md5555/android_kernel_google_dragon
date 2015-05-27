@@ -44,6 +44,7 @@
 #include <linux/usb/tegra_usb_phy_compat.h>
 #include <linux/platform_data/tegra_usb.h>
 #include <linux/timer.h>
+#include <linux/pinctrl/consumer.h>
 #include <soc/tegra/fuse.h>
 
 #include <asm/byteorder.h>
@@ -166,9 +167,6 @@ static inline bool vbus_enabled(struct tegra_udc *udc)
 {
 	bool status = false;
 
-	/* HACK: TODO(bleung) - remove this once cros otg driver is in place */
-	return true;
-
 	if (tegra_platform_is_fpga()) {
 		/* On FPGA VBUS is detected through VBUS A Session instead
 		 * of VBUS status.*/
@@ -177,6 +175,8 @@ static inline bool vbus_enabled(struct tegra_udc *udc)
 	} else if (!udc->support_pmu_vbus) {
 		status = (udc_readl(udc, VBUS_WAKEUP_REG_OFFSET)
 						& USB_SYS_VBUS_STATUS);
+	} else if (udc->vbus_extcon_dev) {
+		status = extcon_get_cable_state(udc->vbus_extcon_dev, "USB");
 	}
 
 	return status;
@@ -1636,6 +1636,7 @@ static int tegra_detect_cable_type(struct tegra_udc *udc)
 static int tegra_vbus_session(struct usb_gadget *gadget, int is_active)
 {
 	struct tegra_udc *udc = container_of(gadget, struct tegra_udc, gadget);
+	struct pinctrl_state *state;
 	unsigned long flags;
 
 	mutex_lock(&udc->sync_lock);
@@ -1659,7 +1660,17 @@ static int tegra_vbus_session(struct usb_gadget *gadget, int is_active)
 		tegra_usb_set_charging_current(udc);
 		udc->current_limit = 0;
 		udc->aca_status = false;
+		if (!IS_ERR(udc->pctl)) {
+			state = pinctrl_lookup_state(udc->pctl, "host");
+			if (!IS_ERR(state))
+				pinctrl_select_state(udc->pctl, state);
+		}
 	} else if (!udc->vbus_active && is_active) {
+		if (!IS_ERR(udc->pctl)) {
+			state = pinctrl_lookup_state(udc->pctl, "device");
+			if (!IS_ERR(state))
+				pinctrl_select_state(udc->pctl, state);
+		}
 		tegra_usb_phy_power_on(udc->phy);
 		/* setup the controller in the device mode */
 		dr_controller_setup(udc);
@@ -2895,6 +2906,16 @@ static int __init tegra_udc_ep_setup(struct tegra_udc *udc)
 	return 0;
 }
 
+static int tegra_udc_vbus_notifier(struct notifier_block *nb,
+				   unsigned long action, void *data)
+{
+	struct tegra_udc *udc = container_of(nb, struct tegra_udc, vbus_nb);
+
+	schedule_work(&udc->irq_work);
+
+	return NOTIFY_OK;
+}
+
 static struct tegra_usb_platform_data *tegra_udc_dt_parse_pdata(
 		struct platform_device *pdev)
 {
@@ -3247,6 +3268,11 @@ static int __init tegra_udc_probe(struct platform_device *pdev)
 			udc->vbus_extcon_dev =
 				extcon_get_extcon_dev(pdata->vbus_extcon_dev_name);
 		}
+		if (!IS_ERR(udc->vbus_extcon_dev)) {
+			udc->vbus_nb.notifier_call = tegra_udc_vbus_notifier;
+			extcon_register_notifier(udc->vbus_extcon_dev,
+						 &udc->vbus_nb);
+		}
 	}
 
 	if (udc->support_aca_nv_cable) {
@@ -3281,6 +3307,8 @@ static int __init tegra_udc_probe(struct platform_device *pdev)
 			goto err_del_udc;
 		}
 	}
+
+	udc->pctl = devm_pinctrl_get(&pdev->dev);
 
 	/* Create work for controlling clocks to the phy if otg is disabled */
 	INIT_WORK(&udc->irq_work, tegra_udc_irq_work);
@@ -3349,6 +3377,9 @@ static int __exit tegra_udc_remove(struct platform_device *pdev)
 		ERR("resource request failed\n");
 		return -ENODEV;
 	}
+
+	if (!IS_ERR(udc->vbus_extcon_dev))
+		extcon_unregister_notifier(udc->vbus_extcon_dev, &udc->vbus_nb);
 
 	if (udc->edev != NULL) {
 		extcon_dev_unregister(udc->edev);

@@ -496,10 +496,12 @@ struct tegra_udc {
 	bool charging_supported;
 	struct extcon_dev *edev;
 	struct extcon_dev *vbus_extcon_dev;
+	struct notifier_block vbus_nb;
 	struct extcon_cable *aca_rid_b_ecable;
 	struct extcon_cable *aca_rid_c_ecable;
 	struct extcon_cable *aca_nv_extcon_cable;
 	struct extcon_dev *aca_nv_extcon_dev;
+	struct pinctrl *pctl;
 	bool support_aca_nv_cable;
 	bool support_aca_rid;
 	bool aca_status;
