@@ -187,6 +187,14 @@
 			gpio = <&gpio TEGRA_GPIO(K, 3) 0>;
 			enable-active-high;
 		};
+
+		usbc_vbus: regulator@7 {
+			compatible = "regulator-fixed";
+			reg = <7>;
+			regulator-name = "USBC_VBUS";
+			regulator-min-microvolt = <5000000>;
+			regulator-max-microvolt = <5000000>;
+		};
 	};
 };
 
@@ -641,5 +649,51 @@
 &ccplex {
 	cpu@0 {
 		vdd-cpu-supply = <&max77621_cpu>;
+	};
+};
+
+&xusb {
+	status = "okay";
+
+	usb-host@0,70090000 {
+		phys = <&padctl TEGRA_XUSB_PADCTL_UTMI_P0>,
+		       <&padctl TEGRA_XUSB_PADCTL_USB3_P0>;
+		phy-names = "utmi-0", "usb3-0";
+		dvddio-pex-supply = <&avddio_1v05>;
+		hvddio-pex-supply = <&pp1800>;
+		avdd-usb-supply = <&pp3300>;
+		avdd-pll-utmip-supply = <&pp1050_avdd>;
+		avdd-pll-uerefe-supply = <&pp1050_avdd>;
+		dvdd-usb-ss-pll-supply = <&avddio_1v05>;
+		hvdd-usb-ss-pll-e-supply = <&pp1800>;
+	};
+};
+
+&padctl {
+	pinctrl-0 = <&padctl_default>;
+	pinctrl-names = "default";
+
+	padctl_default: pinmux {
+		otg {
+			nvidia,lanes = "otg-0";
+			nvidia,function = "xusb";
+		};
+
+		usb3 {
+			nvidia,lanes = "pcie-6";
+			nvidia,function = "usb3";
+			nvidia,iddq = <0>;
+		};
+	};
+
+	phys {
+		utmi-0 {
+			vbus-supply = <&usbc_vbus>;
+		};
+
+		usb3-0 {
+			nvidia,lanes = "pcie-6";
+			nvidia,port = <0>;
+		};
 	};
 };
