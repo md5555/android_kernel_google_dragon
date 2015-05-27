@@ -62,8 +62,12 @@
 
 	udc: udc@7d000000 {
 		status = "okay";
-		// avdd-usb-supply = <&vdd_3v3_reg>;
-		// avdd-pll-utmip-supply = <&palmas_smps8>;
+		nvidia,enable-pmu-vbus-detection;
+		extcon-cables = <&usbc_extcon>;
+		extcon-cable-names = "vbus";
+		pinctrl-0 = <&padctl_default>;
+		pinctrl-1 = <&padctl_usb_device>;
+		pinctrl-names = "host", "device";
 	};
 
 	usb@7d000000 {
@@ -685,6 +689,13 @@
 			nvidia,lanes = "pcie-6";
 			nvidia,function = "usb3";
 			nvidia,iddq = <0>;
+		};
+	};
+
+	padctl_usb_device: device-pinmux {
+		otg {
+			nvidia,lanes = "otg-0";
+			nvidia,function = "snps";
 		};
 	};
 
