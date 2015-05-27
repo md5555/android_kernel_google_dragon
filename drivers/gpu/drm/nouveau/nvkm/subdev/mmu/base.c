@@ -194,6 +194,9 @@ nvkm_vm_unmap_at(struct nvkm_vma *vma, u64 delta, u64 length)
 	u32 max  = 1 << (mmu->pgt_bits - bits);
 	u32 end, len;
 
+	// HACK: see chrome-os-partner:40376
+	return;
+
 	while (num) {
 		struct nvkm_gpuobj *pgt = vm->pgt[pde].obj[big];
 
