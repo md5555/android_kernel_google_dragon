@@ -223,7 +223,7 @@ static int __init chromeos_vbc_ec_init(void)
 	if (err)
 		goto exit;
 
-	if (strcmp(vbc_type, "mkbp")) {
+	if (strcmp(vbc_type, "cros-ec")) {
 		err = 0;  /* not configured to use vbc_ec, exit normally. */
 		goto exit;
 	}
