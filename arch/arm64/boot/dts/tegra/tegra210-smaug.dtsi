@@ -221,8 +221,10 @@
 		compatible = "google,cros-ec-i2c";
 		reg = <0x1e>;
 
-		extcon {
+		usbc_extcon: extcon {
 			compatible = "google,extcon-cros-ec";
+
+			#extcon-cells = <0>;
 		};
 	};
 };
