@@ -141,7 +141,7 @@ config MFD_CROS_EC_DEV
 
 config MFD_CROS_EC_PD_UPDATE
 	tristate "ChromeOS Embedded Controller PD device update driver"
-	depends on MFD_CROS_EC_DEV && ACPI
+	depends on MFD_CROS_EC_DEV && (ACPI || OF)
 
 	help
 	  If you say Y here, you get support for updating ChromeOS
