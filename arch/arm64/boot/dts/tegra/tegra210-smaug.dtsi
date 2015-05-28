@@ -232,6 +232,10 @@
 
 			#extcon-cells = <0>;
 		};
+
+		pdupdate {
+			compatible = "google,cros-ec-pd-update";
+		};
 	};
 };
 
