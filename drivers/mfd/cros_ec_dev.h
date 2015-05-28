@@ -48,6 +48,7 @@ struct cros_ec_dev {
 	struct cros_ec_device *ec_dev;
 	struct device *dev;
 	u16 cmd_offset;
+	u32 features[2];
 };
 
 /* sysfs stuff */
