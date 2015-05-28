@@ -16,6 +16,6 @@ menuconfig WLAN
 
 if WLAN
 
-# no drivers yet
+source "drivers/net/wireless-3.8/iwl7000/Kconfig"
 
 endif # WLAN
