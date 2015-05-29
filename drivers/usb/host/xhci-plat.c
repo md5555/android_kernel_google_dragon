@@ -26,6 +26,15 @@
 
 static struct hc_driver __read_mostly xhci_plat_hc_driver;
 
+static int xhci_plat_setup(struct usb_hcd *hcd);
+static int xhci_plat_start(struct usb_hcd *hcd);
+
+static const struct xhci_driver_overrides xhci_plat_overrides __initconst = {
+	.extra_priv_size = sizeof(struct xhci_hcd),
+	.reset = xhci_plat_setup,
+	.start = xhci_plat_start,
+};
+
 static void xhci_plat_quirks(struct device *dev, struct xhci_hcd *xhci)
 {
 	/*
@@ -211,7 +220,6 @@ static int xhci_plat_remove(struct platform_device *dev)
 	if (!IS_ERR(clk))
 		clk_disable_unprepare(clk);
 	usb_put_hcd(hcd);
-	kfree(xhci);
 
 	return 0;
 }
@@ -286,8 +294,7 @@ MODULE_ALIAS("platform:xhci-hcd");
 
 static int __init xhci_plat_init(void)
 {
-	xhci_init_driver(&xhci_plat_hc_driver, xhci_plat_setup);
-	xhci_plat_hc_driver.start = xhci_plat_start;
+	xhci_init_driver(&xhci_plat_hc_driver, &xhci_plat_overrides);
 	return platform_driver_register(&usb_xhci_driver);
 }
 module_init(xhci_plat_init);
