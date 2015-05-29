@@ -19,3 +19,11 @@
 	model = "Mediatek Oak rev0 board";
 	compatible = "google,oak-rev0", "google,oak", "mediatek,mt8173";
 };
+
+&mt6397_vpca7_reg {
+	regulator-always-on = "false";
+};
+
+&pmic {
+	interrupts = <5 IRQ_TYPE_LEVEL_HIGH>;
+};
