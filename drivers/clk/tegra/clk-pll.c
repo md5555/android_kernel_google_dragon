@@ -827,12 +827,12 @@ static long clk_pll_round_rate(struct clk_hw *hw, unsigned long rate,
 	struct tegra_clk_pll *pll = to_clk_pll(hw);
 	struct tegra_clk_pll_freq_table cfg;
 
-	if (pll->params->flags & TEGRA_PLL_FIXED)
-		return pll->params->fixed_rate;
+	if (pll->params->flags & TEGRA_PLL_FIXED) {
+		if (pll->params->flags & (TEGRA_PLLM | TEGRA_PLLMB))
+			return __clk_get_rate(hw->clk);
 
-	/* PLLM/MB are used for memory; we do not change rate */
-	if (pll->params->flags & (TEGRA_PLLM | TEGRA_PLLMB))
-		return __clk_get_rate(hw->clk);
+		return pll->params->fixed_rate;
+	}
 
 	if (_get_table_rate(hw, &cfg, rate, *prate) &&
 	    pll->params->calc_rate(hw, &cfg, rate, *prate))
@@ -856,6 +856,7 @@ static unsigned long clk_pll_recalc_rate(struct clk_hw *hw,
 		return parent_rate;
 
 	if ((pll->params->flags & TEGRA_PLL_FIXED) &&
+	   !(pll->params->flags & (TEGRA_PLLM | TEGRA_PLLMB)) &&
 			!(val & PLL_BASE_OVERRIDE)) {
 		struct tegra_clk_pll_freq_table sel;
 		if (_get_table_rate(hw, &sel, pll->params->fixed_rate,
