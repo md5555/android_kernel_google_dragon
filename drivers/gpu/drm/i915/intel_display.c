@@ -12193,7 +12193,6 @@ intel_modeset_update_state(struct drm_atomic_state *state)
 	struct drm_connector *connector;
 
 	intel_shared_dpll_commit(state);
-	drm_atomic_helper_swap_state(state->dev, state);
 
 	for_each_intel_encoder(dev, intel_encoder) {
 		if (!intel_encoder->base.crtc)
@@ -12891,8 +12890,10 @@ static int __intel_set_mode(struct drm_atomic_state *state)
 	if (ret)
 		return ret;
 
+	drm_atomic_helper_swap_state(dev, state);
+
 	for_each_crtc_in_state(state, crtc, crtc_state, i) {
-		if (!needs_modeset(crtc_state) || !crtc->state->active)
+		if (!needs_modeset(crtc->state) || !crtc_state->active)
 			continue;
 
 		intel_crtc_disable_planes(crtc);
