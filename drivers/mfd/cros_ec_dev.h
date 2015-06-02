@@ -18,8 +18,6 @@
 #ifndef _DRV_CROS_EC_DEV_H_
 #define _DRV_CROS_EC_DEV_H_
 
-struct cros_ec_device;
-
 
 /* struct cros_ec_platform - ChromeOS EC platform information
  *
@@ -31,24 +29,6 @@ struct cros_ec_device;
 struct cros_ec_platform {
 	const char *ec_name;
 	u16 cmd_offset;
-};
-
-/*
- * struct cros_ec_dev - ChromeOS EC device entry point
- *
- * @class_dev: Device structure used in sysfs
- * @cdev: Character device structure in /dev
- * @ec_dev: cros_ec_device structure to talk to the physical device
- * @dev: pointer to the platform device
- * @cmd_offset: offset to apply for each command.
- */
-struct cros_ec_dev {
-	struct device class_dev;
-	struct cdev cdev;
-	struct cros_ec_device *ec_dev;
-	struct device *dev;
-	u16 cmd_offset;
-	u32 features[2];
 };
 
 /* sysfs stuff */

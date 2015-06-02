@@ -17,8 +17,10 @@
 #define __LINUX_MFD_CROS_EC_H
 
 #include <linux/cdev.h>
+#include <linux/device.h>
 #include <linux/notifier.h>
 #include <linux/power_supply.h>
+#include <linux/mfd/cros_ec_dev.h>
 #include <linux/mfd/cros_ec_commands.h>
 #include <linux/mutex.h>
 
@@ -57,23 +59,24 @@ enum {
 					EC_MSG_TX_PROTO_BYTES,
 };
 
+struct cros_ec_device;
+
 /*
- * @version: Command version number (often 0)
- * @command: Command to send (EC_CMD_...)
- * @outdata: Outgoing data to EC
- * @outsize: Outgoing length in bytes
- * @indata: Where to put the incoming data from EC
- * @insize: Max number of bytes to accept from EC
- * @result: EC's response to the command (separate from communication failure)
+ * struct cros_ec_dev - ChromeOS EC device entry point
+ *
+ * @class_dev: Device structure used in sysfs
+ * @cdev: Character device structure in /dev
+ * @ec_dev: cros_ec_device structure to talk to the physical device
+ * @dev: pointer to the platform device
+ * @cmd_offset: offset to apply for each command.
  */
-struct cros_ec_command {
-	uint32_t version;
-	uint32_t command;
-	uint8_t *outdata;
-	uint32_t outsize;
-	uint8_t *indata;
-	uint32_t insize;
-	uint32_t result;
+struct cros_ec_dev {
+	struct device class_dev;
+	struct cdev cdev;
+	struct cros_ec_device *ec_dev;
+	struct device *dev;
+	u16 cmd_offset;
+	u32 features[2];
 };
 
 /**

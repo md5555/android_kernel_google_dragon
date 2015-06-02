@@ -26,12 +26,6 @@
 #include <linux/power_supply.h>
 #include <linux/rtc.h>
 
-/*
- * TODO: hack alert! Move cros_ec_dev out of here to
- * include/mfd/cros_ec_dev.h.
- */
-#include "../mfd/cros_ec_dev.h"
-
 #define CROS_USB_PD_MAX_PORTS		8
 #define CROS_USB_PD_MAX_LOG_ENTRIES	30
 

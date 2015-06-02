@@ -42,6 +42,25 @@ struct cros_ec_readmem {
 	char *buffer;
 };
 
+/*
+ * @version: Command version number (often 0)
+ * @command: Command to send (EC_CMD_...)
+ * @outdata: Outgoing data to EC
+ * @outsize: Outgoing length in bytes
+ * @indata: Where to put the incoming data from EC
+ * @insize: Max number of bytes to accept from EC
+ * @result: EC's response to the command (separate from communication failure)
+ */
+struct cros_ec_command {
+	uint32_t version;
+	uint32_t command;
+	uint8_t *outdata;
+	uint32_t outsize;
+	uint8_t *indata;
+	uint32_t insize;
+	uint32_t result;
+};
+
 #define CROS_EC_DEV_IOC              ':'
 #define CROS_EC_DEV_IOCXCMD    _IOWR(':', 0, struct cros_ec_command)
 #define CROS_EC_DEV_IOCRDMEM   _IOWR(':', 1, struct cros_ec_readmem)

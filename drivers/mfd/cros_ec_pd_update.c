@@ -28,8 +28,6 @@
 #include <linux/of.h>
 #include <linux/platform_device.h>
 
-#include "cros_ec_dev.h"
-
 /* Store our PD device pointer so we can send update-related commands. */
 static struct cros_ec_dev *pd_ec;
 
