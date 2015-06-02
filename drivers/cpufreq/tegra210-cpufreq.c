@@ -176,8 +176,7 @@ static void tegra210_vote_emc_rate(unsigned long cpu_rate)
 	/* Vote on memory bus frequency based on cpu frequency */
 	if (cpu_rate >= 1300000000)
 		/* cpu >= 1.3GHz, emc max */
-		clk_set_rate(priv.emc_clk,
-			clk_round_rate(priv.emc_clk, ULONG_MAX));
+		clk_set_rate(priv.emc_clk, ULONG_MAX);
 	else if (cpu_rate >= 975000000)
 		/* cpu >= 975 MHz, emc 400 MHz */
 		clk_set_rate(priv.emc_clk, 400000000);
@@ -206,7 +205,7 @@ static int tegra210_set_target(struct cpufreq_policy *policy,
 	new_rate = clk_round_rate(priv.cpu_clk, freq_table[index].frequency * 1000);
 	old_rate = clk_get_rate(priv.cpu_clk);
 
-	if (!IS_ERR(priv.emc_clk) && new_rate > old_rate)
+	if (new_rate > old_rate)
 		tegra210_vote_emc_rate(new_rate);
 
 	if (priv.dfll_mode)
@@ -214,7 +213,7 @@ static int tegra210_set_target(struct cpufreq_policy *policy,
 	else
 		tegra210_set_rate_pll(new_rate, old_rate);
 
-	if (!IS_ERR(priv.emc_clk) && new_rate < old_rate)
+	if (new_rate < old_rate)
 		tegra210_vote_emc_rate(new_rate);
 
 	mutex_unlock(&tegra_cpu_lock);
@@ -338,8 +337,11 @@ static int tegra210_cpufreq_probe(struct platform_device *pdev)
 	}
 
 	priv.emc_clk = of_clk_get_by_name(np, "emc");
-	if (IS_ERR(priv.emc_clk))
+	if (IS_ERR(priv.emc_clk)) {
 		pr_info("Tegra210_cpufreq: no cpu.emc shared clock found\n");
+		priv.emc_clk = NULL;
+	}
+	clk_prepare_enable(priv.emc_clk);
 
 	rcu_read_lock();
 	ret = dev_pm_opp_get_opp_count(cpu_dev);
@@ -347,7 +349,7 @@ static int tegra210_cpufreq_probe(struct platform_device *pdev)
 	if (ret <= 0) {
 		pr_debug("OPP table is not ready, deferring probe\n");
 		ret = -EPROBE_DEFER;
-		goto out_put_pllp_clk;
+		goto out_put_emc_clk;
 	}
 	priv.suspend_index = ret - 1;
 
@@ -356,11 +358,18 @@ static int tegra210_cpufreq_probe(struct platform_device *pdev)
 		goto out_put_pllp_clk;
 
 	ret = cpufreq_register_driver(&tegra210_cpufreq_driver);
-	if (ret)
+	if (ret) {
 		dev_err(priv.cpu_dev, "failed register driver: %d\n", ret);
+		goto out_switch_pllx;
+	}
 
 	return 0;
 
+out_switch_pllx:
+	tegra210_cpu_switch_to_pllx();
+out_put_emc_clk:
+	clk_disable_unprepare(priv.emc_clk);
+	clk_put(priv.emc_clk);
 out_put_pllp_clk:
 	clk_put(priv.pllp_clk);
 out_put_pllx_clk:
@@ -383,6 +392,8 @@ static int tegra210_cpufreq_remove(struct platform_device *pdev)
 {
 	tegra210_cpu_switch_to_pllx();
 
+	clk_disable_unprepare(priv.emc_clk);
+	clk_put(priv.emc_clk);
 	clk_put(priv.pllp_clk);
 	clk_put(priv.pllx_clk);
 	clk_put(priv.dfll_clk);
