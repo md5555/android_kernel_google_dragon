@@ -52,6 +52,14 @@
 		};
 	};
 
+	sound {
+		compatible = "mediatek,mt8173-rt5650-rt5676";
+		mediatek,audio-codec = <&rt5650 &rt5676>;
+		mediatek,platform = <&afe>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&aud_i2s2>;
+	};
+
 	spi_gpio0: ec@0 {
 		compatible = "spi-gpio";
 		#address-cells = <0x1>;
@@ -86,6 +94,26 @@
 
 &i2c0 {
 	status = "okay";
+
+	rt5650: audio-codec@1a {
+		compatible = "realtek,rt5650";
+		reg = <0x1a>;
+		avdd-supply = <&mt6397_vgp1_reg>;
+		interrupt-parent = <&pio>;
+		interrupts = <3 IRQ_TYPE_EDGE_BOTH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&rt5650_irq>;
+		realtek,jd-mode = <3>;
+	};
+
+	rt5676: audio-codec@2c {
+		compatible = "realtek,rt5676";
+		reg = <0x2c>;
+		interrupt-parent = <&pio>;
+		interrupts = <2 IRQ_TYPE_EDGE_BOTH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&rt5676_irq>;
+	};
 };
 
 &i2c1 {
@@ -161,6 +189,31 @@
 };
 
 &pio {
+	aud_i2s2: aud_i2s2 {
+		pins1 {
+			pinmux = <MT8173_PIN_128_I2S0_LRCK__FUNC_I2S1_WS>,
+				 <MT8173_PIN_129_I2S0_BCK__FUNC_I2S1_BCK>,
+				 <MT8173_PIN_130_I2S0_MCK__FUNC_I2S1_MCK>,
+				 <MT8173_PIN_131_I2S0_DATA0__FUNC_I2S1_DO_1>,
+				 <MT8173_PIN_132_I2S0_DATA1__FUNC_I2S2_DI_2>;
+			bias-pull-down;
+		};
+	};
+
+	rt5650_irq: rt5650_irq {
+		pins1 {
+			pinmux = <MT8173_PIN_3_EINT3__FUNC_GPIO3>;
+			bias-pull-down;
+		};
+	};
+
+	rt5676_irq: rt5676_irq {
+		pins1 {
+			pinmux = <MT8173_PIN_2_EINT2__FUNC_GPIO2>;
+			bias-pull-down;
+		};
+	};
+
 	spi_gpio0_pins: spi@ec0 {
 		pins1 {
 			pinmux = <MT8173_PIN_102_MSDC2_DAT2__FUNC_GPIO102>,
