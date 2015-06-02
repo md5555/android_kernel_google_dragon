@@ -18,6 +18,7 @@ tegra-drm-y := \
 	vic.o \
 	nvenc.o \
 	nvdec.o \
-	nvjpg.o
+	nvjpg.o \
+	isp.o
 
 obj-$(CONFIG_DRM_TEGRA) += tegra-drm.o

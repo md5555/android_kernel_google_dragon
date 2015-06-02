@@ -1089,6 +1089,7 @@ static const struct of_device_id host1x_drm_subdevs[] = {
 	{ .compatible = "nvidia,tegra210-nvenc", },
 	{ .compatible = "nvidia,tegra210-nvjpg", },
 	{ .compatible = "nvidia,tegra210-nvdec", },
+	{ .compatible = "nvidia,tegra210-isp", },
 	{ /* sentinel */ }
 };
 
@@ -1154,8 +1155,14 @@ static int __init host1x_drm_init(void)
 	if (err < 0)
 		goto unregister_nvdec;
 
+	err = platform_driver_register(&tegra_isp_driver);
+	if (err < 0)
+		goto unregister_nvjpg;
+
 	return 0;
 
+unregister_nvjpg:
+	platform_driver_unregister(&tegra_nvjpg_driver);
 unregister_nvdec:
 	platform_driver_unregister(&tegra_nvdec_driver);
 unregister_nvenc:
@@ -1184,6 +1191,7 @@ module_init(host1x_drm_init);
 
 static void __exit host1x_drm_exit(void)
 {
+	platform_driver_unregister(&tegra_isp_driver);
 	platform_driver_unregister(&tegra_nvjpg_driver);
 	platform_driver_unregister(&tegra_nvdec_driver);
 	platform_driver_unregister(&tegra_nvenc_driver);
