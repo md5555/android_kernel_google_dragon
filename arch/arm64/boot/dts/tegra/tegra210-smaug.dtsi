@@ -23,6 +23,10 @@
 	};
 
 	host1x@50000000 {
+		vi: vi@54080000 {
+			avdd-dsi-csi-supply = <&pp1200_avdd>;
+		};
+
 		dsia: dsi@54300000 {
 			status = "okay";
 			avdd-dsi-csi-supply = <&pp1200_avdd>;
