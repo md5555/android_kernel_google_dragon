@@ -2518,7 +2518,7 @@ static __init void tegra210_emc_clk_init(void __iomem *clk_base)
 }
 
 static const char *tegra_clk_sor1_parents[] = {
-	"sor_safe", "sor1_brick", "pll_p_out0", "pll_d_out0", "pll_d2_out0",
+	"sor_safe", "pll_dp", "pll_p_out0", "pll_d_out0", "pll_d2_out0",
 	"clk_m"
 };
 
