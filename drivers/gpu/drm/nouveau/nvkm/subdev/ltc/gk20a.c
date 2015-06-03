@@ -29,13 +29,6 @@
 
 #include "priv.h"
 
-struct gk20a_ltc_priv {
-	struct nvkm_ltc_priv priv;
-	struct page **pages;
-	dma_addr_t *page_addrs;
-	int npages;
-};
-
 /* Algorithm from NVIDIA nvgpu driver */
 static int
 gk20a_ltc_calc_tags_size(struct gk20a_ltc_priv *priv,
@@ -80,7 +73,7 @@ gk20a_ltc_calc_tags_size(struct gk20a_ltc_priv *priv,
 	return 0;
 }
 
-static int
+int
 gk20a_ltc_init_tag_mem(struct gk20a_ltc_priv *priv)
 {
 	struct nouveau_platform_device *plat;
@@ -95,7 +88,7 @@ gk20a_ltc_init_tag_mem(struct gk20a_ltc_priv *priv)
 		return 0;
 	}
 
-	ret = gk20a_ltc_calc_tags_size(priv, &compbit_backing_size,
+	ret = priv->calc_tags_size(priv, &compbit_backing_size,
 						&max_comptag_lines);
 	if (ret)
 		return 0;
@@ -319,6 +312,8 @@ gk20a_ltc_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	if (ret)
 		return ret;
 
+	priv->calc_tags_size = gk20a_ltc_calc_tags_size;
+
 	ltc_priv = &priv->priv;
 	ltc_priv->ltc_nr = 1;
 	ltc_priv->lts_nr = nv_rd32(priv, 0x17e8dc) >> 28;
@@ -330,7 +325,7 @@ gk20a_ltc_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	return 0;
 }
 
-static void
+void
 gk20a_ltc_dtor(struct nvkm_object *object)
 {
 	struct gk20a_ltc_priv *priv = (void *)object;

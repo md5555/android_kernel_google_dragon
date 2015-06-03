@@ -76,6 +76,18 @@ void gf100_ltc_zbc_clear_depth(struct nvkm_ltc_priv *, int, const u32);
 
 int gk104_ltc_init(struct nvkm_object *);
 
+struct gk20a_ltc_priv {
+	struct nvkm_ltc_priv priv;
+	struct page **pages;
+	dma_addr_t *page_addrs;
+	int npages;
+	int (*calc_tags_size)(struct gk20a_ltc_priv *priv,
+		u32 *compbit_backing_size, u32 *max_comptag_lines);
+};
+
+void gk20a_ltc_dtor(struct nvkm_object *object);
+int gk20a_ltc_init_tag_mem(struct gk20a_ltc_priv *priv);
+
 void gm107_ltc_cbc_clear(struct nvkm_ltc_priv *priv, u32 start, u32 limit);
 void gm107_ltc_cbc_wait(struct nvkm_ltc_priv *priv);
 void gm107_ltc_zbc_clear_color(struct nvkm_ltc_priv *priv, int i,
