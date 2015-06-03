@@ -67,6 +67,17 @@ config ANDROID_LOW_MEMORY_KILLER_AUTODETECT_OOM_ADJ_VALUES
 	  /sys/module/lowmemorykiller/parameters/adj and convert them
 	  to oom_score_adj values.
 
+config ANDROID_BCB
+	tristate "Bootloader Control Block module"
+	default n
+	---help---
+	  This driver installs a reboot hook, such that if reboot() is invoked
+	  with a string argument NNN, "bootonce-NNN" is copied to the command
+	  field in the Bootloader Control Block on the /misc partition, to be
+	  read by the bootloader. If the string matches one of the boot labels
+	  defined in its configuration, it will boot once into that label. The
+	  device and partition number are specified on the kernel command line.
+
 config SYNC
 	bool "Synchronization framework"
 	default n
