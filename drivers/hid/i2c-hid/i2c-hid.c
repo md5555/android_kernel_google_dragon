@@ -881,6 +881,19 @@ static inline int i2c_hid_acpi_pdata(struct i2c_client *client,
 }
 #endif
 
+/* for probe deferral */
+static bool inited = IS_MODULE(CONFIG_I2C_HID);
+
+#if !IS_MODULE(CONFIG_I2C_HID)
+static int __init i2c_hid_late_initcall(void)
+{
+	inited = true;
+
+	return 0;
+}
+late_initcall_sync(i2c_hid_late_initcall);
+#endif
+
 #ifdef CONFIG_OF
 static int i2c_hid_of_probe(struct i2c_client *client,
 		struct i2c_hid_platform_data *pdata)
@@ -917,7 +930,7 @@ static int i2c_hid_of_probe(struct i2c_client *client,
 		dev_dbg(&client->dev,
 			"basic IO failed (%d), assuming device is not present\n",
 			ret);
-		return -ENXIO;
+		return (inited) ? -ENXIO : -EPROBE_DEFER;
 	}
 
 	return 0;
