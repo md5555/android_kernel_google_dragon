@@ -153,15 +153,15 @@ static void mwifiex_uap_queue_bridged_pkt(struct mwifiex_private *priv,
 	skb_pull(skb, hdr_chop);
 
 	if (skb_headroom(skb) < MWIFIEX_MIN_DATA_HEADER_LEN) {
-		dev_dbg(priv->adapter->dev,
-			"data: Tx: insufficient skb headroom %d\n",
-			skb_headroom(skb));
+		mwifiex_dbg(priv->adapter, DATA,
+			    "data: Tx: insufficient skb headroom %d\n",
+			    skb_headroom(skb));
 		/* Insufficient skb headroom - allocate a new skb */
 		new_skb =
 			skb_realloc_headroom(skb, MWIFIEX_MIN_DATA_HEADER_LEN);
 		if (unlikely(!new_skb)) {
-			dev_err(priv->adapter->dev,
-				"Tx: cannot allocate new_skb\n");
+			mwifiex_dbg(adapter, ERROR,
+				    "Tx: cannot allocate new_skb\n");
 			kfree_skb(skb);
 			priv->stats.tx_dropped++;
 			return;
@@ -169,8 +169,9 @@ static void mwifiex_uap_queue_bridged_pkt(struct mwifiex_private *priv,
 
 		kfree_skb(skb);
 		skb = new_skb;
-		dev_dbg(priv->adapter->dev, "info: new skb headroom %d\n",
-			skb_headroom(skb));
+		mwifiex_dbg(priv->adapter, INFO,
+			    "info: new skb headroom %d\n",
+			    skb_headroom(skb));
 	}
 
 	tx_info = MWIFIEX_SKB_TXCB(skb);
@@ -225,7 +226,8 @@ int mwifiex_handle_uap_rx_forward(struct mwifiex_private *priv,
 
 	/* don't do packet forwarding in disconnected state */
 	if (!priv->media_connected) {
-		dev_err(adapter->dev, "drop packet in disconnected state.\n");
+		mwifiex_dbg(adapter, ERROR,
+			    "drop packet in disconnected state.\n");
 		dev_kfree_skb_any(skb);
 		return 0;
 	}
@@ -286,7 +288,8 @@ int mwifiex_process_uap_rx_packet(struct mwifiex_private *priv,
 	if (rx_pkt_type == PKT_TYPE_MGMT) {
 		ret = mwifiex_process_mgmt_packet(priv, skb);
 		if (ret)
-			dev_err(adapter->dev, "Rx of mgmt packet failed");
+			mwifiex_dbg(adapter, ERROR,
+				    "Rx of mgmt packet failed");
 		dev_kfree_skb_any(skb);
 		return ret;
 	}
@@ -351,7 +354,8 @@ void *mwifiex_process_uap_txpd(struct mwifiex_private *priv,
 		       INTF_HEADER_LEN;
 
 	if (!skb->len) {
-		dev_err(adapter->dev, "Tx: bad packet length: %d\n", skb->len);
+		mwifiex_dbg(adapter, ERROR,
+			    "Tx: bad packet length: %d\n", skb->len);
 		tx_info->status_code = -1;
 		return skb->data;
 	}
