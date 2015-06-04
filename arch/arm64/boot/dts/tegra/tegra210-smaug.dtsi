@@ -381,6 +381,22 @@
 			};
 		};
 	};
+
+	thermal-zones {
+		board_thermal_sensor: tmp451-local {
+			polling-delay-passive = <2000>; /* milliseconds */
+			polling-delay = <0>; /* milliseconds */
+
+			thermal-sensors = <&tmp451 0>;
+		};
+
+		diode_thermal_sensor: tmp451-remote {
+			polling-delay-passive = <1000>; /* milliseconds */
+			polling-delay = <0>; /* milliseconds */
+
+			thermal-sensors = <&tmp451 1>;
+		};
+	};
 };
 
 // GEN1_I2C
