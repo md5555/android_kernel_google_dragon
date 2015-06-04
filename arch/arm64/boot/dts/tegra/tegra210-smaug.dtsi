@@ -382,6 +382,28 @@
 		};
 	};
 
+	skin_temp: therm-est {
+		compatible = "nvidia,tegra124-therm-est";
+		toffset = <9793>;
+		polling-period = <1100>;
+
+		#thermal-sensor-cells = <0>;
+
+		status = "okay";
+
+		sub-devs {
+			dev@0 {
+				dev = <&diode_thermal_sensor>;
+				coeffs = <2 1 1 1 1 1 1 1 1 1 1 0 1 1 0 0 0 0 (-1) (-7)>;
+			};
+
+			dev@1 {
+				dev = <&board_thermal_sensor>;
+				coeffs = <(-11) (-7) (-5) (-3) (-3) (-2) (-1) 0 0 0 1 1 1 2 2 3 4 6 11 18>;
+			};
+		};
+	};
+
 	thermal-zones {
 		board_thermal_sensor: tmp451-local {
 			polling-delay-passive = <2000>; /* milliseconds */
@@ -395,6 +417,13 @@
 			polling-delay = <0>; /* milliseconds */
 
 			thermal-sensors = <&tmp451 1>;
+		};
+
+		skin-therm {
+			polling-delay-passive = <15000>; /* milliseconds */
+			polling-delay = <0>; /* milliseconds */
+
+			thermal-sensors = <&skin_temp>;
 		};
 	};
 };
