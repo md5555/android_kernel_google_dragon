@@ -48,6 +48,8 @@
 #include <soc/tegra/fuse.h>
 #include <soc/tegra/pmc.h>
 
+#define UTMIP(port, x, y)		(((port) <= 2) ? (x) : (y))
+
 #define PMC_CNTRL			0x0
 #define  PMC_CNTRL_LATCH_WAKEUPS	(1 << 5)
 #define  PMC_CNTRL_PWRREQ_POLARITY	(1 << 8)   /* core power req polarity */
@@ -96,6 +98,18 @@
 
 #define PMC_WAKE_DELAY			0xe0
 #define PMC_COREPWROFF_TIMER		PMC_WAKE_DELAY
+
+#define PMC_USB_DEBOUNCE_DEL		0xec
+#define  UTMIP_LINE_DEB_CNT_SHIFT	16
+#define  UTMIP_LINE_DEB_CNT_MASK	0xf
+#define  DEBOUNCE_VAL_SHIFT		0
+#define  DEBOUNCE_VAL_MASK		0xffff
+
+#define PMC_USB_AO			0xf0
+#define  DATA_VAL_PD(x)			(1 << (4 * (x) + 13))
+#define  STROBE_VAL_PD(x)		(1 << (4 * (x) + 12))
+#define  USBON_VAL_PD(x)		UTMIP(x, 1 << (4 * (x) + 1), 1 << 21)
+#define  USBOP_VAL_PD(x)		UTMIP(x, 1 << (4 * (x)), 1 << 20)
 
 #define PMC_SCRATCH41			0x140
 
@@ -156,6 +170,70 @@
 
 #define DPD_STATE_CHANGE_DELAY		700
 
+#define PMC_UTMIP_UHSIC_TRIGGERS	0x1ec
+#define  UTMIP_CLR_WAKE_ALARM(x)	UTMIP(x, 1 << ((x) + 12), 1 << 19)
+#define  UTMIP_CAP_CFG(x)		UTMIP(x, 1 << ((x) + 4), 1 << 17)
+#define  UTMIP_CLR_WALK_PTR(x)		UTMIP(x, 1 << (x), 1 << 16)
+
+#define PMC_UTMIP_TERM_PAD_CFG		0x1f8
+#define  TEGRA210_TCTRL_VAL_SHIFT	7
+#define  TEGRA210_TCTRL_VAL_MASK	0x3f
+#define  TCTRL_VAL_SHIFT		5
+#define  TCTRL_VAL_MASK			0x1f
+#define  PCTRL_VAL_SHIFT		1
+#define  PCTRL_VAL_MASK			0x3f
+#define  RCTRL_VAL_SHIFT		0
+#define  RCTRL_VAL_MASK			0x1f
+
+#define PMC_UTMIP_UHSIC_SLEEP_CFG(x)	UTMIP(x, 0x1fc, 0x4d0)
+#define  UTMIP_WAKE_VAL(x, v)		UTMIP(x, \
+						((v) & 0xf) << ((8 * (x)) + 4),\
+						((v) & 0xf) << 4)
+#define  UTMIP_WAKE_VAL_SHIFT(x)	UTMIP(x, 8 * (x) + 4, 4)
+#define  UTMIP_WAKE_VAL_MASK		0xf
+#define  UTMIP_WAKE_VAL_NONE		0xc
+#define  UTMIP_WAKE_VAL_ANY		0xf
+#define  UTMIP_TCTRL_USE_PMC(x)		UTMIP(x, 1 << (8 * (x) + 3), 1 << 3)
+#define  UTMIP_PCTRL_USE_PMC(x)		UTMIP(x, 1 << (8 * (x) + 2), 1 << 2)
+#define  UTMIP_RCTRL_USE_PMC(x)		UTMIP(x, 1 << (8 * (x) + 2), 1 << 2)
+#define  UTMIP_FSLS_USE_PMC(x)		UTMIP(x, 1 << (8 * (x) + 1), 1 << 1)
+#define  UTMIP_MASTER_ENABLE(x)		UTMIP(x, 1 << (8 * (x)), 1 << 0)
+
+/* for PMC_UTMIP_UHSIC_SLEEP_CFG(3) only */
+#define UTMIP_RPU_SWITC_LOW_USE_PMC(x)  (1 << (8 + (x)))
+#define UTMIP_RPD_CTRL_USE_PMC(x)	(1 << (16 + (x)))
+
+#define PMC_UTMIP_UHSIC_SLEEPWALK_CFG(x)	UTMIP(x, 0x200, 0x288)
+#define  UTMIP_LINEVAL_WALK_EN(x)	UTMIP(x, 1 << (8 * (x) + 7), 1 << 15)
+
+#define PMC_UTMIP_SLEEPWALK_PX(x)	UTMIP(x, 0x204 + (4 * (x)), 0x4e0)
+#define  UTMIP_HIGHZ_D			(1 << 30)
+#define  UTMIP_AN_D			(1 << 29)
+#define  UTMIP_AP_D			(1 << 28)
+#define  UTMIP_USBON_RPD_D		(1 << 25)
+#define  UTMIP_USBOP_RPD_D		(1 << 24)
+#define  UTMIP_HIGHZ_C			(1 << 22)
+#define  UTMIP_AN_C			(1 << 21)
+#define  UTMIP_AP_C			(1 << 20)
+#define  UTMIP_USBON_RPD_C		(1 << 17)
+#define  UTMIP_USBOP_RPD_C		(1 << 16)
+#define  UTMIP_HIGHZ_B			(1 << 14)
+#define  UTMIP_AN_B			(1 << 13)
+#define  UTMIP_AP_B			(1 << 12)
+#define  UTMIP_USBON_RPD_B		(1 << 9)
+#define  UTMIP_USBOP_RPD_B		(1 << 8)
+#define  UTMIP_HIGHZ_A			(1 << 6)
+#define  UTMIP_AN_A			(1 << 5)
+#define  UTMIP_AP_A			(1 << 4)
+#define  UTMIP_USBON_RPD_A		(1 << 1)
+#define  UTMIP_USBOP_RPD_A		(1 << 0)
+
+#define PMC_UHSIC_SLEEPWALK_P0		0x210
+
+#define PMC_UTMIP_UHSIC_FAKE(x)		UTMIP(x, 0x218, 0x294)
+#define  UTMIP_FAKE_USBON_VAL(x)	UTMIP(x, 1 << (4 * (x) + 1), 1 << 9)
+#define  UTMIP_FAKE_USBOP_VAL(x)	UTMIP(x, 1 << (4 * (x)), 1 << 8)
+
 #define PMC_SCRATCH54			0x258
 #define PMC_SCRATCH54_DATA_SHIFT	8
 #define PMC_SCRATCH54_ADDR_SHIFT	0
@@ -168,7 +246,68 @@
 #define PMC_SCRATCH55_CHECKSUM_SHIFT	16
 #define PMC_SCRATCH55_I2CSLV1_SHIFT	0
 
+#define PMC_UTMIP_BIAS_MASTER_CNTRL	0x270
+#define  UTMIP_BIAS_MASTER_PROG_VAL	(1 << 1)
+
+#define PMC_UTMIP_MASTER_CONFIG		0x274
+#define  UTMIP_PWR(x)			UTMIP(x, 1 << (x), 1 << 4)
+
+#define PMC_UTMIP_UHSIC2_TRIGGERS	0x27c
+#define PMC_UTMIP_UHSIC2_SLEEP_CFG	0x284
+#define PMC_UTMIP_UHSIC2_SLEEPWALK_CFG	0x288
+#define PMC_UHSIC_SLEEPWALK_P1		0x28c
+#define PMC_UTMIP_UHSIC2_FAKE		0x294
+#define PMC_UTMIP_MASTER2_CONFIG	0x29c
+
+#define PMC_UHSIC_TRIGGERS(x)		((x) ? PMC_UTMIP_UHSIC2_TRIGGERS : \
+					 PMC_UTMIP_UHSIC_TRIGGERS)
+#define  UHSIC_CLR_WAKE_ALARM(x)	((x) ? 3 : 15)
+#define  UHSIC_CLR_WALK_PTR(x)		((x) ? 0 : 3)
+
+#define PMC_UHSIC_SLEEP_CFG(x)		((x) ? PMC_UTMIP_UHSIC2_SLEEP_CFG : \
+					 PMC_UTMIP_UHSIC_SLEEP_CFG(x))
+#define  UHSIC_WAKE_VAL_SHIFT(x)	((x) ? 4 : 28)
+#define  UHSIC_WAKE_VAL_MASK		0xf
+#define  UHSIC_WAKE_VAL_NONE		0xc
+#define  UHSIC_WAKE_VAL_SD10		0x2
+#define  UHSIC_MASTER_ENABLE(x)		((x) ? 0 : 24)
+
+#define PMC_UHSIC_SLEEPWALK_CFG(x)	((x) ? PMC_UTMIP_UHSIC2_SLEEPWALK_CFG \
+					: PMC_UTMIP_UHSIC_SLEEPWALK_CFG(x))
+#define  UHSIC_LINEVAL_WALK_EN(x)	((x) ? 7 : 31)
+
+#define PMC_UHSIC_SLEEPWALK_PX(x)	((x) ? PMC_UHSIC_SLEEPWALK_P1 : \
+					 PMC_UHSIC_SLEEPWALK_P0)
+#define  UHSIC_DATA_RPU_D		(1 << 27)
+#define  UHSIC_STROBE_RPU_D		(1 << 26)
+#define  UHSIC_DATA_RPD_D		(1 << 25)
+#define  UHSIC_STROBE_RPD_D		(1 << 24)
+#define  UHSIC_DATA_RPU_C		(1 << 19)
+#define  UHSIC_STROBE_RPU_C		(1 << 18)
+#define  UHSIC_DATA_RPD_C		(1 << 17)
+#define  UHSIC_STROBE_RPD_C		(1 << 16)
+#define  UHSIC_DATA_RPU_B		(1 << 11)
+#define  UHSIC_STROBE_RPU_B		(1 << 10)
+#define  UHSIC_DATA_RPD_B		(1 << 9)
+#define  UHSIC_STROBE_RPD_B		(1 << 8)
+#define  UHSIC_DATA_RPU_A		(1 << 3)
+#define  UHSIC_STROBE_RPU_A		(1 << 2)
+#define  UHSIC_DATA_RPD_A		(1 << 1)
+#define  UHSIC_STROBE_RPD_A		(1 << 0)
+
+#define PMC_UHSIC_FAKE(x)		((x) ? PMC_UTMIP_UHSIC2_FAKE : \
+					 PMC_UTMIP_UHSIC_FAKE(x))
+#define  UHSIC_FAKE_DATA_VAL(x)		((x) ? 1 : 13)
+#define  UHSIC_FAKE_STROBE_VAL(x)	((x) ? 0 : 12)
+
+#define PMC_UHSIC_MASTER_CONFIG(x)	((x) ? PMC_UTMIP_MASTER2_CONFIG : \
+					 PMC_UTMIP_MASTER_CONFIG)
+#define  UHSIC_PWR(x)			((x) ? 0 : 3)
+
 #define GPU_RG_CNTRL			0x2d4
+
+#define PMC_UTMIP_PAD_CFG(x)		(0x4c0 + (4 * (x)))
+#define  UTMIP_RPD_CTRL(x)		(((x) & 0x1f) << 22)
 
 struct tegra_pmc_soc {
 	unsigned int num_powergates;
@@ -178,6 +317,10 @@ struct tegra_pmc_soc {
 
 	bool has_tsense_reset;
 	bool has_gpu_clamps;
+
+	void (*utmi_sleep_enter)(unsigned int, enum usb_device_speed,
+				 struct tegra_utmi_pad_config *);
+	void (*utmi_sleep_exit)(unsigned int);
 };
 
 /**
@@ -760,6 +903,519 @@ int tegra_io_rail_power_off(int id)
 	return 0;
 }
 EXPORT_SYMBOL(tegra_io_rail_power_off);
+
+static void
+tegra124_utmi_sleep_enter(unsigned int port, enum usb_device_speed speed,
+			  struct tegra_utmi_pad_config *config)
+{
+	u32 val;
+
+	val = tegra_pmc_readl(PMC_UTMIP_UHSIC_SLEEP_CFG(port));
+	if (val & UTMIP_MASTER_ENABLE(port))
+		return;
+
+	/*
+	 * Set PMC MASTER bits to do the following:
+	 * a. Take over the UTMI drivers.
+	 * b. Take over resume if remote wakeup is detected.
+	 * c. Take over suspend-wake detect-drive resume until USB controller
+	 *    ready.
+	 */
+
+	/* Set UTMIP_PWR for low-power mode. */
+	val = tegra_pmc_readl(PMC_UTMIP_MASTER_CONFIG);
+	val |= UTMIP_PWR(port);
+	tegra_pmc_writel(val, PMC_UTMIP_MASTER_CONFIG);
+
+	/* Configure debouncer. */
+	val = tegra_pmc_readl(PMC_USB_DEBOUNCE_DEL);
+	val &= ~((UTMIP_LINE_DEB_CNT_MASK << UTMIP_LINE_DEB_CNT_SHIFT) |
+		 (DEBOUNCE_VAL_MASK << DEBOUNCE_VAL_SHIFT));
+	val |= (0x1 << UTMIP_LINE_DEB_CNT_SHIFT) |
+		(0x2 << DEBOUNCE_VAL_SHIFT);
+	tegra_pmc_writel(val, PMC_USB_DEBOUNCE_DEL);
+
+	/* Make sure nothing is happening on the line with respect to PMC. */
+	val = tegra_pmc_readl(PMC_UTMIP_UHSIC_FAKE(port));
+	val &= ~(UTMIP_FAKE_USBOP_VAL(port) | UTMIP_FAKE_USBON_VAL(port));
+	tegra_pmc_writel(val, PMC_UTMIP_UHSIC_FAKE(port));
+
+	/* Clear line wake value. */
+	val = tegra_pmc_readl(PMC_UTMIP_UHSIC_SLEEPWALK_CFG(port));
+	val &= ~UTMIP_LINEVAL_WALK_EN(port);
+	tegra_pmc_writel(val, PMC_UTMIP_UHSIC_SLEEPWALK_CFG(port));
+	val = tegra_pmc_readl(PMC_UTMIP_UHSIC_SLEEP_CFG(port));
+	val &= ~(UTMIP_WAKE_VAL_MASK << UTMIP_WAKE_VAL_SHIFT(port));
+	val |= UTMIP_WAKE_VAL_NONE << UTMIP_WAKE_VAL_SHIFT(port);
+	tegra_pmc_writel(val, PMC_UTMIP_UHSIC_SLEEP_CFG(port));
+
+	/* Turn off pad detectors. */
+	val = tegra_pmc_readl(PMC_USB_AO);
+	val |= USBOP_VAL_PD(port) | USBON_VAL_PD(port);
+	tegra_pmc_writel(val, PMC_USB_AO);
+
+	/* Remove fake values and make synchronizers work a bit. */
+	val = tegra_pmc_readl(PMC_UTMIP_UHSIC_FAKE(port));
+	val &= ~(UTMIP_FAKE_USBOP_VAL(port) | UTMIP_FAKE_USBON_VAL(port));
+	tegra_pmc_writel(val, PMC_UTMIP_UHSIC_FAKE(port));
+
+	/* Enable walk on USB line value wake. */
+	val = tegra_pmc_readl(PMC_UTMIP_UHSIC_SLEEPWALK_CFG(port));
+	val |= UTMIP_LINEVAL_WALK_EN(port);
+	tegra_pmc_writel(val, PMC_UTMIP_UHSIC_SLEEPWALK_CFG(port));
+
+	/* Capture FS/LS pad configurations. */
+	val = tegra_pmc_readl(PMC_UTMIP_UHSIC_TRIGGERS);
+	val |= UTMIP_CAP_CFG(port);
+	tegra_pmc_writel(val, PMC_UTMIP_UHSIC_TRIGGERS);
+
+	/* Clear BIAS MASTER_ENABLE */
+	val = tegra_pmc_readl(PMC_UTMIP_BIAS_MASTER_CNTRL);
+	val &= ~UTMIP_BIAS_MASTER_PROG_VAL;
+	tegra_pmc_writel(val, PMC_UTMIP_BIAS_MASTER_CNTRL);
+
+	/* Program walk sequence for remote or hotplug wakeup. */
+	val = tegra_pmc_readl(PMC_UTMIP_SLEEPWALK_PX(port));
+	switch (speed) {
+	case USB_SPEED_UNKNOWN:
+		/*
+		 * Program walk sequence: pull down both DP and DN lines,
+		 * tristate lines once a hotplug-in wake event is detected.
+		 */
+		val &= ~(UTMIP_AP_A | UTMIP_AN_A);
+		val |= UTMIP_USBOP_RPD_A | UTMIP_USBON_RPD_A | UTMIP_HIGHZ_A;
+		val &= ~(UTMIP_AP_B | UTMIP_AN_B);
+		val |= UTMIP_USBOP_RPD_B | UTMIP_USBON_RPD_B | UTMIP_HIGHZ_B;
+		val &= ~(UTMIP_AP_C | UTMIP_AN_C);
+		val |= UTMIP_USBOP_RPD_C | UTMIP_USBON_RPD_C | UTMIP_HIGHZ_C;
+		val &= ~(UTMIP_AP_D | UTMIP_AN_D);
+		val |= UTMIP_USBOP_RPD_D | UTMIP_USBON_RPD_D | UTMIP_HIGHZ_D;
+		break;
+	case USB_SPEED_LOW:
+		/*
+		 * Program walk sequence: maintain a J, followed by a driven K
+		 * to signal a resume once an wake event is detected.
+		 */
+		val &= ~UTMIP_AP_A;
+		val |= UTMIP_USBOP_RPD_A | UTMIP_USBON_RPD_A | UTMIP_AN_A |
+			UTMIP_HIGHZ_A;
+		val &= ~(UTMIP_AN_B | UTMIP_HIGHZ_B);
+		val |= UTMIP_USBOP_RPD_B | UTMIP_USBON_RPD_B | UTMIP_AP_B;
+		val &= ~(UTMIP_AN_C | UTMIP_HIGHZ_C);
+		val |= UTMIP_USBOP_RPD_C | UTMIP_USBON_RPD_C | UTMIP_AP_C;
+		val &= ~(UTMIP_AN_D | UTMIP_HIGHZ_D);
+		val |= UTMIP_USBOP_RPD_D | UTMIP_USBON_RPD_D | UTMIP_AP_D;
+		break;
+	default:
+		val &= ~UTMIP_AN_A;
+		val |= UTMIP_USBOP_RPD_A | UTMIP_USBON_RPD_A | UTMIP_AP_A |
+			UTMIP_HIGHZ_A;
+		val &= ~(UTMIP_AP_B | UTMIP_HIGHZ_B);
+		val |= UTMIP_USBOP_RPD_B | UTMIP_USBON_RPD_B | UTMIP_AN_B;
+		val &= ~(UTMIP_AP_C | UTMIP_HIGHZ_C);
+		val |= UTMIP_USBOP_RPD_C | UTMIP_USBON_RPD_C | UTMIP_AN_C;
+		val &= ~(UTMIP_AP_D | UTMIP_HIGHZ_D);
+		val |= UTMIP_USBOP_RPD_D | UTMIP_USBON_RPD_D | UTMIP_AN_D;
+		break;
+	}
+	tegra_pmc_writel(val, PMC_UTMIP_SLEEPWALK_PX(port));
+
+	/* Turn on pad detectors. */
+	val = tegra_pmc_readl(PMC_USB_AO);
+	val &= ~(USBOP_VAL_PD(port) | USBON_VAL_PD(port));
+	tegra_pmc_writel(val, PMC_USB_AO);
+
+	/* Add small delay before USB detectors provide stable line values. */
+	usleep_range(1000, 1100);
+
+	/* Program TCTRL, RCTRL values.*/
+	val = tegra_pmc_readl(PMC_UTMIP_TERM_PAD_CFG);
+	val = (fls(config->tctrl) << TCTRL_VAL_SHIFT) |
+	      (fls(config->rctrl) << RCTRL_VAL_SHIFT);
+	tegra_pmc_writel(val, PMC_UTMIP_TERM_PAD_CFG);
+
+	/* Turn over pad configuration to PMC for line wake events. */
+	val = tegra_pmc_readl(PMC_UTMIP_UHSIC_SLEEP_CFG(port));
+	val &= ~(UTMIP_WAKE_VAL_MASK << UTMIP_WAKE_VAL_SHIFT(port));
+	val |= (UTMIP_WAKE_VAL_ANY << UTMIP_WAKE_VAL_SHIFT(port)) |
+		UTMIP_TCTRL_USE_PMC(port) | UTMIP_RCTRL_USE_PMC(port) |
+		UTMIP_FSLS_USE_PMC(port) | UTMIP_MASTER_ENABLE(port);
+	tegra_pmc_writel(val, PMC_UTMIP_UHSIC_SLEEP_CFG(port));
+}
+
+static void
+tegra210_utmi_sleep_enter(unsigned int port, enum usb_device_speed speed,
+			  struct tegra_utmi_pad_config *config)
+{
+	u32 val;
+
+	val = tegra_pmc_readl(PMC_UTMIP_UHSIC_SLEEP_CFG(port));
+	if (val & UTMIP_MASTER_ENABLE(port))
+		return;
+
+	/*
+	 * Set PMC MASTER bits to do the following:
+	 * a. Take over the UTMI drivers.
+	 * b. Take over resume if remote wakeup is detected.
+	 * c. Take over suspend-wake detect-drive resume until USB controller
+	 *    ready.
+	 */
+
+	/* Set UTMIP_PWR for low-power mode. */
+	val = tegra_pmc_readl(PMC_UTMIP_MASTER_CONFIG);
+	val |= UTMIP_PWR(port);
+	tegra_pmc_writel(val, PMC_UTMIP_MASTER_CONFIG);
+
+	/* Configure debouncer. */
+	val = tegra_pmc_readl(PMC_USB_DEBOUNCE_DEL);
+	val &= ~((UTMIP_LINE_DEB_CNT_MASK << UTMIP_LINE_DEB_CNT_SHIFT) |
+		 (DEBOUNCE_VAL_MASK << DEBOUNCE_VAL_SHIFT));
+	val |= (0x1 << UTMIP_LINE_DEB_CNT_SHIFT) |
+	       (0x2 << DEBOUNCE_VAL_SHIFT);
+	tegra_pmc_writel(val, PMC_USB_DEBOUNCE_DEL);
+
+	/* Make sure nothing is happening on the line with respect to PMC. */
+	val = tegra_pmc_readl(PMC_UTMIP_UHSIC_FAKE(port));
+	val &= ~(UTMIP_FAKE_USBOP_VAL(port) | UTMIP_FAKE_USBON_VAL(port));
+	tegra_pmc_writel(val, PMC_UTMIP_UHSIC_FAKE(port));
+
+	/* Clear line wake value. */
+	val = tegra_pmc_readl(PMC_UTMIP_UHSIC_SLEEPWALK_CFG(port));
+	val &= ~UTMIP_LINEVAL_WALK_EN(port);
+	tegra_pmc_writel(val, PMC_UTMIP_UHSIC_SLEEPWALK_CFG(port));
+	val = tegra_pmc_readl(PMC_UTMIP_UHSIC_SLEEP_CFG(port));
+	val &= ~(UTMIP_WAKE_VAL_MASK << UTMIP_WAKE_VAL_SHIFT(port));
+	val |= UTMIP_WAKE_VAL_NONE << UTMIP_WAKE_VAL_SHIFT(port);
+	tegra_pmc_writel(val, PMC_UTMIP_UHSIC_SLEEP_CFG(port));
+
+	/* Turn off pad detectors. */
+	val = tegra_pmc_readl(PMC_USB_AO);
+	val |= USBOP_VAL_PD(port) | USBON_VAL_PD(port);
+	tegra_pmc_writel(val, PMC_USB_AO);
+
+	/* Remove fake values and make synchronizers work a bit. */
+	val = tegra_pmc_readl(PMC_UTMIP_UHSIC_FAKE(port));
+	val &= ~(UTMIP_FAKE_USBOP_VAL(port) | UTMIP_FAKE_USBON_VAL(port));
+	tegra_pmc_writel(val, PMC_UTMIP_UHSIC_FAKE(port));
+
+	/* Enable walk on USB line value wake. */
+	val = tegra_pmc_readl(PMC_UTMIP_UHSIC_SLEEPWALK_CFG(port));
+	val |= UTMIP_LINEVAL_WALK_EN(port);
+	tegra_pmc_writel(val, PMC_UTMIP_UHSIC_SLEEPWALK_CFG(port));
+
+	/* Capture FS/LS pad configurations. */
+	val = tegra_pmc_readl(PMC_UTMIP_UHSIC_TRIGGERS);
+	val |= UTMIP_CAP_CFG(port);
+	tegra_pmc_writel(val, PMC_UTMIP_UHSIC_TRIGGERS);
+
+	/* Clear BIAS MASTER_ENABLE */
+	val = tegra_pmc_readl(PMC_UTMIP_BIAS_MASTER_CNTRL);
+	val &= ~UTMIP_BIAS_MASTER_PROG_VAL;
+	tegra_pmc_writel(val, PMC_UTMIP_BIAS_MASTER_CNTRL);
+
+	/* Program walk sequence for remote or hotplug wakeup. */
+	val = tegra_pmc_readl(PMC_UTMIP_SLEEPWALK_PX(port));
+	switch (speed) {
+	case USB_SPEED_UNKNOWN:
+		/*
+		 * Program walk sequence: pull down both DP and DN lines,
+		 * tristate lines once a hotplug-in wake event is detected.
+		 */
+		val &= ~(UTMIP_AP_A | UTMIP_AN_A);
+		val |= UTMIP_USBOP_RPD_A | UTMIP_USBON_RPD_A | UTMIP_HIGHZ_A;
+		val &= ~(UTMIP_AP_B | UTMIP_AN_B);
+		val |= UTMIP_USBOP_RPD_B | UTMIP_USBON_RPD_B | UTMIP_HIGHZ_B;
+		val &= ~(UTMIP_AP_C | UTMIP_AN_C);
+		val |= UTMIP_USBOP_RPD_C | UTMIP_USBON_RPD_C | UTMIP_HIGHZ_C;
+		val &= ~(UTMIP_AP_D | UTMIP_AN_D);
+		val |= UTMIP_USBOP_RPD_D | UTMIP_USBON_RPD_D | UTMIP_HIGHZ_D;
+		break;
+	case USB_SPEED_LOW:
+		/*
+		 * Program walk sequence: maintain a J, followed by a driven K
+		 * to signal a resume once an wake event is detected.
+		 */
+		val &= ~UTMIP_AP_A;
+		val |= UTMIP_USBOP_RPD_A | UTMIP_USBON_RPD_A | UTMIP_AN_A |
+			UTMIP_HIGHZ_A;
+		val &= ~(UTMIP_AN_B | UTMIP_HIGHZ_B);
+		val |= UTMIP_USBOP_RPD_B | UTMIP_USBON_RPD_B | UTMIP_AP_B;
+		val &= ~(UTMIP_AN_C | UTMIP_HIGHZ_C);
+		val |= UTMIP_USBOP_RPD_C | UTMIP_USBON_RPD_C | UTMIP_AP_C;
+		val &= ~(UTMIP_AN_D | UTMIP_HIGHZ_D);
+		val |= UTMIP_USBOP_RPD_D | UTMIP_USBON_RPD_D | UTMIP_AP_D;
+		break;
+	default:
+		val &= ~UTMIP_AN_A;
+		val |= UTMIP_USBOP_RPD_A | UTMIP_USBON_RPD_A | UTMIP_AN_A |
+			UTMIP_HIGHZ_A;
+		val &= ~(UTMIP_AP_B | UTMIP_HIGHZ_B);
+		val |= UTMIP_USBOP_RPD_B | UTMIP_USBON_RPD_B | UTMIP_AN_B;
+		val &= ~(UTMIP_AP_C | UTMIP_HIGHZ_C);
+		val |= UTMIP_USBOP_RPD_C | UTMIP_USBON_RPD_C | UTMIP_AN_C;
+		val &= ~(UTMIP_AP_D | UTMIP_HIGHZ_D);
+		val |= UTMIP_USBOP_RPD_D | UTMIP_USBON_RPD_D | UTMIP_AN_D;
+		break;
+	}
+	tegra_pmc_writel(val, PMC_UTMIP_SLEEPWALK_PX(port));
+
+	/* Turn on pad detectors. */
+	val = tegra_pmc_readl(PMC_USB_AO);
+	val &= ~(USBOP_VAL_PD(port) | USBON_VAL_PD(port));
+	tegra_pmc_writel(val, PMC_USB_AO);
+
+	/* Add small delay before USB detectors provide stable line values. */
+	usleep_range(5000, 5100);
+
+	/* Program TCTRL, PCTRL values.*/
+	val = tegra_pmc_readl(PMC_UTMIP_TERM_PAD_CFG);
+	val |= ((config->tctrl & TEGRA210_TCTRL_VAL_MASK) <<
+		TEGRA210_TCTRL_VAL_SHIFT) |
+	       ((config->pctrl & PCTRL_VAL_MASK) << PCTRL_VAL_SHIFT);
+	tegra_pmc_writel(val, PMC_UTMIP_TERM_PAD_CFG);
+
+	/* Program RPD_CTRL into PMC space */
+	val = tegra_pmc_readl(PMC_UTMIP_PAD_CFG(port));
+	val &= ~UTMIP_RPD_CTRL(~0);
+	val |= UTMIP_RPD_CTRL(config->rpd_ctrl);
+	tegra_pmc_writel(val, PMC_UTMIP_PAD_CFG(port));
+
+	/* Turn over pad configuration to PMC for line wake events. */
+	val = tegra_pmc_readl(PMC_UTMIP_UHSIC_SLEEP_CFG(port));
+	val &= ~(UTMIP_WAKE_VAL_MASK << UTMIP_WAKE_VAL_SHIFT(port));
+	val |= (UTMIP_WAKE_VAL_ANY << UTMIP_WAKE_VAL_SHIFT(port)) |
+		UTMIP_TCTRL_USE_PMC(port) | UTMIP_PCTRL_USE_PMC(port) |
+		UTMIP_FSLS_USE_PMC(port) | UTMIP_MASTER_ENABLE(port);
+	tegra_pmc_writel(val, PMC_UTMIP_UHSIC_SLEEP_CFG(port));
+
+	val = tegra_pmc_readl(PMC_UTMIP_UHSIC_SLEEP_CFG(3));
+	val |= UTMIP_RPD_CTRL_USE_PMC(port) |
+	       UTMIP_RPU_SWITC_LOW_USE_PMC(port);
+	tegra_pmc_writel(val, PMC_UTMIP_UHSIC_SLEEP_CFG(3));
+}
+
+int tegra_pmc_utmi_sleep_enter(unsigned int port, enum usb_device_speed speed,
+			       struct tegra_utmi_pad_config *config)
+{
+	pr_debug("%s port %u, speed %u\n", __func__, port, speed);
+
+	if (!pmc->soc->utmi_sleep_enter)
+		return -ENOTSUPP;
+
+	pmc->soc->utmi_sleep_enter(port, speed, config);
+	return 0;
+}
+EXPORT_SYMBOL(tegra_pmc_utmi_sleep_enter);
+
+static void tegra124_utmi_sleep_exit(unsigned int port)
+{
+	u32 val;
+
+	val = tegra_pmc_readl(PMC_UTMIP_UHSIC_SLEEP_CFG(port));
+	if (!(val & UTMIP_MASTER_ENABLE(port)))
+		return;
+
+	/* Clear line wake value. */
+	val = tegra_pmc_readl(PMC_UTMIP_UHSIC_SLEEP_CFG(port));
+	val &= ~(UTMIP_WAKE_VAL_MASK << UTMIP_WAKE_VAL_SHIFT(port));
+	val |= UTMIP_WAKE_VAL_NONE << UTMIP_WAKE_VAL_SHIFT(port);
+	tegra_pmc_writel(val, PMC_UTMIP_UHSIC_SLEEP_CFG(port));
+
+	/* Release PMC pad control. */
+	val = tegra_pmc_readl(PMC_UTMIP_UHSIC_SLEEP_CFG(port));
+	val &= ~(UTMIP_FSLS_USE_PMC(port) | UTMIP_MASTER_ENABLE(port));
+	val |= UTMIP_TCTRL_USE_PMC(port) | UTMIP_RCTRL_USE_PMC(port);
+	tegra_pmc_writel(val, PMC_UTMIP_UHSIC_SLEEP_CFG(port));
+
+	val = tegra_pmc_readl(PMC_UTMIP_UHSIC_TRIGGERS);
+	val &= ~UTMIP_CAP_CFG(port);
+	tegra_pmc_writel(val, PMC_UTMIP_UHSIC_TRIGGERS);
+
+	/* Turn off pad detectors. */
+	val = tegra_pmc_readl(PMC_USB_AO);
+	val |= USBOP_VAL_PD(port) | USBON_VAL_PD(port);
+	tegra_pmc_writel(val, PMC_USB_AO);
+
+	val = tegra_pmc_readl(PMC_UTMIP_UHSIC_TRIGGERS);
+	val |= UTMIP_CLR_WALK_PTR(port) | UTMIP_CLR_WAKE_ALARM(port);
+	tegra_pmc_writel(val, PMC_UTMIP_UHSIC_TRIGGERS);
+}
+
+static void tegra210_utmi_sleep_exit(unsigned int port)
+{
+	u32 val;
+
+	val = tegra_pmc_readl(PMC_UTMIP_UHSIC_SLEEP_CFG(port));
+	if (!(val & UTMIP_MASTER_ENABLE(port)))
+		return;
+
+	/* Clear line wake value. */
+	val = tegra_pmc_readl(PMC_UTMIP_UHSIC_SLEEP_CFG(port));
+	val &= ~(UTMIP_WAKE_VAL_MASK << UTMIP_WAKE_VAL_SHIFT(port));
+	val |= UTMIP_WAKE_VAL_NONE << UTMIP_WAKE_VAL_SHIFT(port);
+	tegra_pmc_writel(val, PMC_UTMIP_UHSIC_SLEEP_CFG(port));
+
+	/* Release PMC pad control. */
+	val = tegra_pmc_readl(PMC_UTMIP_UHSIC_SLEEP_CFG(port));
+	val &= ~(UTMIP_FSLS_USE_PMC(port) | UTMIP_MASTER_ENABLE(port));
+	val |= UTMIP_TCTRL_USE_PMC(port) | UTMIP_PCTRL_USE_PMC(port);
+	tegra_pmc_writel(val, PMC_UTMIP_UHSIC_SLEEP_CFG(port));
+
+	val = tegra_pmc_readl(PMC_UTMIP_UHSIC_SLEEP_CFG(3));
+	val &= ~(UTMIP_RPD_CTRL_USE_PMC(port) |
+		 UTMIP_RPU_SWITC_LOW_USE_PMC(port));
+	tegra_pmc_writel(val, PMC_UTMIP_UHSIC_SLEEP_CFG(3));
+
+	val = tegra_pmc_readl(PMC_UTMIP_UHSIC_TRIGGERS);
+	val &= ~UTMIP_CAP_CFG(port);
+	tegra_pmc_writel(val, PMC_UTMIP_UHSIC_TRIGGERS);
+
+	/* Turn off pad detectors. */
+	val = tegra_pmc_readl(PMC_USB_AO);
+	val |= USBOP_VAL_PD(port) | USBON_VAL_PD(port);
+	tegra_pmc_writel(val, PMC_USB_AO);
+
+	val = tegra_pmc_readl(PMC_UTMIP_UHSIC_TRIGGERS);
+	val |= UTMIP_CLR_WALK_PTR(port) | UTMIP_CLR_WAKE_ALARM(port);
+	tegra_pmc_writel(val, PMC_UTMIP_UHSIC_TRIGGERS);
+}
+
+int tegra_pmc_utmi_sleep_exit(unsigned int port)
+{
+	pr_debug("%s port %u\n", __func__, port);
+
+	if (!pmc->soc->utmi_sleep_exit)
+		return -ENOTSUPP;
+
+	pmc->soc->utmi_sleep_exit(port);
+	return 0;
+}
+EXPORT_SYMBOL(tegra_pmc_utmi_sleep_exit);
+
+int tegra_pmc_hsic_sleep_enter(unsigned int port)
+{
+	u32 val;
+
+	pr_debug("%s port %u\n", __func__, port);
+
+	val = tegra_pmc_readl(PMC_UHSIC_SLEEP_CFG(port));
+	if (val & UHSIC_MASTER_ENABLE(port))
+		return 0;
+
+	/*
+	 * Set PMC MASTER bits to do the following:
+	 * a. Take over the UHSIC drivers.
+	 * b. Take over resume if remote wakeup is detected.
+	 * c. Take over suspend-wake detect-drive resume until USB controller
+	 *    ready.
+	 */
+
+	/* Set UHSIC_PWR for low-power mode. */
+	val = tegra_pmc_readl(PMC_UHSIC_MASTER_CONFIG(port));
+	val |= UHSIC_PWR(port);
+	tegra_pmc_writel(val, PMC_UHSIC_MASTER_CONFIG(port));
+
+	/* Configure debouncer. */
+	val = tegra_pmc_readl(PMC_USB_DEBOUNCE_DEL);
+	val &= ~(DEBOUNCE_VAL_MASK << DEBOUNCE_VAL_SHIFT);
+	val |= 0x2 << DEBOUNCE_VAL_SHIFT;
+	tegra_pmc_writel(val, PMC_USB_DEBOUNCE_DEL);
+
+	/* Make sure nothing is happening on the line with respect to PMC. */
+	val = tegra_pmc_readl(PMC_UTMIP_UHSIC_FAKE(port));
+	val &= ~(UHSIC_FAKE_STROBE_VAL(port) | UHSIC_FAKE_DATA_VAL(port));
+	tegra_pmc_writel(val, PMC_UTMIP_UHSIC_FAKE(port));
+
+	/* Clear line wake value. */
+	val = tegra_pmc_readl(PMC_UHSIC_SLEEPWALK_CFG(port));
+	val &= ~UHSIC_LINEVAL_WALK_EN(port);
+	tegra_pmc_writel(val, PMC_UHSIC_SLEEPWALK_CFG(port));
+	val = tegra_pmc_readl(PMC_UHSIC_SLEEP_CFG(port));
+	val &= ~(UHSIC_WAKE_VAL_MASK << UHSIC_WAKE_VAL_SHIFT(port));
+	val |= UHSIC_WAKE_VAL_NONE << UHSIC_WAKE_VAL_SHIFT(port);
+	tegra_pmc_writel(val, PMC_UHSIC_SLEEP_CFG(port));
+
+	/* Turn on pad detectors. */
+	val = tegra_pmc_readl(PMC_USB_AO);
+	val &= ~(STROBE_VAL_PD(port) | DATA_VAL_PD(port));
+	tegra_pmc_writel(val, PMC_USB_AO);
+
+	/* Add small delay before USB detectors provide stable line values. */
+	udelay(1);
+
+	/* Enable walk on USB line value wake. */
+	val = tegra_pmc_readl(PMC_UHSIC_SLEEPWALK_CFG(port));
+	val |= UHSIC_LINEVAL_WALK_EN(port);
+	tegra_pmc_writel(val, PMC_UHSIC_SLEEPWALK_CFG(port));
+
+	/*
+	 * Program walk sequence: maintain a J, followed by a driven K
+	 * to signal a resume once a wake event is detected.
+	 */
+	val = tegra_pmc_readl(PMC_UHSIC_SLEEPWALK_PX(port));
+	val &= ~(UHSIC_DATA_RPU_A | UHSIC_STROBE_RPD_A);
+	val |= UHSIC_DATA_RPD_A | UHSIC_STROBE_RPU_A;
+	val &= ~(UHSIC_DATA_RPD_B | UHSIC_STROBE_RPU_B);
+	val |= UHSIC_DATA_RPU_B | UHSIC_STROBE_RPD_B;
+	val &= ~(UHSIC_DATA_RPD_C | UHSIC_STROBE_RPU_C);
+	val |= UHSIC_DATA_RPU_C | UHSIC_STROBE_RPD_C;
+	val &= ~(UHSIC_DATA_RPD_D | UHSIC_STROBE_RPU_D);
+	val |= UHSIC_DATA_RPU_D | UHSIC_STROBE_RPD_D;
+	tegra_pmc_writel(val, PMC_UHSIC_SLEEPWALK_PX(port));
+
+	/* Set wake event. */
+	val = tegra_pmc_readl(PMC_UHSIC_SLEEP_CFG(port));
+	val &= ~(UHSIC_WAKE_VAL_MASK << UHSIC_WAKE_VAL_SHIFT(port));
+	val |= UHSIC_WAKE_VAL_SD10 << UHSIC_WAKE_VAL_SHIFT(port);
+	tegra_pmc_writel(val, PMC_UHSIC_SLEEP_CFG(port));
+
+	/* Clear the walk pointers and wake alarm. */
+	val = tegra_pmc_readl(PMC_UHSIC_TRIGGERS(port));
+	val |= UHSIC_CLR_WAKE_ALARM(port) | UHSIC_CLR_WALK_PTR(port);
+	tegra_pmc_writel(val, PMC_UHSIC_TRIGGERS(port));
+
+	/* Turn over pad configuration to PMC for line wake events. */
+	val = tegra_pmc_readl(PMC_UHSIC_SLEEP_CFG(port));
+	val |= UHSIC_MASTER_ENABLE(port);
+	tegra_pmc_writel(val, PMC_UHSIC_SLEEP_CFG(port));
+
+	return 0;
+}
+EXPORT_SYMBOL(tegra_pmc_hsic_sleep_enter);
+
+int tegra_pmc_hsic_sleep_exit(unsigned int port)
+{
+	u32 val;
+
+	pr_debug("%s port %u\n", __func__, port);
+
+	val = tegra_pmc_readl(PMC_UHSIC_SLEEP_CFG(port));
+	if (!(val & UHSIC_MASTER_ENABLE(port)))
+		return 0;
+
+	/* Clear line wake value. */
+	val = tegra_pmc_readl(PMC_UHSIC_SLEEP_CFG(port));
+	val &= ~(UHSIC_WAKE_VAL_MASK << UHSIC_WAKE_VAL_SHIFT(port));
+	val |= UHSIC_WAKE_VAL_NONE << UHSIC_WAKE_VAL_SHIFT(port);
+	tegra_pmc_writel(val, PMC_UHSIC_SLEEP_CFG(port));
+
+	/* Release PMC pad control. */
+	val = tegra_pmc_readl(PMC_UHSIC_SLEEP_CFG(port));
+	val &= ~UHSIC_MASTER_ENABLE(port);
+	tegra_pmc_writel(val, PMC_UHSIC_SLEEP_CFG(port));
+
+	/* Turn off pad detectors. */
+	val = tegra_pmc_readl(PMC_USB_AO);
+	val |= STROBE_VAL_PD(port) | DATA_VAL_PD(port);
+	tegra_pmc_writel(val, PMC_USB_AO);
+
+	val = tegra_pmc_readl(PMC_UHSIC_TRIGGERS(port));
+	val |= UHSIC_CLR_WAKE_ALARM(port) | UHSIC_CLR_WALK_PTR(port);
+	tegra_pmc_writel(val, PMC_UHSIC_TRIGGERS(port));
+
+	return 0;
+}
+EXPORT_SYMBOL(tegra_pmc_hsic_sleep_exit);
 
 #ifdef CONFIG_PM_SLEEP
 void tegra_tsc_suspend(void)
@@ -1689,6 +2345,8 @@ static const struct tegra_pmc_soc tegra124_pmc_soc = {
 	.cpu_powergates = tegra124_cpu_powergates,
 	.has_tsense_reset = true,
 	.has_gpu_clamps = true,
+	.utmi_sleep_enter = tegra124_utmi_sleep_enter,
+	.utmi_sleep_exit = tegra124_utmi_sleep_exit,
 };
 
 static const char * const tegra210_powergates[] = {
@@ -1736,6 +2394,8 @@ static const struct tegra_pmc_soc tegra210_pmc_soc = {
 	.cpu_powergates = tegra210_cpu_powergates,
 	.has_tsense_reset = true,
 	.has_gpu_clamps = true,
+	.utmi_sleep_enter = tegra210_utmi_sleep_enter,
+	.utmi_sleep_exit = tegra210_utmi_sleep_exit,
 };
 
 static const struct of_device_id tegra_pmc_match[] = {
