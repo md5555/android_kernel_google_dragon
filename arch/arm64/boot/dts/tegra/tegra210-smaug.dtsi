@@ -217,6 +217,42 @@
 	cpu_edp: cpu-edp {
 		nvidia,edp-limit = <16000>;
 	};
+
+	thermal-zones {
+		cpu {
+			trips {
+				balanced_cpu_trip0: balanced_cpu_trip {
+					temperature = <89000>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+			};
+
+			cooling-maps {
+				balanced_cpu_map0 {
+					trip = <&balanced_cpu_trip0>;
+					cooling-device = <&balanced_cpu THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+				};
+			};
+		};
+
+		gpu {
+			trips {
+				balanced_gpu_trip0: balanced_gpu_trip {
+					temperature = <90000>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+			};
+
+			cooling-maps {
+				balanced_gpu_map0 {
+					trip = <&balanced_gpu_trip0>;
+					cooling-device = <&balanced_gpu THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+				};
+			};
+		};
+	};
 };
 
 // GEN1_I2C
