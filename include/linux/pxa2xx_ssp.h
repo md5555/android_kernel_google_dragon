@@ -174,7 +174,7 @@ enum pxa_ssp_type {
 	PXA168_SSP,
 	PXA910_SSP,
 	CE4100_SSP,
-	LPSS_LPT_SSP,
+	LPSS_LPT_SSP, /* Keep LPSS types sorted with lpss_platforms[] */
 	LPSS_BYT_SSP,
 };
 
