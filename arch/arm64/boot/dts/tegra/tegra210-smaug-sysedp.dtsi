@@ -1,0 +1,414 @@
+#include <dt-bindings/soc/tegra-sysedp.h>
+
+/{
+	sysedp-batmon-calc {
+		compatible = "nvidia,tegra124-sysedp-batmon-calc";
+		power-supply = <&battery>;
+		update-interval = <30000>;
+		vsys-min = <3300000>;
+		imax-mode;
+	};
+
+	sysedp-dynamic-capping {
+		compatible = "nvidia,tegra124-sysedp-dynamic-capping";
+		clocks = <&tegra_car TEGRA210_CLK_BATTERY_EMC>;
+		clock-names = "cap-battery-emc";
+		nvidia,core-gain = <100>;
+		nvidia,init-req-watts = <20000>;
+		nvidia,throttle-depth = <75>;
+		nvidia,cap-method = <SYSEDP_CAP_METHOD_RELAX>;
+
+		corecaps {
+			corecap0: corecap@0 {
+				ap-power = <6000>;
+				cpu-pri-cpu-max-power = <1000>;
+				cpu-pri-gpu-max-cap = <2000>;
+				cpu-pri-emc-max-freq = <1600000>;
+				gpu-pri-cpu-max-power = <1000>;
+				gpu-pri-gpu-max-cap = <2000>;
+				gpu-pri-emc-max-freq = <1600000>;
+				throttle-power = <0>;
+				cpu-pri-gpu-supp-freq = <77>;
+				gpu-pri-gpu-supp-freq = <77>;
+			};
+			corecap1: corecap@1 {
+				ap-power = <7000>;
+				cpu-pri-cpu-max-power = <1000>;
+				cpu-pri-gpu-max-cap = <3000>;
+				cpu-pri-emc-max-freq = <1600000>;
+				gpu-pri-cpu-max-power = <1000>;
+				gpu-pri-gpu-max-cap = <3000>;
+				gpu-pri-emc-max-freq = <1600000>;
+				throttle-power = <744>;
+				cpu-pri-gpu-supp-freq = <154>;
+				gpu-pri-gpu-supp-freq = <154>;
+			};
+			corecap2: corecap@2 {
+				ap-power = <8000>;
+				cpu-pri-cpu-max-power = <3000>;
+				cpu-pri-gpu-max-cap = <3000>;
+				cpu-pri-emc-max-freq = <1600000>;
+				gpu-pri-cpu-max-power = <3000>;
+				gpu-pri-gpu-max-cap = <3000>;
+				gpu-pri-emc-max-freq = <1600000>;
+				throttle-power = <2481>;
+				cpu-pri-gpu-supp-freq = <154>;
+				gpu-pri-gpu-supp-freq = <154>;
+			};
+			corecap3: corecap@3 {
+				ap-power = <9000>;
+				cpu-pri-cpu-max-power = <3000>;
+				cpu-pri-gpu-max-cap = <3000>;
+				cpu-pri-emc-max-freq = <1600000>;
+				gpu-pri-cpu-max-power = <3000>;
+				gpu-pri-gpu-max-cap = <3000>;
+				gpu-pri-emc-max-freq = <1600000>;
+				throttle-power = <2481>;
+				cpu-pri-gpu-supp-freq = <154>;
+				gpu-pri-gpu-supp-freq = <154>;
+			};
+			corecap4: corecap@4 {
+				ap-power = <10000>;
+				cpu-pri-cpu-max-power = <3000>;
+				cpu-pri-gpu-max-cap = <4000>;
+				cpu-pri-emc-max-freq = <1600000>;
+				gpu-pri-cpu-max-power = <3000>;
+				gpu-pri-gpu-max-cap = <4000>;
+				gpu-pri-emc-max-freq = <1600000>;
+				throttle-power = <3224>;
+				cpu-pri-gpu-supp-freq = <231>;
+				gpu-pri-gpu-supp-freq = <231>;
+			};
+			corecap5: corecap@5 {
+				ap-power = <11000>;
+				cpu-pri-cpu-max-power = <5000>;
+				cpu-pri-gpu-max-cap = <4000>;
+				cpu-pri-emc-max-freq = <1600000>;
+				gpu-pri-cpu-max-power = <3000>;
+				gpu-pri-gpu-max-cap = <5000>;
+				gpu-pri-emc-max-freq = <1600000>;
+				throttle-power = <3968>;
+				cpu-pri-gpu-supp-freq = <231>;
+				gpu-pri-gpu-supp-freq = <308>;
+			};
+			corecap6: corecap@6 {
+				ap-power = <12000>;
+				cpu-pri-cpu-max-power = <5000>;
+				cpu-pri-gpu-max-cap = <4000>;
+				cpu-pri-emc-max-freq = <1600000>;
+				gpu-pri-cpu-max-power = <3000>;
+				gpu-pri-gpu-max-cap = <6000>;
+				gpu-pri-emc-max-freq = <1600000>;
+				throttle-power = <4563>;
+				cpu-pri-gpu-supp-freq = <231>;
+				gpu-pri-gpu-supp-freq = <384>;
+			};
+			corecap7: corecap@7 {
+				ap-power = <13000>;
+				cpu-pri-cpu-max-power = <6000>;
+				cpu-pri-gpu-max-cap = <5000>;
+				cpu-pri-emc-max-freq = <1600000>;
+				gpu-pri-cpu-max-power = <3000>;
+				gpu-pri-gpu-max-cap = <7000>;
+				gpu-pri-emc-max-freq = <1600000>;
+				throttle-power = <5455>;
+				cpu-pri-gpu-supp-freq = <308>;
+				gpu-pri-gpu-supp-freq = <461>;
+			};
+			corecap8: corecap@8 {
+				ap-power = <14000>;
+				cpu-pri-cpu-max-power = <7000>;
+				cpu-pri-gpu-max-cap = <5000>;
+				cpu-pri-emc-max-freq = <1600000>;
+				gpu-pri-cpu-max-power = <3000>;
+				gpu-pri-gpu-max-cap = <8000>;
+				gpu-pri-emc-max-freq = <1600000>;
+				throttle-power = <6199>;
+				cpu-pri-gpu-supp-freq = <308>;
+				gpu-pri-gpu-supp-freq = <538>;
+			};
+			corecap9: corecap@9 {
+				ap-power = <15000>;
+				cpu-pri-cpu-max-power = <7000>;
+				cpu-pri-gpu-max-cap = <6000>;
+				cpu-pri-emc-max-freq = <1600000>;
+				gpu-pri-cpu-max-power = <4000>;
+				gpu-pri-gpu-max-cap = <8000>;
+				gpu-pri-emc-max-freq = <1600000>;
+				throttle-power = <6778>;
+				cpu-pri-gpu-supp-freq = <384>;
+				gpu-pri-gpu-supp-freq = <538>;
+			};
+			corecap10: corecap@10 {
+				ap-power = <16000>;
+				cpu-pri-cpu-max-power = <7000>;
+				cpu-pri-gpu-max-cap = <7000>;
+				cpu-pri-emc-max-freq = <1600000>;
+				gpu-pri-cpu-max-power = <4000>;
+				gpu-pri-gpu-max-cap = <9000>;
+				gpu-pri-emc-max-freq = <1600000>;
+				throttle-power = <7521>;
+				cpu-pri-gpu-supp-freq = <461>;
+				gpu-pri-gpu-supp-freq = <615>;
+			};
+			corecap11: corecap@11 {
+				ap-power = <17000>;
+				cpu-pri-cpu-max-power = <8000>;
+				cpu-pri-gpu-max-cap = <5000>;
+				cpu-pri-emc-max-freq = <1600000>;
+				gpu-pri-cpu-max-power = <4000>;
+				gpu-pri-gpu-max-cap = <10000>;
+				gpu-pri-emc-max-freq = <1600000>;
+				throttle-power = <6941>;
+				cpu-pri-gpu-supp-freq = <308>;
+				gpu-pri-gpu-supp-freq = <692>;
+			};
+			corecap12: corecap@12 {
+				ap-power = <18000>;
+				cpu-pri-cpu-max-power = <9000>;
+				cpu-pri-gpu-max-cap = <6000>;
+				cpu-pri-emc-max-freq = <1600000>;
+				gpu-pri-cpu-max-power = <4000>;
+				gpu-pri-gpu-max-cap = <11000>;
+				gpu-pri-emc-max-freq = <1600000>;
+				throttle-power = <8373>;
+				cpu-pri-gpu-supp-freq = <384>;
+				gpu-pri-gpu-supp-freq = <692>;
+			};
+			corecap13: corecap@13 {
+				ap-power = <19000>;
+				cpu-pri-cpu-max-power = <9000>;
+				cpu-pri-gpu-max-cap = <6000>;
+				cpu-pri-emc-max-freq = <1600000>;
+				gpu-pri-cpu-max-power = <4000>;
+				gpu-pri-gpu-max-cap = <12000>;
+				gpu-pri-emc-max-freq = <1600000>;
+				throttle-power = <8373>;
+				cpu-pri-gpu-supp-freq = <384>;
+				gpu-pri-gpu-supp-freq = <768>;
+			};
+			corecap14: corecap@14 {
+				ap-power = <20000>;
+				cpu-pri-cpu-max-power = <9000>;
+				cpu-pri-gpu-max-cap = <7000>;
+				cpu-pri-emc-max-freq = <1600000>;
+				gpu-pri-cpu-max-power = <4000>;
+				gpu-pri-gpu-max-cap = <13000>;
+				gpu-pri-emc-max-freq = <1600000>;
+				throttle-power = <9116>;
+				cpu-pri-gpu-supp-freq = <461>;
+				gpu-pri-gpu-supp-freq = <768>;
+			};
+			corecap15: corecap@15 {
+				ap-power = <21000>;
+				cpu-pri-cpu-max-power = <9000>;
+				cpu-pri-gpu-max-cap = <7000>;
+				cpu-pri-emc-max-freq = <1600000>;
+				gpu-pri-cpu-max-power = <4000>;
+				gpu-pri-gpu-max-cap = <14000>;
+				gpu-pri-emc-max-freq = <1600000>;
+				throttle-power = <9116>;
+				cpu-pri-gpu-supp-freq = <461>;
+				gpu-pri-gpu-supp-freq = <845>;
+			};
+			corecap16: corecap@16 {
+				ap-power = <22000>;
+				cpu-pri-cpu-max-power = <9000>;
+				cpu-pri-gpu-max-cap = <8000>;
+				cpu-pri-emc-max-freq = <1600000>;
+				gpu-pri-cpu-max-power = <4000>;
+				gpu-pri-gpu-max-cap = <15000>;
+				gpu-pri-emc-max-freq = <1600000>;
+				throttle-power = <9860>;
+				cpu-pri-gpu-supp-freq = <538>;
+				gpu-pri-gpu-supp-freq = <845>;
+			};
+			corecap17: corecap@17 {
+				ap-power = <23000>;
+				cpu-pri-cpu-max-power = <9000>;
+				cpu-pri-gpu-max-cap = <8000>;
+				cpu-pri-emc-max-freq = <1600000>;
+				gpu-pri-cpu-max-power = <4000>;
+				gpu-pri-gpu-max-cap = <17000>;
+				gpu-pri-emc-max-freq = <1600000>;
+				throttle-power = <9860>;
+				cpu-pri-gpu-supp-freq = <538>;
+				gpu-pri-gpu-supp-freq = <922>;
+			};
+			corecap18: corecap@18 {
+				ap-power = <24000>;
+				cpu-pri-cpu-max-power = <9000>;
+				cpu-pri-gpu-max-cap = <11000>;
+				cpu-pri-emc-max-freq = <1600000>;
+				gpu-pri-cpu-max-power = <5000>;
+				gpu-pri-gpu-max-cap = <17000>;
+				gpu-pri-emc-max-freq = <1600000>;
+				throttle-power = <12091>;
+				cpu-pri-gpu-supp-freq = <692>;
+				gpu-pri-gpu-supp-freq = <922>;
+			};
+			corecap19: corecap@19 {
+				ap-power = <25000>;
+				cpu-pri-cpu-max-power = <9000>;
+				cpu-pri-gpu-max-cap = <11000>;
+				cpu-pri-emc-max-freq = <1600000>;
+				gpu-pri-cpu-max-power = <5000>;
+				gpu-pri-gpu-max-cap = <17000>;
+				gpu-pri-emc-max-freq = <1600000>;
+				throttle-power = <12091>;
+				cpu-pri-gpu-supp-freq = <692>;
+				gpu-pri-gpu-supp-freq = <922>;
+			};
+			corecap20: corecap@20 {
+				ap-power = <26000>;
+				cpu-pri-cpu-max-power = <9000>;
+				cpu-pri-gpu-max-cap = <12000>;
+				cpu-pri-emc-max-freq = <1600000>;
+				gpu-pri-cpu-max-power = <5000>;
+				gpu-pri-gpu-max-cap = <18000>;
+				gpu-pri-emc-max-freq = <1600000>;
+				throttle-power = <12886>;
+				cpu-pri-gpu-supp-freq = <768>;
+				gpu-pri-gpu-supp-freq = <922>;
+			};
+			corecap21: corecap@21 {
+				ap-power = <27000>;
+				cpu-pri-cpu-max-power = <10000>;
+				cpu-pri-gpu-max-cap = <13000>;
+				cpu-pri-emc-max-freq = <1600000>;
+				gpu-pri-cpu-max-power = <5000>;
+				gpu-pri-gpu-max-cap = <19000>;
+				gpu-pri-emc-max-freq = <1600000>;
+				throttle-power = <13387>;
+				cpu-pri-gpu-supp-freq = <768>;
+				gpu-pri-gpu-supp-freq = <922>;
+			};
+			corecap22: corecap@22 {
+				ap-power = <28000>;
+				cpu-pri-cpu-max-power = <12000>;
+				cpu-pri-gpu-max-cap = <14000>;
+				cpu-pri-emc-max-freq = <1600000>;
+				gpu-pri-cpu-max-power = <6000>;
+				gpu-pri-gpu-max-cap = <20000>;
+				gpu-pri-emc-max-freq = <1600000>;
+				throttle-power = <14451>;
+				cpu-pri-gpu-supp-freq = <845>;
+				gpu-pri-gpu-supp-freq = <999>;
+			};
+			corecap23: corecap@23 {
+				ap-power = <29000>;
+				cpu-pri-cpu-max-power = <12000>;
+				cpu-pri-gpu-max-cap = <14000>;
+				cpu-pri-emc-max-freq = <1600000>;
+				gpu-pri-cpu-max-power = <6000>;
+				gpu-pri-gpu-max-cap = <21000>;
+				gpu-pri-emc-max-freq = <1600000>;
+				throttle-power = <14451>;
+				cpu-pri-gpu-supp-freq = <845>;
+				gpu-pri-gpu-supp-freq = <999>;
+			};
+			corecap24: corecap@24 {
+				ap-power = <30000>;
+				cpu-pri-cpu-max-power = <12000>;
+				cpu-pri-gpu-max-cap = <16000>;
+				cpu-pri-emc-max-freq = <1600000>;
+				gpu-pri-cpu-max-power = <6000>;
+				gpu-pri-gpu-max-cap = <21000>;
+				gpu-pri-emc-max-freq = <1600000>;
+				throttle-power = <14451>;
+				cpu-pri-gpu-supp-freq = <845>;
+				gpu-pri-gpu-supp-freq = <999>;
+			};
+			corecap25: corecap@25 {
+				ap-power = <31000>;
+				cpu-pri-cpu-max-power = <13000>;
+				cpu-pri-gpu-max-cap = <16000>;
+				cpu-pri-emc-max-freq = <1600000>;
+				gpu-pri-cpu-max-power = <7000>;
+				gpu-pri-gpu-max-cap = <22000>;
+				gpu-pri-emc-max-freq = <1600000>;
+				throttle-power = <14989>;
+				cpu-pri-gpu-supp-freq = <845>;
+				gpu-pri-gpu-supp-freq = <999>;
+			};
+			corecap26: corecap@26 {
+				ap-power = <32000>;
+				cpu-pri-cpu-max-power = <13000>;
+				cpu-pri-gpu-max-cap = <20000>;
+				cpu-pri-emc-max-freq = <1600000>;
+				gpu-pri-cpu-max-power = <8000>;
+				gpu-pri-gpu-max-cap = <22000>;
+				gpu-pri-emc-max-freq = <1600000>;
+				throttle-power = <15605>;
+				cpu-pri-gpu-supp-freq = <999>;
+				gpu-pri-gpu-supp-freq = <999>;
+			};
+			corecap27: corecap@27 {
+				ap-power = <33000>;
+				cpu-pri-cpu-max-power = <13000>;
+				cpu-pri-gpu-max-cap = <20000>;
+				cpu-pri-emc-max-freq = <1600000>;
+				gpu-pri-cpu-max-power = <8000>;
+				gpu-pri-gpu-max-cap = <22000>;
+				gpu-pri-emc-max-freq = <1600000>;
+				throttle-power = <15605>;
+				cpu-pri-gpu-supp-freq = <999>;
+				gpu-pri-gpu-supp-freq = <999>;
+			};
+			corecap28: corecap@28 {
+				ap-power = <34000>;
+				cpu-pri-cpu-max-power = <13000>;
+				cpu-pri-gpu-max-cap = <20000>;
+				cpu-pri-emc-max-freq = <1600000>;
+				gpu-pri-cpu-max-power = <8000>;
+				gpu-pri-gpu-max-cap = <22000>;
+				gpu-pri-emc-max-freq = <1600000>;
+				throttle-power = <15605>;
+				cpu-pri-gpu-supp-freq = <999>;
+				gpu-pri-gpu-supp-freq = <999>;
+			};
+			corecap29: corecap@29 {
+				ap-power = <35000>;
+				cpu-pri-cpu-max-power = <13000>;
+				cpu-pri-gpu-max-cap = <21000>;
+				cpu-pri-emc-max-freq = <1600000>;
+				gpu-pri-cpu-max-power = <11000>;
+				gpu-pri-gpu-max-cap = <22000>;
+				gpu-pri-emc-max-freq = <1600000>;
+				throttle-power = <16793>;
+				cpu-pri-gpu-supp-freq = <999>;
+				gpu-pri-gpu-supp-freq = <999>;
+			};
+			corecap30: corecap@30 {
+				ap-power = <36000>;
+				cpu-pri-cpu-max-power = <13000>;
+				cpu-pri-gpu-max-cap = <22000>;
+				cpu-pri-emc-max-freq = <1600000>;
+				gpu-pri-cpu-max-power = <13000>;
+				gpu-pri-gpu-max-cap = <22000>;
+				gpu-pri-emc-max-freq = <1600000>;
+				throttle-power = <16793>;
+				cpu-pri-gpu-supp-freq = <999>;
+				gpu-pri-gpu-supp-freq = <999>;
+			};
+		};
+	};
+
+	sysedp-reactive-capping@1 {
+		compatible = "nvidia,tegra124-sysedp-reactive-capping";
+		nvidia,max-capping-mw = <15000>;
+		nvidia,step-alarm-mw = <1000>;
+		nvidia,step-relax-mw = <500>;
+		nvidia,relax-ms = <250>;
+		interrupt-parent = <&soctherm>;
+		interrupts = <1 0x2002>;
+
+		sysedpc,name = "voltmon_oc1";
+	};
+
+	sysedp {
+		compatible = "nvidia,tegra124-sysedp";
+		nvidia,margin = <0>;
+		nvidia,min-budget = <0>;
+	};
+};
