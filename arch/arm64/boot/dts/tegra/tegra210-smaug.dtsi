@@ -507,12 +507,7 @@
 	max77620: max77620@3c {
 		compatible = "maxim,max77620";
 		reg = <0x3c>;
-#if 1
-		// 86 is the correct value but causes a delay at boot
 		interrupts = <0 86 IRQ_TYPE_NONE>;
-#else
-		interrupts = <0 30 IRQ_TYPE_NONE>;
-#endif
 
 		#interrupt-cells = <2>;
 		interrupt-controller;
