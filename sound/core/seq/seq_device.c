@@ -80,7 +80,7 @@ struct ops_list {
 static LIST_HEAD(opslist);
 static int num_ops;
 static DEFINE_MUTEX(ops_mutex);
-#ifdef CONFIG_PROC_FS
+#ifdef CONFIG_SND_PROC_FS
 static struct snd_info_entry *info_entry;
 #endif
 

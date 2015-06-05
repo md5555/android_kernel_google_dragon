@@ -1038,7 +1038,7 @@ static int snd_timer_register_system(void)
 	return snd_timer_global_register(timer);
 }
 
-#ifdef CONFIG_PROC_FS
+#ifdef CONFIG_SND_PROC_FS
 /*
  *  Info interface
  */
@@ -1108,7 +1108,7 @@ static void __exit snd_timer_proc_done(void)
 {
 	snd_info_free_entry(snd_timer_proc_entry);
 }
-#else /* !CONFIG_PROC_FS */
+#else /* !CONFIG_SND_PROC_FS */
 #define snd_timer_proc_init()
 #define snd_timer_proc_done()
 #endif

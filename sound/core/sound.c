@@ -389,7 +389,7 @@ struct device *snd_get_device(int type, struct snd_card *card, int dev)
 }
 EXPORT_SYMBOL(snd_get_device);
 
-#ifdef CONFIG_PROC_FS
+#ifdef CONFIG_SND_PROC_FS
 /*
  *  INFO PART
  */
@@ -464,7 +464,7 @@ int __exit snd_minor_info_done(void)
 	snd_info_free_entry(snd_minor_info_entry);
 	return 0;
 }
-#endif /* CONFIG_PROC_FS */
+#endif /* CONFIG_SND_PROC_FS */
 
 /*
  *  INIT PART
