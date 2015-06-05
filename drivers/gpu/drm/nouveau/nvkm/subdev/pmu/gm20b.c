@@ -1344,6 +1344,9 @@ gm20b_prepare_ucode_blob(struct nvkm_pmu *ppmu)
 	struct gk20a_pmu_priv *priv = to_gk20a_priv(ppmu);
 	struct gm20b_acr *acr = &priv->acr;
 
+	if (priv->pmuvm.vm)
+		return 0;
+
 	plsfm = &lsfm_l;
 	memset((void *)plsfm, 0, sizeof(struct ls_flcn_mgr));
 	status = gm20b_lsfm_discover_ucode_images(ppmu, plsfm);
