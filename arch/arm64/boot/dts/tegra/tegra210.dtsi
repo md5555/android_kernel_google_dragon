@@ -1025,13 +1025,19 @@
 	};
 
 	vii2c: i2c@546c0000 {
-		compatible = "nvidia,tegra210-vii2c";
+		compatible = "nvidia,tegra210-i2c-vi";
 		reg = <0x0 0x546C0000 0x0 0x00034000>;
 		interrupts = <GIC_SPI 17 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <1>;
 		#size-cells = <0>;
-		scl-gpio = <&gpio TEGRA_GPIO(S, 2) 0>;
-		sda-gpio = <&gpio TEGRA_GPIO(S, 3) 0>;
+		clocks = <&tegra_car TEGRA210_CLK_VI_I2C>,
+			 <&tegra_car TEGRA210_CLK_I2CSLOW>,
+			 <&tegra_car TEGRA210_CLK_HOST1X>;
+		clock-names = "div-clk",
+			      "slow-clk",
+			      "host1x-clk";
+		resets = <&tegra_car 208>;
+		reset-names = "i2c";
 		status = "disabled";
 		clock-frequency = <400000>;
 	};

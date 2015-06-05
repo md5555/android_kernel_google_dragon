@@ -928,6 +928,7 @@
 
 // CAM_I2C
 &vii2c {
+	avdd-supply = <&pp1200_avdd>;
 	status = "okay";
 };
 
