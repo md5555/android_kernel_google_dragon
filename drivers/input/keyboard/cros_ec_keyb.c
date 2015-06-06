@@ -171,28 +171,13 @@ static void cros_ec_keyb_close(struct input_dev *dev)
 					   &ckdev->notifier);
 }
 
-static int cros_ec_keyb_get_state(struct cros_ec_keyb *ckdev, uint8_t *kb_state)
-{
-	struct cros_ec_command msg = {
-		.version = 0,
-		.command = EC_CMD_MKBP_STATE,
-		.outdata = NULL,
-		.outsize = 0,
-		.indata = kb_state,
-		.insize = ckdev->cols,
-	};
-
-	return cros_ec_cmd_xfer_status(ckdev->ec, &msg);
-}
-
 static int cros_ec_keyb_work(struct notifier_block *nb,
 			     unsigned long queued_during_suspend, void *_notify)
 {
-	int ret;
 	struct cros_ec_keyb *ckdev = container_of(nb, struct cros_ec_keyb,
 						  notifier);
 
-	if (ckdev->ec->event_type != EC_MKBP_EVENT_KEY_MATRIX)
+	if (ckdev->ec->event_data.event_type != EC_MKBP_EVENT_KEY_MATRIX)
 		return NOTIFY_DONE;
 	/*
 	 * If EC is not the wake source, discard key state changes during
@@ -205,7 +190,8 @@ static int cros_ec_keyb_work(struct notifier_block *nb,
 			"Discarded incomplete key matrix event.\n");
 		return NOTIFY_OK;
 	}
-	cros_ec_keyb_process(ckdev, ckdev->ec->event_data, ret);
+	cros_ec_keyb_process(ckdev, ckdev->ec->event_data.data.key_matrix,
+			     ckdev->ec->event_size);
 	return NOTIFY_OK;
 }
 

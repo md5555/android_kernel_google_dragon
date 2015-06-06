@@ -17,6 +17,7 @@
  * battery charging and regulator control, firmware update.
  */
 
+#include <asm/unaligned.h>
 #include <linux/interrupt.h>
 #include <linux/slab.h>
 #include <linux/module.h>
@@ -131,7 +132,7 @@ static int send_command(struct cros_ec_device *ec_dev,
 }
 
 static int cros_ec_get_host_command_version_mask(struct cros_ec_device *ec_dev,
-	uint16_t cmd, uint32_t *mask)
+	u16 cmd, u32 *mask)
 {
 	struct ec_params_get_cmd_versions pver;
 	struct ec_response_get_cmd_versions rver;
@@ -234,7 +235,7 @@ static int cros_ec_probe_all(struct cros_ec_device *ec_dev)
 	struct device *dev = ec_dev->dev;
 	struct ec_response_get_protocol_info proto_info;
 	int ret;
-	uint32_t ver_mask;
+	u32 ver_mask;
 
 	/* First try sending with proto v3. */
 	ec_dev->proto_version = 3;
@@ -353,15 +354,14 @@ static int cros_ec_get_next_event(struct cros_ec_device *ec_dev)
 		.command = EC_CMD_GET_NEXT_EVENT,
 		.outdata = NULL,
 		.outsize = 0,
-		.indata = ec_dev->event_raw_data,
-		.insize = ec_dev->max_response,
+		.indata = (u8 *)&ec_dev->event_data,
+		.insize = sizeof(ec_dev->event_data),
 	};
 	int ret;
 
 	ret = cros_ec_cmd_xfer(ec_dev, &msg);
 	if (ret > 0) {
 		ec_dev->event_size = ret - 1;
-		ec_dev->event_type = ec_dev->event_raw_data[0];
 	}
 	return ret;
 }
@@ -373,13 +373,29 @@ static int cros_ec_get_keyboard_state_event(struct cros_ec_device *ec_dev)
 		.command = EC_CMD_MKBP_STATE,
 		.outdata = NULL,
 		.outsize = 0,
-		.indata = ec_dev->event_data,
-		.insize = ec_dev->max_response - 1,
+		.indata = (u8 *)&ec_dev->event_data.data,
+		.insize = sizeof(ec_dev->event_data.data),
 	};
 
-	ec_dev->event_type = EC_MKBP_EVENT_KEY_MATRIX;
+	ec_dev->event_data.event_type = EC_MKBP_EVENT_KEY_MATRIX;
 	ec_dev->event_size = cros_ec_cmd_xfer(ec_dev, &msg);
 	return ec_dev->event_size;
+}
+
+u32 cros_ec_get_host_event(struct cros_ec_device *ec_dev)
+{
+	u32 host_event;
+
+	BUG_ON(!ec_dev->mkbp_event_supported);
+	if (ec_dev->event_data.event_type != EC_MKBP_EVENT_HOST_EVENT)
+		return 0;
+	if (ec_dev->event_size != sizeof(host_event)) {
+		dev_warn(ec_dev->dev, "Invalid host event size\n");
+		return 0;
+	}
+
+	host_event = get_unaligned_le32(&ec_dev->event_data.data.host_event);
+	return host_event;
 }
 
 static irqreturn_t ec_irq_thread(int irq, void *data)
@@ -556,15 +572,6 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 		devm_kfree(dev, ec_dev->din);
 		return -ENOMEM;
 	}
-	ec_dev->event_raw_data = devm_kzalloc(dev, ec_dev->max_response,
-					      GFP_KERNEL);
-	if (!ec_dev->event_raw_data) {
-		devm_kfree(dev, ec_dev->din);
-		devm_kfree(dev, ec_dev->dout);
-		return -ENOMEM;
-	}
-	ec_dev->event_data = ec_dev->event_raw_data + 1;
-
 	mutex_init(&ec_dev->lock);
 
 	cros_ec_probe_all(ec_dev);
