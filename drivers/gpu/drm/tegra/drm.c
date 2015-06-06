@@ -1146,8 +1146,14 @@ static int __init host1x_drm_init(void)
 	if (err < 0)
 		goto unregister_vic;
 
+	err = platform_driver_register(&tegra_nvdec_driver);
+	if (err < 0)
+		goto unregister_nvenc;
+
 	return 0;
 
+unregister_nvenc:
+	platform_driver_unregister(&tegra_nvenc_driver);
 unregister_vic:
 	platform_driver_unregister(&tegra_vic_driver);
 unregister_gr3d:
@@ -1172,6 +1178,7 @@ module_init(host1x_drm_init);
 
 static void __exit host1x_drm_exit(void)
 {
+	platform_driver_unregister(&tegra_nvdec_driver);
 	platform_driver_unregister(&tegra_nvenc_driver);
 	platform_driver_unregister(&tegra_vic_driver);
 	platform_driver_unregister(&tegra_gr3d_driver);
