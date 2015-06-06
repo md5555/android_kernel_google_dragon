@@ -1150,8 +1150,14 @@ static int __init host1x_drm_init(void)
 	if (err < 0)
 		goto unregister_nvenc;
 
+	err = platform_driver_register(&tegra_nvjpg_driver);
+	if (err < 0)
+		goto unregister_nvdec;
+
 	return 0;
 
+unregister_nvdec:
+	platform_driver_unregister(&tegra_nvdec_driver);
 unregister_nvenc:
 	platform_driver_unregister(&tegra_nvenc_driver);
 unregister_vic:
@@ -1178,6 +1184,7 @@ module_init(host1x_drm_init);
 
 static void __exit host1x_drm_exit(void)
 {
+	platform_driver_unregister(&tegra_nvjpg_driver);
 	platform_driver_unregister(&tegra_nvdec_driver);
 	platform_driver_unregister(&tegra_nvenc_driver);
 	platform_driver_unregister(&tegra_vic_driver);
