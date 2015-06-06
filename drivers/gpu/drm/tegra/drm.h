@@ -276,5 +276,6 @@ extern struct platform_driver tegra_hdmi_driver;
 extern struct platform_driver tegra_dpaux_driver;
 extern struct platform_driver tegra_gr2d_driver;
 extern struct platform_driver tegra_gr3d_driver;
+extern struct platform_driver tegra_vic_driver;
 
 #endif /* HOST1X_DRM_H */
