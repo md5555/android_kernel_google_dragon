@@ -196,6 +196,7 @@
 		resets = <&tegra_car 184>;
 		reset-names = "gpu";
 		mc = <&mc TEGRA_SWGROUP_GPU>;
+		iommus = <&mc TEGRA_SWGROUP_GPU>;
 		status = "disabled";
 
 		gpu_scaling_cdev: gpu-scaling-cdev {
