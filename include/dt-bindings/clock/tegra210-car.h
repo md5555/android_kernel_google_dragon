@@ -163,8 +163,8 @@
 /* 140 */
 /* 141 */
 /* 142 */
-/* 143 (bit affects xusb_falcon_src, xusb_fs_src, */
-/*      xusb_host_src and xusb_ss_src) */
+/* bit affects xusb_falcon_src, xusb_fs_src, xusb_host_src and xusb_ss_src) */
+#define TEGRA210_CLK_XUSB_GATE 143
 #define TEGRA210_CLK_CILAB 144
 #define TEGRA210_CLK_CILCD 145
 #define TEGRA210_CLK_CILE 146

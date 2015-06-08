@@ -298,6 +298,7 @@ enum clk_id {
 	tegra_clk_xusb_falcon_src,
 	tegra_clk_xusb_falcon_src_8,
 	tegra_clk_xusb_fs_src,
+	tegra_clk_xusb_gate,
 	tegra_clk_xusb_host,
 	tegra_clk_xusb_host_src,
 	tegra_clk_xusb_host_src_8,
