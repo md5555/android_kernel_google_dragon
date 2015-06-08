@@ -21,6 +21,7 @@
 #include <linux/pinctrl/pinctrl.h>
 #include <linux/workqueue.h>
 
+#include <soc/tegra/pmc.h>
 #include <soc/tegra/xusb.h>
 
 #include <dt-bindings/pinctrl/pinctrl-tegra-xusb.h>
@@ -30,6 +31,9 @@ struct phy_provider;
 struct platform_device;
 struct regulator;
 struct tegra_xusb_padctl;
+struct tegra_xusb_usb3_phy;
+struct tegra_xusb_utmi_phy;
+struct tegra_xusb_hsic_phy;
 
 struct tegra_xusb_padctl_function {
 	const char *name;
@@ -57,13 +61,18 @@ struct tegra_xusb_padctl_soc {
 
 	const struct phy_ops *usb3_phy_ops;
 	unsigned int num_usb3_phys;
+	void (*usb3_set_wake)(struct tegra_xusb_usb3_phy *usb3, bool enable);
 
 	const struct phy_ops *utmi_phy_ops;
 	unsigned int num_utmi_phys;
+	void (*utmi_set_wake)(struct tegra_xusb_utmi_phy *utmi, bool enable);
+	void (*utmi_get_pad_config)(struct tegra_xusb_utmi_phy *utmi,
+				    struct tegra_utmi_pad_config *config);
 
 	const struct phy_ops *hsic_phy_ops;
 	unsigned int num_hsic_phys;
 	unsigned int hsic_port_offset;
+	void (*hsic_set_wake)(struct tegra_xusb_hsic_phy *hsic, bool enable);
 
 	bool (*is_phy_message)(struct tegra_xusb_mbox_msg *msg);
 	void (*handle_message)(struct tegra_xusb_padctl *padctl,

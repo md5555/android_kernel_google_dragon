@@ -600,6 +600,141 @@ static const struct pinconf_ops tegra_xusb_padctl_pinconf_ops = {
 #endif
 };
 
+int tegra_xusb_usb3_phy_wake_enable(struct phy *phy)
+{
+	struct tegra_xusb_usb3_phy *usb3;
+	struct tegra_xusb_padctl *padctl;
+
+	if (!phy)
+		return 0;
+
+	usb3 = phy_get_drvdata(phy);
+	padctl = usb3->padctl;
+
+	if (!padctl->soc->usb3_set_wake)
+		return -ENOTSUPP;
+	padctl->soc->usb3_set_wake(usb3, true);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(tegra_xusb_usb3_phy_wake_enable);
+
+int tegra_xusb_usb3_phy_wake_disable(struct phy *phy)
+{
+	struct tegra_xusb_usb3_phy *usb3;
+	struct tegra_xusb_padctl *padctl;
+
+	if (!phy)
+		return 0;
+
+	usb3 = phy_get_drvdata(phy);
+	padctl = usb3->padctl;
+
+	if (!padctl->soc->usb3_set_wake)
+		return -ENOTSUPP;
+	padctl->soc->usb3_set_wake(usb3, false);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(tegra_xusb_usb3_phy_wake_disable);
+
+int tegra_xusb_utmi_phy_wake_enable(struct phy *phy)
+{
+	struct tegra_xusb_utmi_phy *utmi;
+	struct tegra_xusb_padctl *padctl;
+
+	if (!phy)
+		return 0;
+
+	utmi = phy_get_drvdata(phy);
+	padctl = utmi->padctl;
+
+	if (!padctl->soc->utmi_set_wake)
+		return -ENOTSUPP;
+	padctl->soc->utmi_set_wake(utmi, true);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(tegra_xusb_utmi_phy_wake_enable);
+
+int tegra_xusb_utmi_phy_wake_disable(struct phy *phy)
+{
+	struct tegra_xusb_utmi_phy *utmi;
+	struct tegra_xusb_padctl *padctl;
+
+	if (!phy)
+		return 0;
+
+	utmi = phy_get_drvdata(phy);
+	padctl = utmi->padctl;
+
+	if (!padctl->soc->utmi_set_wake)
+		return -ENOTSUPP;
+	padctl->soc->utmi_set_wake(utmi, false);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(tegra_xusb_utmi_phy_wake_disable);
+
+int tegra_xusb_hsic_phy_wake_enable(struct phy *phy)
+{
+	struct tegra_xusb_hsic_phy *hsic;
+	struct tegra_xusb_padctl *padctl;
+
+	if (!phy)
+		return 0;
+
+	hsic = phy_get_drvdata(phy);
+	padctl = hsic->padctl;
+
+	if (!padctl->soc->hsic_set_wake)
+		return -ENOTSUPP;
+	padctl->soc->hsic_set_wake(hsic, true);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(tegra_xusb_hsic_phy_wake_enable);
+
+int tegra_xusb_hsic_phy_wake_disable(struct phy *phy)
+{
+	struct tegra_xusb_hsic_phy *hsic;
+	struct tegra_xusb_padctl *padctl;
+
+	if (!phy)
+		return 0;
+
+	hsic = phy_get_drvdata(phy);
+	padctl = hsic->padctl;
+
+	if (!padctl->soc->hsic_set_wake)
+		return -ENOTSUPP;
+	padctl->soc->hsic_set_wake(hsic, false);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(tegra_xusb_hsic_phy_wake_disable);
+
+int
+tegra_xusb_utmi_phy_get_pad_config(struct phy *phy,
+				   struct tegra_utmi_pad_config *config)
+{
+	struct tegra_xusb_utmi_phy *utmi;
+	struct tegra_xusb_padctl *padctl;
+
+	if (!phy)
+		return 0;
+
+	utmi = phy_get_drvdata(phy);
+	padctl = utmi->padctl;
+
+	if (!padctl->soc->utmi_get_pad_config)
+		return -ENOTSUPP;
+	padctl->soc->utmi_get_pad_config(utmi, config);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(tegra_xusb_utmi_phy_get_pad_config);
+
 static inline struct tegra_xusb_padctl *
 mbox_work_to_padctl(struct work_struct *work)
 {
