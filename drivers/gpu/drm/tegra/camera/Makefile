@@ -1,0 +1,1 @@
+obj-$(CONFIG_DRM_TEGRA_CAMERA_IMX219)     += imx219.o

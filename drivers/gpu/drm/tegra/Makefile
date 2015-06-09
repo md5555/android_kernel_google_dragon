@@ -22,4 +22,4 @@ tegra-drm-y := \
 	isp.o \
 	vi.o
 
-obj-$(CONFIG_DRM_TEGRA) += tegra-drm.o
+obj-$(CONFIG_DRM_TEGRA) += tegra-drm.o camera/

@@ -1,0 +1,9 @@
+config DRM_TEGRA_CAMERA_IMX219
+        tristate "IMX219 camera sensor support"
+        depends on I2C && ARCH_TEGRA
+        ---help---
+         This is a driver for the IMX219
+         camera sensor for use with the tegra isp.
+         The sensor has a maximum of 8MP
+         resolution.
+
