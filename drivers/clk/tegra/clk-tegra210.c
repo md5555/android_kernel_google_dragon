@@ -169,6 +169,8 @@
 #define UTMIP_PLL_CFG2_FORCE_PD_SAMP_B_POWERUP BIT(3)
 #define UTMIP_PLL_CFG2_FORCE_PD_SAMP_C_POWERDOWN BIT(4)
 #define UTMIP_PLL_CFG2_FORCE_PD_SAMP_C_POWERUP BIT(5)
+#define UTMIP_PLL_CFG2_FORCE_PD_SAMP_D_POWERDOWN BIT(24)
+#define UTMIP_PLL_CFG2_FORCE_PD_SAMP_D_POWERUP BIT(25)
 
 #define UTMIP_PLL_CFG1 0x484
 #define UTMIP_PLL_CFG1_ENABLE_DLY_COUNT(x) (((x) & 0x1f) << 27)
@@ -2061,9 +2063,9 @@ struct utmi_clk_param {
 };
 
 static const struct utmi_clk_param utmi_parameters[] = {
-	{.osc_frequency = 38400000, .enable_delay_count = 0x05,
-	 .stable_count = 0x96, .active_delay_count = 0x18,
-	 .xtal_freq_count = 0x177},
+	{.osc_frequency = 38400000, .enable_delay_count = 0x0,
+	 .stable_count = 0x0, .active_delay_count = 0x6,
+	 .xtal_freq_count = 0x80},
 	{.osc_frequency = 13000000, .enable_delay_count = 0x02,
 	 .stable_count = 0x33, .active_delay_count = 0x05,
 	 .xtal_freq_count = 0x7F},
@@ -2585,10 +2587,10 @@ static void tegra210_utmi_param_configure(void __iomem *clk_base)
 	reg = readl_relaxed(clk_base + UTMIP_PLL_CFG2);
 	reg |= UTMIP_PLL_CFG2_FORCE_PD_SAMP_A_POWERUP;
 	reg |= UTMIP_PLL_CFG2_FORCE_PD_SAMP_B_POWERUP;
-	reg |= UTMIP_PLL_CFG2_FORCE_PD_SAMP_C_POWERUP;
+	reg |= UTMIP_PLL_CFG2_FORCE_PD_SAMP_D_POWERUP;
 	reg &= ~UTMIP_PLL_CFG2_FORCE_PD_SAMP_A_POWERDOWN;
 	reg &= ~UTMIP_PLL_CFG2_FORCE_PD_SAMP_B_POWERDOWN;
-	reg &= ~UTMIP_PLL_CFG2_FORCE_PD_SAMP_C_POWERDOWN;
+	reg &= ~UTMIP_PLL_CFG2_FORCE_PD_SAMP_D_POWERDOWN;
 	writel_relaxed(reg, clk_base + UTMIP_PLL_CFG2);
 
 	/* Setup HW control of UTMIPLL */
