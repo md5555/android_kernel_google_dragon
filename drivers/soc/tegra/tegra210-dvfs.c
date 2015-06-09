@@ -22,6 +22,7 @@
 
 #include <soc/tegra/tegra-dvfs.h>
 #include <soc/tegra/fuse.h>
+#include <soc/tegra/tegra_emc.h>
 
 #define KHZ		1000
 #define MHZ		1000000
@@ -785,6 +786,24 @@ static int __init init_cpu_lp_dvfs_table(int *cpu_lp_max_freq_index)
 	return ret;
 }
 
+static void adjust_emc_dvfs_table(struct dvfs *d)
+{
+	unsigned long rate;
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(core_millivolts); i++) {
+		if (core_millivolts[i] == 0)
+			return;
+
+		rate = tegra210_predict_emc_rate(core_millivolts[i]);
+		if (IS_ERR_VALUE(rate))
+			return;
+
+		if (rate)
+			d->freqs[i] = rate;
+	}
+}
+
 int tegra210_init_dvfs(void)
 {
 	int soc_speedo_id = tegra_sku_info.soc_speedo_id;
@@ -843,6 +862,14 @@ int tegra210_init_dvfs(void)
 			d->process_id, soc_speedo_id, core_process_id))
 			continue;
 		init_dvfs_one(d, core_nominal_mv_index);
+
+		/*
+		 * EMC dvfs is board dependent, the EMC scaling frequencies are
+		 * determined by the Tegra BCT and the board specific EMC DFS
+		 * table owned by EMC driver.
+		 */
+		if (!strcmp(d->clk_name, "emc") && tegra210_emc_is_ready())
+			adjust_emc_dvfs_table(d);
 	}
 
 	init_qspi_dvfs(soc_speedo_id, core_process_id, core_nominal_mv_index);

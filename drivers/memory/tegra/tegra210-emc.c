@@ -399,7 +399,7 @@ EXPORT_SYMBOL(tegra210_emc_is_ready);
 unsigned long tegra210_predict_emc_rate(int millivolts)
 {
 	int i;
-	unsigned long ret = -EINVAL;
+	unsigned long ret = 0;
 
 	if (!emc_enable)
 		return -ENODEV;
