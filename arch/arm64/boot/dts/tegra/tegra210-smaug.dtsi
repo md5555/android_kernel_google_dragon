@@ -9,6 +9,7 @@
 #include "tegra210-audio.dtsi"
 #include "tegra210-smaug-pinmux.dtsi"
 #include "tegra210-smaug-sysedp.dtsi"
+#include "tegra210-smaug-camera.dtsi"
 
 / {
 	compatible = "google,smaug", "nvidia,tegra210";

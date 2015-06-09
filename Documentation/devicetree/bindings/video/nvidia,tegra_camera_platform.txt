@@ -1,0 +1,20 @@
+NVIDIA Camera Platform Sensor Module Binding
+
+Required properties:
+- badge: platform + position + part number
+- position: rear/front
+- orientation: Mount orientation
+- pcl_id: PCL support driver, GUID
+
+Optional properties:
+- compatible: Should be "nvidia, tegra-camera-platform"
+
+Example
+module1{
+	badge = "A44_front_4BF215T1";
+	position = "front";
+	orientation = "0";
+	drivernode0 {
+		pcl_id = "s_IMX208";
+	};
+};

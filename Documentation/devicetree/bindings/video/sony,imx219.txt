@@ -1,0 +1,28 @@
+Sony Camera sensor imx219 driver interface
+
+Required properties:
+- compatible: Value should be "sony,imx219"
+- reg: Should contain I2C slave address of the driver.
+- vana-supply: Analog power supply 2.8v
+- vdig-supply: Digital power supply 1.2v
+- dovdd-supply: Digital IO power supply 1.8v
+- vdd_af1-supply: Analog power supply 2.8v for Focuser
+- clocks: 24MHz mclk for sensor
+- af-gpios: Reset pin for focuser
+- reset-gpios: Senor reset pin
+
+Example:
+
+&vii2c {
+	imx219@10 {
+		compatible = "sony,imx219";
+		reg = <0x10>;
+		vana-supply = <&pp2800l_rcam>;
+		vdig-supply = <&pp1200_rcam>;
+		dovdd-supply = <&pp1800_cam>;
+		vdd_af1-supply = <&pp2800l_fcam>;
+		clocks = <&tegra_car TEGRA210_CLK_CLK_OUT_3>;
+		clock-names = "clk_out_3";
+		af-gpios = <&gpio CAM_AF_PWDN GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&gpio RCAM_RSTN GPIO_ACTIVE_HIGH>;
+	};

@@ -1,0 +1,36 @@
+#define CAM_I2C_BUS	7
+
+/* camera control gpio definitions */
+#define RCAM_RSTN	TEGRA_GPIO(T, 0)
+#define FCAM_RSTN	TEGRA_GPIO(S, 7)
+#define CAM_AF_PWDN	TEGRA_GPIO(S, 5)
+
+&vii2c {
+	imx219@10 {
+		compatible = "sony,imx219";
+		reg = <0x10>;
+		vana-supply = <&pp2800l_rcam>;
+		vdig-supply = <&pp1200_rcam>;
+		dovdd-supply = <&pp1800_cam>;
+		vdd_af1-supply = <&pp2800l_fcam>;
+		clocks = <&tegra_car TEGRA210_CLK_CLK_OUT_3>;
+		clock-names = "clk_out_3";
+		af-gpios = <&gpio CAM_AF_PWDN GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&gpio RCAM_RSTN GPIO_ACTIVE_HIGH>;
+	};
+};
+
+/ {
+	tegra-camera-platform {
+		modules {
+			module0 {
+				badge = "A44_rear_4BA808P1";
+				position = "rear";
+				orientation = "0";
+				drivernode0 {
+					pcl_id = "s_IMX219";
+				};
+			};
+		};
+	};
+};
