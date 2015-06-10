@@ -44,7 +44,7 @@ struct fv_relation {
 
 	ssize_t size;
 	struct fv_entry {
-		unsigned long freq;
+		unsigned int freq;
 		int voltage_mv;
 	} *table;
 };
@@ -104,7 +104,7 @@ struct tegra_ppm {
 static int fv_relation_update(struct fv_relation *fv)
 {
 	int ret = 0;
-	unsigned long f, maxf, minf;
+	unsigned int f, maxf, minf;
 	struct fv_entry *fve;
 
 	mutex_lock(&fv->lock);
@@ -128,7 +128,7 @@ static int fv_relation_update(struct fv_relation *fv)
 		if (fve->voltage_mv < 0) {
 			int mv = (f == maxf ? INT_MAX : fve[1].voltage_mv);
 
-			pr_warn("%s: failure %d. guessing %dmV for %ldHz\n",
+			pr_warn("%s: failure %d. guessing %dmV for %dHz\n",
 				__func__, fve->voltage_mv, mv, fve->freq);
 			fve->voltage_mv = mv;
 			ret = -ENODATA;
