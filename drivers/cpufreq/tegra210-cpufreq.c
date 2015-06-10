@@ -30,6 +30,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/types.h>
 #include <linux/clk/tegra.h>
+#include <soc/tegra/tegra-dvfs.h>
 
 #define TEGRA210_CPU_BACKUP_RATE	204000000U
 
@@ -60,7 +61,8 @@ static int tegra210_cpu_switch_to_dfll(void)
 		return ret;
 
 	clk_set_parent(priv.cpu_clk, priv.dfll_clk);
-
+	tegra_dvfs_dfll_mode_set(priv.cpu_clk,
+				 clk_get_rate(priv.dfll_clk));
 	priv.dfll_mode = true;
 
 	return 0;
@@ -71,6 +73,8 @@ static void tegra210_cpu_switch_to_pllx(void)
 	clk_set_parent(priv.cpu_clk, priv.pllp_clk);
 	regulator_sync_voltage(priv.vdd_cpu_reg);
 	clk_set_parent(priv.cpu_clk, priv.pllx_clk);
+	tegra_dvfs_dfll_mode_clear(priv.cpu_clk,
+				   clk_get_rate(priv.pllx_clk));
 	priv.dfll_mode = false;
 }
 
