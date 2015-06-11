@@ -97,16 +97,25 @@ nvkm_vm_map_sg_table(struct nvkm_vma *vma, u64 delta, u64 length,
 			end = max;
 		len = end - pte;
 
-		for (m = 0; m < len; m++) {
-			dma_addr_t addr = sg_dma_address(sg) + (m << PAGE_SHIFT);
+		dma_addr_t *addr_list = kmalloc(sizeof(dma_addr_t) * len, GFP_KERNEL);
+		if (WARN_ON(!addr_list))
+			return;
 
-			mmu->map_sg(vma, pgt, mem, pte, 1, &addr);
+		for (m = 0; m < len; m++) {
+			addr_list[m] = sg_dma_address(sg) + (m << PAGE_SHIFT);
 			num--;
 			pte++;
 
 			if (num == 0)
-				goto finish;
+				break;
 		}
+
+		mmu->map_sg(vma, pgt, mem, pte - len, len, addr_list);
+		kfree(addr_list);
+
+		if (num == 0)
+			goto finish;
+
 		if (unlikely(end >= max)) {
 			pde++;
 			pte = 0;
