@@ -48,6 +48,7 @@ struct tegra210_clockevent {
 	struct clock_event_device evt;
 	char name[20];
 	void __iomem *reg_base;
+	struct irqaction irq_action;
 	bool irq_requested;
 };
 #define to_tegra_cevt(p) (container_of(p, struct tegra210_clockevent, evt))
@@ -102,9 +103,7 @@ static void tegra210_timer_setup(struct tegra210_clockevent *tevt)
 	int ret;
 
 	if (!tevt->irq_requested) {
-		ret = request_irq(tevt->evt.irq, tegra210_timer_isr,
-				  IRQF_TIMER | IRQF_NOBALANCING,
-				  tevt->name, tevt);
+		ret = setup_irq(tevt->evt.irq, &tevt->irq_action);
 		if (ret) {
 			pr_err("%s: cannot setup irq %d for CPU%d\n",
 				__func__, tevt->evt.irq, cpu);
@@ -210,6 +209,11 @@ static void __init tegra210_timer_init(struct device_node *np)
 
 		/* want to be preferred over arch timers */
 		tevt->evt.rating = 460;
+
+		tevt->irq_action.name = tevt->evt.name;
+		tevt->irq_action.flags = IRQF_TIMER | IRQF_NOBALANCING;
+		tevt->irq_action.handler = tegra210_timer_isr;
+		tevt->irq_action.dev_id = tevt;
 	}
 
 	/*
