@@ -5,3 +5,6 @@ snd-hda-core-objs += trace.o
 CFLAGS_trace.o := -I$(src)
 
 obj-$(CONFIG_SND_HDA_CORE) += snd-hda-core.o
+
+#extended hda
+obj-$(CONFIG_SND_HDA_EXT_CORE) += ext/
