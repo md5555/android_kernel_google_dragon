@@ -73,6 +73,18 @@
 			iommus = <&mc TEGRA_SWGROUP_VI>;
 		};
 
+		dpaux1: dpaux@0,54040000 {
+			compatible = "nvidia,tegra210-dpaux";
+			reg = <0x0 0x54040000 0x0 0x00040000>;
+			interrupts = <GIC_SPI 11 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&tegra_car TEGRA210_CLK_DPAUX1>,
+				 <&tegra_car TEGRA210_CLK_PLL_DP>;
+			clock-names = "dpaux", "parent";
+			resets = <&tegra_car 207>;
+			reset-names = "dpaux";
+			status = "disabled";
+		};
+
 		dc@54200000 {
 			compatible = "nvidia,tegra210-dc";
 			reg = <0x0 0x54200000 0x0 0x00040000>;
@@ -91,6 +103,26 @@
 				     <&mc TEGRA_CLIENT_DISPLAY0B>,
 				     <&mc TEGRA_CLIENT_DISPLAY0C>;
 			nvidia,head = <0>;
+		};
+
+		dc@54240000 {
+			compatible = "nvidia,tegra210-dc";
+			reg = <0x0 0x54240000 0x0 0x00040000>;
+                        reg-names = "dc";
+			interrupts = <GIC_SPI 74 IRQ_TYPE_LEVEL_HIGH>;
+			//power-domains = <&pmc TEGRA_POWERGATE_DISB>;
+			clocks = <&tegra_car TEGRA210_CLK_DISP2>,
+				 <&tegra_car TEGRA210_CLK_PLL_P>,
+				 <&tegra_car TEGRA210_CLK_DISP2_EMC>,
+				 <&tegra_car TEGRA210_CLK_DISP2_LA_EMC>;
+			clock-names = "dc", "parent", "emc", "emc_la";
+			resets = <&tegra_car TEGRA210_CLK_DISP2>;
+			reset-names = "dc";
+			iommus = <&mc TEGRA_SWGROUP_DCB>;
+			mc-clients = <&mc TEGRA_CLIENT_DISPLAY0AB>,
+				     <&mc TEGRA_CLIENT_DISPLAY0BB>,
+				     <&mc TEGRA_CLIENT_DISPLAY0CB>;
+			nvidia,head = <1>;
 		};
 
 		dsi@54300000 {
@@ -195,6 +227,46 @@
 			resets = <&tegra_car TEGRA210_CLK_ISPB>;
 			reset-names = "isp";
 			iommus = <&mc TEGRA_SWGROUP_ISP2B>;
+		};
+
+		sor@0,54540000 {
+			compatible = "nvidia,tegra210-sor";
+			reg = <0x0 0x54540000 0x0 0x00040000>;
+			interrupts = <GIC_SPI 76 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&tegra_car TEGRA210_CLK_SOR0>,
+				 <&tegra_car TEGRA210_CLK_PLL_D_OUT0>,
+				 <&tegra_car TEGRA210_CLK_PLL_DP>,
+				 <&tegra_car TEGRA210_CLK_SOR_SAFE>;
+			clock-names = "sor", "parent", "dp", "safe";
+			resets = <&tegra_car 182>;
+			reset-names = "sor";
+			status = "disabled";
+		};
+
+		sor@0,54580000 {
+			compatible = "nvidia,tegra210-sor1";
+			reg = <0x0 0x54580000 0x0 0x00040000>;
+			interrupts = <GIC_SPI 75 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&tegra_car TEGRA210_CLK_SOR1>,
+				 <&tegra_car TEGRA210_CLK_PLL_D2_OUT0>,
+				 <&tegra_car TEGRA210_CLK_PLL_DP>,
+				 <&tegra_car TEGRA210_CLK_SOR_SAFE>;
+			clock-names = "sor", "parent", "dp", "safe";
+			resets = <&tegra_car 183>;
+			reset-names = "sor";
+			status = "disabled";
+		};
+
+		dpaux: dpaux@0,545c0000 {
+			compatible = "nvidia,tegra124-dpaux";
+			reg = <0x0 0x545c0000 0x0 0x00040000>;
+			interrupts = <GIC_SPI 159 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&tegra_car TEGRA210_CLK_DPAUX>,
+				 <&tegra_car TEGRA210_CLK_PLL_DP>;
+			clock-names = "dpaux", "parent";
+			resets = <&tegra_car 181>;
+			reset-names = "dpaux";
+			status = "disabled";
 		};
 	};
 
