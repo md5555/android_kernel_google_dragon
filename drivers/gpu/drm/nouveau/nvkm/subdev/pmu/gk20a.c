@@ -880,7 +880,7 @@ gk20a_pmu_dtor(struct nvkm_object *object)
 
 struct gk20a_pmu_dvfs_data gk20a_dvfs_data = {
 	.p_load_target = 70,
-	.p_load_max = 78,
+	.p_load_max = 60,
 	.p_smooth = 0,
 };
 
