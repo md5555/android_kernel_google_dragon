@@ -1068,6 +1068,8 @@ int intel_plane_atomic_set_property(struct drm_plane *plane,
 				    struct drm_plane_state *state,
 				    struct drm_property *property,
 				    uint64_t val);
+int intel_plane_atomic_calc_changes(struct drm_crtc_state *crtc_state,
+				    struct drm_plane_state *plane_state);
 
 unsigned int
 intel_tile_height(struct drm_device *dev, uint32_t pixel_format,
@@ -1081,9 +1083,6 @@ intel_rotation_90_or_270(unsigned int rotation)
 
 void intel_create_rotation_property(struct drm_device *dev,
 					struct intel_plane *plane);
-
-bool intel_wm_need_update(struct drm_plane *plane,
-			  struct drm_plane_state *state);
 
 /* shared dpll functions */
 struct intel_shared_dpll *intel_crtc_to_shared_dpll(struct intel_crtc *crtc);
@@ -1149,9 +1148,6 @@ void intel_mode_from_pipe_config(struct drm_display_mode *mode,
 void intel_crtc_wait_for_pending_flips(struct drm_crtc *crtc);
 void intel_modeset_preclose(struct drm_device *dev, struct drm_file *file);
 void skl_detach_scalers(struct intel_crtc *intel_crtc);
-int skl_update_scaler_plane(struct intel_crtc_state *crtc_state,
-			    struct intel_plane *intel_plane,
-			    struct intel_plane_state *plane_state);
 
 int skl_update_scaler_crtc(struct intel_crtc_state *crtc_state, int force_detach);
 int skl_max_scale(struct intel_crtc *crtc, struct intel_crtc_state *crtc_state);
