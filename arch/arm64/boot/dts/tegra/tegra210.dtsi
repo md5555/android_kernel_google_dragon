@@ -189,6 +189,7 @@
 		clock-names = "gpu", "pwr", "pllg_ref", "emc", "fuse";
 		resets = <&tegra_car 184>;
 		reset-names = "gpu";
+		mc = <&mc TEGRA_SWGROUP_GPU>;
 		status = "disabled";
 	};
 
