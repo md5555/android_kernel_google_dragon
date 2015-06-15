@@ -45,6 +45,10 @@ static const struct cvb_coef gk20a_cvb_coef[] = {
 	/* 852 */ { 1608418, -21643, -269,     0,    763,  -48},
 };
 
+static const int gk20a_thermal_table[MAX_THERMAL_LIMITS] = {
+	-10, 10, 30, 50, 70
+};
+
 /**
  * cvb_mv = ((c2 * speedo / s_scale + c1) * speedo / s_scale + c0)
  */
@@ -78,11 +82,21 @@ gk20a_volt_get_cvb_t_voltage(int speedo, int temp, int s_scale, int t_scale,
 }
 
 int
-gk20a_volt_calc_voltage(const struct cvb_coef *coef, int speedo)
+gk20a_volt_calc_voltage(struct gk20a_volt_priv *priv,
+		const struct cvb_coef *coef, int speedo)
 {
-	int mv;
+	int mv, lo, hi;
 
-	mv = gk20a_volt_get_cvb_t_voltage(speedo, -10, 100, 10, coef);
+	if (!priv->thermal_table) {
+		nv_error(priv, "Thermal table not found\n");
+		return -EINVAL;
+	}
+
+	lo = gk20a_volt_get_cvb_t_voltage(speedo, priv->thermal_table[0],
+			100, 10, coef);
+	hi = gk20a_volt_get_cvb_t_voltage(speedo, priv->thermal_table[1],
+			100, 10, coef);
+	mv = max(lo, hi);
 	mv = DIV_ROUND_UP(mv, 1000);
 
 	return mv * 1000;
@@ -159,13 +173,17 @@ gk20a_volt_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	priv->base.vid_get = gk20a_volt_vid_get;
 	priv->base.vid_set = gk20a_volt_vid_set;
 	priv->base.set_id = gk20a_volt_set_id;
+	priv->thermal_table = gk20a_thermal_table;
 
 	volt->vid_nr = ARRAY_SIZE(gk20a_cvb_coef);
 	nv_debug(priv, "%s - vid_nr = %d\n", __func__, volt->vid_nr);
 	for (i = 0; i < volt->vid_nr; i++) {
+		ret = gk20a_volt_calc_voltage(priv,
+					&gk20a_cvb_coef[i], plat->gpu_speedo_value);
+		if (ret < 0)
+			return ret;
+		volt->vid[i].uv = ret;
 		volt->vid[i].vid = i;
-		volt->vid[i].uv = gk20a_volt_calc_voltage(&gk20a_cvb_coef[i],
-					plat->gpu_speedo_value);
 		nv_debug(priv, "%2d: vid=%d, uv=%d\n", i, volt->vid[i].vid,
 					volt->vid[i].uv);
 	}

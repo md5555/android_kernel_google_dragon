@@ -23,6 +23,8 @@
 #ifndef __GK20A_VOLT_H__
 #define __GK20A_VOLT_H__
 
+#define MAX_THERMAL_LIMITS 8
+
 struct cvb_coef {
 	int c0;
 	int c1;
@@ -35,9 +37,11 @@ struct cvb_coef {
 struct gk20a_volt_priv {
 	struct nvkm_volt base;
 	struct regulator *vdd;
+	const int *thermal_table;
 };
 
-int gk20a_volt_calc_voltage(const struct cvb_coef *coef, int speedo);
+int gk20a_volt_calc_voltage(struct gk20a_volt_priv *priv,
+		const struct cvb_coef *coef, int speedo);
 int gk20a_volt_vid_get(struct nvkm_volt *volt);
 int gk20a_volt_vid_set(struct nvkm_volt *volt, u8 vid);
 int gk20a_volt_set_id(struct nvkm_volt *volt, u8 id, int condition);

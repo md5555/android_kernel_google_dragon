@@ -26,7 +26,7 @@
 
 #include "gk20a.h"
 
-const struct cvb_coef gm20b_na_cvb_coef[] = {
+static const struct cvb_coef gm20b_na_cvb_coef[] = {
 	/* KHz,         c0,     c1,   c2,    c3,     c4,   c5 */
 	/*  76800 */ {  814294, 8144, -940, 808, -21583, 226 },
 	/* 153600 */ {  856185, 8144, -940, 808, -21583, 226 },
@@ -43,7 +43,7 @@ const struct cvb_coef gm20b_na_cvb_coef[] = {
 	/* 998400 */ { 1316991, 8144, -940, 808, -21583, 226 },
 };
 
-const struct cvb_coef gm20b_cvb_coef[] = {
+static const struct cvb_coef gm20b_cvb_coef[] = {
 	/* KHz,             c0,      c1,   c2 */
 	/*  76800 */ { 1786666,  -85625, 1632 },
 	/* 153600 */ { 1846729,  -87525, 1632 },
@@ -64,6 +64,10 @@ const struct cvb_coef gm20b_cvb_coef[] = {
 const int speedo_to_vmin[MAX_SPEEDO+1] = {
 	/*   0,      1,      2,      3,      4, */
 	950000, 840000, 800000, 840000, 800000,
+};
+
+static const int gm20b_thermal_table[MAX_THERMAL_LIMITS] = {
+	-25, 15, 30, 50, 70
 };
 
 static int
@@ -98,6 +102,7 @@ gm20b_volt_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	priv->base.vid_get = gk20a_volt_vid_get;
 	priv->base.vid_set = gk20a_volt_vid_set;
 	priv->base.set_id = gk20a_volt_set_id;
+	priv->thermal_table = gm20b_thermal_table;
 
 	if (plat->gpu_speedo_id >= 1) {
 		coef_table = gm20b_na_cvb_coef;
@@ -108,9 +113,12 @@ gm20b_volt_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	}
 	nv_debug(priv, "%s - vid_nr = %d\n", __func__, volt->vid_nr);
 	for (i = 0; i < volt->vid_nr; i++) {
-		volt->vid[i].vid = i;
-		volt->vid[i].uv = gk20a_volt_calc_voltage((coef_table + i),
+		ret = gk20a_volt_calc_voltage(priv, (coef_table + i),
 					plat->gpu_speedo_value);
+		if (ret < 0)
+			return ret;
+		volt->vid[i].uv = ret;
+		volt->vid[i].vid = i;
 		if (volt->vid[i].uv < speedo_to_vmin[plat->gpu_speedo_id])
 			volt->vid[i].uv = speedo_to_vmin[plat->gpu_speedo_id];
 		nv_debug(priv, "%2d: vid=%d, uv=%d\n", i, volt->vid[i].vid,
