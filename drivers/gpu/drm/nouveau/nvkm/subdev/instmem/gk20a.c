@@ -464,6 +464,12 @@ gk20a_instobj_oclass = {
 	},
 };
 
+static int
+gk20a_instmem_init(struct nvkm_object *object)
+{
+	struct gk20a_instmem_priv *priv = (void *)object;
+	return nvkm_subdev_init(&priv->base.base);
+}
 
 
 static int
@@ -471,7 +477,7 @@ gk20a_instmem_fini(struct nvkm_object *object, bool suspend)
 {
 	struct gk20a_instmem_priv *priv = (void *)object;
 	priv->addr = ~0ULL;
-	return nvkm_instmem_fini(&priv->base, suspend);
+	return nvkm_subdev_fini(&priv->base.base, suspend);
 }
 
 static int
@@ -520,7 +526,7 @@ gk20a_instmem_oclass = &(struct nvkm_instmem_impl) {
 	.base.ofuncs = &(struct nvkm_ofuncs) {
 		.ctor = gk20a_instmem_ctor,
 		.dtor = _nvkm_instmem_dtor,
-		.init = _nvkm_instmem_init,
+		.init = gk20a_instmem_init,
 		.fini = gk20a_instmem_fini,
 	},
 	.instobj = &gk20a_instobj_oclass.base,
