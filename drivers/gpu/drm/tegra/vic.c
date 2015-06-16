@@ -32,6 +32,20 @@
 #define NVA0B6_VIDEO_COMPOSITOR_SET_FCE_UCODE_SIZE	0x0000071C
 #define NVA0B6_VIDEO_COMPOSITOR_SET_FCE_UCODE_OFFSET	0x0000072C
 
+/* Used in the vic firmware binary to indicate that there is no FCE. */
+#define FALCON_FW_FCE_ABSENT			0xa5a5a5a5
+
+struct fce {
+	u32 data_offset;
+	u32 size;
+};
+
+struct vic_ucode_fce_header_v1 {
+	u32 fce_ucode_offset;
+	u32 fce_ucode_buffer_size;
+	u32 fce_ucode_size;
+};
+
 struct vic_config {
 	const char *ucode_name;
 	u32 class_id;
@@ -47,6 +61,9 @@ struct vic {
 	struct device *dev;
 	struct clk *clk;
 	struct reset_control *rst;
+
+	struct fce fce;
+	struct vic_ucode_fce_header_v1 *fce_header;
 
 	struct iommu_domain *domain;
 
@@ -98,12 +115,12 @@ static void vic_finalize_poweron(struct vic *vic)
 
 	falcon_execute_method(&vic->falcon,
 			      NVA0B6_VIDEO_COMPOSITOR_SET_FCE_UCODE_SIZE,
-			      vic->falcon.fce.size);
+			      vic->fce.size);
 
 	falcon_execute_method(&vic->falcon,
 			      NVA0B6_VIDEO_COMPOSITOR_SET_FCE_UCODE_OFFSET,
 			      (vic->falcon.ucode_paddr +
-			       vic->falcon.fce.data_offset) >> 8);
+			       vic->fce.data_offset) >> 8);
 }
 
 static void vic_reset(struct device *dev)
@@ -196,10 +213,22 @@ static int vic_open_channel(struct tegra_drm_client *client,
 {
 	struct vic *vic = to_vic(client);
 	int err;
+	struct falcon_ucode_v1 ucode;
 
 	err = falcon_boot(&vic->falcon, vic->config->ucode_name);
 	if (err)
 		return err;
+
+	ucode.bin_header = (struct falcon_ucode_bin_header_v1 *)vic->falcon.ucode_vaddr;
+	if (ucode.bin_header->fce_bin_header_offset == FALCON_FW_FCE_ABSENT )
+		return -EINVAL;
+
+	vic->fce_header = (struct vic_ucode_fce_header_v1 *)
+			  (((void *)vic->falcon.ucode_vaddr) +
+			  ucode.bin_header->fce_bin_header_offset);
+	vic->fce.size = vic->fce_header->fce_ucode_size;
+	vic->fce.data_offset =
+		ucode.bin_header->fce_bin_data_offset;
 
 	vic_finalize_poweron(vic);
 

@@ -26,9 +26,6 @@
  */
 #define FALCON_FW_MAGIC				0x10de
 
-/* Used in the firmware binary to indicate that there is no FCE. */
-#define FALCON_FW_FCE_ABSENT			0xa5a5a5a5
-
 /**
  * _wait_for - magic (register) wait macro
  *
@@ -144,15 +141,6 @@ static int falcon_setup_ucode_image(struct falcon *falcon,
 	ucode.os_header = (struct falcon_ucode_os_header_v1 *)
 		(((void *)ucode_vaddr) +
 		 ucode.bin_header->os_bin_header_offset);
-
-	if (ucode.bin_header->fce_bin_header_offset != FALCON_FW_FCE_ABSENT) {
-		ucode.fce_header = (struct falcon_ucode_fce_header_v1 *)
-			(((void *)ucode_vaddr) +
-			 ucode.bin_header->fce_bin_header_offset);
-		falcon->fce.size = ucode.fce_header->fce_ucode_size;
-		falcon->fce.data_offset =
-			ucode.bin_header->fce_bin_data_offset;
-	}
 
 	falcon->os.size = ucode.bin_header->os_bin_size;
 	falcon->os.bin_data_offset = ucode.bin_header->os_bin_data_offset;

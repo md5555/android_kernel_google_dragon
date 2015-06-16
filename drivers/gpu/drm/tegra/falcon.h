@@ -85,16 +85,9 @@ struct falcon_ucode_os_header_v1 {
 	u32 *os_ovl_size;
 };
 
-struct falcon_ucode_fce_header_v1 {
-	u32 fce_ucode_offset;
-	u32 fce_ucode_buffer_size;
-	u32 fce_ucode_size;
-};
-
 struct falcon_ucode_v1 {
 	struct falcon_ucode_bin_header_v1 *bin_header;
 	struct falcon_ucode_os_header_v1  *os_header;
-	struct falcon_ucode_fce_header_v1 *fce_header;
 };
 
 struct falcon;
@@ -120,7 +113,7 @@ struct falcon {
 		u32 code_offset;
 		u32 code_size;
 		u32 size;
-	} os, fce;
+	} os;
 
 	dma_addr_t ucode_paddr;
 	u32 *ucode_vaddr;
