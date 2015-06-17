@@ -32,6 +32,7 @@
 
 	gpio-keys {
 		compatible = "gpio-keys";
+
 		power {
 			label = "Power";
 			gpios = <&pio 14 GPIO_ACTIVE_HIGH>;
@@ -39,6 +40,7 @@
 			debounce-interval = <1>;
 			gpio-key,wakeup;
 		};
+
 		lid {
 			label = "Lid";
 			gpios = <&pio 12 GPIO_ACTIVE_LOW>;
@@ -46,7 +48,7 @@
 			linux,input-type = <5>; /* EV_SW */
 			debounce-interval = <1>;
 			gpio-key,wakeup;
-                };
+		};
 	};
 };
 
