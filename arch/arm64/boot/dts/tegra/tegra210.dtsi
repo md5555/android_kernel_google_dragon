@@ -1066,7 +1066,8 @@
 			compatible = "nvidia,tegra210-xhci";
 			reg = <0x0 0x70090000 0x0 0x8000>,
 			      <0x0 0x70099000 0x0 0x1000>;
-			interrupts = <GIC_SPI 39 IRQ_TYPE_LEVEL_HIGH>;
+			interrupts = <GIC_SPI 39 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI 49 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&tegra_car TEGRA210_CLK_XUSB_HOST>,
 				 <&tegra_car TEGRA210_CLK_XUSB_HOST_SRC>,
 				 <&tegra_car TEGRA210_CLK_XUSB_FALCON_SRC>,
@@ -1089,6 +1090,7 @@
 			reset-names = "xusb_host", "xusb_ss", "xusb_src";
 			mboxes = <&xusb_mbox>;
 			mbox-names = "xusb";
+			mc = <&mc TEGRA_SWGROUP_XUSB_HOST>;
 		};
 
 		xusb_mbox: mailbox {
