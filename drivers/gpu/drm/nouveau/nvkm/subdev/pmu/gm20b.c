@@ -1805,6 +1805,24 @@ int gm20b_boot_secure(struct nvkm_pmu *ppmu)
 	return ret;
 }
 
+static void
+gm20b_pmu_intr(struct nvkm_subdev *subdev)
+{
+	struct gk20a_pmu_priv *priv = to_gk20a_priv(nvkm_pmu(subdev));
+	struct nvkm_mc *pmc = nvkm_mc(priv);
+	u32 intr, mask;
+
+	if (!priv->isr_enabled)
+		return;
+
+	gk20a_pmu_enable_irq(priv, pmc, false);
+
+	mask = nv_rd32(priv, 0x0010a018) & nv_rd32(priv, 0x0010a01c);
+	intr = nv_rd32(priv, 0x0010a008) & mask;
+
+	nv_wr32(priv, 0x0010a004, intr);
+}
+
 extern struct gk20a_pmu_dvfs_data gk20a_dvfs_data;
 
 static int
@@ -1823,6 +1841,8 @@ gm20b_pmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 
 	ppmu = &priv->base;
 	mc = ioremap(TEGRA_MC_BASE, 0x00000d00);
+
+	nv_subdev(ppmu)->intr = gm20b_pmu_intr;
 
 	priv->data = &gk20a_dvfs_data;
 	nvkm_alarm_init(&priv->alarm, gk20a_pmu_dvfs_work);
