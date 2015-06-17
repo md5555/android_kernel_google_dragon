@@ -2,9 +2,11 @@
 #define __NVKM_VOLT_H__
 #include <core/subdev.h>
 
+#define MAX_DVFS_FREQS	256
+
 struct nvkm_voltage {
 	u32 uv;
-	u8  id;
+	u8  vid;
 };
 
 struct nvkm_volt {
@@ -19,10 +21,8 @@ struct nvkm_volt {
 
 	u8 vid_mask;
 	u8 vid_nr;
-	struct {
-		u32 uv;
-		u8 vid;
-	} vid[256];
+	struct nvkm_voltage vid[MAX_DVFS_FREQS];
+	struct mutex therm_lock;
 };
 
 static inline struct nvkm_volt *

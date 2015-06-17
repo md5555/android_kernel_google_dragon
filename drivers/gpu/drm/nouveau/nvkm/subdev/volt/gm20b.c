@@ -19,6 +19,10 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  */
+
+#include <core/device.h>
+#include <dt-bindings/thermal/tegra210-trips.h>
+
 #include <subdev/volt.h>
 #ifdef __KERNEL__
 #include <nouveau_platform.h>
@@ -66,8 +70,20 @@ const int speedo_to_vmin[MAX_SPEEDO+1] = {
 	950000, 840000, 800000, 840000, 800000,
 };
 
-static const int gm20b_thermal_table[MAX_THERMAL_LIMITS] = {
-	-25, 15, 30, 50, 70
+#define TEGRA210_GPU_THERM_VFLOOR	950000 /* in uV */
+
+/*
+ * The Last table entry just mean the temperature is
+ * larger than TEGRA210_GPU_DVFS_THERMAL_TRIP_3/1000,
+ * will not use as thermal trip.
+ */
+static const int gm20b_thermal_table[] = {
+	TEGRA210_GPU_DVFS_THERMAL_MIN / 1000,
+	TEGRA210_GPU_DVFS_THERMAL_TRIP_0 / 1000,
+	TEGRA210_GPU_DVFS_THERMAL_TRIP_1 / 1000,
+	TEGRA210_GPU_DVFS_THERMAL_TRIP_2 / 1000,
+	TEGRA210_GPU_DVFS_THERMAL_TRIP_3 / 1000,
+	TEGRA210_GPU_DVFS_THERMAL_TRIP_3 / 1000 + 1,
 };
 
 static int
@@ -79,7 +95,7 @@ gm20b_volt_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	struct nvkm_volt *volt;
 	struct nouveau_platform_device *plat;
 	const struct cvb_coef *coef_table;
-	int i, ret, uv, vmin;
+	int i, j, ret, uv, vmin, vfloor, speedo_id, speedo_val;
 
 	ret = nvkm_volt_create(parent, engine, oclass, &priv);
 	*pobject = nv_object(priv);
@@ -104,7 +120,8 @@ gm20b_volt_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	priv->base.set_id = gk20a_volt_set_id;
 	priv->thermal_table = gm20b_thermal_table;
 
-	if (plat->gpu_speedo_id >= 1) {
+	speedo_id = plat->gpu_speedo_id;
+	if (speedo_id >= 1) {
 		coef_table = gm20b_na_cvb_coef;
 		volt->vid_nr = ARRAY_SIZE(gm20b_na_cvb_coef);
 	} else {
@@ -117,20 +134,64 @@ gm20b_volt_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	if (vmin < 0)
 		return -EINVAL;
 
+	vfloor =  gk20a_volt_round_voltage(priv, TEGRA210_GPU_THERM_VFLOOR);
+	if (vfloor < 0)
+		return vfloor;
+
 	nv_debug(priv, "%s - vid_nr = %d\n", __func__, volt->vid_nr);
-	for (i = 0; i < volt->vid_nr; i++) {
-		ret = gk20a_volt_calc_voltage(priv, (coef_table + i),
-					plat->gpu_speedo_value);
-		ret = gk20a_volt_round_voltage(priv, ret);
-		if (ret < 0)
-			return ret;
-		volt->vid[i].uv = max(ret, vmin);
-		volt->vid[i].vid = i;
-		nv_debug(priv, "%2d: vid=%d, uv=%d\n", i, volt->vid[i].vid,
-					volt->vid[i].uv);
+
+	priv->therm_nr = ARRAY_SIZE(gm20b_thermal_table) - 1;
+	if (priv->therm_nr > MAX_THERMAL_LIMITS) {
+		nv_error(priv, "The thermal table is too large\n");
+		return -EINVAL;
 	}
 
+	speedo_val = plat->gpu_speedo_value;
+
+	priv->therm_idx = 0;
+
+	for (j = 0; j < priv->therm_nr; j++) {
+		for (i = 0; i < volt->vid_nr; i++) {
+			struct nvkm_voltage *table = &priv->scale_table[j][i];
+
+			ret = gk20a_volt_calc_voltage(priv, (coef_table + i),
+						      speedo_val, j);
+			ret = gk20a_volt_round_voltage(priv, ret);
+			if (ret < 0)
+				return ret;
+
+			table->uv = max(ret, vmin);
+			table->vid = i;
+
+			/*
+			 * if the temperature is lower than
+			 * TEGRA210_GPU_DVFS_THERMAL_TRIP_0,
+			 * it has floor voltage.
+			 */
+			if ((j == 0) && (table->uv < vfloor))
+				table->uv = vfloor;
+
+			nv_debug(priv, "%2d: therm_idx=%d, vid=%d, uv=%d\n",
+					i, j, table->vid, table->uv);
+		}
+	}
+
+	memcpy(volt->vid, priv->scale_table[priv->therm_idx],
+		sizeof(volt->vid));
+
+	gk20a_volt_dvfs_cdev_register(priv);
+
 	return 0;
+}
+
+void
+gm20b_volt_dtor(struct nvkm_object *object)
+{
+	struct gk20a_volt_priv *priv = (void *)object;
+
+	gk20a_volt_dvfs_cdev_unregister(priv);
+
+	_nvkm_volt_dtor(object);
 }
 
 struct nvkm_oclass
@@ -138,7 +199,7 @@ gm20b_volt_oclass = {
 	.handle = NV_SUBDEV(VOLT, 0x12b),
 	.ofuncs = &(struct nvkm_ofuncs) {
 		.ctor = gm20b_volt_ctor,
-		.dtor = _nvkm_volt_dtor,
+		.dtor = gm20b_volt_dtor,
 		.init = _nvkm_volt_init,
 		.fini = _nvkm_volt_fini,
 	},

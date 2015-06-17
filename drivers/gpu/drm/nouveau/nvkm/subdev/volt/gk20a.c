@@ -19,6 +19,10 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  */
+
+#include <core/device.h>
+#include <linux/thermal.h>
+
 #include <subdev/volt.h>
 #ifdef __KERNEL__
 #include <nouveau_platform.h>
@@ -45,8 +49,12 @@ static const struct cvb_coef gk20a_cvb_coef[] = {
 	/* 852 */ { 1608418, -21643, -269,     0,    763,  -48},
 };
 
-static const int gk20a_thermal_table[MAX_THERMAL_LIMITS] = {
-	-10, 10, 30, 50, 70
+/*
+ * The last table entry just mean the temperature is larger than 70C,
+ * will not use as thermal trip
+ */
+static const int gk20a_thermal_table[] = {
+	-10, 10, 30, 50, 70, 71
 };
 
 /**
@@ -83,19 +91,26 @@ gk20a_volt_get_cvb_t_voltage(int speedo, int temp, int s_scale, int t_scale,
 
 int
 gk20a_volt_calc_voltage(struct gk20a_volt_priv *priv,
-		const struct cvb_coef *coef, int speedo)
+		const struct cvb_coef *coef, int speedo, int therm_idx)
 {
-	int mv, lo, hi;
+	int mv, lo, hi, lo_temp, hi_temp;
 
 	if (!priv->thermal_table) {
 		nv_error(priv, "Thermal table not found\n");
 		return -EINVAL;
 	}
 
-	lo = gk20a_volt_get_cvb_t_voltage(speedo, priv->thermal_table[0],
-			100, 10, coef);
-	hi = gk20a_volt_get_cvb_t_voltage(speedo, priv->thermal_table[1],
-			100, 10, coef);
+
+	if (therm_idx < priv->therm_nr) {
+		lo_temp = priv->thermal_table[therm_idx];
+		hi_temp = priv->thermal_table[therm_idx + 1];
+	} else {
+		nv_error(priv, "Exceeded thermal table\n");
+		return -EINVAL;
+	}
+
+	lo = gk20a_volt_get_cvb_t_voltage(speedo, lo_temp, 100, 10, coef);
+	hi = gk20a_volt_get_cvb_t_voltage(speedo, hi_temp, 100, 10, coef);
 	mv = max(lo, hi);
 	mv = DIV_ROUND_UP(mv, 1000);
 
@@ -175,7 +190,7 @@ gk20a_volt_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	struct gk20a_volt_priv *priv;
 	struct nvkm_volt *volt;
 	struct nouveau_platform_device *plat;
-	int i, ret, uv;
+	int i, j, ret, uv, speedo_val;
 
 	ret = nvkm_volt_create(parent, engine, oclass, &priv);
 	*pobject = nv_object(priv);
@@ -197,17 +212,37 @@ gk20a_volt_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 
 	volt->vid_nr = ARRAY_SIZE(gk20a_cvb_coef);
 	nv_debug(priv, "%s - vid_nr = %d\n", __func__, volt->vid_nr);
-	for (i = 0; i < volt->vid_nr; i++) {
-		ret = gk20a_volt_calc_voltage(priv,
-					&gk20a_cvb_coef[i], plat->gpu_speedo_value);
-		ret = gk20a_volt_round_voltage(priv, ret);
-		if (ret < 0)
-			return ret;
-		volt->vid[i].uv = ret;
-		volt->vid[i].vid = i;
-		nv_debug(priv, "%2d: vid=%d, uv=%d\n", i, volt->vid[i].vid,
-					volt->vid[i].uv);
+
+	priv->therm_nr = ARRAY_SIZE(gk20a_thermal_table) - 1;
+	if (priv->therm_nr > MAX_THERMAL_LIMITS) {
+		nv_error(priv, "The thermal table is too large\n");
+		return -EINVAL;
 	}
+
+	speedo_val = plat->gpu_speedo_value;
+
+	priv->therm_idx = 0;
+
+	for (j = 0; j < priv->therm_nr; j++) {
+		for (i = 0; i < volt->vid_nr; i++) {
+			struct nvkm_voltage *table = &priv->scale_table[j][i];
+
+			ret = gk20a_volt_calc_voltage(priv, &gk20a_cvb_coef[i],
+						      speedo_val, j);
+			ret = gk20a_volt_round_voltage(priv, ret);
+			if (ret < 0)
+				return ret;
+
+			table->uv = ret;
+			table->vid = i;
+
+			nv_debug(priv, "%2d: therm_idx=%d, vid=%d, uv=%d\n",
+					i, j, table->vid, table->uv);
+		}
+	}
+
+	memcpy(volt->vid, priv->scale_table[priv->therm_idx],
+		sizeof(volt->vid));
 
 	return 0;
 }
@@ -222,3 +257,120 @@ gk20a_volt_oclass = {
 		.fini = _nvkm_volt_fini,
 	},
 };
+
+#ifdef CONFIG_THERMAL
+/* Must be called while holding therm_lock */
+static void gk20a_volt_dvfs_update_voltage(struct gk20a_volt_priv *priv)
+{
+	struct nvkm_volt *volt = &priv->base;
+	int id, pre_uv, new_uv, ret;
+
+	WARN_ON(!mutex_is_locked(&volt->therm_lock));
+
+	if (volt->vid_get) {
+		id = volt->vid_get(volt);
+		if (id < 0)
+			return;
+		pre_uv = volt->vid[id].uv;
+	} else {
+		return;
+	}
+
+	memcpy(volt->vid, priv->scale_table[priv->therm_idx],
+		sizeof(volt->vid));
+	new_uv = volt->vid[id].uv;
+
+	if ((pre_uv != new_uv) && (volt->vid_set)) {
+		ret = volt->vid_set(volt, id);
+		nv_debug(volt, "update voltage from %duv to %duv: %d\n",
+				pre_uv, new_uv, ret);
+	}
+}
+
+static int
+gk20a_volt_dvfs_get_vts_cdev_max_state(struct thermal_cooling_device *cdev,
+				 unsigned long *max_state)
+{
+	struct gk20a_volt_priv *priv = (struct gk20a_volt_priv *)cdev->devdata;
+	*max_state = priv->therm_nr - 1;
+
+	return 0;
+}
+
+static int
+gk20a_volt_dvfs_get_vts_cdev_cur_state(struct thermal_cooling_device *cdev,
+				  unsigned long *cur_state)
+{
+	struct gk20a_volt_priv *priv = (struct gk20a_volt_priv *)cdev->devdata;
+	*cur_state = priv->therm_idx;
+
+	return 0;
+}
+
+static int
+gk20a_volt_dvfs_set_vts_cdev_state(struct thermal_cooling_device *cdev,
+			      unsigned long cur_state)
+{
+	struct gk20a_volt_priv *priv = (struct gk20a_volt_priv *)cdev->devdata;
+	struct nvkm_volt *volt = &priv->base;
+
+	mutex_lock(&volt->therm_lock);
+
+	if (priv->therm_idx == cur_state)
+		goto end;
+
+	priv->therm_idx = cur_state;
+	gk20a_volt_dvfs_update_voltage(priv);
+
+end:
+	mutex_unlock(&volt->therm_lock);
+	return 0;
+}
+
+static struct thermal_cooling_device_ops gk20a_volt_dvfs_cooling_ops = {
+	.get_max_state = gk20a_volt_dvfs_get_vts_cdev_max_state,
+	.get_cur_state = gk20a_volt_dvfs_get_vts_cdev_cur_state,
+	.set_cur_state = gk20a_volt_dvfs_set_vts_cdev_state,
+};
+
+int
+gk20a_volt_dvfs_cdev_register(struct gk20a_volt_priv *priv)
+{
+	struct nvkm_volt *volt = &priv->base;
+	struct thermal_cooling_device *tcd;
+	struct platform_device *pdev;
+	struct device_node *np, *child;
+
+	if (priv->therm_nr == -1)
+		return -EINVAL;
+
+	pdev = nv_device(volt)->platformdev;
+	if (IS_ERR_OR_NULL(pdev))
+		return -EINVAL;
+	np = pdev->dev.of_node;
+	child = of_get_child_by_name(np, "gpu-scaling-cdev");
+	if (!child) {
+		nv_error(volt, " No support for gpu_scaling cooling device\n");
+		return -EINVAL;
+	}
+	tcd = thermal_of_cooling_device_register(child,
+						"gpu_scaling",
+						priv,
+						&gk20a_volt_dvfs_cooling_ops);
+	of_node_put(child);
+	if (IS_ERR_OR_NULL(tcd)) {
+		nv_error(volt,
+			 "Failed register gpu_scaling cooling device\n");
+		return PTR_ERR(tcd);
+	}
+	priv->cdev = tcd;
+
+	return 0;
+}
+
+void gk20a_volt_dvfs_cdev_unregister(struct gk20a_volt_priv *priv)
+{
+	if (priv->cdev)
+		thermal_cooling_device_unregister(priv->cdev);
+}
+#endif

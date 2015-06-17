@@ -27,7 +27,7 @@
 #include <subdev/bios/volt.h>
 
 static int
-nvkm_volt_get(struct nvkm_volt *volt)
+nvkm_volt_get_unlocked(struct nvkm_volt *volt)
 {
 	if (volt->vid_get) {
 		int ret = volt->vid_get(volt), i;
@@ -44,16 +44,34 @@ nvkm_volt_get(struct nvkm_volt *volt)
 }
 
 static int
-nvkm_volt_get_voltage_by_id(struct nvkm_volt *volt, u8 id)
+nvkm_volt_get(struct nvkm_volt *volt)
 {
-	if (id >= volt->vid_nr)
-		return -EINVAL;
+	int ret;
 
-	return volt->vid[id].uv;
+	mutex_lock(&volt->therm_lock);
+	ret = nvkm_volt_get_unlocked(volt);
+	mutex_unlock(&volt->therm_lock);
+
+	return ret;
 }
 
 static int
-nvkm_volt_set(struct nvkm_volt *volt, u32 uv)
+nvkm_volt_get_voltage_by_id(struct nvkm_volt *volt, u8 id)
+{
+	int uv;
+
+	if (id >= volt->vid_nr)
+		return -EINVAL;
+
+	mutex_lock(&volt->therm_lock);
+	uv = volt->vid[id].uv;
+	mutex_unlock(&volt->therm_lock);
+
+	return uv;
+}
+
+static int
+nvkm_volt_set_unlocked(struct nvkm_volt *volt, u32 uv)
 {
 	if (volt->vid_set) {
 		int i, ret = -EINVAL;
@@ -67,6 +85,18 @@ nvkm_volt_set(struct nvkm_volt *volt, u32 uv)
 		return ret;
 	}
 	return -ENODEV;
+}
+
+static int
+nvkm_volt_set(struct nvkm_volt *volt, u32 uv)
+{
+	int ret;
+
+	mutex_lock(&volt->therm_lock);
+	ret = nvkm_volt_set_unlocked(volt, uv);
+	mutex_unlock(&volt->therm_lock);
+
+	return ret;
 }
 
 static int
@@ -95,16 +125,18 @@ static int
 nvkm_volt_set_id(struct nvkm_volt *volt, u8 id, int condition)
 {
 	int ret = nvkm_volt_map(volt, id);
+	mutex_lock(&volt->therm_lock);
 	if (ret >= 0) {
-		int prev = nvkm_volt_get(volt);
+		int prev = nvkm_volt_get_unlocked(volt);
 		if (!condition || prev < 0 ||
 		    (condition < 0 && ret < prev) ||
 		    (condition > 0 && ret > prev)) {
-			ret = nvkm_volt_set(volt, ret);
+			ret = nvkm_volt_set_unlocked(volt, ret);
 		} else {
 			ret = 0;
 		}
 	}
+	mutex_unlock(&volt->therm_lock);
 	return ret;
 }
 
@@ -189,6 +221,8 @@ nvkm_volt_create_(struct nvkm_object *parent, struct nvkm_object *engine,
 	volt->set = nvkm_volt_set;
 	volt->set_id = nvkm_volt_set_id;
 	volt->get_voltage_by_id = nvkm_volt_get_voltage_by_id;
+
+	mutex_init(&volt->therm_lock);
 
 	/* Assuming the non-bios device should build the voltage table later */
 	if (bios)
