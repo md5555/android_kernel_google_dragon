@@ -27,6 +27,7 @@
 #include <core/device.h>
 
 #ifdef __KERNEL__
+#include <linux/thermal.h>
 #include <nouveau_platform.h>
 #include <soc/tegra/fuse.h>
 #endif
@@ -216,6 +217,11 @@ static const struct gm20b_pllg_params gm20b_pllg_params = {
 	.vco_ctrl = 0x7 << 3,
 };
 
+struct gm20b_clk_thermal {
+	bool in_suspend;
+	struct thermal_cooling_device *throt_cdev;
+};
+
 struct gm20b_clk_priv {
 	struct nvkm_clk base;
 	const struct gm20b_pllg_params *params;
@@ -229,7 +235,11 @@ struct gm20b_clk_priv {
 	u32 safe_fmax_vmin; /* in KHz */
 	struct clk *emc;
 	unsigned long emc_rate;
+	struct gm20b_clk_thermal clk_therm;
 };
+
+static void gm20b_clk_throttle_cdev_unregister(struct gm20b_clk_priv *priv);
+static int gm20b_clk_throttle_cdev_register(struct gm20b_clk_priv *priv);
 
 /*
  * Post divider tarnsition is glitchless only if there is common "1" in
@@ -1242,6 +1252,8 @@ gm20b_clk_fini(struct nvkm_object *object, bool suspend)
 
 	gm20b_pllg_disable(priv);
 
+	priv->clk_therm.in_suspend = suspend;
+
 	return ret;
 }
 
@@ -1407,7 +1419,20 @@ gm20b_clk_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	priv->base.tidy = gm20b_clk_tidy;
 	priv->napll_enabled = plat->gpu_speedo_id >= 1;
 	priv->pldiv_glitchless_supported = true;
+
+	priv->clk_therm.in_suspend = true;
+	gm20b_clk_throttle_cdev_register(priv);
+
 	return 0;
+}
+
+static void
+gm20b_clk_dtor(struct nvkm_object *object)
+{
+	struct gm20b_clk_priv *priv = (void *)object;
+
+	gm20b_clk_throttle_cdev_unregister(priv);
+	_nvkm_subdev_dtor(object);
 }
 
 struct nvkm_oclass
@@ -1415,8 +1440,100 @@ gm20b_clk_oclass = {
 	.handle = NV_SUBDEV(CLK, 0x12b),
 	.ofuncs = &(struct nvkm_ofuncs) {
 		.ctor = gm20b_clk_ctor,
-		.dtor = _nvkm_subdev_dtor,
+		.dtor = gm20b_clk_dtor,
 		.init = gm20b_clk_init,
 		.fini = gm20b_clk_fini,
 	},
 };
+
+#ifdef CONFIG_THERMAL
+/* Implement GPU throttle */
+static int
+gm20b_clk_throt_get_cdev_max_state(struct thermal_cooling_device *cdev,
+				unsigned long *max_state)
+{
+	struct gm20b_clk_priv *priv = (struct gm20b_clk_priv *)cdev->devdata;
+	struct nvkm_clk *clk = &priv->base;
+
+	*max_state = clk->state_nr - 1;
+	return 0;
+}
+
+static int
+gm20b_clk_throt_get_cdev_cur_state(struct thermal_cooling_device *cdev,
+				unsigned long *cur_state)
+{
+	struct gm20b_clk_priv *priv = (struct gm20b_clk_priv *)cdev->devdata;
+	struct nvkm_clk *clk = &priv->base;
+
+	*cur_state = -clk->tstate;
+	return 0;
+}
+
+static int
+gm20b_clk_throt_set_cdev_state(struct thermal_cooling_device *cdev,
+				unsigned long cur_state)
+{
+	struct gm20b_clk_priv *priv = (struct gm20b_clk_priv *)cdev->devdata;
+	struct nvkm_clk *clk = &priv->base;
+
+	if (priv->clk_therm.in_suspend)
+		return 0;
+
+	nvkm_clk_tstate(clk, -cur_state, 0);
+	return 0;
+}
+
+static struct thermal_cooling_device_ops gm20b_clk_throt_cooling_ops = {
+	.get_max_state = gm20b_clk_throt_get_cdev_max_state,
+	.get_cur_state = gm20b_clk_throt_get_cdev_cur_state,
+	.set_cur_state = gm20b_clk_throt_set_cdev_state,
+};
+
+static int
+gm20b_clk_throttle_cdev_register(struct gm20b_clk_priv *priv)
+{
+	struct nvkm_clk *clk = &priv->base;
+	struct thermal_cooling_device *tcd;
+	struct platform_device *pdev;
+	struct device_node *np, *child;
+
+	pdev = nv_device(clk)->platformdev;
+	if (IS_ERR_OR_NULL(pdev))
+		return -EINVAL;
+	np = pdev->dev.of_node;
+	child = of_get_child_by_name(np, "gpu-throttle-cdev");
+	if (!child) {
+		nv_error(clk, " No support for gpu_throttle cooling device\n");
+		return -EINVAL;
+	}
+	tcd = thermal_of_cooling_device_register(child,
+						"gpu_throttle",
+						priv,
+						&gm20b_clk_throt_cooling_ops);
+	of_node_put(child);
+	if (IS_ERR_OR_NULL(tcd)) {
+		nv_error(clk,
+			 "Failed register gpu_throttle cooling device\n");
+		return PTR_ERR(tcd);
+	}
+	priv->clk_therm.throt_cdev = tcd;
+
+	return 0;
+}
+
+static void
+gm20b_clk_throttle_cdev_unregister(struct gm20b_clk_priv *priv)
+{
+	if (priv->clk_therm.throt_cdev)
+		thermal_cooling_device_unregister(priv->clk_therm.throt_cdev);
+}
+#else
+static inline int
+gm20b_clk_throttle_cdev_register(struct gm20b_clk_priv *priv)
+{
+	return -EINVAL;
+}
+static inline void
+gm20b_clk_throttle_cdev_unregister(struct gm20b_clk_priv *priv) {}
+#endif
