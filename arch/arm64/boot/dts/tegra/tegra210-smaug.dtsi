@@ -95,6 +95,13 @@
 		wl_host_wake = <&gpio TEGRA_GPIO(H, 2) IRQ_TYPE_LEVEL_HIGH>;
 	};
 
+	bt_bcm4354 {
+		compatible = "bcm,bt-bcm4354";
+		bt_reg_on-gpios = <&gpio TEGRA_GPIO(H, 4) GPIO_ACTIVE_LOW>;
+		bt_host_wake-gpios = <&gpio TEGRA_GPIO(H, 5) GPIO_ACTIVE_HIGH>;
+		bt_ext_wake-gpios = <&gpio TEGRA_GPIO(H, 3) GPIO_ACTIVE_LOW>;
+	};
+
 	gpio-keys {
 		compatible = "gpio-keys";
 		gpio-keys,name = "gpio-keys";
