@@ -4,15 +4,15 @@ Properties:
 - compatible : Should contain "nvidia,tegra20-emc".
 - reg : Should contain 3 register ranges. The EMC register range and per
   channel EMC0/EMC1 register ranges.
-- #address-cells : Should be 1
-- #size-cells : Should be 0
+- #address-cells : Should be 2
+- #size-cells : Should be 2
 - clocks : phandle to EMC, EMC shared bus override, and all parent clocks.
 - clock-names : name of each clock.
 - #thermal-sensor-cells: Should be 0
+- ranges : Should be an empty property to indicate identity mapping translation.
 - max-clock-frequency : optional, specifies the maximum EMC rate in kHz.
-
-Child device nodes describe the memory settings for different configurations
-and clock rates.
+- has-derated-table : optional, an empty property to indicate there will be
+  derated tables.
 
 Example:
 	memory-controller@7001b000 {
@@ -20,8 +20,8 @@ Example:
 		reg = <0x0 0x7001b000 0x0 0x1000>,
 		      <0x0 0x7001e000 0x0 0x1000>,
 		      <0x0 0x7001f000 0x0 0x1000>;
-		#address-cells = <1>;
-		#size-cells = <0>;
+		#address-cells = <2>;
+		#size-cells = <2>;
 		clocks = <&tegra_car TEGRA210_CLK_EMC>,
 			 <&tegra_car TEGRA210_CLK_PLL_M>,
 			 <&tegra_car TEGRA210_CLK_PLL_C>,
@@ -32,198 +32,6 @@ Example:
 		clock-names = "emc", "pll_m", "pll_c", "pll_p", "clk_m",
 			"pll_mb", "emc_override";
 		#thermal-sensor-cells = <0>;
+		ranges;
 	};
 
-
-External Memory Controller ram-code table
-
-If the emc node has the nvidia,ram-code property present, then the next level
-of nodes below the emc table are used to specify which settings apply for
-which ram-code settings.
-
-If the emc node lacks the nvidia,use-ram-code property, this level is omitted
-and the tables are stored directly under the emc node (see below).
-
-Properties:
-
-- name : Should be emc-tables
-- nvidia,ram-code : the binary representation of the ram-code board strappings
-  for which this node (and children) are valid.
-
-
-External Memory Controller configuration table
-
-This is a table containing the EMC register settings for the various operating
-speeds of the memory controller. They are always located as subnodes of the emc
-controller node.
-
-Properties:
-- compatible : Should contain "nvidia,tegra21-emc-table" or
-  "nvidia,tegra21-emc-table-derated".
-- nvidia,revision : The revision of emc table
-- nvidia,dvfs-version : DVFS table version
-- clock-frequency : the clock frequency for the EMC at which this
-  table should be used (in KHz).
-- nvidia,emc-min-mv : min voltage
-- nvidia,gk20a-min-mv : GPU min voltage
-- nvidia,source : clock source id
-- nvidia,emc-src-sel-reg : CLK_SOURCE_EMC
-- nvidia,needs-training : needs_training
-- nvidia,training_pattern : training_pattern
-- nvidia,trained : trained
-- nvidia,periodic_training : periodic_training
-- nvidia,trained_dram_clktree_c0d0u0 : trained_dram_clk_tree_c0d0u0
-- nvidia,trained_dram_clktree_c0d0u1 : trained_dram_clk_tree_c0d0u1
-- nvidia,trained_dram_clktree_c0d1u0 : trained_dram_clk_tree_c0d1u0
-- nvidia,trained_dram_clktree_c0d1u1 : trained_dram_clk_tree_c0d1u1
-- nvidia,trained_dram_clktree_c1d0u0 : trained_dram_clk_tree_c1d0u0
-- nvidia,trained_dram_clktree_c1d0u1 : trained_dram_clk_tree_c1d0u1
-- nvidia,trained_dram_clktree_c1d1u0 : trained_dram_clk_tree_c1d1u0
-- nvidia,trained_dram_clktree_c1d1u1 : trained_dram_clk_tree_c1d1u1
-- nvidia,current_dram_clktree_c0d0u0 : current_dram_clk_tree_c0d0u0
-- nvidia,current_dram_clktree_c0d0u1 : current_dram_clk_tree_c0d0u1
-- nvidia,current_dram_clktree_c0d1u0 : current_dram_clk_tree_c0d1u0
-- nvidia,current_dram_clktree_c0d1u1 : current_dram_clk_tree_c0d1u1
-- nvidia,current_dram_clktree_c1d0u0 : current_dram_clk_tree_c1d0u0
-- nvidia,current_dram_clktree_c1d0u1 : current_dram_clk_tree_c1d0u1
-- nvidia,current_dram_clktree_c1d1u0 : current_dram_clk_tree_c1d1u0
-- nvidia,current_dram_clktree_c1d1u1 : current_dram_clk_tree_c1d1u1
-- nvidia,run_clocks : run_clocks
-- nvidia,tree_margin : tree_margin
-- nvidia,burst-regs-num : number of burst_regs
-- nvidia,burst-regs-per-ch-num : number of perch_burst_regs
-- nvidia,trim-regs-num : number of trim_regs
-- nvidia,trim-regs-per-ch-num number of perch_trim_regs
-- nvidia,burst-mc-regs-num : number of mc_burst_regs
-- nvidia,la-scale-regs-num : number of up_down_regs
-- nvidia,vref-regs-num : number of vref_regs
-- nvidia,training-mod-regs-num : number of training_mod_regs
-- nvidia,dram-timing-regs-num : number of dram_timing_regs
-- nvidia,emc-registers : an array of EMC/MC registers to be programmed for
-  operation at the 'clock-frequency' setting.
-- nvidia,emc-burst-regs-per-ch : an array of EMC/MC registers to be programmed
-  for operation at the 'clock-frequency' setting.
-- nvidia,emc-shadow-regs-ca-train : an array of EMC/MC registers to be
-  programmed for operation at the 'clock-frequency' setting.
-- nvidia,emc-shadow-regs-quse-train : an array of EMC/MC registers to be
-  programmed for operation at the 'clock-frequency' setting.
-- nvidia,emc-shadow-regs-rdwr-train : an array of EMC/MC registers to be
-  programmed for operation at the 'clock-frequency' setting.
-- nvidia,emc-trim-regs : an array of EMC/MC registers to be programmed for
-  operation at the 'clock-frequency' setting.
-- nvidia,emc-trim-regs-per-ch : an array of EMC/MC registers to be programmed
-  for operation at the 'clock-frequency' setting.
-- nvidia,emc-vref-regs : an array of EMC/MC registers to be programmed for
-  operation at the 'clock-frequency' setting.
-- nvidia,emc-dram-timing-regs : an array of EMC/MC registers to be programmed
-  for operation at the 'clock-frequency' setting.
-- nvidia,emc-training-mod-regs : an array of EMC/MC registers to be programmed
-  for operation at the 'clock-frequency' setting.
-- nvidia,emc-save-restore-mod-regs : an array of EMC/MC registers to be
-  programmed for operation at the 'clock-frequency' setting.
-- nvidia,emc-burst-mc-regs : an array of EMC/MC registers to be programmed for
-  operation at the 'clock-frequency' setting.
-- nvidia,emc-la-scale-regs : an array of EMC/MC registers to be programmed for
-  operation at the 'clock-frequency' setting.
-- nvidia,min-mrs-wait : min_mrs_wait min delay between MRS to other commands
-- nvidia,emc-mrw : EMC_MRW
-- nvidia,emc-mrw2 : EMC_MRW2
-- nvidia,emc-mrw3 : EMC_MRW3
-- nvidia,emc-mrw4 : EMC_MRW4
-- nvidia,emc-mrw9 : EMC_MRW9
-- nvidia,emc-mrs : EMC_MRS
-- nvidia,emc-emrs : EMC_EMRS
-- nvidia,emc-emrs2 : EMC_EMRS2
-- nvidia,emc-auto-cal-config : EMC_AUTO_CAL_CONFIG
-- nvidia,emc-auto-cal-config2 : EMC_AUTO_CAL_CONFIG2
-- nvidia,emc-auto-cal-config3 : EMC_AUTO_CAL_CONFIG3
-- nvidia,emc-auto-cal-config4 : EMC_AUTO_CAL_CONFIG4
-- nvidia,emc-auto-cal-config5 : EMC_AUTO_CAL_CONFIG5
-- nvidia,emc-auto-cal-config6 : EMC_AUTO_CAL_CONFIG6
-- nvidia,emc-auto-cal-config7 : EMC_AUTO_CAL_CONFIG7
-- nvidia,emc-auto-cal-config8 : EMC_AUTO_CAL_CONFIG8
-- nvidia,emc-cfg-2 : EMC_CFG_2
-- nvidia,emc-sel-dpd-ctrl : EMC_SEL_DPD_CTRL
-- nvidia,emc-fdpd-ctrl-cmd-no-ramp : EMC_FDPD_CTRL_CMD_NO_RAMP
-- nvidia,dll-clk-src : DLL_CLK_SRC
-- nvidia,clk-out-enb-x-0-clk-enb-emc-dll : CLK_OUT_ENB_X_0_CLK_ENB_EMC_DLL
-- nvidia,emc-clock-latency-change : expected dvfs latency (ns)
-
-Example:
-	emc-table@40800 {
-		compatible = "nvidia,tegra21-emc-table";
-		nvidia,revision = <0>;
-		nvidia,dvfs-version = "table_version";
-		clock-frequency = <0>;
-		nvidia,emc-min-mv = <0>;
-		nvidia,gk20a-min-mv = <0>;
-		nvidia,source = "src_name";
-		nvidia,src-sel-reg = <0>;
-		nvidia,needs-training = <0>;
-		nvidia,training_pattern = <0>;
-		nvidia,trained = <0>;
-		nvidia,periodic_training = <0>;
-		nvidia,trained_dram_clktree_c0d0u0 = <0>;
-		nvidia,trained_dram_clktree_c0d0u1 = <0>;
-		nvidia,trained_dram_clktree_c0d1u0 = <0>;
-		nvidia,trained_dram_clktree_c0d1u1 = <0>;
-		nvidia,trained_dram_clktree_c1d0u0 = <0>;
-		nvidia,trained_dram_clktree_c1d0u1 = <0>;
-		nvidia,trained_dram_clktree_c1d1u0 = <0>;
-		nvidia,trained_dram_clktree_c1d1u1 = <0>;
-		nvidia,current_dram_clktree_c0d0u0 = <0>;
-		nvidia,current_dram_clktree_c0d0u1 = <0>;
-		nvidia,current_dram_clktree_c0d1u0 = <0>;
-		nvidia,current_dram_clktree_c0d1u1 = <0>;
-		nvidia,current_dram_clktree_c1d0u0 = <0>;
-		nvidia,current_dram_clktree_c1d0u1 = <0>;
-		nvidia,current_dram_clktree_c1d1u0 = <0>;
-		nvidia,current_dram_clktree_c1d1u1 = <0>;
-		nvidia,run_clocks = <0>;
-		nvidia,tree_margin = <0>;
-		nvidia,burst-regs-num = <0>;
-		nvidia,burst-regs-per-ch-num = <0>;
-		nvidia,trim-regs-num = <0>;
-		nvidia,trim-regs-per-ch-num = <0>;
-		nvidia,burst-mc-regs-num = <0>;
-		nvidia,la-scale-regs-num = <0>;
-		nvidia,vref-regs-num = <0>;
-		nvidia,training-mod-regs-num = <0>;
-		nvidia,dram-timing-regs-num = <0>;
-		nvidia,emc-registers = <...>;
-		nvidia,emc-burst-regs-per-ch = <...>;
-		nvidia,emc-shadow-regs-ca-train = <...>;
-		nvidia,emc-shadow-regs-quse-train = <...>;
-		nvidia,emc-shadow-regs-rdwr-train = <...>;
-		nvidia,emc-trim-regs = <...>;
-		nvidia,emc-trim-regs-per-ch = <...>;
-		nvidia,emc-vref-regs = <...>;
-		nvidia,emc-dram-timing-regs = <...>;
-		nvidia,emc-training-mod-regs = <...>;
-		nvidia,emc-save-restore-mod-regs = <...>;
-		nvidia,emc-burst-mc-regs = <...>;
-		nvidia,emc-la-scale-regs = <...>;
-		nvidia,min-mrs-wait = <0>;
-		nvidia,emc-mrw = <0>;
-		nvidia,emc-mrw2 = <0>;
-		nvidia,emc-mrw3 = <0>;
-		nvidia,emc-mrw4 = <0>;
-		nvidia,emc-mrw9 = <0>;
-		nvidia,emc-mrs = <0>;
-		nvidia,emc-emrs = <0>;
-		nvidia,emc-emrs2 = <0>;
-		nvidia,emc-auto-cal-config = <0>;
-		nvidia,emc-auto-cal-config2 = <0>;
-		nvidia,emc-auto-cal-config3 = <0>;
-		nvidia,emc-auto-cal-config4 = <0>;
-		nvidia,emc-auto-cal-config5 = <0>;
-		nvidia,emc-auto-cal-config6 = <0>;
-		nvidia,emc-auto-cal-config7 = <0>;
-		nvidia,emc-auto-cal-config8 = <0>;
-		nvidia,emc-cfg-2 = <0>;
-		nvidia,emc-sel-dpd-ctrl = <0>;
-		nvidia,emc-fdpd-ctrl-cmd-no-ramp = <0>;
-		nvidia,dll-clk-src = <0>;
-		nvidia,clk-out-enb-x-0-clk-enb-emc-dll = <0>;
-		nvidia,emc-clock-latency-change = <0>;
-	};

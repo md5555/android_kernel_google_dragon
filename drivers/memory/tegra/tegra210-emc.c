@@ -44,6 +44,16 @@ enum TEGRA_EMC_SOURCE {
 	TEGRA_EMC_SRC_COUNT,
 };
 
+struct emc_sel {
+	struct clk	*input;
+	u32		value;
+	unsigned long	input_rate;
+
+	struct clk	*input_b;
+	u32		value_b;
+	unsigned long	input_rate_b;
+};
+
 #define DEFINE_REG(type, reg) (reg)
 u32 burst_regs_per_ch_off[] = BURST_REGS_PER_CH_LIST;
 u32 burst_regs_off[] = BURST_REGS_LIST;
@@ -86,6 +96,7 @@ struct emc_table *tegra_emc_table_normal;
 struct emc_table *tegra_emc_table_derated;
 static struct emc_table *emc_timing;
 static struct emc_table start_timing;
+static struct emc_sel *emc_clk_sel;
 static struct clk *emc_clk;
 static struct clk *emc_override_clk;
 static struct clk *tegra_emc_src[TEGRA_EMC_SRC_COUNT];
@@ -409,9 +420,9 @@ unsigned long tegra210_predict_emc_rate(int millivolts)
 		return -EINVAL;
 
 	for (i = 0; i < tegra_emc_table_size; i++) {
-		if (tegra_emc_table[i].input == NULL)
+		if (emc_clk_sel[i].input == NULL)
 			continue;
-		if (tegra_emc_table[i].emc_min_mv > millivolts)
+		if (tegra_emc_table[i].min_volt > millivolts)
 			break;
 		ret = tegra_emc_table[i].rate * 1000;
 	}
@@ -459,7 +470,7 @@ static long tegra210_emc_round_rate(unsigned long rate)
 	rate /= 1000;
 	i = get_start_idx(rate);
 	for (; i < tegra_emc_table_size; i++) {
-		if (tegra_emc_table[i].input == NULL)
+		if (emc_clk_sel[i].input == NULL)
 			continue;
 
 		max = i;
@@ -476,32 +487,32 @@ static inline void emc_get_timing(struct emc_table *timing)
 {
 	int i;
 
-	for (i = 0; i < timing->burst_regs_num; i++) {
+	for (i = 0; i < timing->num_burst; i++) {
 		if (burst_regs_off[i])
 			timing->burst_regs[i] = emc_readl(burst_regs_off[i]);
 		else
 			timing->burst_regs[i] = 0;
 	}
 
-	for (i = 0; i < timing->burst_regs_per_ch_num; i++)
-		timing->burst_regs_per_ch[i] = emc_readl_per_ch(
+	for (i = 0; i < timing->num_burst_per_ch; i++)
+		timing->burst_reg_per_ch[i] = emc_readl_per_ch(
 			burst_regs_per_ch_type[i], burst_regs_per_ch_off[i]);
 
-	for (i = 0; i < timing->trim_regs_num; i++)
+	for (i = 0; i < timing->num_trim; i++)
 		timing->trim_regs[i] = emc_readl(trim_regs_off[i]);
 
-	for (i = 0; i < timing->trim_regs_per_ch_num; i++)
-		timing->trim_regs_per_ch[i] = emc_readl_per_ch(
+	for (i = 0; i < timing->num_trim_per_ch; i++)
+		timing->trim_perch_regs[i] = emc_readl_per_ch(
 			trim_regs_per_ch_type[i], trim_regs_per_ch_off[i]);
 
-	for (i = 0; i < timing->vref_regs_per_ch_num; i++)
-		timing->vref_regs_per_ch[i] = emc_readl_per_ch(
+	for (i = 0; i < timing->vref_num; i++)
+		timing->vref_perch_regs[i] = emc_readl_per_ch(
 			vref_regs_per_ch_type[i], vref_regs_per_ch_off[i]);
 
-	for (i = 0; i < timing->burst_mc_regs_num; i++)
+	for (i = 0; i < timing->num_mc_regs; i++)
 		timing->burst_mc_regs[i] = mc_readl(burst_mc_regs_off[i]);
 
-	for (i = 0; i < timing->la_scale_regs_num; i++)
+	for (i = 0; i < timing->num_up_down; i++)
 		timing->la_scale_regs[i] = mc_readl(la_scale_regs_off[i]);
 
 	timing->rate = clk_get_rate(emc_clk) / 1000;
@@ -545,7 +556,7 @@ static int emc_table_lookup(unsigned long rate)
 	int i;
 	i = get_start_idx(rate);
 	for (; i < tegra_emc_table_size; i++) {
-		if (tegra_emc_table[i].input == NULL)
+		if (emc_clk_sel[i].input == NULL)
 			continue;
 
 		if (tegra_emc_table[i].rate == rate)
@@ -570,15 +581,15 @@ static struct clk *tegra210_emc_predict_parent(unsigned long rate,
 	if (IS_ERR_VALUE(val))
 		return ERR_PTR(val);
 
-	*parent_rate = tegra_emc_table[val].input_rate * 1000;
-	new_parent = tegra_emc_table[val].input;
+	*parent_rate = emc_clk_sel[val].input_rate * 1000;
+	new_parent = emc_clk_sel[val].input;
 	old_parent = clk_get_parent(emc_clk);
 
 	if (*parent_rate == clk_get_rate(old_parent))
 		return old_parent;
 
 	if (new_parent == old_parent)
-		new_parent = tegra_emc_table[val].input_b;
+		new_parent = emc_clk_sel[val].input_b;
 
 	if (*parent_rate != clk_get_rate(new_parent))
 		clk_set_rate(new_parent, *parent_rate);
@@ -620,10 +631,10 @@ static int tegra210_emc_set_rate(unsigned long rate)
 		last_timing = emc_timing;
 
 	parent = tegra210_emc_predict_parent(rate, &parent_rate);
-	if (parent == tegra_emc_table[i].input)
-		clk_setting = tegra_emc_table[i].value;
+	if (parent == emc_clk_sel[i].input)
+		clk_setting = emc_clk_sel[i].value;
 	else
-		clk_setting = tegra_emc_table[i].value_b;
+		clk_setting = emc_clk_sel[i].value_b;
 
 	last_change_delay = ktime_us_delta(ktime_get(), clkchange_time);
 	if ((last_change_delay >= 0) && (last_change_delay < clkchange_delay))
@@ -916,10 +927,10 @@ static int emc_stats_show(struct seq_file *s, void *data)
 
 	seq_printf(s, "%-10s %-10s\n", "rate kHz", "time");
 	for (i = 0; i < tegra_emc_table_size; i++) {
-		if (tegra_emc_table[i].input == NULL)
+		if (emc_clk_sel[i].input == NULL)
 			continue;
 
-		seq_printf(s, "%-10lu %-10llu\n",
+		seq_printf(s, "%-10u %-10llu\n",
 			   tegra_emc_table[i].rate * 1000,
 			   cputime64_to_clock_t(
 					    tegra_emc_stats.time_at_clock[i]));
@@ -1045,7 +1056,7 @@ static int over_temp_state_set(void *data, u64 val)
 DEFINE_SIMPLE_ATTRIBUTE(over_temp_state_fops, over_temp_state_get,
 			over_temp_state_set, "%llu\n");
 
-static int __init tegra_emc_debug_init(void)
+static int tegra_emc_debug_init(void)
 {
 	struct dentry *emc_debugfs_root;
 
@@ -1105,13 +1116,18 @@ err_out:
 late_initcall(tegra_emc_debug_init);
 #endif
 
-static const struct of_device_id mc_match[] __initconst = {
+static const struct of_device_id mc_match[] = {
 	{ .compatible = "nvidia,tegra210-mc" },
 	{},
 };
 
-static const struct of_device_id car_match[] __initconst = {
+static const struct of_device_id car_match[] = {
 	{ .compatible = "nvidia,tegra210-car" },
+	{},
+};
+
+static const struct of_device_id emc_table_match[] = {
+	{ .compatible = "nvidia,tegra210-emc-table" },
 	{},
 };
 
@@ -1156,14 +1172,14 @@ void __emc_copy_table_params(struct emc_table *src, struct emc_table *dst,
 	}
 
 	if (flags & EMC_COPY_TABLE_PARAM_TRIM_REGS) {
-		for (i = 0; i < src->trim_regs_per_ch_num; i++)
-			dst->trim_regs_per_ch[i] = src->trim_regs_per_ch[i];
+		for (i = 0; i < src->num_trim_per_ch; i++)
+			dst->trim_perch_regs[i] = src->trim_perch_regs[i];
 
-		for (i = 0; i < src->trim_regs_num; i++)
+		for (i = 0; i < src->num_trim; i++)
 			dst->trim_regs[i] = src->trim_regs[i];
 
-		for (i = 0; i < src->burst_regs_per_ch_num; i++)
-			dst->burst_regs_per_ch[i] = src->burst_regs_per_ch[i];
+		for (i = 0; i < src->num_burst_per_ch; i++)
+			dst->burst_reg_per_ch[i] = src->burst_reg_per_ch[i];
 	}
 }
 
@@ -1176,7 +1192,7 @@ static void emc_copy_table_params(struct emc_table *src, struct emc_table *dst,
 		__emc_copy_table_params(&src[i], &dst[i], flags);
 }
 
-static int find_matching_input(struct emc_table *table)
+static int find_matching_input(struct emc_table *table, struct emc_sel *sel)
 {
 	u32 div_value;
 	u32 src_value;
@@ -1184,25 +1200,25 @@ static int find_matching_input(struct emc_table *table)
 	unsigned long input_rate = 0;
 	struct clk *input_clk;
 
-	div_value = emc_div_val(table->src_sel_reg);
-	src_value = emc_src_val(table->src_sel_reg);
+	div_value = emc_div_val(table->clk_src_emc);
+	src_value = emc_src_val(table->clk_src_emc);
 
 	if (div_value & 0x1) {
-		pr_warn("Tegra EMC: invalid odd divider for EMC rate %lu\n",
+		pr_warn("Tegra EMC: invalid odd divider for EMC rate %u\n",
 			table->rate);
 		return -EINVAL;
 	}
 
 	if (src_value >= __clk_get_num_parents(emc_clk)) {
-		pr_warn("Tegra EMC: no matching input found for rate %lu %d\n",
-			table->rate, __clk_get_num_parents(emc_clk));
+		pr_warn("Tegra EMC: no matching input found for rate %u\n",
+			table->rate);
 		return -EINVAL;
 	}
 
-	if (!(table->src_sel_reg & EMC_CLK_MC_EMC_SAME_FREQ) !=
+	if (!(table->clk_src_emc & EMC_CLK_MC_EMC_SAME_FREQ) !=
 	    !(MC_EMEM_ARB_MISC0_EMC_SAME_FREQ &
 	    table->burst_regs[MC_EMEM_ARB_MISC0_INDEX])) {
-		pr_warn("Tegra EMC: ambiguous EMC to MC ratio for rate %lu\n",
+		pr_warn("Tegra EMC: ambiguous EMC to MC ratio for rate %u\n",
 			table->rate);
 		return -EINVAL;
 	}
@@ -1213,24 +1229,24 @@ static int find_matching_input(struct emc_table *table)
 	} else {
 		input_rate = clk_get_rate(input_clk) / 1000;
 		if (input_rate != (table->rate * (1 + div_value / 2))) {
-			pr_warn("Tegra EMC: rate %lu doesn't match input\n",
+			pr_warn("Tegra EMC: rate %u doesn't match input\n",
 				table->rate);
 			return -EINVAL;
 		}
 	}
 
-	table->input = input_clk;
-	table->input_rate = input_rate;
-	table->value = table->src_sel_reg;
-	table->input_b = input_clk;
-	table->input_rate_b = input_rate;
-	table->value_b = table->src_sel_reg;
+	sel->input = input_clk;
+	sel->input_rate = input_rate;
+	sel->value = table->clk_src_emc;
+	sel->input_b = input_clk;
+	sel->input_rate_b = input_rate;
+	sel->value_b = table->clk_src_emc;
 
 	if (input_clk == tegra_emc_src[TEGRA_EMC_SRC_PLLM]) {
-		table->input_b = tegra_emc_src[TEGRA_EMC_SRC_PLLMB];
+		sel->input_b = tegra_emc_src[TEGRA_EMC_SRC_PLLMB];
 		src_value_b = src_value == TEGRA_EMC_SRC_PLLM_UD ?
 			TEGRA_EMC_SRC_PLLMB_UD : TEGRA_EMC_SRC_PLLMB;
-		table->value_b = (table->src_sel_reg &
+		sel->value_b = (table->clk_src_emc &
 			~EMC_CLK_EMC_2X_CLK_SRC_MASK) |
 			(src_value_b << EMC_CLK_EMC_2X_CLK_SRC_SHIFT);
 	}
@@ -1238,461 +1254,60 @@ static int find_matching_input(struct emc_table *table)
 	return 0;
 }
 
-static struct device_node *emc_find_table(struct device_node *np)
+static void parse_dt_data(struct platform_device *pdev)
 {
-	struct device_node *iter;
-	struct property *prop;
-	const __be32 *p;
-	u32 u;
-	bool use_ram_code = false;
+	u32 prop;
+	int ret;
+	bool has_derated_tables = false;
+	struct device_node *table_node = NULL;
+	struct resource r;
+	int i;
 
-	for_each_child_of_node(np, iter) {
-		if (of_find_property(iter, "nvidia,ram-code", NULL)) {
-			use_ram_code = true;
-			of_property_for_each_u32(iter, "nvidia,ram-code", prop,
-						 p, u) {
-				if (u == tegra_ram_code)
-					return iter;
+	ret = of_property_read_u32(pdev->dev.of_node, "max-clock-frequency",
+				   &prop);
+	if (!ret)
+		emc_max_rate = prop * 1000;
+
+	if (of_find_property(pdev->dev.of_node, "has-derated-tables", NULL))
+		has_derated_tables = true;
+
+	table_node = of_find_matching_node(pdev->dev.of_node, emc_table_match);
+	if (!table_node) {
+		dev_err(&pdev->dev, "Can not find EMC table node\n");
+		return;
+	}
+
+	if (of_address_to_resource(table_node, 0, &r)) {
+		dev_err(&pdev->dev, "Can not map EMC table\n");
+		return;
+	}
+
+	tegra_emc_table_normal = devm_ioremap_resource(&pdev->dev, &r);
+	tegra_emc_table_size = resource_size(&r) / sizeof(struct emc_table);
+
+	if (has_derated_tables) {
+		tegra_emc_table_size /= 2;
+		tegra_emc_table_derated = tegra_emc_table_normal +
+					  tegra_emc_table_size;
+
+		for (i = 0; i < tegra_emc_table_size; i++) {
+			if (tegra_emc_table_derated[i].rate !=
+			    tegra_emc_table_normal[i].rate) {
+				dev_err(&pdev->dev, "EMC table check failed\n");
+				tegra_emc_table_normal = NULL;
+				tegra_emc_table_derated = NULL;
+				tegra_emc_table_size = 0;
+				break;
 			}
 		}
 	}
 
-	if (use_ram_code)
-		return ERR_PTR(-ENODATA);
-
-	return np;
-}
-
-static struct emc_table *parse_emc_tables(struct platform_device *pdev,
-						const char *compat, int *count)
-{
-	struct device_node *iter;
-	struct device_node *tablenode = NULL;
-	int i;
-	u32 prop;
-	struct emc_table *tegra_emc_table;
-	int ret;
-
-	tablenode = emc_find_table(pdev->dev.of_node);
-	if (IS_ERR(tablenode))
-		return ERR_PTR(-ENODEV);
-
-	i = 0;
-	for_each_child_of_node(tablenode, iter)
-		if (of_device_is_compatible(iter, compat))
-			i++;
-
-	if (!i)
-		return ERR_PTR(-ENODATA);
-
-	tegra_emc_table = devm_kzalloc(&pdev->dev,
-		sizeof(struct emc_table) * i, GFP_KERNEL);
-	if (!tegra_emc_table)
-		return ERR_PTR(-ENOMEM);
-
-	i = 0;
-	for_each_child_of_node(tablenode, iter) {
-		if (!of_device_is_compatible(iter, compat))
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,revision",
-					   &tegra_emc_table[i].rev);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,emc-min-mv",
-					   &tegra_emc_table[i].emc_min_mv);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,gk20a-min-mv",
-					   &tegra_emc_table[i].gk20a_min_mv);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,src-sel-reg",
-			&tegra_emc_table[i].src_sel_reg);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,needs-training",
-					   &tegra_emc_table[i].needs_training);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,training_pattern",
-					 &tegra_emc_table[i].training_pattern);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,trained",
-					   &tegra_emc_table[i].trained);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,periodic_training",
-					&tegra_emc_table[i].periodic_training);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter,
-			      "nvidia,trained_dram_clktree_c0d0u0",
-			      &tegra_emc_table[i].trained_dram_clktree_c0d0u0);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter,
-			      "nvidia,trained_dram_clktree_c0d0u1",
-			      &tegra_emc_table[i].trained_dram_clktree_c0d0u1);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter,
-			      "nvidia,trained_dram_clktree_c0d1u0",
-			      &tegra_emc_table[i].trained_dram_clktree_c0d1u0);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter,
-			      "nvidia,trained_dram_clktree_c0d1u1",
-			      &tegra_emc_table[i].trained_dram_clktree_c0d1u1);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter,
-			      "nvidia,trained_dram_clktree_c1d0u0",
-			      &tegra_emc_table[i].trained_dram_clktree_c1d0u0);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter,
-			      "nvidia,trained_dram_clktree_c1d0u1",
-			      &tegra_emc_table[i].trained_dram_clktree_c1d0u1);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter,
-			      "nvidia,trained_dram_clktree_c1d1u0",
-			      &tegra_emc_table[i].trained_dram_clktree_c1d1u0);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter,
-			      "nvidia,trained_dram_clktree_c1d1u1",
-			      &tegra_emc_table[i].trained_dram_clktree_c1d1u1);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter,
-			      "nvidia,current_dram_clktree_c0d0u0",
-			      &tegra_emc_table[i].current_dram_clktree_c0d0u0);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter,
-			      "nvidia,current_dram_clktree_c0d0u1",
-			      &tegra_emc_table[i].current_dram_clktree_c0d0u1);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter,
-			      "nvidia,current_dram_clktree_c0d1u0",
-			      &tegra_emc_table[i].current_dram_clktree_c0d1u0);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter,
-			      "nvidia,current_dram_clktree_c0d1u1",
-			      &tegra_emc_table[i].current_dram_clktree_c0d1u1);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter,
-			      "nvidia,current_dram_clktree_c1d0u0",
-			      &tegra_emc_table[i].current_dram_clktree_c1d0u0);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter,
-			      "nvidia,current_dram_clktree_c1d0u1",
-			      &tegra_emc_table[i].current_dram_clktree_c1d0u1);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter,
-			      "nvidia,current_dram_clktree_c1d1u0",
-			      &tegra_emc_table[i].current_dram_clktree_c1d1u0);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter,
-			      "nvidia,current_dram_clktree_c1d1u1",
-			      &tegra_emc_table[i].current_dram_clktree_c1d1u1);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,run_clocks",
-					   &tegra_emc_table[i].run_clocks);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,tree_margin",
-					   &tegra_emc_table[i].tree_margin);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,burst-regs-num",
-					   &tegra_emc_table[i].burst_regs_num);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,burst-regs-per-ch-num",
-				    &tegra_emc_table[i].burst_regs_per_ch_num);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,trim-regs-num",
-					   &tegra_emc_table[i].trim_regs_num);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,trim-regs-per-ch-num",
-				     &tegra_emc_table[i].trim_regs_per_ch_num);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,burst-mc-regs-num",
-					&tegra_emc_table[i].burst_mc_regs_num);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,la-scale-regs-num",
-					&tegra_emc_table[i].la_scale_regs_num);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,vref-regs-num",
-				     &tegra_emc_table[i].vref_regs_per_ch_num);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,training-mod-regs-num",
-				    &tegra_emc_table[i].training_mod_regs_num);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,dram-timing-regs-num",
-				     &tegra_emc_table[i].dram_timing_regs_num);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,min-mrs-wait",
-					   &tegra_emc_table[i].min_mrs_wait);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,emc-mrw",
-					   &tegra_emc_table[i].emc_mrw);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,emc-mrw2",
-					   &tegra_emc_table[i].emc_mrw2);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,emc-mrw3",
-					   &tegra_emc_table[i].emc_mrw3);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,emc-mrw4",
-					   &tegra_emc_table[i].emc_mrw4);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,emc-mrw9",
-					   &tegra_emc_table[i].emc_mrw9);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,emc-mrs",
-					   &tegra_emc_table[i].emc_mrs);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,emc-emrs",
-					   &tegra_emc_table[i].emc_emrs);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,emc-emrs2",
-					   &tegra_emc_table[i].emc_emrs2);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,emc-auto-cal-config",
-				      &tegra_emc_table[i].emc_auto_cal_config);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,emc-auto-cal-config2",
-				     &tegra_emc_table[i].emc_auto_cal_config2);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,emc-auto-cal-config3",
-				     &tegra_emc_table[i].emc_auto_cal_config3);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,emc-auto-cal-config4",
-				     &tegra_emc_table[i].emc_auto_cal_config4);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,emc-auto-cal-config5",
-				     &tegra_emc_table[i].emc_auto_cal_config5);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,emc-auto-cal-config6",
-				     &tegra_emc_table[i].emc_auto_cal_config6);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,emc-auto-cal-config7",
-				     &tegra_emc_table[i].emc_auto_cal_config7);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,emc-auto-cal-config8",
-				     &tegra_emc_table[i].emc_auto_cal_config8);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,emc-cfg-2",
-					   &tegra_emc_table[i].emc_cfg_2);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,emc-sel-dpd-ctrl",
-					 &tegra_emc_table[i].emc_sel_dpd_ctrl);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,emc-fdpd-ctrl-cmd-no-ramp",
-				&tegra_emc_table[i].emc_fdpd_ctrl_cmd_no_ramp);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,dll-clk-src",
-					   &tegra_emc_table[i].dll_clk_src);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,clk-out-enb-x-0-clk-enb-emc-dll",
-			  &tegra_emc_table[i].clk_out_enb_x_0_clk_enb_emc_dll);
-		if (ret)
-			continue;
-		ret = of_property_read_u32(iter, "nvidia,emc-clock-latency-change",
-				     &tegra_emc_table[i].clock_change_latency);
-		if (ret)
-			continue;
-		tegra_emc_table[i].burst_regs = devm_kzalloc(&pdev->dev,
-			       sizeof(u32) * tegra_emc_table[i].burst_regs_num,
-			       GFP_KERNEL);
-		ret = of_property_read_u32_array(iter, "nvidia,emc-registers",
-					    tegra_emc_table[i].burst_regs,
-					    tegra_emc_table[i].burst_regs_num);
-		if (ret)
-			continue;
-		tegra_emc_table[i].burst_regs_per_ch = devm_kzalloc(&pdev->dev,
-			       sizeof(u32) * tegra_emc_table[i].burst_regs_num,
-			       GFP_KERNEL);
-		ret = of_property_read_u32_array(iter, "nvidia,emc-burst-regs-per-ch",
-				     tegra_emc_table[i].burst_regs_per_ch,
-				     tegra_emc_table[i].burst_regs_per_ch_num);
-		if (ret)
-			continue;
-		tegra_emc_table[i].shadow_regs_ca_train = devm_kzalloc(&pdev->dev,
-			       sizeof(u32) * tegra_emc_table[i].burst_regs_num,
-			       GFP_KERNEL);
-		ret = of_property_read_u32_array(iter, "nvidia,emc-shadow-regs-ca-train",
-				       tegra_emc_table[i].shadow_regs_ca_train,
-				       tegra_emc_table[i].burst_regs_num);
-		if (ret)
-			continue;
-		tegra_emc_table[i].shadow_regs_quse_train = devm_kzalloc(&pdev->dev,
-			       sizeof(u32) * tegra_emc_table[i].burst_regs_num,
-			       GFP_KERNEL);
-		ret = of_property_read_u32_array(iter, "nvidia,emc-shadow-regs-quse-train",
-				     tegra_emc_table[i].shadow_regs_quse_train,
-				     tegra_emc_table[i].burst_regs_num);
-		if (ret)
-			continue;
-		tegra_emc_table[i].shadow_regs_rdwr_train = devm_kzalloc(&pdev->dev,
-			       sizeof(u32) * tegra_emc_table[i].burst_regs_num,
-			       GFP_KERNEL);
-		ret = of_property_read_u32_array(iter, "nvidia,emc-shadow-regs-rdwr-train",
-				     tegra_emc_table[i].shadow_regs_rdwr_train,
-				     tegra_emc_table[i].burst_regs_num);
-		if (ret)
-			continue;
-		tegra_emc_table[i].trim_regs = devm_kzalloc(&pdev->dev,
-				sizeof(u32) * tegra_emc_table[i].trim_regs_num,
-				GFP_KERNEL);
-		ret = of_property_read_u32_array(iter, "nvidia,emc-trim-regs",
-					     tegra_emc_table[i].trim_regs,
-					     tegra_emc_table[i].trim_regs_num);
-		if (ret)
-			continue;
-		tegra_emc_table[i].trim_regs_per_ch = devm_kzalloc(&pdev->dev,
-			 sizeof(u32) * tegra_emc_table[i].trim_regs_per_ch_num,
-			 GFP_KERNEL);
-		ret = of_property_read_u32_array(iter, "nvidia,emc-trim-regs-per-ch",
-				      tegra_emc_table[i].trim_regs_per_ch,
-				      tegra_emc_table[i].trim_regs_per_ch_num);
-		if (ret)
-			continue;
-		tegra_emc_table[i].vref_regs_per_ch = devm_kzalloc(&pdev->dev,
-			 sizeof(u32) * tegra_emc_table[i].vref_regs_per_ch_num,
-			 GFP_KERNEL);
-		ret = of_property_read_u32_array(iter, "nvidia,emc-vref-regs",
-				      tegra_emc_table[i].vref_regs_per_ch,
-				      tegra_emc_table[i].vref_regs_per_ch_num);
-		if (ret)
-			continue;
-		tegra_emc_table[i].dram_timing_regs = devm_kzalloc(&pdev->dev,
-			 sizeof(u32) * tegra_emc_table[i].dram_timing_regs_num,
-			 GFP_KERNEL);
-		ret = of_property_read_u32_array(iter, "nvidia,emc-dram-timing-regs",
-				      tegra_emc_table[i].dram_timing_regs,
-				      tegra_emc_table[i].dram_timing_regs_num);
-		if (ret)
-			continue;
-		tegra_emc_table[i].burst_mc_regs = devm_kzalloc(&pdev->dev,
-			    sizeof(u32) * tegra_emc_table[i].burst_mc_regs_num,
-			    GFP_KERNEL);
-		ret = of_property_read_u32_array(iter, "nvidia,emc-burst-mc-regs",
-					 tegra_emc_table[i].burst_mc_regs,
-					 tegra_emc_table[i].burst_mc_regs_num);
-		if (ret)
-			continue;
-		tegra_emc_table[i].la_scale_regs = devm_kzalloc(&pdev->dev,
-			    sizeof(u32) * tegra_emc_table[i].la_scale_regs_num,
-			    GFP_KERNEL);
-		ret = of_property_read_u32_array(iter, "nvidia,emc-la-scale-regs",
-					 tegra_emc_table[i].la_scale_regs,
-					 tegra_emc_table[i].la_scale_regs_num);
-		if (ret)
-			continue;
-		tegra_emc_table[i].training_mod_regs = devm_kzalloc(&pdev->dev,
-			sizeof(u32) * tegra_emc_table[i].training_mod_regs_num,
-			GFP_KERNEL);
-		tegra_emc_table[i].save_restore_mod_regs = devm_kzalloc(&pdev->dev,
-				   sizeof(u32) * TEGRA210_SAVE_RESTORE_MOD_REGS,
-				   GFP_KERNEL);
-		ret = of_property_read_u32(iter, "clock-frequency", &prop);
-		if (ret)
-			continue;
-		tegra_emc_table[i].rate = prop;
-		i++;
-	}
-
-	*count = i;
-	return tegra_emc_table;
-}
-
-static void parse_dt_data(struct platform_device *pdev)
-{
-	struct device_node *tablenode = NULL;
-	u32 prop;
-	int ret;
-
-	tablenode = emc_find_table(pdev->dev.of_node);
-	if (IS_ERR(tablenode))
-		return;
-	ret = of_property_read_u32(tablenode, "max-clock-frequency", &prop);
-	if (!ret)
-		emc_max_rate = prop * 1000;
-
-	tegra_emc_table_normal = parse_emc_tables(pdev,
-						  "nvidia,tegra21-emc-table",
-						  &ret);
-	if (IS_ERR(tegra_emc_table_normal))
-		return;
-
-	tegra_emc_table_size = ret;
-
-	if (tegra_dram_type == DRAM_TYPE_LPDDR2 ||
-		tegra_dram_type == DRAM_TYPE_LPDDR4) {
-		tegra_emc_table_derated = parse_emc_tables(pdev,
-					    "nvidia,tegra21-emc-table-derated",
-					    &ret);
-
-		if (IS_ERR(tegra_emc_table_derated)) {
-			tegra_emc_table_derated = NULL;
-			return;
-		}
-
-		if (ret != tegra_emc_table_size) {
-			devm_kfree(&pdev->dev, tegra_emc_table_derated);
-			tegra_emc_table_derated = NULL;
-			return;
-		}
-
-		if (tegra_dram_type == DRAM_TYPE_LPDDR4 &&
-		    tegra_emc_table_derated)
-			emc_copy_table_params(tegra_emc_table_normal,
-					 tegra_emc_table_derated,
-					 tegra_emc_table_size,
-					 EMC_COPY_TABLE_PARAM_PERIODIC_FIELDS |
-					 EMC_COPY_TABLE_PARAM_TRIM_REGS);
-	}
+	if (tegra_dram_type == DRAM_TYPE_LPDDR4 && tegra_emc_table_derated)
+		emc_copy_table_params(tegra_emc_table_normal,
+				      tegra_emc_table_derated,
+				      tegra_emc_table_size,
+				      EMC_COPY_TABLE_PARAM_PERIODIC_FIELDS |
+				      EMC_COPY_TABLE_PARAM_TRIM_REGS);
 }
 
 static int tegra210_init_emc_data(struct platform_device *pdev)
@@ -1760,6 +1375,15 @@ static int tegra210_init_emc_data(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
+	emc_clk_sel = devm_kcalloc(&pdev->dev,
+				   tegra_emc_table_size,
+				   sizeof(struct emc_sel),
+				   GFP_KERNEL);
+	if (!emc_clk_sel) {
+		dev_err(&pdev->dev, "Memory allocation failed\n");
+		return -ENOMEM;
+	}
+
 	current_rate = clk_get_rate(emc_clk) / 1000;
 	for (i = 0; i < tegra_emc_table_size; i++) {
 		table_rate = tegra_emc_table[i].rate;
@@ -1770,14 +1394,14 @@ static int tegra210_init_emc_data(struct platform_device *pdev)
 			break;
 
 		if (i && ((table_rate <= tegra_emc_table[i-1].rate) ||
-		   (tegra_emc_table[i].emc_min_mv <
-		    tegra_emc_table[i-1].emc_min_mv)))
+		   (tegra_emc_table[i].min_volt <
+		    tegra_emc_table[i-1].min_volt)))
 			continue;
 
 		if (tegra_emc_table[i].rev != tegra_emc_table[0].rev)
 			continue;
 
-		if (find_matching_input(&tegra_emc_table[i]))
+		if (find_matching_input(&tegra_emc_table[i], &emc_clk_sel[i]))
 			continue;
 
 		if (table_rate == current_rate)
@@ -1786,49 +1410,16 @@ static int tegra210_init_emc_data(struct platform_device *pdev)
 
 	dev_info(&pdev->dev, "validated EMC DFS table\n");
 
-	start_timing.burst_regs = devm_kzalloc(&pdev->dev,
-		sizeof(u32) * tegra_emc_table[0].burst_regs_num, GFP_KERNEL);
-	start_timing.burst_regs_per_ch = devm_kzalloc(&pdev->dev,
-		sizeof(u32) * tegra_emc_table[0].burst_regs_num, GFP_KERNEL);
-	start_timing.shadow_regs_ca_train = devm_kzalloc(&pdev->dev,
-		sizeof(u32) * tegra_emc_table[0].burst_regs_num, GFP_KERNEL);
-	start_timing.shadow_regs_quse_train = devm_kzalloc(&pdev->dev,
-		sizeof(u32) * tegra_emc_table[0].burst_regs_num, GFP_KERNEL);
-	start_timing.shadow_regs_rdwr_train = devm_kzalloc(&pdev->dev,
-		sizeof(u32) * tegra_emc_table[0].burst_regs_num, GFP_KERNEL);
-	start_timing.trim_regs = devm_kzalloc(&pdev->dev,
-		sizeof(u32) * tegra_emc_table[0].trim_regs_num, GFP_KERNEL);
-	start_timing.trim_regs_per_ch = devm_kzalloc(&pdev->dev,
-		sizeof(u32) * tegra_emc_table[0].trim_regs_per_ch_num,
-		GFP_KERNEL);
-	start_timing.vref_regs_per_ch = devm_kzalloc(&pdev->dev,
-		sizeof(u32) * tegra_emc_table[0].vref_regs_per_ch_num,
-		GFP_KERNEL);
-	start_timing.dram_timing_regs = devm_kzalloc(&pdev->dev,
-		sizeof(u32) * tegra_emc_table[0].dram_timing_regs_num,
-		GFP_KERNEL);
-	start_timing.burst_mc_regs = devm_kzalloc(&pdev->dev,
-		sizeof(u32) * tegra_emc_table[0].burst_mc_regs_num,
-		GFP_KERNEL);
-	start_timing.la_scale_regs = devm_kzalloc(&pdev->dev,
-		sizeof(u32) * tegra_emc_table[0].la_scale_regs_num,
-		GFP_KERNEL);
-	start_timing.training_mod_regs = devm_kzalloc(&pdev->dev,
-		sizeof(u32) * tegra_emc_table[0].training_mod_regs_num,
-		GFP_KERNEL);
-	start_timing.save_restore_mod_regs = devm_kzalloc(&pdev->dev,
-		sizeof(u32) * TEGRA210_SAVE_RESTORE_MOD_REGS, GFP_KERNEL);
-
-	start_timing.burst_regs_num = tegra_emc_table[0].burst_regs_num;
-	start_timing.burst_regs_per_ch_num =
-		tegra_emc_table[0].burst_regs_per_ch_num;
-	start_timing.trim_regs_num = tegra_emc_table[0].trim_regs_num;
-	start_timing.trim_regs_per_ch_num =
-		tegra_emc_table[0].trim_regs_per_ch_num;
-	start_timing.burst_mc_regs_num = tegra_emc_table[0].burst_mc_regs_num;
-	start_timing.la_scale_regs_num = tegra_emc_table[0].la_scale_regs_num;
-	start_timing.vref_regs_per_ch_num =
-		tegra_emc_table[0].vref_regs_per_ch_num;
+	start_timing.num_burst = tegra_emc_table[0].num_burst;
+	start_timing.num_burst_per_ch =
+		tegra_emc_table[0].num_burst_per_ch;
+	start_timing.num_trim = tegra_emc_table[0].num_trim;
+	start_timing.num_trim_per_ch =
+		tegra_emc_table[0].num_trim_per_ch;
+	start_timing.num_mc_regs = tegra_emc_table[0].num_mc_regs;
+	start_timing.num_up_down = tegra_emc_table[0].num_up_down;
+	start_timing.vref_num =
+		tegra_emc_table[0].vref_num;
 
 	return 0;
 }
@@ -1836,6 +1427,7 @@ static int tegra210_init_emc_data(struct platform_device *pdev)
 static int tegra210_emc_probe(struct platform_device *pdev)
 {
 	struct device_node *node;
+	struct resource *r;
 	int ret;
 
 	node = of_find_matching_node(NULL, mc_match);
@@ -1863,9 +1455,12 @@ static int tegra210_emc_probe(struct platform_device *pdev)
 	}
 
 	tegra_ram_code = tegra_read_ram_code();
-	emc_base = of_iomap(pdev->dev.of_node, 0);
-	emc0_base = of_iomap(pdev->dev.of_node, 1);
-	emc1_base = of_iomap(pdev->dev.of_node, 2);
+	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	emc_base = devm_ioremap_resource(&pdev->dev, r);
+	r = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	emc0_base = devm_ioremap_resource(&pdev->dev, r);
+	r = platform_get_resource(pdev, IORESOURCE_MEM, 2);
+	emc1_base = devm_ioremap_resource(&pdev->dev, r);
 
 	ret = tegra210_init_emc_data(pdev);
 	if (ret)

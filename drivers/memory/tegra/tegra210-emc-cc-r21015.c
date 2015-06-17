@@ -313,7 +313,7 @@ static void start_periodic_compensation(void)
 	+								\
 	(((EMC_DATA_BRLSHFT_ ## rank ## _RANK ## rank ## _BYTE ##	\
 	   byte ## _DATA_BRLSHFT_MASK &					\
-	   next_timing->trim_regs_per_ch[EMC ## chan ##			\
+	   next_timing->trim_perch_regs[EMC ## chan ##			\
 			      _EMC_DATA_BRLSHFT_ ## rank ## _INDEX]) >>	\
 	  EMC_DATA_BRLSHFT_ ## rank ## _RANK ## rank ## _BYTE ##	\
 	  byte ## _DATA_BRLSHFT_SHIFT) * 64)
@@ -1055,7 +1055,7 @@ void emc_set_clock_r21015(struct emc_table *next_timing,
 	u32 ref_delay;
 	s32 zq_latch_dvfs_wait_time;
 	s32 t_zqcal_lpddr4_fc_adj;
-	u32 t_fc_lpddr4 = 1000 * next_timing->dram_timing_regs[T_FC_LPDDR4];
+	u32 t_fc_lpddr4 = 1000 * next_timing->dram_timings[T_FC_LPDDR4];
 	u32 t_zqcal_lpddr4 = 1000000;
 
 	u32 dram_type, dram_dev_num, shared_zq_resistor;
@@ -1243,7 +1243,7 @@ void emc_set_clock_r21015(struct emc_table *next_timing,
 		delta_twatm = max_t(u32, div_o3(7500, source_clock_period), 8);
 
 		t_rpst = ((last_timing->emc_mrw & 0x80) >> 7);
-		t_rtm = fake_timing->dram_timing_regs[RL] +
+		t_rtm = fake_timing->dram_timings[RL] +
 		       div_o3(3600, source_clock_period) +
 		       max_t(u32, div_o3(7500, source_clock_period), 8) +
 		       t_rpst + 1 + n_rtp;
@@ -1447,7 +1447,7 @@ void emc_set_clock_r21015(struct emc_table *next_timing,
 		emc_writel(next_timing->emc_mrw2, EMC_MRW2);
 	}
 
-	for (i = 0; i < next_timing->burst_regs_num; i++) {
+	for (i = 0; i < next_timing->num_burst; i++) {
 		u32 var;
 		u32 wval;
 
@@ -1528,7 +1528,7 @@ void emc_set_clock_r21015(struct emc_table *next_timing,
 		emc_writel(mrw_req, EMC_MRW);
 	}
 
-	for (i = 0; i < next_timing->burst_regs_per_ch_num; i++) {
+	for (i = 0; i < next_timing->num_burst_per_ch; i++) {
 		if (!burst_regs_per_ch_off[i])
 			continue;
 
@@ -1549,11 +1549,11 @@ void emc_set_clock_r21015(struct emc_table *next_timing,
 			burst_regs_per_ch_type[i] >= REG_EMC1)
 			continue;
 
-		emc_writel_per_ch(next_timing->burst_regs_per_ch[i],
+		emc_writel_per_ch(next_timing->burst_reg_per_ch[i],
 			burst_regs_per_ch_type[i], burst_regs_per_ch_off[i]);
 	}
 
-	for (i = 0; i < next_timing->vref_regs_per_ch_num; i++) {
+	for (i = 0; i < next_timing->vref_num; i++) {
 		if (!vref_regs_per_ch_off[i])
 			continue;
 
@@ -1561,12 +1561,12 @@ void emc_set_clock_r21015(struct emc_table *next_timing,
 			vref_regs_per_ch_type[i] >= REG_EMC1)
 			continue;
 
-		emc_writel_per_ch(next_timing->vref_regs_per_ch[i],
+		emc_writel_per_ch(next_timing->vref_perch_regs[i],
 				  vref_regs_per_ch_type[i],
 				  vref_regs_per_ch_off[i]);
 	}
 
-	for (i = 0; i < next_timing->trim_regs_num; i++) {
+	for (i = 0; i < next_timing->num_trim; i++) {
 		u32 trim_reg;
 
 		if (!trim_regs_off[i])
@@ -1593,7 +1593,7 @@ void emc_set_clock_r21015(struct emc_table *next_timing,
 		}
 	}
 
-	for (i = 0; i < next_timing->trim_regs_per_ch_num; i++) {
+	for (i = 0; i < next_timing->num_trim_per_ch; i++) {
 		u32 trim_reg;
 
 		if (!trim_regs_per_ch_off[i])
@@ -1620,17 +1620,17 @@ void emc_set_clock_r21015(struct emc_table *next_timing,
 			emc_writel_per_ch(reg, trim_regs_per_ch_type[i],
 					  trim_regs_per_ch_off[i]);
 		} else {
-			emc_writel_per_ch(next_timing->trim_regs_per_ch[i],
+			emc_writel_per_ch(next_timing->trim_perch_regs[i],
 					  trim_regs_per_ch_type[i],
 					  trim_regs_per_ch_off[i]);
 		}
 	}
 
-	for (i = 0; i < next_timing->burst_mc_regs_num; i++)
+	for (i = 0; i < next_timing->num_mc_regs; i++)
 		mc_writel(next_timing->burst_mc_regs[i], burst_mc_regs_off[i]);
 
 	if (next_timing->rate < last_timing->rate) {
-		for (i = 0; i < next_timing->la_scale_regs_num; i++) {
+		for (i = 0; i < next_timing->num_up_down; i++) {
 			mc_writel(next_timing->la_scale_regs[i],
 				  la_scale_regs_off[i]);
 		}
@@ -1703,15 +1703,15 @@ void emc_set_clock_r21015(struct emc_table *next_timing,
 	emc_dbg = emc_dbg_o;
 	if (dram_type == DRAM_TYPE_LPDDR4) {
 		ccfifo_writel(mr13_flip_fspop | 0x8, EMC_MRW3,
-			     (1000 * fake_timing->dram_timing_regs[T_RP]) /
+			     (1000 * fake_timing->dram_timings[T_RP]) /
 			      source_clock_period);
 		ccfifo_writel(0, 0, t_fc_lpddr4 / source_clock_period);
 	}
 
 	if (dram_type == DRAM_TYPE_LPDDR4 || opt_dvfs_mode != MAN_SR) {
 		u32 t = 30 + (cya_allow_ref_cc ?
-			(4000 * fake_timing->dram_timing_regs[T_RFC]) +
-			((1000 * fake_timing->dram_timing_regs[T_RP]) /
+			(4000 * fake_timing->dram_timings[T_RFC]) +
+			((1000 * fake_timing->dram_timings[T_RP]) /
 			source_clock_period) : 0);
 
 		ccfifo_writel(emc_pin_o & ~(EMC_PIN_PIN_CKE_PER_DEV |
@@ -1728,9 +1728,9 @@ void emc_set_clock_r21015(struct emc_table *next_timing,
 	ref_delay_mult += cya_allow_ref_cc ? 1 : 0;
 	ref_delay_mult += cya_issue_pc_ref ? 1 : 0;
 	ref_delay = ref_delay_mult *
-		    ((1000 * fake_timing->dram_timing_regs[T_RP] /
+		    ((1000 * fake_timing->dram_timings[T_RP] /
 		      source_clock_period) +
-		     (1000 * fake_timing->dram_timing_regs[T_RFC] /
+		     (1000 * fake_timing->dram_timings[T_RFC] /
 		      source_clock_period)) + 20;
 
 	ccfifo_writel(0x0, EMC_CFG_SYNC,
@@ -1769,7 +1769,7 @@ void emc_set_clock_r21015(struct emc_table *next_timing,
 		zq_latch_dvfs_wait_time = (s32)t_zqcal_lpddr4_fc_adj - t;
 	} else {
 		zq_latch_dvfs_wait_time = t_zqcal_lpddr4_fc_adj -
-			div_o3(1000 * next_timing->dram_timing_regs[T_PDEX],
+			div_o3(1000 * next_timing->dram_timings[T_PDEX],
 			       destination_clock_period);
 	}
 
@@ -1780,12 +1780,12 @@ void emc_set_clock_r21015(struct emc_table *next_timing,
 					  EMC_ZQ_CAL_ZQ_CAL_CMD,
 					  EMC_ZQ_CAL,
 					  div_o3(1000 *
-					  next_timing->dram_timing_regs[T_PDEX],
+					  next_timing->dram_timings[T_PDEX],
 					  destination_clock_period));
 			ccfifo_writel((mr13_flip_fspop & 0xFFFFFFF7) |
 				       0x0C000000, EMC_MRW3,
 				       div_o3(1000 *
-					 next_timing->dram_timing_regs[T_PDEX],
+					 next_timing->dram_timings[T_PDEX],
 					 destination_clock_period));
 			ccfifo_writel(0, EMC_SELF_REF, 0);
 			ccfifo_writel(0, EMC_REF, 0);
@@ -1798,13 +1798,13 @@ void emc_set_clock_r21015(struct emc_table *next_timing,
 					  EMC_ZQ_CAL_ZQ_CAL_CMD,
 					  EMC_ZQ_CAL,
 					  div_o3(1000 *
-					  next_timing->dram_timing_regs[T_PDEX],
+					  next_timing->dram_timings[T_PDEX],
 					  destination_clock_period));
 			ccfifo_writel(2 << EMC_ZQ_CAL_DEV_SEL_SHIFT |
 				      EMC_ZQ_CAL_ZQ_LATCH_CMD, EMC_ZQ_CAL,
 				      max_t(s32, 0, zq_latch_dvfs_wait_time) +
 				      div_o3(1000 *
-					 next_timing->dram_timing_regs[T_PDEX],
+					 next_timing->dram_timings[T_PDEX],
 					 destination_clock_period));
 			ccfifo_writel(1 << EMC_ZQ_CAL_DEV_SEL_SHIFT |
 				      EMC_ZQ_CAL_ZQ_LATCH_CMD, EMC_ZQ_CAL, 0);
@@ -1820,14 +1820,14 @@ void emc_set_clock_r21015(struct emc_table *next_timing,
 			if (source_clock_period > zqcal_before_cc_cutoff) {
 				ccfifo_writel(EMC_ZQ_CAL_ZQ_CAL_CMD, EMC_ZQ_CAL,
 					 div_o3(1000 *
-					 next_timing->dram_timing_regs[T_PDEX],
+					 next_timing->dram_timings[T_PDEX],
 					 destination_clock_period));
 			}
 
 			ccfifo_writel((mr13_flip_fspop & 0xfffffff7) |
 				       0x0c000000, EMC_MRW3,
 				       div_o3(1000 *
-					 next_timing->dram_timing_regs[T_PDEX],
+					 next_timing->dram_timings[T_PDEX],
 					 destination_clock_period));
 			ccfifo_writel(0, EMC_SELF_REF, 0);
 			ccfifo_writel(0, EMC_REF, 0);
@@ -1954,7 +1954,7 @@ void emc_set_clock_r21015(struct emc_table *next_timing,
 	do_clock_change(clksrc);
 
 	if (next_timing->rate > last_timing->rate) {
-		for (i = 0; i < next_timing->la_scale_regs_num; i++)
+		for (i = 0; i < next_timing->num_up_down; i++)
 			mc_writel(next_timing->la_scale_regs[i],
 				  la_scale_regs_off[i]);
 		emc_timing_update(0);

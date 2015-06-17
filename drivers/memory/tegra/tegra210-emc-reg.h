@@ -1779,16 +1779,16 @@ enum VREF_REGS_PER_CH_LIST;
 #undef DEFINE_REG
 
 struct emc_table {
-	u32  rev;
-	char table_id[TEGRA21_MAX_TABLE_ID_LEN];
-	unsigned long rate;
-	int  emc_min_mv;
-	int  gk20a_min_mv;
-	char src_name[32];
-	u32  src_sel_reg;
-	u32  needs_training;
-	u32  training_pattern;
-	u32  trained;
+	u32 rev;
+	char dvfs_ver[60];
+	u32 rate;
+	u32 min_volt;
+	u32 gpu_min_volt;
+	char clock_src[32];
+	u32 clk_src_emc;
+	u32 needs_training;
+	u32 training_parttern;
+	u32 trained;
 
 	u32 periodic_training;
 	u32 trained_dram_clktree_c0d0u0;
@@ -1810,32 +1810,32 @@ struct emc_table {
 	u32 run_clocks;
 	u32 tree_margin;
 
-	int burst_regs_per_ch_num;
-	int burst_regs_num;
-	int trim_regs_per_ch_num;
-	int trim_regs_num;
-	int burst_mc_regs_num;
-	int la_scale_regs_num;
-	int vref_regs_per_ch_num;
-	int training_mod_regs_num;
-	int dram_timing_regs_num;
+	u32 num_burst;
+	u32 num_burst_per_ch;
+	u32 num_trim;
+	u32 num_trim_per_ch;
+	u32 num_mc_regs;
+	u32 num_up_down;
+	u32 vref_num;
+	u32 training_mod_num;
+	u32 dram_timing_num;
 
-	u32 *burst_regs;
-	u32 *burst_regs_per_ch;
-	u32 *shadow_regs_ca_train;
-	u32 *shadow_regs_quse_train;
-	u32 *shadow_regs_rdwr_train;
+	u32 burst_regs[221];
+	u32 burst_reg_per_ch[8];
+	u32 shadow_regs_ca_train[221];
+	u32 shadow_regs_quse_train[221];
+	u32 shadow_regs_rdwr_train[221];
 
-	u32 *trim_regs_per_ch;
-	u32 *trim_regs;
+	u32 trim_regs[138];
+	u32 trim_perch_regs[10];
 
-	u32 *vref_regs_per_ch;
+	u32 vref_perch_regs[4];
 
-	u32 *dram_timing_regs;
-	u32 *training_mod_regs;
-	u32 *save_restore_mod_regs;
-	u32 *burst_mc_regs;
-	u32 *la_scale_regs;
+	u32 dram_timings[5];
+	u32 training_mod_regs[20];
+	u32 save_restore_mod_regs[12];
+	u32 burst_mc_regs[33];
+	u32 la_scale_regs[24];
 
 	u32 min_mrs_wait;
 	u32 emc_mrw;
@@ -1859,15 +1859,7 @@ struct emc_table {
 	u32 emc_fdpd_ctrl_cmd_no_ramp;
 	u32 dll_clk_src;
 	u32 clk_out_enb_x_0_clk_enb_emc_dll;
-	u32 clock_change_latency;
-
-	struct clk	*input;
-	u32		value;
-	unsigned long	input_rate;
-
-	struct clk	*input_b;
-	u32		value_b;
-	unsigned long	input_rate_b;
+	u32 latency;
 };
 
 struct emc_stats {
