@@ -19,6 +19,8 @@
 #include <soc/tegra/ahb.h>
 #include <soc/tegra/mc.h>
 
+struct tegra_smmu_as;
+
 struct tegra_smmu {
 	void __iomem *regs;
 	struct device *dev;
@@ -29,7 +31,10 @@ struct tegra_smmu {
 	unsigned long pfn_mask;
 
 	unsigned long *asids;
+	struct tegra_smmu_as **as;
 	struct mutex lock;
+
+	u32 *asid_reg_save;
 
 	struct list_head list;
 
@@ -387,6 +392,7 @@ static int tegra_smmu_as_prepare(struct tegra_smmu *smmu,
 	as->smmu = smmu;
 	as->use_count++;
 
+	smmu->as[as->id] = as;
 	return 0;
 }
 
@@ -397,6 +403,7 @@ static void tegra_smmu_as_unprepare(struct tegra_smmu *smmu,
 		return;
 
 	tegra_smmu_free_asid(smmu, as->id);
+	smmu->as[as->id] = NULL;
 	as->smmu = NULL;
 }
 
@@ -768,6 +775,58 @@ static void tegra_smmu_debugfs_exit(struct tegra_smmu *smmu)
 	debugfs_remove_recursive(smmu->debugfs);
 }
 
+void tegra_smmu_suspend(struct tegra_smmu *smmu)
+{
+	int i;
+
+	for (i = 0; i < smmu->soc->num_swgroups; i++)
+		smmu->asid_reg_save[i] = smmu_readl(smmu,
+			smmu->soc->swgroups[i].reg);
+}
+
+void tegra_smmu_resume(struct tegra_smmu *smmu)
+{
+	struct tegra_smmu_as *as;
+	unsigned int bit;
+	u32 value;
+	int i;
+
+	for_each_set_bit(bit, smmu->asids, smmu->soc->num_asids) {
+		as = smmu->as[bit];
+		smmu->soc->ops->flush_dcache(as->pd, 0, SMMU_SIZE_PD);
+
+		smmu_writel(smmu, as->id & 0x7f, SMMU_PTB_ASID);
+		value = SMMU_PTB_DATA_VALUE(as->pd, as->attr);
+		smmu_writel(smmu, value, SMMU_PTB_DATA);
+	}
+
+	for (i = 0; i < smmu->soc->num_swgroups; i++)
+		smmu_writel(smmu, smmu->asid_reg_save[i],
+				smmu->soc->swgroups[i].reg);
+
+	value = SMMU_PTC_CONFIG_ENABLE | SMMU_PTC_CONFIG_INDEX_MAP(0x3f);
+
+	if (smmu->soc->supports_request_limit)
+		value |= SMMU_PTC_CONFIG_REQ_LIMIT(8);
+
+	smmu_writel(smmu, value, SMMU_PTC_CONFIG);
+
+	value = SMMU_TLB_CONFIG_HIT_UNDER_MISS |
+		SMMU_TLB_CONFIG_ACTIVE_LINES(0x20);
+
+	if (smmu->soc->supports_round_robin_arbitration)
+		value |= SMMU_TLB_CONFIG_ROUND_ROBIN_ARBITRATION;
+
+	smmu_writel(smmu, value, SMMU_TLB_CONFIG);
+
+	smmu_flush_ptc(smmu, NULL, 0);
+	smmu_flush_tlb(smmu);
+	smmu_writel(smmu, SMMU_CONFIG_ENABLE, SMMU_CONFIG);
+	smmu_flush(smmu);
+
+	tegra_smmu_ahb_enable();
+}
+
 struct tegra_smmu *tegra_smmu_probe(struct device *dev,
 				    const struct tegra_smmu_soc *soc,
 				    struct tegra_mc *mc)
@@ -799,6 +858,17 @@ struct tegra_smmu *tegra_smmu_probe(struct device *dev,
 
 	smmu->asids = devm_kzalloc(dev, size, GFP_KERNEL);
 	if (!smmu->asids)
+		return ERR_PTR(-ENOMEM);
+
+	smmu->asid_reg_save = devm_kcalloc(dev, soc->num_swgroups, sizeof(u32),
+					   GFP_KERNEL);
+	if (!smmu->asid_reg_save)
+		return ERR_PTR(-ENOMEM);
+
+	smmu->as = devm_kcalloc(dev, soc->num_asids,
+				sizeof(struct tegra_smmu_as *),
+				GFP_KERNEL);
+	if (!smmu->as)
 		return ERR_PTR(-ENOMEM);
 
 	mutex_init(&smmu->lock);

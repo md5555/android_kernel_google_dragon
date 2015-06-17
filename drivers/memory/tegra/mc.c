@@ -647,6 +647,9 @@ tegra_mc_resume_early(struct device *dev)
 
 	tegra_mc_restore(mc);
 
+	if (IS_ENABLED(CONFIG_TEGRA_IOMMU_SMMU))
+		tegra_smmu_resume(mc->smmu);
+
 	return 0;
 }
 
@@ -655,6 +658,9 @@ tegra_mc_suspend_late(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	struct tegra_mc *mc = platform_get_drvdata(pdev);
+
+	if (IS_ENABLED(CONFIG_TEGRA_IOMMU_SMMU))
+		tegra_smmu_suspend(mc->smmu);
 
 	tegra_mc_save(mc);
 
