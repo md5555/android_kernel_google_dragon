@@ -11,6 +11,7 @@
  * GNU General Public License for more details.
  */
 
+#include <linux/debugfs.h>
 #include <linux/gpio.h>
 #include <linux/module.h>
 #include <linux/of_gpio.h>
@@ -41,6 +42,9 @@ struct panel_jdi {
 	const struct drm_display_mode *mode;
 
 	bool enabled;
+
+	struct dentry *debugfs_entry;
+	u8 current_register;
 };
 
 static inline struct panel_jdi *to_panel_jdi(struct drm_panel *panel)
@@ -325,6 +329,90 @@ static int panel_jdi_get_modes(struct drm_panel *panel)
 	return 1;
 }
 
+static int jdi_register_get(void *data, u64 *val)
+{
+	struct panel_jdi *jdi = (struct panel_jdi*) data;
+
+	*val = jdi->current_register;
+
+	return 0;
+}
+
+static int jdi_register_set(void *data, u64 val)
+{
+	struct panel_jdi *jdi = (struct panel_jdi*) data;
+
+	jdi->current_register = val;
+
+	return 0;
+}
+
+static int jdi_value_get(void *data, u64 *val)
+{
+	struct panel_jdi *jdi = (struct panel_jdi*) data;
+	struct mipi_dsi_device *dsi = jdi->dsi;
+	int ret;
+	u8 value = 0;
+
+	ret = mipi_dsi_dcs_read(dsi, jdi->current_register, &value, 1);
+	if (ret < 1) {
+		DRM_ERROR("failed to write control display: %d\n", ret);
+		return ret;
+	}
+
+	*val = value;
+
+	return 0;
+}
+
+static int jdi_value_set(void *data, u64 val)
+{
+	struct panel_jdi *jdi = (struct panel_jdi*) data;
+	struct mipi_dsi_device *dsi = jdi->dsi;
+	int ret;
+	u8 value = val;
+
+	ret = mipi_dsi_dcs_write(dsi, jdi->current_register, &value, 1);
+	if (ret < 1) {
+		DRM_ERROR("failed to write control display: %d\n", ret);
+		return ret;
+	}
+
+	ret = mipi_dsi_dcs_write(jdi->slave, jdi->current_register, &value, 1);
+	if (ret < 1) {
+		DRM_ERROR("failed to write control display: %d\n", ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+DEFINE_SIMPLE_ATTRIBUTE(jdi_register_fops,
+			jdi_register_get, jdi_register_set,
+			"%llu\n");
+
+DEFINE_SIMPLE_ATTRIBUTE(jdi_value_fops,
+			jdi_value_get, jdi_value_set,
+			"%llu\n");
+
+static int panel_jdi_debugfs_init(struct panel_jdi *jdi)
+{
+	jdi->debugfs_entry = debugfs_create_dir("jdi-lpm102a188a", NULL);
+
+	debugfs_create_file("register", S_IWUGO | S_IRUGO, jdi->debugfs_entry,
+				jdi, &jdi_register_fops);
+
+	debugfs_create_file("value", S_IWUGO | S_IRUGO, jdi->debugfs_entry,
+				jdi, &jdi_value_fops);
+
+	return 0;
+}
+
+static void panel_jdi_debugfs_cleanup(struct panel_jdi *jdi)
+{
+	debugfs_remove_recursive(jdi->debugfs_entry);
+}
+
 static const struct drm_panel_funcs panel_jdi_funcs = {
 	.prepare = panel_jdi_prepare,
 	.enable = panel_jdi_enable,
@@ -445,6 +533,8 @@ static int panel_jdi_setup_primary(struct mipi_dsi_device *dsi,
 		return ret;
 	}
 
+	panel_jdi_debugfs_init(jdi);
+
 	return 0;
 }
 
@@ -509,6 +599,7 @@ static void panel_jdi_dsi_shutdown(struct mipi_dsi_device *dsi)
 {
 	struct panel_jdi *jdi = mipi_dsi_get_drvdata(dsi);
 
+	panel_jdi_debugfs_cleanup(jdi);
 	panel_jdi_disable(&jdi->base);
 }
 
