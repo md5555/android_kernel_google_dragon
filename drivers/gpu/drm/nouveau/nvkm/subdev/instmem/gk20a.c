@@ -130,9 +130,12 @@ gk20a_instobj_map_sg(struct nvkm_vma *vma, struct nvkm_object *object,
 {
 	struct gk20a_instmem_priv *priv = (void *)nvkm_instmem(object);
 	unsigned long flags;
-	u32 target = (vma->access & NV_MEM_ACCESS_NOSNOOP) ? 7 : 5;
+	u32 target = (vma->access & NV_MEM_ACCESS_NOSNOOP) ? 6 : 4;
 	u32 memtype = vma->vm->mmu->storage_type_map[mem->memtype & 0xff];
 	u32 *ramin_ptr;
+
+	if (!mem->cached)
+		target |= 1;
 
 	if (!priv->domain) {
 		struct gk20a_instobj_dma *node_dma = (void*)object;

@@ -35,6 +35,7 @@ struct nvkm_mem {
 	u64 offset;
 	u64 size;
 	struct sg_table *sg;
+	u8 cached;
 };
 
 struct nvkm_fb_tile {

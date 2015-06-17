@@ -14,6 +14,7 @@ struct nouveau_bo {
 	struct ttm_place placements[3];
 	struct ttm_place busy_placements[3];
 	bool force_coherent;
+	bool gpu_cacheable;
 	struct ttm_bo_kmap_obj kmap;
 	struct list_head head;
 
@@ -88,6 +89,9 @@ void nouveau_bo_sync_for_device(struct nouveau_bo *nvbo);
 void nouveau_bo_sync_for_cpu(struct nouveau_bo *nvbo);
 int  nouveau_bo_sync(struct nouveau_bo *, struct nouveau_channel *,
 		     bool exclusive, bool intr);
+
+void nouveau_bo_l2_invalidate(struct nouveau_bo *nvbo);
+void nouveau_bo_l2_flush(struct nouveau_bo *nvbo);
 
 struct nvkm_vma *
 nouveau_bo_vma_find(struct nouveau_bo *, struct nvkm_vm *);
