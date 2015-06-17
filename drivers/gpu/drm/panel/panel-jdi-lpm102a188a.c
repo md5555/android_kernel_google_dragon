@@ -221,6 +221,9 @@ static int panel_jdi_prepare(struct drm_panel *panel)
 	if (ret < 0)
 		DRM_ERROR("failed to exit sleep mode: %d\n", ret);
 
+	/* Sleep 5ms after exiting sleep mode and before register writes */
+	msleep(5);
+
 	ret = mipi_dsi_dcs_set_tear_on(jdi->dsi, MIPI_DSI_DCS_TEAR_MODE_VBLANK);
 	if (ret < 0)
 		DRM_ERROR("failed to set tear on: %d\n", ret);
@@ -260,6 +263,13 @@ static int panel_jdi_prepare(struct drm_panel *panel)
 	ret = panel_jdi_write_adaptive_brightness_control(jdi);
 	if (ret < 0)
 		DRM_ERROR("failed to set adaptive brightness ctrl: %d\n", ret);
+
+	/*
+	 * We need to wait 150ms between mipi_dsi_dcs_exit_sleep_mode() and
+	 * mipi_dsi_dcs_set_display_on(), but we already waited 5ms between
+	 * mipi_dsi_dcs_exit_sleep_mode and the first register write.
+	 */
+	msleep(145);
 
 	ret = mipi_dsi_dcs_set_display_on(jdi->dsi);
 	if (ret < 0)
