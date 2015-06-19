@@ -54,6 +54,7 @@ struct tegra_sku_info {
 	int gpu_speedo_id;
 	int gpu_process_id;
 	int gpu_speedo_value;
+	int gpu_iddq_value;
 	enum tegra_revision revision;
 };
 

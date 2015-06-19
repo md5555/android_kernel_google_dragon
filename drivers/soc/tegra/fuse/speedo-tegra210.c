@@ -173,6 +173,7 @@ void __init tegra210_init_speedo_data(struct tegra_sku_info *sku_info)
 	rev_sku_to_speedo_ids(sku_info, &threshold, speedo_rev);
 
 	sku_info->cpu_iddq_value = tegra30_fuse_readl(FUSE_CPU_IDDQ) * 4;
+	sku_info->gpu_iddq_value = gpu_iddq_value;
 
 	for (i = 0; i < PROCESS_CORNERS; i++)
 		if (sku_info->gpu_speedo_value <
