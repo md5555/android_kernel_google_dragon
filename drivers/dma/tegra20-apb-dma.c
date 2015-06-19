@@ -114,6 +114,12 @@
 /* Channel base address offset from APBDMA base address */
 #define TEGRA_APBDMA_CHANNEL_BASE_ADD_OFFSET	0x1000
 
+/*
+ * If next DMA sub-transfer request is small,
+ * then schedule this tasklet as high priority.
+ */
+#define TEGRA_APBDMA_LOW_LATENCY_REQ_LEN	512
+
 struct tegra_dma;
 
 /*
@@ -662,6 +668,7 @@ static irqreturn_t tegra_dma_isr(int irq, void *dev_id)
 	struct tegra_dma_channel *tdc = dev_id;
 	unsigned long status;
 	unsigned long flags;
+	struct tegra_dma_sg_req *sgreq;
 
 	spin_lock_irqsave(&tdc->lock, flags);
 
@@ -669,7 +676,14 @@ static irqreturn_t tegra_dma_isr(int irq, void *dev_id)
 	if (status & TEGRA_APBDMA_STATUS_ISE_EOC) {
 		tdc_write(tdc, TEGRA_APBDMA_CHAN_STATUS, status);
 		tdc->isr_handler(tdc, false);
-		tasklet_schedule(&tdc->tasklet);
+
+		sgreq = list_first_entry(&tdc->pending_sg_req, typeof(*sgreq),
+				node);
+		if (sgreq->req_len <= TEGRA_APBDMA_LOW_LATENCY_REQ_LEN)
+			tasklet_hi_schedule(&tdc->tasklet);
+		else
+			tasklet_schedule(&tdc->tasklet);
+
 		spin_unlock_irqrestore(&tdc->lock, flags);
 		return IRQ_HANDLED;
 	}
