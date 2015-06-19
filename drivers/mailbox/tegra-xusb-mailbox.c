@@ -45,6 +45,7 @@
 struct tegra_xusb_mbox {
 	struct mbox_controller mbox;
 	struct regmap *fpci_regs;
+	bool wait_for_idle;
 	spinlock_t lock;
 	int irq;
 };
@@ -124,6 +125,9 @@ static int tegra_xusb_mbox_send_data(struct mbox_chan *chan, void *data)
 			dev_err(mbox->mbox.dev, "Failed to acquire mailbox");
 			goto busy;
 		}
+		mbox->wait_for_idle = true;
+	} else {
+		mbox->wait_for_idle = false;
 	}
 
 	mbox_writel(mbox, mbox_pack_msg(msg), XUSB_CFG_ARU_MBOX_DATA_IN);
@@ -151,8 +155,18 @@ static void tegra_xusb_mbox_shutdown(struct mbox_chan *chan)
 static bool tegra_xusb_mbox_last_tx_done(struct mbox_chan *chan)
 {
 	struct tegra_xusb_mbox *mbox = to_tegra_mbox(chan->mbox);
+	unsigned long flags;
+	bool ret;
 
-	return mbox_readl(mbox, XUSB_CFG_ARU_MBOX_OWNER) == MBOX_OWNER_NONE;
+	spin_lock_irqsave(&mbox->lock, flags);
+	if (mbox->wait_for_idle)
+		ret = (mbox_readl(mbox, XUSB_CFG_ARU_MBOX_OWNER) ==
+		       MBOX_OWNER_NONE);
+	else
+		ret = true;
+	spin_unlock_irqrestore(&mbox->lock, flags);
+
+	return ret;
 }
 
 static const struct mbox_chan_ops tegra_xusb_mbox_chan_ops = {
