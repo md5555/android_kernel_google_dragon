@@ -76,8 +76,9 @@
 			interrupts = <GIC_SPI 73 IRQ_TYPE_LEVEL_HIGH>;
 			//power-domains = <&pmc TEGRA_POWERGATE_DIS>;
 			clocks = <&tegra_car TEGRA210_CLK_DISP1>,
-				 <&tegra_car TEGRA210_CLK_PLL_D_OUT0>;
-			clock-names = "dc", "parent";
+				 <&tegra_car TEGRA210_CLK_PLL_D_OUT0>,
+				 <&tegra_car TEGRA210_CLK_DISP1_EMC>;
+			clock-names = "dc", "parent", "emc";
 			resets = <&tegra_car TEGRA210_CLK_DISP1>;
 			reset-names = "dc";
 			iommus = <&mc TEGRA_SWGROUP_DC>;
@@ -181,8 +182,9 @@
 		interrupt-names = "stall", "nonstall";
 		clocks = <&tegra_car TEGRA210_CLK_GPU>,
 			 <&tegra_car TEGRA210_CLK_PLL_P_OUT5>,
-			 <&tegra_car TEGRA210_CLK_PLL_G_REF>;
-		clock-names = "gpu", "pwr", "pllg_ref";
+			 <&tegra_car TEGRA210_CLK_PLL_G_REF>,
+			 <&tegra_car TEGRA210_CLK_GPU_EMC>;
+		clock-names = "gpu", "pwr", "pllg_ref", "emc";
 		resets = <&tegra_car 184>;
 		reset-names = "gpu";
 		status = "disabled";
@@ -744,12 +746,13 @@
 				 <&tegra_car TEGRA210_CLK_XUSB_FS_SRC>,
 				 <&tegra_car TEGRA210_CLK_PLL_U_480M>,
 				 <&tegra_car TEGRA210_CLK_CLK_M>,
-				 <&tegra_car TEGRA210_CLK_PLL_E>;
+				 <&tegra_car TEGRA210_CLK_PLL_E>,
+				 <&tegra_car TEGRA210_CLK_XUSB_EMC>;
 			clock-names = "xusb_host", "xusb_host_src",
 				      "xusb_falcon_src", "xusb_ss",
 				      "xusb_ss_div2", "xusb_ss_src",
 				      "xusb_hs_src", "xusb_fs_src",
-				      "pll_u_480m", "clk_m", "pll_e";
+				      "pll_u_480m", "clk_m", "pll_e", "emc";
 			resets = <&tegra_car 89>, <&tegra_car 156>,
 				 <&tegra_car 143>;
 			reset-names = "xusb_host", "xusb_ss", "xusb_src";
