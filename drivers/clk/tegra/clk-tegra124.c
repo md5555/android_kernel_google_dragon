@@ -1013,7 +1013,7 @@ static struct tegra_clk tegra124_clks[tegra_clk_max] __initdata = {
 	[tegra_clk_edp_emc] = { .dt_id = TEGRA124_CLK_EDP_EMC, .present = true },
 	[tegra_clk_battery_emc] = { .dt_id = TEGRA124_CLK_BATTERY_EMC, .present = true },
 	[tegra_clk_override_emc] = { .dt_id = TEGRA124_CLK_OVERRIDE_EMC, .present = true },
-	[tegra_clk_gk20a_emc] = { .dt_id = TEGRA124_CLK_GK20A_EMC, .present = true },
+	[tegra_clk_gpu_emc] = { .dt_id = TEGRA124_CLK_GPU_EMC, .present = true },
 	[tegra_clk_vic03_emc] = { .dt_id = TEGRA124_CLK_VIC03_EMC, .present = true },
 	[tegra_clk_ispa_emc] = { .dt_id = TEGRA124_CLK_ISPA_EMC, .present = true },
 	[tegra_clk_ispb_emc] = { .dt_id = TEGRA124_CLK_ISPB_EMC, .present = true },

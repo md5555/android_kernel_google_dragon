@@ -97,7 +97,7 @@ static struct tegra_shared_clk shared_clks[] = {
 	SHARED_CLK("override.emc", "emc_master", SHARED_OVERRIDE, 0, 0, NULL, tegra_clk_override_emc),
 	SHARED_CLK("edp.emc", "emc_master", SHARED_CEILING, 0, 0, NULL, tegra_clk_edp_emc),
 	SHARED_CLK("battery.emc", "emc_master", SHARED_CEILING, 0, 0, NULL, tegra_clk_battery_emc),
-	SHARED_CLK("gk20a.emc", "emc_master", 0, 0, 0, NULL, tegra_clk_gk20a_emc),
+	SHARED_CLK("gpu.emc", "emc_master", 0, 0, 0, NULL, tegra_clk_gpu_emc),
 	SHARED_CLK("vic03.emc", "emc_master", 0, 0, 0, NULL, tegra_clk_vic03_emc),
 	SHARED_CLK("ispa.emc", "emc_master", SHARED_ISO_BW, 0, BIT(EMC_USER_ISPA), NULL, tegra_clk_ispa_emc),
 	SHARED_CLK("ispb.emc", "emc_master", SHARED_ISO_BW, 0, BIT(EMC_USER_ISPB), NULL, tegra_clk_ispb_emc),

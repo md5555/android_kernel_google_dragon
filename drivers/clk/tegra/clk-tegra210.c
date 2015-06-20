@@ -2321,7 +2321,7 @@ static struct tegra_clk tegra210_clks[tegra_clk_max] __initdata = {
 	[tegra_clk_cap_emc] = { .dt_id = TEGRA210_CLK_CAP_EMC, .present = true },
 	[tegra_clk_cap_vcore_emc] = { .dt_id = TEGRA210_CLK_CAP_VCORE_EMC, .present = true },
 	[tegra_clk_cap_throttle_emc] = { .dt_id = TEGRA210_CLK_CAP_THROTTLE_EMC, .present = true },
-	[tegra_clk_gr3d_emc] = { .dt_id = TEGRA210_CLK_GR3D_EMC, .present = true },
+	[tegra_clk_gpu_emc] = { .dt_id = TEGRA210_CLK_GPU_EMC, .present = true },
 	[tegra_clk_msenc_emc] = { .dt_id = TEGRA210_CLK_MSENC_EMC, .present = true },
 	[tegra_clk_nvjpg_emc] = { .dt_id = TEGRA210_CLK_NVJPG_EMC, .present = true },
 	[tegra_clk_nvdec_emc] = { .dt_id = TEGRA210_CLK_NVDEC_EMC, .present = true },
