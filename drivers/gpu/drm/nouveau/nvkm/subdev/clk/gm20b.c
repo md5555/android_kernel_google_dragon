@@ -227,6 +227,8 @@ struct gm20b_clk_priv {
 	bool napll_enabled;
 	bool pldiv_glitchless_supported;
 	u32 safe_fmax_vmin; /* in KHz */
+	struct clk *emc;
+	unsigned long emc_rate;
 };
 
 /*
@@ -1062,11 +1064,13 @@ gm20b_pllg_disable(struct gm20b_clk_priv *priv)
 }
 
 #define GM20B_CLK_GPC_MDIV 1000
+#define GM20B_CLK_EMC_MDIV 1000
 
 static struct nvkm_domain
 gm20b_domains[] = {
 	{ nv_clk_src_crystal, 0xff },
 	{ nv_clk_src_gpc, 0xff, 0, "core", GM20B_CLK_GPC_MDIV },
+	{ nv_clk_src_emc, 0xff, 0, "emc", GM20B_CLK_EMC_MDIV },
 	{ nv_clk_src_max }
 };
 
@@ -1075,66 +1079,77 @@ gm20b_pstates[] = {
 	{
 		.base = {
 			.domain[nv_clk_src_gpc] = 76800,
+			.domain[nv_clk_src_emc] = 204000,
 			.voltage = 0,
 		},
 	},
 	{
 		.base = {
 			.domain[nv_clk_src_gpc] = 153600,
+			.domain[nv_clk_src_emc] = 408000,
 			.voltage = 1,
 		},
 	},
 	{
 		.base = {
 			.domain[nv_clk_src_gpc] = 230400,
+			.domain[nv_clk_src_emc] = 665600,
 			.voltage = 2,
 		},
 	},
 	{
 		.base = {
 			.domain[nv_clk_src_gpc] = 307200,
+			.domain[nv_clk_src_emc] = 800000,
 			.voltage = 3,
 		},
 	},
 	{
 		.base = {
 			.domain[nv_clk_src_gpc] = 384000,
+			.domain[nv_clk_src_emc] = 1065600,
 			.voltage = 4,
 		},
 	},
 	{
 		.base = {
 			.domain[nv_clk_src_gpc] = 460800,
+			.domain[nv_clk_src_emc] = 1331200,
 			.voltage = 5,
 		},
 	},
 	{
 		.base = {
 			.domain[nv_clk_src_gpc] = 537600,
+			.domain[nv_clk_src_emc] = 1600000,
 			.voltage = 6,
 		},
 	},
 	{
 		.base = {
 			.domain[nv_clk_src_gpc] = 614400,
+			.domain[nv_clk_src_emc] = 1600000,
 			.voltage = 7,
 		},
 	},
 	{
 		.base = {
 			.domain[nv_clk_src_gpc] = 691200,
+			.domain[nv_clk_src_emc] = 1600000,
 			.voltage = 8,
 		},
 	},
 	{
 		.base = {
 			.domain[nv_clk_src_gpc] = 768000,
+			.domain[nv_clk_src_emc] = 1600000,
 			.voltage = 9,
 		},
 	},
 	{
 		.base = {
 			.domain[nv_clk_src_gpc] = 844800,
+			.domain[nv_clk_src_emc] = 1600000,
 			.voltage = 10,
 		},
 	},
@@ -1143,12 +1158,14 @@ gm20b_pstates[] = {
 	{
 		.base = {
 			.domain[nv_clk_src_gpc] = 921600,
+			.domain[nv_clk_src_emc] = 1600000,
 			.voltage = 11,
 		},
 	},
 	{
 		.base = {
 			.domain[nv_clk_src_gpc] = 998400,
+			.domain[nv_clk_src_emc] = 1600000,
 			.voltage = 12,
 		},
 	},
@@ -1168,6 +1185,8 @@ gm20b_clk_read(struct nvkm_clk *clk, enum nv_clk_src src)
 		gm20b_pllg_read_mnp(priv);
 		return gm20b_pllg_calc_rate(priv->parent_rate, &priv->gpcpll.pll) /
 			GM20B_CLK_GPC_MDIV;
+	case nv_clk_src_emc:
+		return clk_get_rate(priv->emc) / GM20B_CLK_EMC_MDIV;
 	default:
 		nv_error(clk, "invalid clock source %d\n", src);
 		return -EINVAL;
@@ -1185,6 +1204,8 @@ gm20b_clk_calc(struct nvkm_clk *clk, struct nvkm_cstate *cstate)
 	if (!ret)
 		priv->vid = cstate->voltage;
 
+	priv->emc_rate = cstate->domain[nv_clk_src_emc] * GM20B_CLK_EMC_MDIV;
+
 	return ret;
 }
 
@@ -1200,6 +1221,8 @@ gm20b_clk_prog(struct nvkm_clk *clk)
 		ret = gm20b_clk_program_gpcpll(priv);
 
 	priv->last_gpcpll = priv->gpcpll;
+
+	clk_set_rate(priv->emc, priv->emc_rate);
 
 	return ret;
 }
@@ -1366,6 +1389,8 @@ gm20b_clk_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	plat = nv_device_to_platform(nv_device(parent));
 	priv->parent_rate = clk_get_rate(plat->gpu->clk_ref);
 	nv_info(priv, "parent clock rate: %d Khz\n", priv->parent_rate / KHZ);
+
+	priv->emc = plat->gpu->clk_emc;
 
 	ret = gm20b_clk_init_fused_params(priv);
 	if (ret)

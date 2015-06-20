@@ -37,6 +37,7 @@ struct nouveau_platform_gpu {
 	struct clk *clk;
 	struct clk *clk_ref;
 	struct clk *clk_pwr;
+	struct clk *clk_emc;
 
 	struct regulator *vdd;
 

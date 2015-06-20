@@ -42,6 +42,10 @@ static int nouveau_platform_power_up(struct nouveau_platform_gpu *gpu)
 	if (err)
 		goto err_power;
 
+	err = clk_prepare_enable(gpu->clk_emc);
+	if (err)
+		goto err_clk_emc;
+
 	err = clk_prepare_enable(gpu->clk);
 	if (err)
 		goto err_clk;
@@ -77,6 +81,8 @@ err_clk_pwr:
 err_clk_ref:
 	clk_disable_unprepare(gpu->clk);
 err_clk:
+	clk_disable_unprepare(gpu->clk_emc);
+err_clk_emc:
 	regulator_disable(gpu->vdd);
 err_power:
 	return err;
@@ -94,6 +100,8 @@ static int nouveau_platform_power_down(struct nouveau_platform_gpu *gpu)
 		clk_disable_unprepare(gpu->clk_ref);
 	clk_disable_unprepare(gpu->clk);
 	udelay(10);
+
+	clk_disable_unprepare(gpu->clk_emc);
 
 	err = regulator_disable(gpu->vdd);
 	if (err)
@@ -215,6 +223,12 @@ static int nouveau_platform_probe(struct platform_device *pdev)
 	if (IS_ERR(gpu->clk_ref)) {
 		WARN(1, "failed to get gpu_ref clock\n");
 		gpu->clk_ref = NULL;
+	}
+
+	gpu->clk_emc = devm_clk_get(&pdev->dev, "emc");
+	if (IS_ERR(gpu->clk_emc)) {
+		dev_warn(&pdev->dev, "failed to get emc clock\n");
+		gpu->clk_emc = NULL;
 	}
 
 	nouveau_platform_probe_iommu(&pdev->dev, gpu);

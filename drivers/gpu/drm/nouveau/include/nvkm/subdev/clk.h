@@ -44,6 +44,8 @@ enum nv_clk_src {
 
 	nv_clk_src_dom6,
 
+	nv_clk_src_emc,
+
 	nv_clk_src_max,
 };
 
