@@ -107,7 +107,9 @@ static inline int tegra210_emc_set_over_temp_state(unsigned long state)
 
 static __maybe_unused inline int tegra_mc_get_effective_bytes_width(void)
 {
-	if (of_machine_is_compatible("nvidia,tegra124"))
+	if (of_machine_is_compatible("nvidia,tegra210") ||
+	    of_machine_is_compatible("nvidia,tegra132") ||
+	    of_machine_is_compatible("nvidia,tegra124"))
 		return 8;
 	else
 		return 4;
