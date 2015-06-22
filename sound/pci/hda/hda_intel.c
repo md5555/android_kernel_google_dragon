@@ -1918,8 +1918,7 @@ static int azx_probe_continue(struct azx *chip)
 
 		err = hda_i915_init(hda);
 		if (err < 0)
-			goto i915_power_fail;
-
+			goto skip_i915;
 		err = hda_display_power(hda, true);
 		if (err < 0) {
 			dev_err(chip->card->dev,
@@ -1928,6 +1927,7 @@ static int azx_probe_continue(struct azx *chip)
 		}
 	}
 
+ skip_i915:
 	err = azx_first_init(chip);
 	if (err < 0)
 		goto out_free;
