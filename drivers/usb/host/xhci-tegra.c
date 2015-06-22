@@ -28,6 +28,7 @@
 #include <linux/workqueue.h>
 
 #include <soc/tegra/pmc.h>
+#include <soc/tegra/tegra_emc.h>
 #include <soc/tegra/xusb.h>
 
 #include "xhci.h"
@@ -161,6 +162,7 @@ struct tegra_xhci_hcd {
 	struct clk *pll_u_480m;
 	struct clk *clk_m;
 	struct clk *pll_e;
+	struct clk *emc_clk;
 
 	struct reset_control *host_rst;
 	struct reset_control *ss_rst;
@@ -425,15 +427,21 @@ static int tegra_xhci_clk_enable(struct tegra_xhci_hcd *tegra)
 	ret = clk_prepare_enable(tegra->hs_src_clk);
 	if (ret < 0)
 		goto disable_fs_src;
+	ret = clk_prepare_enable(tegra->emc_clk);
+	if (ret < 0)
+		goto disable_hs_src;
+	clk_set_rate(tegra->emc_clk, 0);
 	if (tegra->soc->scale_ss_clock) {
 		ret = tegra_xhci_set_ss_clk(tegra,
 					    TEGRA_XHCI_SS_CLK_HIGH_SPEED);
 		if (ret < 0)
-			goto disable_hs_src;
+			goto disable_emc;
 	}
 
 	return 0;
 
+disable_emc:
+	clk_disable_unprepare(tegra->emc_clk);
 disable_hs_src:
 	clk_disable_unprepare(tegra->hs_src_clk);
 disable_fs_src:
@@ -451,6 +459,7 @@ static void tegra_xhci_clk_disable(struct tegra_xhci_hcd *tegra)
 	clk_disable_unprepare(tegra->falc_clk);
 	clk_disable_unprepare(tegra->fs_src_clk);
 	clk_disable_unprepare(tegra->hs_src_clk);
+	clk_disable_unprepare(tegra->emc_clk);
 }
 
 static int tegra_xhci_phy_enable(struct tegra_xhci_hcd *tegra)
@@ -507,6 +516,7 @@ static void tegra_xhci_mbox_work(struct work_struct *work)
 	struct tegra_xhci_hcd *tegra = mbox_work_to_tegra(work);
 	struct tegra_xusb_mbox_msg *msg = &tegra->mbox_req;
 	struct tegra_xusb_mbox_msg resp;
+	unsigned long freq;
 	int ret;
 
 	resp.cmd = 0;
@@ -534,11 +544,8 @@ static void tegra_xhci_mbox_work(struct work_struct *work)
 			resp.cmd = MBOX_CMD_ACK;
 		break;
 	case MBOX_CMD_SET_BW:
-		/*
-		 * TODO: Request bandwidth once EMC scaling is supported.
-		 * Ignore for now since ACK/NAK is not required for SET_BW
-		 * messages.
-		 */
+		freq = tegra_emc_bw_to_freq_req(msg->data << 10) * 1000;
+		clk_set_rate(tegra->emc_clk, freq);
 		break;
 	default:
 		break;
@@ -820,6 +827,11 @@ static int tegra_xhci_probe(struct platform_device *pdev)
 	if (ret < 0)
 		goto powergate_xusba;
 
+	tegra->emc_clk = devm_clk_get(&pdev->dev, "emc");
+	if (IS_ERR(tegra->emc_clk)) {
+		dev_warn(&pdev->dev, "EMC scaling disabled\n");
+		tegra->emc_clk = NULL;
+	}
 	ret = tegra_xhci_clk_enable(tegra);
 	if (ret)
 		goto powergate_xusbc;
