@@ -385,11 +385,24 @@ static void tegra_dc_setup_window(struct tegra_dc *dc, unsigned int index,
 	tegra_dc_writel(dc, value, DC_WIN_WIN_OPTIONS);
 
 	if (dc->soc->has_v2_blend) {
-		/* Assume pre-mult alpha blending */
-		tegra_dc_writel(dc, 0xff00, DC_WIN_BLEND_LAYER_CONTROL);
-		tegra_dc_writel(dc, 0x3262, DC_WIN_BLEND_MATCH_SELECT);
-		tegra_dc_writel(dc, 0x3222, DC_WIN_BLEND_NOMATCH_SELECT);
-
+		switch (window->format) {
+		case WIN_COLOR_DEPTH_B5G5R5A:
+		case WIN_COLOR_DEPTH_B4G4R4A4:
+		case WIN_COLOR_DEPTH_AB5G5R5:
+		case WIN_COLOR_DEPTH_B8G8R8A8:
+		case WIN_COLOR_DEPTH_R8G8B8A8:
+			/* Pre-mult alpha blending */
+			tegra_dc_writel(dc, 0xff00, DC_WIN_BLEND_LAYER_CONTROL);
+			tegra_dc_writel(dc, 0x3262, DC_WIN_BLEND_MATCH_SELECT);
+			tegra_dc_writel(dc, 0x3222, DC_WIN_BLEND_NOMATCH_SELECT);
+			break;
+		default:
+			/* No blending */
+			tegra_dc_writel(dc, 0x1000000, DC_WIN_BLEND_LAYER_CONTROL);
+			tegra_dc_writel(dc, 0x0, DC_WIN_BLEND_MATCH_SELECT);
+			tegra_dc_writel(dc, 0x0, DC_WIN_BLEND_NOMATCH_SELECT);
+			break;
+		}
 	} else {
 		/*
 		 * Disable blending and assume Window A is the bottom-most
