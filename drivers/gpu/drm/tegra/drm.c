@@ -1054,6 +1054,19 @@ static int host1x_drm_remove(struct host1x_device *dev)
 static int host1x_drm_suspend(struct device *dev)
 {
 	struct drm_device *drm = dev_get_drvdata(dev);
+	struct drm_connector *connector;
+
+	drm_modeset_lock_all(drm);
+	list_for_each_entry(connector, &drm->mode_config.connector_list, head) {
+		int old_dpms = connector->dpms;
+
+		if (connector->funcs->dpms)
+			connector->funcs->dpms(connector, DRM_MODE_DPMS_OFF);
+
+		/* Set the old mode back to the connector for resume */
+		connector->dpms = old_dpms;
+	}
+	drm_modeset_unlock_all(drm);
 
 	drm_kms_helper_poll_disable(drm);
 
@@ -1063,6 +1076,14 @@ static int host1x_drm_suspend(struct device *dev)
 static int host1x_drm_resume(struct device *dev)
 {
 	struct drm_device *drm = dev_get_drvdata(dev);
+	struct drm_connector *connector;
+
+	drm_modeset_lock_all(drm);
+	list_for_each_entry(connector, &drm->mode_config.connector_list, head) {
+		if (connector->funcs->dpms)
+			connector->funcs->dpms(connector, connector->dpms);
+	}
+	drm_modeset_unlock_all(drm);
 
 	drm_kms_helper_poll_enable(drm);
 
