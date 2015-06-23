@@ -638,6 +638,35 @@ static int tegra_mc_probe(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM_SLEEP
+static int
+tegra_mc_resume_early(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct tegra_mc *mc = platform_get_drvdata(pdev);
+
+	tegra_mc_restore(mc);
+
+	return 0;
+}
+
+static int
+tegra_mc_suspend_late(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct tegra_mc *mc = platform_get_drvdata(pdev);
+
+	tegra_mc_save(mc);
+
+	return 0;
+}
+
+static const struct dev_pm_ops tegra_mc_pm_ops = {
+	.resume_early = tegra_mc_resume_early,
+	.suspend_late = tegra_mc_suspend_late,
+};
+#endif
+
 static struct platform_driver tegra_mc_driver = {
 	.driver = {
 		.name = "tegra-mc",
@@ -646,6 +675,9 @@ static struct platform_driver tegra_mc_driver = {
 	},
 	.prevent_deferred_probe = true,
 	.probe = tegra_mc_probe,
+#ifdef CONFIG_PM_SLEEP
+	.driver.pm = &tegra_mc_pm_ops,
+#endif
 };
 
 static int tegra_mc_init(void)
