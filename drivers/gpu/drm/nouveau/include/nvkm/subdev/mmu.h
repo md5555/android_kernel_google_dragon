@@ -4,6 +4,8 @@
 #include <core/mm.h>
 struct nvkm_device;
 struct nvkm_mem;
+struct fence;
+struct sync_fence;
 
 struct nvkm_vm_pgt {
 	struct nvkm_gpuobj *obj[2];
@@ -35,6 +37,9 @@ struct nvkm_vm {
 	struct nvkm_vm_pgt *pgt;
 	u32 fpde;
 	u32 lpde;
+
+	struct mutex fence_lock;
+	struct sync_fence *fence;
 };
 
 struct nvkm_mmu {
@@ -104,4 +109,6 @@ void nvkm_vm_map(struct nvkm_vma *, struct nvkm_mem *);
 void nvkm_vm_map_at(struct nvkm_vma *, u64 offset, struct nvkm_mem *);
 void nvkm_vm_unmap(struct nvkm_vma *);
 void nvkm_vm_unmap_at(struct nvkm_vma *, u64 offset, u64 length);
+int nvkm_vm_fence(struct nvkm_vm *, struct fence *);
+int nvkm_vm_wait(struct nvkm_vm *);
 #endif

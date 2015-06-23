@@ -122,6 +122,9 @@ nouveau_gem_object_unmap(struct nouveau_bo *nvbo, struct nvkm_vma *vma)
 	struct reservation_object_list *fobj;
 	struct fence *fence = NULL;
 
+	if (mapped)
+		WARN_ON(nvkm_vm_wait(vma->vm));
+
 	fobj = reservation_object_get_list(resv);
 
 	list_del(&vma->head);
@@ -996,6 +999,7 @@ nouveau_gem_ioctl_pushbuf_2(struct drm_device *dev, void *data,
 			goto out_fence;
 		}
 	}
+	WARN_ON(nvkm_vm_fence(cli->vm, &fence->base));
 
 	pb_data->dev = dev;
 	pb_data->file_priv = file_priv;

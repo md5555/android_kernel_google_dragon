@@ -26,6 +26,10 @@
 
 #include <core/gpuobj.h>
 
+#ifdef CONFIG_SYNC
+#include <sync.h>
+#endif
+
 void
 nvkm_vm_map_at(struct nvkm_vma *vma, u64 delta, struct nvkm_mem *node)
 {
@@ -375,6 +379,7 @@ nvkm_vm_create(struct nvkm_mmu *mmu, u64 offset, u64 length, u64 mm_offset,
 		return -ENOMEM;
 
 	INIT_LIST_HEAD(&vm->pgd_list);
+	mutex_init(&vm->fence_lock);
 	vm->mmu = mmu;
 	kref_init(&vm->refcount);
 	vm->fpde = offset >> (mmu->pgt_bits + 12);
@@ -465,6 +470,11 @@ nvkm_vm_del(struct kref *kref)
 		nvkm_vm_unlink(vm, vpgd->obj);
 	}
 
+#ifdef CONFIG_SYNC
+	if (vm->fence)
+		sync_fence_put(vm->fence);
+#endif
+
 	nvkm_mm_fini(&vm->mm);
 	vfree(vm->pgt);
 	kfree(vm);
@@ -488,4 +498,61 @@ nvkm_vm_ref(struct nvkm_vm *ref, struct nvkm_vm **ptr, struct nvkm_gpuobj *pgd)
 
 	*ptr = ref;
 	return 0;
+}
+
+int nvkm_vm_fence(struct nvkm_vm *vm, struct fence *fence)
+{
+#ifdef CONFIG_SYNC
+	int ret = 0;
+	struct sync_fence *f;
+
+	f = sync_fence_create("nv-pushbuf", fence_get(fence));
+	if (!f)
+		return -ENOMEM;
+
+	mutex_lock(&vm->fence_lock);
+	if (!vm->fence)
+		vm->fence = f;
+	else {
+		struct sync_fence *tmp = sync_fence_merge("vm-last-op", vm->fence, f);
+		sync_fence_put(f);
+		if (tmp) {
+			sync_fence_put(vm->fence);
+			vm->fence = tmp;
+		} else
+			ret = -ENOMEM;
+	}
+
+	mutex_unlock(&vm->fence_lock);
+	return ret;
+#else
+	return -ENODEV;
+#endif
+}
+
+int nvkm_vm_wait(struct nvkm_vm *vm)
+{
+#ifdef CONFIG_SYNC
+	int ret;
+	struct sync_fence *fence;
+
+	if (!vm->fence)
+		return 0;
+
+	mutex_lock(&vm->fence_lock);
+	if ((fence = vm->fence))
+		sync_fence_get(fence);
+	mutex_unlock(&vm->fence_lock);
+
+	if (!fence)
+		return 0;
+
+	ret = sync_fence_wait(fence, -1);
+	sync_fence_put(fence);
+	return ret;
+#else
+	if (!vm->fence)
+		return 0;
+	return -ENODEV;
+#endif
 }
