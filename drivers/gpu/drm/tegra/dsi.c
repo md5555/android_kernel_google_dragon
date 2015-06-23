@@ -731,10 +731,6 @@ static void tegra_dsi_soft_reset(struct tegra_dsi *dsi)
 		tegra_dsi_soft_reset(dsi->slave);
 }
 
-static void tegra_dsi_connector_dpms(struct drm_connector *connector, int mode)
-{
-}
-
 static void tegra_dsi_connector_reset(struct drm_connector *connector)
 {
 	struct tegra_dsi_state *state;
@@ -761,7 +757,7 @@ tegra_dsi_connector_duplicate_state(struct drm_connector *connector)
 }
 
 static const struct drm_connector_funcs tegra_dsi_connector_funcs = {
-	.dpms = tegra_dsi_connector_dpms,
+	.dpms = drm_atomic_helper_connector_dpms,
 	.reset = tegra_dsi_connector_reset,
 	.detect = tegra_output_connector_detect,
 	.fill_modes = drm_helper_probe_single_connector_modes,
@@ -791,8 +787,48 @@ static void tegra_dsi_encoder_dpms(struct drm_encoder *encoder, int mode)
 {
 }
 
+static void tegra_dsi_encoder_disable(struct drm_encoder *encoder)
+{
+	struct tegra_output *output = encoder_to_output(encoder);
+	struct tegra_dc *dc = to_tegra_dc(encoder->crtc);
+	struct tegra_dsi *dsi = to_dsi(output);
+	u32 value;
+	int err;
+
+	if (output->panel)
+		drm_panel_disable(output->panel);
+
+	tegra_dsi_video_disable(dsi);
+
+	/*
+	 * The following accesses registers of the display controller, so make
+	 * sure it's only executed when the output is attached to one.
+	 */
+	if (dc) {
+		value = tegra_dc_readl(dc, DC_DISP_DISP_WIN_OPTIONS);
+		value &= ~DSI_ENABLE;
+		tegra_dc_writel(dc, value, DC_DISP_DISP_WIN_OPTIONS);
+
+		tegra_dc_commit(dc);
+	}
+
+	err = tegra_dsi_wait_idle(dsi, 100);
+	if (err < 0)
+		dev_dbg(dsi->dev, "failed to idle DSI: %d\n", err);
+
+	tegra_dsi_soft_reset(dsi);
+
+	if (output->panel)
+		drm_panel_unprepare(output->panel);
+
+	tegra_dsi_disable(dsi);
+
+	return;
+}
+
 static void tegra_dsi_encoder_prepare(struct drm_encoder *encoder)
 {
+	tegra_dsi_encoder_disable(encoder);
 }
 
 static void tegra_dsi_encoder_commit(struct drm_encoder *encoder)
@@ -881,45 +917,6 @@ static void tegra_dsi_encoder_mode_set(struct drm_encoder *encoder,
 	return;
 }
 
-static void tegra_dsi_encoder_disable(struct drm_encoder *encoder)
-{
-	struct tegra_output *output = encoder_to_output(encoder);
-	struct tegra_dc *dc = to_tegra_dc(encoder->crtc);
-	struct tegra_dsi *dsi = to_dsi(output);
-	u32 value;
-	int err;
-
-	if (output->panel)
-		drm_panel_disable(output->panel);
-
-	tegra_dsi_video_disable(dsi);
-
-	/*
-	 * The following accesses registers of the display controller, so make
-	 * sure it's only executed when the output is attached to one.
-	 */
-	if (dc) {
-		value = tegra_dc_readl(dc, DC_DISP_DISP_WIN_OPTIONS);
-		value &= ~DSI_ENABLE;
-		tegra_dc_writel(dc, value, DC_DISP_DISP_WIN_OPTIONS);
-
-		tegra_dc_commit(dc);
-	}
-
-	err = tegra_dsi_wait_idle(dsi, 100);
-	if (err < 0)
-		dev_dbg(dsi->dev, "failed to idle DSI: %d\n", err);
-
-	tegra_dsi_soft_reset(dsi);
-
-	if (output->panel)
-		drm_panel_unprepare(output->panel);
-
-	tegra_dsi_disable(dsi);
-
-	return;
-}
-
 static int
 tegra_dsi_encoder_atomic_check(struct drm_encoder *encoder,
 			       struct drm_crtc_state *crtc_state,
@@ -1003,10 +1000,10 @@ tegra_dsi_encoder_atomic_check(struct drm_encoder *encoder,
 
 static const struct drm_encoder_helper_funcs tegra_dsi_encoder_helper_funcs = {
 	.dpms = tegra_dsi_encoder_dpms,
+	.disable = tegra_dsi_encoder_disable,
 	.prepare = tegra_dsi_encoder_prepare,
 	.commit = tegra_dsi_encoder_commit,
 	.mode_set = tegra_dsi_encoder_mode_set,
-	.disable = tegra_dsi_encoder_disable,
 	.atomic_check = tegra_dsi_encoder_atomic_check,
 };
 

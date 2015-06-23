@@ -1325,7 +1325,7 @@ static void tegra_crtc_mode_set_nofb(struct drm_crtc *crtc)
 
 static void tegra_crtc_prepare(struct drm_crtc *crtc)
 {
-	drm_crtc_vblank_off(crtc);
+	tegra_crtc_disable(crtc);
 }
 
 static void tegra_crtc_commit(struct drm_crtc *crtc)
@@ -1336,6 +1336,10 @@ static void tegra_crtc_commit(struct drm_crtc *crtc)
 static int tegra_crtc_atomic_check(struct drm_crtc *crtc,
 				   struct drm_crtc_state *state)
 {
+	/* If we're transitioning from Off to On, force a full modeset */
+	if (state->active && !crtc->state->active)
+		state->mode_changed = true;
+
 	return 0;
 }
 
