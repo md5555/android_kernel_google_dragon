@@ -2520,7 +2520,6 @@ static int mwifiex_set_wowlan_mef_entry(struct mwifiex_private *priv,
 					byte_seq,
 					MWIFIEX_MEF_MAX_BYTESEQ)) {
 			dev_err(priv->adapter->dev, "Pattern not supported\n");
-			kfree(mef_entry);
 			return -EOPNOTSUPP;
 		}
 
@@ -2602,9 +2601,12 @@ static int mwifiex_set_mef_filter(struct mwifiex_private *priv,
 
 	mwifiex_set_auto_arp_mef_entry(priv, &mef_entry[0]);
 
-	if (wowlan->n_patterns || wowlan->magic_pkt)
+	if (wowlan->n_patterns || wowlan->magic_pkt) {
 		ret = mwifiex_set_wowlan_mef_entry(priv, &mef_cfg,
 						   &mef_entry[1], wowlan);
+		if (ret)
+			goto err;
+	}
 
 	if (!mef_cfg.criteria)
 		mef_cfg.criteria = MWIFIEX_CRITERIA_BROADCAST |
@@ -2614,6 +2616,8 @@ static int mwifiex_set_mef_filter(struct mwifiex_private *priv,
 	ret = mwifiex_send_cmd(priv, HostCmd_CMD_MEF_CFG,
 			HostCmd_ACT_GEN_SET, 0,
 			&mef_cfg, true);
+
+err:
 	kfree(mef_entry);
 	return ret;
 }
