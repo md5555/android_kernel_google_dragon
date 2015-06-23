@@ -196,6 +196,11 @@
 			status = "disabled";
 			#cooling-cells = <2>; /* min followed by max */
 		};
+
+		gpu_throttle_cdev: gpu-throttle-cdev {
+			status = "disabled";
+			#cooling-cells = <2>; /* min followed by max */
+		};
 	};
 
 	mipi: mipi@700e3000 {

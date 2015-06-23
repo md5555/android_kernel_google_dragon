@@ -68,6 +68,10 @@
 		gpu_scaling_cdev: gpu-scaling-cdev {
 			status = "okay";
 		};
+
+		gpu_throttle_cdev: gpu-throttle-cdev {
+			status = "okay";
+		};
 	};
 
 	adma: adma@702e2000  {
@@ -353,6 +357,11 @@
 					trip = <&balanced_cpu_trip0>;
 					cooling-device = <&balanced_cpu THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
 				};
+
+				gpu_throttle_cpu_map {
+					trip = <&balanced_cpu_trip0>;
+					cooling-device = <&gpu_throttle_cdev THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+				};
 			};
 		};
 
@@ -391,6 +400,11 @@
 				balanced_gpu_map0 {
 					trip = <&balanced_gpu_trip0>;
 					cooling-device = <&balanced_gpu THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+				};
+
+				gpu_throttle_gpu_map {
+					trip = <&balanced_gpu_trip0>;
+					cooling-device = <&gpu_throttle_cdev THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
 				};
 
 				/* cooling maps for gpu DVFS voltage scaling */
