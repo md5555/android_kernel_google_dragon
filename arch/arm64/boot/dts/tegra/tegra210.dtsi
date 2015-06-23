@@ -191,6 +191,11 @@
 		reset-names = "gpu";
 		mc = <&mc TEGRA_SWGROUP_GPU>;
 		status = "disabled";
+
+		gpu_scaling_cdev: gpu-scaling-cdev {
+			status = "disabled";
+			#cooling-cells = <2>; /* min followed by max */
+		};
 	};
 
 	mipi: mipi@700e3000 {

@@ -64,6 +64,10 @@
 	gpu@57000000 {
 		status = "okay";
 		vdd-supply = <&max77621_gpu>;
+
+		gpu_scaling_cdev: gpu-scaling-cdev {
+			status = "okay";
+		};
 	};
 
 	adma: adma@702e2000  {
@@ -359,12 +363,52 @@
 					hysteresis = <1000>;
 					type = "passive";
 				};
+
+				/* trips for gpu DVFS voltage scaling */
+				gpu_scaling_trip0: gpu_scaling_trip0 {
+					temperature = <TEGRA210_GPU_DVFS_THERMAL_TRIP_0>; /* millicelsius */
+					hysteresis = <1000>; /* millicelsius */
+					type = "active";
+				};
+				gpu_scaling_trip1: gpu_scaling_trip1 {
+					temperature = <TEGRA210_GPU_DVFS_THERMAL_TRIP_1>; /* millicelsius */
+					hysteresis = <1000>; /* millicelsius */
+					type = "active";
+				};
+				gpu_scaling_trip2: gpu_scaling_trip2 {
+					temperature = <TEGRA210_GPU_DVFS_THERMAL_TRIP_2>; /* millicelsius */
+					hysteresis = <1000>; /* millicelsius */
+					type = "active";
+				};
+				gpu_scaling_trip3: gpu_scaling_trip3 {
+					temperature = <TEGRA210_GPU_DVFS_THERMAL_TRIP_3>; /* millicelsius */
+					hysteresis = <1000>; /* millicelsius */
+					type = "active";
+				};
 			};
 
 			cooling-maps {
 				balanced_gpu_map0 {
 					trip = <&balanced_gpu_trip0>;
 					cooling-device = <&balanced_gpu THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+				};
+
+				/* cooling maps for gpu DVFS voltage scaling */
+				gpu_scaling_map0 {
+					trip = <&gpu_scaling_trip0>;
+					cooling-device = <&gpu_scaling_cdev 1 1>;
+				};
+				gpu_scaling_map1 {
+					trip = <&gpu_scaling_trip1>;
+					cooling-device = <&gpu_scaling_cdev 2 2>;
+				};
+				gpu_scaling_map2 {
+					trip = <&gpu_scaling_trip2>;
+					cooling-device = <&gpu_scaling_cdev 3 3>;
+				};
+				gpu_scaling_map3 {
+					trip = <&gpu_scaling_trip3>;
+					cooling-device = <&gpu_scaling_cdev 4 4>;
 				};
 			};
 		};
