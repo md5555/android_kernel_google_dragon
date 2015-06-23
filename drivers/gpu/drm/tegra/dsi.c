@@ -799,6 +799,40 @@ static void tegra_dsi_encoder_commit(struct drm_encoder *encoder)
 {
 }
 
+static int tegra_dsi_pad_calibrate(struct tegra_dsi *dsi)
+{
+	u32 value;
+	int err;
+
+	tegra_dsi_writel(dsi, 0, DSI_PAD_CONTROL_0);
+	tegra_dsi_writel(dsi, 0, DSI_PAD_CONTROL_1);
+	tegra_dsi_writel(dsi, 0, DSI_PAD_CONTROL_2);
+	tegra_dsi_writel(dsi, 0, DSI_PAD_CONTROL_3);
+	tegra_dsi_writel(dsi, 0, DSI_PAD_CONTROL_4);
+
+	/* start calibration */
+	value = DSI_PAD_CONTROL_VS1_PULLDN(0) | DSI_PAD_CONTROL_VS1_PDIO(0);
+	tegra_dsi_writel(dsi, value, DSI_PAD_CONTROL_0);
+
+	value = DSI_PAD_SLEW_UP(0x7) | DSI_PAD_SLEW_DN(0x7) |
+		DSI_PAD_LP_UP(0x1) | DSI_PAD_LP_DN(0x1) |
+		DSI_PAD_OUT_CLK(0x0);
+	tegra_dsi_writel(dsi, value, DSI_PAD_CONTROL_2);
+
+	value = DSI_PAD_PREEMP_PD_CLK(0x3) | DSI_PAD_PREEMP_PU_CLK(0x3) |
+		DSI_PAD_PREEMP_PD(0x03) | DSI_PAD_PREEMP_PU(0x3);
+	tegra_dsi_writel(dsi, value, DSI_PAD_CONTROL_3);
+
+	err = tegra_mipi_calibrate(dsi->mipi);
+	if (err < 0)
+		return err;
+
+	if (dsi->slave)
+		return tegra_dsi_pad_calibrate(dsi->slave);
+
+	return 0;
+}
+
 static void tegra_dsi_encoder_mode_set(struct drm_encoder *encoder,
 				       struct drm_display_mode *mode,
 				       struct drm_display_mode *adjusted)
@@ -808,6 +842,13 @@ static void tegra_dsi_encoder_mode_set(struct drm_encoder *encoder,
 	struct tegra_dsi *dsi = to_dsi(output);
 	struct tegra_dsi_state *state;
 	u32 value;
+	int err;
+
+	err = tegra_dsi_pad_calibrate(dsi);
+	if (err < 0) {
+		dev_err(dsi->dev, "MIPI calibration failed: %d\n", err);
+		return;
+	}
 
 	state = tegra_dsi_get_state(dsi);
 
@@ -969,41 +1010,6 @@ static const struct drm_encoder_helper_funcs tegra_dsi_encoder_helper_funcs = {
 	.atomic_check = tegra_dsi_encoder_atomic_check,
 };
 
-static int tegra_dsi_pad_enable(struct tegra_dsi *dsi)
-{
-	u32 value;
-
-	value = DSI_PAD_CONTROL_VS1_PULLDN(0) | DSI_PAD_CONTROL_VS1_PDIO(0);
-	tegra_dsi_writel(dsi, value, DSI_PAD_CONTROL_0);
-
-	return 0;
-}
-
-static int tegra_dsi_pad_calibrate(struct tegra_dsi *dsi)
-{
-	u32 value;
-
-	tegra_dsi_writel(dsi, 0, DSI_PAD_CONTROL_0);
-	tegra_dsi_writel(dsi, 0, DSI_PAD_CONTROL_1);
-	tegra_dsi_writel(dsi, 0, DSI_PAD_CONTROL_2);
-	tegra_dsi_writel(dsi, 0, DSI_PAD_CONTROL_3);
-	tegra_dsi_writel(dsi, 0, DSI_PAD_CONTROL_4);
-
-	/* start calibration */
-	tegra_dsi_pad_enable(dsi);
-
-	value = DSI_PAD_SLEW_UP(0x7) | DSI_PAD_SLEW_DN(0x7) |
-		DSI_PAD_LP_UP(0x1) | DSI_PAD_LP_DN(0x1) |
-		DSI_PAD_OUT_CLK(0x0);
-	tegra_dsi_writel(dsi, value, DSI_PAD_CONTROL_2);
-
-	value = DSI_PAD_PREEMP_PD_CLK(0x3) | DSI_PAD_PREEMP_PU_CLK(0x3) |
-		DSI_PAD_PREEMP_PD(0x03) | DSI_PAD_PREEMP_PU(0x3);
-	tegra_dsi_writel(dsi, value, DSI_PAD_CONTROL_3);
-
-	return tegra_mipi_calibrate(dsi->mipi);
-}
-
 static int tegra_dsi_init(struct host1x_client *client)
 {
 	struct drm_device *drm = dev_get_drvdata(client->parent);
@@ -1011,12 +1017,6 @@ static int tegra_dsi_init(struct host1x_client *client)
 	int err;
 
 	reset_control_deassert(dsi->rst);
-
-	err = tegra_dsi_pad_calibrate(dsi);
-	if (err < 0) {
-		dev_err(dsi->dev, "MIPI calibration failed: %d\n", err);
-		goto reset;
-	}
 
 	/* Gangsters must not register their own outputs. */
 	if (!dsi->master) {
