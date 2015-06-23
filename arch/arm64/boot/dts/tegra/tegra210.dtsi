@@ -201,6 +201,12 @@
 			status = "disabled";
 			#cooling-cells = <2>; /* min followed by max */
 		};
+
+		gpu_edp_cdev: gpu-edp-cdev {
+			act-dev = <&gpu_edp>;
+			status = "disabled";
+			#cooling-cells = <2>; /* min followed by max */
+		};
 	};
 
 	mipi: mipi@700e3000 {
@@ -1348,7 +1354,7 @@
 				<&soctherm TEGRA124_SOCTHERM_SENSOR_MEM>;
 		};
 
-		gpu {
+		gpu_therm: gpu {
 			polling-delay-passive = <1000>;
 			polling-delay = <0>;
 

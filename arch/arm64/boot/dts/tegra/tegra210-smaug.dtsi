@@ -72,6 +72,10 @@
 		gpu_throttle_cdev: gpu-throttle-cdev {
 			status = "okay";
 		};
+
+		gpu_edp_cdev: gpu-edp-cdev {
+			status = "okay";
+		};
 	};
 
 	adma: adma@702e2000  {
@@ -339,6 +343,10 @@
 	};
 
 	cpu_edp: cpu-edp {
+		nvidia,edp-limit = <16000>;
+	};
+
+	gpu_edp: gpu-edp {
 		nvidia,edp-limit = <16000>;
 	};
 

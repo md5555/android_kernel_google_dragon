@@ -72,6 +72,8 @@
 		compatible = "nvidia,tegra124-sysedp-dynamic-capping";
 		clocks = <&tegra_car TEGRA210_CLK_BATTERY_EMC>;
 		clock-names = "cap-battery-emc";
+		nvidia,gpu-cap-as-mw;
+		nvidia,gpu-supplement;
 		nvidia,core-gain = <100>;
 		nvidia,init-req-watts = <20000>;
 		nvidia,throttle-depth = <75>;
