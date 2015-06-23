@@ -60,6 +60,23 @@
 #define MC_EMEM_ADR_CFG 0x54
 #define MC_EMEM_ADR_CFG_EMEM_NUMDEV BIT(0)
 
+#define MC_EMEM_ARB_TIMING_W2R					0xc4
+#define MC_EMEM_ARB_DA_TURNS					0xd0
+#define MC_EMEM_ARB_MISC1					0xdc
+#define MC_EMEM_ARB_RING3_THROTTLE				0xe4
+#define MC_EMEM_ARB_OVERRIDE					0xe8
+#define MC_RESERVED_RSV                                         0x3fc
+#define MC_TIMING_CONTROL					0xfc
+
+#define MC_SECURITY_CARVEOUT2_CFG0                              0xc58
+#define MC_SECURITY_CARVEOUT2_BOM                               0xc5c
+#define MC_SECURITY_CARVEOUT3_CFG0                              0xca8
+#define MC_SECURITY_CARVEOUT3_BOM                               0xcac
+
+#define MC_TIMING_REG_NUM\
+	(((MC_EMEM_ARB_TIMING_W2R - MC_EMEM_ARB_CFG) / 4 + 1) + \
+	((MC_EMEM_ARB_MISC1 - MC_EMEM_ARB_DA_TURNS) / 4 + 1))
+
 static const struct of_device_id tegra_mc_of_match[] = {
 #ifdef CONFIG_ARCH_TEGRA_3x_SOC
 	{ .compatible = "nvidia,tegra30-mc", .data = &tegra30_mc_soc },
@@ -79,6 +96,73 @@ static const struct of_device_id tegra_mc_of_match[] = {
 	{ }
 };
 MODULE_DEVICE_TABLE(of, tegra_mc_of_match);
+
+
+#ifdef CONFIG_PM_SLEEP
+static void tegra_mc_save(struct tegra_mc *mc)
+{
+	u32 off;
+	u32 *buf = mc->reg_buf;
+	u32 i;
+
+	for (off = MC_EMEM_ARB_CFG; off <= MC_EMEM_ARB_TIMING_W2R; off += 4)
+		*buf++ = mc_readl(mc, off);
+
+	for (off = MC_EMEM_ARB_DA_TURNS; off <= MC_EMEM_ARB_MISC1; off += 4)
+		*buf++ = mc_readl(mc, off);
+
+	*buf++ = mc_readl(mc, MC_EMEM_ARB_RING3_THROTTLE);
+	*buf++ = mc_readl(mc, MC_EMEM_ARB_OVERRIDE);
+	*buf++ = mc_readl(mc, MC_RESERVED_RSV);
+
+	for (i = 0; i < mc->soc->num_clients; i++) {
+		const struct tegra_mc_la *la = &mc->soc->clients[i].la;
+		*buf++ = mc_readl(mc, la->reg);
+	}
+
+	*buf++ = mc_readl(mc, MC_INTMASK);
+
+	/* Save WPR registers for GPU */
+	*buf++ = mc_readl(mc, MC_SECURITY_CARVEOUT2_BOM);
+	*buf++ = mc_readl(mc, MC_SECURITY_CARVEOUT3_BOM);
+	*buf++ = mc_readl(mc, MC_SECURITY_CARVEOUT2_CFG0);
+	*buf++ = mc_readl(mc, MC_SECURITY_CARVEOUT3_CFG0);
+}
+
+static void tegra_mc_restore(struct tegra_mc *mc)
+{
+	u32 off;
+	u32 *buf = mc->reg_buf;
+	u32 i;
+
+	for (off = MC_EMEM_ARB_CFG; off <= MC_EMEM_ARB_TIMING_W2R; off += 4)
+		mc_writel(mc, *buf++, off);
+
+	for (off = MC_EMEM_ARB_DA_TURNS; off <= MC_EMEM_ARB_MISC1; off += 4)
+		mc_writel(mc, *buf++, off);
+
+	mc_writel(mc, *buf++, MC_EMEM_ARB_RING3_THROTTLE);
+	mc_writel(mc, *buf++, MC_EMEM_ARB_OVERRIDE);
+	mc_writel(mc, *buf++, MC_RESERVED_RSV);
+
+	for (i = 0; i < mc->soc->num_clients; i++) {
+		const struct tegra_mc_la *la = &mc->soc->clients[i].la;
+		mc_writel(mc, *buf++, la->reg);
+	}
+
+	mc_writel(mc, *buf++, MC_INTMASK);
+	off = mc_readl(mc, MC_INTMASK);
+
+	/* Restore WPR registers for GPU */
+	mc_writel(mc, *buf++, MC_SECURITY_CARVEOUT2_BOM);
+	mc_writel(mc, *buf++, MC_SECURITY_CARVEOUT3_BOM);
+	mc_writel(mc, *buf++, MC_SECURITY_CARVEOUT2_CFG0);
+	mc_writel(mc, *buf++, MC_SECURITY_CARVEOUT3_CFG0);
+
+	mc_writel(mc, 0x1, MC_TIMING_CONTROL);
+	off = mc_readl(mc, MC_TIMING_CONTROL);
+}
+#endif
 
 const struct tegra_mc_flush *tegra_mc_flush_get(struct tegra_mc *mc,
 						unsigned int swgroup)
@@ -543,6 +627,14 @@ static int tegra_mc_probe(struct platform_device *pdev)
 
 	mc_writel(mc, value, MC_INTMASK);
 
+#ifdef CONFIG_PM_SLEEP
+	/* Allocate the memory for saving registers */
+	mc->reg_buf = devm_kcalloc(mc->dev,
+		mc->soc->num_clients + MC_TIMING_REG_NUM + 4,
+		sizeof(u32), GFP_KERNEL);
+	if (!mc->reg_buf)
+		return -ENOMEM;
+#endif
 	return 0;
 }
 

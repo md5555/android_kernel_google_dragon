@@ -132,6 +132,8 @@ struct tegra_mc {
 	bool *flush_reserved;
 
 	struct mutex lock;
+
+	u32 *reg_buf;
 };
 
 void tegra_mc_write_emem_configuration(struct tegra_mc *mc, unsigned long rate);
