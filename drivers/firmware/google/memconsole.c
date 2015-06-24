@@ -164,15 +164,14 @@ static bool check_acpi_coreboot_memconsole(void)
 	if (tmp_cbmc == NULL)
 		return false;
 
-	cbmem_console = ioremap_cache(value, tmp_cbmc->buffer_size +
-				sizeof(struct cbmem_cons));
+	cbmem_console = ioremap_cache(value, tmp_cbmc->buffer_size);
 
 	iounmap(tmp_cbmc);
 
 	if (cbmem_console == NULL)
 		return false;
 
-	memconsole_baseaddr = value + offsetof(struct cbmem_cons, buffer_body);
+	memconsole_baseaddr = cbmem_console->buffer_body;
 	memconsole_length = min(cbmem_console->buffer_cursor,
 				cbmem_console->buffer_size);
 	return true;
