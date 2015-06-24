@@ -18,6 +18,7 @@
 #include <linux/module.h>
 #include <linux/of_address.h>
 #include <linux/of_platform.h>
+#include <linux/thermal.h>
 
 #include <soc/tegra/tegra_emc.h>
 #include <soc/tegra/fuse.h>
@@ -838,7 +839,7 @@ static int emc_read_mrr(int dev, int addr)
 	return val;
 }
 
-int tegra210_emc_get_dram_temp(void)
+static int emc_get_dram_temp(void *dev, long *temp)
 {
 	int mr4 = 0;
 	unsigned long flags;
@@ -847,12 +848,15 @@ int tegra210_emc_get_dram_temp(void)
 	mr4 = emc_read_mrr(0, 4);
 	spin_unlock_irqrestore(&emc_access_lock, flags);
 
-	if (IS_ERR_VALUE(mr4))
-		return mr4;
+	if (!IS_ERR_VALUE(mr4))
+		*temp = (mr4 & LPDDR2_MR4_TEMP_MASK) >> LPDDR2_MR4_TEMP_SHIFT;
 
-	mr4 = (mr4 & LPDDR2_MR4_TEMP_MASK) >> LPDDR2_MR4_TEMP_SHIFT;
-	return mr4;
+	return 0;
 }
+
+static const struct thermal_zone_of_device_ops dram_therm_ops = {
+	.get_temp = emc_get_dram_temp,
+};
 
 struct emc_table *emc_get_table(unsigned long over_temp_state)
 {
@@ -1022,7 +1026,7 @@ static const struct file_operations emc_usage_table_fops = {
 
 static int dram_temp_get(void *data, u64 *val)
 {
-	*val = tegra210_emc_get_dram_temp();
+	emc_get_dram_temp(data, (long *)val);
 	return 0;
 }
 DEFINE_SIMPLE_ATTRIBUTE(dram_temp_fops, dram_temp_get, NULL,
@@ -1866,6 +1870,8 @@ static int tegra210_emc_probe(struct platform_device *pdev)
 	ret = tegra210_init_emc_data(pdev);
 	if (ret)
 		return ret;
+
+	thermal_zone_of_sensor_register(&pdev->dev, 0, NULL, &dram_therm_ops);
 
 	tegra_emc_init_done = true;
 

@@ -8,6 +8,7 @@ Properties:
 - #size-cells : Should be 0
 - clocks : phandle to EMC, EMC shared bus override, and all parent clocks.
 - clock-names : name of each clock.
+- #thermal-sensor-cells: Should be 0
 - max-clock-frequency : optional, specifies the maximum EMC rate in kHz.
 
 Child device nodes describe the memory settings for different configurations
@@ -30,6 +31,7 @@ Example:
 			 <&tegra_car TEGRA210_CLK_OVERRIDE_EMC>;
 		clock-names = "emc", "pll_m", "pll_c", "pll_p", "clk_m",
 			"pll_mb", "emc_override";
+		#thermal-sensor-cells = <0>;
 	};
 
 

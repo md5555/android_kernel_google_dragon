@@ -93,7 +93,6 @@ void tegra210_emc_timing_invalidate(void);
 bool tegra210_emc_is_ready(void);
 unsigned long tegra210_predict_emc_rate(int millivolts);
 const struct emc_clk_ops *tegra210_emc_get_ops(void);
-int tegra210_emc_get_dram_temp(void);
 int tegra210_emc_set_over_temp_state(unsigned long state);
 #else
 static inline void tegra210_emc_timing_invalidate(void) { return; };
@@ -102,7 +101,6 @@ static inline unsigned long tegra210_predict_emc_rate(int millivolts)
 { return -ENODEV; }
 static inline const struct emc_clk_ops *tegra210_emc_get_ops(void)
 { return NULL; }
-static inline int tegra210_emc_get_dram_temp(void) {return -ENODEV; };
 static inline int tegra210_emc_set_over_temp_state(unsigned long state)
 { return -ENODEV; }
 #endif

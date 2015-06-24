@@ -29,24 +29,8 @@
 
 #include <soc/tegra/tegra_emc.h>
 
-static int (*tegra_emc_get_dram_temp)(void);
 static int (*tegra_emc_set_over_temp_state)(unsigned long);
-static int thermal_state;
-
-struct dram_temp_ops {
-	int (*get_dram_temp)(void);
-	int (*set_over_temp_state)(unsigned long);
-};
-
-static int dram_therm_get_temp(void *dev, long *temp)
-{
-	*temp = tegra_emc_get_dram_temp();
-	return 0;
-}
-
-static const struct thermal_zone_of_device_ops dram_therm_ops = {
-	.get_temp = dram_therm_get_temp,
-};
+static unsigned long thermal_state;
 
 static int dram_cdev_max_state(struct thermal_cooling_device *tcd,
 				   unsigned long *state)
@@ -58,7 +42,7 @@ static int dram_cdev_max_state(struct thermal_cooling_device *tcd,
 static int dram_cdev_cur_state(struct thermal_cooling_device *tcd,
 				   unsigned long *state)
 {
-	*state = (unsigned long)thermal_state;
+	*state = thermal_state;
 	return 0;
 }
 
@@ -78,15 +62,10 @@ static const struct thermal_cooling_device_ops dram_cdev_ops = {
 	.set_cur_state = dram_cdev_set_state,
 };
 
-static const struct dram_temp_ops tegra210_dram_temp_ops = {
-	  .get_dram_temp = tegra210_emc_get_dram_temp,
-	  .set_over_temp_state = tegra210_emc_set_over_temp_state,
-};
-
 static struct of_device_id emc_match[] = {
 	{
 		.compatible = "nvidia,tegra210-emc",
-		.data = &tegra210_dram_temp_ops,
+		.data = &tegra210_emc_set_over_temp_state,
 	},
 	{ },
 };
@@ -95,7 +74,6 @@ static int tegra_dram_therm_probe(struct platform_device *pdev)
 {
 	const struct of_device_id *match;
 	struct device_node *emc_np;
-	struct dram_temp_ops *ops;
 	void *ret;
 
 	emc_np = of_find_matching_node_and_match(NULL, emc_match, &match);
@@ -104,17 +82,7 @@ static int tegra_dram_therm_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
-	ops = (struct dram_temp_ops *)match->data;
-	tegra_emc_get_dram_temp = ops->get_dram_temp;
-	tegra_emc_set_over_temp_state = ops->set_over_temp_state;
-
-	ret = thermal_zone_of_sensor_register(&pdev->dev,
-					      0,
-					      NULL,
-					      &dram_therm_ops);
-	if (IS_ERR(ret))
-		return PTR_ERR(ret);
-
+	tegra_emc_set_over_temp_state = match->data;
 	ret = thermal_of_cooling_device_register(pdev->dev.of_node,
 						 "dram_derate",
 						 NULL,
