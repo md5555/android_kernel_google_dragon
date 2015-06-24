@@ -110,11 +110,6 @@ gf100_vm_map(struct nvkm_vma *vma, struct nvkm_gpuobj *pgt,
 	}
 }
 
-extern void gk20a_instobj_wr32_unlocked(struct nvkm_object *object, u64 offset, u32 data);
-extern unsigned long gk20a_instobj_lock(struct nvkm_object *object);
-extern void gk20a_instobj_unlock(struct nvkm_object *object, unsigned long flags);
-
-
 void
 gf100_vm_map_sg(struct nvkm_vma *vma, struct nvkm_gpuobj *pgt,
 		struct nvkm_mem *mem, u32 pte, u32 cnt, dma_addr_t *list)
@@ -122,17 +117,14 @@ gf100_vm_map_sg(struct nvkm_vma *vma, struct nvkm_gpuobj *pgt,
 	u32 target = (vma->access & NV_MEM_ACCESS_NOSNOOP) ? 7 : 5;
 	/* compressed storage types are invalid for system memory */
 	u32 memtype = vma->vm->mmu->storage_type_map[mem->memtype & 0xff];
-	struct nvkm_object *parent = pgt->parent;
-	unsigned long flags = gk20a_instobj_lock(parent);
 
 	pte <<= 3;
 	while (cnt--) {
 		u64 phys = gf100_vm_addr(vma, *list++, memtype, target);
-		gk20a_instobj_wr32_unlocked(parent, pte + 0, lower_32_bits(phys));
-		gk20a_instobj_wr32_unlocked(parent, pte + 4, upper_32_bits(phys));
+		nv_wo32(pgt, pte + 0, lower_32_bits(phys));
+		nv_wo32(pgt, pte + 4, upper_32_bits(phys));
 		pte += 8;
 	}
-	gk20a_instobj_unlock(parent, flags);
 }
 
 void

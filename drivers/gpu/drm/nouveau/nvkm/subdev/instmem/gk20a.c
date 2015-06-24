@@ -123,23 +123,7 @@ gk20a_instobj_rd32(struct nvkm_object *object, u64 offset)
 	return data;
 }
 
-unsigned long
-gk20a_instobj_lock(struct nvkm_object *object)
-{
-	struct gk20a_instmem_priv *priv = (void *)nvkm_instmem(object);
-	unsigned long flags;
-	spin_lock_irqsave(&priv->lock, flags);
-	return flags;
-}
-
-void
-gk20a_instobj_unlock(struct nvkm_object *object, unsigned long flags)
-{
-	struct gk20a_instmem_priv *priv = (void *)nvkm_instmem(object);
-	spin_unlock_irqrestore(&priv->lock, flags);
-}
-
-void
+static void
 gk20a_instobj_wr32_unlocked(struct nvkm_object *object, u64 offset, u32 data)
 {
 	struct gk20a_instmem_priv *priv = (void *)nvkm_instmem(object);
