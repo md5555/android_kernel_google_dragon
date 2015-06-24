@@ -787,8 +787,8 @@
 		reg = <0x0 0x7001b000 0x0 0x1000>,
 		      <0x0 0x7001e000 0x0 0x1000>,
 		      <0x0 0x7001f000 0x0 0x1000>;
-		#address-cells = <1>;
-		#size-cells = <0>;
+		#address-cells = <2>;
+		#size-cells = <2>;
 		clocks = <&tegra_car TEGRA210_CLK_EMC>,
 			 <&tegra_car TEGRA210_CLK_PLL_M>,
 			 <&tegra_car TEGRA210_CLK_PLL_C>,
@@ -799,6 +799,7 @@
 		clock-names = "emc", "pll_m", "pll_c", "pll_p", "clk_m",
 			"pll_mb", "emc_override";
 		#thermal-sensor-cells = <0>;
+		ranges;
 	};
 
 	adma: adma@702e2000 {
