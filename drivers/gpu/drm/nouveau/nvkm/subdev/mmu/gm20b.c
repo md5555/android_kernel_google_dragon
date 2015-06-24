@@ -20,6 +20,8 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
+#include <core/gpuobj.h>
+
 #include "gf100.h"
 
 /* Map from compressed to corresponding uncompressed storage type.
@@ -61,6 +63,18 @@ const u8 gm20b_pte_storage_type_map[256] =
 	0xfe, 0xfe, 0xfe, 0xfe, 0xff, 0xfd, 0xfe, 0xff
 };
 
+extern void
+gk20a_instobj_map_sg(struct nvkm_vma *vma, struct nvkm_object *object,
+		struct nvkm_mem *mem, u32 pte, u32 cnt, dma_addr_t *list);
+
+static void
+gm20b_vm_map_sg(struct nvkm_vma *vma, struct nvkm_gpuobj *pgt,
+		struct nvkm_mem *mem, u32 pte, u32 cnt, dma_addr_t *list)
+{
+	gk20a_instobj_map_sg(vma, pgt->parent, mem, pte, cnt, list);
+}
+
+
 static int
 gm20b_mmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	       struct nvkm_oclass *oclass, void *data, u32 size,
@@ -75,6 +89,7 @@ gm20b_mmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 
 	priv = (void *)*pobject;
 	priv->base.storage_type_map = gm20b_pte_storage_type_map;
+	priv->base.map_sg = gm20b_vm_map_sg;
 
 	return 0;
 }

@@ -123,6 +123,54 @@ gk20a_instobj_rd32(struct nvkm_object *object, u64 offset)
 	return data;
 }
 
+void
+gk20a_instobj_map_sg(struct nvkm_vma *vma, struct nvkm_object *object,
+		     struct nvkm_mem *mem, u32 pte, u32 cnt, dma_addr_t *list)
+{
+	struct gk20a_instmem_priv *priv = (void *)nvkm_instmem(object);
+	u32 target = (vma->access & NV_MEM_ACCESS_NOSNOOP) ? 7 : 5;
+	u32 memtype = vma->vm->mmu->storage_type_map[mem->memtype & 0xff];
+	unsigned long flags;
+	u32 *ramin_ptr;
+
+	if (!priv->domain) {
+		struct gk20a_instobj_dma *node_dma = (void*)object;
+		ramin_ptr = node_dma->cpuaddr;
+	} else {
+		struct gk20a_instobj_iommu *node_iommu = (void*)object;
+		int num_ramin_pages, first_ramin_page, last_ramin_page;
+
+		first_ramin_page = pte / 512;
+		last_ramin_page = (cnt + pte) / 512;
+		num_ramin_pages = last_ramin_page - first_ramin_page + 1;
+
+		ramin_ptr = vmap(&node_iommu->pages[first_ramin_page],
+				 num_ramin_pages, VM_MAP,
+				 pgprot_writecombine(PAGE_KERNEL));
+	}
+
+	spin_lock_irqsave(&priv->lock, flags);
+
+	/* Dummy -- ensure ordering with the GPU */
+	nv_wr32(priv, 0x700000, nv_rd32(priv, 0x700000));
+
+	pte <<= 1;
+	while (cnt--) {
+		ramin_ptr[pte] = (*list >> 8) | 0x1 /* present */;
+		ramin_ptr[pte + 1] = target | (memtype << 4);
+		list ++;
+		pte += 2;
+	}
+
+	/* Dummy -- ensure ordering with the GPU */
+	nv_wr32(priv, 0x700000, nv_rd32(priv, 0x700000));
+
+	spin_unlock_irqrestore(&priv->lock, flags);
+
+	if (priv->domain)
+		vunmap(ramin_ptr);
+}
+
 static void
 gk20a_instobj_wr32(struct nvkm_object *object, u64 offset, u32 data)
 {
@@ -419,7 +467,6 @@ gk20a_instmem_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 		dma_set_attr(DMA_ATTR_NON_CONSISTENT, &priv->attrs);
 		dma_set_attr(DMA_ATTR_WEAK_ORDERING, &priv->attrs);
 		dma_set_attr(DMA_ATTR_WRITE_COMBINE, &priv->attrs);
-		dma_set_attr(DMA_ATTR_NO_KERNEL_MAPPING, &priv->attrs);
 
 		nv_info(priv, "using DMA API\n");
 	}
