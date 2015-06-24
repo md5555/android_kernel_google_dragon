@@ -124,28 +124,20 @@ gk20a_instobj_rd32(struct nvkm_object *object, u64 offset)
 }
 
 static void
-gk20a_instobj_wr32_unlocked(struct nvkm_object *object, u64 offset, u32 data)
+gk20a_instobj_wr32(struct nvkm_object *object, u64 offset, u32 data)
 {
 	struct gk20a_instmem_priv *priv = (void *)nvkm_instmem(object);
 	struct gk20a_instobj_priv *node = (void *)object;
+	unsigned long flags;
 	u64 base = (node->mem->offset + offset) & 0xffffff00000ULL;
 	u64 addr = (node->mem->offset + offset) & 0x000000fffffULL;
 
+	spin_lock_irqsave(&priv->lock, flags);
 	if (unlikely(priv->addr != base)) {
 		nv_wr32(priv, 0x001700, base >> 16);
 		priv->addr = base;
 	}
 	nv_wr32(priv, 0x700000 + addr, data);
-}
-
-static void
-gk20a_instobj_wr32(struct nvkm_object *object, u64 offset, u32 data)
-{
-	struct gk20a_instmem_priv *priv = (void *)nvkm_instmem(object);
-	unsigned long flags;
-
-	spin_lock_irqsave(&priv->lock, flags);
-	gk20a_instobj_wr32_unlocked(object, offset, data);
 	spin_unlock_irqrestore(&priv->lock, flags);
 }
 
