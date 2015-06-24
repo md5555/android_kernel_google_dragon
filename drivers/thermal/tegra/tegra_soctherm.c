@@ -823,27 +823,27 @@ static int soctherm_handle_alarm(struct tegra_soctherm *ts,
 
 	switch (alarm) {
 	case THROTTLE_OC1:
-		dev_warn(&pdev->dev,
+		dev_warn_ratelimited(&pdev->dev,
 			"soctherm: Successfully handled OC1 alarm\n");
 		/* add OC1 alarm handling code here */
 		rv = 0;
 		break;
 
 	case THROTTLE_OC2:
-		dev_warn(&pdev->dev,
+		dev_warn_ratelimited(&pdev->dev,
 			"soctherm: Successfully handled OC2 alarm\n");
 		/* TODO: add OC2 alarm handling code here */
 		rv = 0;
 		break;
 
 	case THROTTLE_OC3:
-		dev_warn(&pdev->dev,
+		dev_warn_ratelimited(&pdev->dev,
 			"soctherm: Unexpected OC3 alarm\n");
 		/* add OC3 alarm handling code here */
 		break;
 
 	case THROTTLE_OC4:
-		dev_warn(&pdev->dev,
+		dev_warn_ratelimited(&pdev->dev,
 			"soctherm: Successfully handled OC4 alarm\n");
 		/* TODO: add OC4 alarm handling code here */
 		rv = 0;
