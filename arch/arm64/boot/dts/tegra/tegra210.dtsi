@@ -481,7 +481,7 @@
 		#iommu-cells = <1>;
         };
 
-	memory-controller@7001b000 {
+	emc: memory-controller@7001b000 {
 		compatible = "nvidia,tegra210-emc";
 		reg = <0x0 0x7001b000 0x0 0x1000>,
 		      <0x0 0x7001e000 0x0 0x1000>,
@@ -497,6 +497,7 @@
 			 <&tegra_car TEGRA210_CLK_OVERRIDE_EMC>;
 		clock-names = "emc", "pll_m", "pll_c", "pll_p", "clk_m",
 			"pll_mb", "emc_override";
+		#thermal-sensor-cells = <0>;
 	};
 
 	adma: adma@702e2000 {
@@ -925,7 +926,6 @@
 
 	dram_therm: dram_therm {
 		compatible = "nvidia,tegra-dram-therm";
-		#thermal-sensor-cells = <0>;
 		#cooling-cells = <2>;
 		status = "okay";
 	};
@@ -1043,7 +1043,7 @@
 			polling-delay-passive = <1000>;
 			polling-delay = <0>;
 
-			thermal-sensors = <&dram_therm>;
+			thermal-sensors = <&emc>;
 
 			trips {
 				dram_therm_trip0: trip0 {
