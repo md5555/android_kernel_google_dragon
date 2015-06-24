@@ -27,6 +27,7 @@
 #include <linux/slab.h>
 #include <linux/workqueue.h>
 
+#include <soc/tegra/pmc.h>
 #include <soc/tegra/xusb.h>
 
 #include "xhci.h"
@@ -415,15 +416,9 @@ static int tegra_xhci_clk_enable(struct tegra_xhci_hcd *tegra)
 	ret = clk_prepare_enable(tegra->pll_e);
 	if (ret < 0)
 		return ret;
-	ret = clk_prepare_enable(tegra->host_clk);
-	if (ret < 0)
-		goto disable_plle;
-	ret = clk_prepare_enable(tegra->ss_clk);
-	if (ret < 0)
-		goto disable_host;
 	ret = clk_prepare_enable(tegra->falc_clk);
 	if (ret < 0)
-		goto disable_ss;
+		goto disable_plle;
 	ret = clk_prepare_enable(tegra->fs_src_clk);
 	if (ret < 0)
 		goto disable_falc;
@@ -445,10 +440,6 @@ disable_fs_src:
 	clk_disable_unprepare(tegra->fs_src_clk);
 disable_falc:
 	clk_disable_unprepare(tegra->falc_clk);
-disable_ss:
-	clk_disable_unprepare(tegra->ss_clk);
-disable_host:
-	clk_disable_unprepare(tegra->host_clk);
 disable_plle:
 	clk_disable_unprepare(tegra->pll_e);
 	return ret;
@@ -457,8 +448,6 @@ disable_plle:
 static void tegra_xhci_clk_disable(struct tegra_xhci_hcd *tegra)
 {
 	clk_disable_unprepare(tegra->pll_e);
-	clk_disable_unprepare(tegra->host_clk);
-	clk_disable_unprepare(tegra->ss_clk);
 	clk_disable_unprepare(tegra->falc_clk);
 	clk_disable_unprepare(tegra->fs_src_clk);
 	clk_disable_unprepare(tegra->hs_src_clk);
@@ -819,15 +808,27 @@ static int tegra_xhci_probe(struct platform_device *pdev)
 		ret = PTR_ERR(tegra->pll_e);
 		goto put_hcd;
 	}
+
+	ret = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_XUSBA,
+						tegra->ss_clk,
+						tegra->ss_rst);
+	if (ret < 0)
+		goto put_hcd;
+	ret = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_XUSBC,
+						tegra->host_clk,
+						tegra->host_rst);
+	if (ret < 0)
+		goto powergate_xusba;
+
 	ret = tegra_xhci_clk_enable(tegra);
 	if (ret)
-		goto put_hcd;
+		goto powergate_xusbc;
 
 	tegra->supplies = devm_kcalloc(&pdev->dev, tegra->soc->num_supplies,
 				       sizeof(*tegra->supplies), GFP_KERNEL);
 	if (!tegra->supplies) {
 		ret = -ENOMEM;
-		goto put_hcd;
+		goto disable_clk;
 	}
 	for (i = 0; i < tegra->soc->num_supplies; i++)
 		tegra->supplies[i].supply = tegra->soc->supply_names[i];
@@ -896,6 +897,14 @@ disable_regulator:
 	regulator_bulk_disable(tegra->soc->num_supplies, tegra->supplies);
 disable_clk:
 	tegra_xhci_clk_disable(tegra);
+powergate_xusbc:
+	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBC,
+					    tegra->host_clk,
+					    tegra->host_rst);
+powergate_xusba:
+	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBA,
+					    tegra->ss_clk,
+					    tegra->ss_rst);
 put_hcd:
 	usb_put_hcd(hcd);
 	return ret;
@@ -927,6 +936,12 @@ static int tegra_xhci_remove(struct platform_device *pdev)
 	mbox_free_channel(tegra->mbox_chan);
 	tegra_xhci_phy_disable(tegra);
 	regulator_bulk_disable(tegra->soc->num_supplies, tegra->supplies);
+	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBC,
+					    tegra->host_clk,
+					    tegra->host_rst);
+	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBA,
+					    tegra->ss_clk,
+					    tegra->ss_rst);
 	tegra_xhci_clk_disable(tegra);
 
 	return 0;
