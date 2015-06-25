@@ -585,17 +585,17 @@ static void gen8_ppgtt_clear_range(struct i915_address_space *vm,
 		struct i915_page_table *pt;
 
 		if (WARN_ON(!ppgtt->pdp.page_directory[pdpe]))
-			continue;
+			break;
 
 		pd = ppgtt->pdp.page_directory[pdpe];
 
 		if (WARN_ON(!pd->page_table[pde]))
-			continue;
+			break;
 
 		pt = pd->page_table[pde];
 
 		if (WARN_ON(!px_page(pt)))
-			continue;
+			break;
 
 		last_pte = pte + num_entries;
 		if (last_pte > GEN8_PTES)
