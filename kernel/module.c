@@ -1663,6 +1663,10 @@ static void mod_sysfs_fini(struct module *mod)
 	mod_kobject_put(mod);
 }
 
+static void init_param_lock(struct module *mod)
+{
+	mutex_init(&mod->param_lock);
+}
 #else /* !CONFIG_SYSFS */
 
 static int mod_sysfs_setup(struct module *mod,
@@ -1685,6 +1689,9 @@ static void del_usage_links(struct module *mod)
 {
 }
 
+static void init_param_lock(struct module *mod)
+{
+}
 #endif /* CONFIG_SYSFS */
 
 static void mod_sysfs_teardown(struct module *mod)
@@ -3232,7 +3239,7 @@ static int load_module(struct load_info *info, const char __user *uargs,
 	if (err)
 		goto unlink_mod;
 
-	mutex_init(&mod->param_lock);
+	init_param_lock(mod);
 
 	/* Now we've got everything in the final locations, we can
 	 * find optional sections. */
