@@ -1479,7 +1479,7 @@ static int tegra210_emc_probe(struct platform_device *pdev)
 static int tegra210_emc_suspend(struct device *dev)
 {
 	if (!IS_ERR(emc_override_clk)) {
-		clk_set_rate(emc_override_clk, 2040000000);
+		clk_set_rate(emc_override_clk, 204000000);
 		clk_prepare_enable(emc_override_clk);
 	}
 
