@@ -52,6 +52,7 @@ static int psy_get_property(enum power_supply_property psp, int *val)
 	return 0;
 }
 
+/* read battery's open-circuit-voltage in uV */
 static int psy_ocv_from_chip(unsigned int capacity)
 {
 	int val;
@@ -60,6 +61,7 @@ static int psy_ocv_from_chip(unsigned int capacity)
 	return val;
 }
 
+/* read battery's capacity in percents */
 static int psy_capacity(void)
 {
 	int val;
@@ -68,6 +70,7 @@ static int psy_capacity(void)
 	return val;
 }
 
+/* read battery's temperature in tenths of degree Celsius */
 static int psy_temp(void)
 {
 	int val;
@@ -77,6 +80,7 @@ static int psy_temp(void)
 	return val;
 }
 
+/* read battery's max current in uA */
 static int psy_imax(void)
 {
 	int val;
@@ -262,7 +266,8 @@ static unsigned int calc_avail_budget(void)
 {
 	s64 ibat_max, pbat;
 	if (pdata->imax_mode) {
-		ibat_max = psy_imax();
+		ibat_max = div64_s64(psy_imax(), 1000);
+		/* Pbat(mW) = Imax(mA) * Vsys_min(uV) / 1000000 */
 		pbat = div64_s64(ibat_max * pdata->vsys_min, 1000000);
 	} else {
 		int esr, capacity, temp;
