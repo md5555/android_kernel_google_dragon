@@ -138,11 +138,11 @@ static int tegra_dc_format(u32 fourcc, u32 *format, u32 *swap)
 		break;
 
 	case DRM_FORMAT_BGR565:
-		*format = WIN_COLOR_DEPTH_R5G6B5;
+		*format = WIN_COLOR_DEPTH_B5G6R5;
 		break;
 
 	case DRM_FORMAT_RGB565:
-		*format = WIN_COLOR_DEPTH_B5G6R5;
+		*format = WIN_COLOR_DEPTH_R5G6B5;
 		break;
 
 	case DRM_FORMAT_UYVY:
