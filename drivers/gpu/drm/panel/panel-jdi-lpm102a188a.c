@@ -568,7 +568,7 @@ static int panel_jdi_dsi_remove(struct mipi_dsi_device *dsi)
 	int ret;
 
 	/* nothing to do for the secondary interface */
-	if (!jdi->slave)
+	if (!jdi)
 		return 0;
 
 	panel_jdi_disable(&jdi->base);
@@ -598,6 +598,9 @@ static int panel_jdi_dsi_remove(struct mipi_dsi_device *dsi)
 static void panel_jdi_dsi_shutdown(struct mipi_dsi_device *dsi)
 {
 	struct panel_jdi *jdi = mipi_dsi_get_drvdata(dsi);
+
+	if (!jdi)
+		return;
 
 	panel_jdi_debugfs_cleanup(jdi);
 	panel_jdi_disable(&jdi->base);
