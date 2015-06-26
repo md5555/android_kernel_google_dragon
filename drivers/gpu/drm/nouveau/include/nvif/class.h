@@ -381,6 +381,8 @@ struct kepler_channel_gpfifo_a_v0 {
 	__u64 ioffset;
 };
 
+#define CHANNEL_GPFIFO_ERROR_NOTIFIER_EEVENT                               0x01
+
 /*******************************************************************************
  * legacy display
  ******************************************************************************/

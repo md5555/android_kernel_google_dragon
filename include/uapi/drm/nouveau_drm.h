@@ -160,6 +160,16 @@ struct drm_nouveau_gem_as_free {
 	uint64_t address;   /* in, byte address */
 };
 
+#define NOUVEAU_GEM_CHANNEL_FIFO_ERROR_IDLE_TIMEOUT	8
+#define NOUVEAU_GEM_CHANNEL_GR_ERROR_SW_NOTIFY		13
+#define NOUVEAU_GEM_CHANNEL_FIFO_ERROR_MMU_ERR_FLT	31
+#define NOUVEAU_GEM_CHANNEL_PBDMA_ERROR			32
+struct drm_nouveau_gem_set_error_notifier {
+	uint32_t channel;
+	uint32_t buffer;
+	uint32_t offset; /* bytes, u32-aligned */
+};
+
 #define DRM_NOUVEAU_GETPARAM           0x00 /* deprecated */
 #define DRM_NOUVEAU_SETPARAM           0x01 /* deprecated */
 #define DRM_NOUVEAU_CHANNEL_ALLOC      0x02 /* deprecated */
@@ -183,6 +193,7 @@ struct drm_nouveau_gem_as_free {
 #define DRM_NOUVEAU_GEM_SET_INFO       (DRM_NOUVEAU_STAGING_IOCTL + 0x2)
 #define DRM_NOUVEAU_GEM_AS_ALLOC       (DRM_NOUVEAU_STAGING_IOCTL + 0x3)
 #define DRM_NOUVEAU_GEM_AS_FREE        (DRM_NOUVEAU_STAGING_IOCTL + 0x4)
+#define DRM_NOUVEAU_GEM_SET_ERROR_NOTIFIER (DRM_NOUVEAU_STAGING_IOCTL + 0x5)
 
 #define DRM_IOCTL_NOUVEAU_GEM_NEW            DRM_IOWR(DRM_COMMAND_BASE + DRM_NOUVEAU_GEM_NEW, struct drm_nouveau_gem_new)
 #define DRM_IOCTL_NOUVEAU_GEM_PUSHBUF        DRM_IOWR(DRM_COMMAND_BASE + DRM_NOUVEAU_GEM_PUSHBUF, struct drm_nouveau_gem_pushbuf)
@@ -194,5 +205,6 @@ struct drm_nouveau_gem_as_free {
 #define DRM_IOCTL_NOUVEAU_GEM_SET_INFO       DRM_IOWR(DRM_COMMAND_BASE + DRM_NOUVEAU_GEM_SET_INFO, struct drm_nouveau_gem_info)
 #define DRM_IOCTL_NOUVEAU_GEM_AS_ALLOC       DRM_IOWR(DRM_COMMAND_BASE + DRM_NOUVEAU_GEM_AS_ALLOC, struct drm_nouveau_gem_as_alloc)
 #define DRM_IOCTL_NOUVEAU_GEM_AS_FREE        DRM_IOWR(DRM_COMMAND_BASE + DRM_NOUVEAU_GEM_AS_FREE, struct drm_nouveau_gem_as_free)
+#define DRM_IOCTL_NOUVEAU_GEM_SET_ERROR_NOTIFIER DRM_IOWR(DRM_COMMAND_BASE + DRM_NOUVEAU_GEM_SET_ERROR_NOTIFIER, struct drm_nouveau_gem_set_error_notifier)
 
 #endif /* __NOUVEAU_DRM_H__ */

@@ -196,6 +196,51 @@ nvkm_fifo_uevent(struct nvkm_fifo *fifo)
 	nvkm_event_send(&fifo->uevent, 1, 0, &rep, sizeof(rep));
 }
 
+static int
+nvkm_fifo_eevent_ctor(struct nvkm_object *object, void *data, u32 size,
+		      struct nvkm_notify *notify)
+{
+	union {
+		struct nvif_notify_eevent_req req;
+	} *req = data;
+	int ret;
+
+	if (nvif_unvers(req->req)) {
+		notify->size  = sizeof(struct nvif_notify_eevent_rep);
+		notify->types = 1;
+		notify->index = req->req.chid;
+	}
+
+	return ret;
+}
+
+static void
+gk104_fifo_eevent_init(struct nvkm_event *event, int type, int index)
+{
+}
+
+static void
+gk104_fifo_eevent_fini(struct nvkm_event *event, int type, int index)
+{
+}
+
+static const struct nvkm_event_func
+nvkm_fifo_eevent_func = {
+	.ctor = nvkm_fifo_eevent_ctor,
+	.init = gk104_fifo_eevent_init,
+	.fini = gk104_fifo_eevent_fini,
+};
+
+void
+nvkm_fifo_eevent(struct nvkm_fifo *fifo, u32 chid, u32 error)
+{
+	struct nvif_notify_eevent_rep rep = {
+		.error = error,
+		.chid = chid
+	};
+	nvkm_event_send(&fifo->eevent, 1, chid, &rep, sizeof(rep));
+}
+
 int
 _nvkm_fifo_channel_ntfy(struct nvkm_object *object, u32 type,
 			struct nvkm_event **event)
@@ -208,6 +253,9 @@ _nvkm_fifo_channel_ntfy(struct nvkm_object *object, u32 type,
 			return 0;
 		}
 		break;
+	case CHANNEL_GPFIFO_ERROR_NOTIFIER_EEVENT:
+		*event = &fifo->eevent;
+		return 0;
 	default:
 		break;
 	}
@@ -247,6 +295,7 @@ void
 nvkm_fifo_destroy(struct nvkm_fifo *priv)
 {
 	kfree(priv->channel);
+	nvkm_event_fini(&priv->eevent);
 	nvkm_event_fini(&priv->uevent);
 	nvkm_event_fini(&priv->cevent);
 	nvkm_engine_destroy(&priv->base);
@@ -273,6 +322,10 @@ nvkm_fifo_create_(struct nvkm_object *parent, struct nvkm_object *engine,
 		return -ENOMEM;
 
 	ret = nvkm_event_init(&nvkm_fifo_event_func, 1, 1, &priv->cevent);
+	if (ret)
+		return ret;
+
+	ret = nvkm_event_init(&nvkm_fifo_eevent_func, 1, max + 1, &priv->eevent);
 	if (ret)
 		return ret;
 

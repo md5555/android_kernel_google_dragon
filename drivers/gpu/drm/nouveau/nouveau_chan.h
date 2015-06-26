@@ -3,6 +3,7 @@
 
 #include <nvif/object.h>
 struct nvif_device;
+struct drm_file;
 
 struct nouveau_channel {
 	struct nvif_device *device;
@@ -43,6 +44,12 @@ struct nouveau_channel {
 	struct list_head pushbuf_queue;
 	struct workqueue_struct *pushbuf_wq;
 	struct work_struct pushbuf_work;
+
+	struct {
+		struct nouveau_bo *buffer;
+		u32 offset;
+		struct nvif_notify notify;
+	} error_notifier;
 };
 
 
@@ -51,6 +58,9 @@ int  nouveau_channel_new(struct nouveau_drm *, struct nvif_device *,
 			 struct nouveau_channel **);
 void nouveau_channel_del(struct nouveau_channel **);
 int  nouveau_channel_idle(struct nouveau_channel *);
+int nouveau_channel_init_error_notifier(struct nouveau_channel *chan,
+					struct drm_file *file,
+					u32 handle, u32 offset);
 
 extern int nouveau_vram_pushbuf;
 

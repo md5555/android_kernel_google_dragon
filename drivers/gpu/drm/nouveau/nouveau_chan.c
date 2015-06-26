@@ -24,6 +24,8 @@
 
 #include <nvif/os.h>
 #include <nvif/class.h>
+#include <nvif/event.h>
+#include <nvif/notify.h>
 
 /*XXX*/
 #include <core/client.h>
@@ -34,6 +36,7 @@
 #include "nouveau_chan.h"
 #include "nouveau_fence.h"
 #include "nouveau_abi16.h"
+#include "nouveau_gem.h"
 
 MODULE_PARM_DESC(vram_pushbuf, "Create DMA push buffers in VRAM");
 int nouveau_vram_pushbuf;
@@ -56,6 +59,69 @@ nouveau_channel_idle(struct nouveau_channel *chan)
 		NV_PRINTK(error, cli, "failed to idle channel 0x%08x [%s]\n",
 			  chan->object->handle, nvxx_client(&cli->base)->name);
 	return ret;
+}
+
+void
+nouveau_channel_set_error_notifier(struct nouveau_channel *chan, u32 error)
+{
+	struct nouveau_cli *cli = (void *)nvif_client(chan->object);
+	struct nouveau_bo *nvbo = chan->error_notifier.buffer;
+	u32 off = chan->error_notifier.offset / sizeof(u32);
+	u64 nsec;
+
+	if (!nvbo)
+		return;
+
+	nsec = ktime_to_ns(ktime_get_real());
+
+	nouveau_bo_wr32(nvbo, off + 0, nsec);
+	nouveau_bo_wr32(nvbo, off + 1, nsec >> 32);
+	nouveau_bo_wr32(nvbo, off + 2, error);
+	nouveau_bo_wr32(nvbo, off + 3, 0xffffffff);
+
+	NV_PRINTK(error, cli, "error notifier set to %d for ch %d\n",
+			error, chan->chid);
+}
+
+int
+nouveau_channel_init_error_notifier(struct nouveau_channel *chan,
+		struct drm_file *file, u32 handle, u32 offset)
+{
+	struct drm_gem_object *gem;
+	struct nouveau_bo *nvbo;
+	int ret;
+
+	gem = drm_gem_object_lookup(chan->drm->dev, file, handle);
+	if (!gem)
+		return -ENOENT;
+
+	nvbo = nouveau_gem_object(gem);
+
+	/* silently accept identical reinits, others not allowed */
+	if (chan->error_notifier.buffer) {
+		drm_gem_object_unreference_unlocked(gem);
+		if (chan->error_notifier.buffer != nvbo)
+			return -EEXIST;
+		return 0;
+	}
+
+	ret = nouveau_bo_map(nvbo);
+	if (ret) {
+		drm_gem_object_unreference_unlocked(gem);
+		return ret;
+	}
+
+	/* the gem reference held until channel deletion keeps this alive */
+	chan->error_notifier.buffer = nvbo;
+	chan->error_notifier.offset = offset;
+
+	/* initialize to a no-error status */
+	nouveau_bo_wr32(nvbo, offset / sizeof(u32) + 0, 0);
+	nouveau_bo_wr32(nvbo, offset / sizeof(u32) + 1, 0);
+	nouveau_bo_wr32(nvbo, offset / sizeof(u32) + 2, 0);
+	nouveau_bo_wr32(nvbo, offset / sizeof(u32) + 3, 0);
+
+	return 0;
 }
 
 void
@@ -82,6 +148,12 @@ nouveau_channel_del(struct nouveau_channel **pchan)
 		if (chan->push.buffer && chan->push.buffer->pin_refcnt)
 			nouveau_bo_unpin(chan->push.buffer);
 		nouveau_bo_ref(NULL, &chan->push.buffer);
+		if (chan->error_notifier.buffer) {
+			nouveau_bo_unmap(chan->error_notifier.buffer);
+			drm_gem_object_unreference_unlocked(
+					&chan->error_notifier.buffer->gem);
+		}
+		nvif_notify_fini(&chan->error_notifier.notify);
 		nvif_device_ref(NULL, &chan->device);
 		kfree(chan);
 	}
@@ -283,6 +355,17 @@ nouveau_channel_dma(struct nouveau_drm *drm, struct nvif_device *device,
 }
 
 static int
+nouveau_chan_eevent_handler(struct nvif_notify *notify)
+{
+	struct nouveau_channel *chan =
+		container_of(notify, typeof(*chan), error_notifier.notify);
+	const struct nvif_notify_eevent_rep *rep = notify->data;
+
+	WARN_ON(rep->chid != chan->chid);
+	nouveau_channel_set_error_notifier(chan, rep->error);
+	return NVIF_NOTIFY_KEEP;
+}
+static int
 nouveau_channel_init(struct nouveau_channel *chan, u32 vram, u32 gart)
 {
 	struct nvif_device *device = chan->device;
@@ -390,6 +473,19 @@ nouveau_channel_init(struct nouveau_channel *chan, u32 vram, u32 gart)
 		OUT_RING  (chan, chan->nvsw.handle);
 		FIRE_RING (chan);
 	}
+
+	/* error code events on why we're stuck/broken */
+	ret = nvif_notify_init(chan->object, NULL,
+			 nouveau_chan_eevent_handler, false,
+			 CHANNEL_GPFIFO_ERROR_NOTIFIER_EEVENT,
+			 &(struct nvif_notify_eevent_req) { .chid = chan->chid },
+			 sizeof(struct nvif_notify_eevent_req),
+			 sizeof(struct nvif_notify_eevent_rep),
+			 &chan->error_notifier.notify);
+	if (WARN_ON(ret))
+		return ret;
+	/* fini() does one put() */
+	nvif_notify_get(&chan->error_notifier.notify);
 
 	/* initialise synchronisation */
 	return nouveau_fence(chan->drm)->context_new(chan);

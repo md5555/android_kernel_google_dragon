@@ -72,6 +72,7 @@ struct nvkm_fifo {
 
 	struct nvkm_event cevent; /* channel creation event */
 	struct nvkm_event uevent; /* async user trigger */
+	struct nvkm_event eevent; /* error notifier */
 
 	struct nvkm_object **channel;
 	spinlock_t lock;
@@ -122,6 +123,8 @@ extern struct nvkm_oclass *gm20b_fifo_oclass;
 int  nvkm_fifo_uevent_ctor(struct nvkm_object *, void *, u32,
 			   struct nvkm_notify *);
 void nvkm_fifo_uevent(struct nvkm_fifo *);
+
+void nvkm_fifo_eevent(struct nvkm_fifo *, u32 chid, u32 error);
 
 void nv04_fifo_intr(struct nvkm_subdev *);
 int  nv04_fifo_context_attach(struct nvkm_object *, struct nvkm_object *);

@@ -59,4 +59,15 @@ struct nvif_notify_uevent_rep {
 	/* nvif_notify_rep ... */
 };
 
+struct nvif_notify_eevent_req {
+	/* nvif_notify_req ... */
+	u32 chid;
+};
+
+struct nvif_notify_eevent_rep {
+	/* nvif_notify_rep ... */
+	u32 error;
+	u32 chid;
+};
+
 #endif

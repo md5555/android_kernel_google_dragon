@@ -35,6 +35,8 @@
 #include <nvif/class.h>
 #include <nvif/unpack.h>
 
+#include "nouveau_drm.h"
+
 struct gk104_fifo_base {
 	struct nvkm_fifo_base base;
 	struct nvkm_gpuobj *pgd;
@@ -547,6 +549,10 @@ gk104_fifo_intr_sched_ctxsw(struct gk104_fifo_priv *priv)
 				continue;
 			if (!(engine = gk104_fifo_engine(priv, engn)))
 				continue;
+
+			nvkm_fifo_eevent(&priv->base, chid,
+					NOUVEAU_GEM_CHANNEL_FIFO_ERROR_IDLE_TIMEOUT);
+
 			gk104_fifo_recover(priv, engine, chan);
 		}
 	}
@@ -763,6 +769,9 @@ gk104_fifo_intr_fault(struct gk104_fifo_priv *priv, int unit)
 		switch (nv_mclass(object)) {
 		case KEPLER_CHANNEL_GPFIFO_A:
 		case MAXWELL_CHANNEL_GPFIFO_A:
+			nvkm_fifo_eevent(&priv->base,
+					((struct nvkm_fifo_chan*)object)->chid,
+					NOUVEAU_GEM_CHANNEL_FIFO_ERROR_MMU_ERR_FLT);
 			gk104_fifo_recover(priv, engine, (void *)object);
 			break;
 		}
@@ -833,6 +842,8 @@ gk104_fifo_intr_pbdma_0(struct gk104_fifo_priv *priv, int unit)
 			 unit, chid,
 			 nvkm_client_name_for_fifo_chid(&priv->base, chid),
 			 subc, mthd, data);
+		nvkm_fifo_eevent(&priv->base, chid,
+				NOUVEAU_GEM_CHANNEL_PBDMA_ERROR);
 	}
 
 	nv_wr32(priv, 0x040108 + (unit * 0x2000), stat);
@@ -861,6 +872,8 @@ gk104_fifo_intr_pbdma_1(struct gk104_fifo_priv *priv, int unit)
 		nv_error(priv, "PBDMA%d: ch %d %08x %08x\n", unit, chid,
 			 nv_rd32(priv, 0x040150 + (unit * 0x2000)),
 			 nv_rd32(priv, 0x040154 + (unit * 0x2000)));
+		nvkm_fifo_eevent(&priv->base, chid,
+				NOUVEAU_GEM_CHANNEL_PBDMA_ERROR);
 	}
 
 	nv_wr32(priv, 0x040148 + (unit * 0x2000), stat);
