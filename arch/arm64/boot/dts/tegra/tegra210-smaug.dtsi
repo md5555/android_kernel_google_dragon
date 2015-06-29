@@ -445,6 +445,7 @@
 // GEN2_I2C
 &i2c2 {
 	status = "okay";
+	clock-frequency = <1000000>;
 
 	ec@1e {
 		compatible = "google,cros-ec-i2c";
