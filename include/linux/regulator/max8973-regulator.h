@@ -65,6 +65,7 @@ struct max8973_regulator_platform_data {
 	struct regulator_init_data *reg_init_data;
 	unsigned long control_flags;
 	bool enable_ext_control;
+	int ext_control_gpio;
 	int dvs_gpio;
 	unsigned dvs_def_state:1;
 };
