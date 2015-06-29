@@ -148,6 +148,7 @@ struct nouveau_drm {
 	struct nouveau_fbdev *fbcon;
 	struct nvif_object nvsw;
 	struct nvif_object ntfy;
+	struct workqueue_struct *gem_unmap_wq;
 
 	/* nv10-nv40 tiling regions */
 	struct {

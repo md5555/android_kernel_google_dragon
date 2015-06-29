@@ -136,6 +136,7 @@ nouveau_cli_destroy(struct nouveau_cli *cli)
 static void
 nouveau_accel_fini(struct nouveau_drm *drm)
 {
+	destroy_workqueue(drm->gem_unmap_wq);
 	nouveau_channel_del(&drm->channel);
 	nvif_object_fini(&drm->ntfy);
 	nvkm_gpuobj_ref(NULL, &drm->notify);
@@ -283,6 +284,11 @@ nouveau_accel_init(struct nouveau_drm *drm)
 		}
 	}
 
+	drm->gem_unmap_wq = alloc_ordered_workqueue("nouveau-gem-unmap", 0);
+	if (!drm->gem_unmap_wq) {
+		nouveau_accel_fini(drm);
+		return;
+	}
 
 	nouveau_bo_move_init(drm);
 }

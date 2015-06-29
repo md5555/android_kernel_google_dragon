@@ -114,13 +114,25 @@ nouveau_gem_object_delete(void *data)
 	kfree(vma);
 }
 
-static void
-nouveau_gem_object_unmap(struct nouveau_bo *nvbo, struct nvkm_vma *vma)
+struct nouveau_vma_delete_work
 {
+	struct work_struct work;
+	struct nvkm_vma *vma;
+	struct nouveau_bo *nvbo;
+};
+
+static void gem_unmap_work(struct work_struct *__work)
+{
+	struct nouveau_vma_delete_work *del_work =
+		container_of(__work, struct nouveau_vma_delete_work, work);
+	struct nvkm_vma *vma = del_work->vma;
+	struct nouveau_bo *nvbo = del_work->nvbo;
 	const bool mapped = nvbo->bo.mem.mem_type != TTM_PL_SYSTEM;
 	struct reservation_object *resv = nvbo->bo.resv;
 	struct reservation_object_list *fobj;
 	struct fence *fence = NULL;
+
+	mutex_lock(&nvbo->gem.dev->struct_mutex);
 
 	if (mapped)
 		WARN_ON(nvkm_vm_wait(vma->vm));
@@ -145,6 +157,36 @@ nouveau_gem_object_unmap(struct nouveau_bo *nvbo, struct nvkm_vma *vma)
 		nvkm_vm_put(vma);
 		kfree(vma);
 	}
+
+	drm_gem_object_unreference(&nvbo->gem);
+	mutex_unlock(&nvbo->gem.dev->struct_mutex);
+
+	kfree(del_work);
+}
+
+/*
+ * - Grab a reference to the object so we can access from the worker.
+ * - Since the handle is synchronously destroyed by the caller, further
+ *   references are impossible, so we don't need to protect against that.
+ * - Once the worker is done, it can drop the extra reference.
+ */
+static void
+nouveau_gem_object_unmap(struct nouveau_bo *nvbo, struct nvkm_vma *vma)
+{
+	struct nouveau_drm *drm = nouveau_bdev(nvbo->bo.bdev);
+	struct nouveau_vma_delete_work *del_work;
+
+	del_work = (struct nouveau_vma_delete_work*) kzalloc(sizeof(*del_work), GFP_KERNEL);
+	if (WARN_ON(!del_work))
+		return;
+
+	drm_gem_object_reference(&nvbo->gem);
+
+	INIT_WORK(&del_work->work, gem_unmap_work);
+	del_work->vma = vma;
+	del_work->nvbo = nvbo;
+
+	queue_work(drm->gem_unmap_wq, &del_work->work);
 }
 
 void
