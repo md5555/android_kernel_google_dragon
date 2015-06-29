@@ -339,8 +339,8 @@
 			mt6397_vgp1_reg: ldo_vgp1 {
 				regulator-compatible = "ldo_vgp1";
 				regulator-name = "vcamd";
-				regulator-min-microvolt = <1220000>;
-				regulator-max-microvolt = <3300000>;
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
 				regulator-enable-ramp-delay = <240>;
 			};
 
