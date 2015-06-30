@@ -28,6 +28,9 @@
 #include "drm.h"
 #include "falcon.h"
 
+#define NV_PVIC_THI_SLCG_OVERRIDE_LOW_A			0x0000008c
+#define NV_PVIC_THI_SLCG_OVERRIDE_HIGH_A		0x00000088
+
 #define NVA0B6_VIDEO_COMPOSITOR_SET_APPLICATION_ID	0x00000200
 #define NVA0B6_VIDEO_COMPOSITOR_SET_FCE_UCODE_SIZE	0x0000071C
 #define NVA0B6_VIDEO_COMPOSITOR_SET_FCE_UCODE_OFFSET	0x0000072C
@@ -103,8 +106,23 @@ static int vic_power_on(struct device *dev)
 	if (err)
 		return err;
 
-	return tegra_powergate_sequence_power_up(vic->config->powergate_id,
-						 vic->clk, vic->rst);
+	err = tegra_powergate_sequence_power_up(vic->config->powergate_id,
+						vic->clk, vic->rst);
+	if (err) {
+		falcon_power_off(&vic->falcon);
+		return err;
+	}
+
+	/*
+	 * Disable SLCG to workaround MBIST issue in IP level. This code
+	 * should be removed once the MBIST WAR has been completed and
+	 * done as part of tegra_powergate_sequence_power_up().
+	 */
+
+	writel(0xffffffff, vic->falcon.regs + NV_PVIC_THI_SLCG_OVERRIDE_LOW_A);
+	writel(0xffffffff, vic->falcon.regs + NV_PVIC_THI_SLCG_OVERRIDE_HIGH_A);
+
+	return 0;
 }
 
 static void vic_finalize_poweron(struct vic *vic)
