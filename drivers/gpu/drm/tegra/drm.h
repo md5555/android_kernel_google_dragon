@@ -14,6 +14,7 @@
 #include <linux/host1x.h>
 
 #include <drm/drmP.h>
+#include <drm/drm_crtc.h>
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_edid.h>
 #include <drm/drm_fb_helper.h>
@@ -192,6 +193,9 @@ int tegra_dc_state_setup_clock(struct tegra_dc *dc,
 			       struct drm_crtc_state *crtc_state,
 			       struct clk *clk, unsigned long pclk,
 			       unsigned int div);
+void tegra_dc_update_emc_pre_commit(struct drm_crtc *crtc,
+				    struct drm_crtc_state *old_crtc_state);
+void tegra_dc_update_emc_post_commit(struct drm_crtc *crtc);
 
 struct tegra_output {
 	struct device_node *of_node;

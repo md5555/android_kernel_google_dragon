@@ -53,6 +53,7 @@ struct tegra_dc_state {
 
 	u32 planes;
 	unsigned long emc_bandwidth; /* kbps */
+	bool update_emc; /* set to false when the emc has been updated */
 };
 
 static inline struct tegra_dc_state *to_dc_state(struct drm_crtc_state *state)
@@ -1082,6 +1083,7 @@ tegra_crtc_atomic_duplicate_state(struct drm_crtc *crtc)
 	copy->div = state->div;
 	copy->planes = state->planes;
 	copy->emc_bandwidth = 0;
+	copy->update_emc = true;
 
 	return &copy->base;
 }
@@ -1375,15 +1377,55 @@ static int tegra_dc_program_bandwidth(struct tegra_dc *dc,
 	return clk_set_rate(dc->emc_clk, freq);
 }
 
+void tegra_dc_update_emc_pre_commit(struct drm_crtc *crtc,
+				    struct drm_crtc_state *old_crtc_state)
+{
+	struct tegra_dc *dc = to_tegra_dc(crtc);
+	struct tegra_dc_state *old_state = to_dc_state(old_crtc_state);
+	struct tegra_dc_state *new_state = to_dc_state(crtc->state);
+	int ret;
+
+	/* Don't drop the emc clock early if it's decreasing */
+	if (new_state->emc_bandwidth < old_state->emc_bandwidth) {
+		return;
+	/* If we're not changing the clock, mark it updated */
+	} else if (new_state->emc_bandwidth == old_state->emc_bandwidth) {
+		new_state->update_emc = false;
+		return;
+	}
+
+	DRM_INFO("%s old_bw=%ld new_bw=%ld\n", __func__,
+		  old_state->emc_bandwidth, new_state->emc_bandwidth);
+
+	/* Program the emc early if the bandwidth is increasing */
+	ret = tegra_dc_program_bandwidth(dc, new_state->emc_bandwidth);
+	if (ret)
+		DRM_ERROR("Failed to program emc bandwidth %d\n", ret);
+	else
+		new_state->update_emc = false;
+}
+
+void tegra_dc_update_emc_post_commit(struct drm_crtc *crtc)
+{
+	struct tegra_dc *dc = to_tegra_dc(crtc);
+	struct tegra_dc_state *state = to_dc_state(crtc->state);
+	int ret;
+
+	if (!state || !state->update_emc)
+		return;
+
+	DRM_INFO("%s new_bw=%ld\n", __func__, state->emc_bandwidth);
+	ret = tegra_dc_program_bandwidth(dc, state->emc_bandwidth);
+	if (ret)
+		DRM_ERROR("Failed to program emc bandwidth %d\n", ret);
+	else
+		state->update_emc = false;
+}
+
 static void tegra_crtc_atomic_flush(struct drm_crtc *crtc)
 {
 	struct tegra_dc_state *state = to_dc_state(crtc->state);
 	struct tegra_dc *dc = to_tegra_dc(crtc);
-	int ret;
-
-	ret = tegra_dc_program_bandwidth(dc, state->emc_bandwidth);
-	if (ret)
-		DRM_ERROR("Failed to program emc bandwidth ret=%d\n", ret);
 
 	tegra_dc_writel(dc, state->planes << 8, DC_CMD_STATE_CONTROL);
 	tegra_dc_writel(dc, state->planes, DC_CMD_STATE_CONTROL);
