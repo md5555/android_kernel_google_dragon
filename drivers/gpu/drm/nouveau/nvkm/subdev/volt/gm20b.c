@@ -79,7 +79,7 @@ gm20b_volt_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	struct nvkm_volt *volt;
 	struct nouveau_platform_device *plat;
 	const struct cvb_coef *coef_table;
-	int i, ret, uv;
+	int i, ret, uv, vmin;
 
 	ret = nvkm_volt_create(parent, engine, oclass, &priv);
 	*pobject = nv_object(priv);
@@ -111,16 +111,21 @@ gm20b_volt_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 		coef_table = gm20b_cvb_coef;
 		volt->vid_nr = ARRAY_SIZE(gm20b_cvb_coef);
 	}
+
+	vmin = gk20a_volt_round_voltage(priv,
+			speedo_to_vmin[plat->gpu_speedo_id]);
+	if (vmin < 0)
+		return -EINVAL;
+
 	nv_debug(priv, "%s - vid_nr = %d\n", __func__, volt->vid_nr);
 	for (i = 0; i < volt->vid_nr; i++) {
 		ret = gk20a_volt_calc_voltage(priv, (coef_table + i),
 					plat->gpu_speedo_value);
+		ret = gk20a_volt_round_voltage(priv, ret);
 		if (ret < 0)
 			return ret;
-		volt->vid[i].uv = ret;
+		volt->vid[i].uv = max(ret, vmin);
 		volt->vid[i].vid = i;
-		if (volt->vid[i].uv < speedo_to_vmin[plat->gpu_speedo_id])
-			volt->vid[i].uv = speedo_to_vmin[plat->gpu_speedo_id];
 		nv_debug(priv, "%2d: vid=%d, uv=%d\n", i, volt->vid[i].vid,
 					volt->vid[i].uv);
 	}

@@ -103,6 +103,26 @@ gk20a_volt_calc_voltage(struct gk20a_volt_priv *priv,
 }
 
 int
+gk20a_volt_round_voltage(struct gk20a_volt_priv *priv, int uv)
+{
+	int i, n, ret;
+
+	if (uv <= 0)
+		return -EINVAL;
+
+	n = regulator_count_voltages(priv->vdd);
+	for (i = 0; i < n; i++) {
+		ret = regulator_list_voltage(priv->vdd, i);
+		if (ret <= 0)
+			continue;
+		if (ret >= uv)
+			return ret;
+	}
+
+	return -EINVAL;
+}
+
+int
 gk20a_volt_vid_get(struct nvkm_volt *volt)
 {
 	struct gk20a_volt_priv *priv = (void *)volt;
@@ -180,6 +200,7 @@ gk20a_volt_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	for (i = 0; i < volt->vid_nr; i++) {
 		ret = gk20a_volt_calc_voltage(priv,
 					&gk20a_cvb_coef[i], plat->gpu_speedo_value);
+		ret = gk20a_volt_round_voltage(priv, ret);
 		if (ret < 0)
 			return ret;
 		volt->vid[i].uv = ret;
