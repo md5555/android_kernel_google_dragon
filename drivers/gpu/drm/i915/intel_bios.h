@@ -277,9 +277,9 @@ struct bdb_general_definitions {
 	 * And the device num is related with the size of general definition
 	 * block. It is obtained by using the following formula:
 	 * number = (block_size - sizeof(bdb_general_definitions))/
-	 *	     defs->child_dev_size;
+	 *	     sizeof(child_device_config);
 	 */
-	uint8_t devices[0];
+	union child_device_config devices[0];
 } __packed;
 
 /* Mask for DRRS / Panel Channel / SSC / BLT control bits extraction */
