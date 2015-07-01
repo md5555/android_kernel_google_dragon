@@ -29,8 +29,8 @@
 #ifndef _VGEM_DRV_H_
 #define _VGEM_DRV_H_
 
-#include "drmP.h"
-#include <linux/types.h>
+#include <drm/drmP.h>
+#include <drm/drm_gem.h>
 
 #define DRM_VGEM_MODE_MAP_DUMB 0x00
 #define DRM_IOCTL_VGEM_MODE_MAP_DUMB DRM_IOWR(DRM_COMMAND_BASE + \
