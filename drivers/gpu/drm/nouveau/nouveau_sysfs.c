@@ -47,16 +47,22 @@ drm_device(struct device *d)
 static ssize_t
 nouveau_sysfs_pstate_get(struct device *d, struct device_attribute *a, char *b)
 {
-	struct nouveau_sysfs *sysfs = nouveau_sysfs(drm_device(d));
+	struct drm_device *drm_dev = drm_device(d);
+	struct device *dev = drm_dev->dev;
+	struct nouveau_sysfs *sysfs = nouveau_sysfs(drm_dev);
 	struct nvif_control_pstate_info_v0 info = {};
 	size_t cnt = PAGE_SIZE;
 	char *buf = b;
 	int ret, i;
 
+	ret = pm_runtime_get_sync(dev);
+	if (ret < 0)
+		return ret;
+
 	ret = nvif_mthd(&sysfs->ctrl, NVIF_CONTROL_PSTATE_INFO,
 			&info, sizeof(info));
 	if (ret)
-		return ret;
+		goto out;
 
 	for (i = 0; i < info.count + 1; i++) {
 		const s32 state = i < info.count ? i :
@@ -69,7 +75,7 @@ nouveau_sysfs_pstate_get(struct device *d, struct device_attribute *a, char *b)
 		ret = nvif_mthd(&sysfs->ctrl, NVIF_CONTROL_PSTATE_ATTR,
 				&attr, sizeof(attr));
 		if (ret)
-			return ret;
+			goto out;
 
 		if (i < info.count)
 			snappendf(buf, cnt, "%02x:", attr.state);
@@ -85,7 +91,7 @@ nouveau_sysfs_pstate_get(struct device *d, struct device_attribute *a, char *b)
 					NVIF_CONTROL_PSTATE_ATTR,
 					&attr, sizeof(attr));
 			if (ret)
-				return ret;
+				goto out;
 
 			snappendf(buf, cnt, " %s %d", attr.name, attr.min);
 			if (attr.min != attr.max)
@@ -110,14 +116,22 @@ nouveau_sysfs_pstate_get(struct device *d, struct device_attribute *a, char *b)
 		snappendf(buf, cnt, "\n");
 	}
 
-	return strlen(b);
+	ret = strlen(b);
+
+out:
+	pm_runtime_mark_last_busy(dev);
+	pm_runtime_put_autosuspend(dev);
+
+	return ret;
 }
 
 static ssize_t
 nouveau_sysfs_pstate_set(struct device *d, struct device_attribute *a,
 			 const char *buf, size_t count)
 {
-	struct nouveau_sysfs *sysfs = nouveau_sysfs(drm_device(d));
+	struct drm_device *drm_dev = drm_device(d);
+	struct device *dev = drm_dev->dev;
+	struct nouveau_sysfs *sysfs = nouveau_sysfs(drm_dev);
 	struct nvif_control_pstate_user_v0 args = { .pwrsrc = -EINVAL };
 	long value, ret;
 	char *tmp;
@@ -146,12 +160,24 @@ nouveau_sysfs_pstate_set(struct device *d, struct device_attribute *a,
 		args.ustate = value;
 	}
 
-	ret = nvif_mthd(&sysfs->ctrl, NVIF_CONTROL_PSTATE_USER,
-			&args, sizeof(args));
+	/* make sure the Nouveau is not runtime suspended */
+	ret = pm_runtime_get_sync(dev);
 	if (ret < 0)
 		return ret;
 
-	return count;
+
+	ret = nvif_mthd(&sysfs->ctrl, NVIF_CONTROL_PSTATE_USER,
+			&args, sizeof(args));
+	if (ret < 0)
+		goto out;
+
+	ret = count;
+
+out:
+	pm_runtime_mark_last_busy(dev);
+	pm_runtime_put_autosuspend(dev);
+
+	return ret;
 }
 
 static DEVICE_ATTR(pstate, S_IRUGO | S_IWUSR,
