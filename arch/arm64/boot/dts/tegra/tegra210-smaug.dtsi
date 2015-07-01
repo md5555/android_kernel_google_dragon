@@ -980,6 +980,8 @@
 		avdd-pll-uerefe-supply = <&pp1050_avdd>;
 		dvdd-usb-ss-pll-supply = <&avddio_1v05>;
 		hvdd-usb-ss-pll-e-supply = <&pp1800>;
+		extcon-cables = <&usbc_extcon>;
+		extcon-cable-names = "data-role";
 	};
 };
 
