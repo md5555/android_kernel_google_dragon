@@ -79,6 +79,9 @@ Optional properties:
    - 4 UTMI PHYs
    - 1 HSIC PHY
    - 4 USB3 PHYs
+ - extcon-cables: Must contain an entry for each entry in extcon-cable-names.
+ - extcon-cable-names: Should include the following entries:
+   - data-role
 
 Example:
 --------

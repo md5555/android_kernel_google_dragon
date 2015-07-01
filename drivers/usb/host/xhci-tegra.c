@@ -10,8 +10,10 @@
  */
 
 #include <linux/clk.h>
+#include <linux/completion.h>
 #include <linux/delay.h>
 #include <linux/dma-mapping.h>
+#include <linux/extcon.h>
 #include <linux/firmware.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
@@ -186,6 +188,7 @@ struct tegra_xhci_soc_data {
 	unsigned int num_supplies;
 	unsigned int num_phys[MAX_PHY_TYPES];
 	bool scale_ss_clock;
+	bool reset_sspi;
 	unsigned int utmi_port_offset;
 	unsigned int hsic_port_offset;
 };
@@ -225,6 +228,13 @@ struct tegra_xhci_hcd {
 	struct tegra_xusb_mbox_msg mbox_req;
 	struct mbox_client mbox_client;
 	struct mbox_chan *mbox_chan;
+	struct completion mbox_ack;
+
+	struct extcon_dev *data_role_extcon;
+	struct notifier_block data_role_nb;
+	struct work_struct data_role_work;
+	bool host_mode;
+	bool data_role_changed;
 
 	struct tegra_xhci_ipfs_context ipfs_ctx;
 	struct tegra_xhci_fpci_context fpci_ctx;
@@ -232,6 +242,8 @@ struct tegra_xhci_hcd {
 	struct tegra_mc *mc;
 	const struct tegra_mc_flush *mc_flush;
 	unsigned int swgroup;
+
+	bool suspended;
 
 	/* Firmware loading related */
 	void *fw_data;
@@ -546,6 +558,11 @@ static int tegra_xhci_phy_enable(struct tegra_xhci_hcd *tegra)
 		}
 	}
 
+	mutex_lock(&tegra->lock);
+	if (tegra->host_mode)
+		tegra_xusb_utmi_clear_vbus_override(tegra->phys[UTMI_PHY][0]);
+	mutex_unlock(&tegra->lock);
+
 	return 0;
 disable_phy:
 	for (; j > 0; j--) {
@@ -639,7 +656,131 @@ static void tegra_xhci_mbox_rx(struct mbox_client *cl, void *data)
 	if (is_host_mbox_message(msg->cmd)) {
 		tegra->mbox_req = *msg;
 		schedule_work(&tegra->mbox_req_work);
+	} else if (msg->cmd == MBOX_CMD_ACK || msg->cmd == MBOX_CMD_NAK) {
+		complete(&tegra->mbox_ack);
 	}
+}
+
+static void tegra_xhci_reset_sspi(struct tegra_xhci_hcd *tegra)
+{
+	struct tegra_xusb_mbox_msg msg;
+	struct xhci_hcd *xhci;
+	int ret;
+
+	if (!tegra->fw_loaded)
+		return;
+
+	xhci = hcd_to_xhci(tegra->hcd);
+
+	/* Clear PORTSC.PP for SuperSpeed port 0 */
+	xhci_hub_control(xhci->shared_hcd, ClearPortFeature,
+			 USB_PORT_FEAT_POWER, 1, NULL, 0);
+
+	/* Send RESET_SSPI request and wait for ACK */
+	reinit_completion(&tegra->mbox_ack);
+	msg.cmd = MBOX_CMD_RESET_SSPI;
+	msg.data = 0x1;
+	ret = mbox_send_message(tegra->mbox_chan, &msg);
+	if (ret < 0) {
+		dev_err(tegra->dev, "failed to send RESET_SSPI: %d\n", ret);
+		return;
+	}
+
+	ret = wait_for_completion_timeout(&tegra->mbox_ack,
+					  msecs_to_jiffies(20));
+	if (ret == 0) {
+		dev_err(tegra->dev, "timed out waiting for ACK\n");
+		return;
+	}
+
+	/* Set PORTSC.PP */
+	xhci_hub_control(xhci->shared_hcd, SetPortFeature,
+			 USB_PORT_FEAT_POWER, 1, NULL, 0);
+
+	/*
+	 * Allow some time for SuperSpeed enumeration to happen before
+	 * we re-enter runtime suspend.
+	 */
+	pm_runtime_mark_last_busy(tegra->dev);
+
+	dev_dbg(tegra->dev, "reset sspi complete\n");
+}
+
+static void tegra_xhci_host_mode_on(struct tegra_xhci_hcd *tegra)
+{
+	bool reset_sspi = false;
+
+	mutex_lock(&tegra->lock);
+	dev_dbg(tegra->dev, "host mode on\n");
+
+	/* Disable VBUS/ID override on the OTG pad. */
+	tegra_xusb_utmi_clear_vbus_override(tegra->phys[UTMI_PHY][0]);
+
+	/* Only do RESET_SSPI when switching from device to host mode. */
+	if (tegra->data_role_changed)
+		reset_sspi = true;
+
+	tegra->host_mode = true;
+	tegra->data_role_changed = false;
+	mutex_unlock(&tegra->lock);
+
+	pm_runtime_get_sync(tegra->dev);
+	if (tegra->soc->reset_sspi && reset_sspi)
+		tegra_xhci_reset_sspi(tegra);
+	pm_runtime_put_autosuspend(tegra->dev);
+}
+
+static void tegra_xhci_host_mode_off(struct tegra_xhci_hcd *tegra)
+{
+	mutex_lock(&tegra->lock);
+	dev_dbg(tegra->dev, "host mode off\n");
+	tegra->host_mode = false;
+	if (extcon_get_cable_state(tegra->data_role_extcon, "USB"))
+		tegra->data_role_changed = true;
+	mutex_unlock(&tegra->lock);
+
+	/*
+	 * Force a resume so that any wakeup events may be cleared and PMC
+	 * control of the dual-role port may be disabled.
+	 */
+	pm_runtime_resume(tegra->dev);
+}
+
+static void tegra_xhci_update_data_role(struct tegra_xhci_hcd *tegra)
+{
+	if (IS_ERR(tegra->data_role_extcon))
+		return;
+
+	if (extcon_get_cable_state(tegra->data_role_extcon, "USB-Host"))
+		tegra_xhci_host_mode_on(tegra);
+	else
+		tegra_xhci_host_mode_off(tegra);
+}
+
+static void tegra_xhci_data_role_work(struct work_struct *work)
+{
+	struct tegra_xhci_hcd *tegra = container_of(work, struct tegra_xhci_hcd,
+						    data_role_work);
+
+	mutex_lock(&tegra->lock);
+	if (tegra->suspended) {
+		mutex_unlock(&tegra->lock);
+		return;
+	}
+	mutex_unlock(&tegra->lock);
+
+	tegra_xhci_update_data_role(tegra);
+}
+
+static int tegra_xhci_data_role_notifier(struct notifier_block *nb,
+					 unsigned long action, void *data)
+{
+	struct tegra_xhci_hcd *tegra = container_of(nb, struct tegra_xhci_hcd,
+						    data_role_nb);
+
+	schedule_work(&tegra->data_role_work);
+
+	return NOTIFY_OK;
 }
 
 static irqreturn_t tegra_xhci_padctl_irq(int irq, void *dev_id)
@@ -716,6 +857,7 @@ static const struct tegra_xhci_soc_data tegra124_soc_data = {
 	.utmi_port_offset = 2,
 	.hsic_port_offset = 5,
 	.scale_ss_clock = true,
+	.reset_sspi = false,
 };
 MODULE_FIRMWARE("nvidia/tegra124/xusb.bin");
 
@@ -739,6 +881,7 @@ static const struct tegra_xhci_soc_data tegra210_soc_data = {
 	.utmi_port_offset = 4,
 	.hsic_port_offset = 8,
 	.scale_ss_clock = false,
+	.reset_sspi = true,
 };
 MODULE_FIRMWARE("nvidia/tegra210/xusb.bin");
 
@@ -806,6 +949,11 @@ static void tegra_xhci_probe_finish(const struct firmware *fw, void *context)
 	tegra->fw_loaded = true;
 	release_firmware(fw);
 
+	tegra->data_role_changed = true;
+	tegra_xhci_update_data_role(tegra);
+
+	pm_runtime_use_autosuspend(dev);
+	pm_runtime_set_autosuspend_delay(dev, 2000);
 	pm_runtime_set_active(dev);
 	pm_runtime_enable(dev);
 
@@ -967,23 +1115,40 @@ static int tegra_xhci_probe(struct platform_device *pdev)
 	if (ret)
 		goto powergate_xusbc;
 
+	INIT_WORK(&tegra->data_role_work, tegra_xhci_data_role_work);
+	tegra->data_role_extcon = extcon_get_extcon_dev_by_cable(&pdev->dev,
+								 "data-role");
+	if (!IS_ERR(tegra->data_role_extcon)) {
+		tegra->data_role_nb.notifier_call =
+			tegra_xhci_data_role_notifier;
+		extcon_register_notifier(tegra->data_role_extcon,
+					 &tegra->data_role_nb);
+	} else if (PTR_ERR(tegra->data_role_extcon) == -EPROBE_DEFER) {
+		ret = -EPROBE_DEFER;
+		goto disable_clk;
+	} else {
+		dev_info(&pdev->dev, "no data-role extcon found\n");
+		tegra->host_mode = true;
+	}
+
 	tegra->supplies = devm_kcalloc(&pdev->dev, tegra->soc->num_supplies,
 				       sizeof(*tegra->supplies), GFP_KERNEL);
 	if (!tegra->supplies) {
 		ret = -ENOMEM;
-		goto disable_clk;
+		goto unregister_extcon;
 	}
 	for (i = 0; i < tegra->soc->num_supplies; i++)
 		tegra->supplies[i].supply = tegra->soc->supply_names[i];
 	ret = devm_regulator_bulk_get(&pdev->dev, tegra->soc->num_supplies,
 				      tegra->supplies);
 	if (ret)
-		goto disable_clk;
+		goto unregister_extcon;
 	ret = regulator_bulk_enable(tegra->soc->num_supplies, tegra->supplies);
 	if (ret)
-		goto disable_clk;
+		goto unregister_extcon;
 
 	INIT_WORK(&tegra->mbox_req_work, tegra_xhci_mbox_work);
+	init_completion(&tegra->mbox_ack);
 	tegra->mbox_client.dev = &pdev->dev;
 	tegra->mbox_client.tx_block = true;
 	tegra->mbox_client.tx_tout = 0;
@@ -1041,6 +1206,11 @@ put_mbox:
 	mbox_free_channel(tegra->mbox_chan);
 disable_regulator:
 	regulator_bulk_disable(tegra->soc->num_supplies, tegra->supplies);
+unregister_extcon:
+	cancel_work_sync(&tegra->data_role_work);
+	if (!IS_ERR(tegra->data_role_extcon))
+		extcon_unregister_notifier(tegra->data_role_extcon,
+					   &tegra->data_role_nb);
 disable_clk:
 	tegra_xhci_clk_disable(tegra);
 powergate_xusbc:
@@ -1079,6 +1249,11 @@ static int tegra_xhci_remove(struct platform_device *pdev)
 	if (tegra->fw_data)
 		dma_free_coherent(tegra->dev, tegra->fw_size, tegra->fw_data,
 				  tegra->fw_dma_addr);
+
+	cancel_work_sync(&tegra->data_role_work);
+	if (!IS_ERR(tegra->data_role_extcon))
+		extcon_unregister_notifier(tegra->data_role_extcon,
+					   &tegra->data_role_nb);
 
 	cancel_work_sync(&tegra->mbox_req_work);
 	mbox_free_channel(tegra->mbox_chan);
@@ -1233,10 +1408,16 @@ static int tegra_xhci_powergate(struct tegra_xhci_hcd *tegra, bool runtime)
 	 * Wake events must be set before starting the XUSB_SS power-down
 	 * sequence.
 	 */
-	for (i = 0; i < tegra->soc->num_phys[USB3_PHY]; i++)
+	for (i = 0; i < tegra->soc->num_phys[USB3_PHY]; i++) {
+		if (i == 0 && !tegra->host_mode)
+			continue;
 		tegra_xusb_usb3_phy_wake_enable(tegra->phys[USB3_PHY][i]);
-	for (i = 0; i < tegra->soc->num_phys[UTMI_PHY]; i++)
+	}
+	for (i = 0; i < tegra->soc->num_phys[UTMI_PHY]; i++) {
+		if (i == 0 && !tegra->host_mode)
+			continue;
 		tegra_xusb_utmi_phy_wake_enable(tegra->phys[UTMI_PHY][i]);
+	}
 	for (i = 0; i < tegra->soc->num_phys[HSIC_PHY]; i++)
 		tegra_xusb_hsic_phy_wake_enable(tegra->phys[HSIC_PHY][i]);
 
@@ -1268,6 +1449,9 @@ static int tegra_xhci_powergate(struct tegra_xhci_hcd *tegra, bool runtime)
 		enum usb_device_speed speed;
 
 		if (!phy)
+			continue;
+
+		if (i == 0 && !tegra->host_mode)
 			continue;
 
 		tegra_xusb_utmi_phy_get_pad_config(phy, &config);
@@ -1311,6 +1495,9 @@ static int tegra_xhci_unpowergate(struct tegra_xhci_hcd *tegra)
 
 	dev_dbg(tegra->dev, "exiting ELPG\n");
 	mutex_lock(&tegra->lock);
+
+	if (tegra->host_mode)
+		tegra_xusb_utmi_clear_vbus_override(tegra->phys[UTMI_PHY][0]);
 
 	/* Clear XUSB wake events. */
 	for (i = 0; i < tegra->soc->num_phys[USB3_PHY]; i++)
@@ -1391,6 +1578,7 @@ static int tegra_xhci_unpowergate(struct tegra_xhci_hcd *tegra)
 	}
 
 	ret = xhci_resume(xhci, 0);
+	pm_runtime_mark_last_busy(tegra->dev);
 unlock:
 	mutex_unlock(&tegra->lock);
 	return ret;
@@ -1403,6 +1591,11 @@ static int tegra_xhci_suspend(struct device *dev)
 	struct tegra_xhci_hcd *tegra = dev_get_drvdata(dev);
 	unsigned int i, j;
 	int ret;
+
+	mutex_lock(&tegra->lock);
+	tegra->suspended = true;
+	mutex_unlock(&tegra->lock);
+	flush_work(&tegra->data_role_work);
 
 	if (!pm_runtime_suspended(dev)) {
 		ret = tegra_xhci_powergate(tegra, false);
@@ -1446,6 +1639,12 @@ static int tegra_xhci_resume(struct device *dev)
 	ret = tegra_xhci_unpowergate(tegra);
 	if (ret < 0)
 		return ret;
+
+	mutex_lock(&tegra->lock);
+	tegra->suspended = false;
+	mutex_unlock(&tegra->lock);
+
+	tegra_xhci_update_data_role(tegra);
 
 	pm_runtime_set_active(dev);
 	pm_runtime_enable(dev);
