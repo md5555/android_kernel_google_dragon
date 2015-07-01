@@ -247,6 +247,7 @@ static int tegra210_cpufreq_init(struct cpufreq_policy *policy)
 	policy->clk = priv.cpu_clk;
 	policy->cpuinfo.transition_latency = transition_latency;
 	policy->suspend_freq = freq_table[priv.suspend_index].frequency;
+	cpumask_setall(policy->cpus);
 
 	ret = cpufreq_table_validate_and_show(policy, freq_table);
 	if (ret) {
