@@ -188,6 +188,52 @@
 #define PLLSS_REF_SRC_SEL_SHIFT	25
 #define PLLSS_REF_SRC_SEL_MASK	(3 << PLLSS_REF_SRC_SEL_SHIFT)
 
+#define UTMIP_PLL_CFG1 0x484
+#define UTMIP_PLL_CFG1_XTAL_FREQ_COUNT(x) (((x) & 0xfff) << 0)
+#define UTMIP_PLL_CFG1_ENABLE_DLY_COUNT(x) (((x) & 0x1f) << 27)
+#define UTMIP_PLL_CFG1_FORCE_PLL_ACTIVE_POWERDOWN BIT(12)
+#define UTMIP_PLL_CFG1_FORCE_PLL_ENABLE_POWERDOWN BIT(14)
+#define UTMIP_PLL_CFG1_FORCE_PLL_ENABLE_POWERUP BIT(15)
+#define UTMIP_PLL_CFG1_FORCE_PLLU_POWERDOWN BIT(16)
+#define UTMIP_PLL_CFG1_FORCE_PLLU_POWERUP BIT(17)
+
+#define UTMIP_PLL_CFG2 0x488
+#define UTMIP_PLL_CFG2_STABLE_COUNT(x) (((x) & 0xfff) << 6)
+#define UTMIP_PLL_CFG2_ACTIVE_DLY_COUNT(x) (((x) & 0x3f) << 18)
+#define UTMIP_PLL_CFG2_FORCE_PD_SAMP_A_POWERDOWN BIT(0)
+#define UTMIP_PLL_CFG2_FORCE_PD_SAMP_A_POWERUP BIT(1)
+#define UTMIP_PLL_CFG2_FORCE_PD_SAMP_B_POWERDOWN BIT(2)
+#define UTMIP_PLL_CFG2_FORCE_PD_SAMP_B_POWERUP BIT(3)
+#define UTMIP_PLL_CFG2_FORCE_PD_SAMP_C_POWERDOWN BIT(4)
+#define UTMIP_PLL_CFG2_FORCE_PD_SAMP_C_POWERUP BIT(5)
+#define UTMIP_PLL_CFG2_FORCE_PD_SAMP_D_POWERDOWN BIT(24)
+#define UTMIP_PLL_CFG2_FORCE_PD_SAMP_D_POWERUP BIT(25)
+
+#define UTMIPLL_HW_PWRDN_CFG0 0x52c
+#define UTMIPLL_HW_PWRDN_CFG0_IDDQ_SWCTL BIT(0)
+#define UTMIPLL_HW_PWRDN_CFG0_IDDQ_OVERRIDE BIT(1)
+#define UTMIPLL_HW_PWRDN_CFG0_CLK_ENABLE_SWCTL BIT(2)
+#define UTMIPLL_HW_PWRDN_CFG0_SEQ_IN_SWCTL BIT(4)
+#define UTMIPLL_HW_PWRDN_CFG0_SEQ_RESET_INPUT_VALUE BIT(5)
+#define UTMIPLL_HW_PWRDN_CFG0_USE_LOCKDET BIT(6)
+#define UTMIPLL_HW_PWRDN_CFG0_SEQ_ENABLE BIT(24)
+#define UTMIPLL_HW_PWRDN_CFG0_SEQ_START_STATE BIT(25)
+
+#define PLLU_HW_PWRDN_CFG0 0x530
+#define PLLU_HW_PWRDN_CFG0_CLK_SWITCH_SWCTL BIT(0)
+#define PLLU_HW_PWRDN_CFG0_CLK_ENABLE_SWCTL BIT(2)
+#define PLLU_HW_PWRDN_CFG0_USE_LOCKDET BIT(6)
+#define PLLU_HW_PWRDN_CFG0_USE_SWITCH_DETECT BIT(7)
+#define PLLU_HW_PWRDN_CFG0_SEQ_ENABLE BIT(24)
+#define PLLU_HW_PWRDN_CFG0_IDDQ_PD_INCLUDE BIT(28)
+
+#define XUSB_PLL_CFG0 0x534
+#define XUSB_PLL_CFG0_UTMIPLL_LOCK_DLY 0x3ff
+#define XUSB_PLL_CFG0_PLLU_LOCK_DLY (0x3ff << 14)
+
+#define PLLU_BASE_CLKENABLE_USB BIT(21)
+#define PLLU_BASE_OVERRIDE BIT(24)
+
 #define pll_readl(offset, p) readl_relaxed(p->clk_base + offset)
 #define pll_readl_base(p) pll_readl(p->params->base_reg, p)
 #define pll_readl_misc(p) pll_readl(p->params->misc_reg, p)
@@ -1009,6 +1055,110 @@ static unsigned long clk_plle_recalc_rate(struct clk_hw *hw,
 	return rate;
 }
 
+/*
+ * Structure defining the fields for USB UTMI clocks Parameters.
+ */
+struct utmi_clk_param {
+	/* Oscillator Frequency in Hz */
+	u32 osc_frequency;
+	/* UTMIP PLL Enable Delay Count  */
+	u8 enable_delay_count;
+	/* UTMIP PLL Stable count */
+	u8 stable_count;
+	/*  UTMIP PLL Active delay count */
+	u8 active_delay_count;
+	/* UTMIP PLL Xtal frequency count */
+	u8 xtal_freq_count;
+};
+
+static const struct utmi_clk_param utmi_parameters[] = {
+	{ .osc_frequency = 13000000, .enable_delay_count = 0x02,
+	  .stable_count = 0x33, .active_delay_count = 0x05,
+	  .xtal_freq_count = 0x7f },
+	{ .osc_frequency = 19200000, .enable_delay_count = 0x03,
+	  .stable_count = 0x4b, .active_delay_count = 0x06,
+	  .xtal_freq_count = 0xbb },
+	{ .osc_frequency = 12000000, .enable_delay_count = 0x02,
+	  .stable_count = 0x2f, .active_delay_count = 0x04,
+	  .xtal_freq_count = 0x76 },
+	{ .osc_frequency = 26000000, .enable_delay_count = 0x04,
+	  .stable_count = 0x66, .active_delay_count = 0x09,
+	  .xtal_freq_count = 0xfe },
+	{ .osc_frequency = 16800000, .enable_delay_count = 0x03,
+	  .stable_count = 0x41, .active_delay_count = 0x0a,
+	  .xtal_freq_count = 0xa4 },
+	{ .osc_frequency = 38400000, .enable_delay_count = 0x0,
+	  .stable_count = 0x0, .active_delay_count = 0x6,
+	  .xtal_freq_count = 0x80 },
+};
+
+static int clk_pllu_enable(struct clk_hw *hw)
+{
+	struct tegra_clk_pll *pll = to_clk_pll(hw);
+	unsigned long flags, input_rate;
+	unsigned int i;
+	int ret = 0;
+	u32 val;
+
+	input_rate = clk_get_rate(clk_get_parent(clk_get_parent(hw->clk)));
+
+	if (pll->lock)
+		spin_lock_irqsave(pll->lock, flags);
+
+	_clk_pll_enable(hw);
+	ret = clk_pll_wait_for_lock(pll);
+	if (ret < 0)
+		goto out;
+
+	for (i = 0; i < ARRAY_SIZE(utmi_parameters); i++) {
+		if (input_rate == utmi_parameters[i].osc_frequency)
+			break;
+	}
+
+	if (i == ARRAY_SIZE(utmi_parameters)) {
+		pr_err("%s: Unexpected input rate %lu\n", __func__, input_rate);
+		ret = -EINVAL;
+		goto out;
+	}
+
+	val = pll_readl_base(pll);
+	val &= ~PLLU_BASE_OVERRIDE;
+	pll_writel_base(val, pll);
+
+	val = readl_relaxed(pll->clk_base + UTMIP_PLL_CFG2);
+	/* Program UTMIP PLL stable and active counts */
+	val &= ~UTMIP_PLL_CFG2_STABLE_COUNT(~0);
+	val |= UTMIP_PLL_CFG2_STABLE_COUNT(utmi_parameters[i].stable_count);
+	val &= ~UTMIP_PLL_CFG2_ACTIVE_DLY_COUNT(~0);
+	val |= UTMIP_PLL_CFG2_ACTIVE_DLY_COUNT(
+			utmi_parameters[i].active_delay_count);
+	/* Remove power downs from UTMIP PLL control bits */
+	val &= ~UTMIP_PLL_CFG2_FORCE_PD_SAMP_A_POWERDOWN;
+	val &= ~UTMIP_PLL_CFG2_FORCE_PD_SAMP_B_POWERDOWN;
+	val &= ~UTMIP_PLL_CFG2_FORCE_PD_SAMP_C_POWERDOWN;
+	writel_relaxed(val, pll->clk_base + UTMIP_PLL_CFG2);
+
+	val = readl_relaxed(pll->clk_base + UTMIP_PLL_CFG1);
+	/* Program UTMIP PLL delay and oscillator frequency counts */
+	val &= ~UTMIP_PLL_CFG1_ENABLE_DLY_COUNT(~0);
+	val |= UTMIP_PLL_CFG1_ENABLE_DLY_COUNT(
+		utmi_parameters[i].enable_delay_count);
+	val &= ~UTMIP_PLL_CFG1_XTAL_FREQ_COUNT(~0);
+	val |= UTMIP_PLL_CFG1_XTAL_FREQ_COUNT(
+		utmi_parameters[i].xtal_freq_count);
+	/* Remove power downs from UTMIP PLL control bits */
+	val &= ~UTMIP_PLL_CFG1_FORCE_PLL_ENABLE_POWERDOWN;
+	val &= ~UTMIP_PLL_CFG1_FORCE_PLL_ACTIVE_POWERDOWN;
+	val &= ~UTMIP_PLL_CFG1_FORCE_PLLU_POWERDOWN;
+	writel_relaxed(val, pll->clk_base + UTMIP_PLL_CFG1);
+
+out:
+	if (pll->lock)
+		spin_unlock_irqrestore(pll->lock, flags);
+
+	return ret;
+}
+
 static int clk_pll_prepare(struct clk_hw *hw)
 {
 	struct tegra_clk_pll *pll = to_clk_pll(hw);
@@ -1052,6 +1202,15 @@ const struct clk_ops tegra_clk_plle_ops = {
 	.is_enabled = clk_pll_is_enabled,
 	.disable = clk_pll_disable,
 	.enable = clk_plle_enable,
+	.prepare = clk_pll_prepare,
+	.unprepare = clk_pll_unprepare,
+};
+
+static const struct clk_ops tegra_clk_pllu_ops = {
+	.is_enabled = clk_pll_is_enabled,
+	.enable = clk_pllu_enable,
+	.disable = clk_pll_disable,
+	.recalc_rate = clk_pll_recalc_rate,
 	.prepare = clk_pll_prepare,
 	.unprepare = clk_pll_unprepare,
 };
@@ -1589,6 +1748,104 @@ static void clk_plle_tegra114_disable(struct clk_hw *hw)
 		spin_unlock_irqrestore(pll->lock, flags);
 }
 
+static int clk_pllu_tegra114_enable(struct clk_hw *hw)
+{
+	struct tegra_clk_pll *pll = to_clk_pll(hw);
+	unsigned long flags, input_rate;
+	unsigned int i;
+	int ret = 0;
+	u32 val;
+
+	input_rate = clk_get_rate(clk_get_parent(clk_get_parent(hw->clk)));
+
+	if (pll->lock)
+		spin_lock_irqsave(pll->lock, flags);
+
+	_clk_pll_enable(hw);
+	ret = clk_pll_wait_for_lock(pll);
+	if (ret < 0)
+		goto out;
+
+	for (i = 0; i < ARRAY_SIZE(utmi_parameters); i++) {
+		if (input_rate == utmi_parameters[i].osc_frequency)
+			break;
+	}
+
+	if (i == ARRAY_SIZE(utmi_parameters)) {
+		pr_err("%s: Unexpected input rate %lu\n", __func__, input_rate);
+		ret = -EINVAL;
+		goto out;
+	}
+
+	val = pll_readl_base(pll);
+	val &= ~PLLU_BASE_OVERRIDE;
+	pll_writel_base(val, pll);
+
+	val = readl_relaxed(pll->clk_base + UTMIP_PLL_CFG2);
+	/* Program UTMIP PLL stable and active counts */
+	val &= ~UTMIP_PLL_CFG2_STABLE_COUNT(~0);
+	val |= UTMIP_PLL_CFG2_STABLE_COUNT(utmi_parameters[i].stable_count);
+	val &= ~UTMIP_PLL_CFG2_ACTIVE_DLY_COUNT(~0);
+	val |= UTMIP_PLL_CFG2_ACTIVE_DLY_COUNT(
+			utmi_parameters[i].active_delay_count);
+	/* Remove power downs from UTMIP PLL control bits */
+	val &= ~UTMIP_PLL_CFG2_FORCE_PD_SAMP_A_POWERDOWN;
+	val &= ~UTMIP_PLL_CFG2_FORCE_PD_SAMP_B_POWERDOWN;
+	val &= ~UTMIP_PLL_CFG2_FORCE_PD_SAMP_C_POWERDOWN;
+	writel_relaxed(val, pll->clk_base + UTMIP_PLL_CFG2);
+
+	val = readl_relaxed(pll->clk_base + UTMIP_PLL_CFG1);
+	/* Program UTMIP PLL delay and oscillator frequency counts */
+	val &= ~UTMIP_PLL_CFG1_ENABLE_DLY_COUNT(~0);
+	val |= UTMIP_PLL_CFG1_ENABLE_DLY_COUNT(
+		utmi_parameters[i].enable_delay_count);
+	val &= ~UTMIP_PLL_CFG1_XTAL_FREQ_COUNT(~0);
+	val |= UTMIP_PLL_CFG1_XTAL_FREQ_COUNT(
+		utmi_parameters[i].xtal_freq_count);
+	/* Remove power downs from UTMIP PLL control bits */
+	val &= ~UTMIP_PLL_CFG1_FORCE_PLL_ENABLE_POWERDOWN;
+	val &= ~UTMIP_PLL_CFG1_FORCE_PLL_ACTIVE_POWERDOWN;
+	val &= ~UTMIP_PLL_CFG1_FORCE_PLLU_POWERUP;
+	val &= ~UTMIP_PLL_CFG1_FORCE_PLLU_POWERDOWN;
+	writel_relaxed(val, pll->clk_base + UTMIP_PLL_CFG1);
+
+	/* Setup HW control of UTMIPLL */
+	val = readl_relaxed(pll->clk_base + UTMIPLL_HW_PWRDN_CFG0);
+	val |= UTMIPLL_HW_PWRDN_CFG0_USE_LOCKDET;
+	val &= ~UTMIPLL_HW_PWRDN_CFG0_CLK_ENABLE_SWCTL;
+	val |= UTMIPLL_HW_PWRDN_CFG0_SEQ_START_STATE;
+	writel_relaxed(val, pll->clk_base + UTMIPLL_HW_PWRDN_CFG0);
+
+	val = readl_relaxed(pll->clk_base + UTMIP_PLL_CFG1);
+	val &= ~UTMIP_PLL_CFG1_FORCE_PLL_ENABLE_POWERUP;
+	val &= ~UTMIP_PLL_CFG1_FORCE_PLL_ENABLE_POWERDOWN;
+	writel_relaxed(val, pll->clk_base + UTMIP_PLL_CFG1);
+
+	udelay(1);
+
+	/*
+	 * Setup SW override of UTMIPLL assuming USB2.0 ports are assigned
+	 * to USB2
+	 */
+	val = readl_relaxed(pll->clk_base + UTMIPLL_HW_PWRDN_CFG0);
+	val |= UTMIPLL_HW_PWRDN_CFG0_IDDQ_SWCTL;
+	val &= ~UTMIPLL_HW_PWRDN_CFG0_IDDQ_OVERRIDE;
+	writel_relaxed(val, pll->clk_base + UTMIPLL_HW_PWRDN_CFG0);
+
+	udelay(1);
+
+	/* Enable HW control of UTMIPLL */
+	val = readl_relaxed(pll->clk_base + UTMIPLL_HW_PWRDN_CFG0);
+	val |= UTMIPLL_HW_PWRDN_CFG0_SEQ_ENABLE;
+	writel_relaxed(val, pll->clk_base + UTMIPLL_HW_PWRDN_CFG0);
+
+out:
+	if (pll->lock)
+		spin_unlock_irqrestore(pll->lock, flags);
+
+	return ret;
+}
+
 static void _clk_plle_tegra_init_parent(struct tegra_clk_pll *pll)
 {
 	u32 val, val_aux;
@@ -1608,7 +1865,6 @@ static void _clk_plle_tegra_init_parent(struct tegra_clk_pll *pll)
 		val_aux &= ~(PLLE_AUX_PLLRE_SEL | PLLE_AUX_PLLP_SEL);
 		pll_writel(val, pll->params->aux_reg, pll);
 	}
-
 }
 #endif
 
@@ -1715,6 +1971,27 @@ struct clk *tegra_clk_register_plle(const char *name, const char *parent_name,
 	return clk;
 }
 
+struct clk *tegra_clk_register_pllu(const char *name, const char *parent_name,
+		void __iomem *clk_base, unsigned long flags,
+		struct tegra_clk_pll_params *pll_params, spinlock_t *lock)
+{
+	struct tegra_clk_pll *pll;
+	struct clk *clk;
+
+	pll_params->flags |= TEGRA_PLLU;
+
+	pll = _tegra_init_pll(clk_base, NULL, pll_params, lock);
+	if (IS_ERR(pll))
+		return ERR_CAST(pll);
+
+	clk = _tegra_clk_register_pll(pll, name, parent_name, flags,
+				      &tegra_clk_pllu_ops);
+	if (IS_ERR(clk))
+		kfree(pll);
+
+	return clk;
+}
+
 #if defined(CONFIG_ARCH_TEGRA_114_SOC) || \
 	defined(CONFIG_ARCH_TEGRA_124_SOC) || \
 	defined(CONFIG_ARCH_TEGRA_132_SOC) || \
@@ -1766,6 +2043,15 @@ static const struct clk_ops tegra_clk_plle_tegra114_ops = {
 	.unprepare = clk_pll_unprepare,
 };
 
+static const struct clk_ops tegra_clk_pllu_tegra114_ops = {
+	.is_enabled =  clk_pll_is_enabled,
+	.is_prepared = clk_pll_is_prepared,
+	.enable = clk_pllu_tegra114_enable,
+	.disable = clk_pll_disable,
+	.recalc_rate = clk_pll_recalc_rate,
+	.prepare = clk_pll_prepare,
+	.unprepare = clk_pll_unprepare,
+};
 
 struct clk *tegra_clk_register_pllxc(const char *name, const char *parent_name,
 			  void __iomem *clk_base, void __iomem *pmc,
@@ -2018,6 +2304,28 @@ struct clk *tegra_clk_register_plle_tegra114(const char *name,
 
 	return clk;
 }
+
+struct clk *tegra_clk_register_pllu_tegra114(const char *name,
+		const char *parent_name, void __iomem *clk_base,
+		unsigned long flags, struct tegra_clk_pll_params *pll_params,
+		spinlock_t *lock)
+{
+	struct tegra_clk_pll *pll;
+	struct clk *clk;
+
+	pll_params->flags |= TEGRA_PLLU;
+
+	pll = _tegra_init_pll(clk_base, NULL, pll_params, lock);
+	if (IS_ERR(pll))
+		return ERR_CAST(pll);
+
+	clk = _tegra_clk_register_pll(pll, name, parent_name, flags,
+				      &tegra_clk_pllu_tegra114_ops);
+	if (IS_ERR(clk))
+		kfree(pll);
+
+	return clk;
+}
 #endif
 
 #if defined(CONFIG_ARCH_TEGRA_124_SOC) || \
@@ -2246,11 +2554,153 @@ static int clk_plle_tegra210_is_enabled(struct clk_hw *hw)
 	return val & PLLE_BASE_ENABLE ? 1 : 0;
 }
 
+static int clk_pllu_tegra210_enable(struct clk_hw *hw)
+{
+	struct tegra_clk_pll *pll = to_clk_pll(hw);
+	unsigned long flags, input_rate;
+	unsigned int i;
+	int ret = 0;
+	u32 val;
+
+	input_rate = clk_get_rate(clk_get_parent(clk_get_parent(hw->clk)));
+
+	if (pll->lock)
+		spin_lock_irqsave(pll->lock, flags);
+
+	_clk_pll_enable(hw);
+	ret = clk_pll_wait_for_lock(pll);
+	if (ret < 0)
+		goto out;
+
+	for (i = 0; i < ARRAY_SIZE(utmi_parameters); i++) {
+		if (input_rate == utmi_parameters[i].osc_frequency)
+			break;
+	}
+
+	if (i == ARRAY_SIZE(utmi_parameters)) {
+		pr_err("%s: Unexpected input rate %lu\n", __func__, input_rate);
+		ret = -EINVAL;
+		goto out;
+	}
+
+	val = pll_readl_base(pll);
+	val &= ~PLLU_BASE_OVERRIDE;
+	pll_writel_base(val, pll);
+
+	/* Put PLLU under HW control */
+	val = readl_relaxed(pll->clk_base + PLLU_HW_PWRDN_CFG0);
+	val |= PLLU_HW_PWRDN_CFG0_IDDQ_PD_INCLUDE |
+	       PLLU_HW_PWRDN_CFG0_USE_SWITCH_DETECT |
+	       PLLU_HW_PWRDN_CFG0_USE_LOCKDET;
+	val &= ~(PLLU_HW_PWRDN_CFG0_CLK_ENABLE_SWCTL |
+		  PLLU_HW_PWRDN_CFG0_CLK_SWITCH_SWCTL);
+	writel_relaxed(val, pll->clk_base + PLLU_HW_PWRDN_CFG0);
+
+	val = readl_relaxed(pll->clk_base + XUSB_PLL_CFG0);
+	val &= ~XUSB_PLL_CFG0_PLLU_LOCK_DLY;
+	writel_relaxed(val, pll->clk_base + XUSB_PLL_CFG0);
+	udelay(1);
+
+	val = readl_relaxed(pll->clk_base + PLLU_HW_PWRDN_CFG0);
+	val |= PLLU_HW_PWRDN_CFG0_SEQ_ENABLE;
+	writel_relaxed(val, pll->clk_base + PLLU_HW_PWRDN_CFG0);
+	udelay(1);
+
+	/* Disable PLLU clock branch to UTMIPLL since it uses OSC */
+	val = pll_readl_base(pll);
+	val &= ~PLLU_BASE_CLKENABLE_USB;
+	pll_writel_base(val, pll);
+
+	val = readl_relaxed(pll->clk_base + UTMIPLL_HW_PWRDN_CFG0);
+	if (val & UTMIPLL_HW_PWRDN_CFG0_SEQ_ENABLE) {
+		pr_debug("UTMIPLL already enabled\n");
+		goto out;
+	}
+	val &= ~UTMIPLL_HW_PWRDN_CFG0_IDDQ_OVERRIDE;
+	writel_relaxed(val, pll->clk_base + UTMIPLL_HW_PWRDN_CFG0);
+
+	/* Program UTMIP PLL stable and active counts */
+	val = readl_relaxed(pll->clk_base + UTMIP_PLL_CFG2);
+	val &= ~UTMIP_PLL_CFG2_STABLE_COUNT(~0);
+	val |= UTMIP_PLL_CFG2_STABLE_COUNT(utmi_parameters[i].stable_count);
+	val &= ~UTMIP_PLL_CFG2_ACTIVE_DLY_COUNT(~0);
+	val |= UTMIP_PLL_CFG2_ACTIVE_DLY_COUNT(
+			utmi_parameters[i].active_delay_count);
+	writel_relaxed(val, pll->clk_base + UTMIP_PLL_CFG2);
+
+	/* Program UTMIP PLL delay and oscillator frequency counts */
+	val = readl_relaxed(pll->clk_base + UTMIP_PLL_CFG1);
+	val &= ~UTMIP_PLL_CFG1_ENABLE_DLY_COUNT(~0);
+	val |= UTMIP_PLL_CFG1_ENABLE_DLY_COUNT(
+		utmi_parameters[i].enable_delay_count);
+	val &= ~UTMIP_PLL_CFG1_XTAL_FREQ_COUNT(~0);
+	val |= UTMIP_PLL_CFG1_XTAL_FREQ_COUNT(
+		utmi_parameters[i].xtal_freq_count);
+	writel_relaxed(val, pll->clk_base + UTMIP_PLL_CFG1);
+
+	/* Remove power downs from UTMIP PLL control bits */
+	val = readl_relaxed(pll->clk_base + UTMIP_PLL_CFG1);
+	val &= ~UTMIP_PLL_CFG1_FORCE_PLL_ENABLE_POWERDOWN;
+	val |= UTMIP_PLL_CFG1_FORCE_PLL_ENABLE_POWERUP;
+	writel_relaxed(val, pll->clk_base + UTMIP_PLL_CFG1);
+	udelay(100);
+
+	/* Enable samplers for SNPS, XUSB_HOST, XUSB_DEV */
+	val = readl_relaxed(pll->clk_base + UTMIP_PLL_CFG2);
+	val |= UTMIP_PLL_CFG2_FORCE_PD_SAMP_A_POWERUP;
+	val |= UTMIP_PLL_CFG2_FORCE_PD_SAMP_B_POWERUP;
+	val |= UTMIP_PLL_CFG2_FORCE_PD_SAMP_D_POWERUP;
+	val &= ~UTMIP_PLL_CFG2_FORCE_PD_SAMP_A_POWERDOWN;
+	val &= ~UTMIP_PLL_CFG2_FORCE_PD_SAMP_B_POWERDOWN;
+	val &= ~UTMIP_PLL_CFG2_FORCE_PD_SAMP_D_POWERDOWN;
+	writel_relaxed(val, pll->clk_base + UTMIP_PLL_CFG2);
+
+	/* Setup HW control of UTMIPLL */
+	val = readl_relaxed(pll->clk_base + UTMIP_PLL_CFG1);
+	val &= ~UTMIP_PLL_CFG1_FORCE_PLL_ENABLE_POWERUP;
+	val &= ~UTMIP_PLL_CFG1_FORCE_PLL_ENABLE_POWERDOWN;
+	writel_relaxed(val, pll->clk_base + UTMIP_PLL_CFG1);
+
+	val = readl_relaxed(pll->clk_base + UTMIPLL_HW_PWRDN_CFG0);
+	val |= UTMIPLL_HW_PWRDN_CFG0_USE_LOCKDET;
+	val &= ~UTMIPLL_HW_PWRDN_CFG0_CLK_ENABLE_SWCTL;
+	writel_relaxed(val, pll->clk_base + UTMIPLL_HW_PWRDN_CFG0);
+
+	udelay(1);
+
+	val = readl_relaxed(pll->clk_base + XUSB_PLL_CFG0);
+	val &= ~XUSB_PLL_CFG0_UTMIPLL_LOCK_DLY;
+	writel_relaxed(val, pll->clk_base + XUSB_PLL_CFG0);
+
+	udelay(1);
+
+	/* Enable HW control of UTMIPLL */
+	val = readl_relaxed(pll->clk_base + UTMIPLL_HW_PWRDN_CFG0);
+	val |= UTMIPLL_HW_PWRDN_CFG0_SEQ_ENABLE;
+	writel_relaxed(val, pll->clk_base + UTMIPLL_HW_PWRDN_CFG0);
+
+out:
+	if (pll->lock)
+		spin_unlock_irqrestore(pll->lock, flags);
+
+	return ret;
+}
+
 static const struct clk_ops tegra_clk_plle_tegra210_ops = {
 	.is_enabled =  clk_plle_tegra210_is_enabled,
 	.enable = clk_plle_tegra210_enable,
 	.disable = clk_plle_tegra210_disable,
 	.recalc_rate = clk_pll_recalc_rate,
+};
+
+static const struct clk_ops tegra_clk_pllu_tegra210_ops = {
+	.is_enabled =  clk_pll_is_enabled,
+	.is_prepared = clk_pll_is_prepared,
+	.enable = clk_pllu_tegra210_enable,
+	.disable = clk_pll_disable,
+	.recalc_rate = clk_pllre_recalc_rate,
+	.prepare = clk_pll_prepare,
+	.unprepare = clk_pll_unprepare,
 };
 
 struct clk *tegra_clk_register_plle_tegra210(const char *name,
@@ -2472,6 +2922,28 @@ struct clk *tegra_clk_register_pllmb(const char *name, const char *parent_name,
 
 	clk = _tegra_clk_register_pll(pll, name, parent_name, flags,
 				      &tegra_clk_pll_ops);
+	if (IS_ERR(clk))
+		kfree(pll);
+
+	return clk;
+}
+
+struct clk *tegra_clk_register_pllu_tegra210(const char *name,
+		const char *parent_name, void __iomem *clk_base,
+		unsigned long flags, struct tegra_clk_pll_params *pll_params,
+		spinlock_t *lock)
+{
+	struct tegra_clk_pll *pll;
+	struct clk *clk;
+
+	pll_params->flags |= TEGRA_PLLU;
+
+	pll = _tegra_init_pll(clk_base, NULL, pll_params, lock);
+	if (IS_ERR(pll))
+		return ERR_CAST(pll);
+
+	clk = _tegra_clk_register_pll(pll, name, parent_name, flags,
+				      &tegra_clk_pllu_tegra210_ops);
 	if (IS_ERR(clk))
 		kfree(pll);
 
