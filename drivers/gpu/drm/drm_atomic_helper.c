@@ -367,6 +367,20 @@ drm_atomic_helper_check_modeset(struct drm_device *dev,
 	struct drm_connector_state *connector_state;
 	int i, ret;
 
+	for_each_crtc_in_state(state, crtc, crtc_state, i) {
+		if (!drm_mode_equal(&crtc->state->mode, &crtc_state->mode)) {
+			DRM_DEBUG_ATOMIC("[CRTC:%d] mode changed\n",
+					 crtc->base.id);
+			crtc_state->mode_changed = true;
+		}
+
+		if (crtc->state->enable != crtc_state->enable) {
+			DRM_DEBUG_ATOMIC("[CRTC:%d] enable changed\n",
+					 crtc->base.id);
+			crtc_state->mode_changed = true;
+		}
+	}
+
 	for_each_connector_in_state(state, connector, connector_state, i) {
 		/*
 		 * This only sets crtc->mode_changed for routing changes,
@@ -1507,9 +1521,8 @@ retry:
 		WARN_ON(set->fb);
 		WARN_ON(set->num_connectors);
 
-		ret = drm_atomic_set_mode_for_crtc(crtc_state, NULL);
-		if (ret != 0)
-			goto fail;
+		crtc_state->enable = false;
+		crtc_state->active = false;
 
 		ret = drm_atomic_set_crtc_for_plane(primary_state, NULL);
 		if (ret != 0)
@@ -1523,10 +1536,9 @@ retry:
 	WARN_ON(!set->fb);
 	WARN_ON(!set->num_connectors);
 
-	ret = drm_atomic_set_mode_for_crtc(crtc_state, set->mode);
-	if (ret != 0)
-		goto fail;
+	crtc_state->enable = true;
 	crtc_state->active = true;
+	drm_mode_copy(&crtc_state->mode, set->mode);
 
 	ret = drm_atomic_set_crtc_for_plane(primary_state, crtc);
 	if (ret != 0)
@@ -1938,8 +1950,6 @@ EXPORT_SYMBOL(drm_atomic_helper_connector_dpms);
  */
 void drm_atomic_helper_crtc_reset(struct drm_crtc *crtc)
 {
-	if (crtc->state && crtc->state->mode_blob)
-		drm_property_unreference_blob(crtc->state->mode_blob);
 	kfree(crtc->state);
 	crtc->state = kzalloc(sizeof(*crtc->state), GFP_KERNEL);
 
@@ -1961,8 +1971,6 @@ void __drm_atomic_helper_crtc_duplicate_state(struct drm_crtc *crtc,
 {
 	memcpy(state, crtc->state, sizeof(*state));
 
-	if (state->mode_blob)
-		drm_property_reference_blob(state->mode_blob);
 	state->mode_changed = false;
 	state->active_changed = false;
 	state->planes_changed = false;
@@ -2005,8 +2013,11 @@ EXPORT_SYMBOL(drm_atomic_helper_crtc_duplicate_state);
 void __drm_atomic_helper_crtc_destroy_state(struct drm_crtc *crtc,
 					    struct drm_crtc_state *state)
 {
-	if (state->mode_blob)
-		drm_property_unreference_blob(state->mode_blob);
+	/*
+	 * This is currently a placeholder so that drivers that subclass the
+	 * state will automatically do the right thing if code is ever added
+	 * to this function.
+	 */
 }
 EXPORT_SYMBOL(__drm_atomic_helper_crtc_destroy_state);
 

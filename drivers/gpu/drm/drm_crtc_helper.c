@@ -939,43 +939,47 @@ int drm_helper_crtc_mode_set(struct drm_crtc *crtc, struct drm_display_mode *mod
 
 	if (crtc->funcs->atomic_duplicate_state)
 		crtc_state = crtc->funcs->atomic_duplicate_state(crtc);
-	else {
+	else if (crtc->state)
+		crtc_state = kmemdup(crtc->state, sizeof(*crtc_state),
+				     GFP_KERNEL);
+	else
 		crtc_state = kzalloc(sizeof(*crtc_state), GFP_KERNEL);
-		if (!crtc_state)
-			return -ENOMEM;
-		if (crtc->state)
-			__drm_atomic_helper_crtc_duplicate_state(crtc, crtc_state);
-		else
-			crtc_state->crtc = crtc;
-	}
+	if (!crtc_state)
+		return -ENOMEM;
+	crtc_state->crtc = crtc;
 
+	crtc_state->enable = true;
 	crtc_state->planes_changed = true;
-	ret = drm_atomic_set_mode_for_crtc(crtc_state, mode);
-	if (ret)
-		goto out;
+	crtc_state->mode_changed = true;
+	drm_mode_copy(&crtc_state->mode, mode);
 	drm_mode_copy(&crtc_state->adjusted_mode, adjusted_mode);
 
 	if (crtc_funcs->atomic_check) {
 		ret = crtc_funcs->atomic_check(crtc, crtc_state);
-		if (ret)
-			goto out;
+		if (ret) {
+			if (crtc->funcs->atomic_destroy_state) {
+				crtc->funcs->atomic_destroy_state(crtc,
+				                                  crtc_state);
+			} else {
+				kfree(crtc_state);
+			}
+
+			return ret;
+		}
 	}
 
 	swap(crtc->state, crtc_state);
 
 	crtc_funcs->mode_set_nofb(crtc);
 
-	ret = drm_helper_crtc_mode_set_base(crtc, x, y, old_fb);
-
-out:
-	if (crtc->funcs->atomic_destroy_state)
-		crtc->funcs->atomic_destroy_state(crtc, crtc_state);
-	else {
-		__drm_atomic_helper_crtc_destroy_state(crtc, crtc_state);
-		kfree(crtc_state);
+	if (crtc_state) {
+		if (crtc->funcs->atomic_destroy_state)
+			crtc->funcs->atomic_destroy_state(crtc, crtc_state);
+		else
+			kfree(crtc_state);
 	}
 
-	return ret;
+	return drm_helper_crtc_mode_set_base(crtc, x, y, old_fb);
 }
 EXPORT_SYMBOL(drm_helper_crtc_mode_set);
 

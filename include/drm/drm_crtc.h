@@ -206,8 +206,7 @@ struct drm_property_blob {
 	struct drm_mode_object base;
 	struct drm_device *dev;
 	struct kref refcount;
-	struct list_head head_global;
-	struct list_head head_file;
+	struct list_head head;
 	size_t length;
 	unsigned char data[];
 };
@@ -286,9 +285,6 @@ struct drm_crtc_state {
 	struct drm_display_mode adjusted_mode;
 
 	struct drm_display_mode mode;
-
-	/* blob property to expose current mode to atomic userspace */
-	struct drm_property_blob *mode_blob;
 
 	struct drm_pending_vblank_event *event;
 
@@ -1094,7 +1090,6 @@ struct drm_mode_config {
 	struct drm_property *prop_fb_id;
 	struct drm_property *prop_crtc_id;
 	struct drm_property *prop_active;
-	struct drm_property *prop_mode_id;
 
 	/* DVI-I properties */
 	struct drm_property *dvi_i_subconnector_property;
@@ -1251,8 +1246,6 @@ extern const char *drm_get_dvi_i_select_name(int val);
 extern const char *drm_get_tv_subconnector_name(int val);
 extern const char *drm_get_tv_select_name(int val);
 extern void drm_fb_release(struct drm_file *file_priv);
-extern void drm_property_destroy_user_blobs(struct drm_device *dev,
-                                            struct drm_file *file_priv);
 extern int drm_mode_group_init_legacy_group(struct drm_device *dev, struct drm_mode_group *group);
 extern void drm_mode_group_destroy(struct drm_mode_group *group);
 extern void drm_reinit_primary_mode_group(struct drm_device *dev);
@@ -1393,10 +1386,6 @@ extern int drm_mode_getproperty_ioctl(struct drm_device *dev,
 				      void *data, struct drm_file *file_priv);
 extern int drm_mode_getblob_ioctl(struct drm_device *dev,
 				  void *data, struct drm_file *file_priv);
-extern int drm_mode_createblob_ioctl(struct drm_device *dev,
-				     void *data, struct drm_file *file_priv);
-extern int drm_mode_destroyblob_ioctl(struct drm_device *dev,
-				      void *data, struct drm_file *file_priv);
 extern int drm_mode_connector_property_set_ioctl(struct drm_device *dev,
 					      void *data, struct drm_file *file_priv);
 extern int drm_mode_getencoder(struct drm_device *dev,
