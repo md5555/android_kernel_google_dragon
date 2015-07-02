@@ -830,7 +830,7 @@ nouveau_drm_open(struct drm_device *dev, struct drm_file *fpriv)
 
 	/* need to bring up power immediately if opening device */
 	ret = pm_runtime_get_sync(dev->dev);
-	if (ret < 0 && ret != -EACCES)
+	if (ret < 0)
 		return ret;
 
 	get_task_comm(tmpname, current);
@@ -921,7 +921,7 @@ nouveau_drm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	long ret;
 
 	ret = pm_runtime_get_sync(dev->dev);
-	if (ret < 0 && ret != -EACCES)
+	if (ret < 0)
 		return ret;
 
 	switch (_IOC_NR(cmd) - DRM_COMMAND_BASE) {
