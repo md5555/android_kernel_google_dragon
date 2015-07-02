@@ -342,6 +342,8 @@ static int mtk_rtc_probe(struct platform_device *pdev)
 		goto out_dispose_irq;
 	}
 
+	device_init_wakeup(&pdev->dev, 1);
+
 	rtc->rtc_dev = rtc_device_register("mt6397-rtc", &pdev->dev,
 					   &mtk_rtc_ops, THIS_MODULE);
 	if (IS_ERR(rtc->rtc_dev)) {
@@ -349,8 +351,6 @@ static int mtk_rtc_probe(struct platform_device *pdev)
 		ret = PTR_ERR(rtc->rtc_dev);
 		goto out_free_irq;
 	}
-
-	device_init_wakeup(&pdev->dev, 1);
 
 	return 0;
 
