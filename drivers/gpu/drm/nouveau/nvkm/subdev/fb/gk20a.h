@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2015, NVIDIA CORPORATION. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -20,47 +20,16 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#include "gf100.h"
-#include "gk20a.h"
+#ifndef __GK20A_FB_H__
+#define __GK20A_FB_H__
 
-int
-gk20a_fb_init(struct nvkm_object *object)
-{
-	struct gk20a_fb_priv *priv = (void *)object;
-	int ret;
+struct gk20a_fb_priv {
+	struct nvkm_fb base;
+};
 
-	ret = nvkm_fb_init(&priv->base);
-	if (ret)
-		return ret;
-
-	nv_mask(priv, 0x100c80, 0x00000001, 0x00000000); /* 128KiB lpg */
-	return 0;
-}
-
-int
-gk20a_fb_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
+int gk20a_fb_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	      struct nvkm_oclass *oclass, void *data, u32 size,
-	      struct nvkm_object **pobject)
-{
-	struct gk20a_fb_priv *priv;
-	int ret;
+	      struct nvkm_object **pobject);
+int gk20a_fb_init(struct nvkm_object *object);
 
-	ret = nvkm_fb_create(parent, engine, oclass, &priv);
-	*pobject = nv_object(priv);
-	if (ret)
-		return ret;
-
-	return 0;
-}
-
-struct nvkm_oclass *
-gk20a_fb_oclass = &(struct nvkm_fb_impl) {
-	.base.handle = NV_SUBDEV(FB, 0xea),
-	.base.ofuncs = &(struct nvkm_ofuncs) {
-		.ctor = gk20a_fb_ctor,
-		.dtor = _nvkm_fb_dtor,
-		.init = gk20a_fb_init,
-		.fini = _nvkm_fb_fini,
-	},
-	.memtype = gf100_fb_memtype_valid,
-}.base;
+#endif

@@ -102,6 +102,7 @@ extern struct nvkm_oclass *gf100_fb_oclass;
 extern struct nvkm_oclass *gk104_fb_oclass;
 extern struct nvkm_oclass *gk20a_fb_oclass;
 extern struct nvkm_oclass *gm107_fb_oclass;
+extern struct nvkm_oclass *gm20b_fb_oclass;
 
 #include <subdev/bios.h>
 #include <subdev/bios/ramcfg.h>
