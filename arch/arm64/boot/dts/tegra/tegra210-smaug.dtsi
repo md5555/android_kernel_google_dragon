@@ -727,8 +727,8 @@
 		compatible = "maxim,max77621";
 		reg = <0x1b>;
 		regulator-name = "PPVAR_CPU";
-		regulator-min-microvolt = <850000>;
-		regulator-max-microvolt = <1170000>;
+		regulator-min-microvolt = <800000>;
+		regulator-max-microvolt = <1175000>;
 		maxim,externally-enable;
 		maxim,external-control-gpio = <&max77620 5 0>;
 		maxim,dvs-default-state = <1>;
