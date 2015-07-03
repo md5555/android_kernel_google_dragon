@@ -352,6 +352,8 @@ static int tegra_dpaux_probe(struct platform_device *pdev)
 		return err;
 	}
 
+	disable_irq(dpaux->irq);
+
 	dpaux->aux.transfer = tegra_dpaux_transfer;
 	dpaux->aux.dev = &pdev->dev;
 
@@ -461,13 +463,19 @@ int tegra_dpaux_attach(struct tegra_dpaux *dpaux, struct tegra_output *output)
 	if (err < 0)
 		return err;
 
-	return wait_for(tegra_dpaux_detect(dpaux) == connector_status_connected,
+	err = wait_for(tegra_dpaux_detect(dpaux) == connector_status_connected,
 			250);
+	if (!err)
+		enable_irq(dpaux->irq);
+
+	return err;
 }
 
 int tegra_dpaux_detach(struct tegra_dpaux *dpaux)
 {
 	int err;
+
+	disable_irq(dpaux->irq);
 
 	err = regulator_disable(dpaux->vdd);
 	if (err < 0)
