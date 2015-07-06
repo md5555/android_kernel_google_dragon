@@ -682,7 +682,7 @@ gm20b_lock_gpcpll_under_bypass(struct gm20b_clk_priv *priv,
 		udelay(5);
 	} else {
 		/* clear SYNC_MODE before disabling PLL */
-		val &= ~(0x1 << GPCPLL_CFG_SYNC_MODE);
+		val &= ~GPCPLL_CFG_SYNC_MODE;
 		nv_wr32(priv, GPCPLL_CFG, val);
 		nv_rd32(priv, GPCPLL_CFG);
 
@@ -738,7 +738,7 @@ gm20b_lock_gpcpll_under_bypass(struct gm20b_clk_priv *priv,
 pll_locked:
 	/* set SYNC_MODE for glitchless switch out of bypass */
 	val = nv_rd32(priv, GPCPLL_CFG);
-	val |= 0x1 << GPCPLL_CFG_SYNC_MODE;
+	val |= GPCPLL_CFG_SYNC_MODE;
 	nv_wr32(priv, GPCPLL_CFG, val);
 	nv_rd32(priv, GPCPLL_CFG);
 
@@ -1056,7 +1056,7 @@ gm20b_pllg_disable(struct gm20b_clk_priv *priv)
 	nv_mask(priv, SEL_VCO, BIT(SEL_VCO_GPC2CLK_OUT_SHIFT), 0);
 
 	/* clear SYNC_MODE before disabling PLL */
-	nv_mask(priv, GPCPLL_CFG, ~(0x1 << GPCPLL_CFG_SYNC_MODE), 0);
+	nv_mask(priv, GPCPLL_CFG, GPCPLL_CFG_SYNC_MODE, 0);
 
 	_gm20b_pllg_disable(priv);
 }
