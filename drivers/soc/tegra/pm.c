@@ -226,11 +226,7 @@ void tegra_idle_lp2_last(void)
 	cpu_cluster_pm_enter();
 	suspend_cpu_complex();
 
-#ifdef CONFIG_ARM64
-	cpu_suspend(TEGRA_SUSPEND_LP2);
-#else
 	cpu_suspend(PHYS_OFFSET - PAGE_OFFSET, &tegra_sleep_cpu);
-#endif
 
 	restore_cpu_complex();
 	cpu_cluster_pm_exit();
@@ -399,11 +395,7 @@ static int tegra_suspend_enter(suspend_state_t state)
 		break;
 	}
 
-#ifdef CONFIG_ARM64
-	cpu_suspend(mode);
-#else
 	cpu_suspend(PHYS_OFFSET - PAGE_OFFSET, tegra_sleep_func);
-#endif
 
 	switch (mode) {
 	case TEGRA_SUSPEND_LP1:
@@ -462,7 +454,9 @@ static int __init tegra_init_suspend(void)
 		break;
 	}
 
+#ifdef CONFIG_ARM
 	suspend_set_ops(&tegra_suspend_ops);
+#endif
 out:
 	return 0;
 }
