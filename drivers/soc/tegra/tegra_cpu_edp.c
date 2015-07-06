@@ -33,8 +33,7 @@
 #include <soc/tegra/fuse.h>
 #include <soc/tegra/tegra-dvfs.h>
 #include <soc/tegra/tegra-edp.h>
-
-#include "tegra_ppm.h"
+#include <soc/tegra/tegra-ppm.h>
 
 struct cpu_edp_platform_data {
 	char *clk_name;
@@ -384,6 +383,14 @@ static struct notifier_block edp_cpufreq_notifier_block = {
 	.notifier_call = edp_cpufreq_policy_notifier,
 };
 
+static int
+tegra_cpu_edp_predict_millivolts(void *p, unsigned long rate)
+{
+	struct clk *clk = (struct clk *)p;
+
+	return tegra_dvfs_predict_millivolts(clk, rate);
+}
+
 static int tegra_cpu_edp_probe(struct platform_device *pdev)
 {
 	char *name = "cpu_edp";
@@ -418,7 +425,7 @@ static int tegra_cpu_edp_probe(struct platform_device *pdev)
 	cpu_clk = clk_get_sys(NULL, "cclk_g");
 	fv = fv_relation_create(cpu_clk, ctx->pdata.freq_step, 220,
 				tegra_edp_get_max_cpu_freq(), 0,
-				tegra_dvfs_predict_millivolts);
+				tegra_cpu_edp_predict_millivolts);
 	if (IS_ERR_OR_NULL(fv)) {
 		dev_err(&pdev->dev, "Initialize freq/volt data failed\n");
 		return PTR_ERR(fv);

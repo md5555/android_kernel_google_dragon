@@ -26,15 +26,20 @@
 #include <linux/debugfs.h>
 #include <linux/of.h>
 
-#include "tegra_ppm.h"
+#include <soc/tegra/tegra-ppm.h>
 
 #define for_each_fv_entry(fv, fve) \
 	for (fve = fv->table + fv->size - 1; fve >= fv->table; fve--)
 
 struct fv_relation {
 	struct mutex lock;
-	struct clk *c;
-	int (*lookup_voltage)(struct clk*, unsigned long);
+
+	/*
+	 * private data for the lookup_voltage() callback
+	 * normally it will be "struct clk*"
+	 */
+	void *c;
+	int (*lookup_voltage)(void*, unsigned long);
 
 	ssize_t max_size;
 	int freq_step;
@@ -156,10 +161,10 @@ static int fv_relation_update(struct fv_relation *fv)
  *  success. -%ENOMEM or -%EINVAL for the usual reasons. -%ENODATA if
  *  a call to @lookup_voltage or clk_round_rate fails
  */
-struct fv_relation *fv_relation_create(struct clk *c, int freq_step,
+struct fv_relation *fv_relation_create(void *c, int freq_step,
 			ssize_t max_size,
 			unsigned int max_freq, unsigned int min_freq,
-			int (*lookup_voltage)(struct clk *, unsigned long))
+			int (*lookup_voltage)(void *, unsigned long))
 {
 	int ret = 0;
 	struct fv_relation *result;

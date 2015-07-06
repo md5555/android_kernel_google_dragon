@@ -22,8 +22,8 @@
 
 struct fv_relation;
 struct fv_relation *fv_relation_create(
-	struct clk *, int, ssize_t, unsigned int, unsigned int,
-	int (*)(struct clk *, unsigned long));
+	void *, int, ssize_t, unsigned int, unsigned int,
+	int (*)(void *, unsigned long));
 void fv_relation_destroy(struct fv_relation *);
 
 #define TEGRA_PPM_MAX_CORES 4
