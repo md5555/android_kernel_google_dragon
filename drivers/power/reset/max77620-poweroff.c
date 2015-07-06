@@ -203,7 +203,7 @@ static int max77620_poweroff_probe(struct platform_device *pdev)
 #endif
 
 	max77620_pm_poweroff = max77620_poweroff;
-	if (!pm_power_off)
+	if (use_power_off)
 		pm_power_off = max77620_pm_power_off;
 
 	ret = max77620_reg_read(max77620_poweroff->max77620->dev,
