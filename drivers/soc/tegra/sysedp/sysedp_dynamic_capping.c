@@ -127,7 +127,11 @@ static void apply_caps(struct tegra_sysedp_devcap *devcap)
 		do_trace = true;
 	}
 
-	/* TODO: GPU frequency */
+	if ((new.gpu_cap != cur_caps.gpu_cap) &&
+	    (capping_data->gpu_cap_as_mw)) {
+		pm_qos_update_request(&gpupwr_qos, new.gpu_cap);
+		do_trace = true;
+	}
 
 	if (do_trace)
 		trace_sysedp_dynamic_capping(new.cpu_power, new.gpu_cap,
