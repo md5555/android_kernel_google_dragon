@@ -77,6 +77,7 @@ struct usb_dev_state {
 	unsigned long ifclaimed;
 	u32 secid;
 	u32 disabled_bulk_eps;
+	bool privileges_dropped;
 };
 
 struct async {
@@ -877,7 +878,7 @@ static int usbdev_open(struct inode *inode, struct file *file)
 	int ret;
 
 	ret = -ENOMEM;
-	ps = kmalloc(sizeof(struct usb_dev_state), GFP_KERNEL);
+	ps = kzalloc(sizeof(struct usb_dev_state), GFP_KERNEL);
 	if (!ps)
 		goto out_free_ps;
 
@@ -910,11 +911,8 @@ static int usbdev_open(struct inode *inode, struct file *file)
 	INIT_LIST_HEAD(&ps->async_pending);
 	INIT_LIST_HEAD(&ps->async_completed);
 	init_waitqueue_head(&ps->wait);
-	ps->discsignr = 0;
 	ps->disc_pid = get_pid(task_pid(current));
 	ps->cred = get_current_cred();
-	ps->disccontext = NULL;
-	ps->ifclaimed = 0;
 	security_task_getsecid(current, &ps->secid);
 	smp_wmb();
 	list_add_tail(&ps->list, &dev->filelist);
@@ -1213,6 +1211,35 @@ static int proc_connectinfo(struct usb_dev_state *ps, void __user *arg)
 
 static int proc_resetdevice(struct usb_dev_state *ps)
 {
+	if (ps->privileges_dropped) {
+		struct usb_host_config *actconfig = ps->dev->actconfig;
+
+		/* Don't touch the device if any interfaces are claimed. It
+		 * could interfere with other drivers' operations and this
+		 * process has dropped its privileges to do such things.
+		 */
+		if (actconfig) {
+			int i;
+
+			for (i = 0; i < actconfig->desc.bNumInterfaces; ++i) {
+				if (usb_interface_claimed(
+					actconfig->interface[i])) {
+					dev_warn(&ps->dev->dev,
+						"usbfs: interface %d claimed by"
+						" %s while '%s'"
+						" resets device\n",
+						actconfig->interface[i]
+							->cur_altsetting
+							->desc.bInterfaceNumber,
+						actconfig->interface[i]
+							->dev.driver->name,
+						current->comm);
+					return -EACCES;
+				}
+			}
+		}
+	}
+
 	return usb_reset_device(ps->dev);
 }
 
@@ -1915,6 +1942,9 @@ static int proc_ioctl(struct usb_dev_state *ps, struct usbdevfs_ioctl *ctl)
 	struct usb_interface    *intf = NULL;
 	struct usb_driver       *driver = NULL;
 
+	if (ps->privileges_dropped)
+		return -EACCES;
+
 	/* alloc buffer */
 	if ((size = _IOC_SIZE(ctl->ioctl_code)) > 0) {
 		buf = kmalloc(size, GFP_KERNEL);
@@ -2075,6 +2105,9 @@ static int proc_disconnect_claim(struct usb_dev_state *ps, void __user *arg)
 					sizeof(dc.driver)) == 0)
 			return -EBUSY;
 
+		if (ps->privileges_dropped)
+			return -EACCES;
+
 		dev_dbg(&intf->dev, "disconnect by usbfs\n");
 		usb_driver_release_interface(driver, intf);
 	}
@@ -2119,6 +2152,12 @@ static int proc_free_streams(struct usb_dev_state *ps, void __user *arg)
 	r = usb_free_streams(intf, eps, num_eps, GFP_KERNEL);
 	kfree(eps);
 	return r;
+}
+
+static int proc_drop_privileges(struct usb_dev_state *ps)
+{
+	ps->privileges_dropped = true;
+	return 0;
 }
 
 /*
@@ -2302,6 +2341,9 @@ static long usbdev_do_ioctl(struct file *file, unsigned int cmd,
 		break;
 	case USBDEVFS_FREE_STREAMS:
 		ret = proc_free_streams(ps, p);
+		break;
+	case USBDEVFS_DROP_PRIVILEGES:
+		ret = proc_drop_privileges(ps);
 		break;
 	}
 	usb_unlock_device(dev);
