@@ -27,9 +27,12 @@
 #include <core/device.h>
 
 #ifdef __KERNEL__
+#include <linux/debugfs.h>
+#include <linux/pm_qos.h>
 #include <linux/thermal.h>
 #include <nouveau_platform.h>
 #include <soc/tegra/fuse.h>
+#include <soc/tegra/tegra-ppm.h>
 #endif
 
 #define KHZ (1000)
@@ -220,6 +223,8 @@ static const struct gm20b_pllg_params gm20b_pllg_params = {
 struct gm20b_clk_thermal {
 	bool in_suspend;
 	struct thermal_cooling_device *throt_cdev;
+	int throt_cur_tstate;
+	int edp_cur_tstate;
 };
 
 struct gm20b_clk_priv {
@@ -238,8 +243,58 @@ struct gm20b_clk_priv {
 	struct gm20b_clk_thermal clk_therm;
 };
 
+#ifdef CONFIG_NOUVEAU_GPU_EDP
+struct gpu_edp_platform_data {
+	int freq_step;
+	int reg_edp;
+};
+
+struct edp_attrs {
+	struct gpu_edp *ctx;
+	int *var;
+	const char *name;
+};
+
+struct gpu_edp {
+	struct gm20b_clk_priv *priv;
+	struct gpu_edp_platform_data pdata;
+	struct tegra_ppm *ppm;
+	struct fv_relation *fv;
+	int temperature;
+	unsigned long freq_limit;
+	unsigned long sysedp_freq_limit;
+	int imax;
+	int sysedp_gpupwr;
+	struct thermal_zone_device *tz;
+	struct thermal_cooling_device *edp_cdev;
+	unsigned long edp_thermal_index;
+	struct mutex edp_lock;
+
+	struct dentry *edp_dir;
+	struct edp_attrs *debugfs_attrs;
+};
+
+static struct gpu_edp s_gpu = {
+	.edp_cdev = NULL,
+
+	/* assume we're running hot */
+	.temperature = 75,
+
+	/* default gpu power (mW) */
+#ifdef CONFIG_TEGRA_SYS_EDP
+	.sysedp_gpupwr = 2000,
+#else
+	/* no gpu power limitation from sysedp */
+	.sysedp_gpupwr = PM_QOS_GPU_POWER_MAX_DEFAULT_VALUE,
+#endif
+};
+#endif
+
 static void gm20b_clk_throttle_cdev_unregister(struct gm20b_clk_priv *priv);
 static int gm20b_clk_throttle_cdev_register(struct gm20b_clk_priv *priv);
+static int gm20b_clk_edp_init(struct gm20b_clk_priv *priv);
+static void gm20b_clk_edp_deinit(struct gm20b_clk_priv *priv);
+static void gpu_edp_update_cap(void);
 
 /*
  * Post divider tarnsition is glitchless only if there is common "1" in
@@ -1252,6 +1307,9 @@ gm20b_clk_fini(struct nvkm_object *object, bool suspend)
 
 	gm20b_pllg_disable(priv);
 
+	if (!suspend)
+		gpu_edp_update_cap();
+
 	priv->clk_therm.in_suspend = suspend;
 
 	return ret;
@@ -1422,6 +1480,7 @@ gm20b_clk_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 
 	priv->clk_therm.in_suspend = true;
 	gm20b_clk_throttle_cdev_register(priv);
+	gm20b_clk_edp_init(priv);
 
 	return 0;
 }
@@ -1431,6 +1490,7 @@ gm20b_clk_dtor(struct nvkm_object *object)
 {
 	struct gm20b_clk_priv *priv = (void *)object;
 
+	gm20b_clk_edp_deinit(priv);
 	gm20b_clk_throttle_cdev_unregister(priv);
 	_nvkm_subdev_dtor(object);
 }
@@ -1448,6 +1508,7 @@ gm20b_clk_oclass = {
 
 #ifdef CONFIG_THERMAL
 /* Implement GPU throttle */
+
 static int
 gm20b_clk_throt_get_cdev_max_state(struct thermal_cooling_device *cdev,
 				unsigned long *max_state)
@@ -1464,9 +1525,7 @@ gm20b_clk_throt_get_cdev_cur_state(struct thermal_cooling_device *cdev,
 				unsigned long *cur_state)
 {
 	struct gm20b_clk_priv *priv = (struct gm20b_clk_priv *)cdev->devdata;
-	struct nvkm_clk *clk = &priv->base;
-
-	*cur_state = -clk->tstate;
+	*cur_state = -priv->clk_therm.throt_cur_tstate;
 	return 0;
 }
 
@@ -1476,11 +1535,18 @@ gm20b_clk_throt_set_cdev_state(struct thermal_cooling_device *cdev,
 {
 	struct gm20b_clk_priv *priv = (struct gm20b_clk_priv *)cdev->devdata;
 	struct nvkm_clk *clk = &priv->base;
+	int tstate, throt_cur_tstate, edp_cur_tstate;
+
+	priv->clk_therm.throt_cur_tstate = -cur_state;
 
 	if (priv->clk_therm.in_suspend)
 		return 0;
 
-	nvkm_clk_tstate(clk, -cur_state, 0);
+	throt_cur_tstate = priv->clk_therm.throt_cur_tstate;
+	edp_cur_tstate = priv->clk_therm.edp_cur_tstate;
+	tstate = min(throt_cur_tstate, edp_cur_tstate);
+	nvkm_clk_tstate(clk, tstate, 0);
+
 	return 0;
 }
 
@@ -1507,6 +1573,7 @@ gm20b_clk_throttle_cdev_register(struct gm20b_clk_priv *priv)
 		nv_error(clk, " No support for gpu_throttle cooling device\n");
 		return -EINVAL;
 	}
+	priv->clk_therm.throt_cur_tstate = 0;
 	tcd = thermal_of_cooling_device_register(child,
 						"gpu_throttle",
 						priv,
@@ -1536,4 +1603,390 @@ gm20b_clk_throttle_cdev_register(struct gm20b_clk_priv *priv)
 }
 static inline void
 gm20b_clk_throttle_cdev_unregister(struct gm20b_clk_priv *priv) {}
-#endif
+#endif /* CONFIG_THERMAL */
+
+#ifdef CONFIG_NOUVEAU_GPU_EDP
+/* Implement GPU EDP */
+
+static int tegra_gpu_edp_parse_dt(struct device_node *np,
+				  struct gpu_edp *ctx)
+{
+	struct gpu_edp_platform_data *pdata = &ctx->pdata;
+	struct device_node *tz_np;
+
+	tz_np = of_parse_phandle(np, "nvidia,tz", 0);
+	if (IS_ERR(tz_np))
+		return -ENODATA;
+	ctx->tz = thermal_zone_get_zone_by_node(tz_np);
+	of_node_put(tz_np);
+	if (IS_ERR(ctx->tz))
+		return -ENODEV;
+
+	if (WARN(of_property_read_u32(np, "nvidia,freq-step",
+				      &pdata->freq_step),
+		 "missing required parameter: nvidia,freq-step\n"))
+		return -ENODATA;
+
+	if (WARN(of_property_read_u32(np, "nvidia,edp-limit",
+				      &pdata->reg_edp),
+		 "missing required parameter: nvidia,edp-limit\n"))
+		return -ENODATA;
+
+	return 0;
+}
+
+static int gm20b_freq_to_pstate(struct nvkm_clk *clk, unsigned long rate)
+{
+	int i;
+	unsigned long domain;
+
+	for (i = clk->state_nr - 1; i >= 0; i--) {
+		domain = gm20b_pstates[i].base.domain[nv_clk_src_gpc];
+		domain *= KHZ;
+		if (rate >= domain)
+			return i;
+	}
+	return 0;
+}
+
+static int
+gm20b_dvfs_predict_millivolts(void *p, unsigned long rate)
+{
+	struct gm20b_clk_priv *priv = (struct gm20b_clk_priv *)p;
+	struct nvkm_volt *volt = nvkm_volt(priv);
+	struct nvkm_clk *clk = &priv->base;
+	int vid = gm20b_freq_to_pstate(clk, rate);
+	int uv;
+
+	uv = volt->get_voltage_by_id(volt, vid);
+	return DIV_ROUND_UP(uv, 1000);
+}
+
+static void gpu_edp_update_cap(void)
+{
+	struct gpu_edp *ctx = &s_gpu;
+	struct nvkm_clk *clk = &ctx->priv->base;
+	unsigned int edp_rate, sysedp_rate, rate;
+	int tstate, throt_cur_tstate, edp_cur_tstate;
+
+	if (!ctx->edp_cdev)
+		return;
+
+	mutex_lock(&ctx->edp_lock);
+
+	/*
+	 * Get temperature, convert from mC to C, and quantize to 4 degrees
+	 * it can keep a balance between functionality and efficiency
+	 */
+	ctx->temperature = DIV_ROUND_UP(ctx->tz->temperature, 4000) * 4;
+
+	edp_rate = tegra_ppm_get_maxf(ctx->ppm, ctx->imax,
+					TEGRA_PPM_UNITS_MILLIAMPS,
+					ctx->temperature, 1);
+	sysedp_rate = tegra_ppm_get_maxf(ctx->ppm, ctx->sysedp_gpupwr,
+					TEGRA_PPM_UNITS_MILLIWATTS,
+					ctx->temperature, 1);
+
+	if ((!edp_rate) || (!sysedp_rate))
+		rate = max(edp_rate, sysedp_rate);
+	else
+		rate = min(edp_rate, sysedp_rate);
+
+	tstate = gm20b_freq_to_pstate(clk, rate * KHZ);
+	tstate = clk->state_nr - 1 - tstate;
+
+	ctx->priv->clk_therm.edp_cur_tstate = -tstate;
+	throt_cur_tstate = ctx->priv->clk_therm.throt_cur_tstate;
+	edp_cur_tstate = ctx->priv->clk_therm.edp_cur_tstate;
+	tstate = min(throt_cur_tstate, edp_cur_tstate);
+
+	nvkm_clk_tstate(clk, tstate, 0);
+
+	mutex_unlock(&ctx->edp_lock);
+}
+
+#ifdef CONFIG_DEBUG_FS
+static int show_edp_max(void *data, u64 *val)
+{
+	struct edp_attrs *attr = data;
+	*val = *attr->var;
+	return 0;
+}
+static int store_edp_max(void *data, u64 val)
+{
+	struct edp_attrs *attr = data;
+	struct gpu_edp *ctx = attr->ctx;
+
+	*attr->var = val;
+
+	if (ctx->priv->clk_therm.in_suspend)
+		return 0;
+
+	gpu_edp_update_cap();
+
+	return 0;
+}
+DEFINE_SIMPLE_ATTRIBUTE(edp_max_fops, show_edp_max, store_edp_max, "%llu\n");
+
+static struct dentry *tegra_gpu_edp_debugfs_init(struct gpu_edp *ctx,
+						const char *name)
+{
+	struct dentry *edp_dir, *file;
+	struct nvkm_clk *clk = &ctx->priv->base;
+	struct edp_attrs *attr;
+	struct edp_attrs attrs[] = {
+		{ ctx, &ctx->imax, "reg_gpu_edp_ma" },
+		{ ctx, &ctx->sysedp_gpupwr, "sysedp_gpu_power" },
+		{ NULL}
+	};
+
+	edp_dir = debugfs_create_dir(name, NULL);
+	if (IS_ERR_OR_NULL(edp_dir))
+		return NULL;
+
+	ctx->debugfs_attrs = kzalloc(sizeof(attrs), GFP_KERNEL);
+	if (!ctx->debugfs_attrs) {
+		debugfs_remove(edp_dir);
+		return NULL;
+	}
+
+	memcpy(ctx->debugfs_attrs, attrs, sizeof(attrs));
+
+	for (attr = ctx->debugfs_attrs; attr->ctx; attr++) {
+		file = debugfs_create_file(attr->name, S_IRUGO | S_IWUSR,
+					   edp_dir, attr, &edp_max_fops);
+		if (IS_ERR_OR_NULL(file))
+			nv_error(clk, "Create GPU EDP debugfs %s failed.\n",
+				 attr->name);
+	}
+
+	file = debugfs_create_u32("temperature", S_IRUGO,
+				  edp_dir, &ctx->temperature);
+	if (IS_ERR_OR_NULL(file))
+		nv_error(clk, "Create GPU EDP debugfs temperature failed.\n");
+
+	return edp_dir;
+}
+
+static void tegra_gpu_edp_debugfs_deinit(struct gpu_edp *ctx)
+{
+	kfree(ctx->debugfs_attrs);
+	debugfs_remove_recursive(ctx->edp_dir);
+}
+#else
+static inline struct dentry *
+tegra_gpu_edp_debugfs_init(struct gpu_edp *ctx, const char *name)
+{
+	return NULL;
+}
+static inline void tegra_gpu_edp_debugfs_deinit(struct gpu_edp *ctx) {}
+#endif /* CONFIG_DEBUG_FS */
+
+static int max_gpu_power_notifier(struct notifier_block *b,
+				  unsigned long max_gpu_pwr, void *v)
+{
+	struct gpu_edp *ctx = &s_gpu;
+
+	ctx->sysedp_gpupwr = max_gpu_pwr;
+
+	if (ctx->priv->clk_therm.in_suspend)
+		return NOTIFY_DONE;
+
+	gpu_edp_update_cap();
+
+	return NOTIFY_OK;
+}
+static struct notifier_block max_gpu_pwr_notifier_block = {
+	.notifier_call = max_gpu_power_notifier,
+};
+
+static int
+gm20b_clk_edp_get_cdev_max_state(struct thermal_cooling_device *cdev,
+				unsigned long *max_state)
+{
+	/*
+	 * The thermal framework doesn't use this value to do anything,
+	 * just show the max states in sysfs. This CPU EDP driver will
+	 * return trip point temperature as the current cooling state,
+	 * eg. the trip is 23C, the cooling state is 23. It will be
+	 * more readable than meaningless number.
+	 * So we set this max cooling state as a meaningless largish
+	 * number.
+	 */
+	*max_state = 1024;
+	return 0;
+}
+
+static int
+gm20b_clk_edp_get_cdev_cur_state(struct thermal_cooling_device *cdev,
+				unsigned long *cur_state)
+{
+	struct gpu_edp *ctx = (struct gpu_edp *)cdev->devdata;
+
+	*cur_state = ctx->edp_thermal_index;
+	return 0;
+}
+
+static int
+gm20b_clk_edp_set_cdev_state(struct thermal_cooling_device *cdev,
+				unsigned long new_state)
+{
+	struct gpu_edp *ctx = (struct gpu_edp *)cdev->devdata;
+
+	ctx->edp_thermal_index = new_state;
+
+	if (ctx->priv->clk_therm.in_suspend)
+		return 0;
+
+	gpu_edp_update_cap();
+
+	return 0;
+}
+
+static struct thermal_cooling_device_ops gm20b_clk_edp_cooling_ops = {
+	.get_max_state = gm20b_clk_edp_get_cdev_max_state,
+	.get_cur_state = gm20b_clk_edp_get_cdev_cur_state,
+	.set_cur_state = gm20b_clk_edp_set_cdev_state,
+};
+
+static int
+gm20b_clk_edp_init(struct gm20b_clk_priv *priv)
+{
+	char *name = "gpu_edp";
+	struct nvkm_clk *clk = &priv->base;
+	struct thermal_cooling_device *tcd;
+	struct platform_device *pdev;
+	const __be32 *prop;
+	struct device_node *np, *cdev_np, *edp_np;
+	struct tegra_ppm_params *params;
+	struct gpu_edp *ctx = &s_gpu;
+	unsigned int max_freq, min_freq;
+	int iddq_ma, ret;
+
+	pdev = nv_device(clk)->platformdev;
+	if (IS_ERR_OR_NULL(pdev))
+		return -EINVAL;
+	np = pdev->dev.of_node;
+
+	cdev_np = of_get_child_by_name(np, "gpu-edp-cdev");
+	if (!cdev_np) {
+		nv_error(clk, " No support for gpu_edp cooling device\n");
+		return -ENOENT;
+	}
+
+	prop = of_get_property(cdev_np, "act-dev", NULL);
+	if (!prop) {
+		nv_error(clk, "Missing gpu-edp node\n");
+		ret = -ENOENT;
+		goto free_cdev_np;
+	}
+	edp_np = of_find_node_by_phandle(be32_to_cpup(prop));
+	if (!edp_np) {
+		nv_error(clk, "Can't dereference gpu-edp phandle\n");
+		ret = -ENOENT;
+		goto free_cdev_np;
+	}
+
+	params = of_read_tegra_ppm_params(edp_np);
+	if (IS_ERR_OR_NULL(params)) {
+		nv_error(clk, "Parse ppm parameters failed\n");
+		ret = PTR_ERR(params);
+		goto free_edp_np;
+	}
+
+	ret = tegra_gpu_edp_parse_dt(edp_np, ctx);
+	if (ret) {
+		nv_error(clk, "Parse GPU EDP parameters failed\n");
+		goto free_edp_np;
+	}
+
+	mutex_init(&ctx->edp_lock);
+
+	ctx->priv = priv;
+
+	min_freq = gm20b_pstates[0].base.domain[nv_clk_src_gpc];
+	max_freq = gm20b_pstates[clk->state_nr - 1].base.domain[nv_clk_src_gpc];
+	ctx->fv = fv_relation_create(priv, ctx->pdata.freq_step, 150,
+				max_freq * KHZ, min_freq * KHZ,
+				gm20b_dvfs_predict_millivolts);
+	if (IS_ERR_OR_NULL(ctx->fv)) {
+		nv_error(&pdev->dev, "Initialize freq/volt data failed\n");
+		ret = PTR_ERR(ctx->fv);
+		goto free_edp_np;
+	}
+
+	iddq_ma = tegra_sku_info.gpu_iddq_value;
+	nv_info(clk, "GPU IDDQ value %d\n", iddq_ma);
+
+	ctx->imax = ctx->pdata.reg_edp;
+
+	ctx->edp_dir = tegra_gpu_edp_debugfs_init(ctx, name);
+
+	ctx->ppm = tegra_ppm_create(name, ctx->fv, params,
+				    iddq_ma, ctx->edp_dir);
+	if (IS_ERR_OR_NULL(ctx->ppm)) {
+		nv_error(clk, "Create power model failed\n");
+		ret = PTR_ERR(ctx->ppm);
+		goto free_fv;
+	}
+
+	pm_qos_add_notifier(PM_QOS_MAX_GPU_POWER, &max_gpu_pwr_notifier_block);
+
+	priv->clk_therm.edp_cur_tstate = 0;
+	tcd = thermal_of_cooling_device_register(cdev_np,
+						"gpu_edp",
+						ctx,
+						&gm20b_clk_edp_cooling_ops);
+	if (IS_ERR_OR_NULL(tcd)) {
+		nv_error(clk, "Failed register gpu_edp cooling device\n");
+		ret = PTR_ERR(tcd);
+		goto free_ppm;
+	}
+	ctx->edp_cdev = tcd;
+
+	ret = 0;
+	goto free_edp_np;
+
+free_ppm:
+	pm_qos_remove_notifier(PM_QOS_MAX_GPU_POWER,
+				&max_gpu_pwr_notifier_block);
+	tegra_ppm_destroy(ctx->ppm, NULL, NULL);
+free_fv:
+	tegra_gpu_edp_debugfs_deinit(ctx);
+	fv_relation_destroy(ctx->fv);
+free_edp_np:
+	of_node_put(edp_np);
+free_cdev_np:
+	of_node_put(cdev_np);
+
+	return ret;
+}
+
+static void
+gm20b_clk_edp_deinit(struct gm20b_clk_priv *priv)
+{
+	struct gpu_edp *ctx = &s_gpu;
+
+	if (ctx->edp_cdev)
+		thermal_cooling_device_unregister(ctx->edp_cdev);
+	else
+		return;
+
+	pm_qos_remove_notifier(PM_QOS_MAX_GPU_POWER,
+				&max_gpu_pwr_notifier_block);
+
+	tegra_ppm_destroy(ctx->ppm, NULL, NULL);
+
+	tegra_gpu_edp_debugfs_deinit(ctx);
+
+	fv_relation_destroy(ctx->fv);
+}
+#else
+static inline int
+gm20b_clk_edp_init(struct gm20b_clk_priv *priv)
+{
+	return -EINVAL;
+}
+static inline void gm20b_clk_edp_deinit(struct gm20b_clk_priv *priv) {}
+static inline void gpu_edp_update_cap(void) {}
+#endif /* CONFIG_NOUVEAU_GPU_EDP */

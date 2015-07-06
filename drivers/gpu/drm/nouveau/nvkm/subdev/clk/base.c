@@ -506,7 +506,6 @@ _nvkm_clk_init(struct nvkm_object *object)
 	nvkm_pstate_info(clk, &clk->bstate);
 
 	clk->astate = clk->state_nr - 1;
-	clk->tstate = 0;
 	clk->dstate = 0;
 	clk->pstate = -1;
 	nvkm_pstate_calc(clk, true);
@@ -549,6 +548,7 @@ nvkm_clk_create_(struct nvkm_object *parent, struct nvkm_object *engine,
 	clk->domains = clocks;
 	clk->ustate_ac = -1;
 	clk->ustate_dc = -1;
+	clk->tstate = 0;
 
 	INIT_WORK(&clk->work, nvkm_pstate_work);
 	init_waitqueue_head(&clk->wait);

@@ -68,3 +68,17 @@ config DRM_NOUVEAU_BACKLIGHT
 	help
 	  Say Y here if you want to control the backlight of your display
 	  (e.g. a laptop panel).
+
+config NOUVEAU_GPU_EDP
+	bool "Enforce electrical design limits on GPU rail (GPU EDP)"
+	depends on ARCH_TEGRA
+	depends on DRM_NOUVEAU && THERMAL
+	default n
+	select TEGRA_PROC_POWER_MODEL
+	help
+	  Enforce electrical design limits on GPU rail.
+	  VDD_GPU EDP prevents the GPU from drawing more current than
+	  its voltage regulator can supply.
+	  Limit maximum GPU frequency (pstate) based on temperature and
+	  number of on-line GPUs to keep GPU rail current within power
+	  supply capabilities.
