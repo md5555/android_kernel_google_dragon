@@ -525,6 +525,8 @@ int drm_dp_link_probe(struct drm_dp_aux *aux, struct drm_dp_link *link)
 		link->capabilities |= DP_LINK_CAP_ANSI_8B10B;
 
 	if (values[13] & DP_ALTERNATE_SCRAMBLER_RESET_CAP) {
+		link->capabilities |= DP_LINK_CAP_ALTERNATE_SCRAMBLER_RESET;
+
 		err = drm_dp_dpcd_readb(aux, DP_EDP_DPCD_REV, &value);
 		if (err < 0)
 			return err;
@@ -658,6 +660,13 @@ int drm_dp_link_configure(struct drm_dp_aux *aux, struct drm_dp_link *link)
 	err = drm_dp_dpcd_writeb(aux, DP_MAIN_LINK_CHANNEL_CODING_SET, value);
 	if (err < 0)
 		return err;
+
+	if (link->capabilities & DP_LINK_CAP_ALTERNATE_SCRAMBLER_RESET) {
+		err = drm_dp_dpcd_writeb(aux, DP_EDP_CONFIGURATION_SET,
+					 DP_ALTERNATE_SCRAMBLER_RESET_ENABLE);
+		if (err < 0)
+			return err;
+	}
 
 	return 0;
 }
