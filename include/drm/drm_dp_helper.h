@@ -263,12 +263,14 @@
 # define DP_TRAIN_VOLTAGE_SWING_LEVEL_1 (1 << 0)
 # define DP_TRAIN_VOLTAGE_SWING_LEVEL_2 (2 << 0)
 # define DP_TRAIN_VOLTAGE_SWING_LEVEL_3 (3 << 0)
+# define DP_TRAIN_VOLTAGE_SWING_LEVEL(x) ((x) << 0)
 
 # define DP_TRAIN_PRE_EMPHASIS_MASK	    (3 << 3)
 # define DP_TRAIN_PRE_EMPH_LEVEL_0		(0 << 3)
 # define DP_TRAIN_PRE_EMPH_LEVEL_1		(1 << 3)
 # define DP_TRAIN_PRE_EMPH_LEVEL_2		(2 << 3)
 # define DP_TRAIN_PRE_EMPH_LEVEL_3		(3 << 3)
+# define DP_TRAIN_PRE_EMPHASIS_LEVEL(x)		((x) << 3)
 
 # define DP_TRAIN_PRE_EMPHASIS_SHIFT	    3
 # define DP_TRAIN_MAX_PRE_EMPHASIS_REACHED  (1 << 5)
@@ -306,6 +308,7 @@
 # define DP_LANE02_MAX_POST_CURSOR2_REACHED (1 << 2)
 # define DP_LANE13_POST_CURSOR2_SET_MASK    (3 << 4)
 # define DP_LANE13_MAX_POST_CURSOR2_REACHED (1 << 6)
+# define DP_LANE_POST_CURSOR(i, x)	    (((x) & 0x3) << (((i) & 1) << 2))
 
 #define DP_MSTM_CTRL			    0x111   /* 1.2 */
 # define DP_MST_EN			    (1 << 0)
@@ -766,6 +769,45 @@ static inline ssize_t drm_dp_dpcd_writeb(struct drm_dp_aux *aux,
 int drm_dp_dpcd_read_link_status(struct drm_dp_aux *aux,
 				 u8 status[DP_LINK_STATUS_SIZE]);
 
+/**
+ * struct drm_dp_link_train_set - link training settings
+ * @voltage_swing: per-lane voltage swing
+ * @pre_emphasis: per-lane pre-emphasis
+ * @post_cursor: per-lane post-cursor
+ */
+struct drm_dp_link_train_set {
+	unsigned int voltage_swing[4];
+	unsigned int pre_emphasis[4];
+	unsigned int post_cursor[4];
+};
+
+/**
+ * struct drm_dp_link_train - link training state information
+ * @request: currently requested settings
+ * @adjust: adjustments requested by sink
+ * @pattern: currently requested training pattern
+ * @clock_recovered: flag to track if clock recovery has completed
+ * @channel_equalized: flag to track if channel equalization has completed
+ */
+struct drm_dp_link_train {
+	struct drm_dp_link_train_set request;
+	struct drm_dp_link_train_set adjust;
+
+	unsigned int pattern;
+
+	bool clock_recovered;
+	bool channel_equalized;
+};
+
+void drm_dp_link_train_init(struct drm_dp_link_train *train);
+
+struct drm_dp_link;
+
+struct drm_dp_link_ops {
+	int (*apply_training)(struct drm_dp_link *link);
+	int (*configure)(struct drm_dp_link *link);
+};
+
 /*
  * DisplayPort link
  */
@@ -782,12 +824,19 @@ struct drm_dp_link {
 	unsigned int num_lanes;
 	unsigned long capabilities;
 	unsigned long aux_rd_interval;
+
+	const struct drm_dp_link_ops *ops;
+	struct drm_dp_aux *aux;
+
+	struct drm_dp_link_train train;
 };
 
 int drm_dp_link_probe(struct drm_dp_aux *aux, struct drm_dp_link *link);
 int drm_dp_link_power_up(struct drm_dp_aux *aux, struct drm_dp_link *link);
 int drm_dp_link_power_down(struct drm_dp_aux *aux, struct drm_dp_link *link);
 int drm_dp_link_configure(struct drm_dp_aux *aux, struct drm_dp_link *link);
+
+int drm_dp_link_train(struct drm_dp_link *link);
 
 int drm_dp_aux_register(struct drm_dp_aux *aux);
 void drm_dp_aux_unregister(struct drm_dp_aux *aux);
