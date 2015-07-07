@@ -1132,7 +1132,6 @@ gm20b_pstates[] = {
 			.voltage = 9,
 		},
 	},
-#if 0
 	{
 		.base = {
 			.domain[nv_clk_src_gpc] = 844800,
@@ -1140,6 +1139,7 @@ gm20b_pstates[] = {
 		},
 	},
 	/* Enable these states once the GPU EDP is supported */
+#if 0
 	{
 		.base = {
 			.domain[nv_clk_src_gpc] = 921600,
