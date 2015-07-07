@@ -502,6 +502,10 @@ int drm_dp_link_probe(struct drm_dp_aux *aux, struct drm_dp_link *link)
 	if (values[2] & DP_ENHANCED_FRAME_CAP)
 		link->capabilities |= DP_LINK_CAP_ENHANCED_FRAMING;
 
+	if (link->revision >= 0x12)
+		if (values[2] & DP_TPS3_SUPPORTED)
+			link->capabilities |= DP_LINK_CAP_TPS3;
+
 	if (values[3] & DP_NO_AUX_HANDSHAKE_LINK_TRAINING)
 		link->capabilities |= DP_LINK_CAP_FAST_TRAINING;
 

@@ -760,6 +760,7 @@ int drm_dp_dpcd_read_link_status(struct drm_dp_aux *aux,
 #define DP_LINK_CAP_ENHANCED_FRAMING (1 << 0)
 #define DP_LINK_CAP_FAST_TRAINING (1 << 1)
 #define DP_LINK_CAP_ANSI_8B10B (1 << 2)
+#define DP_LINK_CAP_TPS3 (1 << 3)
 
 struct drm_dp_link {
 	unsigned char revision;
