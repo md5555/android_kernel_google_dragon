@@ -486,7 +486,7 @@ EXPORT_SYMBOL(drm_dp_dpcd_read_link_status);
  */
 int drm_dp_link_probe(struct drm_dp_aux *aux, struct drm_dp_link *link)
 {
-	u8 values[7];
+	u8 values[16], value;
 	int err;
 
 	memset(link, 0, sizeof(*link));
@@ -513,6 +513,34 @@ int drm_dp_link_probe(struct drm_dp_aux *aux, struct drm_dp_link *link)
 
 	if (values[6] & DP_SET_ANSI_8B10B)
 		link->capabilities |= DP_LINK_CAP_ANSI_8B10B;
+
+	if (values[13] & DP_ALTERNATE_SCRAMBLER_RESET_CAP) {
+		err = drm_dp_dpcd_readb(aux, DP_EDP_DPCD_REV, &value);
+		if (err < 0)
+			return err;
+
+		switch (value) {
+		case DP_EDP_11:
+			link->edp = 0x11;
+			break;
+
+		case DP_EDP_12:
+			link->edp = 0x12;
+			break;
+
+		case DP_EDP_13:
+			link->edp = 0x13;
+			break;
+
+		case DP_EDP_14:
+			link->edp = 0x14;
+			break;
+
+		default:
+			DRM_ERROR("unsupported eDP version: %02x\n", value);
+			break;
+		}
+	}
 
 	return 0;
 }
