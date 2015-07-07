@@ -768,6 +768,7 @@ struct drm_dp_link {
 	unsigned int rate;
 	unsigned int num_lanes;
 	unsigned long capabilities;
+	unsigned long aux_rd_interval;
 };
 
 int drm_dp_link_probe(struct drm_dp_aux *aux, struct drm_dp_link *link);

@@ -542,6 +542,9 @@ int drm_dp_link_probe(struct drm_dp_aux *aux, struct drm_dp_link *link)
 		}
 	}
 
+	/* DP_TRAINING_AUX_RD_INTERVAL is in units of 4 milliseconds */
+	link->aux_rd_interval = values[14] * 4000;
+
 	return 0;
 }
 EXPORT_SYMBOL(drm_dp_link_probe);
