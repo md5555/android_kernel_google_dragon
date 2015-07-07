@@ -98,10 +98,33 @@ static const struct cvb_table tegra124_cpu_cvb_tables[] = {
 	},
 };
 
+#define TEGRA210_CPU_CVB_TABLE	\
+		.cvb_table = {	\
+			{204000000UL,   {  1607, 80055, -2323} }, \
+			{306000000UL,   { 39154, 78855, -2323} }, \
+			{408000000UL,   { 78621, 77665, -2323} }, \
+			{510000000UL,   {120010, 76475, -2323} }, \
+			{612000000UL,   {163319, 75285, -2323} }, \
+			{714000000UL,   {208550, 74085, -2323} }, \
+			{816000000UL,   {255701, 72895, -2323} }, \
+			{918000000UL,   {304773, 71705, -2323} }, \
+			{1020000000UL,  {355766, 70515, -2323} }, \
+			{1122000000UL,  {408680, 69315, -2323} }, \
+			{1224000000UL,  {463515, 68125, -2323} }, \
+			{1326000000UL,  {520271, 66935, -2323} }, \
+			{1428000000UL,  {578948, 65745, -2323} }, \
+			{1530000000UL,  {639546, 64545, -2323} }, \
+			{1632000000UL,  {702064, 63355, -2323} }, \
+			{1734000000UL,  {766504, 62165, -2323} }, \
+			{1836000000UL,  {832865, 60975, -2323} }, \
+			{1912500000UL,  {2161472, -55805, 395} }, \
+			{0,             {      0,      0,   0} }, \
+		}
+
 static const struct cvb_table tegra210_cpu_cvb_tables[] = {
 	{
-		.speedo_id = -1,
-		.process_id = -1,
+		.speedo_id = 0,
+		.process_id = 0,
 		.min_millivolts = 850,
 		.max_millivolts = 1170,
 		.alignment = {
@@ -109,31 +132,84 @@ static const struct cvb_table tegra210_cpu_cvb_tables[] = {
 		},
 		.speedo_scale = 100,
 		.voltage_scale = 1000,
-		.cvb_table = {
-			{204000000UL,   {  1607, 80055, -2323} },
-			{306000000UL,   { 39154, 78855, -2323} },
-			{408000000UL,   { 78621, 77665, -2323} },
-			{510000000UL,   {120010, 76475, -2323} },
-			{612000000UL,   {163319, 75285, -2323} },
-			{714000000UL,   {208550, 74085, -2323} },
-			{816000000UL,   {255701, 72895, -2323} },
-			{918000000UL,   {304773, 71705, -2323} },
-			{1020000000UL,  {355766, 70515, -2323} },
-			{1122000000UL,  {408680, 69315, -2323} },
-			{1224000000UL,  {463515, 68125, -2323} },
-			{1326000000UL,  {520271, 66935, -2323} },
-			{1428000000UL,  {578948, 65745, -2323} },
-			{1530000000UL,  {639546, 64545, -2323} },
-			{1632000000UL,  {702064, 63355, -2323} },
-			{1734000000UL,  {766504, 62165, -2323} },
-			{1836000000UL,  {832865, 60975, -2323} },
-			{1912500000UL,  {2161472, -55805, 395} },
-			{0,             {      0,      0,   0} },
+		TEGRA210_CPU_CVB_TABLE,
+		.cpu_dfll_data = {
+			.tune0_low = 0xffead0ff,
+			.tune0_high = 0xffead0ff,
+			.tune1 = 0x020091d9,
+			.tune_high_min_millivolts = 864,
+		}
+	},
+	{
+		.speedo_id = 0,
+		.process_id = 1,
+		.min_millivolts = 850,
+		.max_millivolts = 1170,
+		.alignment = {
+			.step_uv = 10000, /* 10mV */
 		},
+		.speedo_scale = 100,
+		.voltage_scale = 1000,
+		TEGRA210_CPU_CVB_TABLE,
 		.cpu_dfll_data = {
 			.tune0_low = 0xffead0ff,
 			.tune0_high = 0xffead0ff,
 			.tune1 = 0x25501d0,
+			.tune_high_min_millivolts = 864,
+		}
+	},
+	{
+		.speedo_id = 1,
+		.process_id = 0,
+		.min_millivolts = 850,
+		.max_millivolts = 1170,
+		.alignment = {
+			.step_uv = 10000, /* 10mV */
+		},
+		.speedo_scale = 100,
+		.voltage_scale = 1000,
+		TEGRA210_CPU_CVB_TABLE,
+		.cpu_dfll_data = {
+			.tune0_low = 0xffead0ff,
+			.tune0_high = 0xffead0ff,
+			.tune1 = 0x020091d9,
+			.tune_high_min_millivolts = 864,
+		}
+	},
+	{
+		.speedo_id = 1,
+		.process_id = 1,
+		.min_millivolts = 800,
+		.max_millivolts = 1170,
+		.alignment = {
+			.step_uv = 10000, /* 10mV */
+		},
+		.speedo_scale = 100,
+		.voltage_scale = 1000,
+		TEGRA210_CPU_CVB_TABLE,
+		.cpu_dfll_data = {
+			.tune0_low = 0xffead0ff,
+			.tune0_high = 0xffead0ff,
+			.tune1 = 0x020091d9,
+			.tune_high_min_millivolts = 864,
+		}
+	},
+	{
+		.speedo_id = 1,
+		.process_id = 2,
+		.min_millivolts = 800,
+		.max_millivolts = 1170,
+		.alignment = {
+			.step_uv = 10000, /* 10mV */
+		},
+		.speedo_scale = 100,
+		.voltage_scale = 1000,
+		TEGRA210_CPU_CVB_TABLE,
+		.cpu_dfll_data = {
+			.tune0_low = 0xffead0ff,
+			.tune0_high = 0xffead0ff,
+			.tune1 = 0x025501d0,
+			.tune_high_min_millivolts = 864,
 		}
 	},
 };
