@@ -5,7 +5,7 @@
 		compatible = "nvidia,tegra124-sysedp-batmon-calc";
 		power-supply = <&battery>;
 		update-interval = <30000>;
-		vsys-min = <3300000>;
+		vsys-min = <3000000>;
 
 		ocv-curve = <
 			100	4335000
