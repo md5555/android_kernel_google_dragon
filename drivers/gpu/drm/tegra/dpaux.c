@@ -435,7 +435,7 @@ struct platform_driver tegra_dpaux_driver = {
 	.remove = tegra_dpaux_remove,
 };
 
-struct tegra_dpaux *tegra_dpaux_find_by_of_node(struct device_node *np)
+struct drm_dp_aux *drm_dp_aux_find_by_of_node(struct device_node *np)
 {
 	struct tegra_dpaux *dpaux;
 
@@ -444,7 +444,7 @@ struct tegra_dpaux *tegra_dpaux_find_by_of_node(struct device_node *np)
 	list_for_each_entry(dpaux, &dpaux_list, list)
 		if (np == dpaux->dev->of_node) {
 			mutex_unlock(&dpaux_lock);
-			return dpaux;
+			return &dpaux->aux;
 		}
 
 	mutex_unlock(&dpaux_lock);
@@ -452,42 +452,9 @@ struct tegra_dpaux *tegra_dpaux_find_by_of_node(struct device_node *np)
 	return NULL;
 }
 
-int tegra_dpaux_attach(struct tegra_dpaux *dpaux, struct tegra_output *output)
+enum drm_connector_status drm_dp_aux_detect(struct drm_dp_aux *aux)
 {
-	int err;
-
-	output->connector.polled = DRM_CONNECTOR_POLL_HPD;
-	dpaux->output = output;
-
-	err = regulator_enable(dpaux->vdd);
-	if (err < 0)
-		return err;
-
-	err = wait_for(tegra_dpaux_detect(dpaux) == connector_status_connected,
-			250);
-	if (!err)
-		enable_irq(dpaux->irq);
-
-	return err;
-}
-
-int tegra_dpaux_detach(struct tegra_dpaux *dpaux)
-{
-	int err;
-
-	disable_irq(dpaux->irq);
-
-	err = regulator_disable(dpaux->vdd);
-	if (err < 0)
-		return err;
-
-	return wait_for(
-		tegra_dpaux_detect(dpaux) == connector_status_disconnected,
-		250);
-}
-
-enum drm_connector_status tegra_dpaux_detect(struct tegra_dpaux *dpaux)
-{
+	struct tegra_dpaux *dpaux = to_dpaux(aux);
 	u32 value;
 
 	value = tegra_dpaux_readl(dpaux, DPAUX_DP_AUXSTAT);
@@ -498,8 +465,45 @@ enum drm_connector_status tegra_dpaux_detect(struct tegra_dpaux *dpaux)
 	return connector_status_disconnected;
 }
 
-int tegra_dpaux_enable(struct tegra_dpaux *dpaux)
+int drm_dp_aux_attach(struct drm_dp_aux *aux, struct tegra_output *output)
 {
+	struct tegra_dpaux *dpaux = to_dpaux(aux);
+	int err;
+
+	output->connector.polled = DRM_CONNECTOR_POLL_HPD;
+	dpaux->output = output;
+
+	err = regulator_enable(dpaux->vdd);
+	if (err < 0)
+		return err;
+
+	err = wait_for(drm_dp_aux_detect(aux) == connector_status_connected,
+			250);
+	if (!err)
+		enable_irq(dpaux->irq);
+
+	return err;
+}
+
+int drm_dp_aux_detach(struct drm_dp_aux *aux)
+{
+	struct tegra_dpaux *dpaux = to_dpaux(aux);
+	int err;
+
+	disable_irq(dpaux->irq);
+
+	err = regulator_disable(dpaux->vdd);
+	if (err < 0)
+		return err;
+
+	return wait_for(
+		drm_dp_aux_detect(aux) == connector_status_disconnected,
+		250);
+}
+
+int drm_dp_aux_enable(struct drm_dp_aux *aux)
+{
+	struct tegra_dpaux *dpaux = to_dpaux(aux);
 	u32 value;
 
 	value = DPAUX_HYBRID_PADCTL_AUX_CMH(2) |
@@ -516,8 +520,9 @@ int tegra_dpaux_enable(struct tegra_dpaux *dpaux)
 	return 0;
 }
 
-int tegra_dpaux_disable(struct tegra_dpaux *dpaux)
+int drm_dp_aux_disable(struct drm_dp_aux *aux)
 {
+	struct tegra_dpaux *dpaux = to_dpaux(aux);
 	u32 value;
 
 	value = tegra_dpaux_readl(dpaux, DPAUX_HYBRID_SPARE);
