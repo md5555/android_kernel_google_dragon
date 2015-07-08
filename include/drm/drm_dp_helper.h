@@ -769,6 +769,8 @@ static inline ssize_t drm_dp_dpcd_writeb(struct drm_dp_aux *aux,
 int drm_dp_dpcd_read_link_status(struct drm_dp_aux *aux,
 				 u8 status[DP_LINK_STATUS_SIZE]);
 
+void drm_dp_dpcd_dump(struct drm_dp_aux *aux, struct seq_file *s);
+
 /**
  * struct drm_dp_link_train_set - link training settings
  * @voltage_swing: per-lane voltage swing
