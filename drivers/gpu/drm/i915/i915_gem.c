@@ -2549,6 +2549,7 @@ void __i915_add_request(struct drm_i915_gem_request *request,
 	request->batch_obj = obj;
 
 	request->emitted_jiffies = jiffies;
+	ring->last_submitted_seqno = request->seqno;
 	list_add_tail(&request->list, &ring->request_list);
 
 	trace_i915_gem_request_add(request);
