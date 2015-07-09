@@ -19,18 +19,6 @@
 #define _DRV_CROS_EC_DEV_H_
 
 
-/* struct cros_ec_platform - ChromeOS EC platform information
- *
- * @ec_name: name of EC device (e.g. 'cros-ec', 'cros-pd', ...)
- * used in /dev/ and sysfs.
- * @cmd_offset: offset to apply for each command. Set when
- * registering a devicde behind another one.
- */
-struct cros_ec_platform {
-	const char *ec_name;
-	u16 cmd_offset;
-};
-
 /* sysfs stuff */
 extern struct attribute_group cros_ec_attr_group;
 extern struct attribute_group cros_ec_lightbar_attr_group;

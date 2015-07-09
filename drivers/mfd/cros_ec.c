@@ -480,39 +480,11 @@ int cros_ec_cmd_xfer_status(struct cros_ec_device *ec_dev,
 }
 EXPORT_SYMBOL(cros_ec_cmd_xfer_status);
 
-static const struct mfd_cell cros_accel_devs[] = {
-	{
-		.name = "cros-ec-accel",
-	},
-	{
-		.name = "iio-trig-sysfs",
-	},
-};
-
-/**
- * cros_ec_accel_register - register EC accelerometer devices
- *
- * @ec_dev Pointer to cros_ec_device
- * @return 0 if ok, -ve on error
- *
- * Check if EC has accelerometers and register related drivers if it does.
- * Return 0 if successfully registered EC drivers. Return -ENODEV if there
- * are no accelerometers attached or we can't read from the EC.
- */
-static int cros_ec_accel_register(struct cros_ec_device *ec_dev)
-{
-	static int accel_dev_id;
-
-	return mfd_add_devices(ec_dev->dev, accel_dev_id++, cros_accel_devs,
-			ARRAY_SIZE(cros_accel_devs),
-			NULL, ec_dev->irq, NULL);
-}
-
 static int cros_ec_dev_register(struct cros_ec_device *ec_dev,
 				int dev_id, int devidx)
 {
 	struct device *dev = ec_dev->dev;
-	struct cros_ec_platform ec_p = {
+	struct cros_ec_dev_platform ec_p = {
 		.cmd_offset = 0,
 	};
 	struct mfd_cell ec_cell = {
@@ -628,11 +600,6 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 			dev_err(dev, "fail to add %s\n", node->full_name);
 	}
 #endif
-
-	err = cros_ec_accel_register(ec_dev);
-	if (err && err != -ENODEV)
-		dev_err(dev, "failed to add cros-ec-accel mfd devices\n");
-
 	dev_info(dev, "Chrome EC device registered\n");
 
 	return 0;
