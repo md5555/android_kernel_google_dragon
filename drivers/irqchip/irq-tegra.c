@@ -24,6 +24,7 @@
 
 #include <linux/io.h>
 #include <linux/irq.h>
+#include <linux/irqchip/arm-gic.h>
 #include <linux/irqdomain.h>
 #include <linux/of_address.h>
 #include <linux/slab.h>
@@ -358,6 +359,7 @@ static int __init tegra_ictlr_init(struct device_node *node,
 	}
 
 	tegra_ictlr_syscore_init();
+	gic_set_irqchip_flags(IRQCHIP_SKIP_SET_WAKE);
 
 	pr_info("%s: %d interrupts forwarded to %s\n",
 		node->full_name, num_ictlrs * 32, parent->full_name);
