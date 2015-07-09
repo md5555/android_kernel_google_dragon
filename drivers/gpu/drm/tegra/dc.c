@@ -24,6 +24,11 @@
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_plane_helper.h>
 
+struct tegra_dc_window_soc_info {
+	bool supports_h_filter;
+	bool supports_v_filter;
+};
+
 struct tegra_dc_soc_info {
 	bool supports_border_color;
 	bool supports_interlacing;
@@ -32,6 +37,8 @@ struct tegra_dc_soc_info {
 	unsigned int pitch_align;
 	bool has_powergate;
 	bool has_v2_blend;
+	const struct tegra_dc_window_soc_info *windows;
+	unsigned int num_windows;
 };
 
 struct tegra_plane {
@@ -245,6 +252,43 @@ static inline u32 compute_initial_dda(unsigned int in)
 	return dfixed_frac(inf);
 }
 
+/*
+ * Initialize horizontal and vertical scaling filter coefficients.
+ * Each 32-bit phase register represents 6 filter coefficients and
+ * sum of all coefficients for each of these 16 phases should be
+ * typically 128.
+ */
+static void tegra_dc_set_scaling_filter(struct tegra_dc *dc)
+{
+	unsigned i, v0 = 128, v1 = 0;
+
+	for (i = 0; i < 16; i++) {
+		tegra_dc_writel(dc, (v1 << 16) | (v0 << 8),
+				DC_WIN_H_FILTER_P(i));
+
+		tegra_dc_writel(dc, v0,
+				DC_WIN_V_FILTER_P(i));
+		v0 -= 8;
+		v1 += 8;
+	}
+}
+
+static inline bool win_use_h_filter(struct tegra_dc *dc,
+				   const struct tegra_dc_window *window,
+				   unsigned int index)
+{
+	return dc->soc->windows[index].supports_h_filter &&
+		(window->src.w != window->dst.w);
+}
+
+static inline bool win_use_v_filter(struct tegra_dc *dc,
+				   const struct tegra_dc_window *window,
+				   unsigned int index)
+{
+	return dc->soc->windows[index].supports_v_filter &&
+		(window->src.h != window->dst.h);
+}
+
 static void tegra_dc_setup_window(struct tegra_dc *dc, unsigned int index,
 				  const struct tegra_dc_window *window)
 {
@@ -302,6 +346,8 @@ static void tegra_dc_setup_window(struct tegra_dc *dc, unsigned int index,
 
 	tegra_dc_writel(dc, h_dda, DC_WIN_H_INITIAL_DDA);
 	tegra_dc_writel(dc, v_dda, DC_WIN_V_INITIAL_DDA);
+
+	tegra_dc_set_scaling_filter(dc);
 
 	tegra_dc_writel(dc, 0, DC_WIN_UV_BUF_STRIDE);
 	tegra_dc_writel(dc, 0, DC_WIN_BUF_STRIDE);
@@ -382,6 +428,12 @@ static void tegra_dc_setup_window(struct tegra_dc *dc, unsigned int index,
 	} else if (window->bits_per_pixel < 24) {
 		value |= COLOR_EXPAND;
 	}
+
+	if (win_use_h_filter(dc, window, index))
+		value |= H_FILTER_ENABLE;
+
+	if (win_use_v_filter(dc, window, index))
+		value |= V_FILTER_ENABLE;
 
 	if (window->bottom_up)
 		value |= V_DIRECTION;
@@ -949,7 +1001,7 @@ static int tegra_dc_add_planes(struct drm_device *drm, struct tegra_dc *dc)
 	struct drm_plane *plane;
 	unsigned int i;
 
-	for (i = 0; i < 2; i++) {
+	for (i = 0; i < dc->soc->num_windows - 1; i++) {
 		plane = tegra_dc_overlay_plane_create(drm, dc, 1 + i);
 		if (IS_ERR(plane))
 			return PTR_ERR(plane);
@@ -1915,6 +1967,21 @@ static const struct host1x_client_ops dc_client_ops = {
 	.exit = tegra_dc_exit,
 };
 
+static const struct tegra_dc_window_soc_info tegra20_dc_window_soc_info[] = {
+	[0] = {
+		.supports_v_filter = false,
+		.supports_h_filter = false
+	},
+	[1] = {
+		.supports_v_filter = true,
+		.supports_h_filter = true
+	},
+	[2] = {
+		.supports_v_filter = false,
+		.supports_h_filter = true
+	},
+};
+
 static const struct tegra_dc_soc_info tegra20_dc_soc_info = {
 	.supports_border_color = true,
 	.supports_interlacing = false,
@@ -1923,6 +1990,23 @@ static const struct tegra_dc_soc_info tegra20_dc_soc_info = {
 	.pitch_align = 8,
 	.has_powergate = false,
 	.has_v2_blend = false,
+	.windows = tegra20_dc_window_soc_info,
+	.num_windows = ARRAY_SIZE(tegra20_dc_window_soc_info),
+};
+
+static const struct tegra_dc_window_soc_info tegra30_dc_window_soc_info[] = {
+	[0] = {
+		.supports_v_filter = false,
+		.supports_h_filter = false
+	},
+	[1] = {
+		.supports_v_filter = true,
+		.supports_h_filter = true
+	},
+	[2] = {
+		.supports_v_filter = false,
+		.supports_h_filter = true
+	},
 };
 
 static const struct tegra_dc_soc_info tegra30_dc_soc_info = {
@@ -1933,6 +2017,23 @@ static const struct tegra_dc_soc_info tegra30_dc_soc_info = {
 	.pitch_align = 8,
 	.has_powergate = false,
 	.has_v2_blend = false,
+	.windows = tegra30_dc_window_soc_info,
+	.num_windows = ARRAY_SIZE(tegra30_dc_window_soc_info),
+};
+
+static const struct tegra_dc_window_soc_info tegra114_dc_window_soc_info[] = {
+	[0] = {
+		.supports_v_filter = true,
+		.supports_h_filter = true
+	},
+	[1] = {
+		.supports_v_filter = true,
+		.supports_h_filter = true
+	},
+	[2] = {
+		.supports_v_filter = true,
+		.supports_h_filter = true
+	},
 };
 
 static const struct tegra_dc_soc_info tegra114_dc_soc_info = {
@@ -1943,6 +2044,23 @@ static const struct tegra_dc_soc_info tegra114_dc_soc_info = {
 	.pitch_align = 64,
 	.has_powergate = true,
 	.has_v2_blend = false,
+	.windows = tegra114_dc_window_soc_info,
+	.num_windows = ARRAY_SIZE(tegra114_dc_window_soc_info),
+};
+
+static const struct tegra_dc_window_soc_info tegra124_dc_window_soc_info[] = {
+	[0] = {
+		.supports_v_filter = true,
+		.supports_h_filter = true
+	},
+	[1] = {
+		.supports_v_filter = true,
+		.supports_h_filter = true
+	},
+	[2] = {
+		.supports_v_filter = true,
+		.supports_h_filter = true
+	},
 };
 
 static const struct tegra_dc_soc_info tegra124_dc_soc_info = {
@@ -1953,6 +2071,23 @@ static const struct tegra_dc_soc_info tegra124_dc_soc_info = {
 	.pitch_align = 64,
 	.has_powergate = true,
 	.has_v2_blend = true,
+	.windows = tegra124_dc_window_soc_info,
+	.num_windows = ARRAY_SIZE(tegra124_dc_window_soc_info),
+};
+
+static const struct tegra_dc_window_soc_info tegra210_dc_window_soc_info[] = {
+	[0] = {
+		.supports_v_filter = true,
+		.supports_h_filter = true
+	},
+	[1] = {
+		.supports_v_filter = true,
+		.supports_h_filter = true
+	},
+	[2] = {
+		.supports_v_filter = true,
+		.supports_h_filter = true
+	},
 };
 
 static const struct tegra_dc_soc_info tegra210_dc_soc_info = {
@@ -1962,6 +2097,8 @@ static const struct tegra_dc_soc_info tegra210_dc_soc_info = {
 	.supports_block_linear = true,
 	.pitch_align = 64,
 	.has_powergate = true,
+	.windows = tegra210_dc_window_soc_info,
+	.num_windows = ARRAY_SIZE(tegra210_dc_window_soc_info),
 };
 
 static const struct of_device_id tegra_dc_of_match[] = {

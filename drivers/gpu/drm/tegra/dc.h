@@ -329,6 +329,7 @@
 #define CURSOR_SRC_BLEND_MASK			(3 << 8)
 #define CURSOR_ALPHA				0xff
 
+#define DC_WIN_H_FILTER_P(x)		(0x601 + (x))
 #define DC_WIN_CSC_YOF				0x611
 #define DC_WIN_CSC_KYRGB			0x612
 #define DC_WIN_CSC_KUR				0x613
@@ -337,13 +338,16 @@
 #define DC_WIN_CSC_KVG				0x616
 #define DC_WIN_CSC_KUB				0x617
 #define DC_WIN_CSC_KVB				0x618
+#define DC_WIN_V_FILTER_P(x)		(0x619 + (x))
 
 #define DC_WIN_WIN_OPTIONS			0x700
-#define H_DIRECTION  (1 <<  0)
-#define V_DIRECTION  (1 <<  2)
-#define COLOR_EXPAND (1 <<  6)
-#define CSC_ENABLE   (1 << 18)
-#define WIN_ENABLE   (1 << 30)
+#define H_DIRECTION     (1 <<  0)
+#define V_DIRECTION     (1 <<  2)
+#define COLOR_EXPAND    (1 <<  6)
+#define H_FILTER_ENABLE (1 <<  8)
+#define V_FILTER_ENABLE (1 << 10)
+#define CSC_ENABLE      (1 << 18)
+#define WIN_ENABLE      (1 << 30)
 
 #define DC_WIN_BYTE_SWAP			0x701
 #define BYTE_SWAP_NOSWAP  (0 << 0)
