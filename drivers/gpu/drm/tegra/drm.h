@@ -161,11 +161,12 @@ static inline u32 tegra_dc_readl(struct tegra_dc *dc, unsigned long offset)
 }
 
 struct tegra_dc_window {
+	/* Source values are 16.16 fixed point */
 	struct {
-		unsigned int x;
-		unsigned int y;
-		unsigned int w;
-		unsigned int h;
+		u32 x;
+		u32 y;
+		u32 w;
+		u32 h;
 	} src;
 	struct {
 		unsigned int x;

@@ -212,11 +212,21 @@ static bool tegra_dc_format_is_yuv(unsigned int format, bool *planar)
 	return false;
 }
 
-static inline u32 compute_dda_inc(unsigned int in, unsigned int out, bool v,
+static inline u32 dfixed16_div(u32 A, u32 B)
+{
+	u64 tmp = ((u64)A << 17);
+
+	do_div(tmp, B);
+	tmp += 1;
+	tmp /= 2;
+	return lower_32_bits(tmp);
+}
+
+static inline u32 compute_dda_inc(u32 in, unsigned int out_int, bool v,
 				  unsigned int bpp)
 {
-	fixed20_12 outf = dfixed_init(out);
-	fixed20_12 inf = dfixed_init(in);
+	u32 out = (out_int << 16);
+	u32 one = (1 << 16);
 	u32 dda_inc;
 	int max;
 
@@ -237,19 +247,20 @@ static inline u32 compute_dda_inc(unsigned int in, unsigned int out, bool v,
 		}
 	}
 
-	outf.full = max_t(u32, outf.full - dfixed_const(1), dfixed_const(1));
-	inf.full -= dfixed_const(1);
+	out = max_t(u32, out - one, one);
+	in -= one;
 
-	dda_inc = dfixed_div(inf, outf);
-	dda_inc = min_t(u32, dda_inc, dfixed_const(max));
+	dda_inc = dfixed16_div(in, out);
+	dda_inc = min_t(u32, dda_inc, (max << 16));
 
-	return dda_inc;
+	/* DDA based dc registers take value in 4.12 format */
+	return (dda_inc >> 4);
 }
 
-static inline u32 compute_initial_dda(unsigned int in)
+static inline u32 compute_initial_dda(u32 in)
 {
-	fixed20_12 inf = dfixed_init(in);
-	return dfixed_frac(inf);
+	/* DDA based dc registers take value in 4.12 format */
+	return ((in & ((1 << 16) - 1)) >> 4);
 }
 
 /*
@@ -278,7 +289,7 @@ static inline bool win_use_h_filter(struct tegra_dc *dc,
 				   unsigned int index)
 {
 	return dc->soc->windows[index].supports_h_filter &&
-		(window->src.w != window->dst.w);
+		(window->src.w != (window->dst.w << 16));
 }
 
 static inline bool win_use_v_filter(struct tegra_dc *dc,
@@ -286,7 +297,7 @@ static inline bool win_use_v_filter(struct tegra_dc *dc,
 				   unsigned int index)
 {
 	return dc->soc->windows[index].supports_v_filter &&
-		(window->src.h != window->dst.h);
+		(window->src.h != (window->dst.h << 16));
 }
 
 static void tegra_dc_setup_window(struct tegra_dc *dc, unsigned int index,
@@ -320,10 +331,10 @@ static void tegra_dc_setup_window(struct tegra_dc *dc, unsigned int index,
 	value = V_SIZE(window->dst.h) | H_SIZE(window->dst.w);
 	tegra_dc_writel(dc, value, DC_WIN_SIZE);
 
-	h_offset = window->src.x * bpp;
-	v_offset = window->src.y;
-	h_size = window->src.w * bpp;
-	v_size = window->src.h;
+	h_offset = (window->src.x >> 16) * bpp;
+	v_offset = (window->src.y >> 16);
+	h_size = (window->src.w >> 16) * bpp;
+	v_size = (window->src.h >> 16);
 
 	value = V_PRESCALED_SIZE(v_size) | H_PRESCALED_SIZE(h_size);
 	tegra_dc_writel(dc, value, DC_WIN_PRESCALED_SIZE);
@@ -364,7 +375,7 @@ static void tegra_dc_setup_window(struct tegra_dc *dc, unsigned int index,
 	}
 
 	if (window->bottom_up)
-		v_offset += window->src.h - 1;
+		v_offset += (window->src.h >> 16) - 1;
 
 	tegra_dc_writel(dc, h_offset, DC_WINBUF_ADDR_H_OFFSET);
 	tegra_dc_writel(dc, v_offset, DC_WINBUF_ADDR_V_OFFSET);
@@ -657,10 +668,10 @@ static void tegra_plane_atomic_update(struct drm_plane *plane,
 		return;
 
 	memset(&window, 0, sizeof(window));
-	window.src.x = plane->state->src_x >> 16;
-	window.src.y = plane->state->src_y >> 16;
-	window.src.w = plane->state->src_w >> 16;
-	window.src.h = plane->state->src_h >> 16;
+	window.src.x = plane->state->src_x;
+	window.src.y = plane->state->src_y;
+	window.src.w = plane->state->src_w;
+	window.src.h = plane->state->src_h;
 	window.dst.x = plane->state->crtc_x;
 	window.dst.y = plane->state->crtc_y;
 	window.dst.w = plane->state->crtc_w;
