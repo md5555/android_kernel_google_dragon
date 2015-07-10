@@ -527,15 +527,16 @@
 				maxim,fps-source = <FPS_SRC_NONE>;
 			};
 
-			ldo2 {
-				/* Unused. */
+			pp_ldo2: ldo2 {
 				regulator-name = "PP_LDO2";
 				regulator-min-microvolt = <1800000>;
-				regulator-max-microvolt = <3300000>;
+				regulator-max-microvolt = <1800000>;
 				regulator-enable-ramp-delay = <62>;
 				regulator-disable-ramp-delay = <650>;
 				regulator-ramp-delay = <100000>;
 				regulator-ramp-delay-scale = <200>;
+				regulator-always-on;
+				regulator-boot-on;
 				maxim,fps-source = <FPS_SRC_NONE>;
 			};
 
