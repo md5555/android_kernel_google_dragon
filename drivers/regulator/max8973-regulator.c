@@ -864,7 +864,6 @@ static struct i2c_driver max8973_i2c_driver = {
 	.driver = {
 		.name = "max8973",
 		.of_match_table = of_max8973_match_tbl,
-		.owner = THIS_MODULE,
 	},
 	.probe = max8973_probe,
 	.remove = max8973_remove,
