@@ -1106,7 +1106,7 @@ static int soc_probe_component(struct snd_soc_card *card,
 	struct snd_soc_dai *dai;
 	int ret;
 
-	if (!strcmp(component->name, "snd-soc-dummy") || component->probed)
+	if (component->probed)
 		return 0;
 
 	component->card = card;
