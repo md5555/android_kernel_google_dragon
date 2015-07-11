@@ -40,6 +40,10 @@ struct tegra_dc_soc_info {
 	bool supports_scan_column;
 	const struct tegra_dc_window_soc_info *windows;
 	unsigned int num_windows;
+	unsigned int num_primary_plane_formats;
+	const u32 *primary_plane_formats;
+	unsigned int num_overlay_plane_formats;
+	const u32 *overlay_plane_formats;
 };
 
 struct tegra_plane {
@@ -176,6 +180,14 @@ static int tegra_dc_format(u32 fourcc, u32 *format, u32 *swap)
 		*format = WIN_COLOR_DEPTH_YCbCr422P;
 		break;
 
+	case DRM_FORMAT_NV12:
+		*format = WIN_COLOR_DEPTH_YCbCr420SP;
+		break;
+
+	case DRM_FORMAT_NV21:
+		*format = WIN_COLOR_DEPTH_YCrCb420SP;
+		break;
+
 	default:
 		return -EINVAL;
 	}
@@ -201,6 +213,8 @@ static bool tegra_dc_format_is_yuv(unsigned int format, bool *planar)
 	case WIN_COLOR_DEPTH_YUV422R:
 	case WIN_COLOR_DEPTH_YCbCr422RA:
 	case WIN_COLOR_DEPTH_YUV422RA:
+	case WIN_COLOR_DEPTH_YCrCb420SP:
+	case WIN_COLOR_DEPTH_YCbCr420SP:
 		if (planar)
 			*planar = true;
 
@@ -536,15 +550,6 @@ static void tegra_plane_destroy(struct drm_plane *plane)
 	kfree(p);
 }
 
-static const u32 tegra_primary_plane_formats[] = {
-	DRM_FORMAT_ABGR8888,
-	DRM_FORMAT_XBGR8888,
-	DRM_FORMAT_ARGB8888,
-	DRM_FORMAT_XRGB8888,
-	DRM_FORMAT_RGB565,
-	DRM_FORMAT_BGR565,
-};
-
 static void tegra_primary_plane_destroy(struct drm_plane *plane)
 {
 	tegra_plane_destroy(plane);
@@ -728,6 +733,15 @@ static void tegra_plane_atomic_update(struct drm_plane *plane,
 		window.stride[i] = fb->pitches[i];
 	}
 
+	/* for semiplanar modes both U and V planes should point to the same
+	 * base address.
+	 */
+	if (drm_format_num_planes(fb->pixel_format) == 2 &&
+	    tegra_dc_format_is_yuv(window.format, NULL)) {
+	    window.base[2] = window.base[1];
+	    window.stride[2] = window.stride[1];
+	}
+
 	tegra_dc_setup_window(dc, p->index, &window);
 }
 
@@ -807,20 +821,17 @@ static struct drm_plane *tegra_dc_primary_plane_create(struct drm_device *drm,
 	 */
 	unsigned long possible_crtcs = 1 << drm->mode_config.num_crtc;
 	struct tegra_plane *plane;
-	unsigned int num_formats;
-	const u32 *formats;
 	int err;
 
 	plane = kzalloc(sizeof(*plane), GFP_KERNEL);
 	if (!plane)
 		return ERR_PTR(-ENOMEM);
 
-	num_formats = ARRAY_SIZE(tegra_primary_plane_formats);
-	formats = tegra_primary_plane_formats;
-
 	err = drm_universal_plane_init(drm, &plane->base, possible_crtcs,
-				       &tegra_primary_plane_funcs, formats,
-				       num_formats, DRM_PLANE_TYPE_PRIMARY);
+				       &tegra_primary_plane_funcs,
+				       dc->soc->primary_plane_formats,
+				       dc->soc->num_primary_plane_formats,
+				       DRM_PLANE_TYPE_PRIMARY);
 	if (err < 0) {
 		kfree(plane);
 		return ERR_PTR(err);
@@ -1019,19 +1030,6 @@ static const struct drm_plane_funcs tegra_overlay_plane_funcs = {
 	.atomic_destroy_state = tegra_plane_atomic_destroy_state,
 };
 
-static const uint32_t tegra_overlay_plane_formats[] = {
-	DRM_FORMAT_ABGR8888,
-	DRM_FORMAT_XBGR8888,
-	DRM_FORMAT_ARGB8888,
-	DRM_FORMAT_XRGB8888,
-	DRM_FORMAT_RGB565,
-	DRM_FORMAT_BGR565,
-	DRM_FORMAT_UYVY,
-	DRM_FORMAT_YUYV,
-	DRM_FORMAT_YUV420,
-	DRM_FORMAT_YUV422,
-};
-
 static const struct drm_plane_helper_funcs tegra_overlay_plane_helper_funcs = {
 	.prepare_fb = tegra_plane_prepare_fb,
 	.cleanup_fb = tegra_plane_cleanup_fb,
@@ -1045,8 +1043,6 @@ static struct drm_plane *tegra_dc_overlay_plane_create(struct drm_device *drm,
 						       unsigned int index)
 {
 	struct tegra_plane *plane;
-	unsigned int num_formats;
-	const u32 *formats;
 	int err;
 
 	plane = kzalloc(sizeof(*plane), GFP_KERNEL);
@@ -1055,12 +1051,11 @@ static struct drm_plane *tegra_dc_overlay_plane_create(struct drm_device *drm,
 
 	plane->index = index;
 
-	num_formats = ARRAY_SIZE(tegra_overlay_plane_formats);
-	formats = tegra_overlay_plane_formats;
-
 	err = drm_universal_plane_init(drm, &plane->base, 1 << dc->pipe,
-				       &tegra_overlay_plane_funcs, formats,
-				       num_formats, DRM_PLANE_TYPE_OVERLAY);
+				       &tegra_overlay_plane_funcs,
+				       dc->soc->overlay_plane_formats,
+				       dc->soc->num_overlay_plane_formats,
+				       DRM_PLANE_TYPE_OVERLAY);
 	if (err < 0) {
 		kfree(plane);
 		return ERR_PTR(err);
@@ -2057,6 +2052,58 @@ static const struct host1x_client_ops dc_client_ops = {
 	.exit = tegra_dc_exit,
 };
 
+static const u32 tegra20_primary_plane_formats[] = {
+	DRM_FORMAT_ABGR8888,
+	DRM_FORMAT_XBGR8888,
+	DRM_FORMAT_ARGB8888,
+	DRM_FORMAT_XRGB8888,
+	DRM_FORMAT_BGR565,
+	DRM_FORMAT_RGB565,
+};
+
+static const u32 tegra20_overlay_plane_formats[] = {
+	DRM_FORMAT_ABGR8888,
+	DRM_FORMAT_XBGR8888,
+	DRM_FORMAT_ARGB8888,
+	DRM_FORMAT_XRGB8888,
+	DRM_FORMAT_BGR565,
+	DRM_FORMAT_RGB565,
+	DRM_FORMAT_UYVY,
+	DRM_FORMAT_YUYV,
+	DRM_FORMAT_YUV420,
+	DRM_FORMAT_YUV422,
+};
+
+static const u32 tegra114_overlay_plane_formats[] = {
+	DRM_FORMAT_ABGR8888,
+	DRM_FORMAT_XBGR8888,
+	DRM_FORMAT_ARGB8888,
+	DRM_FORMAT_XRGB8888,
+	DRM_FORMAT_BGR565,
+	DRM_FORMAT_RGB565,
+	DRM_FORMAT_UYVY,
+	DRM_FORMAT_YUYV,
+	DRM_FORMAT_YUV420,
+	DRM_FORMAT_YUV422,
+	DRM_FORMAT_NV12,
+	DRM_FORMAT_NV21,
+};
+
+static const u32 tegra124_plane_formats[] = {
+	DRM_FORMAT_ABGR8888,
+	DRM_FORMAT_XBGR8888,
+	DRM_FORMAT_ARGB8888,
+	DRM_FORMAT_XRGB8888,
+	DRM_FORMAT_BGR565,
+	DRM_FORMAT_RGB565,
+	DRM_FORMAT_UYVY,
+	DRM_FORMAT_YUYV,
+	DRM_FORMAT_YUV420,
+	DRM_FORMAT_YUV422,
+	DRM_FORMAT_NV12,
+	DRM_FORMAT_NV21,
+};
+
 static const struct tegra_dc_window_soc_info tegra20_dc_window_soc_info[] = {
 	[0] = {
 		.supports_v_filter = false,
@@ -2083,6 +2130,10 @@ static const struct tegra_dc_soc_info tegra20_dc_soc_info = {
 	.supports_scan_column = false,
 	.windows = tegra20_dc_window_soc_info,
 	.num_windows = ARRAY_SIZE(tegra20_dc_window_soc_info),
+	.num_primary_plane_formats = ARRAY_SIZE(tegra20_primary_plane_formats),
+	.primary_plane_formats = tegra20_primary_plane_formats,
+	.num_overlay_plane_formats = ARRAY_SIZE(tegra20_overlay_plane_formats),
+	.overlay_plane_formats = tegra20_overlay_plane_formats,
 };
 
 static const struct tegra_dc_window_soc_info tegra30_dc_window_soc_info[] = {
@@ -2111,6 +2162,10 @@ static const struct tegra_dc_soc_info tegra30_dc_soc_info = {
 	.supports_scan_column = false,
 	.windows = tegra30_dc_window_soc_info,
 	.num_windows = ARRAY_SIZE(tegra30_dc_window_soc_info),
+	.num_primary_plane_formats = ARRAY_SIZE(tegra20_primary_plane_formats),
+	.primary_plane_formats = tegra20_primary_plane_formats,
+	.num_overlay_plane_formats = ARRAY_SIZE(tegra20_overlay_plane_formats),
+	.overlay_plane_formats = tegra20_overlay_plane_formats,
 };
 
 static const struct tegra_dc_window_soc_info tegra114_dc_window_soc_info[] = {
@@ -2139,6 +2194,10 @@ static const struct tegra_dc_soc_info tegra114_dc_soc_info = {
 	.supports_scan_column = true,
 	.windows = tegra114_dc_window_soc_info,
 	.num_windows = ARRAY_SIZE(tegra114_dc_window_soc_info),
+	.num_primary_plane_formats = ARRAY_SIZE(tegra20_primary_plane_formats),
+	.primary_plane_formats = tegra20_primary_plane_formats,
+	.num_overlay_plane_formats = ARRAY_SIZE(tegra114_overlay_plane_formats),
+	.overlay_plane_formats = tegra114_overlay_plane_formats,
 };
 
 static const struct tegra_dc_window_soc_info tegra124_dc_window_soc_info[] = {
@@ -2167,6 +2226,10 @@ static const struct tegra_dc_soc_info tegra124_dc_soc_info = {
 	.supports_scan_column = true,
 	.windows = tegra124_dc_window_soc_info,
 	.num_windows = ARRAY_SIZE(tegra124_dc_window_soc_info),
+	.num_primary_plane_formats = ARRAY_SIZE(tegra124_plane_formats),
+	.primary_plane_formats = tegra124_plane_formats,
+	.num_overlay_plane_formats = ARRAY_SIZE(tegra124_plane_formats),
+	.overlay_plane_formats = tegra124_plane_formats,
 };
 
 static const struct tegra_dc_window_soc_info tegra210_dc_window_soc_info[] = {
@@ -2195,6 +2258,10 @@ static const struct tegra_dc_soc_info tegra210_dc_soc_info = {
 	.supports_scan_column = true,
 	.windows = tegra210_dc_window_soc_info,
 	.num_windows = ARRAY_SIZE(tegra210_dc_window_soc_info),
+	.num_primary_plane_formats = ARRAY_SIZE(tegra124_plane_formats),
+	.primary_plane_formats = tegra124_plane_formats,
+	.num_overlay_plane_formats = ARRAY_SIZE(tegra124_plane_formats),
+	.overlay_plane_formats = tegra124_plane_formats,
 };
 
 static const struct of_device_id tegra_dc_of_match[] = {
