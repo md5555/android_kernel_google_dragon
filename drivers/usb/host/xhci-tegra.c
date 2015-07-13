@@ -348,15 +348,10 @@ static int tegra_xhci_load_firmware(struct tegra_xhci_hcd *tegra)
 	csb_writel(tegra, le32_to_cpu(cfg_tbl->boot_codetag),
 		   XUSB_FALC_BOOTVEC);
 
-	/* Boot Falcon CPU and wait for it to enter the STOPPED (idle) state. */
-	timeout = jiffies + msecs_to_jiffies(5);
+	/* Boot Falcon CPU. */
 	csb_writel(tegra, CPUCTL_STARTCPU, XUSB_FALC_CPUCTL);
-	while (time_before(jiffies, timeout)) {
-		if (csb_readl(tegra, XUSB_FALC_CPUCTL) == CPUCTL_STATE_STOPPED)
-			break;
-		usleep_range(100, 200);
-	}
-	if (csb_readl(tegra, XUSB_FALC_CPUCTL) != CPUCTL_STATE_STOPPED) {
+	usleep_range(1000, 2000);
+	if (csb_readl(tegra, XUSB_FALC_CPUCTL) == CPUCTL_STATE_HALTED) {
 		dev_err(dev, "Falcon failed to start, state: %#x\n",
 			csb_readl(tegra, XUSB_FALC_CPUCTL));
 		return -EIO;
