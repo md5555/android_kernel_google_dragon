@@ -141,12 +141,13 @@ gk20a_instobj_map_sg(struct nvkm_vma *vma, struct nvkm_object *object,
 		int num_ramin_pages, first_ramin_page, last_ramin_page;
 
 		first_ramin_page = pte / 512;
-		last_ramin_page = (cnt + pte) / 512;
+		last_ramin_page = (cnt + pte - 1) / 512;
 		num_ramin_pages = last_ramin_page - first_ramin_page + 1;
 
 		ramin_ptr = vmap(&node_iommu->pages[first_ramin_page],
 				 num_ramin_pages, VM_MAP,
 				 pgprot_writecombine(PAGE_KERNEL));
+		pte -= first_ramin_page * 512;
 	}
 
 	spin_lock_irqsave(&priv->lock, flags);
