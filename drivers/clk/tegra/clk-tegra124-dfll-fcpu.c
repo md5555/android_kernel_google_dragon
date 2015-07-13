@@ -25,7 +25,7 @@
 #include <linux/platform_device.h>
 #include <soc/tegra/fuse.h>
 
-#include <dt-bindings/thermal/tegra210-dfll-trips.h>
+#include <dt-bindings/thermal/tegra210-trips.h>
 
 #include "clk.h"
 #include "clk-dfll.h"
