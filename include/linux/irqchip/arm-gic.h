@@ -2,7 +2,6 @@
  *  include/linux/irqchip/arm-gic.h
  *
  *  Copyright (C) 2002 ARM Limited, All Rights Reserved.
- *  Copyright (C) 2014, NVIDIA CORPORATION.  All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -27,8 +26,6 @@
 #define GICC_IAR_INT_ID_MASK		0x3ff
 #define GICC_INT_SPURIOUS		1023
 #define GICC_DIS_BYPASS_MASK		0x1e0
-
-#define GICC_IAR_INT_ID_MASK            0x3ff
 
 #define GIC_DIST_CTRL			0x000
 #define GIC_DIST_CTR			0x004
@@ -92,13 +89,9 @@
 #define GICH_MISR_EOI			(1 << 0)
 #define GICH_MISR_U			(1 << 1)
 
-enum domain_gic_pm_event {
-	MOD_DOMAIN_POWER_ON,
-	MOD_DOMAIN_POWER_OFF
-};
+#ifndef __ASSEMBLY__
 
 #include <linux/irqdomain.h>
-#ifndef __ASSEMBLY__
 
 struct device_node;
 

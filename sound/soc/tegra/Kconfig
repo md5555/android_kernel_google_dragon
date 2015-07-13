@@ -8,12 +8,6 @@ config SND_SOC_TEGRA
 	help
 	  Say Y or M here if you want support for SoC audio on Tegra.
 
-config ARCH_TEGRA_APE
-	bool "Tegra Audio Processing Engine(APE) present"
-	default n
-	help
-	  Say Y here if the SOC supports the Tegra Audio Processing Engine.
-
 config SND_SOC_TEGRA20_AC97
 	tristate
 	depends on SND_SOC_TEGRA && ARCH_TEGRA_2x_SOC
