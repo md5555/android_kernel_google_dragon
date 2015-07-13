@@ -283,6 +283,7 @@ config SND_SOC_TEGRA_T210REF_MOBILE_RT5677_ALT
 	# select SND_SOC_TEGRA210_ADSP_ALT it requires TEGRA_NVADSP
 	select SND_SOC_SPDIF
 	select SND_SOC_RT5677
+	select SND_SOC_MAX98357A
 	help
 	  Say Y or M here.
 
