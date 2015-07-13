@@ -426,9 +426,9 @@ static struct snd_soc_dai_link tegra_rt5677_dai[] = {
 	{
 		.name = "MAX98357A",
 		.stream_name = "Speaker",
-		.codec_name = "snd-soc-dummy",
+		.codec_name = "max98357a",
 		.cpu_dai_name = "rt5677-aif2",
-		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_dai_name = "HiFi",
 		.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
 			SND_SOC_DAIFMT_CBS_CFS,
 		.params = &tegra_rt5677_stream_params,
