@@ -25,9 +25,10 @@
 
 #include "tegra210-emc-reg.h"
 
-#define TEGRA_EMC_TABLE_MAX_SIZE	16
-#define EMC_STATUS_UPDATE_TIMEOUT	1000
-#define TEGRA210_SAVE_RESTORE_MOD_REGS	12
+#define TEGRA_EMC_TABLE_MAX_SIZE		16
+#define EMC_STATUS_UPDATE_TIMEOUT		1000
+#define TEGRA210_SAVE_RESTORE_MOD_REGS		12
+#define TEGRA_EMC_DEFAULT_CLK_LATENCY_US	2000
 
 static bool emc_enable = true;
 module_param(emc_enable, bool, 0644);
@@ -482,6 +483,28 @@ static long tegra210_emc_round_rate(unsigned long rate)
 
 	return tegra_emc_table[max].rate * 1000;
 }
+
+unsigned int tegra210_emc_get_clk_latency(unsigned long rate)
+{
+	int i, index;
+
+	if (!emc_enable || !tegra_emc_init_done || !tegra_emc_table_size)
+		return TEGRA_EMC_DEFAULT_CLK_LATENCY_US;
+
+	rate /= 1000;
+	for (i = 0; i < tegra_emc_table_size; i++) {
+		if (tegra_emc_table[i].rate > rate)
+			break;
+
+		index = i;
+	}
+
+	if (tegra_emc_table[index].latency)
+		return tegra_emc_table[index].latency;
+
+	return TEGRA_EMC_DEFAULT_CLK_LATENCY_US;
+}
+EXPORT_SYMBOL(tegra210_emc_get_clk_latency);
 
 static inline void emc_get_timing(struct emc_table *timing)
 {

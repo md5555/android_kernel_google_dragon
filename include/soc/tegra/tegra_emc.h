@@ -94,6 +94,7 @@ bool tegra210_emc_is_ready(void);
 unsigned long tegra210_predict_emc_rate(int millivolts);
 const struct emc_clk_ops *tegra210_emc_get_ops(void);
 int tegra210_emc_set_over_temp_state(unsigned long state);
+unsigned int tegra210_emc_get_clk_latency(unsigned long rate);
 #else
 static inline void tegra210_emc_timing_invalidate(void) { return; };
 static inline bool tegra210_emc_is_ready(void) { return true; };
@@ -102,6 +103,8 @@ static inline unsigned long tegra210_predict_emc_rate(int millivolts)
 static inline const struct emc_clk_ops *tegra210_emc_get_ops(void)
 { return NULL; }
 static inline int tegra210_emc_set_over_temp_state(unsigned long state)
+{ return -ENODEV; }
+static inline unsigned int tegra210_emc_get_clk_latency(unsigned long rate)
 { return -ENODEV; }
 #endif
 
@@ -139,4 +142,11 @@ tegra_emc_freq_req_to_bw(unsigned int freq_khz)
 	return bw;
 }
 
+static inline unsigned int tegra_emc_get_clk_latency(unsigned long rate)
+{
+	if (of_machine_is_compatible("nvidia,tegra210"))
+		return tegra210_emc_get_clk_latency(rate);
+
+	return -ENODEV;
+}
 #endif
