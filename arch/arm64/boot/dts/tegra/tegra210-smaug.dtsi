@@ -81,6 +81,11 @@
 		status = "okay";
 	};
 
+	speaker: max98357a {
+		compatible = "maxim,max98357a";
+		status = "okay";
+	};
+
 	sound {
 		compatible = "nvidia,tegra-audio-t210ref-mobile-rt5677";
 		nvidia,model = "tegra-snd-t210ref-mobile-rt5677";
@@ -106,13 +111,7 @@
 			"DMIC L2", "Int Mic",
 			"DMIC R2", "Int Mic",
 
-			// headset
-			// "NU_AIF1RX", "AIF3TX",
-			// "AIF3RX", "NU_AIF1TX",
-
-			// speaker
-			// given 'Playback' comes from snd-soc-dummy codec
-			"Int Spk", "Playback";
+			"Int Spk", "Speaker";
 
 		nvidia,xbar = <&tegra_axbar>;
 
