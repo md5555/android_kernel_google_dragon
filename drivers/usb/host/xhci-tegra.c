@@ -993,9 +993,14 @@ static struct platform_driver tegra_xhci_driver = {
 	},
 };
 
+static const struct xhci_driver_overrides tegra_xhci_overrides __initconst = {
+	.extra_priv_size = sizeof(struct xhci_hcd),
+	.reset = tegra_xhci_setup,
+};
+
 static int __init tegra_xhci_init(void)
 {
-	xhci_init_driver(&tegra_xhci_hc_driver, tegra_xhci_setup);
+	xhci_init_driver(&tegra_xhci_hc_driver, &tegra_xhci_overrides);
 	return platform_driver_register(&tegra_xhci_driver);
 }
 module_init(tegra_xhci_init);
