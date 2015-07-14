@@ -25,11 +25,23 @@
 #define GK20A_PMU_UCODE_NB_MAX_DATE_LENGTH  64
 #define GK20A_PMU_TRACE_BUFSIZE             0x4000
 
+#define PMU_QUEUE_COUNT			5
+
+#define PMU_MAX_NUM_SEQUENCES		256
+#define PMU_SEQ_TBL_SIZE		BITS_TO_LONGS(PMU_MAX_NUM_SEQUENCES)
+
+#define MUTEX_CNT			16
+
 /* Choices for pmu_state */
 enum {
 	PMU_STATE_OFF,             /* 0  PMU is off */
 	PMU_STATE_STARTING,        /* 1  PMU is on, but not booted */
 	PMU_STATE_INIT_RECEIVED    /* 2  PMU init message received */
+};
+
+struct pmu_mutex {
+	u32 index;
+	u32 ref_cnt;
 };
 
 struct pmu_buf_desc {
@@ -101,6 +113,102 @@ struct pmu_ucode_desc {
 	u32 nb_overlays;
 	struct {u32 start; u32 size; } load_ovl[GK20A_PMU_UCODE_NB_MAX_OVERLAY];
 	u32 compressed;
+};
+
+struct pmu_rc_msg_unhandled_cmd {
+	u8 msg_type;
+	u8 unit_id;
+};
+
+struct pmu_rc_msg {
+	u8 msg_type;
+	struct pmu_rc_msg_unhandled_cmd unhandled_cmd;
+};
+
+/**
+ * Structure pmu_hdr  - Header structure for pmu cmd(that we send) or pmu msg(that we receive).
+ * unit_id            - Comp in PMU to/from which cmd sent or msg received.
+ * size               - Total size of pmu cmd or pmu msg.
+ * ctrl_flags         - Flag to indicate type of msg/cmd.
+ * seq_id             - Sequence id to match a pmu msg to pmu cmd.
+ */
+struct pmu_hdr {
+	u8 unit_id;
+	u8 size;
+	u8 ctrl_flags;
+	u8 seq_id;
+};
+
+/*
+ * Struct to contain PMU init msg format.
+ * This is the structure used by PMU firmware
+ * to communicate INIT msg from PMU firmware
+ * to Nouveau.
+ *
+ * NOTE: This structure should not be changed unless
+ * we do the same change @ PMU firmware side.
+ */
+struct pmu_init_msg_pmu_gk20a {
+	u8 msg_type;
+	u8 pad;
+	u16  os_debug_entry_point;
+
+	struct {
+		u16 size;
+		u16 offset;
+		u8 index;
+		u8 pad;
+	} queue_info[PMU_QUEUE_COUNT];
+
+	u16 sw_managed_area_offset;
+	u16 sw_managed_area_size;
+};
+
+struct pmu_init_msg {
+	union {
+		u8 msg_type;
+		struct pmu_init_msg_pmu_gk20a pmu_init_gk20a;
+	};
+};
+
+/*
+ * Struct to contain PMU generic msg format.
+ * hdr -  PMU msg header
+ * msg -  union of various msg types
+ */
+struct pmu_msg {
+	struct pmu_hdr hdr;
+	union {
+		struct pmu_init_msg init;
+		struct pmu_rc_msg rc;
+	} msg;
+};
+
+/* Struct defining a chunk of PMU dmem. */
+struct pmu_dmem {
+	u16 size;
+	u32 offset;
+};
+
+struct pmu_allocation_gk20a {
+	struct {
+		struct pmu_dmem dmem;
+		struct pmu_mem_gk20a fb;
+	} alloc;
+};
+
+typedef void (*pmu_callback)(struct nvkm_pmu *, struct pmu_msg *,
+			     void *, u32, u32);
+struct pmu_sequence {
+	u8 id;
+	u32 state;
+	u32 desc;
+	struct pmu_msg *msg;
+	struct pmu_allocation_gk20a in_gk20a;
+	struct pmu_allocation_gk20a out_gk20a;
+	u8 *out_payload;
+	pmu_callback callback;
+	void *cb_params;
 };
 
 /*Choices for DMA to use*/
@@ -207,6 +315,43 @@ struct gm20b_acr {
 	const struct firmware *pmu_desc;
 };
 
+/**
+ * Struct pmu allocator
+ * base            - min value of this linear space
+ * size            - total size
+ * bitmap          - bitmap
+ */
+struct nvkm_pmu_allocator {
+	u32 base;
+	u32 size;
+	unsigned long *bitmap;
+};
+
+/**
+ * Structure pmu_queue
+ * mutex id           - used by hw, for BIOS/SMI queue
+ * mutex_lock         - used by sw, for LPQ/HPQ queue
+ * position           - current write position
+ * offset             - physical dmem offset where this queue begins
+ * id                 - logical queue identifier
+ * index              - physical queue index
+ * size               - in bytes
+ * oflag              - flag to indentify R/W
+ * opened             - opened implied locked
+ */
+struct pmu_queue {
+	u32 mutex_id;
+	u32 mutex_lock;
+	struct mutex mutex;
+	u32 position;
+	u32 offset;
+	u32 id;
+	u32 index;
+	u32 size;
+	u32 oflag;
+	bool opened;
+};
+
 struct gk20a_pmu_priv {
 	struct nvkm_pmu base;
 	struct nvkm_alarm alarm;
@@ -217,6 +362,7 @@ struct gk20a_pmu_priv {
 	u32 *ucode_image;
 	struct pmu_buf_desc trace_buf;
 	struct mutex pmu_copy_lock;
+	struct mutex pmu_seq_lock;
 	bool pmu_ready;
 	int pmu_state;
 	struct nvkm_pmu_priv_vm pmuvm;
@@ -225,6 +371,18 @@ struct gk20a_pmu_priv {
 	bool isr_enabled;
 	u8 pmu_mode;
 	u32 falcon_id;
+	struct nvkm_pmu_allocator dmem;
+	struct pmu_queue queue[PMU_QUEUE_COUNT];
+	u32 next_seq_desc;
+	struct pmu_sequence *seq;
+	unsigned long pmu_seq_tbl[PMU_SEQ_TBL_SIZE];
+	struct pmu_mutex *mutex;
+	u32 mutex_cnt;
+	bool sw_ready;
+	bool initialized;
+	u32 sample_buffer;
+	bool buf_loaded;
+	void *pmu_chip_data;
 };
 void
 gpu_obj_memwr(struct nvkm_gpuobj *ucodeobj, int offset, void *src, int size);
@@ -269,6 +427,8 @@ gk20a_pmu_intr(struct nvkm_subdev *subdev);
 void
 gk20a_pmu_process_message(struct work_struct *work);
 
+void
+gk20a_pmu_allocator_destroy(struct nvkm_pmu_allocator *allocator);
 
 #define to_gk20a_priv(ptr) container_of(ptr, struct gk20a_pmu_priv, base)
 

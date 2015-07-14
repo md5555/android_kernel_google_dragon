@@ -1517,8 +1517,28 @@ static int gm20b_init_pmu_setup_hw1(struct nvkm_pmu *ppmu,
 	struct nvkm_mc *pmc = nvkm_mc(ppmu);
 	struct gk20a_pmu_priv *pmu = to_gk20a_priv(ppmu);
 	struct gm20b_acr *acr = &pmu->acr;
-	int err;
+	int err, i;
 	struct pmu_cmdline_args_v1 args;
+
+	pmu->mutex_cnt = MUTEX_CNT;
+	pmu->mutex = kzalloc(pmu->mutex_cnt *
+				sizeof(struct pmu_mutex), GFP_KERNEL);
+	if (!pmu->mutex) {
+		nv_error(ppmu, "not enough space\n");
+		return -ENOMEM;
+	}
+
+	for (i = 0; i < pmu->mutex_cnt; i++)
+		pmu->mutex[i].index = i;
+
+	pmu->seq = kzalloc(PMU_MAX_NUM_SEQUENCES *
+		sizeof(struct pmu_sequence), GFP_KERNEL);
+
+	if (!pmu->seq) {
+		nv_error(ppmu, "not enough space ENOMEM\n");
+		kfree(pmu->mutex);
+		return -ENOMEM;
+	}
 
 	if (!pmu->trace_buf.vma.node) {
 		err = nvkm_gpuobj_new(nv_object(ppmu), NULL,
@@ -1526,16 +1546,16 @@ static int gm20b_init_pmu_setup_hw1(struct nvkm_pmu *ppmu,
 					&pmu->trace_buf.obj);
 		if (err) {
 			nv_error(ppmu, "alloc for trace buf failed\n");
-			return err;
+			goto error;
 		}
 
 		err = nvkm_gpuobj_map_vm(nv_gpuobj(pmu->trace_buf.obj),
-						pmu->pmuvm.vm,
-						NV_MEM_ACCESS_RW,
-						&pmu->trace_buf.vma);
+					pmu->pmuvm.vm,
+					NV_MEM_ACCESS_RW,
+					&pmu->trace_buf.vma);
 		if (err) {
 			nv_error(ppmu, "mapping of trace buf failed\n");
-			return err;
+			goto error;
 		}
 	}
 
@@ -1576,6 +1596,11 @@ static int gm20b_init_pmu_setup_hw1(struct nvkm_pmu *ppmu,
 	if (err)
 		return err;
 	return 0;
+error:
+	kfree(pmu->mutex);
+	kfree(pmu->seq);
+
+	return err;
 }
 
 /*
@@ -1913,6 +1938,7 @@ gm20b_pmu_dtor(struct nvkm_object *object)
 	nvkm_gpuobj_ref(NULL, &pmu->acr.acr_ucode.obj);
 	nvkm_gpuobj_unmap(&pmu->acr.hsbl_ucode.vma);
 	nvkm_gpuobj_ref(NULL, &pmu->acr.hsbl_ucode.obj);
+	gk20a_pmu_allocator_destroy(&pmu->dmem);
 }
 
 static int
@@ -1928,6 +1954,7 @@ gm20b_pmu_init(struct nvkm_object *object) {
 	}
 
 	mutex_init(&priv->pmu_copy_lock);
+	mutex_init(&priv->pmu_seq_lock);
 	ppmu->secure_bootstrap = gm20b_boot_secure;
 	ppmu->fecs_secure_boot = true;
 	ppmu->gpccs_secure_boot = false;

@@ -40,7 +40,6 @@
 
 #define APP_VERSION_GK20A  17997577
 #define GK20A_PMU_UCODE_SIZE_MAX  (256 * 1024)
-#define PMU_QUEUE_COUNT  5
 
 #define GK20A_PMU_DMEM_BLKSIZE2		    8
 
@@ -59,71 +58,94 @@
 #define PMU_UNIT_ID_IS_VALID(id)		\
 		(((id) < PMU_UNIT_END) || ((id) >= PMU_UNIT_TEST_START))
 #define PMU_DMEM_ALIGNMENT		(4)
+#define PMU_DMEM_ALLOC_ALIGNMENT	(32)
 
 #define GK20A_PMU_UCODE_IMAGE	"gpmu_ucode.bin"
 
+#define PMU_CMD_FLAGS_PMU_MASK		(0xF0)
+#define PMU_CMD_FLAGS_STATUS		BIT(0)
+#define PMU_CMD_FLAGS_INTR		BIT(1)
+#define PMU_CMD_FLAGS_EVENT		BIT(2)
+#define PMU_CMD_FLAGS_WATERMARK		BIT(3)
 
-/*pmu msg header*/
-struct pmu_hdr {
-	u8 unit_id;
-	u8 size;
-	u8 ctrl_flags;
-	u8 seq_id;
+/*
+ * Worst case wait will be 40*40us i.e 1.6 ms,
+ * (see its usage) which is acceptable and sufficient for all
+ * busy tasks to finish
+ */
+#define MAX_RETRIES			40
+enum {
+	OFLAG_READ = 0,
+	OFLAG_WRITE
 };
 
 #define PMU_MSG_HDR_SIZE	sizeof(struct pmu_hdr)
+#define PMU_CMD_HDR_SIZE	sizeof(struct pmu_hdr)
 
-enum {
-	PMU_INIT_MSG_TYPE_PMU_INIT = 0,
+#define PMU_INIT_MSG_TYPE_PMU_INIT 0
+
+#define PMU_RC_MSG_TYPE_UNHANDLED_CMD	0
+/*
+ *Struct to contain PMU PERFMON CMD.
+ */
+struct pmu_perfmon_cmd {
+	u8 cmd_type;
 };
 
-/*pmu init msg format*/
-struct pmu_init_msg_pmu_gk20a {
-	u8 msg_type;
-	u8 pad;
-	u16  os_debug_entry_point;
-
-	struct {
-		u16 size;
-		u16 offset;
-		u8  index;
-		u8  pad;
-	} queue_info[PMU_QUEUE_COUNT];
-
-	u16 sw_managed_area_offset;
-	u16 sw_managed_area_size;
-};
-
-/*pmu init msg format*/
-struct pmu_init_msg {
-	union {
-		u8 msg_type;
-		struct pmu_init_msg_pmu_gk20a pmu_init_gk20a;
-	};
-};
-
-enum {
-	PMU_RC_MSG_TYPE_UNHANDLED_CMD = 0,
-};
-
-struct pmu_rc_msg_unhandled_cmd {
-	u8 msg_type;
-	u8 unit_id;
-};
-
-struct pmu_rc_msg {
-	u8 msg_type;
-	struct pmu_rc_msg_unhandled_cmd unhandled_cmd;
-};
-
-/*pmu generic msg format*/
-struct pmu_msg {
+/*
+ * Struct to contain PMU cmd format.
+ * hdr     - PMU hdr format.
+ * perfmon - Perfmon cmd i.e It's a cmd used to start/init Perfmon TASK in PMU .
+ *
+ * NOTE:
+ * More type of commands (structs) can be added to this generic struct.
+ * The command(struct) added should have same format in PMU fw as well.
+ * i.e same struct should be present on PMU fw and Nouveau.
+ */
+struct pmu_cmd {
 	struct pmu_hdr hdr;
-	union {
-		struct pmu_init_msg init;
-		struct pmu_rc_msg rc;
-	} msg;
+	struct pmu_perfmon_cmd perfmon;
 };
+
+/* Writen by sw, read by Pmu, protected by sw mutex lock High Prio Q. */
+#define PMU_COMMAND_QUEUE_HPQ		0
+/* Writen by sw, read by Pmu, protected by sw mutex lock Low Prio Q. */
+#define PMU_COMMAND_QUEUE_LPQ		1
+/* Writen by pmu, read by Sw, accessed by interrupt handler, no lock. */
+#define PMU_MESSAGE_QUEUE		4
+
+#define PMU_IS_COMMAND_QUEUE(id)	\
+		((id)  < PMU_MESSAGE_QUEUE)
+
+#define PMU_IS_SW_COMMAND_QUEUE(id)	\
+		(((id) == PMU_COMMAND_QUEUE_HPQ) || \
+		 ((id) == PMU_COMMAND_QUEUE_LPQ))
+
+#define  PMU_IS_MESSAGE_QUEUE(id)	\
+		((id) == PMU_MESSAGE_QUEUE)
+
+#define QUEUE_ALIGNMENT			(4)
+
+#define PMU_INVALID_MUTEX_OWNER_ID	(0)
+
+#define PMU_INVALID_SEQ_DESC		(~0)
+
+enum {
+	PMU_SEQ_STATE_FREE = 0,
+	PMU_SEQ_STATE_PENDING,
+	PMU_SEQ_STATE_USED,
+	PMU_SEQ_STATE_CANCELLED
+};
+
+struct pmu_payload {
+	struct {
+		void *buf;
+		u32 offset;
+		u16 size;
+	} in, out;
+};
+
+
 
 struct gk20a_pmu_dvfs_data {
 	int p_load_target;
@@ -518,15 +540,1015 @@ out:
 	nv_debug(priv, "exit %s\n", __func__);
 }
 
+void
+gk20a_pmu_seq_init(struct gk20a_pmu_priv *pmu)
+{
+	u32 i;
+
+	memset(pmu->seq, 0,
+		sizeof(struct pmu_sequence) * PMU_MAX_NUM_SEQUENCES);
+	memset(pmu->pmu_seq_tbl, 0,
+		sizeof(pmu->pmu_seq_tbl));
+
+	for (i = 0; i < PMU_MAX_NUM_SEQUENCES; i++)
+		pmu->seq[i].id = i;
+}
+
+static int
+gk20a_pmu_seq_acquire(struct gk20a_pmu_priv *priv,
+			struct pmu_sequence **pseq)
+{
+	struct nvkm_pmu *pmu = &priv->base;
+	struct pmu_sequence *seq;
+	u32 index;
+
+	mutex_lock(&priv->pmu_seq_lock);
+	index = find_first_zero_bit(priv->pmu_seq_tbl,
+				PMU_MAX_NUM_SEQUENCES);
+	if (index >= PMU_MAX_NUM_SEQUENCES) {
+		nv_error(pmu,
+			"no free sequence available");
+		mutex_unlock(&priv->pmu_seq_lock);
+		return -EAGAIN;
+	}
+	set_bit(index, priv->pmu_seq_tbl);
+	mutex_unlock(&priv->pmu_seq_lock);
+	seq = &priv->seq[index];
+	seq->state = PMU_SEQ_STATE_PENDING;
+	nv_debug(pmu, "seq id acquired is = %d index = %d\n", seq->id, index);
+
+	*pseq = seq;
+	return 0;
+}
+
+static void
+gk20a_pmu_seq_release(struct gk20a_pmu_priv *pmu,
+			struct pmu_sequence *seq)
+{
+	seq->state = PMU_SEQ_STATE_FREE;
+	seq->desc = PMU_INVALID_SEQ_DESC;
+	seq->callback = NULL;
+	seq->cb_params = NULL;
+	seq->msg = NULL;
+	seq->out_payload = NULL;
+	seq->in_gk20a.alloc.dmem.size = 0;
+	seq->out_gk20a.alloc.dmem.size = 0;
+	nv_debug(&pmu->base, "seq released %d\n", seq->id);
+	clear_bit(seq->id, pmu->pmu_seq_tbl);
+}
+
+static int
+gk20a_pmu_queue_init(struct gk20a_pmu_priv *priv,
+		u32 id, struct pmu_init_msg_pmu_gk20a *init)
+{
+	struct nvkm_pmu *pmu = &priv->base;
+	struct pmu_queue *queue = &priv->queue[id];
+
+	queue->id = id;
+	queue->index = init->queue_info[id].index;
+	queue->offset = init->queue_info[id].offset;
+	queue->size = init->queue_info[id].size;
+	queue->mutex_id = id;
+	mutex_init(&queue->mutex);
+
+	nv_debug(pmu, "queue %d: index %d, offset 0x%08x, size 0x%08x",
+		id, queue->index, queue->offset, queue->size);
+
+	return 0;
+}
+
+static int
+gk20a_pmu_queue_head_get(struct gk20a_pmu_priv *priv, struct pmu_queue *queue,
+			u32 *head)
+{
+	struct nvkm_pmu *pmu = &priv->base;
+
+	if (WARN_ON(!head))
+		return -EINVAL;
+
+	if (PMU_IS_COMMAND_QUEUE(queue->id)) {
+		if (queue->index >= 0x00000004)
+			return -EINVAL;
+
+		*head = nv_rd32(pmu, 0x0010a4a0 + (queue->index * 4)) &
+				0xffffffff;
+	} else {
+		*head = nv_rd32(pmu, 0x0010a4c8) & 0xffffffff;
+	}
+
+	return 0;
+}
+
+static int
+gk20a_pmu_queue_head_set(struct gk20a_pmu_priv *priv, struct pmu_queue *queue,
+			u32 *head)
+{
+	struct nvkm_pmu *pmu = &priv->base;
+
+	if (WARN_ON(!head))
+		return -EINVAL;
+
+	if (PMU_IS_COMMAND_QUEUE(queue->id)) {
+		if (queue->index >= 0x00000004)
+			return -EINVAL;
+
+		nv_wr32(pmu, (0x0010a4a0 + (queue->index * 4)),
+						(*head & 0xffffffff));
+	} else {
+		nv_wr32(pmu, 0x0010a4c8, (*head & 0xffffffff));
+	}
+
+	return 0;
+}
+
+static int
+gk20a_pmu_queue_tail_get(struct gk20a_pmu_priv *priv, struct pmu_queue *queue,
+			u32 *tail)
+{
+	struct nvkm_pmu *pmu = &priv->base;
+
+	if (WARN_ON(!tail))
+		return -EINVAL;
+
+	if (PMU_IS_COMMAND_QUEUE(queue->id)) {
+		if (queue->index >= 0x00000004)
+			return -EINVAL;
+
+		*tail = nv_rd32(pmu, 0x0010a4b0 + (queue->index * 4)) &
+				0xffffffff;
+	} else {
+		*tail = nv_rd32(pmu, 0x0010a4cc) & 0xffffffff;
+	}
+
+	return 0;
+}
+
+static int
+gk20a_pmu_queue_tail_set(struct gk20a_pmu_priv *priv, struct pmu_queue *queue,
+			u32 *tail)
+{
+	struct nvkm_pmu *pmu = &priv->base;
+
+	if (WARN_ON(!tail))
+		return -EINVAL;
+
+	if (PMU_IS_COMMAND_QUEUE(queue->id)) {
+		if (queue->index >= 0x00000004)
+			return -EINVAL;
+
+		nv_wr32(pmu, (0x0010a4b0 + (queue->index * 4)),
+						(*tail & 0xffffffff));
+	} else {
+		nv_wr32(pmu, 0x0010a4cc, (*tail & 0xffffffff));
+	}
+
+	return 0;
+}
+
+static inline void
+gk20a_pmu_queue_read(struct gk20a_pmu_priv *priv,
+			u32 offset, u8 *dst, u32 size)
+{
+	gk20a_copy_from_dmem(priv, offset, dst, size, 0);
+}
+
+static inline void
+gk20a_pmu_queue_write(struct gk20a_pmu_priv *priv,
+			u32 offset, u8 *src, u32 size)
+{
+	gk20a_pmu_copy_to_dmem(priv, offset, src, size, 0);
+}
+
+static int
+gk20a_pmu_mutex_acquire(struct nvkm_pmu *pmu, u32 id, u32 *token)
+{
+	struct gk20a_pmu_priv *priv = to_gk20a_priv(pmu);
+	struct pmu_mutex *mutex;
+	u32 data, owner, max_retry;
+
+	if (!priv->initialized)
+		return -EINVAL;
+
+	if (WARN_ON(!token))
+		return -EINVAL;
+
+	if (WARN_ON(id > priv->mutex_cnt))
+		return -EINVAL;
+
+	mutex = &priv->mutex[id];
+
+	owner = nv_rd32(pmu, 0x0010a580 + (mutex->index * 4)) & 0xff;
+
+	if (*token != PMU_INVALID_MUTEX_OWNER_ID && *token == owner) {
+		if (WARN_ON(mutex->ref_cnt == 0))
+			return -EINVAL;
+
+		nv_debug(pmu, "already acquired by owner : 0x%08x", *token);
+		mutex->ref_cnt++;
+		return 0;
+	}
+
+	/*
+	 * Worst case wait will be 40*40us i.e 1.6 ms,
+	 * (see its usage) which is acceptable and sufficient for all
+	 * busy tasks to finish.
+	 */
+	max_retry = MAX_RETRIES;
+	do {
+		data = nv_rd32(pmu, 0x0010a488) & 0xff;
+		if (data == 0 || data == 0xff) {
+			nv_warn(pmu,
+				"fail to generate mutex token: val 0x%08x",
+				owner);
+			break; /* Break and returns -EBUSY */
+		}
+
+		owner = data;
+		nv_wr32(pmu, (0x0010a580 + mutex->index * 4),
+			owner & 0xff);
+
+		data = nv_rd32(pmu, 0x0010a580 + mutex->index * 4);
+
+		if (owner == data) {
+			mutex->ref_cnt = 1;
+			nv_debug(pmu, "mutex acquired: id=%d, token=0x%x",
+							mutex->index, *token);
+			*token = owner;
+			return 0;
+		}
+		/*
+		 * This can happen if the same mutex is used by some other task
+		 * in PMU. This time is sufficient/affordable for a task to
+		 * release acquired mutex.
+		 */
+		nv_debug(pmu, "fail to acquire mutex idx=0x%08x",
+							mutex->index);
+		nv_mask(pmu, 0x0010a48c, 0xff, owner & 0xff);
+		usleep_range(20, 40);
+		continue;
+
+	} while (max_retry-- > 0);
+
+	return -EBUSY;
+}
+
+static int
+gk20a_pmu_mutex_release(struct nvkm_pmu *pmu, u32 id, u32 *token)
+{
+	struct gk20a_pmu_priv *priv = to_gk20a_priv(pmu);
+	struct pmu_mutex *mutex;
+	u32 owner;
+
+	if (!priv->initialized)
+		return -EINVAL;
+
+	if (WARN_ON(!token))
+		return -EINVAL;
+
+	if (WARN_ON(id > priv->mutex_cnt))
+		return -EINVAL;
+
+	mutex = &priv->mutex[id];
+
+	owner = nv_rd32(pmu, 0x0010a580 + (mutex->index * 4)) & 0xff;
+
+	if (*token != owner) {
+		nv_error(pmu,
+			"requester 0x%08x NOT match owner 0x%08x",
+			*token, owner);
+		return -EINVAL;
+	}
+
+	if (--mutex->ref_cnt > 0)
+		return 0;
+
+	nv_wr32(pmu, 0x0010a580 + (mutex->index * 4), 0x00);
+
+	nv_mask(pmu, 0x0010a48c, 0xff, owner & 0xff);
+
+	nv_debug(pmu, "mutex released: id=%d, token=0x%x",
+							  mutex->index, *token);
+
+	return 0;
+}
+
+static int
+gk20a_pmu_queue_lock(struct gk20a_pmu_priv *priv,
+			struct pmu_queue *queue)
+{
+	struct nvkm_pmu *pmu = &priv->base;
+
+	if (PMU_IS_MESSAGE_QUEUE(queue->id))
+		return 0;
+
+	if (PMU_IS_SW_COMMAND_QUEUE(queue->id)) {
+		mutex_lock(&queue->mutex);
+		return 0;
+	}
+
+	return gk20a_pmu_mutex_acquire(pmu, queue->mutex_id,
+						&queue->mutex_lock);
+
+}
+
+static int
+gk20a_pmu_queue_unlock(struct gk20a_pmu_priv *priv,
+			struct pmu_queue *queue)
+{
+	struct nvkm_pmu *pmu = &priv->base;
+
+	if (PMU_IS_MESSAGE_QUEUE(queue->id))
+		return 0;
+
+	if (PMU_IS_SW_COMMAND_QUEUE(queue->id)) {
+		mutex_unlock(&queue->mutex);
+		return 0;
+	}
+
+	return gk20a_pmu_mutex_release(pmu, queue->mutex_id,
+						&queue->mutex_lock);
+}
+
+/* called by gk20a_pmu_read_message, no lock */
+static bool
+gk20a_pmu_queue_is_empty(struct gk20a_pmu_priv *priv,
+			struct pmu_queue *queue)
+{
+	u32 head, tail;
+
+	gk20a_pmu_queue_head_get(priv, queue, &head);
+	if (queue->opened && queue->oflag == OFLAG_READ)
+		tail = queue->position;
+	else
+		gk20a_pmu_queue_tail_get(priv, queue, &tail);
+
+	return head == tail;
+}
+
+static bool
+gk20a_pmu_queue_has_room(struct gk20a_pmu_priv *priv,
+			struct pmu_queue *queue, u32 size, bool *need_rewind)
+{
+	u32 head, tail, free;
+	bool rewind = false;
+
+	size = ALIGN(size, QUEUE_ALIGNMENT);
+
+	gk20a_pmu_queue_head_get(priv, queue, &head);
+	gk20a_pmu_queue_tail_get(priv, queue, &tail);
+
+	if (head >= tail) {
+		free = queue->offset + queue->size - head;
+		free -= PMU_CMD_HDR_SIZE;
+
+		if (size > free) {
+			rewind = true;
+			head = queue->offset;
+		}
+	}
+
+	if (head < tail)
+		free = tail - head - 1;
+
+	if (need_rewind)
+		*need_rewind = rewind;
+
+	return size <= free;
+}
+
+static int
+gk20a_pmu_queue_push(struct gk20a_pmu_priv *priv,
+			struct pmu_queue *queue, void *data, u32 size)
+{
+
+	struct nvkm_pmu *pmu = &priv->base;
+
+	if (!queue->opened && queue->oflag == OFLAG_WRITE) {
+		nv_error(pmu, "queue not opened for write\n");
+		return -EINVAL;
+	}
+
+	gk20a_pmu_queue_write(priv, queue->position, data, size);
+	queue->position += ALIGN(size, QUEUE_ALIGNMENT);
+	return 0;
+}
+
+static int
+gk20a_pmu_queue_pop(struct gk20a_pmu_priv *priv,
+			struct pmu_queue *queue, void *data, u32 size,
+			u32 *bytes_read)
+{
+	u32 head, tail, used;
+	struct nvkm_pmu *pmu = &priv->base;
+
+	*bytes_read = 0;
+
+	if (!queue->opened && queue->oflag == OFLAG_READ) {
+		nv_error(pmu, "queue not opened for read\n");
+		return -EINVAL;
+	}
+
+	gk20a_pmu_queue_head_get(priv, queue, &head);
+	tail = queue->position;
+
+	if (head == tail) {
+		*bytes_read = 0;
+		return 0;
+	}
+
+	if (head > tail)
+		used = head - tail;
+	else
+		used = queue->offset + queue->size - tail;
+
+	if (size > used) {
+		nv_warn(pmu, "queue size smaller than request read\n");
+		size = used;
+	}
+
+	gk20a_pmu_queue_read(priv, tail, data, size);
+	queue->position += ALIGN(size, QUEUE_ALIGNMENT);
+	*bytes_read = size;
+	return 0;
+}
+
+static void
+gk20a_pmu_queue_rewind(struct gk20a_pmu_priv *priv,
+			struct pmu_queue *queue)
+{
+	struct pmu_cmd cmd;
+	struct nvkm_pmu *pmu = &priv->base;
+	int err;
+
+	if (!queue->opened) {
+		nv_error(pmu, "queue not opened\n");
+		return;
+	}
+
+	if (queue->oflag == OFLAG_WRITE) {
+		cmd.hdr.unit_id = PMU_UNIT_REWIND;
+		cmd.hdr.size = PMU_CMD_HDR_SIZE;
+		err = gk20a_pmu_queue_push(priv, queue, &cmd, cmd.hdr.size);
+		if (err)
+			nv_error(pmu, "gk20a_pmu_queue_push failed\n");
+		nv_debug(pmu, "queue %d rewinded\n", queue->id);
+	}
+
+	queue->position = queue->offset;
+	nv_debug(pmu, "exit %s\n", __func__);
+}
+
+/* Open for read and lock the queue */
+static int
+gk20a_pmu_queue_open_read(struct gk20a_pmu_priv *priv,
+			struct pmu_queue *queue)
+{
+	int err;
+
+	err = gk20a_pmu_queue_lock(priv, queue);
+	if (err)
+		return err;
+
+	if (WARN_ON(queue->opened))
+		return -EBUSY;
+
+	gk20a_pmu_queue_tail_get(priv, queue, &queue->position);
+	queue->oflag = OFLAG_READ;
+	queue->opened = true;
+
+	return 0;
+}
+
+/*
+ * open for write and lock the queue
+ * make sure there's enough free space for the write
+ */
+static int
+gk20a_pmu_queue_open_write(struct gk20a_pmu_priv *priv,
+			struct pmu_queue *queue, u32 size)
+{
+	struct nvkm_pmu *pmu = &priv->base;
+	bool rewind = false;
+	int err;
+
+	err = gk20a_pmu_queue_lock(priv, queue);
+	if (err)
+		return err;
+
+	if (WARN_ON(queue->opened))
+		return -EBUSY;
+
+	if (!gk20a_pmu_queue_has_room(priv, queue, size, &rewind)) {
+		nv_error(pmu, "queue full");
+		gk20a_pmu_queue_unlock(priv, queue);
+		return -EAGAIN;
+	}
+
+	gk20a_pmu_queue_head_get(priv, queue, &queue->position);
+	queue->oflag = OFLAG_WRITE;
+	queue->opened = true;
+
+	if (rewind)
+		gk20a_pmu_queue_rewind(priv, queue);
+
+	return 0;
+}
+
+/* close and unlock the queue */
+static int
+gk20a_pmu_queue_close(struct gk20a_pmu_priv *priv,
+			struct pmu_queue *queue, bool commit)
+{
+	struct nvkm_pmu *pmu = &priv->base;
+
+	if (WARN_ON(!queue->opened)) {
+		nv_warn(pmu, "queue already closed\n");
+		return 0;
+	}
+
+	if (commit) {
+		if (queue->oflag == OFLAG_READ) {
+			gk20a_pmu_queue_tail_set(priv, queue,
+				&queue->position);
+		} else {
+			gk20a_pmu_queue_head_set(priv, queue,
+				&queue->position);
+		}
+	}
+
+	queue->opened = false;
+	gk20a_pmu_queue_unlock(priv, queue);
+
+	return 0;
+}
+
+static bool
+gk20a_check_cmd_params(struct gk20a_pmu_priv *priv, struct pmu_cmd *cmd,
+			struct pmu_msg *msg, struct pmu_payload *payload,
+			u32 queue_id)
+{
+	struct nvkm_pmu *pmu = &priv->base;
+	struct pmu_queue *queue;
+	u32 in_size, out_size;
+
+	nv_debug(pmu, "check cmd params\n");
+
+	if (!PMU_IS_SW_COMMAND_QUEUE(queue_id))
+		return false;
+
+	queue = &priv->queue[queue_id];
+	if (cmd->hdr.size < PMU_CMD_HDR_SIZE)
+		return false;
+
+	if (cmd->hdr.size > (queue->size >> 1))
+		return false;
+
+	if (msg != NULL && msg->hdr.size < PMU_MSG_HDR_SIZE)
+		return false;
+
+	if (!PMU_UNIT_ID_IS_VALID(cmd->hdr.unit_id))
+		return false;
+
+	if (payload == NULL)
+		return true;
+
+	if (payload->in.buf == NULL && payload->out.buf == NULL)
+		return false;
+
+	if ((payload->in.buf != NULL && payload->in.size == 0) ||
+	    (payload->out.buf != NULL && payload->out.size == 0))
+		return false;
+
+	in_size = PMU_CMD_HDR_SIZE;
+	if (payload->in.buf) {
+		in_size += payload->in.offset;
+		in_size += sizeof(struct pmu_allocation_gk20a);
+	}
+
+	out_size = PMU_CMD_HDR_SIZE;
+	if (payload->out.buf) {
+		out_size += payload->out.offset;
+		out_size += sizeof(struct pmu_allocation_gk20a);
+	}
+
+	if (in_size > cmd->hdr.size || out_size > cmd->hdr.size)
+		return false;
+
+
+	if ((payload->in.offset != 0 && payload->in.buf == NULL) ||
+	    (payload->out.offset != 0 && payload->out.buf == NULL))
+		return false;
+
+	return true;
+}
+
+/*
+ * PMU DMEM allocator
+ * *addr != 0 for fixed address allocation, if *addr = 0,
+ * base addr is returned to caller in *addr.
+ * Contigous allocation, which allocates one block of
+ * contiguous address.
+ */
+static int
+gk20a_pmu_allocator_block_alloc(struct nvkm_pmu_allocator *allocator,
+		u32 *addr, u32 len, u32 align)
+{
+	unsigned long _addr;
+
+	len = ALIGN(len, align);
+	if (!len)
+		return -ENOMEM;
+
+	_addr = bitmap_find_next_zero_area(allocator->bitmap,
+			allocator->size,
+			*addr ? (*addr - allocator->base) : 0,
+			len,
+			align - 1);
+	if ((_addr > allocator->size) ||
+	    (*addr && *addr != (_addr + allocator->base))) {
+		return -ENOMEM;
+	}
+
+	bitmap_set(allocator->bitmap, _addr, len);
+	*addr = allocator->base + _addr;
+
+	return 0;
+}
+
+/* Free all blocks between start and end. */
+static int
+gk20a_pmu_allocator_block_free(struct nvkm_pmu_allocator *allocator,
+		u32 addr, u32 len, u32 align)
+{
+	len = ALIGN(len, align);
+	if (!len)
+		return -EINVAL;
+
+	bitmap_clear(allocator->bitmap, addr - allocator->base, len);
+
+	return 0;
+}
+
+static int
+gk20a_pmu_allocator_init(struct nvkm_pmu_allocator *allocator,
+		const char *name, u32 start, u32 len)
+{
+	memset(allocator, 0, sizeof(struct nvkm_pmu_allocator));
+
+	allocator->base = start;
+	allocator->size = len;
+
+	allocator->bitmap = kcalloc(BITS_TO_LONGS(len), sizeof(long),
+			GFP_KERNEL);
+	if (!allocator->bitmap)
+		return -ENOMEM;
+
+	return 0;
+}
+
+/* destroy allocator, free all remaining blocks if any */
+void
+gk20a_pmu_allocator_destroy(struct nvkm_pmu_allocator *allocator)
+{
+	kfree(allocator->bitmap);
+}
+
+static bool
+gk20a_pmu_validate_cmd(struct gk20a_pmu_priv *priv, struct pmu_cmd *cmd,
+			struct pmu_msg *msg, struct pmu_payload *payload,
+			u32 queue_id)
+{
+	bool params_valid;
+	struct nvkm_pmu *pmu = &priv->base;
+
+	params_valid = gk20a_check_cmd_params(priv, cmd, msg,
+							payload, queue_id);
+	nv_debug(pmu, "pmu validate cmd\n");
+
+	if (!params_valid)
+		nv_error(pmu, "invalid pmu cmd :\n"
+			"queue_id=%d,\n"
+			"cmd_size=%d, cmd_unit_id=%d, msg=%p, msg_size=%d,\n"
+			"payload in=%p, in_size=%d, in_offset=%d,\n"
+			"payload out=%p, out_size=%d, out_offset=%d",
+			queue_id, cmd->hdr.size, cmd->hdr.unit_id,
+			msg, msg ? msg->hdr.unit_id : ~0,
+			&payload->in, payload->in.size, payload->in.offset,
+			&payload->out, payload->out.size, payload->out.offset);
+
+	return params_valid;
+}
+
+static int
+gk20a_pmu_write_cmd(struct gk20a_pmu_priv *priv, struct pmu_cmd *cmd,
+			u32 queue_id, unsigned long timeout)
+{
+	struct nvkm_pmu *pmu = &priv->base;
+	struct pmu_queue *queue;
+	unsigned long end_jiffies = jiffies +
+		msecs_to_jiffies(timeout);
+	int err;
+
+	nv_debug(pmu, "pmu write cmd\n");
+
+	queue = &priv->queue[queue_id];
+
+	do {
+		err = gk20a_pmu_queue_open_write(priv, queue, cmd->hdr.size);
+		if (err != -EAGAIN || time_after(jiffies, end_jiffies))
+			break;
+		usleep_range(1000, 2000);
+
+	} while (1);
+
+	if (err) {
+		nv_error(pmu, "pmu_queue_open_write failed\n");
+		return err;
+	}
+
+	err = gk20a_pmu_queue_push(priv, queue, cmd, cmd->hdr.size);
+	if (err) {
+		nv_error(pmu, "pmu_queue_push failed\n");
+		goto clean_up;
+	}
+
+	err = gk20a_pmu_queue_close(priv, queue, true);
+	if (err)
+		nv_error(pmu, "fail to close the queue %d", queue_id);
+
+	nv_debug(pmu, "cmd writing done");
+
+	return 0;
+
+clean_up:
+	nv_error(pmu, "%s failed\n", __func__);
+
+	err = gk20a_pmu_queue_close(priv, queue, true);
+	if (err)
+		nv_error(pmu, "fail to close the queue %d", queue_id);
+
+	return err;
+}
+
+static int
+gk20a_pmu_cmd_post(struct nvkm_pmu *pmu, struct pmu_cmd *cmd,
+		struct pmu_msg *msg, struct pmu_payload *payload,
+		u32 queue_id, pmu_callback callback, void *cb_param,
+		u32 *seq_desc, unsigned long timeout)
+{
+	struct gk20a_pmu_priv *priv = to_gk20a_priv(pmu);
+	struct pmu_sequence *seq;
+	struct pmu_allocation_gk20a *in = NULL, *out = NULL;
+	int err;
+
+	if (WARN_ON(!cmd))
+		return -EINVAL;
+	if (WARN_ON(!seq_desc))
+		return -EINVAL;
+	if (WARN_ON(!priv->pmu_ready))
+		return -EINVAL;
+
+	if (!gk20a_pmu_validate_cmd(priv, cmd, msg, payload, queue_id))
+		return -EINVAL;
+
+	err = gk20a_pmu_seq_acquire(priv, &seq);
+	if (err)
+		return err;
+
+	cmd->hdr.seq_id = seq->id;
+
+	cmd->hdr.ctrl_flags = 0;
+	cmd->hdr.ctrl_flags |= PMU_CMD_FLAGS_STATUS;
+	cmd->hdr.ctrl_flags |= PMU_CMD_FLAGS_INTR;
+
+	seq->callback = callback;
+	seq->cb_params = cb_param;
+	seq->msg = msg;
+	seq->out_payload = NULL;
+	seq->desc = priv->next_seq_desc++;
+
+	if (payload)
+		seq->out_payload = payload->out.buf;
+
+	*seq_desc = seq->desc;
+
+	if (payload && payload->in.offset != 0) {
+		in = (struct pmu_allocation_gk20a *)((u8 *)&cmd->perfmon +
+			payload->in.offset);
+
+		in->alloc.dmem.size = payload->in.size;
+
+		err = gk20a_pmu_allocator_block_alloc(&priv->dmem,
+						&in->alloc.dmem.offset,
+						in->alloc.dmem.size,
+						PMU_DMEM_ALLOC_ALIGNMENT);
+		if (err) {
+			nv_error(pmu, "gk20a_pmu_allocator alloc failed\n");
+			goto clean_up;
+		}
+
+		gk20a_pmu_copy_to_dmem(priv, in->alloc.dmem.offset,
+			payload->in.buf, payload->in.size, 0);
+		seq->in_gk20a.alloc.dmem.size = in->alloc.dmem.size;
+		seq->in_gk20a.alloc.dmem.offset = in->alloc.dmem.offset;
+	}
+
+	if (payload && payload->out.offset != 0) {
+		out = (struct pmu_allocation_gk20a *)((u8 *)&cmd->perfmon +
+			payload->out.offset);
+
+		out->alloc.dmem.size = payload->out.size;
+
+		err = gk20a_pmu_allocator_block_alloc(&priv->dmem,
+					&out->alloc.dmem.offset,
+					out->alloc.dmem.size,
+					PMU_DMEM_ALLOC_ALIGNMENT);
+		if (err) {
+			nv_error(pmu, "gk20a_pmu_allocator alloc failed\n");
+			goto clean_up;
+		}
+
+		seq->out_gk20a.alloc.dmem.size = out->alloc.dmem.size;
+		seq->out_gk20a.alloc.dmem.offset = out->alloc.dmem.offset;
+	}
+
+	seq->state = PMU_SEQ_STATE_USED;
+	err = gk20a_pmu_write_cmd(priv, cmd, queue_id, timeout);
+	if (err)
+		seq->state = PMU_SEQ_STATE_PENDING;
+
+	return 0;
+
+clean_up:
+
+	nv_error(pmu, "cmd post failed\n");
+	if (in)
+		gk20a_pmu_allocator_block_free(&priv->dmem,
+					in->alloc.dmem.offset,
+					in->alloc.dmem.size,
+					PMU_DMEM_ALLOC_ALIGNMENT);
+	if (out)
+		gk20a_pmu_allocator_block_free(&priv->dmem,
+					out->alloc.dmem.offset,
+					out->alloc.dmem.size,
+					PMU_DMEM_ALLOC_ALIGNMENT);
+
+	gk20a_pmu_seq_release(priv, seq);
+
+	return err;
+}
+
+static bool
+gk20a_pmu_read_message(struct gk20a_pmu_priv *priv, struct pmu_queue *queue,
+			struct pmu_msg *msg, int *status)
+{
+	struct nvkm_pmu *pmu = &priv->base;
+	u32 read_size, bytes_read;
+	int err;
+
+	*status = 0;
+
+	if (gk20a_pmu_queue_is_empty(priv, queue))
+		return false;
+
+	err = gk20a_pmu_queue_open_read(priv, queue);
+	if (err) {
+		nv_error(pmu,
+			"fail to open queue %d for read", queue->id);
+		*status = err;
+		return false;
+	}
+
+	err = gk20a_pmu_queue_pop(priv, queue, &msg->hdr,
+			PMU_MSG_HDR_SIZE, &bytes_read);
+	if (err || bytes_read != PMU_MSG_HDR_SIZE) {
+		nv_error(pmu,
+			"fail to read msg from queue %d", queue->id);
+		*status = err | -EINVAL;
+		goto clean_up;
+	}
+
+	if (msg->hdr.unit_id == PMU_UNIT_REWIND) {
+		gk20a_pmu_queue_rewind(priv, queue);
+		/* read again after rewind */
+		err = gk20a_pmu_queue_pop(priv, queue, &msg->hdr,
+				PMU_MSG_HDR_SIZE, &bytes_read);
+		if (err || bytes_read != PMU_MSG_HDR_SIZE) {
+			nv_error(pmu,
+				"fail to read msg from queue %d", queue->id);
+			*status = err | -EINVAL;
+			goto clean_up;
+		}
+	}
+
+	if (!PMU_UNIT_ID_IS_VALID(msg->hdr.unit_id)) {
+		nv_error(pmu,
+			"read invalid unit_id %d from queue %d",
+			msg->hdr.unit_id, queue->id);
+			*status = -EINVAL;
+			goto clean_up;
+	}
+
+	if (msg->hdr.size > PMU_MSG_HDR_SIZE) {
+		read_size = msg->hdr.size - PMU_MSG_HDR_SIZE;
+		err = gk20a_pmu_queue_pop(priv, queue, &msg->msg,
+			read_size, &bytes_read);
+		if (err || bytes_read != read_size) {
+			nv_error(pmu,
+				"fail to read msg from queue %d", queue->id);
+			*status = err;
+			goto clean_up;
+		}
+	}
+
+	err = gk20a_pmu_queue_close(priv, queue, true);
+	if (err) {
+		nv_error(pmu,
+			"fail to close queue %d", queue->id);
+		*status = err;
+		return false;
+	}
+
+	return true;
+
+clean_up:
+	err = gk20a_pmu_queue_close(priv, queue, false);
+	if (err)
+		nv_error(pmu,
+			"fail to close queue %d", queue->id);
+	return false;
+}
+
+static int
+gk20a_pmu_response_handle(struct gk20a_pmu_priv *priv, struct pmu_msg *msg)
+{
+	struct nvkm_pmu *pmu = &priv->base;
+	struct pmu_sequence *seq;
+	int ret = 0;
+
+	nv_debug(pmu, "handling pmu response\n");
+	seq = &priv->seq[msg->hdr.seq_id];
+	if (seq->state != PMU_SEQ_STATE_USED &&
+	    seq->state != PMU_SEQ_STATE_CANCELLED) {
+		nv_error(pmu, "msg for an unknown sequence %d", seq->id);
+		return -EINVAL;
+	}
+
+	if (msg->hdr.unit_id == PMU_UNIT_RC &&
+	    msg->msg.rc.msg_type == PMU_RC_MSG_TYPE_UNHANDLED_CMD) {
+		nv_error(pmu, "unhandled cmd: seq %d", seq->id);
+	} else if (seq->state != PMU_SEQ_STATE_CANCELLED) {
+		if (seq->msg) {
+			if (seq->msg->hdr.size >= msg->hdr.size) {
+				memcpy(seq->msg, msg, msg->hdr.size);
+				if (seq->out_gk20a.alloc.dmem.size != 0) {
+					gk20a_copy_from_dmem(priv,
+					seq->out_gk20a.alloc.dmem.offset,
+					seq->out_payload,
+					seq->out_gk20a.alloc.dmem.size, 0);
+				}
+			} else {
+				nv_error(pmu,
+					"sequence %d msg buffer too small",
+					seq->id);
+			}
+		}
+	} else {
+		seq->callback = NULL;
+	}
+
+	if (seq->in_gk20a.alloc.dmem.size != 0)
+		gk20a_pmu_allocator_block_free(&priv->dmem,
+			seq->in_gk20a.alloc.dmem.offset,
+			seq->in_gk20a.alloc.dmem.size,
+			PMU_DMEM_ALLOC_ALIGNMENT);
+	if (seq->out_gk20a.alloc.dmem.size != 0)
+		gk20a_pmu_allocator_block_free(&priv->dmem,
+			seq->out_gk20a.alloc.dmem.offset,
+			seq->out_gk20a.alloc.dmem.size,
+			PMU_DMEM_ALLOC_ALIGNMENT);
+
+	if (seq->callback)
+		seq->callback(pmu, msg, seq->cb_params, seq->desc, ret);
+
+	gk20a_pmu_seq_release(priv, seq);
+
+	/* TBD: notify client waiting for available dmem */
+	nv_debug(pmu, "pmu response processed\n");
+
+	return 0;
+}
+
 static int
 gk20a_pmu_process_init_msg(struct gk20a_pmu_priv *priv, struct pmu_msg *msg)
 {
 	struct pmu_init_msg_pmu_gk20a *init;
-	u32 tail;
+	u32 tail, i;
 
 	tail = nv_rd32(priv, 0x0010a4cc);
 
-	gk20a_copy_from_dmem(priv, tail, (u8 *)&msg->hdr, PMU_MSG_HDR_SIZE, 0);
+	gk20a_copy_from_dmem(priv, tail,
+				(u8 *)&msg->hdr, PMU_MSG_HDR_SIZE, 0);
 
 	if (msg->hdr.unit_id != PMU_UNIT_INIT) {
 		nv_error(priv, "expecting init msg\n");
@@ -545,8 +1567,17 @@ gk20a_pmu_process_init_msg(struct gk20a_pmu_priv *priv, struct pmu_msg *msg)
 	nv_wr32(priv, 0x0010a4cc, tail);
 	init = &msg->msg.init.pmu_init_gk20a;
 	priv->pmu_ready = true;
+
+	for (i = 0; i < PMU_QUEUE_COUNT; i++)
+		gk20a_pmu_queue_init(priv, i, init);
+
+	gk20a_pmu_allocator_init(&priv->dmem, "gk20a_pmu_dmem",
+					init->sw_managed_area_offset,
+					init->sw_managed_area_size);
+
 	priv->pmu_state = PMU_STATE_INIT_RECEIVED;
 	nv_debug(priv, "init msg processed\n");
+
 	return 0;
 }
 
@@ -556,17 +1587,31 @@ gk20a_pmu_process_message(struct work_struct *work)
 	struct nvkm_pmu *pmu = container_of(work, struct nvkm_pmu, recv.work);
 	struct gk20a_pmu_priv *priv = to_gk20a_priv(pmu);
 	struct pmu_msg msg;
+	int status;
 	struct nvkm_mc *pmc = nvkm_mc(pmu);
 
 	mutex_lock(&priv->isr_mutex);
 	if (unlikely(!priv->pmu_ready)) {
 		nv_debug(pmu, "processing init msg\n");
 		gk20a_pmu_process_init_msg(priv, &msg);
-		mutex_unlock(&priv->isr_mutex);
-		gk20a_pmu_enable_irq(priv, pmc, true);
-	} else {
-		mutex_unlock(&priv->isr_mutex);
+		goto out;
 	}
+	while (gk20a_pmu_read_message(priv,
+		&priv->queue[PMU_MESSAGE_QUEUE], &msg, &status)) {
+
+		nv_debug(pmu, "read msg hdr:\n"
+				"unit_id = 0x%08x, size = 0x%08x,\n"
+				"ctrl_flags = 0x%08x, seq_id = 0x%08x\n",
+				msg.hdr.unit_id, msg.hdr.size,
+				msg.hdr.ctrl_flags, msg.hdr.seq_id);
+
+		msg.hdr.ctrl_flags &= ~PMU_CMD_FLAGS_PMU_MASK;
+		gk20a_pmu_response_handle(priv, &msg);
+	}
+out:
+	mutex_unlock(&priv->isr_mutex);
+	gk20a_pmu_enable_irq(priv, pmc, true);
+	nv_debug(pmu, "exit %s\n", __func__);
 }
 
 static int
@@ -631,21 +1676,49 @@ static int
 gk20a_init_pmu_setup_sw(struct gk20a_pmu_priv *priv)
 {
 	struct nvkm_pmu_priv_vm *pmuvm = &priv->pmuvm;
-	int ret = 0;
+	struct nvkm_pmu *pmu = &priv->base;
+	int ret = 0, i;
 
 	INIT_WORK(&priv->base.recv.work, gk20a_pmu_process_message);
+	priv->mutex_cnt = MUTEX_CNT;
+	priv->mutex = kzalloc(priv->mutex_cnt *
+		sizeof(struct pmu_mutex), GFP_KERNEL);
+
+	if (!priv->mutex) {
+		nv_error(pmu, "not enough space ENOMEM\n");
+		return -ENOMEM;
+	}
+
+	for (i = 0; i < priv->mutex_cnt; i++)
+		priv->mutex[i].index = i;
+
+	priv->seq = kzalloc(PMU_MAX_NUM_SEQUENCES *
+		sizeof(struct pmu_sequence), GFP_KERNEL);
+
+	if (!priv->seq) {
+		nv_error(pmu, "not enough space ENOMEM\n");
+		kfree(priv->mutex);
+		return -ENOMEM;
+	}
+
+	gk20a_pmu_seq_init(priv);
 
 	ret = nvkm_gpuobj_new(nv_object(priv), NULL, GK20A_PMU_TRACE_BUFSIZE,
 					    0, 0, &priv->trace_buf.obj);
 	if (ret)
-		return ret;
+		goto error;
 
 	ret = nvkm_gpuobj_map_vm(nv_gpuobj(priv->trace_buf.obj), pmuvm->vm,
 					NV_MEM_ACCESS_RW, &priv->trace_buf.vma);
 	if (ret)
-		return ret;
+		goto error;
 
 	return 0;
+error:
+	kfree(priv->mutex);
+	kfree(priv->seq);
+
+	return ret;
 }
 
 static int
@@ -799,6 +1872,7 @@ gk20a_pmu_intr(struct nvkm_subdev *subdev)
 	if (intr & 0x40) {
 		nv_debug(priv, "scheduling work\n");
 		schedule_work(&priv->base.recv.work);
+		gk20a_pmu_enable_irq(priv, pmc, true);
 	}
 
 	nv_wr32(priv, 0x0010a004, intr);
@@ -868,6 +1942,7 @@ gk20a_pmu_dtor(struct nvkm_object *object)
 	nvkm_vm_ref(NULL, &priv->pmuvm.vm, priv->pmuvm.pgd);
 	nvkm_gpuobj_ref(NULL, &priv->pmuvm.pgd);
 	nvkm_gpuobj_ref(NULL, &priv->pmuvm.mem);
+	gk20a_pmu_allocator_destroy(&priv->dmem);
 }
 
 struct gk20a_pmu_dvfs_data gk20a_dvfs_data = {
@@ -894,6 +1969,7 @@ gk20a_pmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 
 	mutex_init(&priv->isr_mutex);
 	mutex_init(&priv->pmu_copy_lock);
+	mutex_init(&priv->pmu_seq_lock);
 	priv->data = &gk20a_dvfs_data;
 	pmu = &priv->base;
 	pmc = nvkm_mc(pmu);
