@@ -702,7 +702,17 @@ static void tegra_plane_atomic_update(struct drm_plane *plane,
 	window.dst.w = plane->state->crtc_w;
 	window.dst.h = plane->state->crtc_h;
 	window.bits_per_pixel = fb->bits_per_pixel;
-	window.bottom_up = tegra_fb_is_bottom_up(fb);
+	if (dc->soc->supports_scan_column &&
+			((BIT(DRM_ROTATE_90) | BIT(DRM_ROTATE_270)) &
+			 plane->state->rotation))
+		window.scan_column = true;
+	if ((BIT(DRM_REFLECT_X) | BIT(DRM_ROTATE_180) | BIT(DRM_ROTATE_270)) &
+			plane->state->rotation)
+		window.right_left = true;
+	if (((BIT(DRM_REFLECT_Y) | BIT(DRM_ROTATE_90) | BIT(DRM_ROTATE_180)) &
+				plane->state->rotation) ||
+			tegra_fb_is_bottom_up(fb))
+		window.bottom_up = true;
 
 	/* copy from state */
 	window.tiling = state->tiling;
@@ -753,6 +763,31 @@ static const struct drm_plane_helper_funcs tegra_primary_plane_helper_funcs = {
 	.atomic_disable = tegra_plane_atomic_disable,
 };
 
+static void tegra_plane_add_rotation_property(struct drm_device *drm,
+		struct tegra_dc *dc, struct tegra_plane *plane)
+{
+	unsigned int supported_rotations;
+
+	if (!drm->mode_config.rotation_property) {
+		supported_rotations = BIT(DRM_ROTATE_0) | BIT(DRM_ROTATE_180) |
+			BIT(DRM_REFLECT_X) | BIT(DRM_REFLECT_Y);
+		if (dc->soc->supports_scan_column)
+			supported_rotations |= BIT(DRM_ROTATE_90) |
+				BIT(DRM_ROTATE_270);
+
+		drm->mode_config.rotation_property =
+			drm_mode_create_rotation_property(drm,
+					supported_rotations);
+		if (drm->mode_config.rotation_property == NULL)
+			dev_warn(&drm->dev,
+					"failed to create rotation property\n");
+	}
+
+	if (drm->mode_config.rotation_property)
+		drm_object_attach_property(&plane->base.base,
+				drm->mode_config.rotation_property, 0);
+}
+
 static struct drm_plane *tegra_dc_primary_plane_create(struct drm_device *drm,
 						       struct tegra_dc *dc)
 {
@@ -790,6 +825,8 @@ static struct drm_plane *tegra_dc_primary_plane_create(struct drm_device *drm,
 	}
 
 	drm_plane_helper_add(&plane->base, &tegra_primary_plane_helper_funcs);
+
+	tegra_plane_add_rotation_property(drm, dc, plane);
 
 	return &plane->base;
 }
@@ -1028,6 +1065,8 @@ static struct drm_plane *tegra_dc_overlay_plane_create(struct drm_device *drm,
 	}
 
 	drm_plane_helper_add(&plane->base, &tegra_overlay_plane_helper_funcs);
+
+	tegra_plane_add_rotation_property(drm, dc, plane);
 
 	return &plane->base;
 }
