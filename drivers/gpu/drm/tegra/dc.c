@@ -1363,20 +1363,15 @@ static int tegra_dc_program_bandwidth(struct tegra_dc *dc,
 				      unsigned long bandwidth)
 {
 	unsigned long freq;
-	struct clk *emc_master;
 
-	if (!dc->emc_clk || !bandwidth)
+	if (!dc->emc_clk)
 		return 0;
-
-	emc_master = clk_get_parent(dc->emc_clk);
 
 	bandwidth *= 2; /* double bandwidth to avoid underflow */
 	freq = tegra_emc_bw_to_freq_req(bandwidth) * 1000;
 
 	if (freq < EMC_FREQ_MIN_RATE)
 		freq = EMC_FREQ_MIN_RATE;
-
-	freq = clk_round_rate(emc_master, freq);
 
 	return clk_set_rate(dc->emc_clk, freq);
 }
