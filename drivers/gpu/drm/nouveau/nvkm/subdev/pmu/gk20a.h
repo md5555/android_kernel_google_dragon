@@ -23,6 +23,14 @@
 
 #define GK20A_PMU_UCODE_NB_MAX_OVERLAY	    32
 #define GK20A_PMU_UCODE_NB_MAX_DATE_LENGTH  64
+#define GK20A_PMU_TRACE_BUFSIZE             0x4000
+
+/* Choices for pmu_state */
+enum {
+	PMU_STATE_OFF,             /* 0  PMU is off */
+	PMU_STATE_STARTING,        /* 1  PMU is on, but not booted */
+	PMU_STATE_INIT_RECEIVED    /* 2  PMU init message received */
+};
 
 struct pmu_buf_desc {
 	struct nvkm_gpuobj *obj;

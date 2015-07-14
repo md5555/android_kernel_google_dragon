@@ -103,7 +103,6 @@ struct gm20b_ctxsw_bootloader_desc {
 /*Bootstrap Owner Defines*/
 #define LSF_BOOTSTRAP_OWNER_DEFAULT (LSF_FALCON_ID_PMU)
 
-#define GK20A_PMU_TRACE_BUFSIZE     0x4000   /* 4K */
 /*Image Status Defines*/
 #define LSF_IMAGE_STATUS_NONE                           (0)
 #define LSF_IMAGE_STATUS_COPY                           (1)
@@ -633,7 +632,7 @@ gm20b_pmu_populate_loader_cfg(struct nvkm_pmu *ppmu,
 	struct pmu_ucode_desc *desc;
 	u64 addr_code, addr_data;
 	u32 addr_args;
-	struct pmu_cmdline_args_gk20a cmdline_args;
+	struct pmu_cmdline_args_v1 cmdline_args;
 
 	if (p_img->desc == NULL)
 		return -EINVAL;
@@ -1518,6 +1517,25 @@ static int gm20b_init_pmu_setup_hw1(struct nvkm_pmu *ppmu,
 	int err;
 	struct pmu_cmdline_args_v1 args;
 
+	err = nvkm_gpuobj_new(nv_object(ppmu), NULL,
+					GK20A_PMU_TRACE_BUFSIZE, 0x1000, 0,
+					&pmu->trace_buf.obj);
+	if (err) {
+		nv_error(ppmu, "alloc for trace buf failed\n");
+		return err;
+	}
+
+	err = nvkm_gpuobj_map_vm(nv_gpuobj(pmu->trace_buf.obj),
+					pmu->pmuvm.vm,
+					NV_MEM_ACCESS_RW,
+					&pmu->trace_buf.vma);
+	if (err) {
+		nv_error(ppmu, "mapping of trace buf failed\n");
+		return err;
+	}
+
+	memset(&args, 0x00, sizeof(struct pmu_cmdline_args_v1));
+
 	mutex_lock(&pmu->isr_mutex);
 	pmu_reset(ppmu, pmc);
 	pmu->isr_enabled = true;
@@ -1539,8 +1557,8 @@ static int gm20b_init_pmu_setup_hw1(struct nvkm_pmu *ppmu,
 	args.cpu_freq_hz = 0;
 	args.secure_mode = 1;
 	args.falc_trace_size = GK20A_PMU_TRACE_BUFSIZE;
-	args.falc_trace_dma_base = 0;
-	args.falc_trace_dma_idx = 0;
+	args.falc_trace_dma_base = ((u32)pmu->trace_buf.vma.offset) >> 8;
+	args.falc_trace_dma_idx = GK20A_PMU_DMAIDX_VIRT;
 	gk20a_pmu_copy_to_dmem(pmu, acr->pmu_args,
 			(u8 *)(&args), sizeof(args), 0);
 	/*disable irqs for hs falcon booting as we will poll for halt*/
@@ -1627,7 +1645,12 @@ int pmu_exec_gen_bl(struct nvkm_pmu *pmu, void *desc, u8 b_wait_for_halt)
 	nv_debug(pmu, "phys sec reg %x\n", nv_rd32(pmu, 0x00100ce4));
 	nv_debug(pmu, "before ACR exec sctl %x\n", nv_rd32(pmu, 0x0010a240));
 
-	gm20b_init_pmu_setup_hw1(pmu, desc, acr->hsbl_ucode.size);
+	err = gm20b_init_pmu_setup_hw1(pmu, desc, acr->hsbl_ucode.size);
+	if (err) {
+		nv_error(pmu, "gm20b_init_pmu_setup_hw1 failed\n");
+		goto err_unmap_bl;
+	}
+
 	/* Poll for HALT */
 	if (b_wait_for_halt) {
 		err = pmu_wait_for_halt(pmu, GK20A_IDLE_CHECK_DEFAULT);
@@ -1650,6 +1673,7 @@ int pmu_exec_gen_bl(struct nvkm_pmu *pmu, void *desc, u8 b_wait_for_halt)
 		0x00100ce4));
 	nv_debug(pmu, "sctl reg %x\n", nv_rd32(pmu, 0x0010a240));
 
+	priv->pmu_state = PMU_STATE_STARTING;
 	start_gm20b_pmu(pmu);
 
 	return 0;
@@ -1791,16 +1815,22 @@ int gm20b_boot_secure(struct nvkm_pmu *ppmu)
 	ret = gm20b_prepare_ucode_blob(ppmu);
 	if (ret) {
 		nv_error(ppmu, "%s failed\n", __func__);
-		return ret;
+		goto error;
 	}
 	ret = gm20b_bootstrap_hs_flcn(ppmu);
 	if (ret) {
 		nv_error(ppmu, "%s failed\n", __func__);
-		return ret;
+		goto error;
 	}
 
 	/* Have to re-init the idle count ctrl after secure boot */
 	gk20a_pmu_dvfs_init(priv);
+
+	return ret;
+
+error:
+	nvkm_gpuobj_unmap(&priv->trace_buf.vma);
+	nvkm_gpuobj_ref(NULL, &priv->trace_buf.obj);
 
 	return ret;
 }

@@ -42,7 +42,6 @@
 #define GK20A_PMU_UCODE_SIZE_MAX  (256 * 1024)
 #define PMU_QUEUE_COUNT  5
 
-#define GK20A_PMU_TRACE_BUFSIZE             0x4000   /* 4K */
 #define GK20A_PMU_DMEM_BLKSIZE2		    8
 
 #define PMU_UNIT_REWIND		(0x00)
@@ -63,12 +62,6 @@
 
 #define GK20A_PMU_UCODE_IMAGE	"gpmu_ucode.bin"
 
-/*Choices for pmu_state*/
-enum {
-	PMU_STATE_OFF,             /*0  PMU is off */
-	PMU_STATE_STARTING,        /*1  PMU is on, but not booted */
-	PMU_STATE_INIT_RECEIVED    /*2  PMU init message received */
-};
 
 /*pmu msg header*/
 struct pmu_hdr {
