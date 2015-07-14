@@ -550,7 +550,7 @@ gk20a_pmu_process_init_msg(struct gk20a_pmu_priv *priv, struct pmu_msg *msg)
 	return 0;
 }
 
-static void
+void
 gk20a_pmu_process_message(struct work_struct *work)
 {
 	struct nvkm_pmu *pmu = container_of(work, struct nvkm_pmu, recv.work);
@@ -765,8 +765,7 @@ gk20a_init_pmu_setup_hw1(struct gk20a_pmu_priv *priv, struct nvkm_mc *pmc)
 	return 0;
 }
 
-
-static void
+void
 gk20a_pmu_intr(struct nvkm_subdev *subdev)
 {
 	struct gk20a_pmu_priv *priv = to_gk20a_priv(nvkm_pmu(subdev));

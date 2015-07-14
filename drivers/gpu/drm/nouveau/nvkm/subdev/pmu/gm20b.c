@@ -1545,6 +1545,7 @@ static int gm20b_init_pmu_setup_hw1(struct nvkm_pmu *ppmu,
 	pmu_reset(ppmu, pmc);
 	pmu->isr_enabled = true;
 	mutex_unlock(&pmu->isr_mutex);
+	INIT_WORK(&pmu->base.recv.work, gk20a_pmu_process_message);
 
 	/* setup apertures - virtual */
 	nv_wr32(ppmu, 0x0010ae00 + 4 * (GK20A_PMU_DMAIDX_UCODE),
@@ -1840,24 +1841,6 @@ error:
 	return ret;
 }
 
-static void
-gm20b_pmu_intr(struct nvkm_subdev *subdev)
-{
-	struct gk20a_pmu_priv *priv = to_gk20a_priv(nvkm_pmu(subdev));
-	struct nvkm_mc *pmc = nvkm_mc(priv);
-	u32 intr, mask;
-
-	if (!priv->isr_enabled)
-		return;
-
-	gk20a_pmu_enable_irq(priv, pmc, false);
-
-	mask = nv_rd32(priv, 0x0010a018) & nv_rd32(priv, 0x0010a01c);
-	intr = nv_rd32(priv, 0x0010a008) & mask;
-
-	nv_wr32(priv, 0x0010a004, intr);
-}
-
 extern struct gk20a_pmu_dvfs_data gk20a_dvfs_data;
 
 static int
@@ -1877,10 +1860,11 @@ gm20b_pmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	ppmu = &priv->base;
 	mc = ioremap(TEGRA_MC_BASE, 0x00000d00);
 
-	nv_subdev(ppmu)->intr = gm20b_pmu_intr;
+	nv_subdev(ppmu)->intr = gk20a_pmu_intr;
 
 	priv->data = &gk20a_dvfs_data;
 	nvkm_alarm_init(&priv->alarm, gk20a_pmu_dvfs_work);
+	mutex_init(&priv->isr_mutex);
 
 	return ret;
 }
@@ -1889,9 +1873,29 @@ static int
 gm20b_pmu_fini(struct nvkm_object *object, bool suspend)
 {
 	struct gk20a_pmu_priv *priv = (void *)object;
+	struct nvkm_mc *pmc = nvkm_mc(object);
+	struct nvkm_pmu *pmu = &priv->base;
+
 	nvkm_timer_alarm_cancel(priv, &priv->alarm);
 
-	return 0;
+	if (suspend) {
+		cancel_work_sync(&priv->base.recv.work);
+		mutex_lock(&priv->isr_mutex);
+		gk20a_pmu_enable(priv, pmc, false);
+		priv->isr_enabled = false;
+		mutex_unlock(&priv->isr_mutex);
+
+		priv->pmu_state = PMU_STATE_OFF;
+		priv->pmu_ready = false;
+		nv_wr32(priv, 0x10a014, 0x00000060);
+	} else {
+		mutex_lock(&priv->isr_mutex);
+		gk20a_pmu_enable(priv, pmc, true);
+		pmu_reset(pmu, pmc);
+		mutex_unlock(&priv->isr_mutex);
+	}
+
+	return nvkm_subdev_fini(&priv->base.base, suspend);
 }
 
 static void
@@ -1923,7 +1927,6 @@ gm20b_pmu_init(struct nvkm_object *object) {
 		return ret;
 	}
 
-	mutex_init(&priv->isr_mutex);
 	mutex_init(&priv->pmu_copy_lock);
 	ppmu->secure_bootstrap = gm20b_boot_secure;
 	ppmu->fecs_secure_boot = true;

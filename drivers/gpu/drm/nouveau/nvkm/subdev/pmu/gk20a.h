@@ -263,6 +263,13 @@ gk20a_pmu_dvfs_init(struct gk20a_pmu_priv *priv);
 void
 gk20a_pmu_dvfs_work(struct nvkm_alarm *alarm);
 
+void
+gk20a_pmu_intr(struct nvkm_subdev *subdev);
+
+void
+gk20a_pmu_process_message(struct work_struct *work);
+
+
 #define to_gk20a_priv(ptr) container_of(ptr, struct gk20a_pmu_priv, base)
 
 #endif
