@@ -274,31 +274,112 @@ int tegra_mc_flush(struct tegra_mc *mc, const struct tegra_mc_flush *flush,
 }
 EXPORT_SYMBOL(tegra_mc_flush);
 
+void la_writel(struct tegra_mc *mc, u32 val, struct tegra_mc_la *la)
+{
+	u32 reg_value;
+
+	BUG_ON(val > MC_LA_MAX_VALUE);
+
+	reg_value = mc_readl(mc, la->reg);
+
+	reg_value &= ~(la->mask << la->shift);
+	reg_value |= (val & la->mask) << la->shift;
+
+	mc_writel(mc, reg_value, la->reg);
+
+	la->la_set = val;
+}
+
+int tegra_la_set_disp_la(struct tegra_mc *mc,
+			 int id,
+			 unsigned long emc_freq_hz,
+			 unsigned int bw_kbps,
+			 struct tegra_dc_to_la_params disp_params)
+{
+	struct tegra_la_soc *la_soc = mc->soc->la_soc;
+
+	return la_soc->set_disp_la(mc, id, emc_freq_hz, bw_kbps, disp_params);
+}
+EXPORT_SYMBOL(tegra_la_set_disp_la);
+
+int tegra_la_set_camera_ptsa(struct tegra_mc *mc,
+			     int id,
+			     unsigned int bw_kbps,
+			     int is_hiso)
+{
+	struct tegra_la_soc *la_soc = mc->soc->la_soc;
+
+	return la_soc->update_camera_ptsa_rate(mc, id, bw_kbps, is_hiso);
+}
+EXPORT_SYMBOL(tegra_la_set_camera_ptsa);
+
+struct tegra_disp_client *tegra_la_get_disp_client_info(struct tegra_mc *mc,
+							int id)
+{
+	struct tegra_la_soc *la_soc = mc->soc->la_soc;
+	int i;
+
+	for (i = 0; i < la_soc->num_clients; i++) {
+		if (la_soc->clients[i].id == id)
+			break;
+	}
+
+	if (i == la_soc->num_clients)
+		return ERR_PTR(-EINVAL);
+
+	return &la_soc->clients[i].la.disp_client;
+}
+EXPORT_SYMBOL(tegra_la_get_disp_client_info);
+
 static int tegra_mc_setup_latency_allowance(struct tegra_mc *mc)
 {
+	struct tegra_la_soc *la_soc = mc->soc->la_soc;
 	unsigned long long tick;
 	unsigned int i;
 	u32 value;
+
+	if (la_soc->init_la)
+		la_soc->init_la(mc);
 
 	/* compute the number of MC clock cycles per tick */
 	tick = mc->tick * clk_get_rate(mc->clk);
 	do_div(tick, NSEC_PER_SEC);
 
-	value = readl(mc->regs + MC_EMEM_ARB_CFG);
+	value = mc_readl(mc, MC_EMEM_ARB_CFG);
 	value &= ~MC_EMEM_ARB_CFG_CYCLES_PER_UPDATE_MASK;
 	value |= MC_EMEM_ARB_CFG_CYCLES_PER_UPDATE(tick);
-	writel(value, mc->regs + MC_EMEM_ARB_CFG);
+	mc_writel(mc, value, MC_EMEM_ARB_CFG);
 
 	/* write latency allowance defaults */
 	for (i = 0; i < mc->soc->num_clients; i++) {
-		const struct tegra_mc_la *la = &mc->soc->clients[i].la;
-		u32 value;
+		struct tegra_mc_la *la = &mc->soc->la_soc->clients[i].la;
+		unsigned int emc_mhz;
 
-		value = readl(mc->regs + la->reg);
-		value &= ~(la->mask << la->shift);
-		value |= (la->def & la->mask) << la->shift;
-		writel(value, mc->regs + la->reg);
+		if (!la->reg)
+			continue;
+
+		if (la->la_ref_clk_mhz) {
+			emc_mhz = clk_get_rate(mc->emc_clk) / 1000000;
+			if (la->la_ref_clk_mhz > emc_mhz) {
+				value = min_t(unsigned int,
+					      la->def *
+					      la->la_ref_clk_mhz /
+					      emc_mhz,
+					      MC_LA_MAX_VALUE);
+			} else {
+				value = min_t(unsigned int,
+					      la->def,
+					      MC_LA_MAX_VALUE);
+			}
+		} else {
+			value = la->def;
+		}
+
+		la_writel(mc, value, la);
 	}
+
+	if (la_soc->init_ptsa)
+		la_soc->init_ptsa(mc);
 
 	return 0;
 }
@@ -583,6 +664,13 @@ static int tegra_mc_probe(struct platform_device *pdev)
 		return PTR_ERR(mc->clk);
 	}
 
+	mc->emc_clk = devm_clk_get(&pdev->dev, "emc");
+	if (IS_ERR(mc->emc_clk)) {
+		dev_err(&pdev->dev, "failed to get EMC clock: %ld\n",
+			PTR_ERR(mc->emc_clk));
+		return PTR_ERR(mc->emc_clk);
+	}
+
 	err = tegra_mc_setup_latency_allowance(mc);
 	if (err < 0) {
 		dev_err(&pdev->dev, "failed to setup latency allowance: %d\n",
@@ -650,6 +738,8 @@ tegra_mc_resume_early(struct device *dev)
 	if (IS_ENABLED(CONFIG_TEGRA_IOMMU_SMMU))
 		tegra_smmu_resume(mc->smmu);
 
+	mc->soc->la_soc->la_resume(mc);
+
 	return 0;
 }
 
@@ -658,6 +748,8 @@ tegra_mc_suspend_late(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	struct tegra_mc *mc = platform_get_drvdata(pdev);
+
+	mc->soc->la_soc->la_suspend(mc);
 
 	if (IS_ENABLED(CONFIG_TEGRA_IOMMU_SMMU))
 		tegra_smmu_suspend(mc->smmu);

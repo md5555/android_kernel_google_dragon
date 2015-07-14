@@ -8,6 +8,7 @@ Required properties:
   See ../clocks/clock-bindings.txt for details.
 - clock-names: Must include the following entries:
   - mc: the module's clock input
+  - emc: the external memory controller's clock input.
 - interrupts: The interrupt outputs from the controller.
 - #iommu-cells: Should be 1. The single cell of the IOMMU specifier defines
   the SWGROUP of the master.
