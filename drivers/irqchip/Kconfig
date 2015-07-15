@@ -126,3 +126,14 @@ config KEYSTONE_IRQ
 	help
 		Support for Texas Instruments Keystone 2 IRQ controller IP which
 		is part of the Keystone 2 IPC mechanism
+
+config TEGRA_APE_AGIC
+        bool "Enable AGIC interrupt controller"
+        default n
+        help
+          The AGIC interrupt controller is based on GIC 400. Use this
+          controller if the tegra platform needs interrupts from/to
+          APE modules.
+
+          If unsure, say N
+
