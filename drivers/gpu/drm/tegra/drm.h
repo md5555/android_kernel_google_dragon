@@ -178,6 +178,8 @@ struct tegra_dc_window {
 	unsigned int stride[2];
 	unsigned long base[3];
 	bool bottom_up;
+	bool scan_column;
+	bool right_left;
 
 	struct tegra_bo_tiling tiling;
 	u32 format;

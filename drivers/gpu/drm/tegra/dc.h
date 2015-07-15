@@ -343,6 +343,7 @@
 #define DC_WIN_WIN_OPTIONS			0x700
 #define H_DIRECTION     (1 <<  0)
 #define V_DIRECTION     (1 <<  2)
+#define WIN_SCAN_COLUMN (1 <<  4)
 #define COLOR_EXPAND    (1 <<  6)
 #define H_FILTER_ENABLE (1 <<  8)
 #define V_FILTER_ENABLE (1 << 10)

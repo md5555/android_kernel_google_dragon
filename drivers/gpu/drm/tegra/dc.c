@@ -37,6 +37,7 @@ struct tegra_dc_soc_info {
 	unsigned int pitch_align;
 	bool has_powergate;
 	bool supports_v2_blend;
+	bool supports_scan_column;
 	const struct tegra_dc_window_soc_info *windows;
 	unsigned int num_windows;
 };
@@ -331,10 +332,13 @@ static void tegra_dc_setup_window(struct tegra_dc *dc, unsigned int index,
 	value = V_SIZE(window->dst.h) | H_SIZE(window->dst.w);
 	tegra_dc_writel(dc, value, DC_WIN_SIZE);
 
-	h_offset = (window->src.x >> 16) * bpp;
-	v_offset = (window->src.y >> 16);
-	h_size = (window->src.w >> 16) * bpp;
-	v_size = (window->src.h >> 16);
+	if (window->scan_column) {
+		h_size = (window->src.h >> 16) * bpp;
+		v_size = (window->src.w >> 16);
+	} else {
+		h_size = (window->src.w >> 16) * bpp;
+		v_size = (window->src.h >> 16);
+	}
 
 	value = V_PRESCALED_SIZE(v_size) | H_PRESCALED_SIZE(h_size);
 	tegra_dc_writel(dc, value, DC_WIN_PRESCALED_SIZE);
@@ -346,14 +350,24 @@ static void tegra_dc_setup_window(struct tegra_dc *dc, unsigned int index,
 	if (yuv && planar)
 		bpp = 2;
 
-	h_dda = compute_dda_inc(window->src.w, window->dst.w, false, bpp);
-	v_dda = compute_dda_inc(window->src.h, window->dst.h, true, bpp);
+	if (window->scan_column) {
+		h_dda = compute_dda_inc(window->src.h, window->dst.w, false, bpp);
+		v_dda = compute_dda_inc(window->src.w, window->dst.h, true, bpp);
+	} else {
+		h_dda = compute_dda_inc(window->src.w, window->dst.w, false, bpp);
+		v_dda = compute_dda_inc(window->src.h, window->dst.h, true, bpp);
+	}
 
 	value = V_DDA_INC(v_dda) | H_DDA_INC(h_dda);
 	tegra_dc_writel(dc, value, DC_WIN_DDA_INC);
 
-	h_dda = compute_initial_dda(window->src.x);
-	v_dda = compute_initial_dda(window->src.y);
+	if (window->scan_column) {
+		h_dda = compute_initial_dda(window->src.y);
+		v_dda = compute_initial_dda(window->src.x);
+	} else {
+		h_dda = compute_initial_dda(window->src.x);
+		v_dda = compute_initial_dda(window->src.y);
+	}
 
 	tegra_dc_writel(dc, h_dda, DC_WIN_H_INITIAL_DDA);
 	tegra_dc_writel(dc, v_dda, DC_WIN_V_INITIAL_DDA);
@@ -374,6 +388,11 @@ static void tegra_dc_setup_window(struct tegra_dc *dc, unsigned int index,
 		tegra_dc_writel(dc, window->stride[0], DC_WIN_LINE_STRIDE);
 	}
 
+	h_offset = (window->src.x >> 16) * bpp;
+	if (window->right_left)
+		h_offset += (window->src.w >> 16) * bpp - 1;
+
+	v_offset = (window->src.y >> 16);
 	if (window->bottom_up)
 		v_offset += (window->src.h >> 16) - 1;
 
@@ -445,6 +464,12 @@ static void tegra_dc_setup_window(struct tegra_dc *dc, unsigned int index,
 
 	if (win_use_v_filter(dc, window, index))
 		value |= V_FILTER_ENABLE;
+
+	if (window->scan_column)
+		value |= WIN_SCAN_COLUMN;
+
+	if (window->right_left)
+		value |= H_DIRECTION;
 
 	if (window->bottom_up)
 		value |= V_DIRECTION;
@@ -2001,6 +2026,7 @@ static const struct tegra_dc_soc_info tegra20_dc_soc_info = {
 	.pitch_align = 8,
 	.has_powergate = false,
 	.supports_v2_blend = false,
+	.supports_scan_column = false,
 	.windows = tegra20_dc_window_soc_info,
 	.num_windows = ARRAY_SIZE(tegra20_dc_window_soc_info),
 };
@@ -2028,6 +2054,7 @@ static const struct tegra_dc_soc_info tegra30_dc_soc_info = {
 	.pitch_align = 8,
 	.has_powergate = false,
 	.supports_v2_blend = false,
+	.supports_scan_column = false,
 	.windows = tegra30_dc_window_soc_info,
 	.num_windows = ARRAY_SIZE(tegra30_dc_window_soc_info),
 };
@@ -2055,6 +2082,7 @@ static const struct tegra_dc_soc_info tegra114_dc_soc_info = {
 	.pitch_align = 64,
 	.has_powergate = true,
 	.supports_v2_blend = false,
+	.supports_scan_column = true,
 	.windows = tegra114_dc_window_soc_info,
 	.num_windows = ARRAY_SIZE(tegra114_dc_window_soc_info),
 };
@@ -2082,6 +2110,7 @@ static const struct tegra_dc_soc_info tegra124_dc_soc_info = {
 	.pitch_align = 64,
 	.has_powergate = true,
 	.supports_v2_blend = true,
+	.supports_scan_column = true,
 	.windows = tegra124_dc_window_soc_info,
 	.num_windows = ARRAY_SIZE(tegra124_dc_window_soc_info),
 };
@@ -2109,6 +2138,7 @@ static const struct tegra_dc_soc_info tegra210_dc_soc_info = {
 	.pitch_align = 64,
 	.has_powergate = true,
 	.supports_v2_blend = true,
+	.supports_scan_column = true,
 	.windows = tegra210_dc_window_soc_info,
 	.num_windows = ARRAY_SIZE(tegra210_dc_window_soc_info),
 };
