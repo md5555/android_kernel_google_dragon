@@ -12,6 +12,7 @@
  *
  */
 
+#include <linux/dma-mapping.h>
 #include <linux/err.h>
 #include <linux/module.h>
 #include <linux/init.h>
@@ -164,6 +165,25 @@ static void sdhci_tegra_set_bus_width(struct sdhci_host *host, int bus_width)
 	sdhci_writeb(host, ctrl, SDHCI_HOST_CONTROL);
 }
 
+static int sdhci_tegra_enable_dma(struct sdhci_host *host)
+{
+	struct device *dev = host->mmc->parent;
+	int err;
+
+	if (host->flags & SDHCI_USE_64_BIT_DMA) {
+		if (host->quirks2 & SDHCI_QUIRK2_BROKEN_64_BIT_DMA) {
+			host->flags &= ~SDHCI_USE_64_BIT_DMA;
+			err = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(32));
+		} else {
+			err = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64));
+		}
+	} else {
+		err = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(32));
+	}
+
+	return err;
+}
+
 static const struct sdhci_ops sdhci_tegra_ops = {
 	.get_ro     = sdhci_tegra_get_ro,
 	.read_w     = sdhci_tegra_readw,
@@ -173,6 +193,7 @@ static const struct sdhci_ops sdhci_tegra_ops = {
 	.reset      = sdhci_tegra_reset,
 	.set_uhs_signaling = sdhci_set_uhs_signaling,
 	.get_max_clock = sdhci_pltfm_clk_get_max_clock,
+	.enable_dma = sdhci_tegra_enable_dma,
 };
 
 static const struct sdhci_pltfm_data sdhci_tegra20_pdata = {
@@ -243,6 +264,7 @@ static const struct sdhci_pltfm_data sdhci_tegra132_pdata = {
 		  SDHCI_QUIRK_NO_HISPD_BIT |
 		  SDHCI_QUIRK_BROKEN_ADMA_ZEROLEN_DESC |
 		  SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN,
+	.quirks2 = SDHCI_QUIRK2_BROKEN_64_BIT_DMA,
 	.ops  = &sdhci_tegra_ops,
 };
 
