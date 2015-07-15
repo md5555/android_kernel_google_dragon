@@ -36,7 +36,7 @@ struct tegra_dc_soc_info {
 	bool supports_block_linear;
 	unsigned int pitch_align;
 	bool has_powergate;
-	bool has_v2_blend;
+	bool supports_v2_blend;
 	const struct tegra_dc_window_soc_info *windows;
 	unsigned int num_windows;
 };
@@ -451,7 +451,7 @@ static void tegra_dc_setup_window(struct tegra_dc *dc, unsigned int index,
 
 	tegra_dc_writel(dc, value, DC_WIN_WIN_OPTIONS);
 
-	if (dc->soc->has_v2_blend) {
+	if (dc->soc->supports_v2_blend) {
 		switch (window->format) {
 		case WIN_COLOR_DEPTH_B5G5R5A:
 		case WIN_COLOR_DEPTH_B4G4R4A4:
@@ -2000,7 +2000,7 @@ static const struct tegra_dc_soc_info tegra20_dc_soc_info = {
 	.supports_block_linear = false,
 	.pitch_align = 8,
 	.has_powergate = false,
-	.has_v2_blend = false,
+	.supports_v2_blend = false,
 	.windows = tegra20_dc_window_soc_info,
 	.num_windows = ARRAY_SIZE(tegra20_dc_window_soc_info),
 };
@@ -2027,7 +2027,7 @@ static const struct tegra_dc_soc_info tegra30_dc_soc_info = {
 	.supports_block_linear = false,
 	.pitch_align = 8,
 	.has_powergate = false,
-	.has_v2_blend = false,
+	.supports_v2_blend = false,
 	.windows = tegra30_dc_window_soc_info,
 	.num_windows = ARRAY_SIZE(tegra30_dc_window_soc_info),
 };
@@ -2054,7 +2054,7 @@ static const struct tegra_dc_soc_info tegra114_dc_soc_info = {
 	.supports_block_linear = false,
 	.pitch_align = 64,
 	.has_powergate = true,
-	.has_v2_blend = false,
+	.supports_v2_blend = false,
 	.windows = tegra114_dc_window_soc_info,
 	.num_windows = ARRAY_SIZE(tegra114_dc_window_soc_info),
 };
@@ -2081,7 +2081,7 @@ static const struct tegra_dc_soc_info tegra124_dc_soc_info = {
 	.supports_block_linear = true,
 	.pitch_align = 64,
 	.has_powergate = true,
-	.has_v2_blend = true,
+	.supports_v2_blend = true,
 	.windows = tegra124_dc_window_soc_info,
 	.num_windows = ARRAY_SIZE(tegra124_dc_window_soc_info),
 };
@@ -2108,6 +2108,7 @@ static const struct tegra_dc_soc_info tegra210_dc_soc_info = {
 	.supports_block_linear = true,
 	.pitch_align = 64,
 	.has_powergate = true,
+	.supports_v2_blend = true,
 	.windows = tegra210_dc_window_soc_info,
 	.num_windows = ARRAY_SIZE(tegra210_dc_window_soc_info),
 };
