@@ -161,6 +161,27 @@ static void tegra_atomic_work(struct work_struct *work)
 	tegra_atomic_complete(tegra, tegra->commit.state);
 }
 
+static int tegra_atomic_check(struct drm_device *drm,
+			      struct drm_atomic_state *state)
+{
+	int err;
+
+	err = drm_atomic_helper_check(drm, state);
+	if (err) {
+		DRM_ERROR("drm atomic check failed: %d\n", err);
+		return err;
+	}
+
+	/* Evaluate the EMC bandwidth */
+	err = tegra_dc_evaluate_bandwidth(state);
+	if (err) {
+		DRM_ERROR("EMC bandwidth evaluation failed: %d\n", err);
+		return err;
+	}
+
+	return 0;
+}
+
 static int tegra_atomic_commit(struct drm_device *drm,
 			       struct drm_atomic_state *state, bool async)
 {
@@ -199,7 +220,7 @@ static const struct drm_mode_config_funcs tegra_drm_mode_funcs = {
 #ifdef CONFIG_DRM_TEGRA_FBDEV
 	.output_poll_changed = tegra_fb_output_poll_changed,
 #endif
-	.atomic_check = drm_atomic_helper_check,
+	.atomic_check = tegra_atomic_check,
 	.atomic_commit = tegra_atomic_commit,
 };
 

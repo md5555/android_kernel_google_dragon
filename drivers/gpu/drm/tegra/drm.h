@@ -237,6 +237,7 @@ int tegra_dc_state_setup_clock(struct tegra_dc *dc,
 void tegra_dc_update_emc_pre_commit(struct drm_crtc *crtc,
 				    struct drm_crtc_state *old_crtc_state);
 void tegra_dc_update_emc_post_commit(struct drm_crtc *crtc);
+int tegra_dc_evaluate_bandwidth(struct drm_atomic_state *state);
 
 struct tegra_output {
 	struct device_node *of_node;
