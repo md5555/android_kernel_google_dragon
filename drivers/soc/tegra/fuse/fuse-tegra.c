@@ -15,6 +15,7 @@
  *
  */
 
+#include <linux/cpufreq.h>
 #include <linux/device.h>
 #include <linux/kobject.h>
 #include <linux/kernel.h>
@@ -22,6 +23,7 @@
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/io.h>
+#include <linux/smp.h>
 
 #include <soc/tegra/common.h>
 #include <soc/tegra/fuse.h>
@@ -113,9 +115,75 @@ int tegra_fuse_readl(unsigned long offset, u32 *value)
 }
 EXPORT_SYMBOL(tegra_fuse_readl);
 
+static ssize_t tegra_fuse_cpu_id_show(struct device *child,
+				      struct device_attribute *attr, char *buf)
+{
+	int chip_id = tegra_get_chip_id();
+	int num_cpus = num_present_cpus();
+	struct cpufreq_policy *cpu_policy = cpufreq_cpu_get(0);
+	char *generation, *cpus, *model = "";
+	char speed[10];
+
+	switch (chip_id) {
+	case TEGRA20:
+		generation = "Tegra20";
+		break;
+	case TEGRA30:
+		generation = "Tegra30";
+		break;
+	case TEGRA114:
+		generation = "Tegra114";
+		break;
+	case TEGRA124:
+		generation = "Tegra124";
+		break;
+	case TEGRA210:
+		generation = "Tegra210";
+		model = "A57";
+		break;
+	default:
+		generation = "Tegra";
+	}
+
+	switch (num_cpus) {
+	case 2:
+		cpus = "Dual ";
+		break;
+	case 4:
+		cpus = "Quad ";
+		break;
+	default:
+		cpus = " ";
+	};
+
+	if (cpu_policy->max > 1000000)
+		sprintf(speed, "%d.%02d Ghz", (cpu_policy->max / 1000000),
+			(cpu_policy->max % 1000000) / 10000);
+	else if (cpu_policy->max > 1000)
+		sprintf(speed, "%d Mhz", (cpu_policy->max / 1000));
+	else
+		sprintf(speed, "%d Khz", cpu_policy->max);
+
+	return sprintf(buf, "%s %s%s @ %s\n", generation, cpus, model, speed);
+}
+
+static struct device_attribute tegra_fuse_cpu_id = {
+	.attr = { .name = "cpu_id", .mode = S_IRUGO, },
+	.show = tegra_fuse_cpu_id_show,
+};
+
+int tegra_fuse_create_cpu_sysfs(struct device *dev)
+{
+	int ret;
+
+	return device_create_file(dev, &tegra_fuse_cpu_id);
+}
+
 int tegra_fuse_create_sysfs(struct device *dev, int size,
 		     u32 (*readl)(const unsigned int offset))
 {
+	int ret = 0;
+
 	if (fuse_size)
 		return -ENODEV;
 
@@ -124,6 +192,10 @@ int tegra_fuse_create_sysfs(struct device *dev, int size,
 
 	fuse_size = size;
 	fuse_readl = readl;
+
+	ret = tegra_fuse_create_cpu_sysfs(dev);
+	if (!ret)
+		return ret;
 
 	return device_create_bin_file(dev, &fuse_bin_attr);
 }
