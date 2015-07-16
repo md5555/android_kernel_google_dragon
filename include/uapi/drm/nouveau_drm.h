@@ -168,6 +168,7 @@ struct drm_nouveau_gem_cpu_fini {
 #define DRM_NOUVEAU_STAGING_IOCTL      0x50
 #define DRM_NOUVEAU_GEM_SET_TILING     (DRM_NOUVEAU_STAGING_IOCTL + 0x0)
 #define DRM_NOUVEAU_GEM_PUSHBUF_2      (DRM_NOUVEAU_STAGING_IOCTL + 0x1)
+#define DRM_NOUVEAU_GEM_SET_INFO       (DRM_NOUVEAU_STAGING_IOCTL + 0x2)
 
 #define DRM_IOCTL_NOUVEAU_GEM_NEW            DRM_IOWR(DRM_COMMAND_BASE + DRM_NOUVEAU_GEM_NEW, struct drm_nouveau_gem_new)
 #define DRM_IOCTL_NOUVEAU_GEM_PUSHBUF        DRM_IOWR(DRM_COMMAND_BASE + DRM_NOUVEAU_GEM_PUSHBUF, struct drm_nouveau_gem_pushbuf)
@@ -176,5 +177,6 @@ struct drm_nouveau_gem_cpu_fini {
 #define DRM_IOCTL_NOUVEAU_GEM_INFO           DRM_IOWR(DRM_COMMAND_BASE + DRM_NOUVEAU_GEM_INFO, struct drm_nouveau_gem_info)
 #define DRM_IOCTL_NOUVEAU_GEM_SET_TILING     DRM_IOWR(DRM_COMMAND_BASE + DRM_NOUVEAU_GEM_SET_TILING, struct drm_nouveau_gem_set_tiling)
 #define DRM_IOCTL_NOUVEAU_GEM_PUSHBUF_2      DRM_IOWR(DRM_COMMAND_BASE + DRM_NOUVEAU_GEM_PUSHBUF_2, struct drm_nouveau_gem_pushbuf_2)
+#define DRM_IOCTL_NOUVEAU_GEM_SET_INFO       DRM_IOWR(DRM_COMMAND_BASE + DRM_NOUVEAU_GEM_SET_INFO, struct drm_nouveau_gem_info)
 
 #endif /* __NOUVEAU_DRM_H__ */

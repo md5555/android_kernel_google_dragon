@@ -25,6 +25,8 @@ extern void nouveau_gem_object_close(struct drm_gem_object *,
 				     struct drm_file *);
 extern int nouveau_gem_ioctl_set_tiling(struct drm_device *, void *,
 					struct drm_file *);
+extern int nouveau_gem_ioctl_set_info(struct drm_device *, void *,
+					struct drm_file *);
 extern int nouveau_gem_ioctl_new(struct drm_device *, void *,
 				 struct drm_file *);
 extern int nouveau_gem_ioctl_pushbuf(struct drm_device *, void *,
