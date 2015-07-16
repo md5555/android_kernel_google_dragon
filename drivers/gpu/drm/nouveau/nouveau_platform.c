@@ -42,6 +42,14 @@ static int nouveau_platform_power_up(struct nouveau_platform_gpu *gpu)
 	if (err)
 		goto err_power;
 
+	if (!IS_ERR(gpu->clk_fuse)) {
+		err = clk_prepare_enable(gpu->clk_fuse);
+		if (err)
+			goto err_clk_emc;
+		udelay(1);
+		clk_disable_unprepare(gpu->clk_fuse);
+	}
+
 	err = clk_prepare_enable(gpu->clk_emc);
 	if (err)
 		goto err_clk_emc;
@@ -230,6 +238,10 @@ static int nouveau_platform_probe(struct platform_device *pdev)
 		dev_warn(&pdev->dev, "failed to get emc clock\n");
 		gpu->clk_emc = NULL;
 	}
+
+	gpu->clk_fuse = devm_clk_get(&pdev->dev, "fuse");
+	if (IS_ERR(gpu->clk_fuse))
+		dev_warn(&pdev->dev, "failed to get fuse clock\n");
 
 	nouveau_platform_probe_iommu(&pdev->dev, gpu);
 
