@@ -1357,8 +1357,6 @@ static void tegra_crtc_atomic_begin(struct drm_crtc *crtc)
 	}
 }
 
-#define EMC_FREQ_MIN_RATE (400 * 1000 * 1000)
-
 static int tegra_dc_program_bandwidth(struct tegra_dc *dc,
 				      unsigned long bandwidth)
 {
@@ -1369,9 +1367,6 @@ static int tegra_dc_program_bandwidth(struct tegra_dc *dc,
 
 	bandwidth *= 2; /* double bandwidth to avoid underflow */
 	freq = tegra_emc_bw_to_freq_req(bandwidth) * 1000;
-
-	if (freq < EMC_FREQ_MIN_RATE)
-		freq = EMC_FREQ_MIN_RATE;
 
 	return clk_set_rate(dc->emc_clk, freq);
 }
