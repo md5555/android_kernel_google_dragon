@@ -86,6 +86,9 @@
 			resets = <&tegra_car TEGRA210_CLK_DISP1>;
 			reset-names = "dc";
 			iommus = <&mc TEGRA_SWGROUP_DC>;
+			mc-clients = <&mc TEGRA_CLIENT_DISPLAY0A>,
+				     <&mc TEGRA_CLIENT_DISPLAY0B>,
+				     <&mc TEGRA_CLIENT_DISPLAY0C>;
 			nvidia,head = <0>;
 		};
 
@@ -1141,6 +1144,7 @@
 		interrupts = <GIC_SPI 77 IRQ_TYPE_LEVEL_HIGH>;
 
 		#iommu-cells = <1>;
+		#mc-client-cells = <1>;
         };
 
 	emc: memory-controller@7001b000 {
