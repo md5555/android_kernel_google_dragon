@@ -298,8 +298,9 @@
 		      <0x0 0x70000008 0x0 0x04>;   /* Strapping options */
 	};
 
-	agic-controller {
+	tegra_agic: agic-controller {
 		compatible = "nvidia,tegra210-agic";
+		#interrupt-cells = <3>;
 		interrupt-controller;
 		no-gic-extension;
 		not-per-cpu;
@@ -805,6 +806,7 @@
 	adma: adma@702e2000 {
 		compatible = "nvidia,tegra210-adma";
 		reg = <0x0 0x702e2000 0x0 0x2000>;
+		interrupt-parent = <&tegra_agic>;
 		interrupts = <GIC_SPI 24 IRQ_TYPE_LEVEL_HIGH>,
 			     <GIC_SPI 25 IRQ_TYPE_LEVEL_HIGH>,
 			     <GIC_SPI 26 IRQ_TYPE_LEVEL_HIGH>,
