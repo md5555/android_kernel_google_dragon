@@ -38,6 +38,9 @@ gk20a_timer_init(struct nvkm_object *object)
 	nv_debug(priv, "time low        : 0x%08x\n", lo);
 	nv_debug(priv, "time high       : 0x%08x\n", hi);
 
+	/* setup pri timeout period */
+	nv_wr32(priv, 0x009080, 0x800186a0);
+
 	/* restore the time before suspend */
 	nv_wr32(priv, NV04_PTIMER_TIME_1, hi);
 	nv_wr32(priv, NV04_PTIMER_TIME_0, lo);
