@@ -81,8 +81,9 @@
 			//power-domains = <&pmc TEGRA_POWERGATE_DIS>;
 			clocks = <&tegra_car TEGRA210_CLK_DISP1>,
 				 <&tegra_car TEGRA210_CLK_PLL_D_OUT0>,
-				 <&tegra_car TEGRA210_CLK_DISP1_EMC>;
-			clock-names = "dc", "parent", "emc";
+				 <&tegra_car TEGRA210_CLK_DISP1_EMC>,
+				 <&tegra_car TEGRA210_CLK_DISP1_LA_EMC>;
+			clock-names = "dc", "parent", "emc", "emc_la";
 			resets = <&tegra_car TEGRA210_CLK_DISP1>;
 			reset-names = "dc";
 			iommus = <&mc TEGRA_SWGROUP_DC>;
