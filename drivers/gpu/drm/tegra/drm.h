@@ -20,6 +20,8 @@
 #include <drm/drm_fb_helper.h>
 #include <drm/drm_fixed.h>
 
+#include <soc/tegra/mc.h>
+
 #include "gem.h"
 
 
@@ -174,6 +176,9 @@ struct tegra_dc {
 	struct iommu_domain *domain;
 
 	bool reg_initialized;
+
+	struct tegra_mc *mc;
+	unsigned int *mc_win_clients;
 };
 
 static inline struct tegra_dc *

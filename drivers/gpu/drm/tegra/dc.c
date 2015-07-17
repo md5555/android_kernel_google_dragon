@@ -10,6 +10,7 @@
 #include <linux/clk.h>
 #include <linux/debugfs.h>
 #include <linux/iommu.h>
+#include <linux/of_platform.h>
 #include <linux/reset.h>
 
 #include <soc/tegra/pmc.h>
@@ -2434,8 +2435,11 @@ MODULE_DEVICE_TABLE(of, tegra_dc_of_match);
 static int tegra_dc_parse_dt(struct tegra_dc *dc)
 {
 	struct device_node *np;
+	struct of_phandle_args args;
+	struct platform_device *pdev;
 	u32 value = 0;
-	int err;
+	int i, err, count;
+	int ret = 0;
 
 	err = of_property_read_u32(dc->dev->of_node, "nvidia,head", &value);
 	if (err < 0) {
@@ -2463,7 +2467,62 @@ static int tegra_dc_parse_dt(struct tegra_dc *dc)
 
 	dc->pipe = value;
 
-	return 0;
+	np = of_parse_phandle(dc->dev->of_node, "mc-clients", 0);
+	if (!np) {
+		dev_err(dc->dev, "get mc device node failed\n");
+		return -ENODEV;
+	}
+
+	pdev = of_find_device_by_node(np);
+	if (!pdev) {
+		dev_err(dc->dev, "get mc device failed\n");
+		ret = -ENODEV;
+		goto out;
+	}
+
+	dc->mc = platform_get_drvdata(pdev);
+	if (!dc->mc) {
+		dev_err(dc->dev, "get mc device drvdata failed\n");
+		ret = -EPROBE_DEFER;
+		goto out;
+	}
+
+	count = of_count_phandle_with_args(dc->dev->of_node, "mc-clients",
+					   "#mc-client-cells");
+	if (!count) {
+		dev_err(dc->dev, "get mc-clients count failed\n");
+		ret = -ENODEV;
+		goto out;
+	}
+
+	WARN_ON(dc->soc->num_windows < count);
+
+	dc->mc_win_clients = devm_kcalloc(dc->dev, dc->soc->num_windows,
+					sizeof(int), GFP_KERNEL);
+	if (!dc->mc_win_clients) {
+		dev_err(dc->dev, "allocate dc mc win clients failed.\n");
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	for (i = 0; i < dc->soc->num_windows; i++) {
+		err = of_parse_phandle_with_args(dc->dev->of_node, "mc-clients",
+						 "#mc-client-cells", i, &args);
+		if (err) {
+			dev_err(dc->dev, "parse mc-clients failed: %d\n", err);
+			of_node_put(args.np);
+			ret = -ENODEV;
+			goto out;
+		}
+
+		dc->mc_win_clients[i] = args.args[0];
+
+		of_node_put(args.np);
+	}
+
+out:
+	of_node_put(np);
+	return ret;
 }
 
 static int tegra_dc_probe(struct platform_device *pdev)
