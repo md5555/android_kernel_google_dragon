@@ -587,6 +587,7 @@
 // PWR_I2C, I2CPMU
 &i2c5 {
 	status = "okay";
+	clock-frequency = <1000000>;
 
 	max77620: max77620@3c {
 		compatible = "maxim,max77620";
