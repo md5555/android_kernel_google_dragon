@@ -184,8 +184,9 @@
 		clocks = <&tegra_car TEGRA210_CLK_GPU>,
 			 <&tegra_car TEGRA210_CLK_PLL_P_OUT5>,
 			 <&tegra_car TEGRA210_CLK_PLL_G_REF>,
-			 <&tegra_car TEGRA210_CLK_GPU_EMC>;
-		clock-names = "gpu", "pwr", "pllg_ref", "emc";
+			 <&tegra_car TEGRA210_CLK_GPU_EMC>,
+			 <&tegra_car TEGRA210_CLK_FUSE>;
+		clock-names = "gpu", "pwr", "pllg_ref", "emc", "fuse";
 		resets = <&tegra_car 184>;
 		reset-names = "gpu";
 		status = "disabled";
