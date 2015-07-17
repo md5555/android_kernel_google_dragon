@@ -831,7 +831,6 @@
 		reg = <0x2d>;
 		interrupts-extended = <&gpio TEGRA_GPIO(X, 0) IRQ_TYPE_EDGE_BOTH>;
 		realtek,pow-ldo2-gpio = <&gpio TEGRA_GPIO(E, 1) GPIO_ACTIVE_HIGH>;
-		realtek,reset-gpio = <&gpio TEGRA_GPIO(BB, 3) GPIO_ACTIVE_LOW>;
 
 		gpio-controller;
 		#gpio-cells = <2>;
