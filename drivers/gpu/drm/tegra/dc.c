@@ -2612,6 +2612,11 @@ static int tegra_dc_probe(struct platform_device *pdev)
 		dc->emc_clk = NULL;
 	clk_prepare_enable(dc->emc_clk);
 
+	dc->emc_la_clk = devm_clk_get(&pdev->dev, "emc_la");
+	if (IS_ERR(dc->emc_la_clk))
+		dc->emc_la_clk = NULL;
+	clk_prepare_enable(dc->emc_la_clk);
+
 	dc->irq = platform_get_irq(pdev, 0);
 	if (dc->irq < 0) {
 		dev_err(&pdev->dev, "failed to get IRQ\n");
@@ -2674,6 +2679,7 @@ static int tegra_dc_remove(struct platform_device *pdev)
 
 	clk_disable_unprepare(dc->clk);
 	clk_disable_unprepare(dc->emc_clk);
+	clk_disable_unprepare(dc->emc_la_clk);
 
 	return 0;
 }
