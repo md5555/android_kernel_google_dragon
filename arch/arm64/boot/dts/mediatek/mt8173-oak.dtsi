@@ -108,6 +108,7 @@
 		compatible = "realtek,rt5650";
 		reg = <0x1a>;
 		avdd-supply = <&mt6397_vgp1_reg>;
+		cpvdd-supply = <&mt6397_vcama_reg>;
 		interrupt-parent = <&pio>;
 		interrupts = <3 IRQ_TYPE_EDGE_BOTH>;
 		pinctrl-names = "default";
@@ -534,8 +535,8 @@
 			mt6397_vcama_reg: ldo_vcama {
 				regulator-compatible = "ldo_vcama";
 				regulator-name = "vcama";
-				regulator-min-microvolt = <1500000>;
-				regulator-max-microvolt = <2800000>;
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
 				regulator-enable-ramp-delay = <218>;
 			};
 
