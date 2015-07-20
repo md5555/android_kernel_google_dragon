@@ -2177,6 +2177,7 @@ static struct tegra_clk tegra210_clks[tegra_clk_max] __initdata = {
 	[tegra_clk_usb2_trk] = { .dt_id = TEGRA210_CLK_USB2_TRK, .present = true },
 	[tegra_clk_sclk] = { .dt_id = TEGRA210_CLK_SCLK, .present = true },
 	[tegra_clk_sclk_mux] = { .dt_id = TEGRA210_CLK_SCLK_MUX, .present = true },
+	[tegra_clk_sclk_div] = { .dt_id = TEGRA210_CLK_SCLK_DIV, .present = true },
 	[tegra_clk_hclk] = { .dt_id = TEGRA210_CLK_HCLK, .present = true },
 	[tegra_clk_pclk] = { .dt_id = TEGRA210_CLK_PCLK, .present = true },
 	[tegra_clk_cclk_g] = { .dt_id = TEGRA210_CLK_CCLK_G, .present = true },
@@ -2772,7 +2773,8 @@ static __init void tegra210_shared_clk_init(void)
 	clk = tegra_clk_register_sbus_cmplx("sbus", "sclk", "sclk_mux", 0, "pclk",
 					"hclk", "pll_p_out2", "pll_c_out1",
 					108000000, 12000000, 384000000,
-					TEGRA_SOURCE_PLL_FIXED_RATE);
+					TEGRA_SOURCE_PLL_FIXED_RATE |
+					TEGRA_HAS_SKIPPER_PARENT);
 	clk_register_clkdev(clk, "sbus", NULL);
 	clks[TEGRA210_CLK_SBUS] = clk;
 
@@ -2862,7 +2864,7 @@ static struct tegra_clk_init_table common_init_table[] __initdata = {
 	{TEGRA210_CLK_I2S4, TEGRA210_CLK_PLL_A_OUT0, 11289600, 0},
 	{TEGRA210_CLK_HOST1X, TEGRA210_CLK_PLL_P, 136000000, 1},
 	{TEGRA210_CLK_SCLK_MUX, TEGRA210_CLK_PLL_P, 0, 1},
-	{TEGRA210_CLK_SCLK, TEGRA210_CLK_CLK_MAX, 102000000, 1},
+	{TEGRA210_CLK_SCLK_DIV, TEGRA210_CLK_CLK_MAX, 102000000, 1},
 	{TEGRA210_CLK_DFLL_SOC, TEGRA210_CLK_PLL_P, 51000000, 1},
 	{TEGRA210_CLK_DFLL_REF, TEGRA210_CLK_PLL_P, 51000000, 1},
 	{TEGRA210_CLK_SBC4, TEGRA210_CLK_PLL_P, 12000000, 1},

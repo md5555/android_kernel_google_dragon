@@ -266,6 +266,9 @@ static int _clk_shared_bus_update(struct clk *bus)
 
 	rate = _clk_cap_shared_bus(bus, rate, ceiling);
 
+	if (cbus->flags & TEGRA_HAS_SKIPPER_PARENT)
+		cbus->u.system.request_rate = rate;
+
 	return clk_set_rate(bus, rate);
 }
 
@@ -469,7 +472,8 @@ static int clk_system_table_set_rate(struct clk_hw *hw, unsigned long rate,
 	int err = 0;
 	struct tegra_clk_cbus_shared *system = to_clk_cbus_shared(hw);
 	struct clk *pclk = system->u.system.pclk->clk;
-	struct clk *sclk_div = clk_get_parent(hw->clk);
+	struct clk *skipper = clk_get_parent(hw->clk);
+	struct clk *sclk_div = clk_get_parent(skipper);
 	struct clk *sclk_mux = clk_get_parent(sclk_div);
 	unsigned long sclk_div_rate = clk_get_rate(sclk_div);
 	struct clk_div_sel *new, *old;
@@ -478,6 +482,10 @@ static int clk_system_table_set_rate(struct clk_hw *hw, unsigned long rate,
 		return 0;
 
 	system->rate_updating = true;
+
+	/* disable skipper */
+	if (system->flags & TEGRA_HAS_SKIPPER_PARENT)
+		clk_set_rate(skipper, clk_get_rate(sclk_div));
 
 	/*
 	 * set hclk:pclk to 2:1 to ensure no overclocking on pclk when
@@ -538,7 +546,17 @@ static int clk_system_table_set_rate(struct clk_hw *hw, unsigned long rate,
 	}
 
 out:
+	if (system->flags & TEGRA_HAS_SKIPPER_PARENT &&
+	    !err && system->u.system.request_rate) {
+		err = clk_set_rate(skipper, system->u.system.request_rate);
+		if (err)
+			pr_err("failed to set %s rate to %lu\n",
+			       __clk_get_name(skipper),
+			       system->u.system.request_rate);
+	}
+
 	system->rate_updating = false;
+
 	return err;
 }
 

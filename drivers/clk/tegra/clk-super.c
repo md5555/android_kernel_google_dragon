@@ -41,6 +41,19 @@
 #define super_state_to_src_shift(m, s) ((m->width * s))
 #define super_state_to_src_mask(m) (((1 << m->width) - 1))
 
+#define SUPER_SKIPPER_ENABLE	BIT(31)
+#define SUPER_SKIPPER_MUL_SIZE	8
+#define SUPER_SKIPPER_MUL_SHIFT	8
+#define SUPER_SKIPPER_MUL_MASK	(((1 << SUPER_SKIPPER_MUL_SIZE) - 1) \
+				<< SUPER_SKIPPER_MUL_SHIFT)
+#define SUPER_SKIPPER_DIV_SIZE	8
+#define SUPER_SKIPPER_DIV_SHIFT	0
+#define SUPER_SKIPPER_DIV_MASK	(((1 << SUPER_SKIPPER_DIV_SIZE) - 1) \
+				<< SUPER_SKIPPER_DIV_SHIFT)
+#define SUPER_SKIPPER_MASK	(SUPER_SKIPPER_ENABLE |		\
+				SUPER_SKIPPER_MUL_MASK |	\
+				SUPER_SKIPPER_DIV_MASK)
+
 static u8 clk_super_get_parent(struct clk_hw *hw)
 {
 	struct tegra_clk_super_mux *mux = to_clk_super_mux(hw);
@@ -192,6 +205,109 @@ struct clk *tegra_clk_register_super_mux(const char *name,
 	clk = clk_register(NULL, &super->hw);
 	if (IS_ERR(clk))
 		kfree(super);
+
+	return clk;
+}
+
+static unsigned long clk_super_skipper_recalc_rate(struct clk_hw *hw,
+						   unsigned long parent_rate)
+{
+	struct tegra_clk_super_skipper *skipper = to_clk_super_skipper(hw);
+	unsigned int val;
+	int div, mul;
+
+	val = readl_relaxed(skipper->reg);
+	div = (val & SUPER_SKIPPER_DIV_MASK) >> SUPER_SKIPPER_DIV_SHIFT;
+	div++;
+
+	mul = (val & SUPER_SKIPPER_MUL_MASK) >> SUPER_SKIPPER_MUL_SHIFT;
+	mul++;
+
+	return DIV_ROUND_UP(parent_rate * mul, div);
+}
+
+static long clk_super_skipper_round_rate(struct clk_hw *hw, unsigned long rate,
+					 unsigned long *prate)
+{
+	unsigned long output;
+	u32 mul, div;
+
+	if (rate > *prate)
+		return *prate;
+
+	div = 1 << SUPER_SKIPPER_DIV_SIZE;
+	output = DIV_ROUND_UP(rate << SUPER_SKIPPER_DIV_SIZE, *prate);
+	mul = output ? : 1;
+
+	return DIV_ROUND_UP(*prate * mul, div);
+}
+
+static int clk_super_skipper_set_rate(struct clk_hw *hw, unsigned long rate,
+				      unsigned long parent_rate)
+{
+	struct tegra_clk_super_skipper *skipper = to_clk_super_skipper(hw);
+	u32 val, mul, div;
+	unsigned long flags = 0;
+	unsigned long output;
+
+	div = 1 << SUPER_SKIPPER_DIV_SIZE;
+	output = DIV_ROUND_UP(rate << SUPER_SKIPPER_DIV_SIZE, parent_rate);
+	mul = output ? : 1;
+
+	if (skipper->lock)
+		spin_lock_irqsave(skipper->lock, flags);
+
+	val = readl_relaxed(skipper->reg);
+	val &= ~SUPER_SKIPPER_MASK;
+
+	if (mul < div) {
+		val = SUPER_SKIPPER_ENABLE |
+			(mul - 1) << SUPER_SKIPPER_MUL_SHIFT |
+			(div - 1) << SUPER_SKIPPER_DIV_SHIFT;
+	}
+
+	writel_relaxed(val, skipper->reg);
+
+	if (skipper->lock)
+		spin_unlock_irqrestore(skipper->lock, flags);
+
+	return 0;
+}
+
+const struct clk_ops tegra_clk_super_skipper_ops = {
+	.set_rate = clk_super_skipper_set_rate,
+	.round_rate = clk_super_skipper_round_rate,
+	.recalc_rate = clk_super_skipper_recalc_rate,
+};
+
+struct clk *
+tegra_clk_register_super_skipper(const char *name, const char *parent_name,
+				 unsigned long flags, void __iomem *reg,
+				 spinlock_t *lock)
+{
+	struct tegra_clk_super_skipper *skipper;
+	struct clk *clk;
+	struct clk_init_data init;
+
+	skipper = kzalloc(sizeof(*skipper), GFP_KERNEL);
+	if (!skipper) {
+		pr_err("%s: could not allocate skipper clk\n", __func__);
+		return ERR_PTR(-ENOMEM);
+	}
+
+	init.name = name;
+	init.ops = &tegra_clk_super_skipper_ops;
+	init.flags = flags;
+	init.parent_names = (parent_name ? &parent_name : NULL);
+	init.num_parents = (parent_name ? 1 : 0);
+
+	skipper->reg = reg;
+	skipper->lock = lock;
+	skipper->hw.init = &init;
+
+	clk = clk_register(NULL, &skipper->hw);
+	if (IS_ERR(clk))
+		kfree(skipper);
 
 	return clk;
 }

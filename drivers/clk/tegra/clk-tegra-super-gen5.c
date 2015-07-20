@@ -72,13 +72,23 @@ static void __init tegra_sclk_init(void __iomem *clk_base,
 						0, 4, 0, 0, NULL);
 		*dt_clk = clk;
 	}
-	/* SCLK */
-	dt_clk = tegra_lookup_dt_id(tegra_clk_sclk, tegra_clks);
+
+	/* SCLK_DIV */
+	dt_clk = tegra_lookup_dt_id(tegra_clk_sclk_div, tegra_clks);
 	if (dt_clk) {
-		clk = tegra_clk_register_divider("sclk", "sclk_mux",
+		clk = tegra_clk_register_divider("sclk_div", "sclk_mux",
 						 clk_base + SCLK_CLK_SOURCE_SYS,
 						 0, TEGRA_DIVIDER_ROUND_UP, 0,
 						 8, 1, &sysrate_lock);
+		*dt_clk = clk;
+	}
+
+	/* SCLK */
+	dt_clk = tegra_lookup_dt_id(tegra_clk_sclk, tegra_clks);
+	if (dt_clk) {
+		clk = tegra_clk_register_super_skipper("sclk", "sclk_div", 0,
+						       clk_base + SCLK_DIVIDER,
+						       &sysrate_lock);
 		*dt_clk = clk;
 	}
 

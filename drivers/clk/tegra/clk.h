@@ -701,6 +701,19 @@ struct clk *tegra_clk_register_super_mux(const char *name,
 		unsigned long flags, void __iomem *reg, u8 clk_super_flags,
 		u8 width, u8 pllx_index, u8 div2_index, spinlock_t *lock);
 
+struct tegra_clk_super_skipper {
+	struct clk_hw	hw;
+	void __iomem	*reg;
+	spinlock_t	*lock;
+};
+
+#define to_clk_super_skipper(_hw) container_of(_hw, struct tegra_clk_super_skipper, hw)
+
+struct clk *
+tegra_clk_register_super_skipper(const char *name, const char *parent_name,
+				 unsigned long flags, void __iomem *reg,
+				 spinlock_t *lock);
+
 /**
  * struct clk_init_table - clock initialization table
  * @clk_id:	clock id as mentioned in device tree bindings
@@ -826,6 +839,7 @@ struct tegra_clk_cbus_shared {
 			unsigned long	threshold;
 			struct clk_div_sel *round_table;
 			int 		round_table_size;
+			unsigned long	request_rate;
 		} system;
 		struct {
 			struct list_head	node;
@@ -843,6 +857,7 @@ struct tegra_clk_cbus_shared {
 			container_of(_hw, struct tegra_clk_cbus_shared, hw)
 
 #define TEGRA_SOURCE_PLL_FIXED_RATE	BIT(0)
+#define TEGRA_HAS_SKIPPER_PARENT	BIT(1)
 
 struct clk *tegra_clk_register_shared(const char *name,
 		const char **parent, u8 num_parents, unsigned long flags,

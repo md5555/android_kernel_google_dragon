@@ -310,6 +310,7 @@ enum clk_id {
 	tegra_clk_xusb_ss_div2,
 	tegra_clk_xusb_ssp_src,
 	tegra_clk_sclk_mux,
+	tegra_clk_sclk_div,
 	tegra_clk_avp_emc,
 	tegra_clk_avp_sclk,
 	tegra_clk_battery_c2bus,

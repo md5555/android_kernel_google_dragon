@@ -395,8 +395,8 @@
 #define TEGRA210_CLK_PLL_M_UD 363
 #define TEGRA210_CLK_PLL_C_UD 364
 #define TEGRA210_CLK_SCLK_MUX 365
+#define TEGRA210_CLK_SCLK_DIV 366
 
-/* 366 */
 /* 367 */
 /* 368 */
 /* 369 */
