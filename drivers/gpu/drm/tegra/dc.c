@@ -781,7 +781,7 @@ static void tegra_plane_add_rotation_property(struct drm_device *drm,
 			drm_mode_create_rotation_property(drm,
 					supported_rotations);
 		if (drm->mode_config.rotation_property == NULL)
-			dev_warn(&drm->dev,
+			dev_warn(drm->dev,
 					"failed to create rotation property\n");
 	}
 
