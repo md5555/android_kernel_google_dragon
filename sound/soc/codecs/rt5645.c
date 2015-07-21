@@ -3046,7 +3046,7 @@ static int rt5645_probe(struct snd_soc_codec *codec)
 
 	switch (rt5645->codec_type) {
 	case CODEC_TYPE_RT5645:
-		snd_soc_dapm_add_routes(dapm,
+		snd_soc_dapm_new_controls(dapm,
 			rt5645_specific_dapm_widgets,
 			ARRAY_SIZE(rt5645_specific_dapm_widgets));
 		snd_soc_dapm_add_routes(dapm,
