@@ -136,6 +136,8 @@ struct tegra_dc {
 	const struct tegra_dc_soc_info *soc;
 
 	struct iommu_domain *domain;
+
+	bool reg_initialized;
 };
 
 static inline struct tegra_dc *
