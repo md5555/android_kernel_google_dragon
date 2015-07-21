@@ -1650,7 +1650,8 @@ static int tegra_crtc_atomic_check(struct drm_crtc *crtc,
 	return 0;
 }
 
-static void tegra_crtc_atomic_begin(struct drm_crtc *crtc)
+static void tegra_crtc_atomic_begin(struct drm_crtc *crtc,
+				    struct drm_crtc_state *old_crtc_state)
 {
 	struct tegra_dc *dc = to_tegra_dc(crtc);
 	struct drm_device *drm = dc->base.dev;
@@ -1847,7 +1848,8 @@ void tegra_dc_update_emc_post_commit(struct drm_crtc *crtc)
 		state->update_emc = false;
 }
 
-static void tegra_crtc_atomic_flush(struct drm_crtc *crtc)
+static void tegra_crtc_atomic_flush(struct drm_crtc *crtc,
+				    struct drm_crtc_state *old_crtc_state)
 {
 	struct tegra_dc_state *state = to_dc_state(crtc->state);
 	struct tegra_dc *dc = to_tegra_dc(crtc);
