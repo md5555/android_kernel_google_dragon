@@ -878,6 +878,51 @@ static int tegra_gem_get_flags(struct drm_device *drm, void *data,
 
 	return 0;
 }
+
+static int tegra_get_clk_rate(struct drm_device *drm, void *data,
+					struct drm_file *file)
+{
+	struct tegra_drm *tegra = drm->dev_private;
+	struct tegra_drm_client *client;
+	struct host1x_client *base;
+	struct drm_tegra_get_clk_rate *args = data;
+
+	list_for_each_entry(client, &tegra->clients, list) {
+		base = &client->base;
+		if (base->class == args->id) {
+			if (!base->ops || !base->ops->get_clk_rate) {
+				DRM_INFO("%s: No ops to get clk\n", __func__);
+				return -EINVAL;
+			}
+			return base->ops->get_clk_rate(base, &args->data,
+					args->type);
+		}
+	}
+
+	return -EINVAL;
+}
+
+static int tegra_set_clk_rate(struct drm_device *drm, void *data,
+					struct drm_file *file)
+{
+	struct tegra_drm *tegra = drm->dev_private;
+	struct tegra_drm_client *client;
+	struct host1x_client *base;
+	struct drm_tegra_set_clk_rate *args = data;
+
+	list_for_each_entry(client, &tegra->clients, list) {
+		base = &client->base;
+		if (base->class == args->id) {
+			if (!base->ops || !base->ops->set_clk_rate) {
+				DRM_INFO("%s: No ops to set clk\n", __func__);
+				return -EINVAL;
+			}
+			return base->ops->set_clk_rate(base, args->data,
+					args->type);
+		}
+	}
+	return -EINVAL;
+}
 #endif
 
 static const struct drm_ioctl_desc tegra_drm_ioctls[] = {
@@ -896,6 +941,8 @@ static const struct drm_ioctl_desc tegra_drm_ioctls[] = {
 	DRM_IOCTL_DEF_DRV(TEGRA_GEM_GET_TILING, tegra_gem_get_tiling, DRM_UNLOCKED),
 	DRM_IOCTL_DEF_DRV(TEGRA_GEM_SET_FLAGS, tegra_gem_set_flags, DRM_UNLOCKED),
 	DRM_IOCTL_DEF_DRV(TEGRA_GEM_GET_FLAGS, tegra_gem_get_flags, DRM_UNLOCKED),
+	DRM_IOCTL_DEF_DRV(TEGRA_GET_CLK_RATE, tegra_get_clk_rate, DRM_UNLOCKED|DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(TEGRA_SET_CLK_RATE, tegra_set_clk_rate, DRM_UNLOCKED|DRM_RENDER_ALLOW),
 #endif
 };
 
