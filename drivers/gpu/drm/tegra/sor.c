@@ -2796,6 +2796,8 @@ static int tegra_sor_probe(struct platform_device *pdev)
 
 		if (!sor->aux)
 			return -EPROBE_DEFER;
+
+		sor->output.ddc = &sor->aux->ddc;
 	}
 
 	np = of_parse_phandle(pdev->dev.of_node, "nvidia,kfuse", 0);
