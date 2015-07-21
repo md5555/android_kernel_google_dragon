@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 Red Hat Inc.
+ * Copyright (C) 2015 Google, Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -18,32 +18,39 @@
  * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
- *
- * Authors: Ben Skeggs
  */
+
+#include <subdev/timer.h>
+
 #include "priv.h"
 
-int
-gk104_ltc_init(struct nvkm_object *object)
+void
+gk20a_ltc_invalidate(struct nvkm_ltc_priv *ltc)
 {
-	struct nvkm_ltc_priv *priv = (void *)object;
-	u32 lpg128 = !(nv_rd32(priv, 0x100c80) & 0x00000001);
-	int ret;
+	spin_lock(&ltc->maint_op_lock);
 
-	ret = nvkm_ltc_init(priv);
-	if (ret)
-		return ret;
+	nv_wr32(ltc, 0x70004, 0x00000001);
+	if (!nv_wait(ltc, 0x70004, 0x00000003, 0x00000000))
+		nv_warn(ltc, "L2 invalidate timeout\n");
 
-	nv_wr32(priv, 0x17e8d8, priv->ltc_nr);
-	nv_wr32(priv, 0x17e000, priv->ltc_nr);
-	nv_wr32(priv, 0x17e8d4, priv->tag_base);
-	nv_mask(priv, 0x17e8c0, 0x00000002, lpg128 ? 0x00000002 : 0x00000000);
-	return 0;
+	spin_unlock(&ltc->maint_op_lock);
+}
+
+void
+gk20a_ltc_flush(struct nvkm_ltc_priv *ltc)
+{
+	spin_lock(&ltc->maint_op_lock);
+
+	nv_wr32(ltc, 0x70010, 0x00000001);
+	if (!nv_wait(ltc, 0x70010, 0x00000003, 0x00000000))
+		nv_warn(ltc, "L2 flush timeout\n");
+
+	spin_unlock(&ltc->maint_op_lock);
 }
 
 struct nvkm_oclass *
-gk104_ltc_oclass = &(struct nvkm_ltc_impl) {
-	.base.handle = NV_SUBDEV(LTC, 0xe4),
+gk20a_ltc_oclass = &(struct nvkm_ltc_impl) {
+	.base.handle = NV_SUBDEV(LTC, 0xea),
 	.base.ofuncs = &(struct nvkm_ofuncs) {
 		.ctor = gf100_ltc_ctor,
 		.dtor = gf100_ltc_dtor,
@@ -56,4 +63,6 @@ gk104_ltc_oclass = &(struct nvkm_ltc_impl) {
 	.zbc = 16,
 	.zbc_clear_color = gf100_ltc_zbc_clear_color,
 	.zbc_clear_depth = gf100_ltc_zbc_clear_depth,
+	.invalidate = gk20a_ltc_invalidate,
+	.flush = gk20a_ltc_flush,
 }.base;

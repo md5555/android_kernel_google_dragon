@@ -169,7 +169,7 @@ gk104_identify(struct nvkm_device *device)
 		device->oclass[NVDEV_SUBDEV_FUSE   ] = &gf100_fuse_oclass;
 		device->oclass[NVDEV_SUBDEV_TIMER  ] = &gk20a_timer_oclass;
 		device->oclass[NVDEV_SUBDEV_FB     ] =  gk20a_fb_oclass;
-		device->oclass[NVDEV_SUBDEV_LTC    ] =  gk104_ltc_oclass;
+		device->oclass[NVDEV_SUBDEV_LTC    ] =  gk20a_ltc_oclass;
 		device->oclass[NVDEV_SUBDEV_IBUS   ] = &gk20a_ibus_oclass;
 		device->oclass[NVDEV_SUBDEV_INSTMEM] = gk20a_instmem_oclass;
 		device->oclass[NVDEV_SUBDEV_MMU    ] = &gf100_mmu_oclass;

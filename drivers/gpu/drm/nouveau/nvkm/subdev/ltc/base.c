@@ -66,6 +66,24 @@ nvkm_ltc_zbc_color_get(struct nvkm_ltc *ltc, int index, const u32 color[4])
 	return index;
 }
 
+static void
+nvkm_ltc_invalidate(struct nvkm_ltc *ltc)
+{
+	const struct nvkm_ltc_impl *impl = (void *)nv_oclass(ltc);
+	struct nvkm_ltc_priv *priv = (void *)ltc;
+	if (impl->invalidate)
+		impl->invalidate(priv);
+}
+
+static void
+nvkm_ltc_flush(struct nvkm_ltc *ltc)
+{
+	const struct nvkm_ltc_impl *impl = (void *)nv_oclass(ltc);
+	struct nvkm_ltc_priv *priv = (void *)ltc;
+	if (impl->flush)
+		impl->flush(priv);
+}
+
 static int
 nvkm_ltc_zbc_depth_get(struct nvkm_ltc *ltc, int index, const u32 depth)
 {
@@ -111,6 +129,7 @@ nvkm_ltc_create_(struct nvkm_object *parent, struct nvkm_object *engine,
 
 	memset(priv->zbc_color, 0x00, sizeof(priv->zbc_color));
 	memset(priv->zbc_depth, 0x00, sizeof(priv->zbc_depth));
+	spin_lock_init(&priv->maint_op_lock);
 
 	priv->base.base.intr = impl->intr;
 	priv->base.tags_alloc = nvkm_ltc_tags_alloc;
@@ -120,5 +139,7 @@ nvkm_ltc_create_(struct nvkm_object *parent, struct nvkm_object *engine,
 	priv->base.zbc_max = min(impl->zbc, NVKM_LTC_MAX_ZBC_CNT) - 1;
 	priv->base.zbc_color_get = nvkm_ltc_zbc_color_get;
 	priv->base.zbc_depth_get = nvkm_ltc_zbc_depth_get;
+	priv->base.invalidate = nvkm_ltc_invalidate;
+	priv->base.flush = nvkm_ltc_flush;
 	return 0;
 }

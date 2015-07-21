@@ -26,7 +26,7 @@
 #include <subdev/fb.h>
 #include <subdev/timer.h>
 
-static void
+void
 gm107_ltc_cbc_clear(struct nvkm_ltc_priv *priv, u32 start, u32 limit)
 {
 	nv_wr32(priv, 0x17e270, start);
@@ -34,7 +34,7 @@ gm107_ltc_cbc_clear(struct nvkm_ltc_priv *priv, u32 start, u32 limit)
 	nv_wr32(priv, 0x17e26c, 0x00000004);
 }
 
-static void
+void
 gm107_ltc_cbc_wait(struct nvkm_ltc_priv *priv)
 {
 	int c, s;
@@ -44,7 +44,7 @@ gm107_ltc_cbc_wait(struct nvkm_ltc_priv *priv)
 	}
 }
 
-static void
+void
 gm107_ltc_zbc_clear_color(struct nvkm_ltc_priv *priv, int i, const u32 color[4])
 {
 	nv_mask(priv, 0x17e338, 0x0000000f, i);
@@ -54,7 +54,7 @@ gm107_ltc_zbc_clear_color(struct nvkm_ltc_priv *priv, int i, const u32 color[4])
 	nv_wr32(priv, 0x17e348, color[3]);
 }
 
-static void
+void
 gm107_ltc_zbc_clear_depth(struct nvkm_ltc_priv *priv, int i, const u32 depth)
 {
 	nv_mask(priv, 0x17e338, 0x0000000f, i);
@@ -73,7 +73,7 @@ gm107_ltc_lts_isr(struct nvkm_ltc_priv *priv, int ltc, int lts)
 	}
 }
 
-static void
+void
 gm107_ltc_intr(struct nvkm_subdev *subdev)
 {
 	struct nvkm_ltc_priv *priv = (void *)subdev;
@@ -88,7 +88,7 @@ gm107_ltc_intr(struct nvkm_subdev *subdev)
 	}
 }
 
-static int
+int
 gm107_ltc_init(struct nvkm_object *object)
 {
 	struct nvkm_ltc_priv *priv = (void *)object;
@@ -105,7 +105,7 @@ gm107_ltc_init(struct nvkm_object *object)
 	return 0;
 }
 
-static int
+int
 gm107_ltc_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	       struct nvkm_oclass *oclass, void *data, u32 size,
 	       struct nvkm_object **pobject)

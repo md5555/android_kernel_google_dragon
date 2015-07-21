@@ -189,7 +189,7 @@ gm100_identify(struct nvkm_device *device)
 		device->oclass[NVDEV_SUBDEV_FUSE   ] = &gm107_fuse_oclass;
 		device->oclass[NVDEV_SUBDEV_TIMER  ] = &gk20a_timer_oclass;
 		device->oclass[NVDEV_SUBDEV_FB     ] =  gm20b_fb_oclass;
-		device->oclass[NVDEV_SUBDEV_LTC    ] =  gm107_ltc_oclass;
+		device->oclass[NVDEV_SUBDEV_LTC    ] =  gm20b_ltc_oclass;
 		device->oclass[NVDEV_SUBDEV_IBUS   ] = &gk20a_ibus_oclass;
 		device->oclass[NVDEV_SUBDEV_INSTMEM] = gk20a_instmem_oclass;
 		device->oclass[NVDEV_SUBDEV_MMU    ] = &gm20b_mmu_oclass;

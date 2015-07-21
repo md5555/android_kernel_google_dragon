@@ -1,5 +1,7 @@
 #ifndef __NVKM_LTC_PRIV_H__
 #define __NVKM_LTC_PRIV_H__
+#include <linux/spinlock.h>
+
 #include <subdev/ltc.h>
 
 #include <core/mm.h>
@@ -17,6 +19,8 @@ struct nvkm_ltc_priv {
 
 	u32 zbc_color[NVKM_LTC_MAX_ZBC_CNT][4];
 	u32 zbc_depth[NVKM_LTC_MAX_ZBC_CNT];
+
+	spinlock_t maint_op_lock;
 };
 
 #define nvkm_ltc_create(p,e,o,d)                                               \
@@ -59,6 +63,9 @@ struct nvkm_ltc_impl {
 	int zbc;
 	void (*zbc_clear_color)(struct nvkm_ltc_priv *, int, const u32[4]);
 	void (*zbc_clear_depth)(struct nvkm_ltc_priv *, int, const u32);
+
+	void (*invalidate)(struct nvkm_ltc_priv *);
+	void (*flush)(struct nvkm_ltc_priv *);
 };
 
 void gf100_ltc_intr(struct nvkm_subdev *);
@@ -66,4 +73,22 @@ void gf100_ltc_cbc_clear(struct nvkm_ltc_priv *, u32, u32);
 void gf100_ltc_cbc_wait(struct nvkm_ltc_priv *);
 void gf100_ltc_zbc_clear_color(struct nvkm_ltc_priv *, int, const u32[4]);
 void gf100_ltc_zbc_clear_depth(struct nvkm_ltc_priv *, int, const u32);
+
+int gk104_ltc_init(struct nvkm_object *);
+
+void gm107_ltc_cbc_clear(struct nvkm_ltc_priv *priv, u32 start, u32 limit);
+void gm107_ltc_cbc_wait(struct nvkm_ltc_priv *priv);
+void gm107_ltc_zbc_clear_color(struct nvkm_ltc_priv *priv, int i,
+			       const u32 color[4]);
+void gm107_ltc_zbc_clear_depth(struct nvkm_ltc_priv *priv, int i,
+			       const u32 depth);
+void gm107_ltc_intr(struct nvkm_subdev *subdev);
+int gm107_ltc_init(struct nvkm_object *object);
+int gm107_ltc_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
+		   struct nvkm_oclass *oclass, void *data, u32 size,
+		   struct nvkm_object **pobject);
+
+void gk20a_ltc_invalidate(struct nvkm_ltc_priv *);
+void gk20a_ltc_flush(struct nvkm_ltc_priv *);
+
 #endif
