@@ -19,6 +19,7 @@
 #include <linux/host1x.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
+#include <linux/pm_runtime.h>
 #include <linux/reset.h>
 #include <linux/iommu.h>
 #include <linux/regulator/consumer.h>
@@ -244,6 +245,8 @@ static int vi_open_channel(struct tegra_drm_client *client,
 {
 	struct vi *vi = to_vi(client);
 
+	pm_runtime_get_sync(vi->dev);
+
 	context->channel = host1x_channel_get(vi->channel);
 	if (!context->channel)
 		return -ENOMEM;
@@ -253,11 +256,16 @@ static int vi_open_channel(struct tegra_drm_client *client,
 
 static void vi_close_channel(struct tegra_drm_context *context)
 {
+	struct vi *vi = to_vi(context->client);
+
 	if (!context->channel)
 		return;
 
 	host1x_channel_put(context->channel);
 	context->channel = NULL;
+
+	pm_runtime_mark_last_busy(vi->dev);
+	pm_runtime_put_autosuspend(vi->dev);
 }
 
 static int vi_is_addr_reg(struct device *dev, u32 class, u32 offset)
@@ -360,6 +368,11 @@ static int vi_probe(struct platform_device *pdev)
 		goto error_vi_power_off;
 	}
 
+	pm_runtime_set_active(dev);
+	pm_runtime_enable(dev);
+	pm_runtime_use_autosuspend(dev);
+	pm_runtime_set_autosuspend_delay(dev, 5000);
+
 	dev_info(&pdev->dev, "initialized");
 
 	return 0;
@@ -384,10 +397,27 @@ static int vi_remove(struct platform_device *pdev)
 	return err;
 }
 
+static int __maybe_unused vi_runtime_suspend(struct device *dev)
+{
+	dev_info(dev, "%s\n", __func__);
+	return vi_power_off(dev);
+}
+
+static int __maybe_unused vi_runtime_resume(struct device *dev)
+{
+	dev_info(dev, "%s\n", __func__);
+	return vi_power_on(dev);
+}
+
+static const struct dev_pm_ops vi_pm_ops = {
+	SET_RUNTIME_PM_OPS(vi_runtime_suspend, vi_runtime_resume, NULL)
+};
+
 struct platform_driver tegra_vi_driver = {
 	.driver = {
 		.name = "tegra-vi",
 		.of_match_table = vi_match,
+		.pm = &vi_pm_ops,
 	},
 	.probe = vi_probe,
 	.remove = vi_remove,

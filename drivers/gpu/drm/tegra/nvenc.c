@@ -21,6 +21,7 @@
 #include <linux/host1x.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
+#include <linux/pm_runtime.h>
 #include <linux/reset.h>
 #include <soc/tegra/pmc.h>
 #include <linux/iommu.h>
@@ -175,6 +176,8 @@ static int nvenc_open_channel(struct tegra_drm_client *client,
 	struct nvenc *nvenc = to_nvenc(client);
 	int err;
 
+	pm_runtime_get_sync(nvenc->dev);
+
 	err = falcon_boot(&nvenc->falcon, nvenc->config->ucode_name);
 	if (err)
 		return err;
@@ -188,11 +191,16 @@ static int nvenc_open_channel(struct tegra_drm_client *client,
 
 static void nvenc_close_channel(struct tegra_drm_context *context)
 {
+	struct nvenc *nvenc = to_nvenc(context->client);
+
 	if (!context->channel)
 		return;
 
 	host1x_channel_put(context->channel);
 	context->channel = NULL;
+
+	pm_runtime_mark_last_busy(nvenc->dev);
+	pm_runtime_put_autosuspend(nvenc->dev);
 }
 
 static int nvenc_is_addr_reg(struct device *dev, u32 class, u32 offset)
@@ -340,6 +348,12 @@ static int nvenc_probe(struct platform_device *pdev)
 		goto error_nvenc_power_off;
 	}
 
+	pm_runtime_set_active(dev);
+	pm_runtime_enable(dev);
+	pm_runtime_use_autosuspend(dev);
+	pm_runtime_set_autosuspend_delay(dev, 5000);
+
+
 	dev_info(&pdev->dev, "initialized");
 
 	return 0;
@@ -368,10 +382,27 @@ static int nvenc_remove(struct platform_device *pdev)
 	return err;
 }
 
+static int __maybe_unused nvenc_runtime_suspend(struct device *dev)
+{
+	dev_info(dev, "%s\n", __func__);
+	return nvenc_power_off(dev);
+}
+
+static int __maybe_unused nvenc_runtime_resume(struct device *dev)
+{
+	dev_info(dev, "%s\n", __func__);
+	return nvenc_power_on(dev);
+}
+
+static const struct dev_pm_ops nvenc_pm_ops = {
+	SET_RUNTIME_PM_OPS(nvenc_runtime_suspend, nvenc_runtime_resume, NULL)
+};
+
 struct platform_driver tegra_nvenc_driver = {
 	.driver = {
 		.name = "tegra-nvenc",
 		.of_match_table = nvenc_match,
+		.pm = &nvenc_pm_ops,
 	},
 	.probe = nvenc_probe,
 	.remove = nvenc_remove,

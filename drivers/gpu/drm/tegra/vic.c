@@ -21,6 +21,7 @@
 #include <linux/host1x.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
+#include <linux/pm_runtime.h>
 #include <linux/reset.h>
 #include <soc/tegra/pmc.h>
 #include <linux/iommu.h>
@@ -233,6 +234,8 @@ static int vic_open_channel(struct tegra_drm_client *client,
 	int err;
 	struct falcon_ucode_v1 ucode;
 
+	pm_runtime_get_sync(vic->dev);
+
 	err = falcon_boot(&vic->falcon, vic->config->ucode_name);
 	if (err)
 		return err;
@@ -259,11 +262,16 @@ static int vic_open_channel(struct tegra_drm_client *client,
 
 static void vic_close_channel(struct tegra_drm_context *context)
 {
+	struct vic *vic = to_vic(context->client);
+
 	if (!context->channel)
 		return;
 
 	host1x_channel_put(context->channel);
 	context->channel = NULL;
+
+	pm_runtime_mark_last_busy(vic->dev);
+	pm_runtime_put_autosuspend(vic->dev);
 }
 
 static int vic_is_addr_reg(struct device *dev, u32 class, u32 offset)
@@ -411,6 +419,12 @@ static int vic_probe(struct platform_device *pdev)
 		goto error_vic_power_off;
 	}
 
+	pm_runtime_set_active(dev);
+	pm_runtime_enable(dev);
+	pm_runtime_use_autosuspend(dev);
+	pm_runtime_set_autosuspend_delay(dev, 5000);
+
+
 	dev_info(&pdev->dev, "initialized");
 
 	return 0;
@@ -439,10 +453,27 @@ static int vic_remove(struct platform_device *pdev)
 	return err;
 }
 
+static int __maybe_unused vic_runtime_suspend(struct device *dev)
+{
+	dev_info(dev, "%s\n", __func__);
+	return vic_power_off(dev);
+}
+
+static int __maybe_unused vic_runtime_resume(struct device *dev)
+{
+	dev_info(dev, "%s\n", __func__);
+	return vic_power_on(dev);
+}
+
+static const struct dev_pm_ops vic_pm_ops = {
+	SET_RUNTIME_PM_OPS(vic_runtime_suspend, vic_runtime_resume, NULL)
+};
+
 struct platform_driver tegra_vic_driver = {
 	.driver = {
 		.name = "tegra-vic",
 		.of_match_table = vic_match,
+		.pm = &vic_pm_ops,
 	},
 	.probe = vic_probe,
 	.remove = vic_remove,

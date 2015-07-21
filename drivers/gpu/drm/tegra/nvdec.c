@@ -21,6 +21,7 @@
 #include <linux/host1x.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
+#include <linux/pm_runtime.h>
 #include <linux/reset.h>
 #include <soc/tegra/pmc.h>
 #include <linux/iommu.h>
@@ -175,6 +176,8 @@ static int nvdec_open_channel(struct tegra_drm_client *client,
 	struct nvdec *nvdec = to_nvdec(client);
 	int err;
 
+	pm_runtime_get_sync(nvdec->dev);
+
 	err = falcon_boot(&nvdec->falcon, nvdec->config->ucode_name);
 	if (err)
 		return err;
@@ -188,11 +191,16 @@ static int nvdec_open_channel(struct tegra_drm_client *client,
 
 static void nvdec_close_channel(struct tegra_drm_context *context)
 {
+	struct nvdec *nvdec = to_nvdec(context->client);
+
 	if (!context->channel)
 		return;
 
 	host1x_channel_put(context->channel);
 	context->channel = NULL;
+
+	pm_runtime_mark_last_busy(nvdec->dev);
+	pm_runtime_put_autosuspend(nvdec->dev);
 }
 
 static int nvdec_is_addr_reg(struct device *dev, u32 class, u32 offset)
@@ -340,6 +348,11 @@ static int nvdec_probe(struct platform_device *pdev)
 		goto error_nvdec_power_off;
 	}
 
+	pm_runtime_set_active(dev);
+	pm_runtime_enable(dev);
+	pm_runtime_use_autosuspend(dev);
+	pm_runtime_set_autosuspend_delay(dev, 5000);
+
 	dev_info(&pdev->dev, "initialized");
 
 	return 0;
@@ -368,10 +381,27 @@ static int nvdec_remove(struct platform_device *pdev)
 	return err;
 }
 
+static int __maybe_unused nvdec_runtime_suspend(struct device *dev)
+{
+	dev_info(dev, "%s\n", __func__);
+	return nvdec_power_off(dev);
+}
+
+static int __maybe_unused nvdec_runtime_resume(struct device *dev)
+{
+	dev_info(dev, "%s\n", __func__);
+	return nvdec_power_on(dev);
+}
+
+static const struct dev_pm_ops nvdec_pm_ops = {
+	SET_RUNTIME_PM_OPS(nvdec_runtime_suspend, nvdec_runtime_resume, NULL)
+};
+
 struct platform_driver tegra_nvdec_driver = {
 	.driver = {
 		.name = "tegra-nvdec",
 		.of_match_table = nvdec_match,
+		.pm = &nvdec_pm_ops,
 	},
 	.probe = nvdec_probe,
 	.remove = nvdec_remove,

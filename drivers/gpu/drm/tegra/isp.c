@@ -21,6 +21,7 @@
 #include <linux/host1x.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
+#include <linux/pm_runtime.h>
 #include <linux/reset.h>
 #include <linux/iommu.h>
 #include <soc/tegra/pmc.h>
@@ -175,6 +176,8 @@ static int isp_open_channel(struct tegra_drm_client *client,
 {
 	struct isp *isp = to_isp(client);
 
+	pm_runtime_get_sync(isp->dev);
+
 	context->channel = host1x_channel_get(isp->channel);
 	if (!context->channel)
 		return -ENOMEM;
@@ -184,11 +187,16 @@ static int isp_open_channel(struct tegra_drm_client *client,
 
 static void isp_close_channel(struct tegra_drm_context *context)
 {
+	struct isp *isp = to_isp(context->client);
+
 	if (!context->channel)
 		return;
 
 	host1x_channel_put(context->channel);
 	context->channel = NULL;
+
+	pm_runtime_mark_last_busy(isp->dev);
+	pm_runtime_put_autosuspend(isp->dev);
 }
 
 static int isp_is_addr_reg(struct device *dev, u32 class, u32 offset)
@@ -299,6 +307,11 @@ static int isp_probe(struct platform_device *pdev)
 		goto error_isp_power_off;
 	}
 
+	pm_runtime_set_active(dev);
+	pm_runtime_enable(dev);
+	pm_runtime_use_autosuspend(dev);
+	pm_runtime_set_autosuspend_delay(dev, 5000);
+
 	dev_info(&pdev->dev, "initialized");
 
 	return 0;
@@ -323,10 +336,27 @@ static int isp_remove(struct platform_device *pdev)
 	return err;
 }
 
+static int __maybe_unused isp_runtime_suspend(struct device *dev)
+{
+	dev_info(dev, "%s\n", __func__);
+	return isp_power_off(dev);
+}
+
+static int __maybe_unused isp_runtime_resume(struct device *dev)
+{
+	dev_info(dev, "%s\n", __func__);
+	return isp_power_on(dev);
+}
+
+static const struct dev_pm_ops isp_pm_ops = {
+	SET_RUNTIME_PM_OPS(isp_runtime_suspend, isp_runtime_resume, NULL)
+};
+
 struct platform_driver tegra_isp_driver = {
 	.driver = {
 		.name = "tegra-isp",
 		.of_match_table = ispa_match,
+		.pm = &isp_pm_ops,
 	},
 	.probe = isp_probe,
 	.remove = isp_remove,
