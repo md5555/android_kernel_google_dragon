@@ -636,10 +636,13 @@ static void drm_dp_link_reset(struct drm_dp_link *link)
 
 	link->revision = 0;
 	link->edp = 0;
-	link->rate = 0;
-	link->num_lanes = 0;
+	link->max_lanes = 0;
+	link->max_rate = 0;
 	link->capabilities = 0;
 	link->aux_rd_interval = 0;
+
+	link->lanes = 0;
+	link->rate = 0;
 }
 
 /**
@@ -665,8 +668,8 @@ int drm_dp_link_probe(struct drm_dp_aux *aux, struct drm_dp_link *link)
 		return err;
 
 	link->revision = values[0];
-	link->rate = drm_dp_bw_code_to_link_rate(values[1]);
-	link->num_lanes = values[2] & DP_MAX_LANE_COUNT_MASK;
+	link->max_rate = drm_dp_bw_code_to_link_rate(values[1]);
+	link->max_lanes = values[2] & DP_MAX_LANE_COUNT_MASK;
 
 	if (link->revision >= 0x11)
 		if (values[2] & DP_ENHANCED_FRAME_CAP)
@@ -715,6 +718,10 @@ int drm_dp_link_probe(struct drm_dp_aux *aux, struct drm_dp_link *link)
 
 	/* DP_TRAINING_AUX_RD_INTERVAL is in units of 4 milliseconds */
 	link->aux_rd_interval = values[14] * 4000;
+
+	/* use highest available configuration by default */
+	link->lanes = link->max_lanes;
+	link->rate = link->max_rate;
 
 	return 0;
 }
@@ -810,7 +817,7 @@ int drm_dp_link_configure(struct drm_dp_aux *aux, struct drm_dp_link *link)
 	}
 
 	values[0] = drm_dp_link_rate_to_bw_code(link->rate);
-	values[1] = link->num_lanes;
+	values[1] = link->lanes;
 
 	if (link->capabilities & DP_LINK_CAP_ENHANCED_FRAMING)
 		values[1] |= DP_LANE_COUNT_ENHANCED_FRAME_EN;
@@ -1087,7 +1094,7 @@ static bool drm_dp_link_train_valid(const struct drm_dp_link_train *train)
 static int drm_dp_link_apply_training(struct drm_dp_link *link)
 {
 	struct drm_dp_link_train_set *request = &link->train.request;
-	unsigned int lanes = link->num_lanes, *vs, *pe, *pc, i;
+	unsigned int lanes = link->lanes, *vs, *pe, *pc, i;
 	struct drm_dp_aux *aux = link->aux;
 	u8 values[4], pattern = 0;
 	int err;
@@ -1175,7 +1182,7 @@ static void drm_dp_link_get_adjustments(struct drm_dp_link *link,
 	struct drm_dp_link_train_set *adjust = &link->train.adjust;
 	unsigned int i;
 
-	for (i = 0; i < link->num_lanes; i++) {
+	for (i = 0; i < link->lanes; i++) {
 		adjust->voltage_swing[i] =
 			drm_dp_get_adjust_request_voltage(status, i) >>
 				DP_TRAIN_VOLTAGE_SWING_SHIFT;
@@ -1225,7 +1232,7 @@ static int drm_dp_link_recover_clock(struct drm_dp_link *link)
 		return err;
 	}
 
-	if (!drm_dp_clock_recovery_ok(status, link->num_lanes))
+	if (!drm_dp_clock_recovery_ok(status, link->lanes))
 		drm_dp_link_get_adjustments(link, status);
 	else
 		link->train.clock_recovered = true;
@@ -1275,13 +1282,13 @@ static int drm_dp_link_equalize_channel(struct drm_dp_link *link)
 		return err;
 	}
 
-	if (!drm_dp_clock_recovery_ok(status, link->num_lanes)) {
+	if (!drm_dp_clock_recovery_ok(status, link->lanes)) {
 		DRM_ERROR("clock recovery lost while equalizing channel\n");
 		link->train.clock_recovered = false;
 		return 0;
 	}
 
-	if (!drm_dp_channel_eq_ok(status, link->num_lanes))
+	if (!drm_dp_channel_eq_ok(status, link->lanes))
 		drm_dp_link_get_adjustments(link, status);
 	else
 		link->train.channel_equalized = true;
@@ -1351,7 +1358,7 @@ static int drm_dp_link_train_full(struct drm_dp_link *link)
 
 retry:
 	DRM_DEBUG_KMS("full-training link: %u lane%s at %u MHz\n",
-		      link->num_lanes, (link->num_lanes > 1) ? "s" : "",
+		      link->lanes, (link->lanes > 1) ? "s" : "",
 		      link->rate / 100);
 
 	err = drm_dp_link_configure(link->aux, link);
@@ -1407,7 +1414,7 @@ static int drm_dp_link_train_fast(struct drm_dp_link *link)
 	int err;
 
 	DRM_DEBUG_KMS("fast-training link: %u lane%s at %u MHz\n",
-		      link->num_lanes, (link->num_lanes > 1) ? "s" : "",
+		      link->lanes, (link->lanes > 1) ? "s" : "",
 		      link->rate / 100);
 
 	err = drm_dp_link_configure(link->aux, link);
@@ -1443,12 +1450,12 @@ static int drm_dp_link_train_fast(struct drm_dp_link *link)
 		goto out;
 	}
 
-	if (!drm_dp_clock_recovery_ok(status, link->num_lanes)) {
+	if (!drm_dp_clock_recovery_ok(status, link->lanes)) {
 		DRM_ERROR("clock recovery failed\n");
 		err = -EIO;
 	}
 
-	if (!drm_dp_channel_eq_ok(status, link->num_lanes)) {
+	if (!drm_dp_channel_eq_ok(status, link->lanes)) {
 		DRM_ERROR("channel equalization failed\n");
 		err = -EIO;
 	}

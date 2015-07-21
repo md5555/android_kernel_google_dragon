@@ -506,14 +506,14 @@ int tegra_dpaux_train(struct tegra_dpaux *dpaux, struct drm_dp_link *link,
 	if (tp == DP_TRAINING_PATTERN_DISABLE)
 		return 0;
 
-	for (i = 0; i < link->num_lanes; i++)
+	for (i = 0; i < link->lanes; i++)
 		values[i] = DP_TRAIN_MAX_PRE_EMPHASIS_REACHED |
 			    DP_TRAIN_PRE_EMPH_LEVEL_0 |
 			    DP_TRAIN_MAX_SWING_REACHED |
 			    DP_TRAIN_VOLTAGE_SWING_LEVEL_0;
 
 	err = drm_dp_dpcd_write(&dpaux->aux, DP_TRAINING_LANE0_SET, values,
-				link->num_lanes);
+				link->lanes);
 	if (err < 0)
 		return err;
 
@@ -525,13 +525,13 @@ int tegra_dpaux_train(struct tegra_dpaux *dpaux, struct drm_dp_link *link,
 
 	switch (tp) {
 	case DP_TRAINING_PATTERN_1:
-		if (!drm_dp_clock_recovery_ok(status, link->num_lanes))
+		if (!drm_dp_clock_recovery_ok(status, link->lanes))
 			return -EAGAIN;
 
 		break;
 
 	case DP_TRAINING_PATTERN_2:
-		if (!drm_dp_channel_eq_ok(status, link->num_lanes))
+		if (!drm_dp_channel_eq_ok(status, link->lanes))
 			return -EAGAIN;
 
 		break;
