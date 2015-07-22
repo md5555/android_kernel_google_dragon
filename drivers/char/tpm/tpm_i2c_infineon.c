@@ -141,7 +141,8 @@ static int iic_tpm_read(u8 addr, u8 *buffer, size_t len)
 		 * retrieving the data
 		 */
 		for (count = 0; count < MAX_COUNT; count++) {
-			unsigned int msglen = msg2.len = min(adapterlimit, len);
+			unsigned int msglen = msg2.len =
+					min_t(unsigned int, adapterlimit, len);
 			usleep_range(SLEEP_DURATION_LOW, SLEEP_DURATION_HI);
 			rc = __i2c_transfer(tpm_dev.client->adapter, &msg2, 1);
 			if (rc > 0) {
