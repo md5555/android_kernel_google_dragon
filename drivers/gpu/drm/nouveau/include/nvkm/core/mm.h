@@ -12,8 +12,8 @@ struct nvkm_mm_node {
 #define NVKM_MM_TYPE_NONE 0x00
 #define NVKM_MM_TYPE_HOLE 0xff
 	u8  type;
-	u32 offset;
-	u32 length;
+	u64 offset;
+	u64 length;
 };
 
 struct nvkm_mm {
@@ -32,9 +32,9 @@ nvkm_mm_initialised(struct nvkm_mm *mm)
 
 int  nvkm_mm_init(struct nvkm_mm *, u32 offset, u32 length, u32 block);
 int  nvkm_mm_fini(struct nvkm_mm *);
-int  nvkm_mm_head(struct nvkm_mm *, u8 heap, u8 type, u32 size_max,
-		  u32 size_min, u32 align, struct nvkm_mm_node **);
-int  nvkm_mm_tail(struct nvkm_mm *, u8 heap, u8 type, u32 size_max,
-		  u32 size_min, u32 align, struct nvkm_mm_node **);
+int  nvkm_mm_head(struct nvkm_mm *, u8 heap, u8 type, u64 size_max,
+		  u64 size_min, u32 align, struct nvkm_mm_node **);
+int  nvkm_mm_tail(struct nvkm_mm *, u8 heap, u8 type, u64 size_max,
+		  u64 size_min, u32 align, struct nvkm_mm_node **);
 void nvkm_mm_free(struct nvkm_mm *, struct nvkm_mm_node **);
 #endif

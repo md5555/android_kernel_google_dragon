@@ -34,12 +34,12 @@ nvkm_mm_dump(struct nvkm_mm *mm, const char *header)
 	printk(KERN_ERR "nvkm: %s\n", header);
 	printk(KERN_ERR "nvkm: node list:\n");
 	list_for_each_entry(node, &mm->nodes, nl_entry) {
-		printk(KERN_ERR "nvkm: \t%08x %08x %d\n",
+		printk(KERN_ERR "nvkm: \t%016llx %016llx %d\n",
 		       node->offset, node->length, node->type);
 	}
 	printk(KERN_ERR "nvkm: free list:\n");
 	list_for_each_entry(node, &mm->free, fl_entry) {
-		printk(KERN_ERR "nvkm: \t%08x %08x %d\n",
+		printk(KERN_ERR "nvkm: \t%016llx %016llx %d\n",
 		       node->offset, node->length, node->type);
 	}
 }
@@ -108,13 +108,13 @@ region_head(struct nvkm_mm *mm, struct nvkm_mm_node *a, u32 size)
 }
 
 int
-nvkm_mm_head(struct nvkm_mm *mm, u8 heap, u8 type, u32 size_max, u32 size_min,
+nvkm_mm_head(struct nvkm_mm *mm, u8 heap, u8 type, u64 size_max, u64 size_min,
 	     u32 align, struct nvkm_mm_node **pnode)
 {
 	struct nvkm_mm_node *prev, *this, *next;
 	u32 mask = align - 1;
 	u32 splitoff;
-	u32 s, e;
+	u64 s, e;
 
 	BUG_ON(type == NVKM_MM_TYPE_NONE || type == NVKM_MM_TYPE_HOLE);
 
@@ -182,7 +182,7 @@ region_tail(struct nvkm_mm *mm, struct nvkm_mm_node *a, u32 size)
 }
 
 int
-nvkm_mm_tail(struct nvkm_mm *mm, u8 heap, u8 type, u32 size_max, u32 size_min,
+nvkm_mm_tail(struct nvkm_mm *mm, u8 heap, u8 type, u64 size_max, u64 size_min,
 	     u32 align, struct nvkm_mm_node **pnode)
 {
 	struct nvkm_mm_node *prev, *this, *next;
@@ -191,9 +191,9 @@ nvkm_mm_tail(struct nvkm_mm *mm, u8 heap, u8 type, u32 size_max, u32 size_min,
 	BUG_ON(type == NVKM_MM_TYPE_NONE || type == NVKM_MM_TYPE_HOLE);
 
 	list_for_each_entry_reverse(this, &mm->free, fl_entry) {
-		u32 e = this->offset + this->length;
-		u32 s = this->offset;
-		u32 c = 0, a;
+		u64 e = this->offset + this->length;
+		u64 s = this->offset;
+		u64 c = 0, a;
 		if (unlikely(heap != NVKM_MM_HEAP_ANY)) {
 			if (this->heap != heap)
 				continue;
