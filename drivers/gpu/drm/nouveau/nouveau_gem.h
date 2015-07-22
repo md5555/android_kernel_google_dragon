@@ -39,6 +39,10 @@ extern int nouveau_gem_ioctl_cpu_fini(struct drm_device *, void *,
 				      struct drm_file *);
 extern int nouveau_gem_ioctl_info(struct drm_device *, void *,
 				  struct drm_file *);
+extern int nouveau_gem_ioctl_as_alloc(struct drm_device *, void *,
+				      struct drm_file *);
+extern int nouveau_gem_ioctl_as_free(struct drm_device *, void *,
+				     struct drm_file *);
 
 extern int nouveau_gem_prime_pin(struct drm_gem_object *);
 struct reservation_object *nouveau_gem_prime_res_obj(struct drm_gem_object *);

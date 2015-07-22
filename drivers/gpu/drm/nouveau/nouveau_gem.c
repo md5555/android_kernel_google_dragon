@@ -1423,3 +1423,55 @@ nouveau_gem_ioctl_info(struct drm_device *dev, void *data,
 	return ret;
 }
 
+int
+nouveau_gem_ioctl_as_alloc(struct drm_device *dev, void *data,
+			   struct drm_file *file_priv)
+{
+	struct nouveau_abi16 *abi16 = nouveau_abi16_get(file_priv, dev);
+	struct nouveau_cli *cli = nouveau_cli(file_priv);
+	struct drm_nouveau_gem_as_alloc *req = data;
+	u32 page_shift;
+	u64 align;
+	int ret = 0;
+
+	if (unlikely(!abi16))
+		return -ENOMEM;
+
+	/* Check for NPOT page size. */
+	page_shift = ffs(req->page_size) - 1;
+	if (req->page_size != (1 << page_shift))
+		return nouveau_abi16_put(abi16, -EINVAL);
+
+	/*
+	 * Make sure requested address meets alignment requirements.
+	 * Also handles the "don't care" address of 0.
+	 */
+	align = max_t(uint64_t, 1 << page_shift, req->align);
+	if (!IS_ALIGNED(req->address, align))
+		return nouveau_abi16_put(abi16, -EINVAL);
+
+	ret = nvkm_vm_as_alloc(cli->vm, align, req->pages * req->page_size,
+			       page_shift, &req->address);
+
+	return nouveau_abi16_put(abi16, ret);
+}
+
+int
+nouveau_gem_ioctl_as_free(struct drm_device *dev, void *data,
+			  struct drm_file *file_priv)
+{
+	struct nouveau_abi16 *abi16 = nouveau_abi16_get(file_priv, dev);
+	struct nouveau_cli *cli = nouveau_cli(file_priv);
+	struct nouveau_drm *drm = nouveau_drm(dev);
+	struct drm_nouveau_gem_as_free *req = data;
+	int ret = 0;
+
+	if (unlikely(!abi16))
+		return -ENOMEM;
+
+	flush_workqueue(drm->gem_unmap_wq);
+
+	ret = nvkm_vm_as_free(cli->vm, req->address);
+
+	return nouveau_abi16_put(abi16, ret);
+}
