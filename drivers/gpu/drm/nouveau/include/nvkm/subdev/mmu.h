@@ -17,6 +17,34 @@ struct nvkm_vm_pgd {
 	struct nvkm_gpuobj *obj;
 };
 
+/**
+ * struct nvkm_as - A GPU "address space"
+ * @mm: nested nvkm_mm allocator, for handling our address space allocation.
+ * @offset: non-shifted address offset where this address space starts
+ * @length: non-shifted length in bytes of this address space
+ * @node: node in the main nvkm_mm allocator that represents our address
+ *        space allocation.
+ *
+ * This represents a contiguous chunk of addresses to be reserved from the
+ * general GPU virtual address allocator.  They are allocated by userspace
+ * in order to manage fixed virtual address mappings, for example to support
+ * cuda.
+ */
+struct nvkm_as {
+	struct list_head head;
+
+	struct nvkm_mm mm;
+	u64 offset;
+	u64 length;
+
+	struct nvkm_mm_node *node;
+};
+
+/**
+ * struct nvkm_vma - A GPU virtual address allcoation
+ * @as: The nvkm_as that this allocation came out of.  NULL if this allocation
+ *      is coming out of the main allocator.
+ */
 struct nvkm_vma {
 	struct list_head head;
 	int refcount;
@@ -24,6 +52,8 @@ struct nvkm_vma {
 	struct nvkm_mm_node *node;
 	u64 offset;
 	u32 access;
+
+	struct nvkm_as *as;
 };
 
 struct nvkm_dirty_vma {
@@ -49,6 +79,8 @@ struct nvkm_vm {
 
 	struct mutex dirty_vma_lock;
 	struct list_head dirty_vma_list;
+
+	struct list_head as_list;
 };
 
 struct nvkm_mmu {
@@ -112,6 +144,8 @@ int  nvkm_vm_create(struct nvkm_mmu *, u64 offset, u64 length, u64 mm_offset,
 int  nvkm_vm_new(struct nvkm_device *, u64 offset, u64 length, u64 mm_offset,
 		 struct nvkm_vm **);
 int  nvkm_vm_ref(struct nvkm_vm *, struct nvkm_vm **, struct nvkm_gpuobj *pgd);
+int  nvkm_vm_get_offset(struct nvkm_vm *, u64 size, u32 page_shift, u32 access,
+			struct nvkm_vma *, u64 offset);
 int  nvkm_vm_get(struct nvkm_vm *, u64 size, u32 page_shift, u32 access,
 		 struct nvkm_vma *);
 void nvkm_vm_put(struct nvkm_vma *);
@@ -121,4 +155,9 @@ void nvkm_vm_unmap(struct nvkm_vma *);
 void nvkm_vm_unmap_at(struct nvkm_vma *, u64 offset, u64 length);
 int nvkm_vm_fence(struct nvkm_vm *, struct fence *);
 int nvkm_vm_wait(struct nvkm_vm *);
+int nvkm_vm_as_alloc(struct nvkm_vm *, u64 align, u64 length, u32 page_shift,
+		     u64 *address);
+int nvkm_vm_as_alloc_at_offset(struct nvkm_vm *, u64 offset, u64 length,
+			       u32 page_shift);
+int nvkm_vm_as_free(struct nvkm_vm *, u64 offset);
 #endif

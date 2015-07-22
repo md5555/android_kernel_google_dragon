@@ -301,9 +301,22 @@ nvkm_vm_map_pgt(struct nvkm_vm *vm, u32 pde, u32 type)
 	return 0;
 }
 
+static struct nvkm_as *
+nvkm_vm_find_as(struct nvkm_vm *vm, u64 offset)
+{
+	struct nvkm_as *as;
+
+	list_for_each_entry(as, &vm->as_list, head)
+		if ((offset >= as->offset) &&
+		    (offset < as->offset + as->length))
+			return as;
+
+	return NULL;
+}
+
 int
-nvkm_vm_get(struct nvkm_vm *vm, u64 size, u32 page_shift, u32 access,
-	    struct nvkm_vma *vma)
+nvkm_vm_get_offset(struct nvkm_vm *vm, u64 size, u32 page_shift, u32 access,
+		   struct nvkm_vma *vma, u64 offset)
 {
 	struct nvkm_mmu *mmu = vm->mmu;
 	u32 align = (1 << page_shift) >> 12;
@@ -312,8 +325,31 @@ nvkm_vm_get(struct nvkm_vm *vm, u64 size, u32 page_shift, u32 access,
 	int ret;
 
 	mutex_lock(&nv_subdev(mmu)->mutex);
-	ret = nvkm_mm_head(&vm->mm, 0, page_shift, msize, msize, align,
-			   &vma->node);
+
+	/**
+	 * If an offset is supplied, we try to find an address space that
+	 * encompasses it.  If we find one, that means someone has previously
+	 * allocated some address space, and so we use the allocator for that
+	 * address space.  Otherwise, fall back to the main allocator.
+	 */
+	if (offset) {
+		struct nvkm_mm *mm = &vm->mm;
+		struct nvkm_as *as;
+		u64 moffset = offset >> 12;
+
+		as = nvkm_vm_find_as(vm, offset);
+		if (as) {
+			mm = &as->mm;
+			vma->as = as;
+		}
+
+		ret = nvkm_mm_head_offset(mm, 0, page_shift, msize, msize,
+					  align, &vma->node, moffset);
+
+	} else {
+		ret = nvkm_mm_head(&vm->mm, 0, page_shift, msize, msize, align,
+				   &vma->node);
+	}
 	if (unlikely(ret != 0)) {
 		mutex_unlock(&nv_subdev(mmu)->mutex);
 		return ret;
@@ -349,6 +385,13 @@ nvkm_vm_get(struct nvkm_vm *vm, u64 size, u32 page_shift, u32 access,
 	return 0;
 }
 
+int
+nvkm_vm_get(struct nvkm_vm *vm, u64 size, u32 page_shift, u32 access,
+	    struct nvkm_vma *vma)
+{
+	return nvkm_vm_get_offset(vm, size, page_shift, access, vma, 0);
+}
+
 void
 nvkm_vm_put(struct nvkm_vma *vma)
 {
@@ -363,7 +406,10 @@ nvkm_vm_put(struct nvkm_vma *vma)
 
 	mutex_lock(&nv_subdev(mmu)->mutex);
 	nvkm_vm_unmap_pgt(vm, vma->node->type != mmu->spg_shift, fpde, lpde);
-	nvkm_mm_free(&vm->mm, &vma->node);
+	if (vma->as)
+		nvkm_mm_free(&vma->as->mm, &vma->node);
+	else
+		nvkm_mm_free(&vm->mm, &vma->node);
 	mutex_unlock(&nv_subdev(mmu)->mutex);
 
 	nvkm_vm_ref(NULL, &vma->vm, NULL);
@@ -386,6 +432,8 @@ nvkm_vm_create(struct nvkm_mmu *mmu, u64 offset, u64 length, u64 mm_offset,
 
 	INIT_LIST_HEAD(&vm->dirty_vma_list);
 	mutex_init(&vm->dirty_vma_lock);
+
+	INIT_LIST_HEAD(&vm->as_list);
 
 	vm->mmu = mmu;
 	kref_init(&vm->refcount);
@@ -471,9 +519,10 @@ static void
 nvkm_vm_del(struct kref *kref)
 {
 	struct nvkm_vm *vm = container_of(kref, typeof(*vm), refcount);
-	struct nvkm_vm_pgd *vpgd, *tmp;
+	struct nvkm_vm_pgd *vpgd, *tmp_vpgd;
+	struct nvkm_as *as, *tmp_as;
 
-	list_for_each_entry_safe(vpgd, tmp, &vm->pgd_list, head) {
+	list_for_each_entry_safe(vpgd, tmp_vpgd, &vm->pgd_list, head) {
 		nvkm_vm_unlink(vm, vpgd->obj);
 	}
 
@@ -481,6 +530,15 @@ nvkm_vm_del(struct kref *kref)
 	if (vm->fence)
 		sync_fence_put(vm->fence);
 #endif
+
+	list_for_each_entry_safe(as, tmp_as, &vm->as_list, head) {
+		nv_error(vm->mmu, "Not clean! Freeing as at "
+				  "offset 0x%016llx, length 0x%016llx\n",
+			 as->offset, as->length);
+		list_del(&as->head);
+		nvkm_mm_fini(&as->mm);
+		nvkm_mm_free(&vm->mm, &as->node);
+	}
 
 	nvkm_mm_fini(&vm->mm);
 	vfree(vm->pgt);
@@ -562,4 +620,82 @@ int nvkm_vm_wait(struct nvkm_vm *vm)
 		return 0;
 	return -ENODEV;
 #endif
+}
+
+int nvkm_vm_as_alloc(struct nvkm_vm *vm, u64 align, u64 length, u32 page_shift,
+		     u64 *address)
+{
+	struct nvkm_mmu *mmu = vm->mmu;
+	struct nvkm_as *as;
+	u32 malign = align >> 12;
+	u64 msize = length >> 12;
+	u64 moffset = *address >> 12;
+	int ret;
+
+	as = kzalloc(sizeof(*as), GFP_KERNEL);
+	if (!as)
+		return -ENOMEM;
+
+	mutex_lock(&nv_subdev(mmu)->mutex);
+
+	/* Try to allocate the address space from the main address allocator */
+	ret = nvkm_mm_head_offset(&vm->mm, 0, page_shift, msize, msize, malign,
+				  &as->node, moffset);
+	if (ret != 0)
+		goto error_unlock;
+
+	/* Initialize our sub-address-allocator */
+	ret = nvkm_mm_init(&as->mm, as->node->offset, as->node->length, malign);
+	if (ret != 0)
+		goto error_mm_free;
+
+	list_add(&as->head, &vm->as_list);
+
+	mutex_unlock(&nv_subdev(mmu)->mutex);
+
+	as->offset = as->node->offset << 12;
+	as->length = as->node->length << 12;
+
+	*address = as->offset;
+
+	return 0;
+
+error_mm_free:
+	nvkm_mm_free(&vm->mm, &as->node);
+error_unlock:
+	mutex_unlock(&nv_subdev(mmu)->mutex);
+	kfree(as);
+	return ret;
+}
+
+int nvkm_vm_as_free(struct nvkm_vm *vm, u64 offset)
+{
+	struct nvkm_mmu *mmu = vm->mmu;
+	struct nvkm_as *as;
+	int ret;
+
+	mutex_lock(&nv_subdev(mmu)->mutex);
+
+	as = nvkm_vm_find_as(vm, offset);
+	if (!as)
+		return -ENOENT;
+
+	/*
+	 * This can fail if there are still outstanding allocations in this
+	 * address space, in which case, we fail the address space free too.
+	 */
+	ret = nvkm_mm_fini(&as->mm);
+	if (ret < 0) {
+		mutex_unlock(&nv_subdev(mmu)->mutex);
+		return ret;
+	}
+	nvkm_mm_free(&vm->mm, &as->node);
+
+	list_del(&as->head);
+
+	mutex_unlock(&nv_subdev(mmu)->mutex);
+
+	kfree(as);
+
+	return 0;
 }
