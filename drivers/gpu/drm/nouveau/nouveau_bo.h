@@ -95,6 +95,7 @@ nouveau_bo_vma_find(struct nouveau_bo *, struct nvkm_vm *);
 int  nouveau_bo_vma_add(struct nouveau_bo *, struct nvkm_vm *,
 			struct nvkm_vma *);
 void nouveau_bo_vma_del(struct nouveau_bo *, struct nvkm_vma *);
+void nouveau_defer_vm_map(struct nvkm_vma *vma, struct nouveau_bo *nvbo);
 
 /* TODO: submit equivalent to TTM generic API upstream? */
 static inline void __iomem *

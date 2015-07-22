@@ -390,6 +390,10 @@ nvkm_vm_create(struct nvkm_mmu *mmu, u64 offset, u64 length, u64 mm_offset,
 
 	INIT_LIST_HEAD(&vm->pgd_list);
 	mutex_init(&vm->fence_lock);
+
+	INIT_LIST_HEAD(&vm->dirty_vma_list);
+	mutex_init(&vm->dirty_vma_lock);
+
 	vm->mmu = mmu;
 	kref_init(&vm->refcount);
 	vm->fpde = offset >> (mmu->pgt_bits + 12);

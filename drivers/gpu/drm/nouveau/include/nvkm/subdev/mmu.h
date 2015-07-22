@@ -26,6 +26,12 @@ struct nvkm_vma {
 	u32 access;
 };
 
+struct nvkm_dirty_vma {
+	struct list_head entry;
+	struct nouveau_bo *bo;
+	struct nvkm_vma *vma;
+};
+
 struct nvkm_vm {
 	struct nvkm_mmu *mmu;
 	struct nvkm_mm mm;
@@ -40,6 +46,9 @@ struct nvkm_vm {
 
 	struct mutex fence_lock;
 	struct sync_fence *fence;
+
+	struct mutex dirty_vma_lock;
+	struct list_head dirty_vma_list;
 };
 
 struct nvkm_mmu {

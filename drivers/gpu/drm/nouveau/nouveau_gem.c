@@ -264,7 +264,7 @@ nouveau_gem_ioctl_set_tiling(struct drm_device *dev, void *data,
 
 		/* Need to rewrite page tables */
 		mem->memtype = (nvbo->tile_flags >> 8) & 0xff;
-		nvkm_vm_map(vma, nvbo->bo.mem.mm_node);
+		nouveau_defer_vm_map(vma, nvbo);
 
 unreserve:
 		ttm_bo_unreserve(&nvbo->bo);
@@ -806,6 +806,28 @@ void nouveau_free_pushbuf_data(struct nouveau_pushbuf_data *pb_data)
 	kfree(pb_data);
 }
 
+static bool
+nouveau_vm_map_deferred(struct nvkm_vm *vm)
+{
+	bool need_flush = false;
+
+	mutex_lock(&vm->dirty_vma_lock);
+	while (!list_empty(&vm->dirty_vma_list)) {
+		struct nvkm_dirty_vma *dirty_vma = list_entry(vm->dirty_vma_list.next, struct nvkm_dirty_vma, entry);
+		struct nouveau_bo *nvbo = dirty_vma->bo;
+		struct ttm_buffer_object *ttm_bo = &nvbo->bo;
+
+		nvkm_vm_map(dirty_vma->vma, nvbo->bo.mem.mm_node);
+		ttm_bo_unref(&ttm_bo);
+		list_del(&dirty_vma->entry);
+		kfree(dirty_vma);
+		need_flush = true;
+	}
+	mutex_unlock(&vm->dirty_vma_lock);
+
+	return need_flush;
+}
+
 static int
 nouveau_gem_do_pushbuf(struct nouveau_pushbuf_data *pb_data)
 {
@@ -819,6 +841,8 @@ nouveau_gem_do_pushbuf(struct nouveau_pushbuf_data *pb_data)
 	if (unlikely(!abi16)) {
 		return -ENOMEM;
 	}
+
+	nouveau_vm_map_deferred(cli->vm);
 
 	ret = nouveau_dma_wait(chan, pb_data->nr_push + 1, 16);
 	if (ret) {

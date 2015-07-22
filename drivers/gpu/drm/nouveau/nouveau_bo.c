@@ -1661,6 +1661,30 @@ nouveau_bo_vma_find(struct nouveau_bo *nvbo, struct nvkm_vm *vm)
 	return NULL;
 }
 
+void
+nouveau_defer_vm_map(struct nvkm_vma *vma, struct nouveau_bo *nvbo)
+{
+	struct nvkm_vm *vm = vma->vm;
+	struct nvkm_dirty_vma *vma_entry;
+
+	mutex_lock(&vm->dirty_vma_lock);
+
+	list_for_each_entry(vma_entry, &vm->dirty_vma_list, entry)
+		if (vma_entry && vma_entry->bo == nvbo) {
+			mutex_unlock(&vm->dirty_vma_lock);
+			return;
+		}
+
+	vma_entry = kzalloc(sizeof(*vma_entry), GFP_KERNEL);
+	WARN_ON(!vma_entry);
+	ttm_bo_reference(&nvbo->bo);
+	vma_entry->bo = nvbo;
+	vma_entry->vma = vma;
+
+	list_add_tail(&vma_entry->entry, &vm->dirty_vma_list);
+	mutex_unlock(&vm->dirty_vma_lock);
+}
+
 int
 nouveau_bo_vma_add(struct nouveau_bo *nvbo, struct nvkm_vm *vm,
 		   struct nvkm_vma *vma)
@@ -1676,7 +1700,7 @@ nouveau_bo_vma_add(struct nouveau_bo *nvbo, struct nvkm_vm *vm,
 	if ( nvbo->bo.mem.mem_type != TTM_PL_SYSTEM &&
 	    (nvbo->bo.mem.mem_type == TTM_PL_VRAM ||
 	     nvbo->page_shift != vma->vm->mmu->lpg_shift))
-		nvkm_vm_map(vma, nvbo->bo.mem.mm_node);
+		nouveau_defer_vm_map(vma, nvbo);
 
 	list_add_tail(&vma->head, &nvbo->vma_list);
 	vma->refcount = 1;
