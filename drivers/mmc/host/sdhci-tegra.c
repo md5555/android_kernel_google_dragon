@@ -595,25 +595,20 @@ static int sdhci_tegra_probe(struct platform_device *pdev)
 	clk_prepare_enable(clk);
 	pltfm_host->clk = clk;
 
+	rc = sdhci_add_host(host);
+	if (rc)
+		goto err_add_host;
+
 	pm_runtime_set_active(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
-	pm_runtime_get_sync(&pdev->dev);
 	pm_runtime_set_autosuspend_delay(&pdev->dev,
 					 TEGRA_SDHCI_AUTOSUSPEND_DELAY);
 	pm_runtime_use_autosuspend(&pdev->dev);
 	pm_suspend_ignore_children(&pdev->dev, true);
 
-	rc = sdhci_add_host(host);
-	if (rc)
-		goto err_add_host;
-
-	pm_runtime_put_autosuspend(&pdev->dev);
-
 	return 0;
 
 err_add_host:
-	pm_runtime_put_sync(&pdev->dev);
-	pm_runtime_disable(&pdev->dev);
 	clk_disable_unprepare(pltfm_host->clk);
 err_clk_get:
 err_power_req:
