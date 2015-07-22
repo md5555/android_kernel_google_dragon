@@ -1,0 +1,72 @@
+NVIDIA Tegra XUSB device controller
+===================================
+
+The Tegra XUSB device-mode controller supports USB2.0 and SuperSpeed USB3.0.
+
+Required properties:
+--------------------
+ - compatible: Must contain "nvidia,tegra210-xudc".
+ - reg: Must contain the base and length of the XUSB_DEV, FPCI, and IPFS
+   registers.
+ - interrupts: Must contain the XUSB_DEV interrupt.
+ - clocks: Must contain an entry for each entry in clock-names.
+   See ../clock/clock-bindings.txt for details.
+ - clock-names: Must include the following entries:
+    - xusb_dev
+    - xusb_ss
+    - pll_u_480m
+    - pll_e
+ - resets: Must contain an entry for each entry in reset-names.
+   See ../reset/reset.txt for details.
+ - reset-names: Must include the following entries:
+   - xusb_dev
+   - xusb_ss
+ - dvddio-pex-supply: PCIe/USB3 digital logic power supply.  Must supply 1.05V.
+ - hvddio-pex-supply: High-voltage PCIe/USB3 logic power supply.
+   Must supply 1.8V.
+ - avdd-usb-supply: USB controller power supply.  Must supply 3.3V.
+ - avdd-pll-utmip-supply: UTMI PLL power supply.  Must supply 1.8V.
+ - dvdd-usb-ss-pll-supply: PCIe/USB3 PLL power supply.  Must supply 1.05V.
+ - hvdd-usb-ss-pll-e-supply: High-voltage PLLE power supply.  Must supply 1.8V.
+ - extcon-cables: Must contain an entry for each entry in extcon-cable-names.
+ - extcon-cable-names: Should include the following entries:
+   - data-role
+
+Optional properties:
+--------------------
+ - phys: Must contain an entry for each entry in phy-names.
+   See ../phy/phy-bindings.txt for details.
+ - phy-names: Should include an entry for each PHY used by the controller:
+   - utmi
+   - usb3
+
+Example:
+--------
+	usb-device@0,700d0000 {
+		compatible = "nvidia,tegra210-xudc";
+		reg = <0x0 0x700d0000 0x0 0x8000>,
+		      <0x0 0x700d8000 0x0 0x1000>,
+		      <0x0 0x700d9000 0x0 0x1000>;
+		interrupts = <GIC_SPI 44 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&tegra_car TEGRA124_CLK_XUSB_DEV>,
+			 <&tegra_car TEGRA124_CLK_XUSB_SS>,
+			 <&tegra_car TEGRA124_CLK_PLL_U_480M>,
+			 <&tegra_car TEGRA124_CLK_PLL_E>;
+		clock-names = "xusb_dev", "xusb_ss", "pll_u_480m", "pll_e";
+		resets = <&tegra_car 95>, <&tegra_car 156>;
+		reset-names = "xusb_dev", "xusb_ss";
+
+		phys = <&padctl TEGRA_XUSB_PADCTL_UTMI_P0>,
+		       <&padctl TEGRA_XUSB_PADCTL_USB3_P0>;
+		phy-names = "utmi", "usb3";
+
+		extcon-cables = <&vbus_extcon>;
+		extcon-cable-names = "data-role";
+
+		avdd-usb-supply = <&pp3300>;
+		dvddio-pex-supply = <&avddio_1v05>;
+		hvddio-pex-supply = <&pp1800>;
+		avdd-pll-utmip-supply = <&pp1050_avdd>;
+		dvdd-usb-ss-pll-supply = <&avddio_1v05>;
+		hvdd-usb-ss-pll-e-supply = <&pp1800>;
+	};
