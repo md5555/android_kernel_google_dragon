@@ -146,6 +146,10 @@ int tegra_pmc_utmi_sleep_enter(unsigned int port, enum usb_device_speed speed,
 int tegra_pmc_utmi_sleep_exit(unsigned int port);
 int tegra_pmc_hsic_sleep_enter(unsigned int port);
 int tegra_pmc_hsic_sleep_exit(unsigned int port);
+
+int tegra_fuse_ps18_latch_set(void);
+int tegra_fuse_ps18_latch_clear(void);
+
 #else
 static inline int tegra_powergate_is_powered(int id)
 {
@@ -210,6 +214,17 @@ static inline int tegra_pmc_hsic_sleep_exit(unsigned int port)
 {
 	return -ENOSYS;
 }
+
+static inline int tegra_fuse_ps18_latch_set(void)
+{
+	return -ENOSYS;
+}
+
+static inline int tegra_fuse_ps18_latch_clear(void)
+{
+	return -ENOSYS;
+}
+
 #endif /* CONFIG_ARCH_TEGRA */
 
 #endif /* __SOC_TEGRA_PMC_H__ */

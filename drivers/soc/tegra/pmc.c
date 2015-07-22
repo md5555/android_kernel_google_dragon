@@ -309,6 +309,10 @@
 #define PMC_UTMIP_PAD_CFG(x)		(0x4c0 + (4 * (x)))
 #define  UTMIP_RPD_CTRL(x)		(((x) & 0x1f) << 22)
 
+#define PMC_FUSE_CTRL			0x450
+#define PMC_FUSE_CTRL_PS18_LATCH_SET    (1 << 8)
+#define PMC_FUSE_CTRL_PS18_LATCH_CLEAR  (1 << 9)
+
 struct tegra_pmc_soc {
 	unsigned int num_powergates;
 	const char *const *powergates;
@@ -317,6 +321,7 @@ struct tegra_pmc_soc {
 
 	bool has_tsense_reset;
 	bool has_gpu_clamps;
+	bool has_ps18;
 
 	void (*utmi_sleep_enter)(unsigned int, enum usb_device_speed,
 				 struct tegra_utmi_pad_config *);
@@ -1417,6 +1422,44 @@ int tegra_pmc_hsic_sleep_exit(unsigned int port)
 }
 EXPORT_SYMBOL(tegra_pmc_hsic_sleep_exit);
 
+int tegra_fuse_ps18_latch_set(void)
+{
+	u32 reg;
+
+	if (!pmc->soc->has_ps18)
+		return -ENOSYS;
+
+	reg = tegra_pmc_readl(PMC_FUSE_CTRL);
+	reg &= ~(PMC_FUSE_CTRL_PS18_LATCH_CLEAR);
+	tegra_pmc_writel(reg, PMC_FUSE_CTRL);
+	mdelay(1);
+	reg |= (PMC_FUSE_CTRL_PS18_LATCH_SET);
+	tegra_pmc_writel(reg, PMC_FUSE_CTRL);
+	mdelay(1);
+
+	return 0;
+}
+EXPORT_SYMBOL(tegra_fuse_ps18_latch_set);
+
+int tegra_fuse_ps18_latch_clear(void)
+{
+	u32 reg;
+
+	if (!pmc->soc->has_ps18)
+		return -ENOSYS;
+
+	reg = tegra_pmc_readl(PMC_FUSE_CTRL);
+	reg &= ~(PMC_FUSE_CTRL_PS18_LATCH_SET);
+	tegra_pmc_writel(reg, PMC_FUSE_CTRL);
+	mdelay(1);
+	reg |= (PMC_FUSE_CTRL_PS18_LATCH_CLEAR);
+	tegra_pmc_writel(reg, PMC_FUSE_CTRL);
+	mdelay(1);
+
+	return 0;
+}
+EXPORT_SYMBOL(tegra_fuse_ps18_latch_clear);
+
 #ifdef CONFIG_PM_SLEEP
 void tegra_tsc_suspend(void)
 {
@@ -2394,6 +2437,7 @@ static const struct tegra_pmc_soc tegra210_pmc_soc = {
 	.cpu_powergates = tegra210_cpu_powergates,
 	.has_tsense_reset = true,
 	.has_gpu_clamps = true,
+	.has_ps18 = true,
 	.utmi_sleep_enter = tegra210_utmi_sleep_enter,
 	.utmi_sleep_exit = tegra210_utmi_sleep_exit,
 };
