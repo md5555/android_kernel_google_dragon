@@ -34,6 +34,7 @@
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
 #include "../codecs/rt5677.h"
+#include "../codecs/nau8825.h"
 
 #include "tegra_asoc_pdata.h"
 #include "tegra_asoc_utils_alt.h"
@@ -52,24 +53,8 @@ struct tegra_t210ref {
 	struct tegra_asoc_audio_clock_info audio_clock;
 	unsigned int num_codec_links;
 	int gpio_requested;
-	int jack_status;
-	enum snd_soc_bias_level bias_level;
 	int clock_enabled;
-	struct regulator *codec_reg;
-	struct regulator *digital_reg;
-	struct regulator *analog_reg;
-	struct regulator *spk_reg;
-	struct regulator *dmic_reg;
-	struct snd_soc_card *pcard;
-};
-
-static struct snd_soc_jack tegra_t210ref_hp_jack;
-
-static struct snd_soc_jack_gpio tegra_t210ref_hp_jack_gpio = {
-	.name = "headphone detect",
-	.report = SND_JACK_HEADPHONE,
-	.debounce_time = 150,
-	.invert = 1,
+	struct snd_soc_jack jack;
 };
 
 static struct snd_soc_pcm_stream tegra_rt5677_stream_params = {
@@ -119,7 +104,6 @@ static int tegra_t210ref_dai_init(struct snd_soc_pcm_runtime *rtd,
 		dev_err(card->dev, "Can't configure clocks\n");
 		return err;
 	}
-
 
 	idx = tegra_machine_get_codec_dai_link_idx("rt5677-playback");
 	/* check if idx has valid number */
@@ -175,23 +159,10 @@ static int tegra_t210ref_hw_params(struct snd_pcm_substream *substream,
 	return 0;
 }
 
-static int tegra_t210ref_startup(struct snd_pcm_substream *substream)
-{
-	return 0;
-}
-static void tegra_t210ref_shutdown(struct snd_pcm_substream *substream)
-{
-	return;
-}
-
 static int tegra_t210ref_init(struct snd_soc_pcm_runtime *rtd)
 {
-	struct snd_soc_dai *codec_dai = rtd->codec_dai;
-	struct snd_soc_codec *codec = codec_dai->codec;
-	struct snd_soc_dapm_context *dapm = &codec->dapm;
 	struct snd_soc_card *card = rtd->card;
 	struct tegra_t210ref *machine = snd_soc_card_get_drvdata(card);
-	struct tegra_asoc_platform_data *pdata = machine->pdata;
 	struct snd_soc_pcm_stream *dai_params =
 		(struct snd_soc_pcm_stream *)rtd->dai_link->params;
 	unsigned int srate;
@@ -205,18 +176,6 @@ static int tegra_t210ref_init(struct snd_soc_pcm_runtime *rtd)
 		dev_err(card->dev, "Failed to set extern clk parent\n");
 		return err;
 	}
-
-	if (gpio_is_valid(pdata->gpio_hp_det)) {
-		tegra_t210ref_hp_jack_gpio.gpio = pdata->gpio_hp_det;
-		tegra_t210ref_hp_jack_gpio.invert =
-			!pdata->gpio_hp_det_active_high;
-		snd_soc_jack_add_gpios(&tegra_t210ref_hp_jack,
-					1,
-					&tegra_t210ref_hp_jack_gpio);
-		machine->gpio_requested |= GPIO_HP_DET;
-	}
-
-	snd_soc_dapm_sync(dapm);
 
 	return 0;
 }
@@ -246,14 +205,6 @@ static int tegra_rt5677_event_int_spk(struct snd_soc_dapm_widget *w,
 	struct snd_soc_card *card = dapm->card;
 	struct tegra_t210ref *machine = snd_soc_card_get_drvdata(card);
 	struct tegra_asoc_platform_data *pdata = machine->pdata;
-	int err;
-
-	if (machine->spk_reg) {
-		if (SND_SOC_DAPM_EVENT_ON(event))
-			err = regulator_enable(machine->spk_reg);
-		else
-			regulator_disable(machine->spk_reg);
-	}
 
 	if (!(machine->gpio_requested & GPIO_SPKR_EN))
 		return 0;
@@ -288,14 +239,6 @@ static int tegra_rt5677_event_int_mic(struct snd_soc_dapm_widget *w,
 	struct snd_soc_card *card = dapm->card;
 	struct tegra_t210ref *machine = snd_soc_card_get_drvdata(card);
 	struct tegra_asoc_platform_data *pdata = machine->pdata;
-	int ret = 0;
-
-	if (machine->dmic_reg) {
-		if (SND_SOC_DAPM_EVENT_ON(event))
-			ret = regulator_enable(machine->dmic_reg);
-		else
-			regulator_disable(machine->dmic_reg);
-	}
 
 	if (!(machine->gpio_requested & GPIO_INT_MIC_EN))
 		return 0;
@@ -325,8 +268,6 @@ static int tegra_rt5677_event_ext_mic(struct snd_soc_dapm_widget *w,
 
 static struct snd_soc_ops tegra_t210ref_ops = {
 	.hw_params = tegra_t210ref_hw_params,
-	.startup = tegra_t210ref_startup,
-	.shutdown = tegra_t210ref_shutdown,
 };
 
 static const struct snd_soc_dapm_widget tegra_t210ref_dapm_widgets[] = {
@@ -338,7 +279,6 @@ static const struct snd_soc_dapm_widget tegra_t210ref_dapm_widgets[] = {
 
 static int tegra_t210ref_suspend_pre(struct snd_soc_card *card)
 {
-	struct snd_soc_jack_gpio *gpio = &tegra_t210ref_hp_jack_gpio;
 	unsigned int idx;
 
 	/* DAPM dai link stream work for non pcm links */
@@ -346,9 +286,6 @@ static int tegra_t210ref_suspend_pre(struct snd_soc_card *card)
 		if (card->rtd[idx].dai_link->params)
 			INIT_DELAYED_WORK(&card->rtd[idx].delayed_work, NULL);
 	}
-
-	if (gpio_is_valid(gpio->gpio))
-		disable_irq(gpio_to_irq(gpio->gpio));
 
 	return 0;
 }
@@ -362,33 +299,39 @@ static int tegra_t210ref_suspend_post(struct snd_soc_card *card)
 		tegra_alt_asoc_utils_clk_disable(&machine->audio_clock);
 	}
 
-	if (machine->digital_reg)
-		regulator_disable(machine->digital_reg);
-
 	return 0;
 }
 
 static int tegra_t210ref_resume_pre(struct snd_soc_card *card)
 {
 	struct tegra_t210ref *machine = snd_soc_card_get_drvdata(card);
-	struct snd_soc_jack_gpio *gpio = &tegra_t210ref_hp_jack_gpio;
-	int ret, val;
-
-	if (machine->digital_reg)
-		ret = regulator_enable(machine->digital_reg);
-
-	if (gpio_is_valid(gpio->gpio)) {
-		val = gpio_get_value(gpio->gpio);
-		val = gpio->invert ? !val : val;
-		if (gpio->jack)
-			snd_soc_jack_report(gpio->jack, val, gpio->report);
-		enable_irq(gpio_to_irq(gpio->gpio));
-	}
 
 	if (!machine->clock_enabled) {
 		machine->clock_enabled = 1;
 		tegra_alt_asoc_utils_clk_enable(&machine->audio_clock);
 	}
+
+	return 0;
+}
+
+static int tegra_rt5677_headset_init(struct snd_soc_pcm_runtime *runtime)
+{
+	struct snd_soc_card *card = runtime->card;
+	struct snd_soc_codec *codec = runtime->codec;
+	struct tegra_t210ref *machine = snd_soc_card_get_drvdata(card);
+	int ret;
+
+	/* Enable Headset and 4 Buttons Jack detection */
+	ret = snd_soc_card_jack_new(card, "Headset Jack",
+	                            SND_JACK_HEADPHONE | SND_JACK_MICROPHONE |
+	                            SND_JACK_BTN_0 | SND_JACK_BTN_1 |
+	                            SND_JACK_BTN_2 | SND_JACK_BTN_3,
+	                            &machine->jack, NULL, 0);
+	if (ret) {
+		dev_err(card->dev, "New Headset Jack failed! (%d)\n", ret);
+		return ret;
+	}
+	nau8825_enable_jack_detect(codec, &machine->jack);
 
 	return 0;
 }
@@ -403,15 +346,9 @@ static const struct snd_kcontrol_new tegra_t210ref_controls[] = {
 	SOC_DAPM_PIN_SWITCH("Int Mic"),
 };
 
-static int tegra_t210ref_remove(struct snd_soc_card *card)
-{
-	return 0;
-}
-
 static struct snd_soc_card snd_soc_tegra_t210ref = {
 	.name = "tegra-t210ref",
 	.owner = THIS_MODULE,
-	.remove = tegra_t210ref_remove,
 	.suspend_post = tegra_t210ref_suspend_post,
 	.suspend_pre = tegra_t210ref_suspend_pre,
 	.resume_pre = tegra_t210ref_resume_pre,
@@ -433,18 +370,37 @@ static struct snd_soc_dai_link tegra_rt5677_dai[] = {
 			SND_SOC_DAIFMT_CBS_CFS,
 		.params = &tegra_rt5677_stream_params,
 		.playback_only = true,
-/*	},{
+	}, {
 		.name = "nau8825",
 		.stream_name = "Headset",
 		.codec_name = "nau8825.5-001a",
 		.cpu_dai_name = "rt5677-aif3",
-		.codec_dai_name = "nau8825-aif1",
+		.codec_dai_name = "nau8825-hifi",
 		.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
 			SND_SOC_DAIFMT_CBS_CFS,
 		.params = &tegra_rt5677_stream_params,
-*/
+		.init = tegra_rt5677_headset_init,
 	}
 };
+
+static int tegra_t210ref_set_mclk(struct tegra_t210ref *machine, struct device *dev)
+{
+	int err;
+	int rate = 48000;
+	int clk_out_rate = rate * 256; /* Codec rate */
+	int mclk = clk_out_rate * 2; /* PLL_A rate */
+
+	pr_info("Setting pll_a = %d Hz clk_out = %d Hz\n",
+			mclk, clk_out_rate);
+	err = tegra_alt_asoc_utils_set_rate(&machine->audio_clock,
+				rate, mclk, clk_out_rate);
+	if (err < 0) {
+		dev_err(dev, "Can't configure clocks\n");
+		return err;
+	}
+
+	return 0;
+}
 
 static int tegra_t210ref_driver_probe(struct platform_device *pdev)
 {
@@ -548,12 +504,6 @@ static int tegra_t210ref_driver_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
-	pdata->gpio_hp_det = of_get_named_gpio(np,
-					"nvidia,hp-det-gpios", 0);
-	if (pdata->gpio_hp_det < 0)
-		dev_warn(&pdev->dev, "Failed to get HP Det GPIO\n");
-
-
 	pdata->gpio_spkr_en = of_get_named_gpio(np,
 		"nvidia,spkr-en-gpios", 0);
 	if (pdata->gpio_spkr_en == -EPROBE_DEFER)
@@ -588,11 +538,14 @@ static int tegra_t210ref_driver_probe(struct platform_device *pdev)
 	pdata->gpio_hp_mute = pdata->gpio_ext_mic_en = -1;
 
 	machine->pdata = pdata;
-	machine->pcard = card;
 
 	ret = tegra_alt_asoc_utils_init(&machine->audio_clock,
 					&pdev->dev,
 					card);
+	if (ret)
+		goto err_alloc_dai_link;
+
+	ret = tegra_t210ref_set_mclk(machine, &pdev->dev);
 	if (ret)
 		goto err_alloc_dai_link;
 
