@@ -100,9 +100,10 @@ nvkm_vm_map_sg_table(struct nvkm_vma *vma, u64 delta, u64 length,
 	for_each_sg(mem->sg->sgl, sg, mem->sg->nents, i) {
 		dma_addr_t *addr_list;
 		struct nvkm_gpuobj *pgt = vm->pgt[pde].obj[big];
+		dma_addr_t sgdma = sg_dma_address(sg);
 
 		sglen = sg_dma_len(sg) >> PAGE_SHIFT;
-
+next_pde:
 		end = pte + sglen;
 		if (unlikely(end >= max))
 			end = max;
@@ -113,7 +114,7 @@ nvkm_vm_map_sg_table(struct nvkm_vma *vma, u64 delta, u64 length,
 			return;
 
 		for (m = 0; m < len; m++) {
-			addr_list[m] = sg_dma_address(sg) + (m << PAGE_SHIFT);
+			addr_list[m] = sgdma + (m << PAGE_SHIFT);
 			num--;
 			pte++;
 
@@ -132,19 +133,11 @@ nvkm_vm_map_sg_table(struct nvkm_vma *vma, u64 delta, u64 length,
 			pte = 0;
 		}
 		if (m < sglen) {
+			sglen -= m;
+			sgdma += m << PAGE_SHIFT;
 			pgt = vm->pgt[pde].obj[big];
-			for (; m < sglen; m++) {
-				dma_addr_t addr = sg_dma_address(sg) + (m << PAGE_SHIFT);
-
-				mmu->map_sg(vma, pgt, mem, pte, 1, &addr);
-				num--;
-				pte++;
-				/* XXX - We should check for pde overrun here too! */
-				if (num == 0)
-					goto finish;
-			}
+			goto next_pde;
 		}
-
 	}
 finish:
 	ltc->invalidate(ltc);
