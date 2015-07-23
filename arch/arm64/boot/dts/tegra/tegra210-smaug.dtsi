@@ -458,6 +458,20 @@
 
 			thermal-sensors = <&skin_temp>;
 		};
+
+		max77621-cpu {
+			polling-delay-passive = <0>; /* milliseconds */
+			polling-delay = <0>; /* milliseconds */
+
+			thermal-sensors = <&max77621_cpu>;
+		};
+
+		max77621-gpu {
+			polling-delay-passive = <0>; /* milliseconds */
+			polling-delay = <0>; /* milliseconds */
+
+			thermal-sensors = <&max77621_gpu>;
+		};
 	};
 };
 
@@ -801,6 +815,8 @@
 	max77621_cpu: pmic@1b {
 		compatible = "maxim,max77621";
 		reg = <0x1b>;
+		interrupt-parent = <&gpio>;
+		interrupts = <TEGRA_GPIO(Y, 1) IRQ_TYPE_LEVEL_LOW>;
 		regulator-name = "PPVAR_CPU";
 		regulator-min-microvolt = <800000>;
 		regulator-max-microvolt = <1175000>;
@@ -808,17 +824,23 @@
 		maxim,enable-gpio = <&max77620 5 0>;
 		maxim,dvs-default-state = <1>;
 		regulator-always-on;
+
+		#thermal-sensor-cells = <0>;
 	};
 
 	max77621_gpu: pmic@1c {
 		compatible = "maxim,max77621";
 		reg = <0x1c>;
+		interrupt-parent = <&gpio>;
+		interrupts = <TEGRA_GPIO(A, 6) IRQ_TYPE_LEVEL_LOW>;
 		regulator-name = "PPVAR_GPU";
 		regulator-min-microvolt = <840000>;
 		regulator-max-microvolt = <1150000>;
 		maxim,externally-enable;
 		maxim,enable-gpio = <&max77620 6 0>;
 		maxim,dvs-default-state = <1>;
+
+		#thermal-sensor-cells = <0>;
 	};
 };
 

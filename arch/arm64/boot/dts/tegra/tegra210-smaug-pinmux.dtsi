@@ -63,9 +63,9 @@
 			pa6 {
 				nvidia,pins = "pa6";
 				nvidia,function = "rsvd1";
-				nvidia,pull = <TEGRA_PIN_PULL_DOWN>;
-				nvidia,tristate = <TEGRA_PIN_ENABLE>;
-				nvidia,enable-input = <TEGRA_PIN_DISABLE>;
+				nvidia,pull = <TEGRA_PIN_PULL_UP>;
+				nvidia,tristate = <TEGRA_PIN_DISABLE>;
+				nvidia,enable-input = <TEGRA_PIN_ENABLE>;
 				nvidia,open-drain = <TEGRA_PIN_DISABLE>;
 			};
 			dap1_fs_pb0 {
