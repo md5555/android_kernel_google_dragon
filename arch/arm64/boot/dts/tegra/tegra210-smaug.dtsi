@@ -101,7 +101,6 @@
 	sound {
 		compatible = "nvidia,tegra-audio-t210ref-mobile-rt5677";
 		nvidia,model = "tegra-snd-t210ref-mobile-rt5677";
-		nvidia,hp-det-gpios = <&rt5677 1 GPIO_ACTIVE_HIGH>;
 		nvidia,spkr-en-gpios = <&rt5677 4 GPIO_ACTIVE_HIGH>;
 		nvidia,dmic-clk-en-gpios = <&rt5677 2 GPIO_ACTIVE_HIGH>;
 		nvidia,num-codec-link = <1>;
@@ -110,19 +109,20 @@
 		clocks = <&tegra_car TEGRA210_CLK_PLL_A>,
 		         <&tegra_car TEGRA210_CLK_PLL_A_OUT0>,
 		         <&tegra_car TEGRA210_CLK_EXTERN1>,
-		         <&tegra_car TEGRA210_CLK_CLK_OUT_1>;
-		clock-names = "pll_a", "pll_a_out0", "extern1", "clk_out_1";
+		         <&tegra_car TEGRA210_CLK_CLK_OUT_1>,
+		         <&tegra_car TEGRA210_CLK_EXTERN2>,
+		         <&tegra_car TEGRA210_CLK_CLK_OUT_2>;
+		clock-names = "pll_a", "pll_a_out0", "extern1", "clk_out_1", "extern2", "clk_out_2";
 
 		nvidia,audio-routing =
 			"Headphone Jack", "HPOL",
 			"Headphone Jack", "HPOR",
-			"MIC BIAS",   "Mic Jack",
+			"MICBIAS",  "Mic Jack",
 			"MIC", "Mic Jack",
 			"DMIC L1", "Int Mic",
 			"DMIC R1", "Int Mic",
 			"DMIC L2", "Int Mic",
 			"DMIC R2", "Int Mic",
-
 			"Int Spk", "Speaker";
 
 		nvidia,xbar = <&tegra_axbar>;
@@ -143,41 +143,6 @@
 			srate = <48000>;
 			num-channel = <2>;
 		};
-/*
-		nvidia,dai-link-2 {
-			link-name = "speaker";
-			cpu-dai = <&spdif_dit1>;
-			codec-dai = <&spdif_dit2>;
-			cpu-dai-name = "rt5677-aif2";
-			codec-dai-name = "dit-hifi";
-			format = "i2s";
-			bitclock-slave;
-			frame-slave;
-			bitclock-inversion;
-			frame-inversion;
-			bit-format = "s16_le";
-			bclk_ratio = <0>;
-			srate = <48000>;
-			num-channel = <2>;
-		};
-		nvidia,dai-link-3 {
-			link-name = "spdif-dit-2";
-			cpu-dai = <&tegra_i2s3>;
-			codec-dai = <&spdif_dit2>;
-			cpu-dai-name = "I2S3";
-			codec-dai-name = "dit-hifi";
-			format = "i2s";
-			bitclock-slave;
-			frame-slave;
-			bitclock-noninversion;
-			frame-noninversion;
-			bit-format = "s16_le";
-			bclk_ratio = <0>;
-			srate = <48000>;
-			num-channel = <2>;
-			name-prefix = "z";
-		};
-*/
 	};
 
 	udc: udc@7d000000 {
@@ -858,6 +823,13 @@
 // I2C6
 &i2c6 {
 	status = "okay";
+
+	headset: nau8825@1a {
+		compatible = "nuvoton,nau8825";
+		reg = <0x1a>;
+		interrupt-parent = <&gpio>;
+		interrupts = <TEGRA_GPIO(E, 6) IRQ_TYPE_LEVEL_LOW>;
+	};
 
 	backlight: lp8557-backlight@2c {
 		compatible = "ti,lp8557";
