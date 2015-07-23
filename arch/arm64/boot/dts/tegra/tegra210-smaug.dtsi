@@ -477,6 +477,12 @@
 			thermal-sensors = <&max77621_gpu>;
 		};
 	};
+
+	tlk {
+		compatible = "nvidia,trusted-little-kernel";
+		logger = "enabled";
+		storage = "enabled";
+	};
 };
 
 // GEN1_I2C
