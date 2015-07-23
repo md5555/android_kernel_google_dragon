@@ -130,7 +130,6 @@ gk20a_instobj_map_sg(struct nvkm_vma *vma, struct nvkm_object *object,
 	struct gk20a_instmem_priv *priv = (void *)nvkm_instmem(object);
 	u32 target = (vma->access & NV_MEM_ACCESS_NOSNOOP) ? 7 : 5;
 	u32 memtype = vma->vm->mmu->storage_type_map[mem->memtype & 0xff];
-	unsigned long flags;
 	u32 *ramin_ptr;
 
 	if (!priv->domain) {
@@ -150,11 +149,6 @@ gk20a_instobj_map_sg(struct nvkm_vma *vma, struct nvkm_object *object,
 		pte -= first_ramin_page * 512;
 	}
 
-	spin_lock_irqsave(&priv->lock, flags);
-
-	/* Dummy -- ensure ordering with the GPU */
-	nv_wr32(priv, 0x700000, nv_rd32(priv, 0x700000));
-
 	pte <<= 1;
 	while (cnt--) {
 		ramin_ptr[pte] = (*list >> 8) | 0x1 /* present */;
@@ -163,10 +157,7 @@ gk20a_instobj_map_sg(struct nvkm_vma *vma, struct nvkm_object *object,
 		pte += 2;
 	}
 
-	/* Dummy -- ensure ordering with the GPU */
-	nv_wr32(priv, 0x700000, nv_rd32(priv, 0x700000));
-
-	spin_unlock_irqrestore(&priv->lock, flags);
+	wmb();
 
 	if (priv->domain)
 		vunmap(ramin_ptr);
