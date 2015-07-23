@@ -97,6 +97,8 @@ static unsigned long cpu_max_freq[] = {
 
 #define CPU_FV_TABLE		 \
 	.fv_table = {		 \
+		{51000,   950},	 \
+		{102000,  950},	 \
 		{204000,  950},	 \
 		{306000,  950},	 \
 		{408000,  950},	 \
@@ -186,6 +188,8 @@ static unsigned long cpu_lp_max_freq[] = {
 
 #define CPU_LP_FV_TABLE		 \
 	.fv_table = {		 \
+		{51000,   850},	 \
+		{102000,  850},	 \
 		{204000,  850},	 \
 		{307200,  850},	 \
 		{403200,  850},	 \
