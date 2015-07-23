@@ -10,7 +10,10 @@ Any standard regulator properties can be used to configure the single max8973
 or max77621 DCDC.
 
 Optional properties:
-
+- interrupts: Junction temperature warning interrupt, it will be triggered at
+		120 degrees C.
+		Interrupt number can be provided as detailed on
+	Documentation/devicetree/bindings/interrupt-controller/interrupts.txt
 -maxim,externally-enable: boolean, externally control the regulator output
 		enable/disable.  Otherwise, enable/disable via I2C registers.
 -maxim,enable-gpios: gpio, can be provided to configure a gpio for the
