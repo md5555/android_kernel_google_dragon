@@ -2902,6 +2902,7 @@ static struct tegra_clk_init_table common_init_table[] __initdata = {
 	{TEGRA210_CLK_CLK_OUT_3_MUX, TEGRA210_CLK_EXTERN3, 0, 1},
 	{TEGRA210_CLK_CLK_OUT_3, TEGRA210_CLK_CLK_MAX, 0, 1},
 	{TEGRA210_CLK_RTC, TEGRA210_CLK_CLK_MAX, 0, 1},
+	{TEGRA210_CLK_PLL_D2, TEGRA210_CLK_CLK_MAX, 594000000, 0},
 	/* This MUST be the last entry. */
 	{TEGRA210_CLK_CLK_MAX, TEGRA210_CLK_CLK_MAX, 0, 0},
 };
