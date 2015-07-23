@@ -108,22 +108,20 @@ next_pde:
 		if (unlikely(end >= max))
 			end = max;
 		len = end - pte;
+		if (unlikely(len > num))
+			len = num;
 
 		addr_list = kmalloc(sizeof(dma_addr_t) * len, GFP_KERNEL);
 		if (WARN_ON(!addr_list))
 			return;
 
-		for (m = 0; m < len; m++) {
+		for (m = 0; m < len; m++)
 			addr_list[m] = sgdma + (m << PAGE_SHIFT);
-			num--;
-			pte++;
 
-			if (num == 0)
-				break;
-		}
-
-		mmu->map_sg(vma, pgt, mem, pte - len, len, addr_list);
+		mmu->map_sg(vma, pgt, mem, pte, len, addr_list);
 		kfree(addr_list);
+		pte += m;
+		num -= m;
 
 		if (num == 0)
 			goto finish;
