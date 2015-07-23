@@ -43,7 +43,9 @@ struct nvdec {
 	struct host1x_channel *channel;
 	struct device *dev;
 	struct clk *clk;
+	struct clk *nvjpg_clk;
 	struct reset_control *rst;
+	struct reset_control *nvjpg_rst;
 
 	struct iommu_domain *domain;
 
@@ -70,8 +72,17 @@ static int nvdec_power_off(struct device *dev)
 		return err;
 
 	clk_disable_unprepare(nvdec->clk);
+	err = tegra_powergate_power_off(nvdec->config->powergate_id);
+	if (err)
+		return err;
 
-	return tegra_powergate_power_off(nvdec->config->powergate_id);
+	err = reset_control_assert(nvdec->nvjpg_rst);
+	if (err)
+		return err;
+
+	clk_disable_unprepare(nvdec->nvjpg_clk);
+	err = tegra_powergate_power_off(TEGRA_POWERGATE_NVJPG);
+	return err;
 }
 
 static int nvdec_power_on(struct device *dev)
@@ -83,8 +94,23 @@ static int nvdec_power_on(struct device *dev)
 	if (err)
 		return err;
 
-	return tegra_powergate_sequence_power_up(nvdec->config->powergate_id,
+	/* NVDEC needs NVJPG to be powered up first */
+	err = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_NVJPG,
+					 nvdec->nvjpg_clk, nvdec->nvjpg_rst);
+	if (err)
+		goto err_powergate_nvjpg;
+
+	err = tegra_powergate_sequence_power_up(nvdec->config->powergate_id,
 						 nvdec->clk, nvdec->rst);
+	if (err)
+		goto err_powergate_nvdec;
+	return 0;
+
+err_powergate_nvdec:
+	tegra_powergate_power_off(TEGRA_POWERGATE_NVJPG);
+err_powergate_nvjpg:
+	falcon_power_off(&nvdec->falcon);
+	return err;
 }
 
 static void nvdec_reset(struct device *dev)
@@ -307,10 +333,20 @@ static int nvdec_probe(struct platform_device *pdev)
 		dev_err(dev, "cannot get clock\n");
 		return PTR_ERR(nvdec->clk);
 	}
+	nvdec->nvjpg_clk = devm_clk_get(dev, "nvjpg");
+	if (IS_ERR(nvdec->nvjpg_clk)) {
+		dev_err(dev, "cannot get nvjpg clock\n");
+		return PTR_ERR(nvdec->nvjpg_clk);
+	}
 	nvdec->rst = devm_reset_control_get(&pdev->dev, "nvdec");
 	if (IS_ERR(nvdec->rst)) {
 		dev_err(dev, "cannot get reset\n");
 		return PTR_ERR(nvdec->rst);
+	}
+	nvdec->nvjpg_rst = devm_reset_control_get(&pdev->dev, "nvjpg");
+	if (IS_ERR(nvdec->nvjpg_rst)) {
+		dev_err(dev, "cannot get nvjpg reset\n");
+		return PTR_ERR(nvdec->nvjpg_rst);
 	}
 
 	nvdec->falcon.dev = dev;
