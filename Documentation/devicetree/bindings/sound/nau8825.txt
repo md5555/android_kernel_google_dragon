@@ -1,0 +1,14 @@
+Nuvoton NAU8825 audio codec
+
+This device supports I2C only.
+
+Required properties:
+  - compatible : Must be "nuvoton,nau8825"
+  - reg : the I2C address of the device. This is either 0x1a (CSB=0) or 0x1b (CSB=1).
+
+Example:
+
+	codec: nau8825@1a {
+		compatible = "nuvoton,nau8825";
+		reg = <0x1a>;
+	};
