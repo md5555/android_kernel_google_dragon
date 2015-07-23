@@ -129,29 +129,21 @@
 &i2c1 {
 	status = "okay";
 
-	buck: da9211@68 {
-		compatible = "dlg,da9211";
-		reg = <0x68>;
+	mt6311: mt6311@6b {
+		compatible = "mediatek,mt6311";
+		reg = <0x6b>;
 
 		regulators {
-			da9211_vcpu_reg: BUCKA {
-				regulator-name = "VBUCKA";
-				regulator-min-microvolt = < 700000>;
-				regulator-max-microvolt = <1310000>;
-				regulator-min-microamp	= <2000000>;
-				regulator-max-microamp	= <4400000>;
+			mt6311_vcpu_reg: VDVFS {
+				regulator-name = "VDVFS";
+				regulator-min-microvolt = < 600000>;
+				regulator-max-microvolt = <1400000>;
 				regulator-ramp-delay = <10000>;
-				regulator-always-on;
 			};
-
-			da9211_vgpu_reg: BUCKB {
-				regulator-name = "VBUCKB";
-				regulator-min-microvolt = < 700000>;
-				regulator-max-microvolt = <1310000>;
-				regulator-min-microamp	= <2000000>;
-				regulator-max-microamp	= <3000000>;
-				regulator-ramp-delay = <10000>;
-				regulator-always-on;
+			mt6311_ldo_reg: VBIASN {
+				regulator-name = "VBIASN";
+				regulator-min-microvolt = <200000>;
+				regulator-max-microvolt = <800000>;
 			};
 		};
 	};
