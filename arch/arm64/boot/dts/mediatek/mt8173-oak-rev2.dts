@@ -20,6 +20,14 @@
 	compatible = "google,oak-rev2", "google,oak", "mediatek,mt8173";
 };
 
+&backlight_lcd {
+	power-supply = <&mt6397_vio18_reg>;
+};
+
+&bl_fixed_reg {
+	status = "disabled";
+};
+
 &i2c1 {
 	da9211: da9211@68 {
 		compatible = "dlg,da9211";
