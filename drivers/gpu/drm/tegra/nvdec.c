@@ -29,6 +29,8 @@
 #include "drm.h"
 #include "falcon.h"
 
+#define NVDEC_MAX_CLK_RATE	716800000
+
 struct nvdec_config {
 	const char *ucode_name;
 	u32 class_id;
@@ -43,7 +45,9 @@ struct nvdec {
 	struct host1x_channel *channel;
 	struct device *dev;
 	struct clk *clk;
+	struct clk *cbus_clk;
 	struct clk *nvjpg_clk;
+	struct clk *emc_clk;
 	struct reset_control *rst;
 	struct reset_control *nvjpg_rst;
 
@@ -72,9 +76,12 @@ static int nvdec_power_off(struct device *dev)
 		return err;
 
 	clk_disable_unprepare(nvdec->clk);
+	clk_disable_unprepare(nvdec->cbus_clk);
 	err = tegra_powergate_power_off(nvdec->config->powergate_id);
 	if (err)
 		return err;
+
+	clk_disable_unprepare(nvdec->emc_clk);
 
 	err = reset_control_assert(nvdec->nvjpg_rst);
 	if (err)
@@ -94,6 +101,10 @@ static int nvdec_power_on(struct device *dev)
 	if (err)
 		return err;
 
+	err = clk_prepare_enable(nvdec->emc_clk);
+	if (err)
+		goto err_emc_clk;
+
 	/* NVDEC needs NVJPG to be powered up first */
 	err = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_NVJPG,
 					 nvdec->nvjpg_clk, nvdec->nvjpg_rst);
@@ -104,11 +115,19 @@ static int nvdec_power_on(struct device *dev)
 						 nvdec->clk, nvdec->rst);
 	if (err)
 		goto err_powergate_nvdec;
+
+	err = clk_prepare_enable(nvdec->cbus_clk);
+	if (err)
+		goto err_nvdec_cbus_clk;
 	return 0;
 
+err_nvdec_cbus_clk:
+	tegra_powergate_power_off(nvdec->config->powergate_id);
 err_powergate_nvdec:
 	tegra_powergate_power_off(TEGRA_POWERGATE_NVJPG);
 err_powergate_nvjpg:
+	clk_disable_unprepare(nvdec->emc_clk);
+err_emc_clk:
 	falcon_power_off(&nvdec->falcon);
 	return err;
 }
@@ -191,9 +210,50 @@ static int nvdec_exit(struct host1x_client *client)
 	return err;
 }
 
+static int nvdec_get_clk_rate(struct host1x_client *client, u64 *data,
+					u32 type)
+{
+	struct tegra_drm_client *drm = host1x_to_drm_client(client);
+	struct nvdec *nvdec = to_nvdec(drm);
+
+	switch (type) {
+		case DRM_TEGRA_REQ_TYPE_CLK_KHZ:
+			*data = clk_get_rate(nvdec->cbus_clk);
+			break;
+		case DRM_TEGRA_REQ_TYPE_BW_KBPS:
+			*data = clk_get_rate(nvdec->emc_clk);
+			break;
+		default:
+			dev_err(nvdec->dev, "Unknown Clock request type\n");
+			return -EINVAL;
+	}
+	return 0;
+}
+
+static int nvdec_set_clk_rate(struct host1x_client *client, u64 data,
+					u32 type)
+{
+	struct tegra_drm_client *drm = host1x_to_drm_client(client);
+	struct nvdec *nvdec = to_nvdec(drm);
+
+	switch (type) {
+		case DRM_TEGRA_REQ_TYPE_CLK_KHZ:
+			if (data > NVDEC_MAX_CLK_RATE)
+				data = NVDEC_MAX_CLK_RATE;
+			return clk_set_rate(nvdec->cbus_clk, data);
+		case DRM_TEGRA_REQ_TYPE_BW_KBPS:
+			return clk_set_rate(nvdec->emc_clk, data);
+		default:
+			dev_err(nvdec->dev, "Unknown Clock request type\n");
+			return -EINVAL;
+	}
+}
+
 static const struct host1x_client_ops nvdec_client_ops = {
 	.init = nvdec_init,
 	.exit = nvdec_exit,
+	.get_clk_rate = nvdec_get_clk_rate,
+	.set_clk_rate = nvdec_set_clk_rate,
 };
 
 static int nvdec_open_channel(struct tegra_drm_client *client,
@@ -330,13 +390,23 @@ static int nvdec_probe(struct platform_device *pdev)
 
 	nvdec->clk = devm_clk_get(dev, NULL);
 	if (IS_ERR(nvdec->clk)) {
-		dev_err(dev, "cannot get clock\n");
+		dev_err(dev, "cannot get nvdec clock\n");
 		return PTR_ERR(nvdec->clk);
+	}
+	nvdec->cbus_clk = devm_clk_get(dev, "nvdec_cbus");
+	if (IS_ERR(nvdec->cbus_clk)) {
+		dev_err(dev, "cannot get nvdec cbus clock\n");
+		return PTR_ERR(nvdec->cbus_clk);
 	}
 	nvdec->nvjpg_clk = devm_clk_get(dev, "nvjpg");
 	if (IS_ERR(nvdec->nvjpg_clk)) {
 		dev_err(dev, "cannot get nvjpg clock\n");
 		return PTR_ERR(nvdec->nvjpg_clk);
+	}
+	nvdec->emc_clk = devm_clk_get(dev, "emc");
+	if (IS_ERR(nvdec->emc_clk)) {
+		dev_err(dev, "cannot get emc clock\n");
+		return PTR_ERR(nvdec->emc_clk);
 	}
 	nvdec->rst = devm_reset_control_get(&pdev->dev, "nvdec");
 	if (IS_ERR(nvdec->rst)) {
