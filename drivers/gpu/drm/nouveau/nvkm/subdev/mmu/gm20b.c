@@ -66,6 +66,8 @@ const u8 gm20b_pte_storage_type_map[256] =
 extern void
 gk20a_instobj_map_sg(struct nvkm_vma *vma, struct nvkm_object *object,
 		struct nvkm_mem *mem, u32 pte, u32 cnt, dma_addr_t *list);
+extern void
+gk20a_instobj_unmap_sg(struct nvkm_object *object, u32 pte, u32 cnt);
 
 static void
 gm20b_vm_map_sg(struct nvkm_vma *vma, struct nvkm_gpuobj *pgt,
@@ -74,6 +76,11 @@ gm20b_vm_map_sg(struct nvkm_vma *vma, struct nvkm_gpuobj *pgt,
 	gk20a_instobj_map_sg(vma, pgt->parent, mem, pte, cnt, list);
 }
 
+static void
+gm20b_vm_unmap(struct nvkm_gpuobj *pgt, u32 pte, u32 cnt)
+{
+	gk20a_instobj_unmap_sg(pgt->parent, pte, cnt);
+}
 
 static int
 gm20b_mmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
@@ -90,6 +97,7 @@ gm20b_mmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	priv = (void *)*pobject;
 	priv->base.storage_type_map = gm20b_pte_storage_type_map;
 	priv->base.map_sg = gm20b_vm_map_sg;
+	priv->base.unmap = gm20b_vm_unmap;
 
 	return 0;
 }

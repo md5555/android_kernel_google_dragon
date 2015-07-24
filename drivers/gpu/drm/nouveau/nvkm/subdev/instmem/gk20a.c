@@ -128,6 +128,7 @@ gk20a_instobj_map_sg(struct nvkm_vma *vma, struct nvkm_object *object,
 		     struct nvkm_mem *mem, u32 pte, u32 cnt, dma_addr_t *list)
 {
 	struct gk20a_instmem_priv *priv = (void *)nvkm_instmem(object);
+	unsigned long flags;
 	u32 target = (vma->access & NV_MEM_ACCESS_NOSNOOP) ? 7 : 5;
 	u32 memtype = vma->vm->mmu->storage_type_map[mem->memtype & 0xff];
 	u32 *ramin_ptr;
@@ -149,6 +150,11 @@ gk20a_instobj_map_sg(struct nvkm_vma *vma, struct nvkm_object *object,
 		pte -= first_ramin_page * 512;
 	}
 
+	spin_lock_irqsave(&priv->lock, flags);
+
+	/* Write posting -- ensure that previous mmio has completed */
+	nv_rd32(priv, 0x700000);
+
 	pte <<= 1;
 	while (cnt--) {
 		ramin_ptr[pte] = (*list >> 8) | 0x1 /* present */;
@@ -157,7 +163,49 @@ gk20a_instobj_map_sg(struct nvkm_vma *vma, struct nvkm_object *object,
 		pte += 2;
 	}
 
-	wmb();
+	spin_unlock_irqrestore(&priv->lock, flags);
+
+	if (priv->domain)
+		vunmap(ramin_ptr);
+}
+
+void
+gk20a_instobj_unmap_sg(struct nvkm_object *object, u32 pte, u32 cnt)
+{
+	struct gk20a_instmem_priv *priv = (void *)nvkm_instmem(object);
+	unsigned long flags;
+	u32 *ramin_ptr;
+
+	if (!priv->domain) {
+		struct gk20a_instobj_dma *node_dma = (void*)object;
+		ramin_ptr = node_dma->cpuaddr;
+	} else {
+		struct gk20a_instobj_iommu *node_iommu = (void*)object;
+		int num_ramin_pages, first_ramin_page, last_ramin_page;
+
+		first_ramin_page = pte / 512;
+		last_ramin_page = (cnt + pte - 1) / 512;
+		num_ramin_pages = last_ramin_page - first_ramin_page + 1;
+
+		ramin_ptr = vmap(&node_iommu->pages[first_ramin_page],
+				 num_ramin_pages, VM_MAP,
+				 pgprot_writecombine(PAGE_KERNEL));
+		pte -= first_ramin_page * 512;
+	}
+
+	spin_lock_irqsave(&priv->lock, flags);
+
+	/* Write posting -- ensure that previous mmio has completed */
+	nv_rd32(priv, 0x700000);
+
+	pte <<= 1;
+	while (cnt--) {
+		ramin_ptr[pte] = 0x00000000;
+		ramin_ptr[pte + 1] = 0x00000000;
+		pte += 2;
+	}
+
+	spin_unlock_irqrestore(&priv->lock, flags);
 
 	if (priv->domain)
 		vunmap(ramin_ptr);
