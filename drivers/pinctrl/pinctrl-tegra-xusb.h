@@ -80,6 +80,9 @@ struct tegra_xusb_padctl_soc {
 
 	int (*probe)(struct tegra_xusb_padctl *padctl);
 	void (*remove)(struct tegra_xusb_padctl *padctl);
+
+	int (*suspend)(struct tegra_xusb_padctl *padctl);
+	int (*resume)(struct tegra_xusb_padctl *padctl);
 };
 
 struct tegra_xusb_padctl_lane {

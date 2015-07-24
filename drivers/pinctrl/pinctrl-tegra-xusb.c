@@ -1162,9 +1162,33 @@ static int tegra_xusb_padctl_remove(struct platform_device *pdev)
 	return err;
 }
 
+static int __maybe_unused tegra_xusb_padctl_suspend(struct device *dev)
+{
+	struct tegra_xusb_padctl *padctl = dev_get_drvdata(dev);
+
+	if (padctl->soc->suspend)
+		return padctl->soc->suspend(padctl);
+
+	return 0;
+}
+
+static int __maybe_unused tegra_xusb_padctl_resume(struct device *dev)
+{
+	struct tegra_xusb_padctl *padctl = dev_get_drvdata(dev);
+
+	if (padctl->soc->resume)
+		return padctl->soc->resume(padctl);
+
+	return 0;
+}
+
+SIMPLE_DEV_PM_OPS(tegra_xusb_padctl_pm_ops, tegra_xusb_padctl_suspend,
+		  tegra_xusb_padctl_resume);
+
 static struct platform_driver tegra_xusb_padctl_driver = {
 	.driver = {
 		.name = "tegra-xusb-padctl",
+		.pm = &tegra_xusb_padctl_pm_ops,
 		.of_match_table = tegra_xusb_padctl_of_match,
 	},
 	.probe = tegra_xusb_padctl_probe,

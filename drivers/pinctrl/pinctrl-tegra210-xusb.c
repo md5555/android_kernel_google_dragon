@@ -82,6 +82,8 @@
 							(1 << (1 + (x) * 3))
 #define XUSB_PADCTL_ELPG_PROGRAM1_SSPX_ELPG_CLAMP_EN(x) (1 << ((x) * 3))
 
+#define XUSB_PADCTL_USB3_PAD_MUX 0x028
+
 #define XUSB_PADCTL_USB2_BATTERY_CHRG_OTGPADX_CTL1(x) (0x084 + (x) * 0x40)
 #define XUSB_PADCTL_USB2_BATTERY_CHRG_OTGPAD_CTL1_VREG_LEV_SHIFT 7
 #define XUSB_PADCTL_USB2_BATTERY_CHRG_OTGPAD_CTL1_VREG_LEV_MASK 0x3
@@ -253,6 +255,11 @@ struct tegra210_xusb_fuse_calibration {
 	u32 rpd_ctrl;
 };
 
+struct tegra210_xusb_padctl_saved_regs {
+	u32 usb2_pad_mux;
+	u32 usb3_pad_mux;
+};
+
 struct tegra210_xusb_padctl {
 	struct tegra210_xusb_fuse_calibration fuse;
 
@@ -265,6 +272,8 @@ struct tegra210_xusb_padctl {
 
 	unsigned int pex_enable;
 	unsigned int sata_enable;
+
+	struct tegra210_xusb_padctl_saved_regs saved_regs;
 };
 
 static int tegra210_pex_uphy_enable(struct tegra_xusb_padctl *padctl)
@@ -1733,6 +1742,28 @@ static void tegra210_xusb_padctl_remove(struct tegra_xusb_padctl *padctl)
 {
 }
 
+static int tegra210_xusb_padctl_suspend(struct tegra_xusb_padctl *padctl)
+{
+	struct tegra210_xusb_padctl *priv = padctl->priv;
+	struct tegra210_xusb_padctl_saved_regs *regs = &priv->saved_regs;
+
+	regs->usb2_pad_mux = padctl_readl(padctl, XUSB_PADCTL_USB2_PAD_MUX);
+	regs->usb3_pad_mux = padctl_readl(padctl, XUSB_PADCTL_USB3_PAD_MUX);
+
+	return 0;
+}
+
+static int tegra210_xusb_padctl_resume(struct tegra_xusb_padctl *padctl)
+{
+	struct tegra210_xusb_padctl *priv = padctl->priv;
+	struct tegra210_xusb_padctl_saved_regs *regs = &priv->saved_regs;
+
+	padctl_writel(padctl, regs->usb2_pad_mux, XUSB_PADCTL_USB2_PAD_MUX);
+	padctl_writel(padctl, regs->usb3_pad_mux, XUSB_PADCTL_USB3_PAD_MUX);
+
+	return 0;
+}
+
 const struct tegra_xusb_padctl_soc tegra210_xusb_padctl_soc = {
 	.num_pins = ARRAY_SIZE(tegra210_pins),
 	.pins = tegra210_pins,
@@ -1757,6 +1788,8 @@ const struct tegra_xusb_padctl_soc tegra210_xusb_padctl_soc = {
 	.handle_message = tegra210_handle_message,
 	.probe = tegra210_xusb_padctl_probe,
 	.remove = tegra210_xusb_padctl_remove,
+	.suspend = tegra210_xusb_padctl_suspend,
+	.resume = tegra210_xusb_padctl_resume,
 };
 EXPORT_SYMBOL_GPL(tegra210_xusb_padctl_soc);
 
