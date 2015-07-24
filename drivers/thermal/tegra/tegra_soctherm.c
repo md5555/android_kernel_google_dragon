@@ -585,7 +585,7 @@ static long temp_convert(int cap, int a, int b)
  * H denotes an addition of 0.5 Celsius and N denotes negation
  * of the final value.
  */
-static long translate_temp(u16 val)
+static int translate_temp(u16 val)
 {
 	long t;
 
@@ -598,7 +598,7 @@ static long translate_temp(u16 val)
 	return t;
 }
 
-static int tegra_thermctl_get_temp(void *data, long *out_temp)
+static int tegra_thermctl_get_temp(void *data, int *out_temp)
 {
 	struct tegra_thermctl_zone *zone = data;
 	u32 val;
