@@ -25,6 +25,8 @@
 
 #include "clk.h"
 
+#define KHZ 1000
+
 static int cbus_switch_one(struct clk *client, struct clk *p)
 {
 	int ret = 0;
@@ -349,6 +351,224 @@ static unsigned long clk_shared_recalc_rate(struct clk_hw *hw,
 	return shared->u.shared_bus_user.rate;
 }
 
+static int sclk_div_get_divider(unsigned long parent_rate, unsigned long rate)
+{
+	s64 divider;
+
+	/*
+	 * rate = parent_rate / (divider / 2 + 1)
+	 * => rate = parent_rate * 2 / (divider + 2)
+	 * => divider = (parent_rate * 2 / rate) - 2
+	 */
+	divider = DIV_ROUND_UP(parent_rate * 2, rate) - 2;
+
+	if (divider < 0)
+		return 0;
+
+	if (divider > 0xff)
+		return 0xff;
+
+	return divider;
+}
+
+static long sclk_div_round_down(struct tegra_clk_cbus_shared *sbus,
+				struct clk *src, unsigned long rate, u32 *div)
+{
+	unsigned long source_rate, round_rate;
+	int divider;
+
+	source_rate = clk_get_rate(src);
+
+	/* round rate = source rate / (divider / 2 + 1) */
+	divider = sclk_div_get_divider(source_rate, rate);
+	round_rate = source_rate * 2 / (divider + 2);
+
+	if (round_rate > sbus->max_rate) {
+		divider -= 2;
+		round_rate = source_rate * 2 / (divider + 2);
+	}
+
+	*div = divider + 2;
+	return round_rate;
+}
+
+static void sbus_build_round_table_one(struct tegra_clk_cbus_shared *sbus,
+				       unsigned long rate, int idx)
+{
+	struct clk_div_sel sel;
+
+	sel.src = sbus->u.system.sclk_low->clk;
+	sel.rate = sclk_div_round_down(sbus, sel.src, rate, &sel.div);
+	sbus->u.system.round_table[idx] = sel;
+
+	/* Don't use high frequency source below threshold */
+	if (rate <= sbus->u.system.threshold)
+		return;
+
+	sel.src = sbus->u.system.sclk_high->clk;
+	sel.rate = sclk_div_round_down(sbus, sel.src, rate, &sel.div);
+	if (sbus->u.system.round_table[idx].rate < sel.rate)
+		sbus->u.system.round_table[idx] = sel;
+}
+
+static int sbus_build_round_table(struct tegra_clk_cbus_shared *sbus)
+{
+	unsigned long threshold = sbus->u.system.threshold;
+	bool inserted = false;
+	int i, err = 0, idx = 0;
+	unsigned long *freqs;
+	int num_freqs;
+
+	err = tegra_dvfs_get_freqs(sbus->hw.clk, &freqs, &num_freqs);
+	if (err) {
+		pr_err_once("faild to get %s dvfs entries\n",
+			    __clk_get_name(sbus->hw.clk));
+		return err;
+	}
+
+	for (i = 0; i < num_freqs; i++) {
+		unsigned long rate = freqs[i];
+
+		/* skip 1KHz placeholders */
+		if (rate <= 1 * KHZ)
+			continue;
+
+		/* skip duplicated rate */
+		if (i && rate == freqs[i - 1])
+			continue;
+
+		if (!inserted && rate >= threshold) {
+			inserted = true;
+			if (rate > threshold)
+				sbus_build_round_table_one(sbus,
+							   threshold, idx++);
+		}
+
+		sbus_build_round_table_one(sbus, rate, idx++);
+	}
+
+	sbus->u.system.round_table_size = idx;
+	return err;
+}
+
+static struct clk_div_sel *
+sbus_find_sel_by_rate(struct tegra_clk_cbus_shared *sbus, unsigned long rate)
+{
+	int i;
+
+	for (i = 0; i < sbus->u.system.round_table_size; i++)
+		if (rate == sbus->u.system.round_table[i].rate)
+			break;
+
+	return &sbus->u.system.round_table[i];
+}
+
+static int clk_system_table_set_rate(struct clk_hw *hw, unsigned long rate,
+				unsigned long parent_rate)
+{
+	int err = 0;
+	struct tegra_clk_cbus_shared *system = to_clk_cbus_shared(hw);
+	struct clk *pclk = system->u.system.pclk->clk;
+	struct clk *sclk_div = clk_get_parent(hw->clk);
+	struct clk *sclk_mux = clk_get_parent(sclk_div);
+	unsigned long sclk_div_rate = clk_get_rate(sclk_div);
+	struct clk_div_sel *new, *old;
+
+	if (system->rate_updating)
+		return 0;
+
+	system->rate_updating = true;
+
+	/*
+	 * set hclk:pclk to 2:1 to ensure no overclocking on pclk when
+	 * increasing the sclk rate
+	 */
+	if (rate >= clk_round_rate(pclk, 0) * 2) {
+		unsigned long hclk_rate;
+
+		hclk_rate = clk_get_rate(system->u.system.hclk->clk);
+
+		err = clk_set_rate(pclk, DIV_ROUND_UP(hclk_rate, 2));
+		if (err) {
+			pr_err("failed to set %s rate to %lu: %d\n",
+				__clk_get_name(pclk),
+				DIV_ROUND_UP(hclk_rate, 2), err);
+			goto out;
+		}
+	}
+
+	if (sclk_div_rate == rate) {
+		pr_debug("no change in rate %lu on parent %s\n",
+			 rate, __clk_get_name(clk_get_parent(sclk_mux)));
+		goto out;
+	}
+
+	/* select new source/divider */
+	new = sbus_find_sel_by_rate(system, rate);
+
+	/* do switch */
+	old = sbus_find_sel_by_rate(system, sclk_div_rate);
+	if (old->div < new->div) {
+		unsigned long sdiv_rate = sclk_div_rate * old->div;
+		sdiv_rate = DIV_ROUND_UP(sdiv_rate, new->div);
+		err = clk_set_rate(sclk_div, sdiv_rate);
+		if (err) {
+			pr_err("failed to set %s rate to %lu\n",
+			       __clk_get_name(sclk_div), sdiv_rate);
+			goto out;
+		}
+	}
+
+	if (new->src != clk_get_parent(sclk_mux)) {
+		err = clk_set_parent(sclk_mux, new->src);
+		if (err) {
+			pr_err("failed to switch sclk source to %s\n",
+			       __clk_get_name(new->src));
+			goto out;
+		}
+	}
+
+	if (old->div >= new->div) {
+		err = clk_set_rate(sclk_div, rate);
+		if (err) {
+			pr_err("failed to set %s rate to %lu\n",
+			       __clk_get_name(sclk_div), rate);
+			goto out;
+		}
+	}
+
+out:
+	system->rate_updating = false;
+	return err;
+}
+
+static long clk_system_table_round_rate(struct clk_hw *hw, unsigned long rate,
+					unsigned long *parent_rate)
+{
+	struct tegra_clk_cbus_shared *system = to_clk_cbus_shared(hw);
+	int i, err;
+
+	if (!system->u.system.round_table_size) {
+		err = sbus_build_round_table(system);
+		if (err) {
+			pr_warn_once("Invalid sbus round table\n");
+			return *parent_rate;
+		}
+	}
+
+	rate = max(rate, system->min_rate);
+
+	for (i = 0; i < system->u.system.round_table_size - 1; i++) {
+		unsigned long sel_rate = system->u.system.round_table[i].rate;
+		if (rate - sel_rate <= 1)
+			break;
+		else if (rate < sel_rate)
+			break;
+	}
+
+	return system->u.system.round_table[i].rate;
+}
+
 static int clk_system_set_rate(struct clk_hw *hw, unsigned long rate,
 				unsigned long parent_rate)
 {
@@ -469,6 +689,15 @@ static int clk_shared_master_is_prepared(struct clk_hw *hw)
 	return tegra_dvfs_get_rate(hw->clk) != 0;
 }
 
+static const struct clk_ops tegra_clk_system_table_ops = {
+	.recalc_rate = clk_system_recalc_rate,
+	.round_rate = clk_system_table_round_rate,
+	.set_rate = clk_system_table_set_rate,
+	.prepare = clk_shared_master_prepare,
+	.unprepare = clk_shared_master_unprepare,
+	.is_prepared = clk_shared_master_is_prepared,
+};
+
 static const struct clk_ops tegra_clk_system_ops = {
 	.recalc_rate = clk_system_recalc_rate,
 	.round_rate = clk_system_round_rate,
@@ -506,7 +735,7 @@ struct clk *tegra_clk_register_sbus_cmplx(const char *name,
 		const char *pclk, const char *hclk,
 		const char *sclk_low, const char *sclk_high,
 		unsigned long threshold, unsigned long min_rate,
-		unsigned long max_rate)
+		unsigned long max_rate, u32 bus_flags)
 {
 	struct clk *parent_clk, *c;
 	struct clk_init_data init;
@@ -515,6 +744,14 @@ struct clk *tegra_clk_register_sbus_cmplx(const char *name,
 	system = kzalloc(sizeof(*system), GFP_KERNEL);
 	if (!system)
 		return ERR_PTR(-ENOMEM);
+
+	if (bus_flags & TEGRA_SOURCE_PLL_FIXED_RATE) {
+		system->u.system.round_table = kcalloc(
+			MAX_DVFS_FREQS + 1, sizeof(struct clk_div_sel),
+			GFP_KERNEL);
+		if (!system->u.system.round_table)
+			return ERR_PTR(-ENOMEM);
+	}
 
 	parent_clk = __clk_lookup(parent);
 
@@ -558,13 +795,15 @@ struct clk *tegra_clk_register_sbus_cmplx(const char *name,
 
 	system->min_rate = min_rate;
 	system->max_rate = max_rate;
+	system->flags = bus_flags;
 
 	INIT_LIST_HEAD(&system->shared_bus_list);
 
 	flags |= CLK_GET_RATE_NOCACHE;
 
 	init.name = name;
-	init.ops = &tegra_clk_system_ops;
+	init.ops = (bus_flags & TEGRA_SOURCE_PLL_FIXED_RATE) ?
+		&tegra_clk_system_table_ops : &tegra_clk_system_ops;
 	init.flags = flags;
 	init.parent_names = &parent;
 	init.num_parents = 1;

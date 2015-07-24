@@ -795,6 +795,12 @@ enum shared_bus_users_mode {
 
 #define TEGRA_CLK_SHARED_MAGIC	0x18ce213d
 
+struct clk_div_sel {
+	struct clk *src;
+	u32 div;
+	unsigned long rate;
+};
+
 struct tegra_clk_cbus_shared {
 	u32			magic;
 	struct clk_hw		hw;
@@ -818,6 +824,8 @@ struct tegra_clk_cbus_shared {
 			struct clk_hw	*sclk_low;
 			struct clk_hw	*sclk_high;
 			unsigned long	threshold;
+			struct clk_div_sel *round_table;
+			int 		round_table_size;
 		} system;
 		struct {
 			struct list_head	node;
@@ -833,6 +841,8 @@ struct tegra_clk_cbus_shared {
 
 #define to_clk_cbus_shared(_hw) \
 			container_of(_hw, struct tegra_clk_cbus_shared, hw)
+
+#define TEGRA_SOURCE_PLL_FIXED_RATE	BIT(0)
 
 struct clk *tegra_clk_register_shared(const char *name,
 		const char **parent, u8 num_parents, unsigned long flags,
@@ -850,7 +860,7 @@ struct clk *tegra_clk_register_sbus_cmplx(const char *name,
 		unsigned long flags, const char *pclk, const char *hclk,
 		const char *sclk_low, const char *sclk_high,
 		unsigned long threshold, unsigned long min_rate,
-		unsigned long max_rate);
+		unsigned long max_rate, u32 bus_flags);
 void tegra_shared_clk_init(struct tegra_clk *tegra_clks);
 
 void tegra114_clock_tune_cpu_trimmers_high(void);

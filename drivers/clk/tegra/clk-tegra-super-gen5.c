@@ -35,6 +35,7 @@
 #define CCLKLP_BURST_POLICY 0x370
 #define SCLK_DIVIDER 0x2c
 #define SCLK_BURST_POLICY 0x028
+#define SCLK_CLK_SOURCE_SYS 0x400
 #define SYSTEM_CLK_RATE 0x030
 
 static DEFINE_SPINLOCK(sysrate_lock);
@@ -74,9 +75,10 @@ static void __init tegra_sclk_init(void __iomem *clk_base,
 	/* SCLK */
 	dt_clk = tegra_lookup_dt_id(tegra_clk_sclk, tegra_clks);
 	if (dt_clk) {
-		clk = clk_register_divider(NULL, "sclk", "sclk_mux", 0,
-						clk_base + SCLK_DIVIDER, 0, 8,
-						0, &sysrate_lock);
+		clk = tegra_clk_register_divider("sclk", "sclk_mux",
+						 clk_base + SCLK_CLK_SOURCE_SYS,
+						 0, TEGRA_DIVIDER_ROUND_UP, 0,
+						 8, 1, &sysrate_lock);
 		*dt_clk = clk;
 	}
 
