@@ -34,6 +34,7 @@ struct tegra_smmu {
 	unsigned long *asids;
 	struct tegra_smmu_as **as;
 	struct mutex lock;
+	spinlock_t ptc_lock;
 
 	u32 *asid_reg_save;
 
@@ -172,21 +173,23 @@ static void smmu_flush_ptc_all(struct tegra_smmu *smmu)
 static inline void smmu_flush_ptc(struct tegra_smmu *smmu, dma_addr_t dma,
 				  unsigned long offset)
 {
-	u32 value;
+	u32 value, addr_hi = 0;
+	unsigned long flags;
 
 	offset &= ~(smmu->mc->soc->atom_size - 1);
 
 	if (smmu->mc->soc->num_address_bits > 32) {
 #ifdef CONFIG_ARCH_DMA_ADDR_T_64BIT
-		value = (dma >> 32) & SMMU_PTC_FLUSH_HI_MASK;
-#else
-		value = 0;
+		addr_hi = (dma >> 32) & SMMU_PTC_FLUSH_HI_MASK;
 #endif
-		smmu_writel(smmu, value, SMMU_PTC_FLUSH_HI);
 	}
 
 	value = (dma + offset) | SMMU_PTC_FLUSH_TYPE_ADR;
+
+	spin_lock_irqsave(&smmu->ptc_lock, flags);
+	smmu_writel(smmu, addr_hi, SMMU_PTC_FLUSH_HI);
 	smmu_writel(smmu, value, SMMU_PTC_FLUSH);
+	spin_unlock_irqrestore(&smmu->ptc_lock, flags);
 }
 
 static inline void smmu_flush_tlb(struct tegra_smmu *smmu)
@@ -965,6 +968,7 @@ struct tegra_smmu *tegra_smmu_probe(struct device *dev,
 		return ERR_PTR(-ENOMEM);
 
 	mutex_init(&smmu->lock);
+	spin_lock_init(&smmu->ptc_lock);
 
 	smmu->regs = mc->regs;
 	smmu->soc = soc;
