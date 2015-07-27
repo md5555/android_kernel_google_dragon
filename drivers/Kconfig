@@ -190,4 +190,6 @@ source "drivers/amba/Kconfig"
 
 source "drivers/cpuquiet/Kconfig"
 
+source "drivers/nvmem/Kconfig"
+
 endmenu
