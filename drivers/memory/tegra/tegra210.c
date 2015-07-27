@@ -9,8 +9,6 @@
 #include <linux/of.h>
 #include <linux/mm.h>
 
-#include <asm/cacheflush.h>
-
 #include <dt-bindings/memory/tegra210-mc.h>
 
 #include "mc.h"
@@ -1085,18 +1083,6 @@ static const struct tegra_mc_flush tegra210_mc_flush[] = {
 	{TEGRA_SWGROUP_GPU,        0x970, 0x974,  2},
 };
 
-static void tegra210_flush_dcache(struct page *page, unsigned long offset,
-				  size_t size)
-{
-	void *virt = page_address(page) + offset;
-
-	__flush_dcache_area(virt, size);
-}
-
-static const struct tegra_smmu_ops tegra210_smmu_ops = {
-	.flush_dcache = tegra210_flush_dcache,
-};
-
 static const struct tegra_smmu_soc tegra210_smmu_soc = {
 	.clients = tegra210_mc_clients,
 	.num_clients = ARRAY_SIZE(tegra210_mc_clients),
@@ -1105,7 +1091,6 @@ static const struct tegra_smmu_soc tegra210_smmu_soc = {
 	.supports_round_robin_arbitration = true,
 	.supports_request_limit = true,
 	.num_asids = 128,
-	.ops = &tegra210_smmu_ops,
 };
 
 const struct tegra_mc_soc tegra210_mc_soc = {
