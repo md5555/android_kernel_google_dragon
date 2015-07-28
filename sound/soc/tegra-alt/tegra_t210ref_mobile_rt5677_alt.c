@@ -28,6 +28,8 @@
 #include <linux/switch.h>
 #include <linux/pm_runtime.h>
 
+#include <soc/tegra/sysedp.h>
+
 #include <sound/core.h>
 #include <sound/jack.h>
 #include <sound/pcm.h>
@@ -55,6 +57,8 @@ struct tegra_t210ref {
 	int gpio_requested;
 	int clock_enabled;
 	struct snd_soc_jack jack;
+	struct sysedp_consumer *sysedpc;
+	const char *edp_name;
 };
 
 static struct snd_soc_pcm_stream tegra_rt5677_stream_params = {
@@ -209,8 +213,14 @@ static int tegra_rt5677_event_int_spk(struct snd_soc_dapm_widget *w,
 	if (!(machine->gpio_requested & GPIO_SPKR_EN))
 		return 0;
 
+	if (SND_SOC_DAPM_EVENT_ON(event))
+		sysedp_set_state(machine->sysedpc, 1);
+
 	gpio_set_value_cansleep(pdata->gpio_spkr_en,
 				!!SND_SOC_DAPM_EVENT_ON(event));
+
+	if (!SND_SOC_DAPM_EVENT_ON(event))
+		sysedp_set_state(machine->sysedpc, 0);
 
 	return 0;
 }
@@ -563,6 +573,11 @@ static int tegra_t210ref_driver_probe(struct platform_device *pdev)
 
 	codec = card->rtd[idx].codec;
 
+	if (of_property_read_string(np, "edp-consumer-name",
+				    &machine->edp_name))
+		machine->edp_name = "codec+speaker";
+	machine->sysedpc = sysedp_create_consumer(np, machine->edp_name);
+
 	return 0;
 
 err_alloc_dai_link:
@@ -582,6 +597,9 @@ static int tegra_t210ref_driver_remove(struct platform_device *pdev)
 	tegra_machine_remove_dai_link();
 	tegra_machine_remove_codec_conf();
 	tegra_alt_asoc_utils_fini(&machine->audio_clock);
+
+	sysedp_free_consumer(machine->sysedpc);
+	machine->sysedpc = NULL;
 
 	return 0;
 }
