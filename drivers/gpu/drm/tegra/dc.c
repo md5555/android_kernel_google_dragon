@@ -99,6 +99,14 @@ to_tegra_plane_state(struct drm_plane_state *state)
 	return NULL;
 }
 
+static void tegra_dc_stats_reset(struct tegra_dc_stats *stats)
+{
+	stats->frames = 0;
+	stats->vblank = 0;
+	stats->underflow = 0;
+	stats->overflow = 0;
+}
+
 /*
  * Reads the active copy of a register. This takes the dc->lock spinlock to
  * prevent races with the VBLANK processing which also needs access to the
@@ -1474,7 +1482,8 @@ static void tegra_dc_init_hw(struct tegra_dc *dc)
 		tegra_dc_writel(dc, value, DC_CMD_CONT_SYNCPT_VSYNC);
 	}
 
-	value = WIN_A_UF_INT | WIN_B_UF_INT | WIN_C_UF_INT | WIN_A_OF_INT;
+	value = WIN_A_UF_INT | WIN_B_UF_INT | WIN_C_UF_INT |
+		WIN_A_OF_INT | WIN_B_OF_INT | WIN_C_OF_INT;
 	tegra_dc_writel(dc, value, DC_CMD_INT_TYPE);
 
 	value = WIN_A_UF_INT | WIN_B_UF_INT | WIN_C_UF_INT |
@@ -1490,7 +1499,8 @@ static void tegra_dc_init_hw(struct tegra_dc *dc)
 		WINDOW_B_THRESHOLD(1) | WINDOW_C_THRESHOLD(1);
 	tegra_dc_writel(dc, value, DC_DISP_DISP_MEM_HIGH_PRIORITY_TIMER);
 
-	value = WIN_A_UF_INT | WIN_B_UF_INT | WIN_C_UF_INT;
+	value = WIN_A_UF_INT | WIN_B_UF_INT | WIN_C_UF_INT |
+		WIN_A_OF_INT | WIN_B_OF_INT | WIN_C_OF_INT;
 	if (state->nc_mode)
 		value |= MSF_INT;
 	else
@@ -1498,11 +1508,14 @@ static void tegra_dc_init_hw(struct tegra_dc *dc)
 	tegra_dc_writel(dc, value, DC_CMD_INT_ENABLE);
 
 	value = tegra_dc_readl(dc, DC_CMD_INT_MASK);
-	value |= WIN_A_UF_INT | WIN_B_UF_INT | WIN_C_UF_INT;
+	value |= WIN_A_UF_INT | WIN_B_UF_INT | WIN_C_UF_INT |
+		 WIN_A_OF_INT | WIN_B_OF_INT | WIN_C_OF_INT;
 	tegra_dc_writel(dc, value, DC_CMD_INT_MASK);
 
 	if (dc->soc->supports_border_color)
 		tegra_dc_writel(dc, 0, DC_DISP_BORDER_COLOR);
+
+	tegra_dc_stats_reset(&dc->stats);
 }
 
 static void tegra_crtc_get_display_info(struct drm_crtc *crtc)
@@ -1834,6 +1847,7 @@ static irqreturn_t tegra_dc_irq(int irq, void *data)
 		/*
 		dev_dbg(dc->dev, "%s(): frame end\n", __func__);
 		*/
+		dc->stats.frames++;
 	}
 
 	if ((status & VBLANK_INT) || (status & MSF_INT)) {
@@ -1842,12 +1856,21 @@ static irqreturn_t tegra_dc_irq(int irq, void *data)
 		*/
 		drm_crtc_handle_vblank(&dc->base);
 		tegra_dc_finish_page_flip(dc);
+		dc->stats.vblank++;
 	}
 
 	if (status & (WIN_A_UF_INT | WIN_B_UF_INT | WIN_C_UF_INT)) {
 		/*
 		dev_dbg(dc->dev, "%s(): underflow\n", __func__);
 		*/
+		dc->stats.underflow++;
+	}
+
+	if (status & (WIN_A_OF_INT | WIN_B_OF_INT | WIN_C_OF_INT)) {
+		/*
+		dev_dbg(dc->dev, "%s(): overflow\n", __func__);
+		*/
+		dc->stats.overflow++;
 	}
 
 	return IRQ_HANDLED;
@@ -2106,8 +2129,22 @@ static int tegra_dc_show_regs(struct seq_file *s, void *data)
 	return 0;
 }
 
+static int tegra_dc_show_stats(struct seq_file *s, void *data)
+{
+	struct drm_info_node *node = s->private;
+	struct tegra_dc *dc = node->info_ent->data;
+
+	seq_printf(s, "frames: %lu\n", dc->stats.frames);
+	seq_printf(s, "vblank: %lu\n", dc->stats.vblank);
+	seq_printf(s, "underflow: %lu\n", dc->stats.underflow);
+	seq_printf(s, "overflow: %lu\n", dc->stats.overflow);
+
+	return 0;
+}
+
 static struct drm_info_list debugfs_files[] = {
 	{ "regs", tegra_dc_show_regs, 0, NULL },
+	{ "stats", tegra_dc_show_stats, 0, NULL },
 };
 
 static int tegra_dc_debugfs_init(struct tegra_dc *dc, struct drm_minor *minor)
