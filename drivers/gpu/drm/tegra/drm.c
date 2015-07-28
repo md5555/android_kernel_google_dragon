@@ -34,6 +34,79 @@ static void tegra_atomic_schedule(struct tegra_drm *tegra,
 	schedule_work(&tegra->commit.work);
 }
 
+static bool framebuffer_changed(struct drm_device *dev,
+				struct drm_atomic_state *old_state,
+				struct drm_crtc *crtc)
+{
+	struct drm_plane *plane;
+	struct drm_plane_state *old_plane_state;
+	int i;
+
+	for_each_plane_in_state(old_state, plane, old_plane_state, i) {
+		if (plane->state->crtc != crtc &&
+		    old_plane_state->crtc != crtc)
+			continue;
+
+		if (plane->state->fb != old_plane_state->fb)
+			return true;
+	}
+
+	return false;
+}
+
+static void tegra_atomic_wait_for_flip_complete(struct drm_device *dev,
+			struct drm_atomic_state *old_state)
+{
+	struct drm_crtc *crtc;
+	struct drm_crtc_state *old_crtc_state;
+	int i, ret;
+
+	for_each_crtc_in_state(old_state, crtc, old_crtc_state, i) {
+		/* No one cares about the old state, so abuse it for tracking
+		 * and store whether we hold a vblank reference (and should do a
+		 * vblank wait) in the ->enable boolean. */
+		old_crtc_state->enable = false;
+
+		if (!crtc->state->enable) {
+			WARN_ON(crtc->state->event);
+			continue;
+		}
+
+		/* Legacy cursor ioctls are completely unsynced, and userspace
+		 * relies on that (by doing tons of cursor updates). */
+		if (old_state->legacy_cursor_update) {
+			WARN_ON(crtc->state->event);
+			continue;
+		}
+
+
+		if (!framebuffer_changed(dev, old_state, crtc) &&
+		    !crtc->state->event)
+			continue;
+
+		ret = drm_crtc_vblank_get(crtc);
+		if (ret != 0)
+			continue;
+
+		old_crtc_state->enable = true;
+		old_crtc_state->last_vblank_count = drm_vblank_count(dev, i);
+	}
+
+	for_each_crtc_in_state(old_state, crtc, old_crtc_state, i) {
+		if (!old_crtc_state->enable)
+			continue;
+
+		ret = wait_event_timeout(dev->vblank[i].queue,
+				crtc->state->event ?
+					crtc->state->event == NULL :
+					old_crtc_state->last_vblank_count !=
+						drm_vblank_count(dev, i),
+				msecs_to_jiffies(50));
+
+		drm_crtc_vblank_put(crtc);
+	}
+}
+
 static void tegra_atomic_complete(struct tegra_drm *tegra,
 				  struct drm_atomic_state *state)
 {
@@ -64,7 +137,7 @@ static void tegra_atomic_complete(struct tegra_drm *tegra,
 	drm_atomic_helper_commit_planes(drm, state);
 	drm_atomic_helper_commit_modeset_enables(drm, state);
 
-	drm_atomic_helper_wait_for_vblanks(drm, state);
+	tegra_atomic_wait_for_flip_complete(drm, state);
 
 	for_each_crtc_in_state(state, crtc, crtc_state, i)
 		tegra_dc_update_emc_post_commit(crtc);

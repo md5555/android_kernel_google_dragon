@@ -1147,6 +1147,7 @@ static void tegra_dc_finish_page_flip(struct tegra_dc *dc)
 		drm_crtc_send_vblank_event(crtc, dc->event);
 		drm_crtc_vblank_put(crtc);
 		dc->event = NULL;
+		crtc->state->event = NULL;
 	}
 
 	spin_unlock_irqrestore(&drm->event_lock, flags);
@@ -1164,6 +1165,7 @@ void tegra_dc_cancel_page_flip(struct drm_crtc *crtc, struct drm_file *file)
 		dc->event->base.destroy(&dc->event->base);
 		drm_crtc_vblank_put(crtc);
 		dc->event = NULL;
+		crtc->state->event = NULL;
 	}
 
 	spin_unlock_irqrestore(&drm->event_lock, flags);
@@ -1520,15 +1522,17 @@ static int tegra_crtc_atomic_check(struct drm_crtc *crtc,
 static void tegra_crtc_atomic_begin(struct drm_crtc *crtc)
 {
 	struct tegra_dc *dc = to_tegra_dc(crtc);
+	struct drm_device *drm = dc->base.dev;
+	unsigned long flags;
 
+	spin_lock_irqsave(&drm->event_lock, flags);
 	if (crtc->state->event) {
 		crtc->state->event->pipe = drm_crtc_index(crtc);
-
 		WARN_ON(drm_crtc_vblank_get(crtc) != 0);
-
+		WARN_ON(dc->event);
 		dc->event = crtc->state->event;
-		crtc->state->event = NULL;
 	}
+	spin_unlock_irqrestore(&drm->event_lock, flags);
 }
 
 static int tegra_dc_program_bandwidth(struct tegra_dc *dc,
