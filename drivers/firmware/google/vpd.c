@@ -14,15 +14,15 @@
  */
 
 #include <linux/init.h>
-#include <linux/sysfs.h>
-#include <linux/kobject.h>
-#include <linux/module.h>
-#include <linux/slab.h>
-#include <linux/list.h>
-
+#include <linux/io.h>
 #include <linux/kernel.h>
+#include <linux/kobject.h>
+#include <linux/list.h>
+#include <linux/module.h>
 #include <linux/of_address.h>
 #include <linux/platform_device.h>
+#include <linux/slab.h>
+#include <linux/sysfs.h>
 
 #include "coreboot_table.h"
 #include "vpd_decode.h"
