@@ -4,7 +4,7 @@
 
 / {
 	model = "Google Tegra210 Smaug Rev 1+";
-	compatible = "google,smaug-rev5", "google,smuag-rev4",
+	compatible = "google,smaug-rev5", "google,smaug-rev4",
 		     "google,smaug-rev3", "google,smaug-rev2",
 		     "google,smaug-rev1", "google,smaug", "nvidia,tegra210";
 };
