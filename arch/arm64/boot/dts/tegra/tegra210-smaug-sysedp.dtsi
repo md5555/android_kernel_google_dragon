@@ -443,6 +443,12 @@
 				nvidia,states = <0 2050>; /* OFF ON */
 				nvidia,consumer-always-on;
 			};
+
+			consumer-emmc {
+				nvidia,consumer = <&sdmmc4>;
+				nvidia,states = <0 990>; /* OFF ON */
+				nvidia,consumer-always-on;
+			};
 		};
 	};
 };
