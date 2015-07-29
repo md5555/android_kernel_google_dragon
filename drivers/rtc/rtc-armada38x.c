@@ -89,21 +89,14 @@ static int armada38x_rtc_set_time(struct device *dev, struct rtc_time *tm)
 	if (ret)
 		goto out;
 	/*
-	 * Setting the RTC time not always succeeds. According to the
-	 * errata we need to first write on the status register and
-	 * then wait for 100ms before writing to the time register to be
-	 * sure that the data will be taken into account.
+	 * According to errata FE-3124064, Write to RTC TIME register
+	 * may fail. As a workaround, issue a dummy write of 0x0 twice
+	 * to RTC Status register before writing to RTC TIME register.
 	 */
 	spin_lock_irqsave(&rtc->lock, flags);
 
 	rtc_delayed_write(0, rtc, RTC_STATUS);
-
-	spin_unlock_irqrestore(&rtc->lock, flags);
-
-	msleep(100);
-
-	spin_lock_irqsave(&rtc->lock, flags);
-
+	rtc_delayed_write(0, rtc, RTC_STATUS);
 	rtc_delayed_write(time, rtc, RTC_TIME);
 
 	spin_unlock_irqrestore(&rtc->lock, flags);
