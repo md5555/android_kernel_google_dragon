@@ -9,6 +9,8 @@
 #include <dt-bindings/thermal/tegra124-soctherm.h>
 #include <dt-bindings/thermal/tegra210-trips.h>
 #include <dt-bindings/reset/tegra210-car.h>
+#include <dt-bindings/soc/tegra-pmc.h>
+
 #include "tegra210-edp.dtsi"
 
 #include "skeleton.dtsi"
@@ -791,6 +793,7 @@
 		reg = <0x0 0x7000e400 0x0 0x400>;
 		clocks = <&tegra_car TEGRA210_CLK_PCLK>;
 		clock-names = "pclk";
+		#nvidia,wake-cells = <3>;
 		status = "disabled";
 	};
 
