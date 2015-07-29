@@ -1257,8 +1257,6 @@ gm20b_pstates[] = {
 			.voltage = 11,
 		},
 	},
-	/* This requires a 18A regulator */
-#if 0
 	{
 		.base = {
 			.domain[nv_clk_src_gpc] = 998400,
@@ -1266,8 +1264,6 @@ gm20b_pstates[] = {
 			.voltage = 12,
 		},
 	},
-#endif
-
 };
 
 static int
