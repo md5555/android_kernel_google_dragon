@@ -283,7 +283,7 @@ static const struct falcon_ops nvdec_falcon_ops = {
 };
 
 static const struct nvdec_config nvdec_t210_config = {
-	.ucode_name = "nvhost_nvdec020_ns.fw",
+	.ucode_name = "nvidia/tegra210/nvdec_ns.bin",
 	.class_id = HOST1X_CLASS_NVDEC,
 	.powergate_id = TEGRA_POWERGATE_NVDEC,
 };
