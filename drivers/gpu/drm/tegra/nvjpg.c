@@ -393,8 +393,38 @@ static int __maybe_unused nvjpg_runtime_resume(struct device *dev)
 	return nvjpg_power_on(dev);
 }
 
+static int __maybe_unused nvjpg_suspend(struct device *dev)
+{
+	dev_info(dev, "%s\n", __func__);
+
+	if (pm_runtime_status_suspended(dev))
+		return 0;
+
+	return nvjpg_power_off(dev);
+}
+
+static int __maybe_unused nvjpg_resume(struct device *dev)
+{
+	struct nvjpg *nvjpg = dev_get_drvdata(dev);
+	int err;
+
+	dev_info(dev, "%s\n", __func__);
+
+	if (pm_runtime_status_suspended(dev))
+		return 0;
+
+	err = nvjpg_power_on(dev);
+	if (err) {
+		dev_err(dev, "failed to power on during resume\n");
+		return err;
+	}
+
+	return falcon_boot(&nvjpg->falcon, nvjpg->config->ucode_name);
+}
+
 static const struct dev_pm_ops nvjpg_pm_ops = {
 	SET_RUNTIME_PM_OPS(nvjpg_runtime_suspend, nvjpg_runtime_resume, NULL)
+	SET_SYSTEM_SLEEP_PM_OPS(nvjpg_suspend, nvjpg_resume)
 };
 
 struct platform_driver tegra_nvjpg_driver = {

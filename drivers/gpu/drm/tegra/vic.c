@@ -465,8 +465,38 @@ static int __maybe_unused vic_runtime_resume(struct device *dev)
 	return vic_power_on(dev);
 }
 
+static int __maybe_unused vic_suspend(struct device *dev)
+{
+	dev_info(dev, "%s\n", __func__);
+
+	if (pm_runtime_status_suspended(dev))
+		return 0;
+
+	return vic_power_off(dev);
+}
+
+static int __maybe_unused vic_resume(struct device *dev)
+{
+	struct vic *vic = dev_get_drvdata(dev);
+	int err;
+
+	dev_info(dev, "%s\n", __func__);
+
+	if (pm_runtime_status_suspended(dev))
+		return 0;
+
+	err = vic_power_on(dev);
+	if (err) {
+		dev_err(dev, "failed to power on during resume\n");
+		return err;
+	}
+
+	return falcon_boot(&vic->falcon, vic->config->ucode_name);
+}
+
 static const struct dev_pm_ops vic_pm_ops = {
 	SET_RUNTIME_PM_OPS(vic_runtime_suspend, vic_runtime_resume, NULL)
+	SET_SYSTEM_SLEEP_PM_OPS(vic_suspend, vic_resume)
 };
 
 struct platform_driver tegra_vic_driver = {

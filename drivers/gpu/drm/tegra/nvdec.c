@@ -429,8 +429,38 @@ static int __maybe_unused nvdec_runtime_resume(struct device *dev)
 	return nvdec_power_on(dev);
 }
 
+static int __maybe_unused nvdec_suspend(struct device *dev)
+{
+	dev_info(dev, "%s\n", __func__);
+
+	if (pm_runtime_status_suspended(dev))
+		return 0;
+
+	return nvdec_power_off(dev);
+}
+
+static int __maybe_unused nvdec_resume(struct device *dev)
+{
+	struct nvdec *nvdec = dev_get_drvdata(dev);
+	int err;
+
+	dev_info(dev, "%s\n", __func__);
+
+	if (pm_runtime_status_suspended(dev))
+		return 0;
+
+	err = nvdec_power_on(dev);
+	if (err) {
+		dev_err(dev, "failed to power on during resume\n");
+		return err;
+	}
+
+	return falcon_boot(&nvdec->falcon, nvdec->config->ucode_name);
+}
+
 static const struct dev_pm_ops nvdec_pm_ops = {
 	SET_RUNTIME_PM_OPS(nvdec_runtime_suspend, nvdec_runtime_resume, NULL)
+	SET_SYSTEM_SLEEP_PM_OPS(nvdec_suspend, nvdec_resume)
 };
 
 struct platform_driver tegra_nvdec_driver = {
