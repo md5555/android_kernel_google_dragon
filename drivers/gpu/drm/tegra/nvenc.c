@@ -257,7 +257,7 @@ static const struct falcon_ops nvenc_falcon_ops = {
 };
 
 static const struct nvenc_config nvenc_nvenc_t210_config = {
-	.ucode_name = "nvhost_nvenc050.fw",
+	.ucode_name = "nvidia/tegra210/nvenc.bin",
 	.class_id = HOST1X_CLASS_NVENC,
 	.powergate_id = TEGRA_POWERGATE_MPE,
 };
