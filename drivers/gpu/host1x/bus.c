@@ -295,13 +295,44 @@ static void host1x_device_shutdown(struct device *dev)
 		driver->shutdown(device);
 }
 
+static int __maybe_unused host1x_suspend(struct device *dev)
+{
+	struct host1x *host;
+	int err;
+
+	dev_info(dev, "%s\n", __func__);
+
+	err = pm_generic_suspend(dev);
+	if (err < 0)
+		return err;
+
+	list_for_each_entry(host, &devices, list) {
+		struct host1x_channel *channel;
+
+		host1x_for_each_channel(host, channel)
+			if (channel->refcount > 0)
+				host1x_hw_cdma_stop(host, &channel->cdma);
+
+		host1x_syncpt_save(host);
+	}
+
+	return 0;
+}
+
+static int __maybe_unused host1x_resume(struct device *dev)
+{
+	struct host1x *host;
+
+	dev_info(dev, "%s\n", __func__);
+
+	list_for_each_entry(host, &devices, list)
+		host1x_syncpt_restore(host);
+
+	return pm_generic_resume(dev);
+}
+
 static const struct dev_pm_ops host1x_device_pm_ops = {
-	.suspend = pm_generic_suspend,
-	.resume = pm_generic_resume,
-	.freeze = pm_generic_freeze,
-	.thaw = pm_generic_thaw,
-	.poweroff = pm_generic_poweroff,
-	.restore = pm_generic_restore,
+	SET_SYSTEM_SLEEP_PM_OPS(host1x_suspend, host1x_resume)
 };
 
 struct bus_type host1x_bus_type = {
