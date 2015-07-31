@@ -328,7 +328,7 @@ static const struct falcon_ops vic_falcon_ops = {
 };
 
 static const struct vic_config vic_vic_t210_config = {
-	.ucode_name = "vic04_ucode.bin",
+	.ucode_name = "nvidia/tegra210/vic.bin",
 	.class_id = HOST1X_CLASS_VIC,
 	.powergate_id = TEGRA_POWERGATE_VIC,
 };
