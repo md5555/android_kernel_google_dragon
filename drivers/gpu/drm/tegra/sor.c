@@ -152,6 +152,7 @@ struct tegra_sor_soc {
 	const struct tegra_sor_hdmi_settings *settings;
 	unsigned int num_settings;
 
+	const u8 *xbar_cfg;
 	const u8 *lane_map;
 
 	const u8 (*voltage_swing)[4][4];
@@ -1629,8 +1630,9 @@ static void tegra_sor_edp_enable(struct drm_encoder *encoder)
 	struct tegra_sor_config config;
 	struct drm_display_mode *mode;
 	struct drm_display_info *info;
-	int err = 0;
+	unsigned int i;
 	u32 value;
+	int err;
 
 	mode = &encoder->crtc->state->adjusted_mode;
 	info = &output->connector.display_info;
@@ -1752,6 +1754,14 @@ static void tegra_sor_edp_enable(struct drm_encoder *encoder)
 	tegra_sor_writel(sor, value, SOR_PLL2);
 
 	usleep_range(200, 1000);
+
+	/* XXX not in TRM */
+	for (value = 0, i = 0; i < 5; i++)
+		value |= SOR_XBAR_CTRL_LINK0_XSEL(i, sor->soc->xbar_cfg[i]) |
+			 SOR_XBAR_CTRL_LINK1_XSEL(i, i);
+
+	tegra_sor_writel(sor, 0x00000000, SOR_XBAR_POL);
+	tegra_sor_writel(sor, value, SOR_XBAR_CTRL);
 
 	/* step 5 */
 	value = tegra_sor_readl(sor, SOR_PLL2);
@@ -2036,7 +2046,7 @@ static void tegra_sor_hdmi_enable(struct drm_encoder *encoder)
 	struct tegra_sor *sor = to_sor(output);
 	struct drm_display_mode *mode;
 	struct drm_display_info *info;
-	unsigned int div;
+	unsigned int div, i;
 	u32 value;
 	int err;
 
@@ -2148,20 +2158,13 @@ static void tegra_sor_hdmi_enable(struct drm_encoder *encoder)
 	value = SOR_REFCLK_DIV_INT(div) | SOR_REFCLK_DIV_FRAC(div);
 	tegra_sor_writel(sor, value, SOR_REFCLK);
 
-	/* XXX don't hardcode */
-	value = SOR_XBAR_CTRL_LINK1_XSEL(4, 4) |
-		SOR_XBAR_CTRL_LINK1_XSEL(3, 3) |
-		SOR_XBAR_CTRL_LINK1_XSEL(2, 2) |
-		SOR_XBAR_CTRL_LINK1_XSEL(1, 1) |
-		SOR_XBAR_CTRL_LINK1_XSEL(0, 0) |
-		SOR_XBAR_CTRL_LINK0_XSEL(4, 4) |
-		SOR_XBAR_CTRL_LINK0_XSEL(3, 3) |
-		SOR_XBAR_CTRL_LINK0_XSEL(2, 0) |
-		SOR_XBAR_CTRL_LINK0_XSEL(1, 1) |
-		SOR_XBAR_CTRL_LINK0_XSEL(0, 2);
-	tegra_sor_writel(sor, value, SOR_XBAR_CTRL);
+	/* XXX not in TRM */
+	for (value = 0, i = 0; i < 5; i++)
+		value |= SOR_XBAR_CTRL_LINK0_XSEL(i, sor->soc->xbar_cfg[i]) |
+			 SOR_XBAR_CTRL_LINK1_XSEL(i, i);
 
 	tegra_sor_writel(sor, 0x00000000, SOR_XBAR_POL);
+	tegra_sor_writel(sor, value, SOR_XBAR_CTRL);
 
 	/* switch to parent clock */
 	err = tegra_sor_set_parent_clock(sor, sor->clk_parent);
@@ -2554,6 +2557,10 @@ static const u8 tegra124_sor_lane_map[4] = {
 	2, 1, 0, 3,
 };
 
+static const u8 tegra124_sor_xbar_cfg[5] = {
+	0, 1, 2, 3, 4
+};
+
 static const u8 tegra124_sor_voltage_swing[4][4][4] = {
 	{
 		{ 0x13, 0x19, 0x1e, 0x28 },
@@ -2655,6 +2662,7 @@ static const struct tegra_sor_soc tegra124_sor = {
 	.supports_lvds = true,
 	.supports_hdmi = false,
 	.supports_dp = false,
+	.xbar_cfg = tegra124_sor_xbar_cfg,
 	.lane_map = tegra124_sor_lane_map,
 	.voltage_swing = tegra124_sor_voltage_swing,
 	.pre_emphasis = tegra124_sor_pre_emphasis,
@@ -2692,6 +2700,7 @@ static const struct tegra_sor_soc tegra132_sor = {
 	.supports_hdmi = false,
 	.supports_dp = false,
 	.lane_map = tegra124_sor_lane_map,
+	.xbar_cfg = tegra124_sor_xbar_cfg,
 	.voltage_swing = tegra124_sor_voltage_swing,
 	.pre_emphasis = tegra132_sor_pre_emphasis,
 	.post_cursor = tegra124_sor_post_cursor,
@@ -2702,11 +2711,16 @@ static const u8 tegra210_sor_lane_map[4] = {
 	0, 1, 2, 3,
 };
 
+static const u8 tegra210_sor_xbar_cfg[5] = {
+	2, 1, 0, 3, 4
+};
+
 static const struct tegra_sor_soc tegra210_sor = {
 	.supports_edp = true,
 	.supports_lvds = false,
 	.supports_hdmi = false,
 	.supports_dp = false,
+	.xbar_cfg = tegra210_sor_xbar_cfg,
 	.lane_map = tegra210_sor_lane_map,
 	.voltage_swing = tegra124_sor_voltage_swing,
 	.pre_emphasis = tegra124_sor_pre_emphasis,
@@ -2721,6 +2735,7 @@ static const struct tegra_sor_soc tegra210_sor1 = {
 	.supports_dp = true,
 	.num_settings = ARRAY_SIZE(tegra210_sor_hdmi_defaults),
 	.settings = tegra210_sor_hdmi_defaults,
+	.xbar_cfg = tegra210_sor_xbar_cfg,
 	.lane_map = tegra210_sor_lane_map,
 	.voltage_swing = tegra124_sor_voltage_swing,
 	.pre_emphasis = tegra124_sor_pre_emphasis,
