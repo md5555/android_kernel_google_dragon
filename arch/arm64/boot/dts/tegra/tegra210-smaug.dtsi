@@ -99,7 +99,7 @@
 		status = "okay";
 	};
 
-	sound {
+	sound: sound {
 		compatible = "nvidia,tegra-audio-t210ref-mobile-rt5677";
 		nvidia,model = "tegra-snd-t210ref-mobile-rt5677";
 		nvidia,spkr-en-gpios = <&rt5677 4 GPIO_ACTIVE_HIGH>;

@@ -471,5 +471,13 @@
 		compatible = "nvidia,tegra124-sysedp";
 		nvidia,margin = <0>;
 		nvidia,min-budget = <0>;
+
+		consumers {
+			consumer-speaker {
+				nvidia,consumer = <&sound>;
+				/* it's the fake data, need to update */
+				nvidia,states = <0 1270>; /* OFF ON */
+			};
+		};
 	};
 };
