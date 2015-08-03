@@ -1577,6 +1577,7 @@ static void tegra_sor_edp_disable(struct drm_encoder *encoder)
 		drm_panel_unprepare(output->panel);
 
 	reset_control_assert(sor->rst);
+	usleep_range(1000, 2000);
 	clk_disable_unprepare(sor->clk);
 }
 
@@ -1641,119 +1642,85 @@ static void tegra_sor_edp_enable(struct drm_encoder *encoder)
 	if (err < 0)
 		dev_err(sor->dev, "failed to enable clock: %d\n", err);
 
-	reset_control_deassert(sor->rst);
+	usleep_range(1000, 2000);
 
-	if (output->panel)
-		drm_panel_prepare(output->panel);
+	reset_control_deassert(sor->rst);
 
 	/* switch to safe parent clock */
 	err = tegra_sor_set_parent_clock(sor, sor->clk_safe);
 	if (err < 0)
 		dev_err(sor->dev, "failed to set safe parent clock: %d\n", err);
 
-	if (sor->aux) {
-		err = drm_dp_aux_enable(sor->aux);
-		if (err < 0)
-			dev_err(sor->dev, "failed to enable DP: %d\n", err);
+	err = tegra_io_rail_power_on(TEGRA_IO_RAIL_LVDS);
+	if (err < 0)
+		dev_err(sor->dev, "failed to power on LVDS rail: %d\n", err);
 
-		err = drm_dp_link_probe(sor->aux, &sor->link);
-		if (err < 0) {
-			dev_err(sor->dev, "failed to probe eDP link: %d\n",
-				err);
-			return;
-		}
+	usleep_range(20, 100);
+
+	drm_dp_aux_enable(sor->aux);
+
+	err = drm_dp_link_probe(sor->aux, &sor->link);
+	if (err < 0) {
+		dev_err(sor->dev, "failed to probe eDP link: %d\n", err);
+		goto out;
 	}
 
+	err = drm_dp_link_choose(&sor->link, mode, info);
+	if (err < 0) {
+		dev_err(sor->dev, "failed to choose link: %d\n", err);
+		goto out;
+	}
 
-	value = tegra_sor_readl(sor, SOR_CLK_CNTRL);
-	value &= ~SOR_CLK_CNTRL_DP_CLK_SEL_MASK;
-	value |= SOR_CLK_CNTRL_DP_CLK_SEL_SINGLE_DPCLK;
-	tegra_sor_writel(sor, value, SOR_CLK_CNTRL);
+	if (output->panel)
+		drm_panel_prepare(output->panel);
 
 	value = tegra_sor_readl(sor, SOR_PLL2);
 	value &= ~SOR_PLL2_BANDGAP_POWERDOWN;
 	tegra_sor_writel(sor, value, SOR_PLL2);
-	usleep_range(20, 100);
+
+	usleep_range(20, 40);
 
 	value = tegra_sor_readl(sor, SOR_PLL3);
 	value |= SOR_PLL3_PLL_VDD_MODE_3V3;
 	tegra_sor_writel(sor, value, SOR_PLL3);
 
-	value = SOR_PLL0_ICHPMP(0xf) | SOR_PLL0_VCOCAP_RST |
-		SOR_PLL0_PLLREG_LEVEL_V45 | SOR_PLL0_RESISTOR_EXT;
+	value = tegra_sor_readl(sor, SOR_PLL0);
+	value &= ~(SOR_PLL0_VCOPD | SOR_PLL0_PWR);
 	tegra_sor_writel(sor, value, SOR_PLL0);
 
 	value = tegra_sor_readl(sor, SOR_PLL2);
-	value |= SOR_PLL2_SEQ_PLLCAPPD;
 	value &= ~SOR_PLL2_SEQ_PLLCAPPD_ENFORCE;
-	value |= SOR_PLL2_LVDS_ENABLE;
+	value |= SOR_PLL2_SEQ_PLLCAPPD;
 	tegra_sor_writel(sor, value, SOR_PLL2);
 
-	value = SOR_PLL1_TERM_COMPOUT | SOR_PLL1_TMDS_TERM;
-	tegra_sor_writel(sor, value, SOR_PLL1);
-
-	while (true) {
-		value = tegra_sor_readl(sor, SOR_PLL2);
-		if ((value & SOR_PLL2_SEQ_PLLCAPPD_ENFORCE) == 0)
-			break;
-
-		usleep_range(250, 1000);
-	}
+	usleep_range(200, 400);
 
 	value = tegra_sor_readl(sor, SOR_PLL2);
 	value &= ~SOR_PLL2_POWERDOWN_OVERRIDE;
 	value &= ~SOR_PLL2_PORT_POWERDOWN;
 	tegra_sor_writel(sor, value, SOR_PLL2);
 
-	/*
-	 * power up
-	 */
-
-	/* set safe link bandwidth (1.62 Gbps) */
 	value = tegra_sor_readl(sor, SOR_CLK_CNTRL);
-	value &= ~SOR_CLK_CNTRL_DP_LINK_SPEED_MASK;
-	value |= SOR_CLK_CNTRL_DP_LINK_SPEED_G1_62;
+	value &= ~SOR_CLK_CNTRL_DP_CLK_SEL_MASK;
+	value |= SOR_CLK_CNTRL_DP_CLK_SEL_SINGLE_DPCLK;
 	tegra_sor_writel(sor, value, SOR_CLK_CNTRL);
 
-	/* step 1 */
-	value = tegra_sor_readl(sor, SOR_PLL2);
-	value |= SOR_PLL2_SEQ_PLLCAPPD_ENFORCE | SOR_PLL2_PORT_POWERDOWN |
-		 SOR_PLL2_BANDGAP_POWERDOWN;
-	tegra_sor_writel(sor, value, SOR_PLL2);
+	value = tegra_sor_readl(sor, SOR_DP_SPARE0);
+	/* XXX not in TRM */
+	value |= SOR_DP_SPARE_PANEL_INTERNAL;
+	value |= SOR_DP_SPARE_SEQ_ENABLE;
+	tegra_sor_writel(sor, value, SOR_DP_SPARE0);
+
+	/* XXX not in TRM */
+	tegra_sor_writel(sor, 0, SOR_LVDS);
 
 	value = tegra_sor_readl(sor, SOR_PLL0);
-	value |= SOR_PLL0_VCOPD | SOR_PLL0_PWR;
+	value &= ~SOR_PLL0_ICHPMP_MASK;
+	value &= ~SOR_PLL0_VCOCAP_MASK;
+	value |= SOR_PLL0_ICHPMP(0x1);
+	value |= SOR_PLL0_VCOCAP(0x3);
+	value |= SOR_PLL0_RESISTOR_EXT;
 	tegra_sor_writel(sor, value, SOR_PLL0);
-
-	value = tegra_sor_readl(sor, SOR_DP_PADCTL0);
-	value &= ~SOR_DP_PADCTL_PAD_CAL_PD;
-	tegra_sor_writel(sor, value, SOR_DP_PADCTL0);
-
-	/* step 2 */
-	err = tegra_io_rail_power_on(TEGRA_IO_RAIL_LVDS);
-	if (err < 0)
-		dev_err(sor->dev, "failed to power on I/O rail: %d\n", err);
-
-	usleep_range(5, 100);
-
-	/* step 3 */
-	value = tegra_sor_readl(sor, SOR_PLL2);
-	value &= ~SOR_PLL2_BANDGAP_POWERDOWN;
-	tegra_sor_writel(sor, value, SOR_PLL2);
-
-	usleep_range(20, 100);
-
-	/* step 4 */
-	value = tegra_sor_readl(sor, SOR_PLL0);
-	value &= ~SOR_PLL0_VCOPD;
-	value &= ~SOR_PLL0_PWR;
-	tegra_sor_writel(sor, value, SOR_PLL0);
-
-	value = tegra_sor_readl(sor, SOR_PLL2);
-	value &= ~SOR_PLL2_SEQ_PLLCAPPD_ENFORCE;
-	tegra_sor_writel(sor, value, SOR_PLL2);
-
-	usleep_range(200, 1000);
 
 	/* XXX not in TRM */
 	for (value = 0, i = 0; i < 5; i++)
@@ -1762,11 +1729,6 @@ static void tegra_sor_edp_enable(struct drm_encoder *encoder)
 
 	tegra_sor_writel(sor, 0x00000000, SOR_XBAR_POL);
 	tegra_sor_writel(sor, value, SOR_XBAR_CTRL);
-
-	/* step 5 */
-	value = tegra_sor_readl(sor, SOR_PLL2);
-	value &= ~SOR_PLL2_PORT_POWERDOWN;
-	tegra_sor_writel(sor, value, SOR_PLL2);
 
 	/* switch to DP parent clock */
 	err = tegra_sor_set_parent_clock(sor, sor->clk_dp);
@@ -1786,22 +1748,20 @@ static void tegra_sor_edp_enable(struct drm_encoder *encoder)
 	value |= SOR_DP_LINKCTL_ENABLE;
 	tegra_sor_writel(sor, value, SOR_DP_LINKCTL0);
 
-	/* calibrate termination resistance (XXX do this only on HPD) */
 	tegra_sor_dp_term_calibrate(sor);
 
 	err = drm_dp_link_train(&sor->link);
 	if (err < 0) {
 		dev_err(sor->dev, "link training failed: %d\n", err);
-		return;
+		goto out;
 	}
 
 	dev_dbg(sor->dev, "link training succeeded\n");
 
 	err = drm_dp_link_power_up(sor->aux, &sor->link);
 	if (err < 0) {
-		dev_err(sor->dev, "failed to power up eDP link: %d\n",
-			err);
-		return;
+		dev_err(sor->dev, "failed to power up eDP link: %d\n", err);
+		goto out;
 	}
 
 	/* compute configuration */
@@ -1811,21 +1771,11 @@ static void tegra_sor_edp_enable(struct drm_encoder *encoder)
 	err = tegra_sor_compute_config(sor, mode, &config, &sor->link);
 	if (err < 0) {
 		dev_err(sor->dev, "failed to compute configuration: %d\n", err);
-		return;
+		goto out;
 	}
 
 	tegra_sor_apply_config(sor, &config);
-
-	err = tegra_sor_power_up(sor, 250);
-	if (err < 0)
-		dev_err(sor->dev, "failed to power up SOR: %d\n", err);
-
 	tegra_sor_mode_set(sor, mode, info);
-
-	/* CSTM (LVDS, link A/B, upper) */
-	value = SOR_CSTM_LVDS | SOR_CSTM_LINK_ACT_A | SOR_CSTM_LINK_ACT_B |
-		SOR_CSTM_UPPER;
-	tegra_sor_writel(sor, value, SOR_CSTM);
 
 	/* PWM setup */
 	err = tegra_sor_setup_pwm(sor, 250);
@@ -1834,22 +1784,30 @@ static void tegra_sor_edp_enable(struct drm_encoder *encoder)
 
 	tegra_sor_update(sor);
 
+	err = tegra_sor_power_up(sor, 250);
+	if (err < 0)
+		dev_err(sor->dev, "failed to power up SOR: %d\n", err);
+
+	/* attach and wake up */
+	err = tegra_sor_attach(sor);
+	if (err < 0)
+		dev_err(sor->dev, "failed to attach SOR: %d\n", err);
+
 	value = tegra_dc_readl(dc, DC_DISP_DISP_WIN_OPTIONS);
 	value |= SOR_ENABLE;
 	tegra_dc_writel(dc, value, DC_DISP_DISP_WIN_OPTIONS);
 
 	tegra_dc_commit(dc);
 
-	err = tegra_sor_attach(sor);
-	if (err < 0)
-		dev_err(sor->dev, "failed to attach SOR: %d\n", err);
-
 	err = tegra_sor_wakeup(sor);
 	if (err < 0)
-		dev_err(sor->dev, "failed to enable DC: %d\n", err);
+		dev_err(sor->dev, "failed to wakeup SOR: %d\n", err);
 
 	if (output->panel)
 		drm_panel_enable(output->panel);
+
+out:
+	drm_dp_aux_disable(sor->aux);
 }
 
 static int
