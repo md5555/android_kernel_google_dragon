@@ -10,6 +10,7 @@
 #include <linux/debugfs.h>
 #include <linux/host1x.h>
 #include <linux/module.h>
+#include <linux/mutex.h>
 #include <linux/of.h>
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
@@ -54,6 +55,9 @@ struct tegra_dsi {
 	struct host1x_client client;
 	struct tegra_output output;
 	struct device *dev;
+
+	bool dc_active;
+	struct mutex dcs_lock;
 
 	void __iomem *regs;
 
@@ -695,9 +699,14 @@ static void tegra_dsi_disable(struct tegra_dsi *dsi)
 		tegra_dsi_ganged_disable(dsi);
 	}
 
+	mutex_lock(&dsi->dcs_lock);
+
 	value = tegra_dsi_readl(dsi, DSI_POWER_CONTROL);
 	value &= ~DSI_POWER_CONTROL_ENABLE;
 	tegra_dsi_writel(dsi, value, DSI_POWER_CONTROL);
+	dsi->dc_active = false;
+
+	mutex_unlock(&dsi->dcs_lock);
 
 	if (dsi->slave)
 		tegra_dsi_disable(dsi->slave);
@@ -897,6 +906,8 @@ static void tegra_dsi_encoder_mode_set(struct drm_encoder *encoder,
 	if (output->panel)
 		drm_panel_prepare(output->panel);
 
+	mutex_lock(&dsi->dcs_lock);
+
 	tegra_dsi_configure(dsi, dc->pipe, mode);
 
 	/* enable display controller */
@@ -905,9 +916,14 @@ static void tegra_dsi_encoder_mode_set(struct drm_encoder *encoder,
 	tegra_dc_writel(dc, value, DC_DISP_DISP_WIN_OPTIONS);
 
 	tegra_dc_commit(dc);
+	dsi->dc_active = true;
+	if (dsi->slave)
+		dsi->slave->dc_active = true;
 
 	/* enable DSI controller */
 	tegra_dsi_enable(dsi);
+
+	mutex_unlock(&dsi->dcs_lock);
 
 	if (output->panel)
 		drm_panel_enable(output->panel);
@@ -1215,19 +1231,27 @@ static ssize_t tegra_dsi_host_transfer(struct mipi_dsi_host *host,
 	int i;
 	struct mipi_dsi_packet packet;
 	const u8 *header;
-	size_t count;
 	ssize_t err;
 	u32 value;
 
+	mutex_lock(&dsi->dcs_lock);
+	if (dsi->dc_active) {
+		DRM_ERROR("Can't send dcs commands while dc is active\n");
+		err = -EIO;
+		goto out;
+	}
+
 	err = mipi_dsi_create_packet(&packet, msg);
 	if (err < 0)
-		return err;
+		goto out;
 
 	header = packet.header;
 
 	/* maximum FIFO depth is 1920 words */
-	if (packet.size > dsi->video_fifo_depth * 4)
-		return -ENOSPC;
+	if (packet.size > dsi->video_fifo_depth * 4) {
+		err = -ENOSPC;
+		goto out;
+	}
 
 	/*
 	 * Clear the control and packet sequence registers. Without this code,
@@ -1292,15 +1316,13 @@ static ssize_t tegra_dsi_host_transfer(struct mipi_dsi_host *host,
 
 	err = tegra_dsi_transmit(dsi, 250);
 	if (err < 0)
-		return err;
+		goto out;
 
 	if ((msg->flags & MIPI_DSI_MSG_REQ_ACK) ||
 	    (msg->rx_buf && msg->rx_len > 0)) {
 		err = tegra_dsi_wait_for_response(dsi, 250);
 		if (err < 0)
-			return err;
-
-		count = err;
+			goto out;
 
 		value = tegra_dsi_readl(dsi, DSI_RD_DATA);
 		switch (value) {
@@ -1321,29 +1343,25 @@ static ssize_t tegra_dsi_host_transfer(struct mipi_dsi_host *host,
 			break;
 		}
 
-		if (count > 1) {
-			err = tegra_dsi_read_response(dsi, msg, count);
+		if (err > 1) {
+			err = tegra_dsi_read_response(dsi, msg, err);
 			if (err < 0)
 				dev_err(dsi->dev,
 					"failed to parse response: %zd\n",
 					err);
-			else {
-				/*
-				 * For read commands, return the number of
-				 * bytes returned by the peripheral.
-				 */
-				count = err;
-			}
 		}
 	} else {
 		/*
 		 * For write commands, we have transmitted the 4-byte header
 		 * plus the variable-length payload.
 		 */
-		count = 4 + packet.payload_length;
+		err = 4 + packet.payload_length;
 	}
 
-	return count;
+out:
+	mutex_unlock(&dsi->dcs_lock);
+
+	return err;
 }
 
 static int tegra_dsi_ganged_setup(struct tegra_dsi *dsi)
@@ -1459,6 +1477,8 @@ static int tegra_dsi_probe(struct platform_device *pdev)
 	dsi->output.dev = dsi->dev = &pdev->dev;
 	dsi->video_fifo_depth = 1920;
 	dsi->host_fifo_depth = 64;
+	dsi->dc_active = false;
+	mutex_init(&dsi->dcs_lock);
 
 	err = tegra_dsi_ganged_probe(dsi);
 	if (err < 0)
