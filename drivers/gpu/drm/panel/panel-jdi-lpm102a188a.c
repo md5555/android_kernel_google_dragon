@@ -106,7 +106,7 @@ static int panel_jdi_write_adaptive_brightness_control(struct panel_jdi *jdi)
 	int ret;
 	u8 data;
 
-	data = RSP_WRITE_ADAPTIVE_BRIGHTNESS_CONTROL_C_VIDEO;
+	data = RSP_WRITE_ADAPTIVE_BRIGHTNESS_CONTROL_C_UI;
 
 	ret = mipi_dsi_dcs_write(jdi->dsi,
 			MIPI_DCS_RSP_WRITE_ADAPTIVE_BRIGHTNESS_CONTROL, &data,
