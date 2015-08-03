@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2014 NVIDIA Corporation. All rights reserved.
+ * Copyright (c) 2013-2015 NVIDIA Corporation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,6 +27,7 @@
 #include <asm/page.h>
 #include <linux/dma-mapping.h>
 #include <linux/string.h>
+#include <linux/miscdevice.h>
 
 #include "ote_protocol.h"
 
@@ -43,6 +44,11 @@ struct circular_buffer {
 static int ote_logging_enabled;
 struct circular_buffer *cb;
 
+struct miscdevice tlk_logger_dev = {
+	.minor = MISC_DYNAMIC_MINOR,
+	.name = "tlk_logger",
+};
+
 /*
  * Initialize the shared buffer for TLK logging.
  * The shared buffer is allocated in DMA memory to get uncached memory
@@ -55,7 +61,8 @@ static int circ_buf_init(struct circular_buffer **cbptr)
 
 	dma_addr_t tp;
 
-	*cbptr = (struct circular_buffer *) dma_alloc_coherent(NULL,
+	*cbptr = (struct circular_buffer *) dma_alloc_coherent(
+			tlk_logger_dev.this_device,
 			sizeof(struct circular_buffer), &tp, GFP_KERNEL);
 	if (!*cbptr) {
 		pr_err("%s: no memory avaiable for circular buffer struct\n",
@@ -68,13 +75,14 @@ static int circ_buf_init(struct circular_buffer **cbptr)
 	(*cbptr)->end = 0;
 	(*cbptr)->size = LOGBUF_SIZE;
 
-	(*cbptr)->buf = (char *) dma_alloc_coherent(NULL, LOGBUF_SIZE,
+	(*cbptr)->buf = (char *) dma_alloc_coherent(
+			tlk_logger_dev.this_device, LOGBUF_SIZE,
 			&tp, GFP_KERNEL);
 	if (!(*cbptr)->buf) {
 			pr_err("%s: no memory avaiable for shared buffer\n",
 				__func__);
 		/* Frees the memory allocated using dma_alloc_coherent */
-			dma_free_coherent(NULL,
+			dma_free_coherent(tlk_logger_dev.this_device,
 				sizeof(struct circular_buffer), cbptr, tp);
 			return -ENOMEM;
 	}
@@ -191,6 +199,12 @@ static int __init ote_logger_init(void)
 		return ret;
 	}
 
+	ret = misc_register(&tlk_logger_dev);
+	if (ret) {
+		pr_err("%s: fail (%d) to register device\n", __func__, ret);
+		return ret;
+	}
+
 	if (circ_buf_init(&cb) != 0)
 		return -1;
 
@@ -206,4 +220,4 @@ static int __init ote_logger_init(void)
 	return 0;
 }
 
-arch_initcall(ote_logger_init);
+module_init(ote_logger_init);
