@@ -477,12 +477,16 @@ int drm_dp_aux_attach(struct drm_dp_aux *aux, struct tegra_output *output)
 	if (err < 0)
 		return err;
 
-	err = wait_for(drm_dp_aux_detect(aux) == connector_status_connected,
+	if (output->panel) {
+		err = wait_for(
+			drm_dp_aux_detect(aux) == connector_status_connected,
 			250);
-	if (!err)
-		enable_irq(dpaux->irq);
+		if (err)
+			return -ETIMEDOUT;
+	}
 
-	return err;
+	enable_irq(dpaux->irq);
+	return 0;
 }
 
 int drm_dp_aux_detach(struct drm_dp_aux *aux)
@@ -496,9 +500,17 @@ int drm_dp_aux_detach(struct drm_dp_aux *aux)
 	if (err < 0)
 		return err;
 
-	return wait_for(
-		drm_dp_aux_detect(aux) == connector_status_disconnected,
-		250);
+	if (dpaux->output->panel) {
+		err = wait_for(
+			drm_dp_aux_detect(aux) == connector_status_disconnected,
+			250);
+		if (err)
+			return -ETIMEDOUT;
+
+		dpaux->output = NULL;
+	}
+
+	return 0;
 }
 
 int drm_dp_aux_enable(struct drm_dp_aux *aux)
