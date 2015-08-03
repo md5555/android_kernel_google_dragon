@@ -520,11 +520,6 @@
 				reg = <0x55>;
 				battery-name = "battery";
 			};
-
-			als: si114x@5a {
-				compatible = "sl,si114x";
-				reg = <0x5a>;
-			};
 		};
 
 		usbc_extcon: extcon {
