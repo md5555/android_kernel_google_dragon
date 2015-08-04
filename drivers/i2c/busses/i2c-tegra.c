@@ -27,12 +27,18 @@
 #include <linux/slab.h>
 #include <linux/of_device.h>
 #include <linux/module.h>
+#include <linux/regulator/consumer.h>
 #include <linux/reset.h>
+
+#include <soc/tegra/pmc.h>
 
 #include <asm/unaligned.h>
 
 #define TEGRA_I2C_TIMEOUT (msecs_to_jiffies(1000))
 #define BYTES_PER_FIFO_WORD 4
+
+#define VI_I2C_REG_SHIFT			2
+#define VI_I2C_REG_OFFSET			0xc00
 
 #define I2C_CNFG				0x000
 #define I2C_CNFG_DEBOUNCE_CNT_SHIFT		12
@@ -44,6 +50,7 @@
 #define I2C_SL_CNFG_NEWSL			(1<<2)
 #define I2C_SL_ADDR1				0x02c
 #define I2C_SL_ADDR2				0x030
+#define I2C_TLOW_SEXT				0x034
 #define I2C_TX_FIFO				0x050
 #define I2C_RX_FIFO				0x054
 #define I2C_PACKET_TRANSFER_STATUS		0x058
@@ -70,6 +77,15 @@
 #define I2C_CLK_DIVISOR				0x06c
 #define I2C_CLK_DIVISOR_STD_FAST_MODE_SHIFT	16
 #define I2C_CLK_MULTIPLIER_STD_FAST_MODE	8
+#define I2C_BUS_CLEAR_CNFG			0x084
+#define I2C_INTERFACE_TIMING_0			0x094
+#define I2C_TLOW				2
+#define I2C_TLOW_SHIFT				0
+#define I2C_THIGH				4
+#define I2C_THIGH_SHIFT				8
+#define I2C_INTERFACE_TIMING_1			0x098
+#define I2C_HS_INTERFACE_TIMING_0		0x09C
+#define I2C_HS_INTERFACE_TIMING_1		0x0A0
 
 #define DVC_CTRL_REG1				0x000
 #define DVC_CTRL_REG1_INTR_EN			(1<<10)
@@ -129,6 +145,12 @@ enum msg_end_type {
  *		fast-clk.
  * @has_config_load_reg: Has the config load register to load the new
  *		configuration.
+ * @has_regulator: Controller requires extrnal regulator to be powered on
+ *		during transfers.
+ * @has_powergate: Controller is located inside a powergate partition.
+ * @is_vi: Identifies the VI i2c controller, has a different register layout,
+ *		and needs more clocks.
+ * @powergate: Powergate partition ID, if applicable.
  * @clk_divisor_hs_mode: Clock divisor in HS mode.
  * @clk_divisor_std_fast_mode: Clock divisor in standard/fast mode. It is
  *		applicable if there is no fast clock source i.e. single clock
@@ -140,6 +162,10 @@ struct tegra_i2c_hw_feature {
 	bool has_per_pkt_xfer_complete_irq;
 	bool has_single_clk_source;
 	bool has_config_load_reg;
+	bool has_regulator;
+	bool has_powergate;
+	bool is_vi;
+	int powergate_id;
 	int clk_divisor_hs_mode;
 	int clk_divisor_std_fast_mode;
 	u16 clk_divisor_fast_plus_mode;
@@ -170,6 +196,9 @@ struct tegra_i2c_dev {
 	struct i2c_adapter adapter;
 	struct clk *div_clk;
 	struct clk *fast_clk;
+	struct clk *slow_clk;
+	struct clk *host1x_clk;
+	struct regulator *reg;
 	struct reset_control *rst;
 	void __iomem *base;
 	int cont_id;
@@ -207,6 +236,8 @@ static unsigned long tegra_i2c_reg_addr(struct tegra_i2c_dev *i2c_dev,
 {
 	if (i2c_dev->is_dvc)
 		reg += (reg >= I2C_TX_FIFO) ? 0x10 : 0x40;
+	else if (i2c_dev->hw->is_vi)
+		reg = VI_I2C_REG_OFFSET + (reg << VI_I2C_REG_SHIFT);
 	return reg;
 }
 
@@ -397,6 +428,24 @@ static void tegra_dvc_init(struct tegra_i2c_dev *i2c_dev)
 	dvc_writel(i2c_dev, val, DVC_CTRL_REG1);
 }
 
+/*
+ * One of the Tegra I2C blocks is inside the VI (Video Interface?)
+ * block.  This block is identical to the rest of the I2C blocks, except that
+ * it only supports master mode, it has registers moved around, and it needs
+ * some extra init to get it into I2C mode.  The register moves are handled
+ * by i2c_readl and i2c_writel.
+ */
+static void tegra_vi_init(struct tegra_i2c_dev *i2c_dev)
+{
+	i2c_writel(i2c_dev, (I2C_TLOW << I2C_TLOW_SHIFT) |
+		(I2C_THIGH << I2C_THIGH_SHIFT), I2C_INTERFACE_TIMING_0);
+	i2c_writel(i2c_dev, 0x04070404, I2C_INTERFACE_TIMING_1);
+	i2c_writel(i2c_dev, 0x308, I2C_HS_INTERFACE_TIMING_0);
+	i2c_writel(i2c_dev, 0x0B0B0B, I2C_HS_INTERFACE_TIMING_1);
+	i2c_writel(i2c_dev, 0x90004, I2C_BUS_CLEAR_CNFG);
+	i2c_writel(i2c_dev, 0x0, I2C_TLOW_SEXT);
+}
+
 static inline int tegra_i2c_clock_enable(struct tegra_i2c_dev *i2c_dev)
 {
 	int ret;
@@ -412,13 +461,44 @@ static inline int tegra_i2c_clock_enable(struct tegra_i2c_dev *i2c_dev)
 	if (ret < 0) {
 		dev_err(i2c_dev->dev,
 			"Enabling div clk failed, err %d\n", ret);
-		clk_disable(i2c_dev->fast_clk);
+		goto err_fast_disable;
 	}
+	if (i2c_dev->hw->is_vi) {
+		ret = clk_prepare_enable(i2c_dev->slow_clk);
+		if (ret < 0) {
+			dev_err(i2c_dev->dev,
+				"Enabling slow clk failed, err %d\n", ret);
+			goto err_div_disable;
+		}
+
+		ret = clk_prepare_enable(i2c_dev->host1x_clk);
+		if (ret < 0) {
+			dev_err(i2c_dev->dev,
+				"Enabling host1x clk failed, err %d\n", ret);
+			goto err_slow_disable;
+		}
+	}
+
+	return 0;
+
+err_slow_disable:
+	if (i2c_dev->hw->is_vi)
+		clk_disable_unprepare(i2c_dev->slow_clk);
+err_div_disable:
+	clk_disable(i2c_dev->div_clk);
+err_fast_disable:
+	if (!i2c_dev->hw->has_single_clk_source)
+		clk_disable(i2c_dev->fast_clk);
+
 	return ret;
 }
 
 static inline void tegra_i2c_clock_disable(struct tegra_i2c_dev *i2c_dev)
 {
+	if (i2c_dev->hw->is_vi) {
+		clk_disable_unprepare(i2c_dev->host1x_clk);
+		clk_disable_unprepare(i2c_dev->slow_clk);
+	}
 	clk_disable(i2c_dev->div_clk);
 	if (!i2c_dev->hw->has_single_clk_source)
 		clk_disable(i2c_dev->fast_clk);
@@ -449,13 +529,16 @@ static int tegra_i2c_init(struct tegra_i2c_dev *i2c_dev)
 	i2c_writel(i2c_dev, val, I2C_CNFG);
 	i2c_writel(i2c_dev, 0, I2C_INT_MASK);
 
+	if (i2c_dev->hw->is_vi)
+		tegra_vi_init(i2c_dev);
+
 	/* Make sure clock divisor programmed correctly */
 	clk_divisor = i2c_dev->hw->clk_divisor_hs_mode;
 	clk_divisor |= i2c_dev->clk_divisor_non_hs_mode <<
 					I2C_CLK_DIVISOR_STD_FAST_MODE_SHIFT;
 	i2c_writel(i2c_dev, clk_divisor, I2C_CLK_DIVISOR);
 
-	if (!i2c_dev->is_dvc) {
+	if (!i2c_dev->is_dvc && !i2c_dev->hw->is_vi) {
 		u32 sl_cfg = i2c_readl(i2c_dev, I2C_SL_CNFG);
 		sl_cfg |= I2C_SL_CNFG_NACK | I2C_SL_CNFG_NEWSL;
 		i2c_writel(i2c_dev, sl_cfg, I2C_SL_CNFG);
@@ -492,6 +575,53 @@ static int tegra_i2c_init(struct tegra_i2c_dev *i2c_dev)
 	}
 
 	return err;
+}
+
+static int tegra_i2c_power_enable(struct tegra_i2c_dev *i2c_dev)
+{
+	int ret;
+
+	if (i2c_dev->hw->has_regulator) {
+		ret = regulator_enable(i2c_dev->reg);
+		if (ret)
+			return ret;
+	}
+
+	if (i2c_dev->hw->has_powergate) {
+		ret = tegra_powergate_sequence_power_up(
+				i2c_dev->hw->powergate_id, i2c_dev->div_clk,
+				i2c_dev->rst);
+		if (ret)
+			goto err_regulator;
+
+		ret = tegra_i2c_init(i2c_dev);
+		if (ret)
+			goto err_powergate;
+	}
+
+	return 0;
+
+err_regulator:
+	if (i2c_dev->hw->has_regulator)
+		regulator_disable(i2c_dev->reg);
+err_powergate:
+	if (i2c_dev->hw->has_powergate)
+		tegra_powergate_sequence_power_down(
+				i2c_dev->hw->powergate_id, i2c_dev->div_clk,
+				i2c_dev->rst);
+
+	return ret;
+}
+
+static void tegra_i2c_power_disable(struct tegra_i2c_dev *i2c_dev)
+{
+	if (i2c_dev->hw->has_regulator)
+		regulator_disable(i2c_dev->reg);
+
+	if (i2c_dev->hw->has_powergate)
+		tegra_powergate_sequence_power_down(
+				i2c_dev->hw->powergate_id, i2c_dev->div_clk,
+				i2c_dev->rst);
 }
 
 static irqreturn_t tegra_i2c_isr(int irq, void *dev_id)
@@ -662,8 +792,15 @@ static int tegra_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[],
 	if (i2c_dev->is_suspended)
 		return -EBUSY;
 
+	ret = tegra_i2c_power_enable(i2c_dev);
+	if (ret < 0) {
+		dev_err(i2c_dev->dev, "Regulator enable failed %d\n", ret);
+		return ret;
+	}
+
 	ret = tegra_i2c_clock_enable(i2c_dev);
 	if (ret < 0) {
+		tegra_i2c_power_disable(i2c_dev);
 		dev_err(i2c_dev->dev, "Clock enable failed %d\n", ret);
 		return ret;
 	}
@@ -681,6 +818,7 @@ static int tegra_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[],
 			break;
 	}
 	tegra_i2c_clock_disable(i2c_dev);
+	tegra_i2c_power_disable(i2c_dev);
 	return ret ?: i;
 }
 
@@ -740,6 +878,20 @@ static const struct tegra_i2c_hw_feature tegra124_i2c_hw = {
 	.has_config_load_reg = true,
 };
 
+static const struct tegra_i2c_hw_feature tegra210_i2c_vi_hw = {
+	.has_continue_xfer_support = true,
+	.has_per_pkt_xfer_complete_irq = true,
+	.has_single_clk_source = true,
+	.clk_divisor_hs_mode = 1,
+	.clk_divisor_std_fast_mode = 0x19,
+	.clk_divisor_fast_plus_mode = 0,
+	.has_config_load_reg = false,
+	.has_regulator = true,
+	.has_powergate = true,
+	.powergate_id = TEGRA_POWERGATE_VENC,
+	.is_vi = true,
+};
+
 /* Match table for of_platform binding */
 static const struct of_device_id tegra_i2c_of_match[] = {
 	{ .compatible = "nvidia,tegra124-i2c", .data = &tegra124_i2c_hw, },
@@ -747,6 +899,8 @@ static const struct of_device_id tegra_i2c_of_match[] = {
 	{ .compatible = "nvidia,tegra30-i2c", .data = &tegra30_i2c_hw, },
 	{ .compatible = "nvidia,tegra20-i2c", .data = &tegra20_i2c_hw, },
 	{ .compatible = "nvidia,tegra20-i2c-dvc", .data = &tegra20_i2c_hw, },
+	{ .compatible = "nvidia,tegra210-i2c-vi",
+		.data = &tegra210_i2c_vi_hw, },
 	{},
 };
 MODULE_DEVICE_TABLE(of, tegra_i2c_of_match);
@@ -870,6 +1024,27 @@ static int tegra_i2c_probe(struct platform_device *pdev)
 		i2c_dev->fast_clk = fast_clk;
 	}
 
+	if (i2c_dev->hw->is_vi) {
+		i2c_dev->slow_clk = devm_clk_get(&pdev->dev, "slow-clk");
+		if (IS_ERR(i2c_dev->slow_clk)) {
+			dev_err(&pdev->dev, "missing slow clock");
+			return PTR_ERR(i2c_dev->slow_clk);
+		}
+		i2c_dev->host1x_clk = devm_clk_get(&pdev->dev, "host1x-clk");
+		if (IS_ERR(i2c_dev->host1x_clk)) {
+			dev_err(&pdev->dev, "missing host1x clock");
+			return PTR_ERR(i2c_dev->host1x_clk);
+		}
+	}
+
+	if (i2c_dev->hw->has_regulator) {
+		i2c_dev->reg = devm_regulator_get(&pdev->dev, "avdd");
+		if (IS_ERR(i2c_dev->reg)) {
+			dev_err(&pdev->dev, "could not get regulator");
+			return PTR_ERR(i2c_dev->reg);
+		}
+	}
+
 	platform_set_drvdata(pdev, i2c_dev);
 
 	if (!i2c_dev->hw->has_single_clk_source) {
@@ -901,10 +1076,12 @@ static int tegra_i2c_probe(struct platform_device *pdev)
 		goto unprepare_fast_clk;
 	}
 
-	ret = tegra_i2c_init(i2c_dev);
-	if (ret) {
-		dev_err(&pdev->dev, "Failed to initialize i2c controller");
-		goto unprepare_div_clk;
+	if (!i2c_dev->hw->has_powergate) {
+		ret = tegra_i2c_init(i2c_dev);
+		if (ret) {
+			dev_err(&pdev->dev, "Failed to initialize i2c controller");
+			goto unprepare_div_clk;
+		}
 	}
 
 	ret = devm_request_irq(&pdev->dev, i2c_dev->irq,
@@ -978,11 +1155,12 @@ static int tegra_i2c_resume(struct device *dev)
 
 	i2c_lock_adapter(&i2c_dev->adapter);
 
-	ret = tegra_i2c_init(i2c_dev);
-
-	if (ret) {
-		i2c_unlock_adapter(&i2c_dev->adapter);
-		return ret;
+	if (!i2c_dev->hw->has_powergate) {
+		ret = tegra_i2c_init(i2c_dev);
+		if (ret) {
+			i2c_unlock_adapter(&i2c_dev->adapter);
+			return ret;
+		}
 	}
 
 	i2c_dev->is_suspended = false;

@@ -6,6 +6,7 @@ Required properties:
 	"nvidia,tegra30-i2c"
 	"nvidia,tegra20-i2c"
 	"nvidia,tegra20-i2c-dvc"
+	"nvidia,tegra210-i2c-vi"
   Details of compatible are as follows:
   nvidia,tegra20-i2c-dvc: Tegra20 has specific I2C controller called as DVC I2C
 	controller. This only support master mode of I2C communication. Register
@@ -35,6 +36,10 @@ Required properties:
 	Due to above changes, Tegra114 I2C driver makes incompatible with
 	previous hardware driver. Hence, tegra114 I2C controller is compatible
 	with "nvidia,tegra114-i2c".
+  nvidia,tegra210-i2c-vi: Tegra210 has specific I2C controller for the purposes
+	of VI block. It has different register addressing layout and requires
+	additional initialization before issuing transfers. Moreover, it needs
+	two additional clocks and external regulator.
 - reg: Should contain I2C controller registers physical address and length.
 - interrupts: Should contain I2C controller interrupts.
 - address-cells: Address cells for I2C device address.
@@ -47,6 +52,12 @@ Required properties:
   - fast-clk
   Tegra114:
   - div-clk
+  Tegra210 VI I2C:
+  - div-clk
+  - slow-clk
+  - host1x-clk
+- avdd-supply: (Tegra210 VI I2C only) External regulator driving the analog
+  interface. See ../regulator/regulator.txt for details.
 - resets: Must contain an entry for each entry in reset-names.
   See ../reset/reset.txt for details.
 - reset-names: Must include the following entries:
