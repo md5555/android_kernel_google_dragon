@@ -177,9 +177,10 @@ static int do_waitchks(struct host1x_job *job, struct host1x *host,
 	return 0;
 }
 
-static unsigned int pin_job(struct host1x_job *job)
+static int pin_job(struct host1x_job *job)
 {
 	unsigned int i;
+	int err;
 
 	job->num_unpins = 0;
 
@@ -189,12 +190,16 @@ static unsigned int pin_job(struct host1x_job *job)
 		dma_addr_t phys_addr;
 
 		reloc->target.bo = host1x_bo_get(reloc->target.bo);
-		if (!reloc->target.bo)
+		if (!reloc->target.bo) {
+			err = -EINVAL;
 			goto unpin;
+		}
 
 		phys_addr = host1x_bo_pin(reloc->target.bo, &sgt);
-		if (!phys_addr)
+		if (!phys_addr) {
+			err = -ENOMEM;
 			goto unpin;
+		}
 
 		job->addr_phys[job->num_unpins] = phys_addr;
 		job->unpins[job->num_unpins].bo = reloc->target.bo;
@@ -208,12 +213,16 @@ static unsigned int pin_job(struct host1x_job *job)
 		dma_addr_t phys_addr;
 
 		g->bo = host1x_bo_get(g->bo);
-		if (!g->bo)
+		if (!g->bo) {
+			err = -EINVAL;
 			goto unpin;
+		}
 
 		phys_addr = host1x_bo_pin(g->bo, &sgt);
-		if (!phys_addr)
+		if (!phys_addr) {
+			err = -ENOMEM;
 			goto unpin;
+		}
 
 		job->addr_phys[job->num_unpins] = phys_addr;
 		job->unpins[job->num_unpins].bo = g->bo;
@@ -221,11 +230,11 @@ static unsigned int pin_job(struct host1x_job *job)
 		job->num_unpins++;
 	}
 
-	return job->num_unpins;
+	return 0;
 
 unpin:
 	host1x_job_unpin(job);
-	return 0;
+	return err;
 }
 
 static unsigned int do_relocs(struct host1x_job *job, struct host1x_bo *cmdbuf)
@@ -528,7 +537,7 @@ int host1x_job_pin(struct host1x_job *job, struct device *dev)
 
 	/* pin memory */
 	err = pin_job(job);
-	if (!err)
+	if (err || job->num_unpins == 0)
 		goto out;
 
 	/* patch gathers */
