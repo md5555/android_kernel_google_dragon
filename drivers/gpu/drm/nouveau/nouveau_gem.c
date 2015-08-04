@@ -1067,7 +1067,8 @@ nouveau_gem_ioctl_pushbuf_2(struct drm_device *dev, void *data,
 out_fence:
 	nouveau_fence_unref(&fence);
 out_input_fence:
-	sync_fence_put(input_fence);
+	if (input_fence)
+		sync_fence_put(input_fence);
 out_validate:
 	if (req->nr_buffers)
 		validate_fini(&pb_data->op, fence, bo);
