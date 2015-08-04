@@ -136,8 +136,10 @@
 			compatible = "nvidia,tegra210-nvdec";
 			reg = <0x0 0x54480000 0x0 0x00040000>;
 			clocks = <&tegra_car TEGRA210_CLK_NVDEC>,
-				 <&tegra_car TEGRA210_CLK_NVJPG>;
-			clock-names = "nvdec", "nvjpg";
+				 <&tegra_car TEGRA210_CLK_NVDEC_CBUS>,
+				 <&tegra_car TEGRA210_CLK_NVJPG>,
+				 <&tegra_car TEGRA210_CLK_NVDEC_EMC>;
+			clock-names = "nvdec", "nvdec_cbus", "nvjpg", "emc";
 			resets = <&tegra_car TEGRA210_CLK_NVDEC>,
 				 <&tegra_car TEGRA210_CLK_NVJPG>;
 			reset-names = "nvdec", "nvjpg";
