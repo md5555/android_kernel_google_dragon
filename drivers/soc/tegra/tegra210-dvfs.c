@@ -808,7 +808,7 @@ static void adjust_emc_dvfs_table(struct dvfs *d)
 	}
 }
 
-int tegra210_init_dvfs(void)
+int __init tegra210_init_dvfs(void)
 {
 	int soc_speedo_id = tegra_sku_info.soc_speedo_id;
 	int core_process_id = tegra_sku_info.core_process_id;
