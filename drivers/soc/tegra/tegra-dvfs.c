@@ -659,6 +659,9 @@ int tegra_dvfs_get_freqs(struct clk *c, unsigned long **freqs, int *num_freqs)
 {
 	struct dvfs *d;
 
+	if (!core_dvfs_started)
+		return -EINVAL;
+
 	d = tegra_clk_to_dvfs(c);
 	if (d == NULL) {
 		pr_err("Failed to get dvfs structure\n");
