@@ -138,6 +138,7 @@ void tegra_mc_write_emem_configuration(struct tegra_mc *mc, unsigned long rate);
 unsigned int tegra_mc_get_emem_device_count(struct tegra_mc *mc);
 const struct tegra_mc_flush *tegra_mc_flush_get(struct tegra_mc *mc,
 						  unsigned int swgroup);
+void tegra_mc_flush_put(struct tegra_mc *mc, unsigned int swgroup);
 int tegra_mc_flush(struct tegra_mc *mc, const struct tegra_mc_flush *s,
 	bool enable);
 

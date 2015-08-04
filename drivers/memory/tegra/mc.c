@@ -104,6 +104,23 @@ const struct tegra_mc_flush *tegra_mc_flush_get(struct tegra_mc *mc,
 }
 EXPORT_SYMBOL(tegra_mc_flush_get);
 
+void tegra_mc_flush_put(struct tegra_mc *mc, unsigned int swgroup)
+{
+	int i;
+
+	mutex_lock(&mc->lock);
+
+	for (i = 0; i < mc->soc->num_flushes; i++) {
+		if (mc->soc->flushes[i].swgroup == swgroup) {
+			mc->flush_reserved[i] = false;
+			break;
+		}
+	}
+
+	mutex_unlock(&mc->lock);
+}
+EXPORT_SYMBOL(tegra_mc_flush_put);
+
 /*
  * Must be called with mc->lock held
  */
