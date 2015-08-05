@@ -32,6 +32,9 @@ nvkm_mm_initialised(struct nvkm_mm *mm)
 
 int  nvkm_mm_init(struct nvkm_mm *, u32 offset, u32 length, u32 block);
 int  nvkm_mm_fini(struct nvkm_mm *);
+int  nvkm_mm_head_offset(struct nvkm_mm *, u8 heap, u8 type, u64 size_max,
+			 u64 size_min, u32 align, struct nvkm_mm_node **,
+			 u64 offset);
 int  nvkm_mm_head(struct nvkm_mm *, u8 heap, u8 type, u64 size_max,
 		  u64 size_min, u32 align, struct nvkm_mm_node **);
 int  nvkm_mm_tail(struct nvkm_mm *, u8 heap, u8 type, u64 size_max,

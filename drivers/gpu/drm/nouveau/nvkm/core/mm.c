@@ -108,8 +108,9 @@ region_head(struct nvkm_mm *mm, struct nvkm_mm_node *a, u32 size)
 }
 
 int
-nvkm_mm_head(struct nvkm_mm *mm, u8 heap, u8 type, u64 size_max, u64 size_min,
-	     u32 align, struct nvkm_mm_node **pnode)
+nvkm_mm_head_offset(struct nvkm_mm *mm, u8 heap, u8 type,
+		    u64 size_max, u64 size_min,
+		    u32 align, struct nvkm_mm_node **pnode, u64 offset)
 {
 	struct nvkm_mm_node *prev, *this, *next;
 	u32 mask = align - 1;
@@ -117,6 +118,9 @@ nvkm_mm_head(struct nvkm_mm *mm, u8 heap, u8 type, u64 size_max, u64 size_min,
 	u64 s, e;
 
 	BUG_ON(type == NVKM_MM_TYPE_NONE || type == NVKM_MM_TYPE_HOLE);
+
+	if (offset && (offset & mask))
+		return -EINVAL;
 
 	list_for_each_entry(this, &mm->free, fl_entry) {
 		if (unlikely(heap != NVKM_MM_HEAP_ANY)) {
@@ -134,8 +138,18 @@ nvkm_mm_head(struct nvkm_mm *mm, u8 heap, u8 type, u64 size_max, u64 size_min,
 		if (next && next->type != type)
 			e = rounddown(e, mm->block_size);
 
-		s  = (s + mask) & ~mask;
-		e &= ~mask;
+		if (offset) {
+			if (s > offset)
+				continue;
+			if (e < (offset+size_min))
+				continue;
+
+			s = offset;
+		} else {
+			s  = (s + mask) & ~mask;
+			e &= ~mask;
+		}
+
 		if (s > e || e - s < size_min)
 			continue;
 
@@ -154,6 +168,14 @@ nvkm_mm_head(struct nvkm_mm *mm, u8 heap, u8 type, u64 size_max, u64 size_min,
 	}
 
 	return -ENOSPC;
+}
+
+int
+nvkm_mm_head(struct nvkm_mm *mm, u8 heap, u8 type, u64 size_max, u64 size_min,
+	     u32 align, struct nvkm_mm_node **pnode)
+{
+	return nvkm_mm_head_offset(mm, heap, type, size_max, size_min, align,
+				   pnode, 0);
 }
 
 static struct nvkm_mm_node *
