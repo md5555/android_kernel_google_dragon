@@ -149,11 +149,17 @@ static int panel_jdi_unprepare(struct drm_panel *panel)
 	ret = mipi_dsi_dcs_set_display_off(jdi->dsi);
 	if (ret < 0)
 		DRM_ERROR("failed to set display off: %d\n", ret);
+	ret = mipi_dsi_dcs_set_display_off(jdi->slave);
+	if (ret < 0)
+		DRM_ERROR("failed to set display off: %d\n", ret);
 
 	/* Specified by JDI @ 50ms, subject to change */
 	msleep(50);
 
 	ret = mipi_dsi_dcs_enter_sleep_mode(jdi->dsi);
+	if (ret < 0)
+		DRM_ERROR("failed to enter sleep mode: %d\n", ret);
+	ret = mipi_dsi_dcs_enter_sleep_mode(jdi->slave);
 	if (ret < 0)
 		DRM_ERROR("failed to enter sleep mode: %d\n", ret);
 
