@@ -43,7 +43,6 @@ struct tegra_sor_hdmi_settings {
 	u8 preemphasis[4];
 };
 
-#if 1
 static const struct tegra_sor_hdmi_settings tegra210_sor_hdmi_defaults[] = {
 	{
 		.frequency = 54000000,
@@ -97,51 +96,6 @@ static const struct tegra_sor_hdmi_settings tegra210_sor_hdmi_defaults[] = {
 		.preemphasis = { 0x00, 0x00, 0x00, 0x00 },
 	},
 };
-#else
-static const struct tegra_sor_hdmi_settings tegra210_sor_hdmi_defaults[] = {
-	{
-		.frequency = 75000000,
-		.vcocap = 0x3,
-		.ichpmp = 0x1,
-		.loadadj = 0x3,
-		.termadj = 0x9,
-		.tx_pu = 0x40,
-		.bg_vref = 0x8,
-		.drive_current = { 0x29, 0x29, 0x29, 0x29 },
-		.preemphasis = { 0x00, 0x00, 0x00, 0x00 },
-	}, {
-		.frequency = 150000000,
-		.vcocap = 0x3,
-		.ichpmp = 0x1,
-		.loadadj = 0x3,
-		.termadj = 0x9,
-		.tx_pu = 0x66,
-		.bg_vref = 0x8,
-		.drive_current = { 0x30, 0x37, 0x37, 0x37 },
-		.preemphasis = { 0x01, 0x02, 0x02, 0x02 },
-	}, {
-		.frequency = 300000000,
-		.vcocap = 0x3,
-		.ichpmp = 0x6,
-		.loadadj = 0x3,
-		.termadj = 0x9,
-		.tx_pu = 0x66,
-		.bg_vref = 0xf,
-		.drive_current = { 0x30, 0x37, 0x37, 0x37 },
-		.preemphasis = { 0x10, 0x3e, 0x3e, 0x3e },
-	}, {
-		.frequency = 600000000,
-		.vcocap = 0x3,
-		.ichpmp = 0xa,
-		.loadadj = 0x3,
-		.termadj = 0xb,
-		.tx_pu = 0x66,
-		.bg_vref = 0xe,
-		.drive_current = { 0x35, 0x3e, 0x3e, 0x3e },
-		.preemphasis = { 0x02, 0x3f, 0x3f, 0x3f },
-	},
-};
-#endif
 
 struct tegra_sor_soc {
 	bool supports_edp;
