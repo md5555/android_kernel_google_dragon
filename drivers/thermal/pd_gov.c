@@ -454,13 +454,17 @@ static int pd_thermal_gov_throttle(struct thermal_zone_device *tz, int trip)
 	mutex_lock(&tz->lock);
 
 	list_for_each_entry(instance, &tz->thermal_instances, tz_node) {
+		struct thermal_cooling_device *cdev;
+		unsigned long cur_state;
+
 		if ((instance->trip != trip) ||
 		    ((tz->temperature < trip_temp) &&
 		    (instance->target == THERMAL_NO_TARGET)))
 			continue;
 
-		target = pd_thermal_gov_get_target(tz, instance->cdev,
-						    trip_type, trip_temp);
+		cdev = instance->cdev;
+		target = pd_thermal_gov_get_target(tz, cdev,
+						   trip_type, trip_temp);
 		if (target >= instance->upper)
 			target = instance->upper;
 		else if (target < instance->lower)
@@ -471,8 +475,10 @@ static int pd_thermal_gov_throttle(struct thermal_zone_device *tz, int trip)
 		    (target == instance->lower))
 			target = THERMAL_NO_TARGET;
 
-		if (instance->target == target)
-			continue;
+		if (!((cdev->ops->get_cur_state(cdev, &cur_state) == 0) &&
+		      (cur_state != instance->target)))
+			if (instance->target == target)
+				continue;
 
 		pd_thermal_gov_update_passive(tz, trip_type, instance->target,
 					       target);
