@@ -118,6 +118,7 @@ gk20a_instobj_rd32(struct nvkm_object *object, u64 offset)
 	spin_lock_irqsave(&priv->lock, flags);
 	if (unlikely(priv->addr != base)) {
 		nv_wr32(priv, 0x001700, base >> 16);
+		nv_rd32(priv, 0x001700);
 		priv->addr = base;
 	}
 	data = nv_rd32(priv, 0x700000 + addr);
@@ -238,6 +239,7 @@ gk20a_instobj_wr32(struct nvkm_object *object, u64 offset, u32 data)
 	spin_lock_irqsave(&priv->lock, flags);
 	if (unlikely(priv->addr != base)) {
 		nv_wr32(priv, 0x001700, base >> 16);
+		nv_rd32(priv, 0x001700);
 		priv->addr = base;
 	}
 	nv_wr32(priv, 0x700000 + addr, data);
