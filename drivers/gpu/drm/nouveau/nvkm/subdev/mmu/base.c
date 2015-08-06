@@ -98,7 +98,9 @@ nvkm_vm_map_sg_table(struct nvkm_vma *vma, u64 delta, u64 length,
 	struct scatterlist *sg;
 
 	for_each_sg(mem->sg->sgl, sg, mem->sg->nents, i) {
+		dma_addr_t *addr_list;
 		struct nvkm_gpuobj *pgt = vm->pgt[pde].obj[big];
+
 		sglen = sg_dma_len(sg) >> PAGE_SHIFT;
 
 		end = pte + sglen;
@@ -106,7 +108,7 @@ nvkm_vm_map_sg_table(struct nvkm_vma *vma, u64 delta, u64 length,
 			end = max;
 		len = end - pte;
 
-		dma_addr_t *addr_list = kmalloc(sizeof(dma_addr_t) * len, GFP_KERNEL);
+		addr_list = kmalloc(sizeof(dma_addr_t) * len, GFP_KERNEL);
 		if (WARN_ON(!addr_list))
 			return;
 
