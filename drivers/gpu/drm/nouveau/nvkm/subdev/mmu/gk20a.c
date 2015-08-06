@@ -22,13 +22,7 @@
 
 #include <core/gpuobj.h>
 
-#include "gf100.h"
-
-extern void
-gk20a_instobj_map_sg(struct nvkm_vma *vma, struct nvkm_object *object,
-		struct nvkm_mem *mem, u32 pte, u32 cnt, dma_addr_t *list);
-extern void
-gk20a_instobj_unmap_sg(struct nvkm_object *object, u32 pte, u32 cnt);
+#include "gk20a.h"
 
 static void
 gk20a_vm_map_sg(struct nvkm_vma *vma, struct nvkm_gpuobj *pgt,
