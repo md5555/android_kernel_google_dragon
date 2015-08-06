@@ -172,7 +172,7 @@ gk104_identify(struct nvkm_device *device)
 		device->oclass[NVDEV_SUBDEV_LTC    ] =  gk20a_ltc_oclass;
 		device->oclass[NVDEV_SUBDEV_IBUS   ] = &gk20a_ibus_oclass;
 		device->oclass[NVDEV_SUBDEV_INSTMEM] = gk20a_instmem_oclass;
-		device->oclass[NVDEV_SUBDEV_MMU    ] = &gf100_mmu_oclass;
+		device->oclass[NVDEV_SUBDEV_MMU    ] = &gk20a_mmu_oclass;
 		device->oclass[NVDEV_SUBDEV_BAR    ] = &gk20a_bar_oclass;
 		device->oclass[NVDEV_ENGINE_DMAOBJ ] =  gf110_dmaeng_oclass;
 		device->oclass[NVDEV_ENGINE_FIFO   ] =  gk20a_fifo_oclass;

@@ -100,6 +100,7 @@ extern struct nvkm_oclass nv41_mmu_oclass;
 extern struct nvkm_oclass nv44_mmu_oclass;
 extern struct nvkm_oclass nv50_mmu_oclass;
 extern struct nvkm_oclass gf100_mmu_oclass;
+extern struct nvkm_oclass gk20a_mmu_oclass;
 extern struct nvkm_oclass gm20b_mmu_oclass;
 
 int  nv04_vm_create(struct nvkm_mmu *, u64, u64, u64,
