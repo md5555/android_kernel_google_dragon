@@ -79,7 +79,7 @@ nvkm_vm_map_at(struct nvkm_vma *vma, u64 delta, struct nvkm_mem *node)
 		}
 	}
 
-	ltc->flush(ltc);
+	ltc->invalidate(ltc);
 	mmu->flush(vm);
 }
 
