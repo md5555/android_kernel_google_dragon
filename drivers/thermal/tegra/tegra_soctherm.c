@@ -627,11 +627,11 @@ static int tegra_thermctl_set_trips(void *data, long low, long high)
 
 	val = soctherm_readl(zone->tegra,
 			     zone->sensor_group->thermctl_lvl0_offset);
-	val |= REG_SET_MASK(val,
+	val = REG_SET_MASK(val,
 		zone->sensor_group->thermctl_lvl0_dn_thresh_mask, low);
-	val |= REG_SET_MASK(val,
+	val = REG_SET_MASK(val,
 		zone->sensor_group->thermctl_lvl0_up_thresh_mask, high);
-	val |= REG_SET(val, THERMCTL_LVL0_CPU0_EN, 1);
+	val = REG_SET(val, THERMCTL_LVL0_CPU0_EN, 1);
 
 	soctherm_writel(zone->tegra, val,
 	       zone->sensor_group->thermctl_lvl0_offset);
