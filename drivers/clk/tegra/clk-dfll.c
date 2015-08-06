@@ -2279,15 +2279,11 @@ void tegra_dfll_resume(struct platform_device *pdev)
 
 	reset_control_deassert(td->dvco_rst);
 
-	pm_runtime_get_sync(td->dev);
-
 	/* Re-init DFLL */
 	dfll_init_out_if(td);
 	dfll_init_tuning_thresholds(td);
 	dfll_set_default_params(td);
 	dfll_set_open_loop_config(td);
-
-	pm_runtime_put_sync(td->dev);
 
 	if (td->mode <= DFLL_DISABLED)
 		return;
