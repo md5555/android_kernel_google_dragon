@@ -23,6 +23,7 @@
 #include <linux/notifier.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
+#include <linux/wakelock.h>
 
 #define CROS_EC_USB_POLLING_DELAY msecs_to_jiffies(1000)
 
@@ -39,6 +40,8 @@ struct cros_ec_extcon_info {
 	struct cros_ec_device *ec;
 
 	struct notifier_block notifier;
+	struct wake_lock wakelock;
+	bool wakelock_held;
 
 	unsigned int role;
 };
@@ -191,6 +194,14 @@ static void extcon_cros_ec_detect_cable(struct cros_ec_extcon_info *info)
 		else if (role == DATA_ROLE_DFP)
 			host_connected = true;
 
+		if (device_connected && !info->wakelock_held) {
+			wake_lock(&info->wakelock);
+			info->wakelock_held = true;
+		} else if (!device_connected && info->wakelock_held) {
+			wake_unlock(&info->wakelock);
+			info->wakelock_held = false;
+		}
+
 		extcon_set_cable_state(info->edev,
 				       usb_type_c_cable[EXTCON_CABLE_USB_HOST],
 				       host_connected);
@@ -271,6 +282,11 @@ static int extcon_cros_ec_probe(struct platform_device *pdev)
 	if (ret < 0)
 		dev_warn(dev, "failed to register notifier\n");
 
+	/* Initialize wakelock to hold off suspend when USB is attached */
+	wake_lock_init(&info->wakelock, WAKE_LOCK_SUSPEND,
+		       dev_name(&pdev->dev));
+	info->wakelock_held = false;
+
 	/* Perform initial detection */
 	extcon_cros_ec_detect_cable(info);
 
@@ -284,6 +300,9 @@ static int extcon_cros_ec_remove(struct platform_device *pdev)
 
 	blocking_notifier_chain_unregister(&info->ec->event_notifier,
 					   &info->notifier);
+
+	if (info->wakelock_held)
+		wake_unlock(&info->wakelock);
 
 	return 0;
 }
