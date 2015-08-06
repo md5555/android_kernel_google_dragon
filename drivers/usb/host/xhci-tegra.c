@@ -1390,7 +1390,7 @@ static void tegra_xhci_restore_ipfs_context(struct tegra_xhci_hcd *tegra)
 static int tegra_xhci_powergate(struct tegra_xhci_hcd *tegra, bool runtime)
 {
 	struct xhci_hcd *xhci = hcd_to_xhci(tegra->hcd);
-	unsigned int i;
+	unsigned int i, j;
 	int ret;
 
 	dev_dbg(tegra->dev, "entering ELPG\n");
@@ -1481,6 +1481,12 @@ static int tegra_xhci_powergate(struct tegra_xhci_hcd *tegra, bool runtime)
 	for (i = 0; i < tegra->soc->num_phys[HSIC_PHY]; i++)
 		phy_power_off(tegra->phys[HSIC_PHY][i]);
 
+	for (i = 0; i < ARRAY_SIZE(tegra->phys); i++)
+		for (j = 0; j < tegra->soc->num_phys[i]; j++)
+			phy_exit(tegra->phys[i][j]);
+
+	regulator_bulk_disable(tegra->soc->num_supplies, tegra->supplies);
+
 unlock:
 	mutex_unlock(&tegra->lock);
 	return ret;
@@ -1490,11 +1496,19 @@ static int tegra_xhci_unpowergate(struct tegra_xhci_hcd *tegra)
 {
 	struct xhci_hcd *xhci = hcd_to_xhci(tegra->hcd);
 	struct tegra_xusb_mbox_msg msg;
-	unsigned int i;
+	unsigned int i, j;
 	int ret;
 
 	dev_dbg(tegra->dev, "exiting ELPG\n");
 	mutex_lock(&tegra->lock);
+
+	ret = regulator_bulk_enable(tegra->soc->num_supplies, tegra->supplies);
+	if (ret < 0)
+		return ret;
+
+	for (i = 0; i < ARRAY_SIZE(tegra->phys); i++)
+		for (j = 0; j < tegra->soc->num_phys[i]; j++)
+			phy_init(tegra->phys[i][j]);
 
 	if (tegra->host_mode)
 		tegra_xusb_utmi_clear_vbus_override(tegra->phys[UTMI_PHY][0]);
@@ -1589,7 +1603,6 @@ unlock:
 static int tegra_xhci_suspend(struct device *dev)
 {
 	struct tegra_xhci_hcd *tegra = dev_get_drvdata(dev);
-	unsigned int i, j;
 	int ret;
 
 	mutex_lock(&tegra->lock);
@@ -1605,12 +1618,6 @@ static int tegra_xhci_suspend(struct device *dev)
 
 	pm_runtime_disable(dev);
 
-	for (i = 0; i < ARRAY_SIZE(tegra->phys); i++)
-		for (j = 0; j < tegra->soc->num_phys[i]; j++)
-			phy_exit(tegra->phys[i][j]);
-
-	regulator_bulk_disable(tegra->soc->num_supplies, tegra->supplies);
-
 	clk_disable_unprepare(tegra->hs_src_clk);
 	clk_disable_unprepare(tegra->fs_src_clk);
 	clk_disable_unprepare(tegra->pll_e);
@@ -1621,20 +1628,11 @@ static int tegra_xhci_suspend(struct device *dev)
 static int tegra_xhci_resume(struct device *dev)
 {
 	struct tegra_xhci_hcd *tegra = dev_get_drvdata(dev);
-	unsigned int i, j;
 	int ret;
 
 	clk_prepare_enable(tegra->pll_e);
 	clk_prepare_enable(tegra->fs_src_clk);
 	clk_prepare_enable(tegra->hs_src_clk);
-
-	ret = regulator_bulk_enable(tegra->soc->num_supplies, tegra->supplies);
-	if (ret < 0)
-		return ret;
-
-	for (i = 0; i < ARRAY_SIZE(tegra->phys); i++)
-		for (j = 0; j < tegra->soc->num_phys[i]; j++)
-			phy_init(tegra->phys[i][j]);
 
 	ret = tegra_xhci_unpowergate(tegra);
 	if (ret < 0)
