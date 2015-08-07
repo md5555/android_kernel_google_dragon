@@ -38,6 +38,12 @@
 /* Rate-limit the lightbar interface to prevent DoS. */
 static unsigned long lb_interval_jiffies = 50 * HZ / 1000;
 
+/*
+ * Whether or not we have given userspace control of the lightbar.
+ * If this is true, we won't do anything during suspend/resume.
+ */
+static bool userspace_control;
+
 static ssize_t show_interval_msec(struct device *dev,
 				  struct device_attribute *attr, char *buf)
 {
@@ -324,11 +330,17 @@ int lb_manual_suspend_ctrl(struct cros_ec_dev *ec, uint8_t enable)
 
 int lb_suspend(struct cros_ec_dev *ec)
 {
+	if (userspace_control)
+		return 0;
+
 	return lb_send_empty_cmd(ec, LIGHTBAR_CMD_SUSPEND);
 }
 
 int lb_resume(struct cros_ec_dev *ec)
 {
+	if (userspace_control)
+		return 0;
+
 	return lb_send_empty_cmd(ec, LIGHTBAR_CMD_RESUME);
 }
 
@@ -400,6 +412,29 @@ static ssize_t store_program(struct device *dev, struct device_attribute *attr,
 	return count;
 }
 
+static ssize_t show_userspace_control(struct device *dev,
+				      struct device_attribute *attr,
+				      char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%d\n", userspace_control);
+}
+
+static ssize_t store_userspace_control(struct device *dev,
+				       struct device_attribute *attr,
+				       const char *buf,
+				       size_t count)
+{
+	bool enable;
+	int ret;
+
+	ret = strtobool(buf, &enable);
+	if (ret < 0)
+		return ret;
+
+	userspace_control = enable;
+	return count;
+}
+
 /* Module initialization */
 
 static DEVICE_ATTR(interval_msec, S_IWUSR | S_IRUGO,
@@ -409,6 +444,9 @@ static DEVICE_ATTR(brightness, S_IWUSR | S_IWGRP, NULL, store_brightness);
 static DEVICE_ATTR(led_rgb, S_IWUSR | S_IWGRP, NULL, store_rgb);
 static DEVICE_ATTR(sequence, S_IWUSR | S_IWGRP | S_IRUGO, show_seq, store_seq);
 static DEVICE_ATTR(program, S_IWUSR | S_IWGRP, NULL, store_program);
+static DEVICE_ATTR(userspace_control, S_IWUSR | S_IWGRP | S_IRUGO,
+		   show_userspace_control,
+		   store_userspace_control);
 
 static struct attribute *__lb_cmds_attrs[] = {
 	&dev_attr_interval_msec.attr,
@@ -417,6 +455,7 @@ static struct attribute *__lb_cmds_attrs[] = {
 	&dev_attr_led_rgb.attr,
 	&dev_attr_sequence.attr,
 	&dev_attr_program.attr,
+	&dev_attr_userspace_control.attr,
 	NULL,
 };
 
