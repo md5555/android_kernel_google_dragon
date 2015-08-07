@@ -356,7 +356,7 @@ nouveau_fbcon_create(struct drm_fb_helper *helper,
 	chan = nouveau_nofbaccel ? NULL : drm->channel;
 	if (chan && device->info.family >= NV_DEVICE_INFO_V0_TESLA) {
 		ret = nouveau_bo_vma_add(nvbo, drm->client.vm,
-					&fbcon->nouveau_fb.vma);
+					&fbcon->nouveau_fb.vma, false);
 		if (ret) {
 			NV_ERROR(drm, "failed to map fb into chan: %d\n", ret);
 			chan = NULL;

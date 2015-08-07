@@ -1687,7 +1687,7 @@ nouveau_defer_vm_map(struct nvkm_vma *vma, struct nouveau_bo *nvbo)
 
 int
 nouveau_bo_vma_add(struct nouveau_bo *nvbo, struct nvkm_vm *vm,
-		   struct nvkm_vma *vma)
+		   struct nvkm_vma *vma, bool lazy)
 {
 	const u32 size = nvbo->bo.mem.num_pages << PAGE_SHIFT;
 	int ret;
@@ -1699,8 +1699,12 @@ nouveau_bo_vma_add(struct nouveau_bo *nvbo, struct nvkm_vm *vm,
 
 	if ( nvbo->bo.mem.mem_type != TTM_PL_SYSTEM &&
 	    (nvbo->bo.mem.mem_type == TTM_PL_VRAM ||
-	     nvbo->page_shift != vma->vm->mmu->lpg_shift))
-		nouveau_defer_vm_map(vma, nvbo);
+	     nvbo->page_shift != vma->vm->mmu->lpg_shift)) {
+		if (lazy)
+			nouveau_defer_vm_map(vma, nvbo);
+		else
+			nvkm_vm_map(vma, nvbo->bo.mem.mm_node);
+	}
 
 	list_add_tail(&vma->head, &nvbo->vma_list);
 	vma->refcount = 1;

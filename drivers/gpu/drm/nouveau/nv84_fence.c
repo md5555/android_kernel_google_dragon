@@ -148,16 +148,17 @@ nv84_fence_context_new(struct nouveau_channel *chan)
 	fctx->base.sync32 = nv84_fence_sync32;
 	fctx->base.sequence = nv84_fence_read(chan);
 
-	ret = nouveau_bo_vma_add(priv->bo, cli->vm, &fctx->vma);
+	ret = nouveau_bo_vma_add(priv->bo, cli->vm, &fctx->vma, false);
 	if (ret == 0) {
 		ret = nouveau_bo_vma_add(priv->bo_gart, cli->vm,
-					&fctx->vma_gart);
+					&fctx->vma_gart, false);
 	}
 
 	/* map display semaphore buffers into channel's vm */
 	for (i = 0; !ret && i < chan->drm->dev->mode_config.num_crtc; i++) {
 		struct nouveau_bo *bo = nv50_display_crtc_sema(chan->drm->dev, i);
-		ret = nouveau_bo_vma_add(bo, cli->vm, &fctx->dispc_vma[i]);
+		ret = nouveau_bo_vma_add(bo, cli->vm,
+					&fctx->dispc_vma[i], false);
 	}
 
 	if (ret)

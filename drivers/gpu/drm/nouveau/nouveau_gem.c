@@ -90,7 +90,7 @@ nouveau_gem_object_open(struct drm_gem_object *gem, struct drm_file *file_priv)
 		if (ret < 0 && ret != -EACCES)
 			goto out;
 
-		ret = nouveau_bo_vma_add(nvbo, cli->vm, vma);
+		ret = nouveau_bo_vma_add(nvbo, cli->vm, vma, true);
 		if (ret)
 			kfree(vma);
 

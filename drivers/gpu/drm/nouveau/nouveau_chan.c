@@ -132,7 +132,7 @@ nouveau_channel_prep(struct nouveau_drm *drm, struct nvif_device *device,
 
 	if (device->info.family >= NV_DEVICE_INFO_V0_TESLA) {
 		ret = nouveau_bo_vma_add(chan->push.buffer, cli->vm,
-					&chan->push.vma);
+					&chan->push.vma, false);
 		if (ret) {
 			nouveau_channel_del(pchan);
 			return ret;
