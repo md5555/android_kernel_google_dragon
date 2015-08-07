@@ -234,7 +234,6 @@ struct tegra_xhci_hcd {
 	struct notifier_block data_role_nb;
 	struct work_struct data_role_work;
 	bool host_mode;
-	bool data_role_changed;
 
 	struct tegra_xhci_ipfs_context ipfs_ctx;
 	struct tegra_xhci_fpci_context fpci_ctx;
@@ -558,11 +557,6 @@ static int tegra_xhci_phy_enable(struct tegra_xhci_hcd *tegra)
 		}
 	}
 
-	mutex_lock(&tegra->lock);
-	if (tegra->host_mode)
-		tegra_xusb_utmi_clear_vbus_override(tegra->phys[UTMI_PHY][0]);
-	mutex_unlock(&tegra->lock);
-
 	return 0;
 disable_phy:
 	for (; j > 0; j--) {
@@ -716,12 +710,11 @@ static void tegra_xhci_host_mode_on(struct tegra_xhci_hcd *tegra)
 	/* Disable VBUS/ID override on the OTG pad. */
 	tegra_xusb_utmi_clear_vbus_override(tegra->phys[UTMI_PHY][0]);
 
-	/* Only do RESET_SSPI when switching from device to host mode. */
-	if (tegra->data_role_changed)
+	/* No need to do RESET_SSPI if we were already in host mode. */
+	if (!tegra->host_mode)
 		reset_sspi = true;
 
 	tegra->host_mode = true;
-	tegra->data_role_changed = false;
 	mutex_unlock(&tegra->lock);
 
 	pm_runtime_get_sync(tegra->dev);
@@ -735,8 +728,6 @@ static void tegra_xhci_host_mode_off(struct tegra_xhci_hcd *tegra)
 	mutex_lock(&tegra->lock);
 	dev_dbg(tegra->dev, "host mode off\n");
 	tegra->host_mode = false;
-	if (extcon_get_cable_state(tegra->data_role_extcon, "USB"))
-		tegra->data_role_changed = true;
 	mutex_unlock(&tegra->lock);
 
 	/*
@@ -949,8 +940,10 @@ static void tegra_xhci_probe_finish(const struct firmware *fw, void *context)
 	tegra->fw_loaded = true;
 	release_firmware(fw);
 
-	tegra->data_role_changed = true;
-	tegra_xhci_update_data_role(tegra);
+	mutex_lock(&tegra->lock);
+	if (tegra->host_mode && tegra->soc->reset_sspi)
+		tegra_xhci_reset_sspi(tegra);
+	mutex_unlock(&tegra->lock);
 
 	pm_runtime_use_autosuspend(dev);
 	pm_runtime_set_autosuspend_delay(dev, 2000);
@@ -1190,6 +1183,8 @@ static int tegra_xhci_probe(struct platform_device *pdev)
 	ret = tegra_xhci_phy_enable(tegra);
 	if (ret < 0)
 		goto put_mbox;
+
+	tegra_xhci_update_data_role(tegra);
 
 	ret = request_firmware_nowait(THIS_MODULE, true,
 				      tegra->soc->firmware_file,
