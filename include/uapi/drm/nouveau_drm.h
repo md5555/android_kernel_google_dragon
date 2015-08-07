@@ -47,6 +47,9 @@
 #define NOUVEAU_GEM_TILE_32BPP       0x00000002
 #define NOUVEAU_GEM_TILE_ZETA        0x00000004
 #define NOUVEAU_GEM_TILE_NONCONTIG   0x00000008
+/* Tile flags mask in tile_flags field. */
+#define NOUVEAU_GEM_TILE_MASK        0x3ffff
+#define NOUVEAU_GEM_FLAGS_COHERENT   (1U << 31)
 
 struct drm_nouveau_gem_info {
 	uint32_t handle;
@@ -67,6 +70,7 @@ struct drm_nouveau_gem_new {
 struct drm_nouveau_gem_set_tiling {
 	uint32_t handle;
 	uint32_t tile_mode;
+	/* Logic OR of NOUVEAU_GEM_TILE_* and NOVUEAU_GEM_FLAGS. */
 	uint32_t tile_flags;
 };
 
