@@ -81,4 +81,5 @@ int send_motion_host_cmd(struct cros_ec_sensors_core_state *state)
 }
 EXPORT_SYMBOL_GPL(send_motion_host_cmd);
 
-
+MODULE_DESCRIPTION("ChromeOS EC sensor hub core functions");
+MODULE_LICENSE("GPL v2");
