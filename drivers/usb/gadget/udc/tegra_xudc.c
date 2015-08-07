@@ -18,6 +18,7 @@
 */
 
 #include <linux/clk.h>
+#include <linux/completion.h>
 #include <linux/delay.h>
 #include <linux/dma-mapping.h>
 #include <linux/dmapool.h>
@@ -491,6 +492,8 @@ struct tegra_xudc {
 
 	struct tegra_xudc_save_regs saved_regs;
 	bool suspended;
+
+	struct completion disconnect_complete;
 };
 
 #define XUDC_TRB_MAX_BUFFER_SIZE 65536
@@ -603,6 +606,7 @@ static void tegra_xudc_device_mode_on(struct tegra_xudc *xudc)
 
 static void tegra_xudc_device_mode_off(struct tegra_xudc *xudc)
 {
+	bool connected = false;
 	unsigned long flags;
 	u32 pls, val;
 
@@ -613,6 +617,10 @@ static void tegra_xudc_device_mode_off(struct tegra_xudc *xudc)
 	}
 
 	dev_info(xudc->dev, "device mode off\n");
+
+	connected = !!(xudc_readl(xudc, PORTSC) & PORTSC_CCS);
+	reinit_completion(&xudc->disconnect_complete);
+
 	tegra_xusb_utmi_clear_vbus_override(xudc->utmi_phy);
 
 	pls = (xudc_readl(xudc, PORTSC) >> PORTSC_PLS_SHIFT) &
@@ -645,6 +653,13 @@ static void tegra_xudc_device_mode_off(struct tegra_xudc *xudc)
 
 	xudc->device_mode = false;
 	spin_unlock_irqrestore(&xudc->lock, flags);
+
+	/* Wait for disconnect event. */
+	if (connected)
+		wait_for_completion(&xudc->disconnect_complete);
+
+	/* Make sure interrupt handler has completed before powergating. */
+	synchronize_irq(xudc->irq);
 
 	pm_runtime_put(xudc->dev);
 }
@@ -2469,6 +2484,8 @@ static void tegra_xudc_port_disconnect(struct tegra_xudc *xudc)
 		xudc->driver->disconnect(&xudc->gadget);
 		spin_lock(&xudc->lock);
 	}
+
+	complete(&xudc->disconnect_complete);
 }
 
 static void tegra_xudc_port_reset(struct tegra_xudc *xudc)
@@ -3232,6 +3249,8 @@ static int tegra_xudc_probe(struct platform_device *pdev)
 		goto free_eps;
 	}
 
+	init_completion(&xudc->disconnect_complete);
+
 	INIT_WORK(&xudc->data_role_work, tegra_xudc_data_role_work);
 	xudc->data_role_nb.notifier_call = tegra_xudc_data_role_notifier;
 	extcon_register_notifier(xudc->data_role_extcon, &xudc->data_role_nb);
@@ -3370,14 +3389,13 @@ static int tegra_xudc_suspend(struct device *dev)
 	unsigned long flags;
 
 	spin_lock_irqsave(&xudc->lock, flags);
-	if (xudc->device_mode) {
-		dev_warn(xudc->dev, "cannot suspend while connected\n");
-		spin_unlock_irqrestore(&xudc->lock, flags);
-		return -EBUSY;
-	}
 	xudc->suspended = true;
 	spin_unlock_irqrestore(&xudc->lock, flags);
+
 	flush_work(&xudc->data_role_work);
+
+	/* Forcibly disconnect before powergating. */
+	tegra_xudc_device_mode_off(xudc);
 
 	if (!pm_runtime_status_suspended(dev))
 		tegra_xudc_powergate(xudc);
