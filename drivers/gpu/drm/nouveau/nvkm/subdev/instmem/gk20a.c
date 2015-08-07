@@ -76,6 +76,7 @@ struct gk20a_instobj_dma {
 struct gk20a_instobj_iommu {
 	struct gk20a_instobj_priv base;
 
+	void *cpuaddr;
 	/* array of base.mem->size pages */
 	struct page **pages;
 	dma_addr_t *page_addrs;
@@ -127,30 +128,25 @@ gk20a_instobj_rd32(struct nvkm_object *object, u64 offset)
 	return data;
 }
 
+static void *gk20a_instobj_get_cpu_ptr(struct nvkm_object *object)
+{
+	struct gk20a_instmem_priv *priv = (void *)nvkm_instmem(object);
+
+	if (!priv->domain) {
+		struct gk20a_instobj_dma *node_dma = (void *)object;
+		return node_dma->cpuaddr;
+	} else {
+		struct gk20a_instobj_iommu *node_iommu = (void *)object;
+		return node_iommu->cpuaddr;
+	}
+}
+
 void
 gk20a_instobj_map(struct nvkm_vma *vma, struct nvkm_object *object,
 		  struct nvkm_mem *mem, u32 pte, u32 cnt, u64 phys, u64 delta)
 {
-	struct gk20a_instmem_priv *priv = (void *)nvkm_instmem(object);
 	u64 next = 1 << (vma->node->type - 8);
-	u32 *ramin_ptr;
-
-	if (!priv->domain) {
-		struct gk20a_instobj_dma *node_dma = (void *)object;
-		ramin_ptr = node_dma->cpuaddr;
-	} else {
-		struct gk20a_instobj_iommu *node_iommu = (void *)object;
-		int num_ramin_pages, first_ramin_page, last_ramin_page;
-
-		first_ramin_page = pte / 512;
-		last_ramin_page = (cnt + pte - 1) / 512;
-		num_ramin_pages = last_ramin_page - first_ramin_page + 1;
-
-		ramin_ptr = vmap(&node_iommu->pages[first_ramin_page],
-				 num_ramin_pages, VM_MAP,
-				 pgprot_writecombine(PAGE_KERNEL));
-		pte -= first_ramin_page * 512;
-	}
+	u32 *ramin_ptr = gk20a_instobj_get_cpu_ptr(object);
 
 	phys = (phys >> 8)
 		| 0x1 /* present */
@@ -165,9 +161,6 @@ gk20a_instobj_map(struct nvkm_vma *vma, struct nvkm_object *object,
 		phys += next;
 		pte += 2;
 	}
-
-	if (priv->domain)
-		vunmap(ramin_ptr);
 }
 
 void
@@ -179,30 +172,13 @@ gk20a_instobj_map_sg(struct nvkm_vma *vma, struct nvkm_object *object,
 	struct nvkm_mmu *mmu = nvkm_mmu(priv);
 	u32 target = (vma->access & NV_MEM_ACCESS_NOSNOOP) ? 6 : 4;
 	u32 memtype = mem->memtype & 0xff;
-	u32 *ramin_ptr;
+	u32 *ramin_ptr = gk20a_instobj_get_cpu_ptr(object);
 	u32 tag = 0;
 
 	WARN_ON(delta & ((1 << mmu->lpg_shift) - 1));
 
 	if (!mem->cached)
 		target |= 1;
-
-	if (!priv->domain) {
-		struct gk20a_instobj_dma *node_dma = (void*)object;
-		ramin_ptr = node_dma->cpuaddr;
-	} else {
-		struct gk20a_instobj_iommu *node_iommu = (void*)object;
-		int num_ramin_pages, first_ramin_page, last_ramin_page;
-
-		first_ramin_page = pte / 512;
-		last_ramin_page = (cnt + pte - 1) / 512;
-		num_ramin_pages = last_ramin_page - first_ramin_page + 1;
-
-		ramin_ptr = vmap(&node_iommu->pages[first_ramin_page],
-				 num_ramin_pages, VM_MAP,
-				 pgprot_writecombine(PAGE_KERNEL));
-		pte -= first_ramin_page * 512;
-	}
 
 	if (mem->tag)
 		tag = mem->tag->offset + (delta >> mmu->lpg_shift);
@@ -216,33 +192,12 @@ gk20a_instobj_map_sg(struct nvkm_vma *vma, struct nvkm_object *object,
 		if (mem->tag)
 			tag++;
 	}
-
-	if (priv->domain)
-		vunmap(ramin_ptr);
 }
 
 void
 gk20a_instobj_unmap_sg(struct nvkm_object *object, u32 pte, u32 cnt)
 {
-	struct gk20a_instmem_priv *priv = (void *)nvkm_instmem(object);
-	u32 *ramin_ptr;
-
-	if (!priv->domain) {
-		struct gk20a_instobj_dma *node_dma = (void*)object;
-		ramin_ptr = node_dma->cpuaddr;
-	} else {
-		struct gk20a_instobj_iommu *node_iommu = (void*)object;
-		int num_ramin_pages, first_ramin_page, last_ramin_page;
-
-		first_ramin_page = pte / 512;
-		last_ramin_page = (cnt + pte - 1) / 512;
-		num_ramin_pages = last_ramin_page - first_ramin_page + 1;
-
-		ramin_ptr = vmap(&node_iommu->pages[first_ramin_page],
-				 num_ramin_pages, VM_MAP,
-				 pgprot_writecombine(PAGE_KERNEL));
-		pte -= first_ramin_page * 512;
-	}
+	u32 *ramin_ptr = gk20a_instobj_get_cpu_ptr(object);
 
 	pte <<= 1;
 	while (cnt--) {
@@ -250,9 +205,6 @@ gk20a_instobj_unmap_sg(struct nvkm_object *object, u32 pte, u32 cnt)
 		ramin_ptr[pte + 1] = 0x00000000;
 		pte += 2;
 	}
-
-	if (priv->domain)
-		vunmap(ramin_ptr);
 }
 
 static void
@@ -299,6 +251,9 @@ gk20a_instobj_dtor_iommu(struct gk20a_instobj_priv *_node)
 
 	if (unlikely(list_empty(&_node->mem->regions)))
 		return;
+
+	dma_common_free_remap(node->cpuaddr,
+				_node->mem->size << PAGE_SHIFT, VM_USERMAP);
 
 	r = list_first_entry(&_node->mem->regions, struct nvkm_mm_node,
 			     rl_entry);
@@ -420,6 +375,16 @@ gk20a_instobj_ctor_iommu(struct nvkm_object *parent, struct nvkm_object *engine,
 		node->page_addrs[i] = addr;
 	}
 
+	node->cpuaddr = dma_common_pages_remap(node->pages, npages << PAGE_SHIFT,
+				VM_USERMAP,
+				pgprot_writecombine(PAGE_KERNEL),
+				__builtin_return_address(0));
+	if (node->cpuaddr == NULL) {
+		nv_error(priv, "create cpu mapping for pages failed.\n");
+		ret = -ENOMEM;
+		goto free_pages;
+	}
+
 	mutex_lock(priv->mm_mutex);
 	/* Reserve area from GPU address space */
 	ret = nvkm_mm_head(priv->mm, 0, 1, npages, npages,
@@ -427,7 +392,7 @@ gk20a_instobj_ctor_iommu(struct nvkm_object *parent, struct nvkm_object *engine,
 	mutex_unlock(priv->mm_mutex);
 	if (ret) {
 		nv_error(priv, "virtual space is full!\n");
-		goto free_pages;
+		goto free_pages_remap;
 	}
 
 	/* Map into GPU address space */
@@ -464,6 +429,9 @@ release_area:
 	mutex_lock(priv->mm_mutex);
 	nvkm_mm_free(priv->mm, &r);
 	mutex_unlock(priv->mm_mutex);
+
+free_pages_remap:
+	dma_common_free_remap(node->cpuaddr, npages << PAGE_SHIFT, VM_USERMAP);
 
 free_pages:
 	for (i = 0; i < npages && node->pages[i] != NULL; i++) {
