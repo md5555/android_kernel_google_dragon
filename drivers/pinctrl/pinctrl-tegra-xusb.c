@@ -945,7 +945,7 @@ static struct phy *tegra_xusb_usb3_phy_create(struct tegra_xusb_padctl *padctl,
 	if (!np || !of_device_is_available(np))
 		return NULL;
 
-	phy = devm_phy_create(padctl->dev, np, padctl->soc->usb3_phy_ops, NULL);
+	phy = devm_phy_create(padctl->dev, np, padctl->soc->usb3_phy_ops);
 	if (IS_ERR(phy))
 		return phy;
 
@@ -976,7 +976,7 @@ static struct phy *tegra_xusb_utmi_phy_create(struct tegra_xusb_padctl *padctl,
 	if (np && !of_device_is_available(np))
 		return NULL;
 
-	phy = devm_phy_create(padctl->dev, np, padctl->soc->utmi_phy_ops, NULL);
+	phy = devm_phy_create(padctl->dev, np, padctl->soc->utmi_phy_ops);
 	if (IS_ERR(phy))
 		return ERR_CAST(phy);
 
@@ -1008,7 +1008,7 @@ static struct phy *tegra_xusb_hsic_phy_create(struct tegra_xusb_padctl *padctl,
 	if (np && !of_device_is_available(np))
 		return NULL;
 
-	phy = devm_phy_create(padctl->dev, np, padctl->soc->hsic_phy_ops, NULL);
+	phy = devm_phy_create(padctl->dev, np, padctl->soc->hsic_phy_ops);
 	if (IS_ERR(phy))
 		return ERR_CAST(phy);
 
@@ -1122,8 +1122,7 @@ static int tegra_xusb_padctl_probe(struct platform_device *pdev)
 		goto soc_remove;
 	}
 
-	phy = devm_phy_create(&pdev->dev, NULL, padctl->soc->pcie_phy_ops,
-			      NULL);
+	phy = devm_phy_create(&pdev->dev, NULL, padctl->soc->pcie_phy_ops);
 	if (IS_ERR(phy)) {
 		err = PTR_ERR(phy);
 		goto unregister;
@@ -1132,8 +1131,7 @@ static int tegra_xusb_padctl_probe(struct platform_device *pdev)
 	padctl->phys[TEGRA_XUSB_PADCTL_PCIE] = phy;
 	phy_set_drvdata(phy, padctl);
 
-	phy = devm_phy_create(&pdev->dev, NULL, padctl->soc->sata_phy_ops,
-			      NULL);
+	phy = devm_phy_create(&pdev->dev, NULL, padctl->soc->sata_phy_ops);
 	if (IS_ERR(phy)) {
 		err = PTR_ERR(phy);
 		goto unregister;
