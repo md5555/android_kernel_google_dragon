@@ -11,6 +11,7 @@
  *
  */
 
+#include <linux/io.h>
 #include "tegra_usb_phy.h"
 
 #define   AHB_ARBITRATION_PRIORITY_CTRL           0x4
