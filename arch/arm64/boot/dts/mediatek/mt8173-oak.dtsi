@@ -455,6 +455,14 @@
 			bias-disable;
 		};
 	};
+
+	usb_pins: usb@0 {
+		pins1 {
+			pinmux = <MT8173_PIN_101_MSDC2_DAT1__FUNC_GPIO101>;
+			output-high;
+			bias-disable;
+		};
+	};
 };
 
 &pwm0 {
@@ -717,6 +725,13 @@
 
 &uart0 {
 	status = "okay";
+};
+
+&usb30 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&usb_pins>;
+	vusb33-supply = <&mt6397_vusb_reg>;
+	mediatek,wakeup-src = <1>;
 };
 
 #include "../../../../arm/boot/dts/cros-ec-keyboard.dtsi"
