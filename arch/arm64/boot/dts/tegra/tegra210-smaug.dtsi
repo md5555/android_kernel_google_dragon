@@ -495,6 +495,18 @@
 		logger = "enabled";
 		storage = "enabled";
 	};
+
+	balanced_tskin: balanced_tskin {
+		compatible = "nvidia,balanced-throttle";
+		clocks = <&tegra_car TEGRA210_CLK_CAP_THROTTLE_C3BUS>,
+			 <&tegra_car TEGRA210_CLK_CAP_THROTTLE_SCLK>,
+			 <&tegra_car TEGRA210_CLK_CAP_THROTTLE_EMC>;
+		clock-names = "cap.throttle.c3bus", "cap.throttle.sclk", "cap.throttle.emc";
+
+		balanced-states = <&t210_tskin_throttling_state>;
+
+		#cooling-cells = <2>; /* min followed by max */
+	};
 };
 
 // GEN1_I2C
