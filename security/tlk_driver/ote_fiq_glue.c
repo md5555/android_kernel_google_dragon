@@ -22,6 +22,8 @@
 
 #include "ote_protocol.h"
 
+static DEFINE_MUTEX(fiq_lock);
+
 static struct fiq_glue_handler *current_handler;
 
 void tlk_fiq_handler(struct pt_regs *regs, void *svc_sp)
@@ -36,15 +38,22 @@ int fiq_glue_register_handler(struct fiq_glue_handler *handler)
 	if (!handler || !handler->fiq)
 		return -EINVAL;
 
-	if (current_handler)
-		return -EBUSY;
-
-	current_handler = handler;
+	mutex_lock(&fiq_lock);
+	if (current_handler) {
+		ret = -EBUSY;
+		goto final;
+	}
 
 	ret = send_smc(TE_SMC_REGISTER_FIQ_GLUE,
 			(uintptr_t)tlk_fiq_glue_aarch64, 0);
-	if (ret)
+	if (ret) {
 		pr_err("%s: failed to register FIQ glue\n", __func__);
+		goto final;
+	}
 
+	current_handler = handler;
+
+final:
+	mutex_unlock(&fiq_lock);
 	return ret;
 }
