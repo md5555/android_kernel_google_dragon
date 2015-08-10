@@ -449,10 +449,30 @@
 		};
 
 		skin-therm {
-			polling-delay-passive = <15000>; /* milliseconds */
+			polling-delay-passive = <6000>; /* milliseconds */
 			polling-delay = <0>; /* milliseconds */
 
 			thermal-sensors = <&skin_temp>;
+
+			trips {
+				balanced_tskin_trip: balanced_tskin_trip {
+					temperature = <43000>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+			};
+
+			cooling-maps {
+				balanced_tskin_map {
+					trip = <&balanced_tskin_trip>;
+					cooling-device = <&balanced_tskin THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+				};
+
+				gpu_throttle_tskin_map {
+					trip = <&balanced_tskin_trip>;
+					cooling-device = <&gpu_throttle_cdev THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+				};
+			};
 		};
 
 		max77621-cpu {
