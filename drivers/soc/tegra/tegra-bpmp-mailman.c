@@ -93,6 +93,7 @@ static bool connected;
 static DEFINE_SPINLOCK(lock);
 static void *shared_virt;
 static u32 shared_phys;
+static bool bpmp_suspended;
 
 static void bpmp_handle_mail(int mrq, int ch);
 
@@ -620,6 +621,9 @@ static int tegra_cpu_notify(struct notifier_block *nb, unsigned long action,
 {
 	int cpu = (long)hcpu;
 
+	if (bpmp_suspended)
+		goto out;
+
 	switch (action) {
 	case CPU_POST_DEAD:
 	case CPU_DEAD_FROZEN:
@@ -633,6 +637,7 @@ static int tegra_cpu_notify(struct notifier_block *nb, unsigned long action,
 		break;
 	}
 
+out:
 	return NOTIFY_OK;
 }
 
@@ -652,6 +657,7 @@ static int __maybe_unused tegra_bpmp_enable_suspend(int mode, int flags, bool sc
 
 static int __maybe_unused tegra_bpmp_suspend(struct device *dev)
 {
+	bpmp_suspended = true;
 	tegra_bpmp_enable_suspend(TEGRA_BPMP_PM_SC7, 0, true);
 	return 0;
 }
@@ -661,6 +667,7 @@ static int __maybe_unused tegra_bpmp_resume(struct device *dev)
 	s32 val = 0;
 
 	tegra_bpmp_send(MRQ_SCX_ENABLE, &val, sizeof(val));
+	bpmp_suspended = false;
 	return 0;
 }
 SIMPLE_DEV_PM_OPS(tegra_bpmp_pm, tegra_bpmp_suspend, tegra_bpmp_resume);
