@@ -21,6 +21,14 @@
 #define BUSY_SLOT	0
 #define CLK_SLOT	7
 
+/* Used by PERFMON (performance monitoring) task running on PMU*/
+#define PERFMON_BUSY_SLOT	3
+#define PERFMON_CLK_SLOT	6
+
+/* To/Can be used by Nouveau to get the raw counter values */
+#define NV_CLK_SLOT	1
+#define NV_BUSY_SLOT	2
+
 #define GK20A_PMU_UCODE_NB_MAX_OVERLAY	    32
 #define GK20A_PMU_UCODE_NB_MAX_DATE_LENGTH  64
 #define GK20A_PMU_TRACE_BUFSIZE             0x4000
@@ -164,6 +172,20 @@ struct pmu_init_msg_pmu_gk20a {
 	u16 sw_managed_area_size;
 };
 
+struct pmu_perfmon_msg_generic {
+	u8 msg_type;
+	u8 state_id;
+	u8 group_id;
+	u8 data;
+};
+
+struct pmu_perfmon_msg {
+	union {
+		u8 msg_type;
+		struct pmu_perfmon_msg_generic gen;
+	};
+};
+
 struct pmu_init_msg {
 	union {
 		u8 msg_type;
@@ -181,6 +203,7 @@ struct pmu_msg {
 	union {
 		struct pmu_init_msg init;
 		struct pmu_rc_msg rc;
+		struct pmu_perfmon_msg perfmon;
 	} msg;
 };
 
@@ -369,6 +392,7 @@ struct gk20a_pmu_priv {
 	struct gm20b_ctxsw_ucode_info ucode_info;
 	struct mutex isr_mutex;
 	bool isr_enabled;
+	u32 stat_dmem_offset;
 	u8 pmu_mode;
 	u32 falcon_id;
 	struct nvkm_pmu_allocator dmem;
@@ -378,7 +402,10 @@ struct gk20a_pmu_priv {
 	unsigned long pmu_seq_tbl[PMU_SEQ_TBL_SIZE];
 	struct pmu_mutex *mutex;
 	u32 mutex_cnt;
+	unsigned long perfmon_events_cnt;
+	bool perfmon_sampling_enabled;
 	bool sw_ready;
+	bool perfmon_ready;
 	bool initialized;
 	u32 sample_buffer;
 	bool buf_loaded;
@@ -429,6 +456,9 @@ gk20a_pmu_process_message(struct work_struct *work);
 
 void
 gk20a_pmu_allocator_destroy(struct nvkm_pmu_allocator *allocator);
+
+void
+gk20a_pmu_seq_init(struct gk20a_pmu_priv *priv);
 
 #define to_gk20a_priv(ptr) container_of(ptr, struct gk20a_pmu_priv, base)
 

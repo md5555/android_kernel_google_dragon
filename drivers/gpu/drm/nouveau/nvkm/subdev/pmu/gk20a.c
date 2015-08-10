@@ -85,11 +85,81 @@ enum {
 #define PMU_INIT_MSG_TYPE_PMU_INIT 0
 
 #define PMU_RC_MSG_TYPE_UNHANDLED_CMD	0
-/*
- *Struct to contain PMU PERFMON CMD.
- */
-struct pmu_perfmon_cmd {
+
+/* PERFMON */
+#define PMU_DOMAIN_GROUP_PSTATE		0
+#define PMU_DOMAIN_GROUP_GPC2CLK	1
+#define PMU_DOMAIN_GROUP_NUM		2
+
+enum pmu_perfmon_cmd_start_fields {
+	COUNTER_ALLOC
+};
+
+#define PMU_PERFMON_PCT_TO_INC		58
+#define PMU_PERFMON_PCT_TO_DEC		23
+
+struct pmu_perfmon_counter_gk20a {
+	u8 index;
+	u8 flags;
+	u8 group_id;
+	u8 valid;
+	u16 upper_threshold; /* units of 0.01% */
+	u16 lower_threshold; /* units of 0.01% */
+};
+struct pmu_gk20a_data {
+	struct pmu_perfmon_counter_gk20a perfmon_counter_gk20a;
+	u32 perfmon_state_id[PMU_DOMAIN_GROUP_NUM];
+};
+
+#define PMU_PERFMON_FLAG_ENABLE_INCREASE	(0x00000001)
+#define PMU_PERFMON_FLAG_ENABLE_DECREASE	(0x00000002)
+#define PMU_PERFMON_FLAG_CLEAR_PREV		(0x00000004)
+
+/* PERFMON CMD */
+enum {
+	PMU_PERFMON_CMD_ID_START = 0,
+	PMU_PERFMON_CMD_ID_STOP  = 1,
+	PMU_PERFMON_CMD_ID_INIT  = 2
+};
+
+struct pmu_perfmon_cmd_start_gk20a {
 	u8 cmd_type;
+	u8 group_id;
+	u8 state_id;
+	u8 flags;
+	struct pmu_allocation_gk20a counter_alloc;
+};
+
+struct pmu_perfmon_cmd_stop {
+	u8 cmd_type;
+};
+
+struct pmu_perfmon_cmd_init_gk20a {
+	u8 cmd_type;
+	u8 to_decrease_count;
+	u8 base_counter_id;
+	u32 sample_period_us;
+	struct pmu_allocation_gk20a counter_alloc;
+	u8 num_counters;
+	u8 samples_in_moving_avg;
+	u16 sample_buffer;
+};
+
+struct pmu_perfmon_cmd {
+	union {
+		u8 cmd_type;
+		struct pmu_perfmon_cmd_start_gk20a start_gk20a;
+		struct pmu_perfmon_cmd_stop stop;
+		struct pmu_perfmon_cmd_init_gk20a init_gk20a;
+	};
+};
+
+/* PERFMON MSG */
+enum {
+	PMU_PERFMON_MSG_ID_INCREASE_EVENT = 0,
+	PMU_PERFMON_MSG_ID_DECREASE_EVENT = 1,
+	PMU_PERFMON_MSG_ID_INIT_EVENT     = 2,
+	PMU_PERFMON_MSG_ID_ACK            = 3
 };
 
 /*
@@ -1477,6 +1547,7 @@ clean_up:
 		nv_error(pmu,
 			"fail to close queue %d", queue->id);
 	return false;
+
 }
 
 static int
@@ -1540,18 +1611,123 @@ gk20a_pmu_response_handle(struct gk20a_pmu_priv *priv, struct pmu_msg *msg)
 }
 
 static int
+gk20a_pmu_perfmon_start_sampling(struct gk20a_pmu_priv *priv)
+{
+	struct nvkm_pmu *pmu = &priv->base;
+	struct pmu_cmd cmd;
+	struct pmu_payload payload;
+	u32 seq;
+	struct pmu_gk20a_data *pmugk20adata =
+				(struct pmu_gk20a_data *)priv->pmu_chip_data;
+	struct pmu_perfmon_counter_gk20a *perfcntrgk20a;
+
+	perfcntrgk20a = &pmugk20adata->perfmon_counter_gk20a;
+
+	/* PERFMON Start */
+	memset(&cmd, 0, sizeof(cmd));
+
+	cmd.hdr.unit_id = PMU_UNIT_PERFMON;
+	cmd.hdr.size = PMU_CMD_HDR_SIZE +
+		sizeof(struct pmu_perfmon_cmd_start_gk20a);
+	cmd.perfmon.start_gk20a.cmd_type = PMU_PERFMON_CMD_ID_START;
+	cmd.perfmon.start_gk20a.group_id = PMU_DOMAIN_GROUP_PSTATE;
+	cmd.perfmon.start_gk20a.state_id =
+		pmugk20adata->perfmon_state_id[PMU_DOMAIN_GROUP_PSTATE];
+	cmd.perfmon.start_gk20a.flags =
+		PMU_PERFMON_FLAG_ENABLE_INCREASE |
+		PMU_PERFMON_FLAG_ENABLE_DECREASE |
+		PMU_PERFMON_FLAG_CLEAR_PREV;
+
+	memset(&payload, 0, sizeof(struct pmu_payload));
+
+	perfcntrgk20a->upper_threshold = 3000;
+	perfcntrgk20a->lower_threshold = 1000;
+
+	perfcntrgk20a->valid = TRUE;
+	payload.in.buf = perfcntrgk20a;
+	payload.in.size = sizeof(struct pmu_perfmon_counter_gk20a);
+	payload.in.offset = offsetof(struct pmu_perfmon_cmd_start_gk20a,
+		counter_alloc);
+
+	nv_debug(pmu, "cmd post PMU_PERFMON_CMD_ID_START\n");
+	gk20a_pmu_cmd_post(pmu, &cmd, NULL, &payload, PMU_COMMAND_QUEUE_LPQ,
+			NULL, NULL, &seq, ~0);
+
+	return 0;
+}
+
+static int
+gk20a_pmu_handle_perfmon_event(struct gk20a_pmu_priv *priv,
+			struct pmu_perfmon_msg *msg)
+{
+
+	struct nvkm_pmu *pmu = &priv->base;
+
+	switch (msg->msg_type) {
+	case PMU_PERFMON_MSG_ID_INCREASE_EVENT:
+		nv_debug(pmu, "perfmon increase event:\n"
+			"state_id %d, ground_id %d, pct %d\n",
+			msg->gen.state_id, msg->gen.group_id, msg->gen.data);
+		priv->perfmon_events_cnt++;
+		return 0;
+	case PMU_PERFMON_MSG_ID_DECREASE_EVENT:
+		nv_debug(pmu, "perfmon decrease event:\n"
+			"state_id %d, ground_id %d, pct %d\n",
+			msg->gen.state_id, msg->gen.group_id, msg->gen.data);
+		priv->perfmon_events_cnt++;
+		return 0;
+	case PMU_PERFMON_MSG_ID_INIT_EVENT:
+		priv->perfmon_ready = 1;
+		nv_debug(pmu, "perfmon init event\n");
+		break;
+	default:
+		break;
+	}
+
+	/* restart sampling */
+	if (priv->perfmon_sampling_enabled)
+		return gk20a_pmu_perfmon_start_sampling(priv);
+
+	return 0;
+}
+
+static int
+gk20a_pmu_handle_event(struct gk20a_pmu_priv *priv, struct pmu_msg *msg)
+{
+	int err = 0;
+	struct nvkm_pmu *pmu = &priv->base;
+
+	switch (msg->hdr.unit_id) {
+	case PMU_UNIT_PERFMON:
+		err = gk20a_pmu_handle_perfmon_event(priv, &msg->msg.perfmon);
+		nv_debug(pmu, "init perfmon event generated\n");
+		break;
+	default:
+		nv_debug(pmu, "default event generated\n");
+		break;
+	}
+
+	return err;
+}
+
+static int
 gk20a_pmu_process_init_msg(struct gk20a_pmu_priv *priv, struct pmu_msg *msg)
 {
 	struct pmu_init_msg_pmu_gk20a *init;
 	u32 tail, i;
+	struct pmu_gk20a_data *gk20adata;
 
 	tail = nv_rd32(priv, 0x0010a4cc);
 
 	gk20a_copy_from_dmem(priv, tail,
 				(u8 *)&msg->hdr, PMU_MSG_HDR_SIZE, 0);
+	gk20adata = kzalloc(sizeof(*gk20adata), GFP_KERNEL);
+	if (!gk20adata)
+		return -ENOMEM;
 
 	if (msg->hdr.unit_id != PMU_UNIT_INIT) {
 		nv_error(priv, "expecting init msg\n");
+		kfree(gk20adata);
 		return -EINVAL;
 	}
 
@@ -1560,6 +1736,7 @@ gk20a_pmu_process_init_msg(struct gk20a_pmu_priv *priv, struct pmu_msg *msg)
 
 	if (msg->msg.init.msg_type != PMU_INIT_MSG_TYPE_PMU_INIT) {
 		nv_error(priv, "expecting init msg\n");
+		kfree(gk20adata);
 		return -EINVAL;
 	}
 
@@ -1578,6 +1755,97 @@ gk20a_pmu_process_init_msg(struct gk20a_pmu_priv *priv, struct pmu_msg *msg)
 	priv->pmu_state = PMU_STATE_INIT_RECEIVED;
 	nv_debug(priv, "init msg processed\n");
 
+	gk20adata->perfmon_counter_gk20a.index = 3;
+	gk20adata->perfmon_counter_gk20a.group_id = PMU_DOMAIN_GROUP_PSTATE;
+	priv->pmu_chip_data = (void *)gk20adata;
+
+	return 0;
+}
+
+static int
+gk20a_pmu_init_perfmon(struct gk20a_pmu_priv *priv)
+{
+	struct nvkm_pmu *pmu = &priv->base;
+	struct pmu_cmd cmd;
+	struct pmu_payload payload;
+	u32 seq;
+	int err = 0;
+	struct pmu_gk20a_data *pmugk20adata = (struct pmu_gk20a_data *)
+			priv->pmu_chip_data;
+	struct pmu_perfmon_counter_gk20a *perfcntrgk20a;
+
+	perfcntrgk20a = &pmugk20adata->perfmon_counter_gk20a;
+
+	if (!priv->sample_buffer)
+		gk20a_pmu_allocator_block_alloc(&priv->dmem,
+				      &priv->sample_buffer, 2 * sizeof(u16),
+				      PMU_DMEM_ALLOC_ALIGNMENT);
+	if (err) {
+		nv_error(pmu,
+			"failed to allocate perfmon sample buffer");
+		return -ENOMEM;
+	}
+
+	priv->perfmon_ready = 0;
+	/* use counter #3 for GR && CE2 busy cycles */
+	nv_wr32(pmu, 0x0010a504 + PERFMON_BUSY_SLOT * 0x10, 0x200001);
+
+	/* disable idle filtering for counters 3 and 6 */
+	nv_mask(pmu, 0x0010a50c + PERFMON_BUSY_SLOT * 0x10, 0x07, 0x02);
+
+	/* use counter #6 for total cycles */
+	nv_mask(pmu, 0x0010a50c + PERFMON_CLK_SLOT * 0x10, 0x07, 0x03);
+
+	/*
+	 * We don't want to disturb counters #3 and #6, which are used by
+	 * perfmon task running in PMU, so we add wiring also
+	 * to counters #1 and #2 for exposing raw counter readings.
+	 */
+	nv_wr32(pmu, 0x0010a504 + NV_CLK_SLOT * 0x10, 0x200001);
+
+	nv_mask(pmu, 0x0010a50c + NV_CLK_SLOT * 0x10, 0x07, 0x02);
+
+	nv_mask(pmu, 0x0010a50c + NV_BUSY_SLOT * 0x10, 0x07, 0x03);
+
+	/* init PERFMON */
+	memset(&cmd, 0, sizeof(cmd));
+
+	cmd.hdr.unit_id = PMU_UNIT_PERFMON;
+	cmd.hdr.size = PMU_CMD_HDR_SIZE +
+		sizeof(struct pmu_perfmon_cmd_init_gk20a);
+	cmd.perfmon.cmd_type = PMU_PERFMON_CMD_ID_INIT;
+	/* buffer to save counter values for pmu perfmon */
+	cmd.perfmon.init_gk20a.sample_buffer = (u16)priv->sample_buffer;
+	/* number of sample periods below lower threshold
+	   before pmu triggers perfmon decrease event */
+	cmd.perfmon.init_gk20a.to_decrease_count = 15;
+	/* index of base counter, aka. always ticking counter */
+	cmd.perfmon.init_gk20a.base_counter_id = 6;
+	/* microseconds interval between pmu polls perf counters */
+	cmd.perfmon.init_gk20a.sample_period_us = 16700;
+	/* number of perfmon counters
+	   counter #3 (GR and CE2) for gk20a */
+	cmd.perfmon.init_gk20a.num_counters = 1;
+	/* moving average window for sample periods
+	   sample_period_us = 17 */
+	cmd.perfmon.init_gk20a.samples_in_moving_avg = 17;
+
+	memset(&payload, 0, sizeof(struct pmu_payload));
+
+	payload.in.buf = perfcntrgk20a;
+	payload.in.size = sizeof(struct pmu_perfmon_counter_gk20a);
+	payload.in.offset = offsetof(struct pmu_perfmon_cmd_start_gk20a,
+		counter_alloc);
+
+	nv_debug(pmu,
+		"payload in=%p, in_size=%d, in_offset=%d,\n"
+		"payload out=%p, out_size=%d, out_offset=%d",
+		&payload.in, payload.in.size, payload.in.offset,
+		&payload.out, payload.out.size, payload.out.offset);
+	nv_debug(pmu, "cmd post PMU_PERFMON_CMD_ID_INIT\n");
+	gk20a_pmu_cmd_post(pmu, &cmd, NULL, &payload, PMU_COMMAND_QUEUE_LPQ,
+			NULL, NULL, &seq, ~0);
+
 	return 0;
 }
 
@@ -1594,6 +1862,7 @@ gk20a_pmu_process_message(struct work_struct *work)
 	if (unlikely(!priv->pmu_ready)) {
 		nv_debug(pmu, "processing init msg\n");
 		gk20a_pmu_process_init_msg(priv, &msg);
+		gk20a_pmu_init_perfmon(priv);
 		goto out;
 	}
 	while (gk20a_pmu_read_message(priv,
@@ -1606,7 +1875,11 @@ gk20a_pmu_process_message(struct work_struct *work)
 				msg.hdr.ctrl_flags, msg.hdr.seq_id);
 
 		msg.hdr.ctrl_flags &= ~PMU_CMD_FLAGS_PMU_MASK;
-		gk20a_pmu_response_handle(priv, &msg);
+
+		if (msg.hdr.ctrl_flags == PMU_CMD_FLAGS_EVENT)
+			gk20a_pmu_handle_event(priv, &msg);
+		else
+			gk20a_pmu_response_handle(priv, &msg);
 	}
 out:
 	mutex_unlock(&priv->isr_mutex);
@@ -1702,6 +1975,7 @@ gk20a_init_pmu_setup_sw(struct gk20a_pmu_priv *priv)
 	}
 
 	gk20a_pmu_seq_init(priv);
+	priv->perfmon_sampling_enabled = true;
 
 	ret = nvkm_gpuobj_new(nv_object(priv), NULL, GK20A_PMU_TRACE_BUFSIZE,
 					    0, 0, &priv->trace_buf.obj);

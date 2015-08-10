@@ -1520,6 +1520,7 @@ static int gm20b_init_pmu_setup_hw1(struct nvkm_pmu *ppmu,
 	int err, i;
 	struct pmu_cmdline_args_v1 args;
 
+	pmu->perfmon_sampling_enabled = true;
 	pmu->mutex_cnt = MUTEX_CNT;
 	pmu->mutex = kzalloc(pmu->mutex_cnt *
 				sizeof(struct pmu_mutex), GFP_KERNEL);
@@ -1561,6 +1562,7 @@ static int gm20b_init_pmu_setup_hw1(struct nvkm_pmu *ppmu,
 
 	memset(&args, 0x00, sizeof(struct pmu_cmdline_args_v1));
 
+	gk20a_pmu_seq_init(pmu);
 	mutex_lock(&pmu->isr_mutex);
 	pmu_reset(ppmu, pmc);
 	pmu->isr_enabled = true;
