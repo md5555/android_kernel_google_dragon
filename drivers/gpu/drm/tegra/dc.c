@@ -734,7 +734,9 @@ static void tegra_plane_atomic_update(struct drm_plane *plane,
 		struct tegra_bo *bo = tegra_fb_get_plane(fb, i);
 
 		window.base[i] = bo->paddr + fb->offsets[i];
-		window.stride[i] = fb->pitches[i];
+		if (i < 2)
+			window.stride[i] = fb->pitches[i];
+		
 	}
 
 	/* for semiplanar modes both U and V planes should point to the same
@@ -743,7 +745,6 @@ static void tegra_plane_atomic_update(struct drm_plane *plane,
 	if (drm_format_num_planes(fb->pixel_format) == 2 &&
 	    tegra_dc_format_is_yuv(window.format, NULL)) {
 	    window.base[2] = window.base[1];
-	    window.stride[2] = window.stride[1];
 	}
 
 	tegra_dc_setup_window(dc, p->index, &window);
