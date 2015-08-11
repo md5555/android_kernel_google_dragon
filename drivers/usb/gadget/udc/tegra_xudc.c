@@ -2493,7 +2493,7 @@ static void tegra_xudc_port_disconnect(struct tegra_xudc *xudc)
 static void tegra_xudc_port_reset(struct tegra_xudc *xudc)
 {
 	tegra_xudc_reset(xudc);
-	if (xudc->gadget.speed != USB_SPEED_UNKNOWN) {
+	if (xudc->driver) {
 		spin_unlock(&xudc->lock);
 		usb_gadget_udc_reset(&xudc->gadget, xudc->driver);
 		spin_lock(&xudc->lock);
