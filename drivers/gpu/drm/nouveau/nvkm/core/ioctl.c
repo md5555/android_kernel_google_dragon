@@ -479,8 +479,13 @@ nvkm_ioctl_path(struct nvkm_handle *parent, u32 type, u32 nr, u32 *path,
 	}
 
 	if (owner != NVIF_IOCTL_V0_OWNER_ANY && owner != handle->route) {
-		nv_ioctl(object, "object route != owner\n");
-		return -EACCES;
+		nv_ioctl(object, "object route != owner: route = 0x%x, owner = 0x$%x\n",
+				handle->route, owner);
+		/* return -EACCES; */
+
+		/* continue anyway - this is required for calling objects
+		 * created in the kernel for this client from userspace, such
+		 * as the channel fifo object or its gr obj. */
 	}
 	*route = handle->route;
 	*token = handle->token;
