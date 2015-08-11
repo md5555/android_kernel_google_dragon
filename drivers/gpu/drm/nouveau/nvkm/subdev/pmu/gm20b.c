@@ -1520,21 +1520,23 @@ static int gm20b_init_pmu_setup_hw1(struct nvkm_pmu *ppmu,
 	int err;
 	struct pmu_cmdline_args_v1 args;
 
-	err = nvkm_gpuobj_new(nv_object(ppmu), NULL,
+	if (!pmu->trace_buf.vma.node) {
+		err = nvkm_gpuobj_new(nv_object(ppmu), NULL,
 					GK20A_PMU_TRACE_BUFSIZE, 0x1000, 0,
 					&pmu->trace_buf.obj);
-	if (err) {
-		nv_error(ppmu, "alloc for trace buf failed\n");
-		return err;
-	}
+		if (err) {
+			nv_error(ppmu, "alloc for trace buf failed\n");
+			return err;
+		}
 
-	err = nvkm_gpuobj_map_vm(nv_gpuobj(pmu->trace_buf.obj),
-					pmu->pmuvm.vm,
-					NV_MEM_ACCESS_RW,
-					&pmu->trace_buf.vma);
-	if (err) {
-		nv_error(ppmu, "mapping of trace buf failed\n");
-		return err;
+		err = nvkm_gpuobj_map_vm(nv_gpuobj(pmu->trace_buf.obj),
+						pmu->pmuvm.vm,
+						NV_MEM_ACCESS_RW,
+						&pmu->trace_buf.vma);
+		if (err) {
+			nv_error(ppmu, "mapping of trace buf failed\n");
+			return err;
+		}
 	}
 
 	memset(&args, 0x00, sizeof(struct pmu_cmdline_args_v1));
