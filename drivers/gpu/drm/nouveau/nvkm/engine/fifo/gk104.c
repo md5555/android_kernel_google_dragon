@@ -313,12 +313,71 @@ gk104_fifo_chan_fini(struct nvkm_object *object, bool suspend)
 	return nvkm_fifo_channel_fini(&chan->base, suspend);
 }
 
+static void
+gk104_fifo_set_runlist_timeslice(struct gk104_fifo_priv *priv,
+		struct gk104_fifo_chan *chan, u8 slice)
+{
+	struct nvkm_gpuobj *base = nv_gpuobj(nv_object(chan)->parent);
+	u32 chid = chan->base.chid;
+
+	nv_mask(priv, 0x800004 + (chid * 8), 0x00000800, 0x00000800);
+	WARN_ON(gk104_fifo_chan_kick(chan));
+	nv_wo32(base, 0xf8, slice | 0x10003000);
+	nv_mask(priv, 0x800004 + (chid * 8), 0x00000400, 0x00000400);
+	nv_debug(chan, "timeslice set to %d for %d\n", slice, chid);
+}
+
+static int
+gk104_fifo_chan_set_priority(struct nvkm_object *object, void *data, u32 size)
+{
+	struct gk104_fifo_priv *priv = (void *)object->engine;
+	struct gk104_fifo_chan *chan = (void *)object;
+	union {
+		struct kepler_set_channel_priority_v0 v0;
+	} *args = data;
+	int ret;
+	u8 slice;
+
+	if (nvif_unpack(args->v0, 0, 0, false)) {
+		switch (args->v0.priority) {
+		case KEPLER_SET_CHANNEL_PRIORITY_LOW:
+			slice = 64; /* << 3 == 512 us */
+			break;
+		case KEPLER_SET_CHANNEL_PRIORITY_MEDIUM:
+			slice = 128; /* 1 ms */
+			break;
+		case KEPLER_SET_CHANNEL_PRIORITY_HIGH:
+			slice = 255; /* 2 ms */
+			break;
+		default:
+			return -EINVAL;
+		}
+		gk104_fifo_set_runlist_timeslice(priv, chan, slice);
+		return 0;
+	}
+
+	return ret;
+}
+
+static int
+gk104_fifo_chan_mthd(struct nvkm_object *object, u32 mthd, void *data, u32 size)
+{
+	switch (mthd) {
+	case KEPLER_SET_CHANNEL_PRIORITY:
+		return gk104_fifo_chan_set_priority(object, data, size);
+	default:
+		break;
+	}
+	return -EINVAL;
+}
+
 struct nvkm_ofuncs
 gk104_fifo_chan_ofuncs = {
 	.ctor = gk104_fifo_chan_ctor,
 	.dtor = _nvkm_fifo_channel_dtor,
 	.init = gk104_fifo_chan_init,
 	.fini = gk104_fifo_chan_fini,
+	.mthd = gk104_fifo_chan_mthd,
 	.map  = _nvkm_fifo_channel_map,
 	.rd32 = _nvkm_fifo_channel_rd32,
 	.wr32 = _nvkm_fifo_channel_wr32,
