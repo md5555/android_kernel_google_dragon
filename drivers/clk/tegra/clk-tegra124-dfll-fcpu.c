@@ -156,14 +156,14 @@ static const struct cvb_table tegra210_cpu_cvb_tables[] = {
 		.cpu_dfll_data = {
 			.tune0_low = 0xffead0ff,
 			.tune0_high = 0xffead0ff,
-			.tune1 = 0x25501d0,
+			.tune1 = 0x025501d0,
 			.tune_high_min_millivolts = 864,
 		}
 	},
 	{
 		.speedo_id = 1,
 		.process_id = 0,
-		.min_millivolts = 850,
+		.min_millivolts = 818,
 		.max_millivolts = 1170,
 		.alignment = {
 			.step_uv = 10000, /* 10mV */
@@ -181,25 +181,7 @@ static const struct cvb_table tegra210_cpu_cvb_tables[] = {
 	{
 		.speedo_id = 1,
 		.process_id = 1,
-		.min_millivolts = 800,
-		.max_millivolts = 1170,
-		.alignment = {
-			.step_uv = 10000, /* 10mV */
-		},
-		.speedo_scale = 100,
-		.voltage_scale = 1000,
-		TEGRA210_CPU_CVB_TABLE,
-		.cpu_dfll_data = {
-			.tune0_low = 0xffead0ff,
-			.tune0_high = 0xffead0ff,
-			.tune1 = 0x020091d9,
-			.tune_high_min_millivolts = 864,
-		}
-	},
-	{
-		.speedo_id = 1,
-		.process_id = 2,
-		.min_millivolts = 800,
+		.min_millivolts = 818,
 		.max_millivolts = 1170,
 		.alignment = {
 			.step_uv = 10000, /* 10mV */
