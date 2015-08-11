@@ -591,6 +591,8 @@ struct fermi_a_zbc_depth_v0 {
 };
 
 #define KEPLER_SET_CHANNEL_PRIORITY                                        0x00
+#define KEPLER_SET_CHANNEL_TIMEOUT                                         0x01
+
 struct kepler_set_channel_priority_v0 {
 	__u8  version;
 #define KEPLER_SET_CHANNEL_PRIORITY_LOW                                    0x00
@@ -598,6 +600,12 @@ struct kepler_set_channel_priority_v0 {
 #define KEPLER_SET_CHANNEL_PRIORITY_HIGH                                   0x02
 	__u8  priority;
 	__u8  pad03[6];
+};
+
+struct kepler_set_channel_timeout_v0 {
+	__u8  version;
+	__u8  pad03[3];
+	__u32 timeout_ms;
 };
 
 #endif

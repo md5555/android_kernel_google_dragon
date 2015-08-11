@@ -37,6 +37,11 @@
 
 #include "nouveau_drm.h"
 
+/* engine status register has a field for context status */
+#define CTXSW_STATUS_LOAD	5
+#define CTXSW_STATUS_SAVE	6
+#define CTXSW_STATUS_SWITCH	7
+
 struct gk104_fifo_base {
 	struct nvkm_fifo_base base;
 	struct nvkm_gpuobj *pgd;
@@ -51,7 +56,15 @@ struct gk104_fifo_chan {
 		RUNNING,
 		KILLED
 	} state;
+	struct {
+		u32 sum_ms;
+		u32 limit_ms;
+		u32 gpfifo_get;
+	} timeout;
 };
+
+#define GRFIFO_TIMEOUT_CHECK_PERIOD_MS	100
+#define GRFIFO_TIMEOUT_DEFAULT		5000
 
 /*******************************************************************************
  * FIFO channel objects
@@ -256,6 +269,11 @@ gk104_fifo_chan_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	nv_wo32(base, 0xf8, 0x10003080); /* 0x002310 */
 	nv_wo32(base, 0xfc, 0x10000010); /* 0x002350 */
 	bar->flush(bar);
+
+	chan->timeout.sum_ms = 0;
+	chan->timeout.limit_ms = GRFIFO_TIMEOUT_DEFAULT;
+	chan->timeout.gpfifo_get = 0;
+
 	return 0;
 }
 
@@ -360,11 +378,31 @@ gk104_fifo_chan_set_priority(struct nvkm_object *object, void *data, u32 size)
 }
 
 static int
+gk104_fifo_chan_set_timeout(struct nvkm_object *object, void *data, u32 size)
+{
+	struct gk104_fifo_chan *chan = (void *)object;
+	union {
+		struct kepler_set_channel_timeout_v0 v0;
+	} *args = data;
+	int ret;
+
+	if (nvif_unpack(args->v0, 0, 0, false)) {
+		chan->timeout.limit_ms = args->v0.timeout_ms;
+		nv_debug(chan, "timeout set to %d ms for %d\n",
+				args->v0.timeout_ms, chan->base.chid);
+	}
+
+	return ret;
+}
+
+static int
 gk104_fifo_chan_mthd(struct nvkm_object *object, u32 mthd, void *data, u32 size)
 {
 	switch (mthd) {
 	case KEPLER_SET_CHANNEL_PRIORITY:
 		return gk104_fifo_chan_set_priority(object, data, size);
+	case KEPLER_SET_CHANNEL_TIMEOUT:
+		return gk104_fifo_chan_set_timeout(object, data, size);
 	default:
 		break;
 	}
@@ -585,6 +623,22 @@ gk104_fifo_sched_reason[] = {
 	{}
 };
 
+static bool
+gk104_fifo_update_timeout(struct gk104_fifo_priv *priv,
+		struct gk104_fifo_chan *chan, u32 dt)
+{
+	u32 gpfifo_get = nv_ro32(nv_object(chan)->parent, 0x20);
+
+	/* advancing, but slowly; reset counting */
+	if (gpfifo_get != chan->timeout.gpfifo_get)
+		chan->timeout.sum_ms = 0;
+
+	chan->timeout.sum_ms += dt;
+	chan->timeout.gpfifo_get = gpfifo_get;
+
+	return chan->timeout.sum_ms > chan->timeout.limit_ms;
+}
+
 static void
 gk104_fifo_intr_sched_ctxsw(struct gk104_fifo_priv *priv)
 {
@@ -596,23 +650,29 @@ gk104_fifo_intr_sched_ctxsw(struct gk104_fifo_priv *priv)
 		u32 stat = nv_rd32(priv, 0x002640 + (engn * 0x04));
 		u32 busy = (stat & 0x80000000);
 		u32 next = (stat & 0x07ff0000) >> 16;
-		u32 chsw = (stat & 0x00008000);
-		u32 save = (stat & 0x00004000);
-		u32 load = (stat & 0x00002000);
+		u32 ctxstat = (stat & 0x0000e000) >> 13;
 		u32 prev = (stat & 0x000007ff);
-		u32 chid = load ? next : prev;
-		(void)save;
 
-		if (busy && chsw) {
+		u32 chid = (ctxstat == CTXSW_STATUS_LOAD) ? next : prev;
+		u32 ctxsw_active = ctxstat == CTXSW_STATUS_LOAD ||
+			ctxstat == CTXSW_STATUS_SAVE ||
+			ctxstat == CTXSW_STATUS_SWITCH;
+
+		if (busy && ctxsw_active) {
 			if (!(chan = (void *)priv->base.channel[chid]))
 				continue;
 			if (!(engine = gk104_fifo_engine(priv, engn)))
 				continue;
 
-			nvkm_fifo_eevent(&priv->base, chid,
-					NOUVEAU_GEM_CHANNEL_FIFO_ERROR_IDLE_TIMEOUT);
-
-			gk104_fifo_recover(priv, engine, chan);
+			if (gk104_fifo_update_timeout(priv, chan,
+						GRFIFO_TIMEOUT_CHECK_PERIOD_MS)) {
+				nvkm_fifo_eevent(&priv->base, chid,
+						NOUVEAU_GEM_CHANNEL_FIFO_ERROR_IDLE_TIMEOUT);
+				gk104_fifo_recover(priv, engine, chan);
+			} else {
+				nv_debug(priv, "fifo waiting for ctxsw %d ms on ch %d\n",
+						chan->timeout.sum_ms, chid);
+			}
 		}
 	}
 }
@@ -629,13 +689,12 @@ gk104_fifo_intr_sched(struct gk104_fifo_priv *priv)
 	if (!en)
 		snprintf(enunk, sizeof(enunk), "UNK%02x", code);
 
-	nv_error(priv, "SCHED_ERROR [ %s ]\n", en ? en->name : enunk);
-
 	switch (code) {
 	case 0x0a:
 		gk104_fifo_intr_sched_ctxsw(priv);
 		break;
 	default:
+		nv_error(priv, "SCHED_ERROR [ %s ]\n", en ? en->name : enunk);
 		break;
 	}
 }
@@ -1112,8 +1171,12 @@ gk104_fifo_init(struct nvkm_object *object)
 
 	nv_wr32(priv, 0x002254, 0x10000000 | priv->user.bar.offset >> 12);
 
+	/* enable interrupts */
 	nv_wr32(priv, 0x002100, 0xffffffff);
 	nv_wr32(priv, 0x002140, 0x7fffffff);
+
+	/* engine context switch timeout */
+	nv_wr32(priv, 0x002a0c, 0x80000000 | (1000 * GRFIFO_TIMEOUT_CHECK_PERIOD_MS));
 	return 0;
 }
 
