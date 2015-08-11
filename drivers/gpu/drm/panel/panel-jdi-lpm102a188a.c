@@ -135,17 +135,6 @@ static int panel_jdi_disable(struct drm_panel *panel)
 	if (!jdi->enabled)
 		return 0;
 
-	return ret;
-}
-
-static int panel_jdi_unprepare(struct drm_panel *panel)
-{
-	struct panel_jdi *jdi = to_panel_jdi(panel);
-	int ret;
-
-	if (!jdi->enabled)
-		return 0;
-
 	ret = mipi_dsi_dcs_set_display_off(jdi->dsi);
 	if (ret < 0)
 		DRM_ERROR("failed to set display off: %d\n", ret);
@@ -165,6 +154,16 @@ static int panel_jdi_unprepare(struct drm_panel *panel)
 
 	/* Specified by JDI @ 150ms, subject to change */
 	msleep(150);
+
+	return ret;
+}
+
+static int panel_jdi_unprepare(struct drm_panel *panel)
+{
+	struct panel_jdi *jdi = to_panel_jdi(panel);
+
+	if (!jdi->enabled)
+		return 0;
 
 	gpio_set_value(jdi->reset_gpio,
 		(jdi->reset_gpio_flags & GPIO_ACTIVE_LOW) ? 0 : 1);
@@ -276,10 +275,13 @@ static int panel_jdi_prepare(struct drm_panel *panel)
 	 */
 	msleep(150);
 
-	/*
-	 * Unless we send one frame of image data before display turn on, the
-	 * display may show random pixels (colored snow).
-	 */
+	return ret;
+}
+
+static int panel_jdi_enable(struct drm_panel *panel)
+{
+	struct panel_jdi *jdi = to_panel_jdi(panel);
+	int ret;
 
 	ret = mipi_dsi_dcs_set_display_on(jdi->dsi);
 	if (ret < 0)
@@ -292,11 +294,6 @@ static int panel_jdi_prepare(struct drm_panel *panel)
 	jdi->enabled = true;
 
 	return ret;
-}
-
-static int panel_jdi_enable(struct drm_panel *panel)
-{
-	return 0;
 }
 
 static const struct drm_display_mode default_mode = {
