@@ -97,16 +97,26 @@ static void __init rev_sku_to_speedo_ids(struct tegra_sku_info *sku_info,
 	case 0x07:
 	case 0x17:
 	case 0x27:
+		if (rev == TEGRA_REVISION_A02) {
+			sku_info->cpu_speedo_id = 1;
+			sku_info->gpu_speedo_id = 2;
+			break;
+		}
 		sku_info->gpu_speedo_id = 1;
 		break;
 	case 0x83:
 		if (rev == TEGRA_REVISION_A02) {
-			sku_info->cpu_speedo_id = 1;
+			sku_info->cpu_speedo_id = 2;
 			sku_info->gpu_speedo_id = 4;
 			break;
 		}
 		/* fall through for a01 */
 	case 0x87:
+		if (rev == TEGRA_REVISION_A02) {
+			sku_info->cpu_speedo_id = 1;
+			sku_info->gpu_speedo_id = 2;
+			break;
+		}
 		sku_info->gpu_speedo_id = 3;
 		break;
 	default:

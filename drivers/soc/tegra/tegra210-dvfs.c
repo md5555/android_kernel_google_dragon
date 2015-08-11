@@ -49,7 +49,7 @@ tegra210_core_therm_caps[MAX_THERMAL_LIMITS] = {
 static struct dvfs_rail tegra210_dvfs_rail_vdd_cpu = {
 	.reg_id = "vdd-cpu",
 	.max_millivolts = 1300,
-	.min_millivolts = 850,
+	.min_millivolts = 800,
 	.step = VDD_SAFE_STEP,
 	.step_up = 1300,
 	.jmp_to_zero = true,
@@ -139,28 +139,28 @@ static struct cpu_dvfs cpu_fv_dvfs_table[] = {
 	{
 		.speedo_id = 2,
 		.process_id = 0,
-		.min_mv = 870,
-		.max_mv = 1227,
+		.min_mv = 804,
+		.max_mv = 1170,
 		CPU_FV_TABLE,
 	},
 	{
 		.speedo_id = 2,
 		.process_id = 1,
-		.min_mv = 870,
-		.max_mv = 1227,
+		.min_mv = 804,
+		.max_mv = 1170,
 		CPU_FV_TABLE,
 	},
 	{
 		.speedo_id = 1,
 		.process_id = 0,
-		.min_mv = 800,
+		.min_mv = 818,
 		.max_mv = 1170,
 		CPU_FV_TABLE,
 	},
 	{
 		.speedo_id = 1,
 		.process_id = 1,
-		.min_mv = 800,
+		.min_mv = 818,
 		.max_mv = 1170,
 		CPU_FV_TABLE,
 	},
@@ -205,9 +205,16 @@ static unsigned long cpu_lp_max_freq[] = {
 
 static struct cpu_dvfs cpu_lp_fv_dvfs_table[] = {
 	{
+		.speedo_id = 2,
+		.process_id = -1,
+		.min_mv = 804,
+		.max_mv = 1170,
+		CPU_LP_FV_TABLE,
+	},
+	{
 		.speedo_id = 1,
 		.process_id = -1,
-		.min_mv = 800,
+		.min_mv = 818,
 		.max_mv = 1170,
 		CPU_LP_FV_TABLE,
 	},
