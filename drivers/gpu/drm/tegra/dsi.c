@@ -538,7 +538,7 @@ static void tegra_dsi_configure(struct tegra_dsi *dsi, unsigned int pipe,
 
 	tegra_dsi_writel(dsi, dsi->video_fifo_depth, DSI_MAX_THRESHOLD);
 
-	value = DSI_HOST_CONTROL_HS;
+	value = DSI_HOST_CONTROL_HS | DSI_HOST_CONTROL_TX_TRIG_HOST;
 	tegra_dsi_writel(dsi, value, DSI_HOST_CONTROL);
 
 	value = tegra_dsi_readl(dsi, DSI_CONTROL);
@@ -550,12 +550,11 @@ static void tegra_dsi_configure(struct tegra_dsi *dsi, unsigned int pipe,
 
 	/* enable DCS commands for command mode */
 	if (dsi->flags & MIPI_DSI_MODE_VIDEO)
-		value &= ~DSI_CONTROL_DCS_ENABLE;
+		value &= ~(DSI_CONTROL_DCS_ENABLE | DSI_CONTROL_HOST_ENABLE);
 	else
-		value |= DSI_CONTROL_DCS_ENABLE;
+		value |= DSI_CONTROL_DCS_ENABLE | DSI_CONTROL_HOST_ENABLE;
 
 	value |= DSI_CONTROL_VIDEO_ENABLE;
-	value &= ~DSI_CONTROL_HOST_ENABLE;
 	tegra_dsi_writel(dsi, value, DSI_CONTROL);
 
 	for (i = 0; i < NUM_PKT_SEQ; i++)
@@ -1224,35 +1223,61 @@ static void tegra_dsi_writesl(struct tegra_dsi *dsi, unsigned long offset,
 	}
 }
 
-static ssize_t tegra_dsi_host_transfer(struct mipi_dsi_host *host,
-				       const struct mipi_dsi_msg *msg)
+static ssize_t tegra_dsi_host_transfer_packet(struct mipi_dsi_host *host,
+			const struct mipi_dsi_msg *msg,
+			const struct mipi_dsi_packet *packet)
 {
 	struct tegra_dsi *dsi = host_to_tegra(host);
-	int i;
-	struct mipi_dsi_packet packet;
-	const u8 *header;
 	ssize_t err;
+	int i, retries = 3;
 	u32 value;
 
-	mutex_lock(&dsi->dcs_lock);
-	if (dsi->dc_active) {
-		DRM_ERROR("Can't send dcs commands while dc is active\n");
-		err = -EIO;
-		goto out;
+	BUG_ON(!mutex_is_locked(&dsi->dcs_lock));
+
+	for (i = 0; i < retries; i++) {
+		/* reset underflow/overflow flags */
+		value = tegra_dsi_readl(dsi, DSI_STATUS);
+		if (value & (DSI_STATUS_UNDERFLOW | DSI_STATUS_OVERFLOW)) {
+			value = tegra_dsi_readl(dsi, DSI_HOST_CONTROL);
+			value |= DSI_HOST_CONTROL_FIFO_RESET;
+			tegra_dsi_writel(dsi, value, DSI_HOST_CONTROL);
+			usleep_range(10, 20);
+		}
+
+		value = packet->header[3] << 24 | packet->header[2] << 16 |
+			packet->header[1] << 8 | packet->header[0];
+		tegra_dsi_writel(dsi, value, DSI_WR_DATA);
+
+		/* write payload (if any) */
+		if (packet->payload_length > 0) {
+			tegra_dsi_writesl(dsi, DSI_WR_DATA, packet->payload,
+					packet->payload_length);
+
+			if (msg->flags & MIPI_DSI_MSG_SW_CRC)
+				tegra_dsi_writel(dsi, packet->checksum,
+						DSI_WR_DATA);
+		}
+
+		err = tegra_dsi_transmit(dsi, 150);
+		if (err < 0)
+			continue;
+
+		tegra_dsi_writel(dsi, 1, DSI_INCR_SYNCPT_CONTROL);
+		tegra_dsi_writel(dsi, 0, DSI_INCR_SYNCPT_CONTROL);
 	}
+	if (err)
+		return err;
 
-	err = mipi_dsi_create_packet(&packet, msg);
-	if (err < 0)
-		goto out;
+	return 4 + packet->payload_length;
+}
 
-	header = packet.header;
-
-	/* maximum FIFO depth is 1920 words */
-	if (packet.size > dsi->video_fifo_depth * 4) {
-		err = -ENOSPC;
-		goto out;
-	}
-
+static ssize_t tegra_dsi_host_config_for_dcs(struct mipi_dsi_host *host,
+		       const struct mipi_dsi_msg *msg,
+		       const struct mipi_dsi_packet *packet)
+{
+	struct tegra_dsi *dsi = host_to_tegra(host);
+	u32 value;
+	int i;
 	/*
 	 * Clear the control and packet sequence registers. Without this code,
 	 * there are issues on boot where the transfer may fail.
@@ -1261,14 +1286,6 @@ static ssize_t tegra_dsi_host_transfer(struct mipi_dsi_host *host,
 	tegra_dsi_writel(dsi, 0, DSI_HOST_CONTROL);
 	for (i = 0; i < NUM_PKT_SEQ; i++)
 		tegra_dsi_writel(dsi, 0, DSI_PKT_SEQ_0_LO + i);
-
-	/* reset underflow/overflow flags */
-	value = tegra_dsi_readl(dsi, DSI_STATUS);
-	if (value & (DSI_STATUS_UNDERFLOW | DSI_STATUS_OVERFLOW)) {
-		value = DSI_HOST_CONTROL_FIFO_RESET;
-		tegra_dsi_writel(dsi, value, DSI_HOST_CONTROL);
-		usleep_range(10, 20);
-	}
 
 	value = tegra_dsi_readl(dsi, DSI_POWER_CONTROL);
 	value |= DSI_POWER_CONTROL_ENABLE;
@@ -1286,40 +1303,84 @@ static ssize_t tegra_dsi_host_transfer(struct mipi_dsi_host *host,
 	 * The host FIFO has a maximum of 64 words, so larger transmissions
 	 * need to use the video FIFO.
 	 */
-	if (packet.size > dsi->host_fifo_depth * 4)
+	if (packet->size > dsi->host_fifo_depth * 4)
 		value |= DSI_HOST_CONTROL_FIFO_SEL;
 
 	tegra_dsi_writel(dsi, value, DSI_HOST_CONTROL);
+
+	value = DSI_CONTROL_LANES(dsi->lanes - 1) | DSI_CONTROL_HOST_ENABLE;
+	tegra_dsi_writel(dsi, value, DSI_CONTROL);
+
+	return 0;
+}
+
+static ssize_t tegra_dsi_host_transfer(struct mipi_dsi_host *host,
+				       const struct mipi_dsi_msg *msg)
+{
+	struct tegra_dsi *dsi = host_to_tegra(host);
+	struct mipi_dsi_msg msg_local;
+	struct mipi_dsi_packet packet;
+	ssize_t err;
+	u32 value;
+
+	mutex_lock(&dsi->dcs_lock);
+
+	/* We need to make a copy to possibly inject our own flags */
+	memcpy(&msg_local, msg, sizeof(msg_local));
+
+	/* HW ECC and CRC are disabled when dc is active */
+	if (dsi->dc_active)
+		msg_local.flags |= MIPI_DSI_MSG_SW_ECC | MIPI_DSI_MSG_SW_CRC;
+
+	err = mipi_dsi_create_packet(&packet, &msg_local);
+	if (err < 0)
+		goto out;
+
+	/* maximum FIFO depth is 1920 words */
+	if (packet.size > dsi->video_fifo_depth * 4) {
+		err = -ENOSPC;
+		goto out;
+	}
+
+	/* If the dc is active, we have a few more considerations to make */
+	if (dsi->dc_active) {
+		/* Must use the host FIFO */
+		if (packet.size > dsi->host_fifo_depth * 4) {
+			err = -ENOSPC;
+			goto out;
+		}
+
+		/* No BTA allowed */
+		if ((msg_local.flags & MIPI_DSI_MSG_REQ_ACK) ||
+		    (msg_local.rx_buf && msg_local.rx_len > 0)) {
+			err = -EINVAL;
+			goto out;
+		}
+
+	/* If dc is inactive, setup the dsi block to transmit a message */
+	} else {
+		err = tegra_dsi_host_config_for_dcs(host, &msg_local, &packet);
+		if (err)
+			goto out;
+	}
 
 	/*
 	 * For reads and messages with explicitly requested ACK, generate a
 	 * BTA sequence after the transmission of the packet.
 	 */
-	if ((msg->flags & MIPI_DSI_MSG_REQ_ACK) ||
-	    (msg->rx_buf && msg->rx_len > 0)) {
+	if ((msg_local.flags & MIPI_DSI_MSG_REQ_ACK) ||
+	    (msg_local.rx_buf && msg_local.rx_len > 0)) {
 		value = tegra_dsi_readl(dsi, DSI_HOST_CONTROL);
 		value |= DSI_HOST_CONTROL_PKT_BTA;
 		tegra_dsi_writel(dsi, value, DSI_HOST_CONTROL);
 	}
 
-	value = DSI_CONTROL_LANES(dsi->lanes - 1) | DSI_CONTROL_HOST_ENABLE;
-	tegra_dsi_writel(dsi, value, DSI_CONTROL);
-
-	/* write packet header, ECC is generated by hardware */
-	value = header[2] << 16 | header[1] << 8 | header[0];
-	tegra_dsi_writel(dsi, value, DSI_WR_DATA);
-
-	/* write payload (if any) */
-	if (packet.payload_length > 0)
-		tegra_dsi_writesl(dsi, DSI_WR_DATA, packet.payload,
-				  packet.payload_length);
-
-	err = tegra_dsi_transmit(dsi, 250);
+	err = tegra_dsi_host_transfer_packet(host, &msg_local, &packet);
 	if (err < 0)
 		goto out;
 
-	if ((msg->flags & MIPI_DSI_MSG_REQ_ACK) ||
-	    (msg->rx_buf && msg->rx_len > 0)) {
+	if ((msg_local.flags & MIPI_DSI_MSG_REQ_ACK) ||
+	    (msg_local.rx_buf && msg_local.rx_len > 0)) {
 		err = tegra_dsi_wait_for_response(dsi, 250);
 		if (err < 0)
 			goto out;
@@ -1344,7 +1405,7 @@ static ssize_t tegra_dsi_host_transfer(struct mipi_dsi_host *host,
 		}
 
 		if (err > 1) {
-			err = tegra_dsi_read_response(dsi, msg, err);
+			err = tegra_dsi_read_response(dsi, &msg_local, err);
 			if (err < 0)
 				dev_err(dsi->dev,
 					"failed to parse response: %zd\n",
