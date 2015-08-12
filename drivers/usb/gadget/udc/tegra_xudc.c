@@ -3328,6 +3328,7 @@ static int tegra_xudc_powergate(struct tegra_xudc *xudc)
 	phy_exit(xudc->utmi_phy);
 
 	regulator_bulk_disable(xudc->soc->num_supplies, xudc->supplies);
+	tegra_xudc_clk_disable(xudc);
 
 	return 0;
 }
@@ -3339,6 +3340,7 @@ static int tegra_xudc_unpowergate(struct tegra_xudc *xudc)
 
 	dev_dbg(xudc->dev, "exiting ELPG\n");
 
+	tegra_xudc_clk_enable(xudc);
 	err = regulator_bulk_enable(xudc->soc->num_supplies, xudc->supplies);
 	if (err < 0)
 		return err;
@@ -3402,8 +3404,6 @@ static int tegra_xudc_suspend(struct device *dev)
 
 	pm_runtime_disable(dev);
 
-	tegra_xudc_clk_disable(xudc);
-
 	return 0;
 }
 
@@ -3412,8 +3412,6 @@ static int tegra_xudc_resume(struct device *dev)
 	struct tegra_xudc *xudc = dev_get_drvdata(dev);
 	unsigned long flags;
 	int err;
-
-	tegra_xudc_clk_enable(xudc);
 
 	err = tegra_xudc_unpowergate(xudc);
 	if (err < 0)
