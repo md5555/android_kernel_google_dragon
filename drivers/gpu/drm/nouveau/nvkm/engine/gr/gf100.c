@@ -1277,17 +1277,27 @@ gf100_gr_init_ctxctl(struct gf100_gr_priv *priv)
 {
 	struct gf100_gr_oclass *oclass = (void *)nv_object(priv)->oclass;
 	struct gf100_grctx_oclass *cclass = (void *)nv_engine(priv)->cclass;
-	int i;
+	int i, ret;
 	struct nvkm_pmu *pmu = nvkm_pmu(priv);
 
 	if (priv->firmware) {
 		nvkm_mc(priv)->unk260(nvkm_mc(priv), 0);
 		/* load fuc microcode if not done securely*/
-		if (pmu->fecs_secure_boot)
+		if (pmu->fecs_secure_boot && pmu->cold_boot) {
+			nv_debug(priv, "secure boot FECS and PMU\n");
 			pmu->secure_bootstrap(pmu);
-		else
+		} else if (pmu->fecs_secure_boot && !pmu->cold_boot) {
+			ret = pmu->boot_fecs(pmu);
+			if (ret) {
+				nv_error(priv, "secure boot FECS failed\n");
+				return ret;
+			}
+			nv_debug(priv, "secure boot FECS OK\n");
+		} else {
 			gf100_gr_init_fw(priv, 0x409000,
 				&priv->fuc409c, &priv->fuc409d);
+		}
+
 		if (!pmu->gpccs_secure_boot)
 			gf100_gr_init_fw(priv, 0x41a000,
 				&priv->fuc41ac, &priv->fuc41ad);
@@ -1298,9 +1308,15 @@ gf100_gr_init_ctxctl(struct gf100_gr_priv *priv)
 		nv_wr32(priv, 0x41a10c, 0x00000000);
 		nv_wr32(priv, 0x40910c, 0x00000000);
 		nv_wr32(priv, 0x41a100, 0x00000002);
-		nv_wr32(priv, 0x409130, 0x2);
+		if (pmu->fecs_secure_boot)
+			nv_wr32(priv, 0x409130, 0x2);
+		else
+			nv_wr32(priv, 0x409100, 0x2);
+
 		if (!nv_wait(priv, 0x409800, 0x00000001, 0x00000001))
 			nv_warn(priv, "0x409800 wait failed\n");
+		else
+			nv_debug(priv, "FECS reply\n");
 
 		nv_wr32(priv, 0x409840, 0xffffffff);
 		nv_wr32(priv, 0x409500, 0x7fffffff);
@@ -1313,6 +1329,7 @@ gf100_gr_init_ctxctl(struct gf100_gr_priv *priv)
 			nv_error(priv, "fuc09 req 0x10 timeout\n");
 			return -EBUSY;
 		}
+		nv_debug(priv, "FECS reply 0x10\n");
 		priv->size = nv_rd32(priv, 0x409800);
 
 		nv_wr32(priv, 0x409840, 0xffffffff);
@@ -1322,6 +1339,7 @@ gf100_gr_init_ctxctl(struct gf100_gr_priv *priv)
 			nv_error(priv, "fuc09 req 0x16 timeout\n");
 			return -EBUSY;
 		}
+		nv_debug(priv, "FECS reply 0x16\n");
 
 		nv_wr32(priv, 0x409840, 0xffffffff);
 		nv_wr32(priv, 0x409500, 0x00000000);
@@ -1330,6 +1348,7 @@ gf100_gr_init_ctxctl(struct gf100_gr_priv *priv)
 			nv_error(priv, "fuc09 req 0x25 timeout\n");
 			return -EBUSY;
 		}
+		nv_debug(priv, "FECS reply 0x25\n");
 
 		if (nv_device(priv)->chipset >= 0xe0) {
 			nv_wr32(priv, 0x409800, 0x00000000);
@@ -1410,8 +1429,7 @@ gf100_gr_init_ctxctl(struct gf100_gr_priv *priv)
 
 	/* start HUB ucode running, it'll init the GPCs */
 	nv_wr32(priv, 0x40910c, 0x00000000);
-	nv_wr32(priv, 0x409130, 0x2);
-	nv_wr32(priv, 0x41a100, 0x00000002);
+	nv_wr32(priv, 0x409100, 0x00000002);
 	if (!nv_wait(priv, 0x409800, 0x80000000, 0x80000000)) {
 		nv_error(priv, "HUB_INIT timed out\n");
 		gf100_gr_ctxctl_debug(priv);

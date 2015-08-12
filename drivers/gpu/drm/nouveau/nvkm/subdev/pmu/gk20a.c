@@ -80,7 +80,6 @@ enum {
 };
 
 #define PMU_MSG_HDR_SIZE	sizeof(struct pmu_hdr)
-#define PMU_CMD_HDR_SIZE	sizeof(struct pmu_hdr)
 
 #define PMU_INIT_MSG_TYPE_PMU_INIT 0
 
@@ -122,38 +121,6 @@ enum {
 	PMU_PERFMON_CMD_ID_INIT  = 2
 };
 
-struct pmu_perfmon_cmd_start_gk20a {
-	u8 cmd_type;
-	u8 group_id;
-	u8 state_id;
-	u8 flags;
-	struct pmu_allocation_gk20a counter_alloc;
-};
-
-struct pmu_perfmon_cmd_stop {
-	u8 cmd_type;
-};
-
-struct pmu_perfmon_cmd_init_gk20a {
-	u8 cmd_type;
-	u8 to_decrease_count;
-	u8 base_counter_id;
-	u32 sample_period_us;
-	struct pmu_allocation_gk20a counter_alloc;
-	u8 num_counters;
-	u8 samples_in_moving_avg;
-	u16 sample_buffer;
-};
-
-struct pmu_perfmon_cmd {
-	union {
-		u8 cmd_type;
-		struct pmu_perfmon_cmd_start_gk20a start_gk20a;
-		struct pmu_perfmon_cmd_stop stop;
-		struct pmu_perfmon_cmd_init_gk20a init_gk20a;
-	};
-};
-
 /* PERFMON MSG */
 enum {
 	PMU_PERFMON_MSG_ID_INCREASE_EVENT = 0,
@@ -162,25 +129,6 @@ enum {
 	PMU_PERFMON_MSG_ID_ACK            = 3
 };
 
-/*
- * Struct to contain PMU cmd format.
- * hdr     - PMU hdr format.
- * perfmon - Perfmon cmd i.e It's a cmd used to start/init Perfmon TASK in PMU .
- *
- * NOTE:
- * More type of commands (structs) can be added to this generic struct.
- * The command(struct) added should have same format in PMU fw as well.
- * i.e same struct should be present on PMU fw and Nouveau.
- */
-struct pmu_cmd {
-	struct pmu_hdr hdr;
-	struct pmu_perfmon_cmd perfmon;
-};
-
-/* Writen by sw, read by Pmu, protected by sw mutex lock High Prio Q. */
-#define PMU_COMMAND_QUEUE_HPQ		0
-/* Writen by sw, read by Pmu, protected by sw mutex lock Low Prio Q. */
-#define PMU_COMMAND_QUEUE_LPQ		1
 /* Writen by pmu, read by Sw, accessed by interrupt handler, no lock. */
 #define PMU_MESSAGE_QUEUE		4
 
@@ -206,16 +154,6 @@ enum {
 	PMU_SEQ_STATE_USED,
 	PMU_SEQ_STATE_CANCELLED
 };
-
-struct pmu_payload {
-	struct {
-		void *buf;
-		u32 offset;
-		u16 size;
-	} in, out;
-};
-
-
 
 struct gk20a_pmu_dvfs_data {
 	int p_load_target;
@@ -1360,7 +1298,7 @@ clean_up:
 	return err;
 }
 
-static int
+int
 gk20a_pmu_cmd_post(struct nvkm_pmu *pmu, struct pmu_cmd *cmd,
 		struct pmu_msg *msg, struct pmu_payload *payload,
 		u32 queue_id, pmu_callback callback, void *cb_param,
@@ -1403,7 +1341,7 @@ gk20a_pmu_cmd_post(struct nvkm_pmu *pmu, struct pmu_cmd *cmd,
 	*seq_desc = seq->desc;
 
 	if (payload && payload->in.offset != 0) {
-		in = (struct pmu_allocation_gk20a *)((u8 *)&cmd->perfmon +
+		in = (struct pmu_allocation_gk20a *)((u8 *)&cmd->cmd +
 			payload->in.offset);
 
 		in->alloc.dmem.size = payload->in.size;
@@ -1424,7 +1362,7 @@ gk20a_pmu_cmd_post(struct nvkm_pmu *pmu, struct pmu_cmd *cmd,
 	}
 
 	if (payload && payload->out.offset != 0) {
-		out = (struct pmu_allocation_gk20a *)((u8 *)&cmd->perfmon +
+		out = (struct pmu_allocation_gk20a *)((u8 *)&cmd->cmd +
 			payload->out.offset);
 
 		out->alloc.dmem.size = payload->out.size;
@@ -1629,11 +1567,11 @@ gk20a_pmu_perfmon_start_sampling(struct gk20a_pmu_priv *priv)
 	cmd.hdr.unit_id = PMU_UNIT_PERFMON;
 	cmd.hdr.size = PMU_CMD_HDR_SIZE +
 		sizeof(struct pmu_perfmon_cmd_start_gk20a);
-	cmd.perfmon.start_gk20a.cmd_type = PMU_PERFMON_CMD_ID_START;
-	cmd.perfmon.start_gk20a.group_id = PMU_DOMAIN_GROUP_PSTATE;
-	cmd.perfmon.start_gk20a.state_id =
+	cmd.cmd.perfmon.start_gk20a.cmd_type = PMU_PERFMON_CMD_ID_START;
+	cmd.cmd.perfmon.start_gk20a.group_id = PMU_DOMAIN_GROUP_PSTATE;
+	cmd.cmd.perfmon.start_gk20a.state_id =
 		pmugk20adata->perfmon_state_id[PMU_DOMAIN_GROUP_PSTATE];
-	cmd.perfmon.start_gk20a.flags =
+	cmd.cmd.perfmon.start_gk20a.flags =
 		PMU_PERFMON_FLAG_ENABLE_INCREASE |
 		PMU_PERFMON_FLAG_ENABLE_DECREASE |
 		PMU_PERFMON_FLAG_CLEAR_PREV;
@@ -1816,22 +1754,22 @@ gk20a_pmu_init_perfmon(struct gk20a_pmu_priv *priv)
 	cmd.hdr.unit_id = PMU_UNIT_PERFMON;
 	cmd.hdr.size = PMU_CMD_HDR_SIZE +
 		sizeof(struct pmu_perfmon_cmd_init_gk20a);
-	cmd.perfmon.cmd_type = PMU_PERFMON_CMD_ID_INIT;
+	cmd.cmd.perfmon.cmd_type = PMU_PERFMON_CMD_ID_INIT;
 	/* buffer to save counter values for pmu perfmon */
-	cmd.perfmon.init_gk20a.sample_buffer = (u16)priv->sample_buffer;
+	cmd.cmd.perfmon.init_gk20a.sample_buffer = (u16)priv->sample_buffer;
 	/* number of sample periods below lower threshold
 	   before pmu triggers perfmon decrease event */
-	cmd.perfmon.init_gk20a.to_decrease_count = 15;
+	cmd.cmd.perfmon.init_gk20a.to_decrease_count = 15;
 	/* index of base counter, aka. always ticking counter */
-	cmd.perfmon.init_gk20a.base_counter_id = 6;
+	cmd.cmd.perfmon.init_gk20a.base_counter_id = 6;
 	/* microseconds interval between pmu polls perf counters */
-	cmd.perfmon.init_gk20a.sample_period_us = 16700;
+	cmd.cmd.perfmon.init_gk20a.sample_period_us = 16700;
 	/* number of perfmon counters
 	   counter #3 (GR and CE2) for gk20a */
-	cmd.perfmon.init_gk20a.num_counters = 1;
+	cmd.cmd.perfmon.init_gk20a.num_counters = 1;
 	/* moving average window for sample periods
 	   sample_period_us = 17 */
-	cmd.perfmon.init_gk20a.samples_in_moving_avg = 17;
+	cmd.cmd.perfmon.init_gk20a.samples_in_moving_avg = 17;
 
 	memset(&payload, 0, sizeof(struct pmu_payload));
 
@@ -1866,6 +1804,9 @@ gk20a_pmu_process_message(struct work_struct *work)
 		nv_debug(pmu, "processing init msg\n");
 		gk20a_pmu_process_init_msg(priv, &msg);
 		gk20a_pmu_init_perfmon(priv);
+		if (pmu->fecs_secure_boot)
+			gm20b_pmu_init_acr(pmu);
+
 		goto out;
 	}
 	while (gk20a_pmu_read_message(priv,
@@ -2168,6 +2109,7 @@ gk20a_pmu_init(struct nvkm_object *object)
 {
 	struct gk20a_pmu_priv *priv = (void *)object;
 	struct nvkm_mc *pmc = nvkm_mc(object);
+	struct nvkm_pmu *pmu = &priv->base;
 	int ret;
 
 	ret = nvkm_subdev_init(&priv->base.base);
@@ -2180,6 +2122,7 @@ gk20a_pmu_init(struct nvkm_object *object)
 		return ret;
 
 	gk20a_pmu_dvfs_init(priv);
+	pmu->fecs_secure_boot = false;
 
 	nvkm_timer_alarm(priv, 2000000000, &priv->alarm);
 

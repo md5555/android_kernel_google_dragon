@@ -25,6 +25,11 @@
 #define PERFMON_BUSY_SLOT	3
 #define PERFMON_CLK_SLOT	6
 
+/* Writen by sw, read by Pmu, protected by sw mutex lock High Prio Q. */
+#define PMU_COMMAND_QUEUE_HPQ		0
+/* Writen by sw, read by Pmu, protected by sw mutex lock Low Prio Q. */
+#define PMU_COMMAND_QUEUE_LPQ		1
+
 /* To/Can be used by Nouveau to get the raw counter values */
 #define NV_CLK_SLOT	1
 #define NV_BUSY_SLOT	2
@@ -39,6 +44,10 @@
 #define PMU_SEQ_TBL_SIZE		BITS_TO_LONGS(PMU_MAX_NUM_SEQUENCES)
 
 #define MUTEX_CNT			16
+
+#define PMU_CMD_HDR_SIZE	sizeof(struct pmu_hdr)
+
+#define PMU_UNIT_ACR			(0x0A)
 
 /* Choices for pmu_state */
 enum {
@@ -64,11 +73,32 @@ struct nvkm_pmu_priv_vm {
 	struct nvkm_vm *vm;
 };
 
+struct pmu_payload {
+	struct {
+		void *buf;
+		u32 offset;
+		u16 size;
+	} in, out;
+};
+
 struct pmu_mem_gk20a {
 	u32 dma_base;
 	u8  dma_offset;
 	u8  dma_idx;
 	u16 fb_size;
+};
+
+/* Struct defining a chunk of PMU dmem. */
+struct pmu_dmem {
+	u16 size;
+	u32 offset;
+};
+
+struct pmu_allocation_gk20a {
+	struct {
+		struct pmu_dmem dmem;
+		struct pmu_mem_gk20a fb;
+	} alloc;
 };
 
 struct gm20b_ctxsw_ucode_segment {
@@ -147,6 +177,38 @@ struct pmu_hdr {
 	u8 seq_id;
 };
 
+struct pmu_perfmon_cmd_start_gk20a {
+	u8 cmd_type;
+	u8 group_id;
+	u8 state_id;
+	u8 flags;
+	struct pmu_allocation_gk20a counter_alloc;
+};
+
+struct pmu_perfmon_cmd_stop {
+	u8 cmd_type;
+};
+
+struct pmu_perfmon_cmd_init_gk20a {
+	u8 cmd_type;
+	u8 to_decrease_count;
+	u8 base_counter_id;
+	u32 sample_period_us;
+	struct pmu_allocation_gk20a counter_alloc;
+	u8 num_counters;
+	u8 samples_in_moving_avg;
+	u16 sample_buffer;
+};
+
+struct pmu_perfmon_cmd {
+	union {
+		u8 cmd_type;
+		struct pmu_perfmon_cmd_start_gk20a start_gk20a;
+		struct pmu_perfmon_cmd_stop stop;
+		struct pmu_perfmon_cmd_init_gk20a init_gk20a;
+	};
+};
+
 /*
  * Struct to contain PMU init msg format.
  * This is the structure used by PMU firmware
@@ -185,6 +247,132 @@ struct pmu_perfmon_msg {
 		struct pmu_perfmon_msg_generic gen;
 	};
 };
+/*
+ * Bootstrap ACR message structure
+ * error_code -  error code if error occurred.
+ * falcon_id  -  falcon_id specifying falcon i.e booted.
+ *
+ * NOTE: This structure should not be changed unless
+ * we do the same change @ PMU firmware side.
+ */
+struct pmu_acr_msg_bootstrap_falcon {
+	u8 msg_type;
+	union {
+		u32 error_code;
+		u32 falcon_id;
+	};
+};
+
+
+/*
+ * PMU ACR message structure
+ * msg_type  - type of message.
+ * acrmsg    - bootstrap ACR message.
+ *
+ * NOTE: This structure should not be changed unless
+ * we do the same change @ PMU firmware side.
+ */
+struct pmu_acr_msg {
+	union {
+		u8 msg_type;
+		struct pmu_acr_msg_bootstrap_falcon acrmsg;
+	};
+};
+
+/* ACR Commands/Message structures */
+enum {
+	PMU_ACR_CMD_ID_INIT_WPR_REGION = 0x0          ,
+	PMU_ACR_CMD_ID_BOOTSTRAP_FALCON,
+};
+
+/*
+ * ACR WPR init command structure
+ * cmd_type   - type of command.
+ * regionid   - specifying region ID in WPR.
+ * wpr_offset - wpr offset in WPR region.
+ *
+ * NOTE: This structure should not be changed unless
+ * we do the same change @ PMU firmware side.
+ */
+struct pmu_acr_cmd_init_wpr_details {
+	u8  cmd_type;
+	u32 region_id;
+	u32 wpr_offset;
+
+};
+
+/*
+ * ACR bootstrap falcon command structure
+ * cmd_type   - type of command.
+ * flags      - Flag specifying RESET or no RESET.
+ * falcon id  - Falcon id specifying falcon to bootstrap.
+ *
+ * NOTE: This structure should not be changed unless
+ * we do the same change @ PMU firmware side.
+ */
+struct pmu_acr_cmd_bootstrap_falcon {
+	u8 cmd_type;
+	u32 flags;
+	u32 falcon_id;
+};
+
+#define PMU_ACR_CMD_BOOTSTRAP_FALCON_FLAGS_RESET_NO  1
+#define PMU_ACR_CMD_BOOTSTRAP_FALCON_FLAGS_RESET_YES 0
+
+/*
+ * Generic acr command structure
+ * cmd_type     -   type of ACR command.
+ * bootstrap_falcon  - ACR command to bootstrap FALCON.
+ * init_wpr          - ACR command to initialise WPR details.
+ *
+ * NOTE:
+ * More type of commands (structs) can be added to this generic struct.
+ * The command(struct) added should have same format in PMU fw as well.
+ * i.e same struct should be present on PMU fw and Nouveau.
+ */
+struct pmu_acr_cmd {
+	union {
+		u8 cmd_type;
+		struct pmu_acr_cmd_bootstrap_falcon bootstrap_falcon;
+		struct pmu_acr_cmd_init_wpr_details init_wpr;
+	};
+};
+
+/* ACR messages */
+
+/*
+ * Returns the WPR region init information.
+ */
+#define PMU_ACR_MSG_ID_INIT_WPR_REGION   0
+/*
+ * Returns the Bootstrapped falcon ID to Nouveau
+ */
+#define PMU_ACR_MSG_ID_BOOTSTRAP_FALCON  1
+
+/*
+ * Returns the WPR init status
+ */
+#define PMU_ACR_SUCCESS                  0
+#define PMU_ACR_ERROR                    1
+
+/*
+ * Struct to contain PMU cmd format.
+ * hdr     - PMU hdr format.
+ * perfmon - Perfmon cmd i.e It's a cmd used to start/init Perfmon TASK in PMU.
+ * acr     - ACR command type
+ *
+ * NOTE:
+ * More type of commands (structs) can be added to this generic struct.
+ * The command(struct) added should have same format in PMU fw as well.
+ * i.e same struct should be present on PMU fw and Nouveau.
+ */
+struct pmu_cmd {
+	struct pmu_hdr hdr;
+	union {
+		struct pmu_perfmon_cmd perfmon;
+		struct pmu_acr_cmd acr;
+	} cmd;
+};
 
 struct pmu_init_msg {
 	union {
@@ -195,8 +383,12 @@ struct pmu_init_msg {
 
 /*
  * Struct to contain PMU generic msg format.
- * hdr -  PMU msg header
- * msg -  union of various msg types
+ * hdr          -    header structure for all types of msgs.
+ * union:
+ *	init    -    PMU init related PMU msg
+ *	rc      -    pmu_rc related PMU msg
+ *	perfmon -    Perfmon related PMU msg
+ *	acr     -    ACR related PMU msg
  */
 struct pmu_msg {
 	struct pmu_hdr hdr;
@@ -204,20 +396,8 @@ struct pmu_msg {
 		struct pmu_init_msg init;
 		struct pmu_rc_msg rc;
 		struct pmu_perfmon_msg perfmon;
+		struct pmu_acr_msg acr;
 	} msg;
-};
-
-/* Struct defining a chunk of PMU dmem. */
-struct pmu_dmem {
-	u16 size;
-	u32 offset;
-};
-
-struct pmu_allocation_gk20a {
-	struct {
-		struct pmu_dmem dmem;
-		struct pmu_mem_gk20a fb;
-	} alloc;
 };
 
 typedef void (*pmu_callback)(struct nvkm_pmu *, struct pmu_msg *,
@@ -387,6 +567,9 @@ struct gk20a_pmu_priv {
 	struct mutex pmu_copy_lock;
 	struct mutex pmu_seq_lock;
 	bool pmu_ready;
+	bool recovery_in_progress;
+	bool lspmu_wpr_init_done;
+	struct completion lspmu_completion;
 	int pmu_state;
 	struct nvkm_pmu_priv_vm pmuvm;
 	struct gm20b_ctxsw_ucode_info ucode_info;
@@ -456,6 +639,15 @@ gk20a_pmu_process_message(struct work_struct *work);
 
 void
 gk20a_pmu_allocator_destroy(struct nvkm_pmu_allocator *allocator);
+
+int
+gk20a_pmu_cmd_post(struct nvkm_pmu *pmu, struct pmu_cmd *cmd,
+		struct pmu_msg *msg, struct pmu_payload *payload,
+		u32 queue_id, pmu_callback callback, void *cb_param,
+		u32 *seq_desc, unsigned long timeout);
+
+int
+gm20b_pmu_init_acr(struct nvkm_pmu *pmu);
 
 void
 gk20a_pmu_seq_init(struct gk20a_pmu_priv *priv);

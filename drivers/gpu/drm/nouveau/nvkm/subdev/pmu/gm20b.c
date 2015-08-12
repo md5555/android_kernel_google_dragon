@@ -1564,6 +1564,7 @@ static int gm20b_init_pmu_setup_hw1(struct nvkm_pmu *ppmu,
 	memset(&args, 0x00, sizeof(struct pmu_cmdline_args_v1));
 
 	gk20a_pmu_seq_init(pmu);
+	reinit_completion(&pmu->lspmu_completion);
 	mutex_lock(&pmu->isr_mutex);
 	pmu_reset(ppmu, pmc);
 	pmu->isr_enabled = true;
@@ -1626,7 +1627,7 @@ int pmu_exec_gen_bl(struct nvkm_pmu *pmu, void *desc, u8 b_wait_for_halt)
 	struct hsflcn_bl_desc *pmu_bl_gm10x_desc;
 	u32 *pmu_bl_gm10x = NULL;
 
-	if (!hsbl_fw) {
+	if (!acr->hsbl_ucode.size) {
 		err = gk20a_load_firmware(pmu, &hsbl_fw,
 			GM20B_HSBIN_PMU_BL_UCODE_IMAGE);
 		if (err) {
@@ -1739,7 +1740,7 @@ int gm20b_bootstrap_hs_flcn(struct nvkm_pmu *ppmu)
 	start = acr->ucode_blob_start;
 	size = acr->ucode_blob_size;
 
-	if (!acr_fw) {
+	if (!acr->acr_ucode.size) {
 		/*First time init case*/
 		err = gk20a_load_firmware(ppmu, &acr_fw,
 						GM20B_HSBIN_PMU_UCODE_IMAGE);
@@ -1841,22 +1842,139 @@ err_release_acr_fw:
 	return err;
 }
 
+static void
+pmu_handle_acr_init_wpr_msg(struct nvkm_pmu *pmu, struct pmu_msg *msg,
+			void *param, u32 handle, u32 status)
+{
+	struct gk20a_pmu_priv *priv = param;
+
+	if (msg->msg.acr.acrmsg.error_code == PMU_ACR_SUCCESS) {
+		nv_debug(pmu, "reply PMU_ACR_CMD_ID_INIT_WPR_REGION done\n");
+		priv->lspmu_wpr_init_done = true;
+		complete(&priv->lspmu_completion);
+	}
+}
+
+int
+gm20b_pmu_init_acr(struct nvkm_pmu *pmu)
+{
+	struct gk20a_pmu_priv *priv = to_gk20a_priv(pmu);
+	struct pmu_cmd cmd;
+	u32 seq;
+
+	/* init ACR */
+	memset(&cmd, 0, sizeof(cmd));
+
+	cmd.hdr.unit_id = PMU_UNIT_ACR;
+	cmd.hdr.size = PMU_CMD_HDR_SIZE +
+				sizeof(struct pmu_acr_cmd_init_wpr_details);
+	cmd.cmd.acr.init_wpr.cmd_type = PMU_ACR_CMD_ID_INIT_WPR_REGION;
+	cmd.cmd.acr.init_wpr.region_id = 0x01;
+	cmd.cmd.acr.init_wpr.wpr_offset = 0x00;
+
+	nv_debug(pmu, "cmd post PMU_ACR_CMD_ID_INIT_WPR_REGION");
+
+	gk20a_pmu_cmd_post(pmu, &cmd, NULL, NULL, PMU_COMMAND_QUEUE_HPQ,
+			pmu_handle_acr_init_wpr_msg, priv, &seq, ~0);
+
+	return 0;
+}
+
+static void
+pmu_handle_fecs_boot_acr_msg(struct nvkm_pmu *pmu,
+		struct pmu_msg *msg, void *param, u32 handle, u32 status)
+{
+	struct gk20a_pmu_priv *priv = param;
+
+	if (msg->msg.acr.acrmsg.falcon_id == LSF_FALCON_ID_FECS) {
+		nv_debug(pmu, "reply PMU_ACR_CMD_ID_BOOTSTRAP_FALCON\n");
+		priv->recovery_in_progress = false;
+		complete(&priv->lspmu_completion);
+	}
+
+	nv_debug(pmu, "response code = %x\n", msg->msg.acr.acrmsg.falcon_id);
+}
+
+int
+gm20b_pmu_load_lsf(struct nvkm_pmu *pmu, u8 falcon_id)
+{
+	struct gk20a_pmu_priv *priv = to_gk20a_priv(pmu);
+	struct pmu_cmd cmd;
+	u32 seq;
+
+	nv_debug(pmu, "wprinit status = %x\n", priv->lspmu_wpr_init_done);
+
+	if (!priv->lspmu_wpr_init_done) {
+		nv_error(pmu, "lspmu WPR init not done\n");
+		return -EAGAIN;
+	}
+
+	/* send message to load FECS falcon */
+	memset(&cmd, 0, sizeof(struct pmu_cmd));
+
+	cmd.hdr.unit_id = PMU_UNIT_ACR;
+	cmd.hdr.size = PMU_CMD_HDR_SIZE +
+			sizeof(struct pmu_acr_cmd_bootstrap_falcon);
+	cmd.cmd.acr.bootstrap_falcon.cmd_type =
+			PMU_ACR_CMD_ID_BOOTSTRAP_FALCON;
+	cmd.cmd.acr.bootstrap_falcon.flags =
+			PMU_ACR_CMD_BOOTSTRAP_FALCON_FLAGS_RESET_YES;
+	cmd.cmd.acr.bootstrap_falcon.falcon_id = falcon_id;
+
+	nv_debug(pmu, "cmd post PMU_ACR_CMD_ID_BOOTSTRAP_FALCON");
+
+	gk20a_pmu_cmd_post(pmu, &cmd, NULL, NULL, PMU_COMMAND_QUEUE_HPQ,
+			pmu_handle_fecs_boot_acr_msg, priv, &seq, ~0);
+
+	return 0;
+}
+
+int
+gm20b_boot_fecs(struct nvkm_pmu *pmu)
+{
+	struct gk20a_pmu_priv *priv = to_gk20a_priv(pmu);
+	int ret;
+
+	priv->recovery_in_progress = true;
+
+	wait_for_completion_timeout(&priv->lspmu_completion,
+							  usecs_to_jiffies(50));
+	if (!priv->lspmu_wpr_init_done) {
+		nv_error(pmu, "lspmu wpr init not completed, timeout\n");
+		return -ETIMEDOUT;
+	}
+
+	reinit_completion(&priv->lspmu_completion);
+
+	ret = gm20b_pmu_load_lsf(pmu, LSF_FALCON_ID_FECS);
+	if (ret) {
+		nv_error(pmu, "loading/booting LSF falcon failed\n");
+		return ret;
+	}
+
+	wait_for_completion_timeout(&priv->lspmu_completion,
+							  usecs_to_jiffies(50));
+
+	if (priv->recovery_in_progress) {
+		nv_error(pmu, "recovery not completed, timeout\n");
+		return -ETIMEDOUT;
+	}
+
+	return 0;
+}
+
 int gm20b_boot_secure(struct nvkm_pmu *ppmu)
 {
 	struct gk20a_pmu_priv *priv = to_gk20a_priv(ppmu);
 	int ret;
 
-	ret = gm20b_prepare_ucode_blob(ppmu);
-	if (ret) {
-		nv_error(ppmu, "%s failed\n", __func__);
-		goto error;
-	}
 	ret = gm20b_bootstrap_hs_flcn(ppmu);
 	if (ret) {
 		nv_error(ppmu, "%s failed\n", __func__);
 		goto error;
 	}
 
+	ppmu->cold_boot = false;
 	/* Have to re-init the idle count ctrl after secure boot */
 	gk20a_pmu_dvfs_init(priv);
 
@@ -1865,6 +1983,10 @@ int gm20b_boot_secure(struct nvkm_pmu *ppmu)
 error:
 	nvkm_gpuobj_unmap(&priv->trace_buf.vma);
 	nvkm_gpuobj_ref(NULL, &priv->trace_buf.obj);
+	nvkm_gpuobj_unmap(&priv->acr.acr_ucode.vma);
+	nvkm_gpuobj_ref(NULL, &priv->acr.acr_ucode.obj);
+	nvkm_gpuobj_unmap(&priv->acr.hsbl_ucode.vma);
+	nvkm_gpuobj_ref(NULL, &priv->acr.hsbl_ucode.obj);
 
 	return ret;
 }
@@ -1887,12 +2009,18 @@ gm20b_pmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 
 	ppmu = &priv->base;
 	mc = ioremap(TEGRA_MC_BASE, 0x00000d00);
+	ppmu->cold_boot = true;
 
 	nv_subdev(ppmu)->intr = gk20a_pmu_intr;
 
 	priv->data = &gk20a_dvfs_data;
 	nvkm_alarm_init(&priv->alarm, gk20a_pmu_dvfs_work);
 	mutex_init(&priv->isr_mutex);
+	init_completion(&priv->lspmu_completion);
+
+	ret = gm20b_prepare_ucode_blob(ppmu);
+	if (ret)
+		nv_error(ppmu, "prepare ucode failed\n");
 
 	return ret;
 }
@@ -1915,6 +2043,8 @@ gm20b_pmu_fini(struct nvkm_object *object, bool suspend)
 
 		priv->pmu_state = PMU_STATE_OFF;
 		priv->pmu_ready = false;
+		pmu->cold_boot = true;
+		priv->lspmu_wpr_init_done = false;
 		nv_wr32(priv, 0x10a014, 0x00000060);
 	} else {
 		mutex_lock(&priv->isr_mutex);
@@ -1941,6 +2071,7 @@ gm20b_pmu_dtor(struct nvkm_object *object)
 	nvkm_gpuobj_ref(NULL, &pmu->acr.acr_ucode.obj);
 	nvkm_gpuobj_unmap(&pmu->acr.hsbl_ucode.vma);
 	nvkm_gpuobj_ref(NULL, &pmu->acr.hsbl_ucode.obj);
+	ppmu->cold_boot = true;
 	gk20a_pmu_allocator_destroy(&pmu->dmem);
 }
 
@@ -1959,6 +2090,7 @@ gm20b_pmu_init(struct nvkm_object *object) {
 	mutex_init(&priv->pmu_copy_lock);
 	mutex_init(&priv->pmu_seq_lock);
 	ppmu->secure_bootstrap = gm20b_boot_secure;
+	ppmu->boot_fecs = gm20b_boot_fecs;
 	ppmu->fecs_secure_boot = true;
 	ppmu->gpccs_secure_boot = false;
 
