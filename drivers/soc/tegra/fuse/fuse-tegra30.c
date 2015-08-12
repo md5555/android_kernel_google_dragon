@@ -53,6 +53,33 @@
 #define FUSE_WAFER_ID		0x110
 #define FUSE_X_COORDINATE	0x114
 #define FUSE_Y_COORDINATE	0x118
+#define FUSE_OPT_OPS_RESERVED	0x120
+
+#define OPT_VENDOR_CODE_MASK	0xf
+#define OPT_FAB_CODE_MASK	0x3f
+#define OPT_LOT_CODE_1_MASK	0xfffffff
+#define OPT_WAFER_ID_MASK	0x3f
+#define OPT_X_COORDINATE_MASK	0x1ff
+#define OPT_Y_COORDINATE_MASK	0x1ff
+#define OPT_OPS_RESERVED_MASK	0x3f
+#define ECID_ECID0_0_RSVD1_MASK 0x3F
+#define ECID_ECID0_0_Y_MASK	0x1ff
+#define ECID_ECID0_0_Y_RANGE	6
+#define ECID_ECID0_0_X_MASK	0x1ff
+#define ECID_ECID0_0_X_RANGE	15
+#define ECID_ECID0_0_WAFER_MASK	0x3f
+#define ECID_ECID0_0_WAFER_RANGE	24
+#define ECID_ECID0_0_LOT1_MASK	0x3
+#define ECID_ECID0_0_LOT1_RANGE	30
+#define ECID_ECID1_0_LOT1_MASK	0x3ffffff
+#define ECID_ECID1_0_LOT0_MASK	0x3f
+#define ECID_ECID1_0_LOT0_RANGE	26
+#define ECID_ECID2_0_LOT0_MASK	0x3ffffff
+#define ECID_ECID2_0_FAB_MASK	0x3f
+#define ECID_ECID2_0_FAB_RANGE	26
+#define ECID_ECID3_0_VENDOR_MASK	0xf
+
+#define FUSE_UID_SIZE		16
 
 #define FUSE_HAS_REVISION_INFO	BIT(0)
 
@@ -474,6 +501,88 @@ err_pgm_disabled:
 	return result;
 }
 
+static void tegra30_fuse_get_uid(uint32_t id_size, void *serial_no)
+{
+	uint32_t	uid[4];
+	uint32_t	vendor;
+	uint32_t	fab;
+	uint32_t	wafer;
+	uint32_t	lot0;
+	uint32_t	lot1;
+	uint32_t	x;
+	uint32_t	y;
+	uint32_t	rsvd1;
+	uint32_t	reg;
+
+	reg = tegra30_fuse_readl(FUSE_VENDOR_CODE);
+	vendor = reg & OPT_VENDOR_CODE_MASK;
+
+	reg = tegra30_fuse_readl(FUSE_FAB_CODE);
+	fab = reg & OPT_FAB_CODE_MASK;
+
+	lot0 = tegra30_fuse_readl(FUSE_LOT_CODE_0);
+
+	reg = tegra30_fuse_readl(FUSE_LOT_CODE_1);
+	lot1 = reg & OPT_LOT_CODE_1_MASK;
+
+	reg = tegra30_fuse_readl(FUSE_WAFER_ID);
+	wafer = reg & OPT_WAFER_ID_MASK;
+
+	reg = tegra30_fuse_readl(FUSE_X_COORDINATE);
+	x = reg & OPT_X_COORDINATE_MASK;
+
+	reg = tegra30_fuse_readl(FUSE_Y_COORDINATE);
+	y = reg & OPT_Y_COORDINATE_MASK;
+
+	reg = tegra30_fuse_readl(FUSE_OPT_OPS_RESERVED);
+	rsvd1 = reg & OPT_OPS_RESERVED_MASK;
+
+	reg = 0;
+	reg |= rsvd1 & ECID_ECID0_0_RSVD1_MASK;
+	reg |= (y & ECID_ECID0_0_Y_MASK) << ECID_ECID0_0_Y_RANGE;
+	reg |= (x & ECID_ECID0_0_X_MASK) << ECID_ECID0_0_X_RANGE;
+	reg |= (wafer & ECID_ECID0_0_WAFER_MASK) << ECID_ECID0_0_WAFER_RANGE;
+	reg |= (lot1 & ECID_ECID0_0_LOT1_MASK) << ECID_ECID0_0_LOT1_RANGE;
+	uid[0] = reg;
+
+	lot1 >>= 2;
+
+	reg = 0;
+	reg |= lot1 & ECID_ECID1_0_LOT1_MASK;
+	reg |= (lot0 & ECID_ECID1_0_LOT0_MASK) << ECID_ECID1_0_LOT0_RANGE;
+	uid[1] = reg;
+
+	lot0 >>= 6;
+
+	reg = 0;
+	reg |= lot0 & ECID_ECID2_0_LOT0_MASK;
+	reg |= (fab & ECID_ECID2_0_FAB_MASK) << ECID_ECID2_0_FAB_RANGE;
+	uid[2] = reg;
+
+	reg = 0;
+	reg |= vendor & ECID_ECID3_0_VENDOR_MASK;
+	uid[3] = reg;
+
+	memcpy(serial_no, &uid, id_size);
+}
+
+static ssize_t tegra30_fuse_uid_show(struct device *child,
+		struct device_attribute *attr, char *buf)
+{
+	tegra30_fuse_get_uid(FUSE_UID_SIZE, buf);
+	return FUSE_UID_SIZE;
+}
+
+static struct device_attribute tegra30_fuse_uid = {
+	.attr = { .name = "uid", .mode = S_IRUGO, },
+	.show = tegra30_fuse_uid_show,
+};
+
+static int tegra30_fuse_create_uid_sysfs(struct device *dev)
+{
+	return device_create_file(dev, &tegra30_fuse_uid);
+}
+
 static struct tegra_fuse_info tegra30_info = {
 	.size			= 0x2a4,
 	.spare_bit		= 0x144,
@@ -564,6 +673,9 @@ static int tegra30_fuse_probe(struct platform_device *pdev)
 
 	if (tegra_fuse_create_sysfs(&pdev->dev, fuse_info->size,
 				    tegra30_fuse_readl, tegra30_fuse_program))
+		return -ENODEV;
+
+	if (tegra30_fuse_create_uid_sysfs(&pdev->dev))
 		return -ENODEV;
 
 	dev_dbg(&pdev->dev, "loaded\n");
