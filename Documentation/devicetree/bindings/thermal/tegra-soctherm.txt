@@ -56,6 +56,8 @@ Required properties:
     TEGRA_SOCTHERM_THROT_LEVEL_HIGH, TEGRA_SOCTHERM_THROT_LEVEL_NONE
 - cpu-throt-depth: Throttling depth of pulse skippers, it's the percentage
     throttling. This property is for Tegra124 or Tegra210.
+- gpu-throt-level: This property is same as cpu-throt-level, it is used
+    for gpu clock.
 Optional properties:
 - alarm-filter: Number of clocks to filter event. When the filter expires
    (which means the OC event has not occurred for a long time), the counter
