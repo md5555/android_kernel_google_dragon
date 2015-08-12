@@ -158,7 +158,7 @@ static const struct attribute_group vbc_attr_group = {
 	.attrs = vbc_attrs,
 };
 
-static int chromeos_vbc_ec_read(void *buf, size_t count)
+static ssize_t chromeos_vbc_ec_read(void *buf, size_t count)
 {
 	struct device *dev;
 	int err;
@@ -173,7 +173,7 @@ static int chromeos_vbc_ec_read(void *buf, size_t count)
 	return err;
 }
 
-static int chromeos_vbc_ec_write(const void *buf, size_t count)
+static ssize_t chromeos_vbc_ec_write(const void *buf, size_t count)
 {
 	struct device *dev;
 	int err;
