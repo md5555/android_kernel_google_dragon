@@ -163,6 +163,8 @@
 		bt_reg_on-gpios = <&gpio TEGRA_GPIO(H, 4) GPIO_ACTIVE_LOW>;
 		bt_host_wake-gpios = <&gpio TEGRA_GPIO(H, 5) GPIO_ACTIVE_HIGH>;
 		bt_ext_wake-gpios = <&gpio TEGRA_GPIO(H, 3) GPIO_ACTIVE_LOW>;
+		nvidia,pmc-wakeup = <&pmc
+				PMC_WAKE_TYPE_EVENT 52 PMC_TRIGGER_TYPE_HIGH>;
 	};
 
 	gpio-keys {
