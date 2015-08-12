@@ -146,6 +146,12 @@
 #define GPC_BCAST_NDIV_SLOWDOWN_DEBUG_PLL_DYNRAMP_DONE_SYNCED_MASK \
 	    (0x1 << GPC_BCAST_NDIV_SLOWDOWN_DEBUG_PLL_DYNRAMP_DONE_SYNCED_SHIFT)
 
+/* NV_THERM register */
+#define NV_THERM_USE_A			0x00020798
+#define NV_THERM_EVT_EXT_THERM_0	0x00020700
+#define NV_THERM_EVT_EXT_THERM_1	0x00020704
+#define NV_THERM_EVT_EXT_THERM_2	0x00020708
+
 /* FUSE register */
 #define FUSE_RESERVED_CALIB0	0x204
 #define FUSE_RESERVED_CALIB0_INTERCEPT_FRAC_SHIFT	0
@@ -1297,6 +1303,18 @@ gm20b_clk_tidy(struct nvkm_clk *clk)
 {
 }
 
+static void
+gm20b_clk_init_therm_setup_hw(struct nvkm_clk *clk)
+{
+	struct gm20b_clk_priv *priv = (void *)clk;
+
+	/* program NV_THERM registers */
+	nv_wr32(priv, NV_THERM_USE_A, 0x7);
+	nv_wr32(priv, NV_THERM_EVT_EXT_THERM_0, 0x100);
+	nv_wr32(priv, NV_THERM_EVT_EXT_THERM_1, 0x200);
+	nv_wr32(priv, NV_THERM_EVT_EXT_THERM_2, 0x300);
+}
+
 static int
 gm20b_clk_fini(struct nvkm_object *object, bool suspend)
 {
@@ -1364,6 +1382,8 @@ gm20b_clk_init(struct nvkm_object *object)
 		nv_error(priv, "cannot initialize clock\n");
 		return ret;
 	}
+
+	gm20b_clk_init_therm_setup_hw(&priv->base);
 
 	return 0;
 }
