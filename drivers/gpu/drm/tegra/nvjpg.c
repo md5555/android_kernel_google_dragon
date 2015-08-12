@@ -257,7 +257,7 @@ static const struct falcon_ops nvjpg_falcon_ops = {
 };
 
 static const struct nvjpg_config nvjpg_nvjpg_t210_config = {
-	.ucode_name = "nvidia/tegra210/nvjpg.bin",
+	.ucode_name = "nvhost_nvjpg010.fw",
 	.class_id = HOST1X_CLASS_NVJPG,
 	.powergate_id = TEGRA_POWERGATE_NVJPG,
 };
