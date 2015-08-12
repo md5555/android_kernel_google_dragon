@@ -630,6 +630,10 @@ static int tegra_plane_state_add(struct tegra_plane *plane,
 	if (IS_ERR(crtc_state))
 		return PTR_ERR(crtc_state);
 
+	/* If crtc is not active, don't add the planes */
+	if (!crtc_state->active)
+		return 0;
+
 	tegra = to_dc_state(crtc_state);
 
 	tegra->planes |= WIN_A_ACT_REQ << plane->index;
