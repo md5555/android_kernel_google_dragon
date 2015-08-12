@@ -76,7 +76,8 @@ struct gk20a_instobj_iommu {
 	struct gk20a_instobj_priv base;
 
 	/* array of base.mem->size pages */
-	struct page *pages[];
+	struct page **pages;
+	dma_addr_t *page_addrs;
 };
 
 struct gk20a_instmem_priv {
@@ -248,6 +249,7 @@ gk20a_instobj_dtor_iommu(struct gk20a_instobj_priv *_node)
 {
 	struct gk20a_instobj_iommu *node = (void *)_node;
 	struct gk20a_instmem_priv *priv = (void *)nvkm_instmem(node);
+	struct device *dev = nv_device_base(nv_device(priv));
 	struct nvkm_mm_node *r;
 	int i;
 
@@ -264,6 +266,8 @@ gk20a_instobj_dtor_iommu(struct gk20a_instobj_priv *_node)
 	for (i = 0; i < _node->mem->size; i++) {
 		iommu_unmap(priv->domain,
 			    (r->offset + i) << priv->iommu_pgshift, PAGE_SIZE);
+		dma_unmap_page(dev, node->page_addrs[i], PAGE_SIZE,
+				DMA_BIDIRECTIONAL);
 		__free_page(node->pages[i]);
 	}
 
@@ -336,26 +340,40 @@ gk20a_instobj_ctor_iommu(struct nvkm_object *parent, struct nvkm_object *engine,
 {
 	struct gk20a_instobj_iommu *node;
 	struct gk20a_instmem_priv *priv = (void *)nvkm_instmem(parent);
+	struct device *dev = nv_device_base(nv_device(parent));
 	struct nvkm_mm_node *r;
 	int ret;
 	int i;
 
-	ret = nvkm_instobj_create_(parent, engine, oclass,
-				sizeof(*node) + sizeof(node->pages[0]) * npages,
+	ret = nvkm_instobj_create_(parent, engine, oclass, sizeof(*node)
+				+ sizeof(node->pages[0]) * npages
+				+ sizeof(node->page_addrs[0]) * npages,
 				(void **)&node);
 	*_node = &node->base;
 	if (ret)
 		return ret;
 
+	node->pages = (struct page **)&node[1];
+	node->page_addrs = (dma_addr_t *)&node->pages[npages];
+
 	/* Allocate backing memory */
 	for (i = 0; i < npages; i++) {
 		struct page *p = alloc_page(GFP_KERNEL);
+		dma_addr_t addr;
 
 		if (p == NULL) {
 			ret = -ENOMEM;
 			goto free_pages;
 		}
+
+		addr = dma_map_page(dev, p, 0, PAGE_SIZE, DMA_BIDIRECTIONAL);
+		if (dma_mapping_error(dev, addr)) {
+			__free_page(p);
+			goto free_pages;
+		}
+
 		node->pages[i] = p;
+		node->page_addrs[i] = addr;
 	}
 
 	mutex_lock(priv->mm_mutex);
@@ -370,10 +388,9 @@ gk20a_instobj_ctor_iommu(struct nvkm_object *parent, struct nvkm_object *engine,
 
 	/* Map into GPU address space */
 	for (i = 0; i < npages; i++) {
-		struct page *p = node->pages[i];
 		u32 offset = (r->offset + i) << priv->iommu_pgshift;
 
-		ret = iommu_map(priv->domain, offset, page_to_phys(p),
+		ret = iommu_map(priv->domain, offset, node->page_addrs[i],
 				PAGE_SIZE, IOMMU_READ | IOMMU_WRITE);
 		if (ret < 0) {
 			nv_error(priv, "IOMMU mapping failure: %d\n", ret);
@@ -402,8 +419,11 @@ release_area:
 	mutex_unlock(priv->mm_mutex);
 
 free_pages:
-	for (i = 0; i < npages && node->pages[i] != NULL; i++)
+	for (i = 0; i < npages && node->pages[i] != NULL; i++) {
+		dma_unmap_page(dev, node->page_addrs[i], PAGE_SIZE,
+				DMA_BIDIRECTIONAL);
 		__free_page(node->pages[i]);
+	}
 
 	return ret;
 }
