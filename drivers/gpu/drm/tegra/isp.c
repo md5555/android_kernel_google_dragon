@@ -219,7 +219,7 @@ static const struct isp_config ispa_t210_config = {
 
 static const struct isp_config ispb_t210_config = {
 	.class_id = HOST1X_CLASS_ISPB,
-	.powergate_id = TEGRA_POWERGATE_VENC,
+	.powergate_id = TEGRA_POWERGATE_VE2,
 };
 
 static const struct of_device_id ispa_match[] = {
