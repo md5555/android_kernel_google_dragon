@@ -294,6 +294,9 @@ static int nouveau_platform_probe(struct platform_device *pdev)
 
 	nouveau_platform_probe_iommu(&pdev->dev, gpu);
 
+	/* The GPU and IOMMU can both address 34-bit physical address */
+	dma_set_mask(&pdev->dev, DMA_BIT_MASK(34));
+
 	err = nouveau_platform_get_mc(&pdev->dev, &gpu->mc, &gpu->swgroup);
 	if (err)
 		goto err_remove_iommu;
