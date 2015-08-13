@@ -67,7 +67,7 @@ static const struct cvb_coef gm20b_cvb_coef[] = {
 
 const int speedo_to_vmin[MAX_SPEEDO+1] = {
 	/*   0,      1,      2,      3,      4, */
-	950000, 840000, 800000, 840000, 800000,
+	950000, 840000, 818750, 840000, 810000,
 };
 
 #define TEGRA210_GPU_THERM_VFLOOR	950000 /* in uV */
