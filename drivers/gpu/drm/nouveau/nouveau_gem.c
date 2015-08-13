@@ -378,7 +378,8 @@ nouveau_gem_ioctl_set_info(struct drm_device *dev, void *data,
 	nvbo = nouveau_gem_object(gem);
 
 	if (nvbo->tile_mode != req->tile_mode ||
-	    nvbo->tile_flags != req->tile_flags) {
+	    nvbo->tile_flags != req->tile_flags ||
+	    req->offset) {
 
 		ret = ttm_bo_reserve(&nvbo->bo, false, false, false, NULL);
 		if (ret)
@@ -388,6 +389,48 @@ nouveau_gem_ioctl_set_info(struct drm_device *dev, void *data,
 		if (!vma) {
 			ret = -ENOENT;
 			goto unreserve;
+		}
+
+		/*
+		 * If nonzero offset, we need to redo the mapping (if it
+		 * has happened already, free the old vma, and make a new vma
+		 * that spans the address (offset) we are asking for.
+		 *
+		 * On failure, we need to add the old one back.
+		 */
+		if (req->offset) {
+			struct nvkm_vma *new_vma;
+
+			nouveau_cancel_defer_vm_map(vma, nvbo);
+			nouveau_bo_vma_del(nvbo, vma);
+
+			new_vma = kzalloc(sizeof(*vma), GFP_KERNEL);
+			if (!new_vma) {
+				/*
+				 * We just removed this...so we should be
+				 * able to re-add it without error.
+				 */
+				nouveau_bo_vma_add_offset(nvbo, cli->vm,
+							vma, vma->offset, true);
+				ret = -ENOMEM;
+				goto unreserve;
+			}
+
+			ret = nouveau_bo_vma_add_offset(nvbo, cli->vm, new_vma,
+							req->offset, true);
+			if (ret) {
+				kfree(vma);
+				/*
+				 * We just removed this...so we should be
+				 * able to re-add it without error.
+				 */
+				nouveau_bo_vma_add_offset(nvbo, cli->vm,
+							vma, vma->offset, true);
+				goto unreserve;
+			}
+
+			kfree(vma);
+			vma = new_vma;
 		}
 
 		mem = nvbo->bo.mem.mm_node;

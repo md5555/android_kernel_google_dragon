@@ -1685,15 +1685,39 @@ nouveau_defer_vm_map(struct nvkm_vma *vma, struct nouveau_bo *nvbo)
 	mutex_unlock(&vm->dirty_vma_lock);
 }
 
+void
+nouveau_cancel_defer_vm_map(struct nvkm_vma *vma, struct nouveau_bo *nvbo)
+{
+	struct nvkm_vm *vm = vma->vm;
+	struct nvkm_dirty_vma *dirty_vma;
+
+	mutex_lock(&vm->dirty_vma_lock);
+
+	list_for_each_entry(dirty_vma, &vm->dirty_vma_list, entry) {
+		if (dirty_vma->vma == vma) {
+			struct nouveau_bo *nvbo = dirty_vma->bo;
+			struct ttm_buffer_object *ttm_bo = &nvbo->bo;
+
+			BUG_ON(dirty_vma->bo != nvbo); /* sanity check */
+			ttm_bo_unref(&ttm_bo);
+			list_del(&dirty_vma->entry);
+			kfree(dirty_vma);
+			break;
+		}
+	}
+
+	mutex_unlock(&vm->dirty_vma_lock);
+}
+
 int
-nouveau_bo_vma_add(struct nouveau_bo *nvbo, struct nvkm_vm *vm,
-		   struct nvkm_vma *vma, bool lazy)
+nouveau_bo_vma_add_offset(struct nouveau_bo *nvbo, struct nvkm_vm *vm,
+			  struct nvkm_vma *vma, u64 offset, bool lazy)
 {
 	const u32 size = nvbo->bo.mem.num_pages << PAGE_SHIFT;
 	int ret;
 
-	ret = nvkm_vm_get(vm, size, nvbo->page_shift,
-			     NV_MEM_ACCESS_RW, vma);
+	ret = nvkm_vm_get_offset(vm, size, nvbo->page_shift,
+				 NV_MEM_ACCESS_RW, vma, offset);
 	if (ret)
 		return ret;
 
@@ -1709,6 +1733,13 @@ nouveau_bo_vma_add(struct nouveau_bo *nvbo, struct nvkm_vm *vm,
 	list_add_tail(&vma->head, &nvbo->vma_list);
 	vma->refcount = 1;
 	return 0;
+}
+
+int
+nouveau_bo_vma_add(struct nouveau_bo *nvbo, struct nvkm_vm *vm,
+		   struct nvkm_vma *vma, bool lazy)
+{
+	return nouveau_bo_vma_add_offset(nvbo, vm, vma, 0, lazy);
 }
 
 void
