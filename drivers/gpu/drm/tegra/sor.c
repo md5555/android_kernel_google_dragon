@@ -337,6 +337,47 @@ static int tegra_sor_dp_train_fast(struct tegra_sor *sor,
 	return 0;
 }
 
+static void tegra_sor_dp_term_calibrate(struct tegra_sor *sor)
+{
+	u32 mask = 0x08, adj = 0, value;
+
+	/* enable pad calibration logic */
+	value = tegra_sor_readl(sor, SOR_DP_PADCTL0);
+	value &= ~SOR_DP_PADCTL_PAD_CAL_PD;
+	tegra_sor_writel(sor, value, SOR_DP_PADCTL0);
+
+	value = tegra_sor_readl(sor, SOR_PLL1);
+	value |= SOR_PLL1_TMDS_TERM;
+	tegra_sor_writel(sor, value, SOR_PLL1);
+
+	while (mask) {
+		adj |= mask;
+
+		value = tegra_sor_readl(sor, SOR_PLL1);
+		value &= ~SOR_PLL1_TMDS_TERMADJ_MASK;
+		value |= SOR_PLL1_TMDS_TERMADJ(adj);
+		tegra_sor_writel(sor, value, SOR_PLL1);
+
+		usleep_range(100, 200);
+
+		value = tegra_sor_readl(sor, SOR_PLL1);
+		if (value & SOR_PLL1_TERM_COMPOUT)
+			adj &= ~mask;
+
+		mask >>= 1;
+	}
+
+	value = tegra_sor_readl(sor, SOR_PLL1);
+	value &= ~SOR_PLL1_TMDS_TERMADJ_MASK;
+	value |= SOR_PLL1_TMDS_TERMADJ(adj);
+	tegra_sor_writel(sor, value, SOR_PLL1);
+
+	/* disable pad calibration logic */
+	value = tegra_sor_readl(sor, SOR_DP_PADCTL0);
+	value |= SOR_DP_PADCTL_PAD_CAL_PD;
+	tegra_sor_writel(sor, value, SOR_DP_PADCTL0);
+}
+
 static void tegra_sor_super_update(struct tegra_sor *sor)
 {
 	tegra_sor_writel(sor, 0, SOR_SUPER_STATE0);
