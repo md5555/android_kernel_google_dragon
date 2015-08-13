@@ -1101,6 +1101,15 @@
 	};
 };
 
+&spi1 {
+	status = "okay";
+	codec@0 {
+		compatible = "realtek,rt5677-spi";
+		reg = <0>;
+		spi-max-frequency = <24000000>;
+	};
+};
+
 &qspi6 {
 	status = "okay";
 	spi@0 {
