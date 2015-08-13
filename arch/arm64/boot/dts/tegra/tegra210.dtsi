@@ -1493,6 +1493,7 @@
 			heavy {
 				priority = <100>;
 				cpu-throt-depth = <85>;
+				gpu-throt-level = <TEGRA_SOCTHERM_THROT_LEVEL_HIGH>;
 			};
 		};
 

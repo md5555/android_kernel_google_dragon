@@ -399,6 +399,7 @@
 				polarity = <1>; /* ACTIVE_LOW */
 				priority = <70>;
 				cpu-throt-depth = <75>;
+				gpu-throt-level = <TEGRA_SOCTHERM_THROT_LEVEL_MED>;
 			};
 		};
 	};
