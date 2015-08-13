@@ -880,14 +880,17 @@ static int setup(struct spi_device *spi)
 	unsigned int clk_div;
 	uint tx_thres, tx_hi_thres, rx_thres;
 
-	if (is_lpss_ssp(drv_data)) {
+	switch (drv_data->ssp_type) {
+	case LPSS_SSP:
 		tx_thres = LPSS_TX_LOTHRESH_DFLT;
 		tx_hi_thres = LPSS_TX_HITHRESH_DFLT;
 		rx_thres = LPSS_RX_THRESH_DFLT;
-	} else {
+		break;
+	default:
 		tx_thres = TX_THRESH_DFLT;
 		tx_hi_thres = 0;
 		rx_thres = RX_THRESH_DFLT;
+		break;
 	}
 
 	/* Only alloc on first setup */
