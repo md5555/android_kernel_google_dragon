@@ -1,0 +1,21 @@
+RT5677 audio CODEC SPI interface
+
+This device supports the SPI interface on the 5677 that is used to communicate
+with the on-chip DSP.
+
+Required properties:
+
+- compatible : "realtek,rt5677-spi" or "realtek,rt5676-spi".
+
+- reg : Chip select line if applicable or <0>.
+
+Example:
+
+&spi1 {
+	status = "okay";
+	codec@0 {
+		compatible = "realtek,rt5677-spi";
+		reg = <0>;
+		spi-max-frequency = <24000000>;
+	};
+};

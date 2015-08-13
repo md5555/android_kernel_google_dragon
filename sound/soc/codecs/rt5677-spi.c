@@ -235,10 +235,20 @@ static int rt5677_spi_remove(struct spi_device *spi)
 	return rt5677_hotword_free(&spi->dev);
 }
 
+#ifdef CONFIG_OF
+static const struct of_device_id rt5677_spi_of_match[] = {
+	{ .compatible = "realtek,rt5676-spi", },
+	{ .compatible = "realtek,rt5677-spi", },
+	{ }
+};
+MODULE_DEVICE_TABLE(of, rt5677_spi_of_match);
+#endif
+
 static struct spi_driver rt5677_spi_driver = {
 	.driver = {
 		.name = "rt5677",
 		.owner = THIS_MODULE,
+		.of_match_table = of_match_ptr(rt5677_spi_of_match),
 	},
 	.probe = rt5677_spi_probe,
 	.remove = rt5677_spi_remove,
