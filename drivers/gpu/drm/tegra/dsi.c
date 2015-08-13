@@ -1212,6 +1212,7 @@ static ssize_t tegra_dsi_host_transfer(struct mipi_dsi_host *host,
 				       const struct mipi_dsi_msg *msg)
 {
 	struct tegra_dsi *dsi = host_to_tegra(host);
+	int i;
 	struct mipi_dsi_packet packet;
 	const u8 *header;
 	size_t count;
@@ -1227,6 +1228,15 @@ static ssize_t tegra_dsi_host_transfer(struct mipi_dsi_host *host,
 	/* maximum FIFO depth is 1920 words */
 	if (packet.size > dsi->video_fifo_depth * 4)
 		return -ENOSPC;
+
+	/*
+	 * Clear the control and packet sequence registers. Without this code,
+	 * there are issues on boot where the transfer may fail.
+	 */
+	tegra_dsi_writel(dsi, 0, DSI_CONTROL);
+	tegra_dsi_writel(dsi, 0, DSI_HOST_CONTROL);
+	for (i = 0; i < NUM_PKT_SEQ; i++)
+		tegra_dsi_writel(dsi, 0, DSI_PKT_SEQ_0_LO + i);
 
 	/* reset underflow/overflow flags */
 	value = tegra_dsi_readl(dsi, DSI_STATUS);
