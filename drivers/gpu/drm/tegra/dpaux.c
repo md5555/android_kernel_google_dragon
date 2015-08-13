@@ -412,7 +412,6 @@ struct tegra_dpaux *tegra_dpaux_find_by_of_node(struct device_node *np)
 
 int tegra_dpaux_attach(struct tegra_dpaux *dpaux, struct tegra_output *output)
 {
-	unsigned long timeout;
 	int err;
 
 	output->connector.polled = DRM_CONNECTOR_POLL_HPD;
@@ -422,45 +421,21 @@ int tegra_dpaux_attach(struct tegra_dpaux *dpaux, struct tegra_output *output)
 	if (err < 0)
 		return err;
 
-	timeout = jiffies + msecs_to_jiffies(250);
-
-	while (time_before(jiffies, timeout)) {
-		enum drm_connector_status status;
-
-		status = tegra_dpaux_detect(dpaux);
-		if (status == connector_status_connected)
-			return 0;
-
-		usleep_range(1000, 2000);
-	}
-
-	return -ETIMEDOUT;
+	return wait_for(tegra_dpaux_detect(dpaux) == connector_status_connected,
+			250);
 }
 
 int tegra_dpaux_detach(struct tegra_dpaux *dpaux)
 {
-	unsigned long timeout;
 	int err;
 
 	err = regulator_disable(dpaux->vdd);
 	if (err < 0)
 		return err;
 
-	timeout = jiffies + msecs_to_jiffies(250);
-
-	while (time_before(jiffies, timeout)) {
-		enum drm_connector_status status;
-
-		status = tegra_dpaux_detect(dpaux);
-		if (status == connector_status_disconnected) {
-			dpaux->output = NULL;
-			return 0;
-		}
-
-		usleep_range(1000, 2000);
-	}
-
-	return -ETIMEDOUT;
+	return wait_for(
+		tegra_dpaux_detect(dpaux) == connector_status_disconnected,
+		250);
 }
 
 enum drm_connector_status tegra_dpaux_detect(struct tegra_dpaux *dpaux)

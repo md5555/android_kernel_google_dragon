@@ -1258,17 +1258,7 @@ static bool tegra_dc_idle(struct tegra_dc *dc)
 
 static int tegra_dc_wait_idle(struct tegra_dc *dc, unsigned long timeout)
 {
-	timeout = jiffies + msecs_to_jiffies(timeout);
-
-	while (time_before(jiffies, timeout)) {
-		if (tegra_dc_idle(dc))
-			return 0;
-
-		usleep_range(1000, 2000);
-	}
-
-	dev_dbg(dc->dev, "timeout waiting for DC to become idle\n");
-	return -ETIMEDOUT;
+	return wait_for(tegra_dc_idle(dc), timeout);
 }
 
 static void tegra_crtc_disable(struct drm_crtc *crtc)

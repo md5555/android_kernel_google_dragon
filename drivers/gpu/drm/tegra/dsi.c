@@ -631,19 +631,8 @@ static void tegra_dsi_configure(struct tegra_dsi *dsi, unsigned int pipe,
 
 static int tegra_dsi_wait_idle(struct tegra_dsi *dsi, unsigned long timeout)
 {
-	u32 value;
-
-	timeout = jiffies + msecs_to_jiffies(timeout);
-
-	while (time_before(jiffies, timeout)) {
-		value = tegra_dsi_readl(dsi, DSI_STATUS);
-		if (value & DSI_STATUS_IDLE)
-			return 0;
-
-		usleep_range(1000, 2000);
-	}
-
-	return -ETIMEDOUT;
+	return wait_for(tegra_dsi_readl(dsi, DSI_STATUS) & DSI_STATUS_IDLE,
+			timeout);
 }
 
 static void tegra_dsi_video_disable(struct tegra_dsi *dsi)
@@ -1183,37 +1172,14 @@ static int tegra_dsi_transmit(struct tegra_dsi *dsi, unsigned long timeout)
 {
 	tegra_dsi_writel(dsi, DSI_TRIGGER_HOST, DSI_TRIGGER);
 
-	timeout = jiffies + msecs_to_jiffies(timeout);
-
-	while (time_before(jiffies, timeout)) {
-		u32 value = tegra_dsi_readl(dsi, DSI_TRIGGER);
-		if ((value & DSI_TRIGGER_HOST) == 0)
-			return 0;
-
-		usleep_range(1000, 2000);
-	}
-
-	DRM_DEBUG_KMS("timeout waiting for transmission to complete\n");
-	return -ETIMEDOUT;
+	return wait_for(!(tegra_dsi_readl(dsi, DSI_TRIGGER) & DSI_TRIGGER_HOST),
+			timeout);
 }
 
 static int tegra_dsi_wait_for_response(struct tegra_dsi *dsi,
 				       unsigned long timeout)
 {
-	timeout = jiffies + msecs_to_jiffies(250);
-
-	while (time_before(jiffies, timeout)) {
-		u32 value = tegra_dsi_readl(dsi, DSI_STATUS);
-		u8 count = value & 0x1f;
-
-		if (count > 0)
-			return count;
-
-		usleep_range(1000, 2000);
-	}
-
-	DRM_DEBUG_KMS("peripheral returned no data\n");
-	return -ETIMEDOUT;
+	return wait_for((tegra_dsi_readl(dsi, DSI_STATUS) & 0x1f) > 0, timeout);
 }
 
 static void tegra_dsi_writesl(struct tegra_dsi *dsi, unsigned long offset,

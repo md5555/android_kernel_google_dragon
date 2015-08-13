@@ -217,22 +217,14 @@ static int tegra_sor_setup_pwm(struct tegra_sor *sor, unsigned long timeout)
 	value |= SOR_PWM_CTL_TRIGGER;
 	tegra_sor_writel(sor, value, SOR_PWM_CTL);
 
-	timeout = jiffies + msecs_to_jiffies(timeout);
-
-	while (time_before(jiffies, timeout)) {
-		value = tegra_sor_readl(sor, SOR_PWM_CTL);
-		if ((value & SOR_PWM_CTL_TRIGGER) == 0)
-			return 0;
-
-		usleep_range(25, 100);
-	}
-
-	return -ETIMEDOUT;
+	return wait_for_interval(
+		!(tegra_sor_readl(sor, SOR_PWM_CTL) & SOR_PWM_CTL_TRIGGER),
+		timeout, 25);
 }
 
 static int tegra_sor_attach(struct tegra_sor *sor)
 {
-	unsigned long value, timeout;
+	unsigned long value;
 
 	/* wake up in normal mode */
 	value = tegra_sor_readl(sor, SOR_SUPER_STATE_1);
@@ -247,37 +239,16 @@ static int tegra_sor_attach(struct tegra_sor *sor)
 	tegra_sor_writel(sor, value, SOR_SUPER_STATE_1);
 	tegra_sor_super_update(sor);
 
-	timeout = jiffies + msecs_to_jiffies(250);
-
-	while (time_before(jiffies, timeout)) {
-		value = tegra_sor_readl(sor, SOR_TEST);
-		if ((value & SOR_TEST_ATTACHED) != 0)
-			return 0;
-
-		usleep_range(25, 100);
-	}
-
-	return -ETIMEDOUT;
+	return wait_for_interval(
+		tegra_sor_readl(sor, SOR_TEST) & SOR_TEST_ATTACHED, 250, 25);
 }
 
 static int tegra_sor_wakeup(struct tegra_sor *sor)
 {
-	unsigned long value, timeout;
-
-	timeout = jiffies + msecs_to_jiffies(250);
-
-	/* wait for head to wake up */
-	while (time_before(jiffies, timeout)) {
-		value = tegra_sor_readl(sor, SOR_TEST);
-		value &= SOR_TEST_HEAD_MODE_MASK;
-
-		if (value == SOR_TEST_HEAD_MODE_AWAKE)
-			return 0;
-
-		usleep_range(25, 100);
-	}
-
-	return -ETIMEDOUT;
+	return wait_for_interval(
+		(tegra_sor_readl(sor, SOR_TEST) & SOR_TEST_HEAD_MODE_MASK) ==
+			SOR_TEST_HEAD_MODE_AWAKE,
+		250, 25);
 }
 
 static int tegra_sor_power_up(struct tegra_sor *sor, unsigned long timeout)
@@ -288,17 +259,9 @@ static int tegra_sor_power_up(struct tegra_sor *sor, unsigned long timeout)
 	value |= SOR_PWR_TRIGGER | SOR_PWR_NORMAL_STATE_PU;
 	tegra_sor_writel(sor, value, SOR_PWR);
 
-	timeout = jiffies + msecs_to_jiffies(timeout);
-
-	while (time_before(jiffies, timeout)) {
-		value = tegra_sor_readl(sor, SOR_PWR);
-		if ((value & SOR_PWR_TRIGGER) == 0)
-			return 0;
-
-		usleep_range(25, 100);
-	}
-
-	return -ETIMEDOUT;
+	return wait_for_interval(
+		!(tegra_sor_readl(sor, SOR_PWR) & SOR_PWR_TRIGGER), timeout,
+		25);
 }
 
 struct tegra_sor_params {
@@ -478,7 +441,8 @@ static int tegra_sor_calc_config(struct tegra_sor *sor,
 
 static int tegra_sor_detach(struct tegra_sor *sor)
 {
-	unsigned long value, timeout;
+	int err;
+	unsigned long value;
 
 	/* switch to safe mode */
 	value = tegra_sor_readl(sor, SOR_SUPER_STATE_1);
@@ -486,16 +450,10 @@ static int tegra_sor_detach(struct tegra_sor *sor)
 	tegra_sor_writel(sor, value, SOR_SUPER_STATE_1);
 	tegra_sor_super_update(sor);
 
-	timeout = jiffies + msecs_to_jiffies(250);
-
-	while (time_before(jiffies, timeout)) {
-		value = tegra_sor_readl(sor, SOR_PWR);
-		if (value & SOR_PWR_MODE_SAFE)
-			break;
-	}
-
-	if ((value & SOR_PWR_MODE_SAFE) == 0)
-		return -ETIMEDOUT;
+	err = wait_for_atomic(tegra_sor_readl(sor, SOR_PWR) & SOR_PWR_MODE_SAFE,
+				250);
+	if (err)
+		return err;
 
 	/* go to sleep */
 	value = tegra_sor_readl(sor, SOR_SUPER_STATE_1);
@@ -509,25 +467,13 @@ static int tegra_sor_detach(struct tegra_sor *sor)
 	tegra_sor_writel(sor, value, SOR_SUPER_STATE_1);
 	tegra_sor_super_update(sor);
 
-	timeout = jiffies + msecs_to_jiffies(250);
-
-	while (time_before(jiffies, timeout)) {
-		value = tegra_sor_readl(sor, SOR_TEST);
-		if ((value & SOR_TEST_ATTACHED) == 0)
-			break;
-
-		usleep_range(25, 100);
-	}
-
-	if ((value & SOR_TEST_ATTACHED) != 0)
-		return -ETIMEDOUT;
-
-	return 0;
+	return wait_for_interval(
+		!(tegra_sor_readl(sor, SOR_TEST) & SOR_TEST_ATTACHED), 250, 25);
 }
 
 static int tegra_sor_power_down(struct tegra_sor *sor)
 {
-	unsigned long value, timeout;
+	unsigned long value;
 	int err;
 
 	value = tegra_sor_readl(sor, SOR_PWR);
@@ -535,18 +481,10 @@ static int tegra_sor_power_down(struct tegra_sor *sor)
 	value |= SOR_PWR_TRIGGER;
 	tegra_sor_writel(sor, value, SOR_PWR);
 
-	timeout = jiffies + msecs_to_jiffies(250);
-
-	while (time_before(jiffies, timeout)) {
-		value = tegra_sor_readl(sor, SOR_PWR);
-		if ((value & SOR_PWR_TRIGGER) == 0)
-			return 0;
-
-		usleep_range(25, 100);
-	}
-
-	if ((value & SOR_PWR_TRIGGER) != 0)
-		return -ETIMEDOUT;
+	err = wait_for_interval(
+		!(tegra_sor_readl(sor, SOR_PWR) & SOR_PWR_TRIGGER), 250, 25);
+	if (err)
+		return err;
 
 	err = clk_set_parent(sor->clk, sor->clk_safe);
 	if (err < 0)
@@ -562,18 +500,10 @@ static int tegra_sor_power_down(struct tegra_sor *sor)
 		SOR_LANE_SEQ_CTL_POWER_STATE_DOWN;
 	tegra_sor_writel(sor, value, SOR_LANE_SEQ_CTL);
 
-	timeout = jiffies + msecs_to_jiffies(250);
-
-	while (time_before(jiffies, timeout)) {
-		value = tegra_sor_readl(sor, SOR_LANE_SEQ_CTL);
-		if ((value & SOR_LANE_SEQ_CTL_TRIGGER) == 0)
-			break;
-
-		usleep_range(25, 100);
-	}
-
-	if ((value & SOR_LANE_SEQ_CTL_TRIGGER) != 0)
-		return -ETIMEDOUT;
+	err = wait_for_interval(!(tegra_sor_readl(sor, SOR_LANE_SEQ_CTL) &
+					SOR_LANE_SEQ_CTL_TRIGGER), 250, 25);
+	if (err)
+		return err;
 
 	value = tegra_sor_readl(sor, SOR_PLL_2);
 	value |= SOR_PLL_2_PORT_POWERDOWN;
@@ -610,19 +540,9 @@ static int tegra_sor_crc_release(struct inode *inode, struct file *file)
 
 static int tegra_sor_crc_wait(struct tegra_sor *sor, unsigned long timeout)
 {
-	u32 value;
-
-	timeout = jiffies + msecs_to_jiffies(timeout);
-
-	while (time_before(jiffies, timeout)) {
-		value = tegra_sor_readl(sor, SOR_CRC_A);
-		if (value & SOR_CRC_A_VALID)
-			return 0;
-
-		usleep_range(100, 200);
-	}
-
-	return -ETIMEDOUT;
+	return wait_for_interval(
+		tegra_sor_readl(sor, SOR_CRC_A) & SOR_CRC_A_VALID, timeout,
+		100);
 }
 
 static ssize_t tegra_sor_crc_read(struct file *file, char __user *buffer,
