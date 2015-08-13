@@ -829,7 +829,7 @@
 		power-supply = <&pplcd_vdd>;
 
 		bl-name = "lp8557-backlight";
-		dev-ctrl = /bits/ 8 <0x01>;
+		dev-ctrl = /bits/ 8 <0x02>;
 		init-brt = /bits/ 8 <0xFF>;
 
 		/* Full scale current, 20mA */
