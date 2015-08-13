@@ -1023,6 +1023,7 @@ static irqreturn_t tegra_spi_isr(int irq, void *context_data)
 
 static const struct of_device_id tegra_spi_of_match[] = {
 	{ .compatible = "nvidia,tegra114-spi", },
+	{ .compatible = "nvidia,tegra210-spi", },
 	{}
 };
 MODULE_DEVICE_TABLE(of, tegra_spi_of_match);
