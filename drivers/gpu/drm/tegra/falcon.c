@@ -26,31 +26,6 @@
  */
 #define FALCON_FW_MAGIC				0x10de
 
-/**
- * _wait_for - magic (register) wait macro
- *
- * Does the right thing for modeset paths when run under kdgb or similar atomic
- * contexts. Note that it's important that we check the condition again after
- * having timed out, since the timeout could be due to preemption or similar and
- * we've never had a chance to check the condition before the timeout.
- */
-#define wait_for(COND, MS) ({ \
-	unsigned long timeout__ = jiffies + msecs_to_jiffies(MS) + 1;	\
-	int ret__ = 0;							\
-	while (!(COND)) {						\
-		if (time_after(jiffies, timeout__)) {			\
-			if (!(COND))					\
-				ret__ = -ETIMEDOUT;			\
-			break;						\
-		}							\
-		if (drm_can_sleep())					\
-			usleep_range(1000, 2000);			\
-		else							\
-			cpu_relax();					\
-	}								\
-	ret__;								\
-})
-
 enum falcon_memory {
 	FALCON_MEMORY_IMEM,
 	FALCON_MEMORY_DATA,
