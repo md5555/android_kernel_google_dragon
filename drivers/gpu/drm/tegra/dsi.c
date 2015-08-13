@@ -362,6 +362,12 @@ static const u32 pkt_seq_command_mode[NUM_PKT_SEQ] = {
 	[11] = 0,
 };
 
+static int tegra_dsi_wait_idle(struct tegra_dsi *dsi, unsigned long timeout)
+{
+	return wait_for(tegra_dsi_readl(dsi, DSI_STATUS) & DSI_STATUS_IDLE,
+			timeout);
+}
+
 static void tegra_dsi_set_phy_timing(struct tegra_dsi *dsi,
 				     unsigned long period,
 				     const struct mipi_dphy_timing *timing)
@@ -490,6 +496,7 @@ static void tegra_dsi_configure(struct tegra_dsi *dsi, unsigned int pipe,
 	struct tegra_dsi_state *state;
 	const u32 *pkt_seq;
 	u32 value;
+	int err;
 
 	/* XXX: pass in state into this function? */
 	if (dsi->master)
@@ -510,6 +517,14 @@ static void tegra_dsi_configure(struct tegra_dsi *dsi, unsigned int pipe,
 		DRM_DEBUG_KMS("Command mode\n");
 		pkt_seq = pkt_seq_command_mode;
 	}
+
+	/*
+	 * There is a lot more than this to switch from LP mode to HS mode,
+	 * but let's try get away with this as far as we can.
+	 */
+	err = tegra_dsi_wait_idle(dsi, 100);
+	if (err < 0)
+		dev_dbg(dsi->dev, "failed to idle DSI: %d\n", err);
 
 	value = DSI_CONTROL_CHANNEL(0) |
 		DSI_CONTROL_FORMAT(state->format) |
@@ -627,12 +642,6 @@ static void tegra_dsi_configure(struct tegra_dsi *dsi, unsigned int pipe,
 		tegra_dsi_ganged_enable(dsi->slave, mode->hdisplay / 2,
 					mode->hdisplay / 2);
 	}
-}
-
-static int tegra_dsi_wait_idle(struct tegra_dsi *dsi, unsigned long timeout)
-{
-	return wait_for(tegra_dsi_readl(dsi, DSI_STATUS) & DSI_STATUS_IDLE,
-			timeout);
 }
 
 static void tegra_dsi_video_disable(struct tegra_dsi *dsi)
