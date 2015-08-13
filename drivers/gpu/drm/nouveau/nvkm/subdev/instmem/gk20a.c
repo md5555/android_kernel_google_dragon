@@ -132,8 +132,9 @@ gk20a_instobj_map_sg(struct nvkm_vma *vma, struct nvkm_object *object,
 	struct gk20a_instmem_priv *priv = (void *)nvkm_instmem(object);
 	unsigned long flags;
 	u32 target = (vma->access & NV_MEM_ACCESS_NOSNOOP) ? 6 : 4;
-	u32 memtype = vma->vm->mmu->storage_type_map[mem->memtype & 0xff];
+	u32 memtype = mem->memtype & 0xff;
 	u32 *ramin_ptr;
+	u32 tag = 0;
 
 	if (!mem->cached)
 		target |= 1;
@@ -160,12 +161,17 @@ gk20a_instobj_map_sg(struct nvkm_vma *vma, struct nvkm_object *object,
 	/* Write posting -- ensure that previous mmio has completed */
 	nv_rd32(priv, 0x700000);
 
+	if (mem->tag)
+		tag = mem->tag->offset;
+
 	pte <<= 1;
 	while (cnt--) {
 		ramin_ptr[pte] = (*list >> 8) | 0x1 /* present */;
-		ramin_ptr[pte + 1] = target | (memtype << 4);
+		ramin_ptr[pte + 1] = target | (memtype << 4) | (tag << 12);
 		list ++;
 		pte += 2;
+		if (mem->tag)
+			tag++;
 	}
 
 	spin_unlock_irqrestore(&priv->lock, flags);
