@@ -231,6 +231,7 @@ static int tegra210_i2s_runtime_suspend(struct device *dev)
 	}
 
 	regcache_cache_only(i2s->regmap, true);
+	regcache_mark_dirty(i2s->regmap);
 	clk_disable_unprepare(i2s->clk_i2s);
 	pm_runtime_put_sync(dev->parent);
 
@@ -273,16 +274,6 @@ static int tegra210_i2s_runtime_resume(struct device *dev)
 
 	return 0;
 }
-
-#ifdef CONFIG_PM_SLEEP
-static int tegra210_i2s_suspend(struct device *dev)
-{
-	struct tegra210_i2s *i2s = dev_get_drvdata(dev);
-
-	regcache_mark_dirty(i2s->regmap);
-	return 0;
-}
-#endif
 
 static int tegra210_i2s_set_fmt(struct snd_soc_dai *dai,
 				unsigned int fmt)
@@ -937,6 +928,7 @@ err_dap:
 		if (ret)
 			goto err_pm_disable;
 	}
+	ret = tegra210_i2s_runtime_resume(&pdev->dev);
 
 	ret = snd_soc_register_codec(&pdev->dev, &tegra210_i2s_codec,
 				     tegra210_i2s_dais,
@@ -984,9 +976,8 @@ static int tegra210_i2s_platform_remove(struct platform_device *pdev)
 }
 
 static const struct dev_pm_ops tegra210_i2s_pm_ops = {
-	SET_RUNTIME_PM_OPS(tegra210_i2s_runtime_suspend,
-			   tegra210_i2s_runtime_resume, NULL)
-	SET_SYSTEM_SLEEP_PM_OPS(tegra210_i2s_suspend, NULL)
+	SET_RUNTIME_PM_OPS(NULL, NULL, NULL)
+	SET_SYSTEM_SLEEP_PM_OPS(tegra210_i2s_runtime_suspend, tegra210_i2s_runtime_resume)
 };
 
 static struct platform_driver tegra210_i2s_driver = {
