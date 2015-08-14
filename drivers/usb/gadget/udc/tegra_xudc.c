@@ -472,6 +472,8 @@ struct tegra_xudc {
 	struct clk *pll_e;
 	struct clk *dev_clk;
 	struct clk *ss_clk;
+	struct clk *hs_src_clk;
+	struct clk *fs_src_clk;
 
 	struct reset_control *dev_rst;
 	struct reset_control *ss_rst;
@@ -2992,16 +2994,30 @@ static int tegra_xudc_clk_enable(struct tegra_xudc *xudc)
 	if (err < 0)
 		return err;
 	err = clk_prepare_enable(xudc->pll_u_480M);
-	if (err < 0) {
-		clk_disable_unprepare(xudc->pll_e);
-		return err;
-	}
+	if (err < 0)
+		goto disable_pll_e;
+	err = clk_prepare_enable(xudc->hs_src_clk);
+	if (err < 0)
+		goto disable_pll_u_480M;
+	err = clk_prepare_enable(xudc->fs_src_clk);
+	if (err < 0)
+		goto disable_hs_src_clk;
 
 	return 0;
+
+disable_hs_src_clk:
+	clk_disable_unprepare(xudc->hs_src_clk);
+disable_pll_u_480M:
+	clk_disable_unprepare(xudc->pll_u_480M);
+disable_pll_e:
+	clk_disable_unprepare(xudc->pll_e);
+	return err;
 }
 
 static void tegra_xudc_clk_disable(struct tegra_xudc *xudc)
 {
+	clk_disable_unprepare(xudc->fs_src_clk);
+	clk_disable_unprepare(xudc->hs_src_clk);
 	clk_disable_unprepare(xudc->pll_u_480M);
 	clk_disable_unprepare(xudc->pll_e);
 }
@@ -3160,6 +3176,16 @@ static int tegra_xudc_probe(struct platform_device *pdev)
 	xudc->pll_e = devm_clk_get(&pdev->dev, "pll_e");
 	if (IS_ERR(xudc->pll_e)) {
 		err = PTR_ERR(xudc->pll_e);
+		goto disable_regulator;
+	}
+	xudc->hs_src_clk = devm_clk_get(&pdev->dev, "xusb_hs_src");
+	if (IS_ERR(xudc->hs_src_clk)) {
+		err = PTR_ERR(xudc->hs_src_clk);
+		goto disable_regulator;
+	}
+	xudc->fs_src_clk = devm_clk_get(&pdev->dev, "xusb_fs_src");
+	if (IS_ERR(xudc->fs_src_clk)) {
+		err = PTR_ERR(xudc->fs_src_clk);
 		goto disable_regulator;
 	}
 	xudc->dev_clk = devm_clk_get(&pdev->dev, "xusb_dev");
