@@ -60,6 +60,7 @@ struct tegra_bo *tegra_bo_create_with_handle(struct drm_file *file,
 					     unsigned long flags,
 					     u32 *handle);
 void tegra_bo_free_object(struct drm_gem_object *gem);
+void tegra_bo_free_object_locked(struct drm_gem_object *gem);
 int tegra_bo_dumb_create(struct drm_file *file, struct drm_device *drm,
 			 struct drm_mode_create_dumb *args);
 int tegra_bo_dumb_map_offset(struct drm_file *file, struct drm_device *drm,

@@ -331,9 +331,7 @@ struct tegra_bo *tegra_bo_create_with_handle(struct drm_file *file,
 
 	err = drm_gem_handle_create(file, &bo->gem, handle);
 	if (err) {
-		mutex_lock(&drm->struct_mutex);
-		tegra_bo_free_object(&bo->gem);
-		mutex_unlock(&drm->struct_mutex);
+		tegra_bo_free_object_locked(&bo->gem);
 		return ERR_PTR(err);
 	}
 
@@ -420,6 +418,15 @@ void tegra_bo_free_object(struct drm_gem_object *gem)
 
 	drm_gem_object_release(gem);
 	kfree(bo);
+}
+
+void tegra_bo_free_object_locked(struct drm_gem_object *gem)
+{
+	struct drm_device *drm = gem->dev;
+
+	mutex_lock(&drm->struct_mutex);
+	tegra_bo_free_object(gem);
+	mutex_unlock(&drm->struct_mutex);
 }
 
 int tegra_bo_dumb_create(struct drm_file *file, struct drm_device *drm,
