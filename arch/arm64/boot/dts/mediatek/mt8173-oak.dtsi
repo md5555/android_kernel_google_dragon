@@ -182,11 +182,6 @@
 		vcc-supply = <&mt6397_vgp6_reg>;
 		wakeup-source;
 	};
-
-	thermal@4c {
-		compatible = "ti,tmp432";
-		reg = <0x4c>;
-	};
 };
 
 &i2c_tunnel {
@@ -195,6 +190,11 @@
 		reg = <0xb>;
 		sbs,i2c-retry-count = <2>;
 		sbs,poll-retry-count = <1>;
+	};
+
+	thermal@4c {
+		compatible = "ti,tmp432";
+		reg = <0x4c>;
 	};
 };
 
