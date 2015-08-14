@@ -10,7 +10,8 @@ Required properties for slave panel:
 - master: phandle pointing to the master panel
 
 Optional properties:
-- None
+- backlight: phandle pointing to the i2c node representing the attached lp8557
+	     backlight controller
 
 Example:
 	panel: panel@0 {
@@ -23,5 +24,7 @@ Example:
 
 		enable-gpio = <&gpio TEGRA_GPIO(H, 5) GPIO_ACTIVE_HIGH>;
 		reset-gpio = <&gpio TEGRA_GPIO(H, 3) GPIO_ACTIVE_LOW>;
+
+		backlight = <&backlight>;
 	};
 

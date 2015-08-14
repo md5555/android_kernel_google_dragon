@@ -11,9 +11,11 @@
  * GNU General Public License for more details.
  */
 
+#include <linux/backlight.h>
 #include <linux/debugfs.h>
 #include <linux/gpio.h>
 #include <linux/module.h>
+#include <linux/mutex.h>
 #include <linux/of_gpio.h>
 #include <linux/gpio/machine.h>
 #include <linux/regulator/consumer.h>
@@ -27,10 +29,34 @@
 
 #include <video/mipi_display.h>
 
+static struct backlight_jdi_init {
+	u8 reg;
+	u8 value;
+} backlight_init_table[] = {
+	{
+		.reg = I2C_LP8557_CONFIG,
+		.value = LP8557_CONFIG_BRTMODE_PWM | LP8557_CONFIG_AUTO_LEDEN,
+	},
+	{
+		.reg = I2C_LP8557_CURRENT,
+		.value = LP8557_CURRENT_MAXCUR_18MA,
+	},
+	{
+		.reg = I2C_LP8557_BOOST,
+		.value = LP8557_BOOST_FREQ_1MHZ | LP8557_BOOST_BCOMP_OPTION_1,
+	},
+	{
+		.reg = I2C_LP8557_LEDEN,
+		.value = LP8557_LEDEN_4V_0V | LP8557_LEDEN_6_CURRENT_SINKS,
+	},
+};
+
 struct panel_jdi {
 	struct drm_panel base;
 	struct mipi_dsi_device *dsi;
 	struct mipi_dsi_device *slave;
+	struct backlight_device *bl;
+	struct i2c_client *client;
 
 	struct regulator *supply;
 	struct regulator *ddi_supply;
@@ -41,6 +67,7 @@ struct panel_jdi {
 
 	const struct drm_display_mode *mode;
 
+	struct mutex lock;
 	bool enabled;
 
 	struct dentry *debugfs_entry;
@@ -52,19 +79,13 @@ static inline struct panel_jdi *to_panel_jdi(struct drm_panel *panel)
 	return container_of(panel, struct panel_jdi, base);
 }
 
-static int panel_jdi_write_display_brightness(struct panel_jdi *jdi)
+static int panel_jdi_write_display_brightness(struct panel_jdi *jdi,
+					      u32 brightness)
 {
 	int ret;
 	u8 data;
 
-	data = RSP_WRITE_DISPLAY_BRIGHTNESS(0xFF);
-
-	ret = mipi_dsi_dcs_write(jdi->dsi,
-			MIPI_DCS_RSP_WRITE_DISPLAY_BRIGHTNESS, &data, 1);
-	if (ret < 1) {
-		DRM_ERROR("failed to write display brightness: %d\n", ret);
-		return ret;
-	}
+	data = RSP_WRITE_DISPLAY_BRIGHTNESS(brightness);
 
 	ret = mipi_dsi_dcs_write(jdi->slave,
 			MIPI_DCS_RSP_WRITE_DISPLAY_BRIGHTNESS, &data, 1);
@@ -76,13 +97,41 @@ static int panel_jdi_write_display_brightness(struct panel_jdi *jdi)
 	return 0;
 }
 
+static int backlight_jdi_update_status(struct backlight_device *bl)
+{
+	struct panel_jdi *jdi = bl_get_data(bl);
+	int brightness = bl->props.brightness;
+	int ret;
+
+	if (bl->props.state & (BL_CORE_SUSPENDED | BL_CORE_FBBLANK))
+		brightness = 0;
+
+	mutex_lock(&jdi->lock);
+
+	if (!jdi->enabled) {
+		ret = 0;
+		goto out;
+	}
+
+	ret = panel_jdi_write_display_brightness(jdi, brightness);
+	if (ret) {
+		DRM_ERROR("write_display_brightness failed with %d\n", ret);
+		goto out;
+	}
+
+out:
+	mutex_unlock(&jdi->lock);
+	return ret;
+}
+
 static int panel_jdi_write_control_display(struct panel_jdi *jdi)
 {
 	int ret;
 	u8 data;
 
 	data = RSP_WRITE_CONTROL_DISPLAY_BL_ON |
-			RSP_WRITE_CONTROL_DISPLAY_BCTRL_LEDPWM;
+			RSP_WRITE_CONTROL_DISPLAY_BCTRL_LEDPWM |
+			RSP_WRITE_CONTROL_DISPLAY_DD_ON;
 
 	ret = mipi_dsi_dcs_write(jdi->dsi, MIPI_DCS_RSP_WRITE_CONTROL_DISPLAY,
 			&data, 1);
@@ -130,10 +179,15 @@ static int panel_jdi_write_adaptive_brightness_control(struct panel_jdi *jdi)
 static int panel_jdi_disable(struct drm_panel *panel)
 {
 	struct panel_jdi *jdi = to_panel_jdi(panel);
-	int ret;
+	int ret = 0;
 
+	mutex_lock(&jdi->lock);
 	if (!jdi->enabled)
-		return 0;
+		goto out;
+
+	ret = panel_jdi_write_display_brightness(jdi, 0);
+	if (ret < 0)
+		DRM_ERROR("failed to set backlight on: %d\n", ret);
 
 	ret = mipi_dsi_dcs_set_display_off(jdi->dsi);
 	if (ret < 0)
@@ -155,6 +209,8 @@ static int panel_jdi_disable(struct drm_panel *panel)
 	/* Specified by JDI @ 150ms, subject to change */
 	msleep(150);
 
+out:
+	mutex_unlock(&jdi->lock);
 	return ret;
 }
 
@@ -162,8 +218,9 @@ static int panel_jdi_unprepare(struct drm_panel *panel)
 {
 	struct panel_jdi *jdi = to_panel_jdi(panel);
 
+	mutex_lock(&jdi->lock);
 	if (!jdi->enabled)
-		return 0;
+		goto out;
 
 	gpio_set_value(jdi->reset_gpio,
 		(jdi->reset_gpio_flags & GPIO_ACTIVE_LOW) ? 0 : 1);
@@ -179,16 +236,71 @@ static int panel_jdi_unprepare(struct drm_panel *panel)
 
 	jdi->enabled = false;
 
+out:
+	mutex_unlock(&jdi->lock);
 	return 0;
+}
+
+static int backlight_jdi_prepare(struct panel_jdi *jdi)
+{
+	struct i2c_client *cl = jdi->client;
+	int ret, i;
+	bool reinitialize = false;
+
+	/*
+	 * First read the values from the controller. If they're already
+	 * initialized, exit. This avoids having to turn off the controller,
+	 * which causes a brief blink.
+	 */
+	for (i = 0; i < ARRAY_SIZE(backlight_init_table); i++) {
+		struct backlight_jdi_init *init = &backlight_init_table[i];
+		ret = i2c_smbus_read_byte_data(cl, init->reg);
+		if (ret < 0) {
+			DRM_ERROR("Failed to read bl reg %x %d\n", init->reg,
+				ret);
+			reinitialize = true;
+			break;
+		} else if (ret != init->value) {
+			reinitialize = true;
+			break;
+		}
+	}
+	if (!reinitialize)
+		return 0;
+
+	ret = i2c_smbus_write_byte_data(cl, I2C_LP8557_COMMAND, 0x00);
+	if (ret) {
+		DRM_ERROR("Failed to write backlight command reg %d", ret);
+		return ret;
+	}
+
+	for (i = 0; i < ARRAY_SIZE(backlight_init_table); i++) {
+		struct backlight_jdi_init *init = &backlight_init_table[i];
+		ret = i2c_smbus_write_byte_data(cl, init->reg, init->value);
+		if (ret < 0) {
+			DRM_ERROR("Failed to init bl reg %x %d\n", init->reg,
+				ret);
+			return ret;
+		}
+	}
+
+	ret = i2c_smbus_write_byte_data(cl, I2C_LP8557_COMMAND, 0x01);
+	if (ret) {
+		DRM_ERROR("Failed to write backlight command reg %d", ret);
+		return ret;
+	}
+
+	return ret;
 }
 
 static int panel_jdi_prepare(struct drm_panel *panel)
 {
 	struct panel_jdi *jdi = to_panel_jdi(panel);
-	int ret;
+	int ret = 0;
 
+	mutex_lock(&jdi->lock);
 	if (jdi->enabled)
-		return 0;
+		goto out;
 
 	gpio_set_value(jdi->enable_gpio,
 		(jdi->enable_gpio_flags & GPIO_ACTIVE_LOW) ? 0 : 1);
@@ -201,6 +313,12 @@ static int panel_jdi_prepare(struct drm_panel *panel)
 
 	/* Specified by JDI @ 3ms, subject to change */
 	usleep_range(3000, 5000);
+
+	if (jdi->bl) {
+		ret = backlight_jdi_prepare(jdi);
+		if (ret)
+			DRM_ERROR("failed to prepare backlight: %d\n", ret);
+	}
 
 	ret = mipi_dsi_dcs_set_column_address(jdi->dsi, 0,
 				jdi->mode->hdisplay / 2 - 1);
@@ -250,10 +368,6 @@ static int panel_jdi_prepare(struct drm_panel *panel)
 	if (ret < 0)
 		DRM_ERROR("failed to set pixel format: %d\n", ret);
 
-	ret = panel_jdi_write_display_brightness(jdi);
-	if (ret < 0)
-		DRM_ERROR("failed to write display brightness: %d\n", ret);
-
 	ret = panel_jdi_write_control_display(jdi);
 	if (ret < 0)
 		DRM_ERROR("failed to write control display: %d\n", ret);
@@ -275,6 +389,8 @@ static int panel_jdi_prepare(struct drm_panel *panel)
 	 */
 	msleep(150);
 
+out:
+	mutex_unlock(&jdi->lock);
 	return ret;
 }
 
@@ -282,6 +398,8 @@ static int panel_jdi_enable(struct drm_panel *panel)
 {
 	struct panel_jdi *jdi = to_panel_jdi(panel);
 	int ret;
+
+	mutex_lock(&jdi->lock);
 
 	ret = mipi_dsi_dcs_set_display_on(jdi->dsi);
 	if (ret < 0)
@@ -292,6 +410,7 @@ static int panel_jdi_enable(struct drm_panel *panel)
 		DRM_ERROR("failed to set display on: %d\n", ret);
 
 	jdi->enabled = true;
+	mutex_unlock(&jdi->lock);
 
 	return ret;
 }
@@ -424,6 +543,18 @@ static const struct drm_panel_funcs panel_jdi_funcs = {
 	.get_modes = panel_jdi_get_modes,
 };
 
+static const struct backlight_ops backlight_jdi_funcs = {
+	.options = BL_CORE_SUSPENDRESUME,
+	.update_status = backlight_jdi_update_status,
+};
+
+static const struct backlight_properties backlight_jdi_props = {
+	.type = BACKLIGHT_RAW,
+	.brightness = 0,
+	.resume_brightness = -1,
+	.max_brightness = 0xFF,
+};
+
 static const struct of_device_id jdi_of_match[] = {
 	{ .compatible = "jdi,lpm102a188a", },
 	{ }
@@ -436,6 +567,7 @@ static int panel_jdi_setup_primary(struct mipi_dsi_device *dsi,
 	struct panel_jdi *jdi;
 	struct mipi_dsi_device *slave;
 	enum of_gpio_flags gpio_flags;
+	struct device_node *i2c_np;
 	int ret;
 
 	slave = of_find_mipi_dsi_device_by_node(np);
@@ -454,6 +586,7 @@ static int panel_jdi_setup_primary(struct mipi_dsi_device *dsi,
 	jdi->mode = &default_mode;
 	jdi->slave = slave;
 	jdi->dsi = dsi;
+	mutex_init(&jdi->lock);
 
 	jdi->supply = devm_regulator_get(&dsi->dev, "power");
 	if (IS_ERR(jdi->supply)) {
@@ -501,10 +634,21 @@ static int panel_jdi_setup_primary(struct mipi_dsi_device *dsi,
 		goto out_slave;
 	}
 
+	i2c_np = of_parse_phandle(dsi->dev.of_node, "backlight", 0);
+	if (i2c_np) {
+		jdi->client = of_find_i2c_device_by_node(i2c_np);
+		of_node_put(i2c_np);
+		if (!jdi->client) {
+			DRM_ERROR("Could not find i2c client\n");
+			ret = -ENODEV;
+			goto out_slave;
+		}
+	}
+
 	ret = regulator_enable(jdi->supply);
 	if (ret < 0) {
 		DRM_ERROR("failed to enable supply: %d\n", ret);
-		goto out_slave;
+		goto out_client;
 	}
 
 	/* T1 = 2ms */
@@ -529,14 +673,28 @@ static int panel_jdi_setup_primary(struct mipi_dsi_device *dsi,
 		goto out_ddi_supply;
 	}
 
+	if (jdi->client) {
+		jdi->bl = devm_backlight_device_register(&dsi->dev,
+					"lpm102a188a-backlight", &dsi->dev,
+					jdi, &backlight_jdi_funcs,
+					&backlight_jdi_props);
+		if (IS_ERR(jdi->bl))
+			goto out_panel;
+	}
+
 	panel_jdi_debugfs_init(jdi);
 
 	return 0;
 
+out_panel:
+	drm_panel_detach(&jdi->base);
 out_ddi_supply:
 	regulator_disable(jdi->ddi_supply);
 out_supply:
 	regulator_disable(jdi->supply);
+out_client:
+	if (jdi->client)
+		put_device(&jdi->client->dev);
 out_slave:
 	put_device(&slave->dev);
 
@@ -595,6 +753,8 @@ static int panel_jdi_dsi_remove(struct mipi_dsi_device *dsi)
 	if (ret < 0)
 		DRM_ERROR("failed to detach from DSI host: %d\n", ret);
 
+	if (jdi->client)
+		put_device(&jdi->client->dev);
 	put_device(&jdi->slave->dev);
 
 	return 0;
