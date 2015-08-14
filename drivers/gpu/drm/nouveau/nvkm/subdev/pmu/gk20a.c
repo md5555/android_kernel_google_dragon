@@ -1774,6 +1774,9 @@ gk20a_pmu_init_perfmon(struct gk20a_pmu_priv *priv)
 			priv->pmu_chip_data;
 	struct pmu_perfmon_counter_gk20a *perfcntrgk20a;
 
+	/* TODO remove this when perfmon is used for pstate/dvfs scaling */
+	return 0;
+
 	perfcntrgk20a = &pmugk20adata->perfmon_counter_gk20a;
 
 	if (!priv->sample_buffer)
@@ -1975,7 +1978,9 @@ gk20a_init_pmu_setup_sw(struct gk20a_pmu_priv *priv)
 	}
 
 	gk20a_pmu_seq_init(priv);
-	priv->perfmon_sampling_enabled = true;
+
+	/* TODO remove this when perfmon is used for pstate/dvfs scaling */
+	priv->perfmon_sampling_enabled = false;
 
 	ret = nvkm_gpuobj_new(nv_object(priv), NULL, GK20A_PMU_TRACE_BUFSIZE,
 					    0, 0, &priv->trace_buf.obj);

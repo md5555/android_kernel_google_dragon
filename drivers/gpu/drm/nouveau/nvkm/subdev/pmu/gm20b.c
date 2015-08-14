@@ -1520,7 +1520,8 @@ static int gm20b_init_pmu_setup_hw1(struct nvkm_pmu *ppmu,
 	int err, i;
 	struct pmu_cmdline_args_v1 args;
 
-	pmu->perfmon_sampling_enabled = true;
+	/* TODO remove this when perfmon is used for pstate/dvfs scaling */
+	pmu->perfmon_sampling_enabled = false;
 	pmu->mutex_cnt = MUTEX_CNT;
 	pmu->mutex = kzalloc(pmu->mutex_cnt *
 				sizeof(struct pmu_mutex), GFP_KERNEL);
