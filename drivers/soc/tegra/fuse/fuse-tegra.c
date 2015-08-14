@@ -198,8 +198,6 @@ static struct device_attribute tegra_fuse_cpu_id = {
 
 int tegra_fuse_create_cpu_sysfs(struct device *dev)
 {
-	int ret;
-
 	return device_create_file(dev, &tegra_fuse_cpu_id);
 }
 
@@ -221,7 +219,7 @@ int tegra_fuse_create_sysfs(struct device *dev, int size,
 	_fuse_write = write;
 
 	ret = tegra_fuse_create_cpu_sysfs(dev);
-	if (!ret)
+	if (ret)
 		return ret;
 
 	return device_create_bin_file(dev, &fuse_bin_attr);
