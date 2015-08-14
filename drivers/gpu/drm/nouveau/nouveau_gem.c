@@ -133,8 +133,6 @@ static void gem_unmap_work(struct work_struct *__work)
 	struct reservation_object_list *fobj;
 	struct fence *fence = NULL;
 
-	mutex_lock(&dev->struct_mutex);
-
 	if (mapped)
 		WARN_ON(nvkm_vm_wait(vma->vm));
 
@@ -159,6 +157,7 @@ static void gem_unmap_work(struct work_struct *__work)
 		kfree(vma);
 	}
 
+	mutex_lock(&dev->struct_mutex);
 	drm_gem_object_unreference(&nvbo->gem);
 	mutex_unlock(&dev->struct_mutex);
 
