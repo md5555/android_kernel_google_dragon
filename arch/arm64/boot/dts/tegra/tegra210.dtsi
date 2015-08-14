@@ -1162,8 +1162,11 @@
 		clocks = <&tegra_car TEGRA210_CLK_XUSB_DEV>,
 			 <&tegra_car TEGRA210_CLK_XUSB_SS>,
 			 <&tegra_car TEGRA210_CLK_PLL_U_480M>,
+			 <&tegra_car TEGRA210_CLK_XUSB_HS_SRC>,
+			 <&tegra_car TEGRA210_CLK_XUSB_FS_SRC>,
 			 <&tegra_car TEGRA210_CLK_PLL_E>;
-		clock-names = "xusb_dev", "xusb_ss", "pll_u_480M", "pll_e";
+		clock-names = "xusb_dev", "xusb_ss", "pll_u_480M",
+			      "xusb_hs_src", "xusb_fs_src", "pll_e";
 		resets = <&tegra_car 95>, <&tegra_car 156>;
 		reset-names = "xusb_dev", "xusb_ss";
 		mc = <&mc TEGRA_SWGROUP_XUSB_DEV>;
