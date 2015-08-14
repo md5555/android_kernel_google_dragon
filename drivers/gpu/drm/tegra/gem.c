@@ -35,11 +35,14 @@ static void tegra_bo_put(struct host1x_bo *bo)
 	mutex_unlock(&drm->struct_mutex);
 }
 
-static dma_addr_t tegra_bo_pin(struct host1x_bo *bo, struct sg_table **sgt)
+static int tegra_bo_pin(struct host1x_bo *bo, struct sg_table **sgt,
+			    dma_addr_t *addr)
 {
 	struct tegra_bo *obj = host1x_to_tegra_bo(bo);
 
-	return obj->paddr;
+	*addr = obj->paddr;
+
+	return 0;
 }
 
 static void tegra_bo_unpin(struct host1x_bo *bo, struct sg_table *sgt)

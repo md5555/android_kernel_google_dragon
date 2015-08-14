@@ -195,11 +195,9 @@ static int pin_job(struct host1x_job *job)
 			goto unpin;
 		}
 
-		phys_addr = host1x_bo_pin(reloc->target.bo, &sgt);
-		if (!phys_addr) {
-			err = -ENOMEM;
+		err = host1x_bo_pin(reloc->target.bo, &sgt, &phys_addr);
+		if (err < 0)
 			goto unpin;
-		}
 
 		job->addr_phys[job->num_unpins] = phys_addr;
 		job->unpins[job->num_unpins].bo = reloc->target.bo;
@@ -218,11 +216,9 @@ static int pin_job(struct host1x_job *job)
 			goto unpin;
 		}
 
-		phys_addr = host1x_bo_pin(g->bo, &sgt);
-		if (!phys_addr) {
-			err = -ENOMEM;
+		err = host1x_bo_pin(g->bo, &sgt, &phys_addr);
+		if (err < 0)
 			goto unpin;
-		}
 
 		job->addr_phys[job->num_unpins] = phys_addr;
 		job->unpins[job->num_unpins].bo = g->bo;
