@@ -173,7 +173,6 @@ nouveau_gart_manager_new(struct ttm_mem_type_manager *man,
 		return -ENOMEM;
 
 	node->page_shift = 12;
-	node->cached = nvbo->gpu_cacheable;
 
 	switch (drm->device.info.family) {
 	case NV_DEVICE_INFO_V0_TNT:

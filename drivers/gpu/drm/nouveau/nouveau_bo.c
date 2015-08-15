@@ -30,8 +30,6 @@
 #include <linux/dma-mapping.h>
 #include <linux/swiotlb.h>
 
-#include <subdev/ltc.h>
-
 #include "nouveau_drm.h"
 #include "nouveau_dma.h"
 #include "nouveau_fence.h"
@@ -214,7 +212,6 @@ nouveau_bo_new(struct drm_device *dev, int size, int align,
 	INIT_LIST_HEAD(&nvbo->vma_list);
 	nvbo->tile_mode = tile_mode;
 	nvbo->tile_flags = tile_flags;
-	nvbo->gpu_cacheable = !(flags & TTM_PL_FLAG_UNCACHED);
 	nvbo->bo.bdev = &drm->ttm.bdev;
 
 	if (!nv_device_is_cpu_coherent(nvxx_device(&drm->device)))
@@ -456,30 +453,6 @@ nouveau_bo_unmap(struct nouveau_bo *nvbo)
 	 */
 	if (!nvbo->force_coherent)
 		ttm_bo_kunmap(&nvbo->kmap);
-}
-
-void nouveau_bo_l2_invalidate(struct nouveau_bo *nvbo)
-{
-	struct ttm_tt *ttm = nvbo->bo.ttm;
-	struct nouveau_drm *drm = nouveau_bdev(ttm->bdev);
-	struct nvkm_ltc *ltc = nvkm_ltc(nvxx_device(&drm->device));
-
-	if (!nvbo->gpu_cacheable)
-		return;
-
-	ltc->invalidate(ltc);
-}
-
-void nouveau_bo_l2_flush(struct nouveau_bo *nvbo)
-{
-	struct ttm_tt *ttm = nvbo->bo.ttm;
-	struct nouveau_drm *drm = nouveau_bdev(ttm->bdev);
-	struct nvkm_ltc *ltc = nvkm_ltc(nvxx_device(&drm->device));
-
-	if (!nvbo->gpu_cacheable)
-		return;
-
-	ltc->flush(ltc);
 }
 
 void

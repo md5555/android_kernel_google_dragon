@@ -335,9 +335,6 @@ nouveau_gem_info(struct drm_file *file_priv, struct drm_gem_object *gem,
 	else
 		rep->domain = NOUVEAU_GEM_DOMAIN_VRAM;
 
-	if (!nvbo->gpu_cacheable)
-		rep->domain |= NOUVEAU_GEM_DOMAIN_COHERENT;
-
 	rep->offset = nvbo->bo.offset;
 	if (cli->vm) {
 		vma = nouveau_bo_vma_find(nvbo, cli->vm);
@@ -362,8 +359,6 @@ nouveau_gem_ioctl_set_info(struct drm_device *dev, void *data,
 	struct nouveau_cli *cli = nouveau_cli(file_priv);
 	struct nvkm_fb *pfb = nvxx_fb(&drm->device);
 	struct drm_nouveau_gem_info *req = data;
-	bool gpu_cacheable = !(req->domain & NOUVEAU_GEM_DOMAIN_COHERENT);
-	bool force_coherent = false;
 	struct drm_gem_object *gem;
 	struct nouveau_bo *nvbo;
 	struct nvkm_mem *mem;
@@ -379,15 +374,10 @@ nouveau_gem_ioctl_set_info(struct drm_device *dev, void *data,
 	if (!gem)
 		return -ENOENT;
 
-	if (!nv_device_is_cpu_coherent(nvxx_device(&drm->device)))
-		force_coherent = !gpu_cacheable;
-
 	nvbo = nouveau_gem_object(gem);
 
 	if (nvbo->tile_mode != req->tile_mode ||
-	    nvbo->tile_flags != req->tile_flags ||
-	    nvbo->force_coherent != force_coherent ||
-	    nvbo->gpu_cacheable != gpu_cacheable) {
+	    nvbo->tile_flags != req->tile_flags) {
 
 		ret = ttm_bo_reserve(&nvbo->bo, false, false, false, NULL);
 		if (ret)
@@ -402,12 +392,9 @@ nouveau_gem_ioctl_set_info(struct drm_device *dev, void *data,
 		mem = nvbo->bo.mem.mm_node;
 		nvbo->tile_mode = req->tile_mode;
 		nvbo->tile_flags = req->tile_flags;
-		nvbo->force_coherent = force_coherent;
-		nvbo->gpu_cacheable = gpu_cacheable;
 
 		/* Need to rewrite page tables */
 		mem->memtype = (nvbo->tile_flags >> 8) & 0xff;
-		mem->cached = nvbo->gpu_cacheable;
 		nouveau_defer_vm_map(vma, nvbo);
 
 unreserve:
@@ -1394,8 +1381,6 @@ nouveau_gem_ioctl_cpu_prep(struct drm_device *dev, void *data,
 		else
 			ret = lret;
 	}
-
-	nouveau_bo_l2_flush(nvbo);
 	nouveau_bo_sync_for_cpu(nvbo);
 	drm_gem_object_unreference_unlocked(gem);
 
@@ -1416,7 +1401,6 @@ nouveau_gem_ioctl_cpu_fini(struct drm_device *dev, void *data,
 	nvbo = nouveau_gem_object(gem);
 
 	nouveau_bo_sync_for_device(nvbo);
-	nouveau_bo_l2_invalidate(nvbo);
 	drm_gem_object_unreference_unlocked(gem);
 	return 0;
 }
