@@ -127,12 +127,13 @@ static void gem_unmap_work(struct work_struct *__work)
 		container_of(__work, struct nouveau_vma_delete_work, work);
 	struct nvkm_vma *vma = del_work->vma;
 	struct nouveau_bo *nvbo = del_work->nvbo;
+	struct drm_device *dev = nvbo->gem.dev;
 	const bool mapped = nvbo->bo.mem.mem_type != TTM_PL_SYSTEM;
 	struct reservation_object *resv = nvbo->bo.resv;
 	struct reservation_object_list *fobj;
 	struct fence *fence = NULL;
 
-	mutex_lock(&nvbo->gem.dev->struct_mutex);
+	mutex_lock(&dev->struct_mutex);
 
 	if (mapped)
 		WARN_ON(nvkm_vm_wait(vma->vm));
@@ -159,7 +160,7 @@ static void gem_unmap_work(struct work_struct *__work)
 	}
 
 	drm_gem_object_unreference(&nvbo->gem);
-	mutex_unlock(&nvbo->gem.dev->struct_mutex);
+	mutex_unlock(&dev->struct_mutex);
 
 	kfree(del_work);
 }
