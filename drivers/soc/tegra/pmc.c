@@ -242,7 +242,7 @@
 #define PMC_SCRATCH55_RESET_TEGRA	(1 << 31)
 #define PMC_SCRATCH55_CNTRL_ID_SHIFT	27
 #define PMC_SCRATCH55_PINMUX_SHIFT	24
-#define PMC_SCRATCH55_16BITOP		(1 << 15)
+#define PMC_SCRATCH55_16BIT_OP		(1 << 15)
 #define PMC_SCRATCH55_CHECKSUM_SHIFT	16
 #define PMC_SCRATCH55_I2CSLV1_SHIFT	0
 
@@ -313,6 +313,21 @@
 #define PMC_FUSE_CTRL_PS18_LATCH_SET    (1 << 8)
 #define PMC_FUSE_CTRL_PS18_LATCH_CLEAR  (1 << 9)
 
+#define PMC_SCRATCH250				0x908
+#define  PMC_SCRATCH250_RETRIES_SHIFT		0
+#define  PMC_SCRATCH250_TRANSFER_DELAY_SHIFT	3
+#define  PMC_SCRATCH250_NUM_CONFIGS_SHIFT	8
+#define  PMC_SCRATCH250_BUS_CLEAR_DELAY_SHIFT	11
+
+#define PMC_SCRATCH251				0x90c
+#define  PMC_SCRATCH_SLAVE_ADDR_SHIFT		0
+#define  PMC_SCRATCH_NUM_CMDS_SHIFT		8
+#define  PMC_SCRATCH_16BIT_OP			BIT(15)
+#define  PMC_SCRATCH_CHECKSUM_SHIFT		16
+#define  PMC_SCRATCH_PINMUX_ID_SHIFT		24
+#define  PMC_SCRATCH_CNTRL_ID_SHIFT		27
+#define  PMC_SCRATCH_RST_EN			BIT(31)
+
 struct tegra_pmc_soc {
 	unsigned int num_powergates;
 	const char *const *powergates;
@@ -322,6 +337,7 @@ struct tegra_pmc_soc {
 	bool has_tsense_reset;
 	bool has_gpu_clamps;
 	bool has_ps18;
+	bool has_bootrom_i2c;
 
 	void (*utmi_sleep_enter)(unsigned int, enum usb_device_speed,
 				 struct tegra_utmi_pad_config *);
@@ -2206,6 +2222,163 @@ out:
 	return;
 }
 
+#define PMC_MAX_I2C_COMMAND_BLOCKS 7
+#define PMC_MAX_I2C_COMMANDS 63
+
+static int
+tegra_pmc_init_i2c_command_block(struct tegra_pmc *pmc, struct device_node *np,
+				 unsigned int *offset)
+{
+	u32 reg_addr[PMC_MAX_I2C_COMMANDS], reg_data[PMC_MAX_I2C_COMMANDS];
+	u32 ctrl_id, bus_addr, pinmux, value, header, checksum;
+	bool addr_16;
+	int cmds, i;
+
+	if (of_property_read_u32(np, "nvidia,i2c-controller-id", &ctrl_id)) {
+		dev_err(pmc->dev, "missing i2c controller id\n");
+		return -EINVAL;
+	}
+	if (of_property_read_u32(np, "nvidia,bus-addr", &bus_addr)) {
+		dev_err(pmc->dev, "missing i2c slave address\n");
+		return -EINVAL;
+	}
+	if (of_property_read_u32(np, "nvidia,pinmux-id", &pinmux))
+		pinmux = 0;
+	addr_16 = of_property_read_bool(np, "nvidia,16-bit-addr");
+
+	cmds = of_property_count_elems_of_size(np, "nvidia,reg-addr",
+					       sizeof(u32));
+	if (cmds <= 0 || cmds >= PMC_MAX_I2C_COMMANDS) {
+		dev_err(pmc->dev, "invalid number of i2c register addresses\n");
+		return -EINVAL;
+	}
+	if (of_property_count_elems_of_size(np, "nvidia,reg-data", sizeof(u32))
+	    != cmds) {
+		dev_err(pmc->dev, "invalid number of i2c register  values\n");
+		return -EINVAL;
+	}
+
+	of_property_read_u32_array(np, "nvidia,reg-addr", reg_addr, cmds);
+	of_property_read_u32_array(np, "nvidia,reg-data", reg_data, cmds);
+
+	/* Set up the command block header. */
+	value = (bus_addr << PMC_SCRATCH_SLAVE_ADDR_SHIFT) |
+		(cmds << PMC_SCRATCH_NUM_CMDS_SHIFT) |
+		(pinmux << PMC_SCRATCH_PINMUX_ID_SHIFT) |
+		(ctrl_id << PMC_SCRATCH_CNTRL_ID_SHIFT) |
+		PMC_SCRATCH_RST_EN;
+	if (addr_16)
+		value |= PMC_SCRATCH_16BIT_OP;
+	tegra_pmc_writel(value, *offset);
+	header = *offset;
+	*offset += 0x4;
+
+	/*
+	 * Write the commands to the PMC scratch registers.  Two commands may
+	 * be packed into a single register if 8-bit address/data is used.
+	 */
+	for (i = 0; i < cmds; i++) {
+		if (addr_16) {
+			tegra_pmc_writel(reg_addr[i] | (reg_data[i] << 16),
+					 *offset);
+			*offset += 0x4;
+		} else if (i % 2) {
+			value = tegra_pmc_readl(*offset);
+			value |= (reg_addr[i] << 16) | (reg_data[i] << 24);
+			tegra_pmc_writel(value, *offset);
+			*offset += 0x4;
+		} else {
+			tegra_pmc_writel(reg_addr[i] | (reg_data[i] << 8),
+					 *offset);
+		}
+	}
+	if (!addr_16 && (cmds % 2))
+		*offset += 0x4;
+
+	/* Compute command block checksum. */
+	checksum = 0;
+	for (i = header; i < *offset; i += 0x4) {
+		int j;
+
+		value = tegra_pmc_readl(i);
+		for (j = 0; j < 4; j++)
+			checksum += (value >> (j * 8)) & 0xff;
+	}
+	checksum &= 0xff;
+	checksum = 0x100 - checksum;
+
+	value = tegra_pmc_readl(header);
+	value |= checksum << PMC_SCRATCH_CHECKSUM_SHIFT;
+	tegra_pmc_writel(value, header);
+
+	return 0;
+}
+
+static void tegra_pmc_init_bootrom_i2c(struct tegra_pmc *pmc)
+{
+	u32 value, max_retries, transfer_delay, clear_delay;
+	unsigned int blocks, offset, i;
+	struct device_node *np;
+
+	if (!pmc->soc->has_bootrom_i2c)
+		return;
+
+	np = of_find_node_by_name(pmc->dev->of_node, "bootrom-i2c");
+	if (!np) {
+		dev_warn(pmc->dev, "bootrom-i2c node not found\n");
+		return;
+	}
+	blocks = of_get_child_count(np);
+	if (!blocks) {
+		dev_err(pmc->dev, "no bootrom i2c command blocks\n");
+		goto out;
+	}
+
+	offset = PMC_SCRATCH251;
+	for (i = 0; i < blocks && i < PMC_MAX_I2C_COMMAND_BLOCKS; i++) {
+		char name[sizeof("command-block-n")];
+		struct device_node *block_np;
+		int err;
+
+		snprintf(name, sizeof(name), "command-block-%u", i);
+		block_np = of_find_node_by_name(np, name);
+		if (!block_np) {
+			dev_err(pmc->dev, "%s node not found\n", name);
+			goto out;
+		}
+
+		err = tegra_pmc_init_i2c_command_block(pmc, block_np, &offset);
+		if (err < 0) {
+			dev_err(pmc->dev, "failed to init command block: %d\n",
+				err);
+			of_node_put(block_np);
+			goto out;
+		}
+
+		of_node_put(block_np);
+	}
+
+	if (of_property_read_u32(np, "nvidia,transfer-retries", &max_retries))
+		max_retries = 1;
+	if (of_property_read_u32(np, "nvidia,bus-clear-delay", &clear_delay))
+		clear_delay = 500;
+	if (of_property_read_u32(np, "nvidia,transfer-delay", &transfer_delay))
+		transfer_delay = 500;
+
+	value = (max_retries << PMC_SCRATCH250_RETRIES_SHIFT) |
+		(blocks << PMC_SCRATCH250_NUM_CONFIGS_SHIFT) |
+		(order_base_2(transfer_delay) <<
+		 PMC_SCRATCH250_TRANSFER_DELAY_SHIFT) |
+		(order_base_2(clear_delay) <<
+		 PMC_SCRATCH250_BUS_CLEAR_DELAY_SHIFT);
+	tegra_pmc_writel(value, PMC_SCRATCH250);
+
+	dev_info(pmc->dev, "bootrom i2c command blocks initialized\n");
+
+out:
+	of_node_put(np);
+}
+
 static int tegra_pmc_probe(struct platform_device *pdev)
 {
 	void __iomem *base = pmc->base;
@@ -2236,6 +2409,8 @@ static int tegra_pmc_probe(struct platform_device *pdev)
 	tegra_pmc_init(pmc);
 
 	tegra_pmc_init_tsense_reset(pmc);
+
+	tegra_pmc_init_bootrom_i2c(pmc);
 
 	if (IS_ENABLED(CONFIG_DEBUG_FS)) {
 		err = tegra_powergate_debugfs_init();
@@ -2275,6 +2450,7 @@ static const struct tegra_pmc_soc tegra20_pmc_soc = {
 	.cpu_powergates = NULL,
 	.has_tsense_reset = false,
 	.has_gpu_clamps = false,
+	.has_bootrom_i2c = false,
 };
 
 static const char * const tegra30_powergates[] = {
@@ -2308,6 +2484,7 @@ static const struct tegra_pmc_soc tegra30_pmc_soc = {
 	.cpu_powergates = tegra30_cpu_powergates,
 	.has_tsense_reset = true,
 	.has_gpu_clamps = false,
+	.has_bootrom_i2c = false,
 };
 
 static const char * const tegra114_powergates[] = {
@@ -2345,6 +2522,7 @@ static const struct tegra_pmc_soc tegra114_pmc_soc = {
 	.cpu_powergates = tegra114_cpu_powergates,
 	.has_tsense_reset = true,
 	.has_gpu_clamps = false,
+	.has_bootrom_i2c = false,
 };
 
 static const char * const tegra124_powergates[] = {
@@ -2388,6 +2566,7 @@ static const struct tegra_pmc_soc tegra124_pmc_soc = {
 	.cpu_powergates = tegra124_cpu_powergates,
 	.has_tsense_reset = true,
 	.has_gpu_clamps = true,
+	.has_bootrom_i2c = false,
 	.utmi_sleep_enter = tegra124_utmi_sleep_enter,
 	.utmi_sleep_exit = tegra124_utmi_sleep_exit,
 };
@@ -2438,6 +2617,7 @@ static const struct tegra_pmc_soc tegra210_pmc_soc = {
 	.has_tsense_reset = true,
 	.has_gpu_clamps = true,
 	.has_ps18 = true,
+	.has_bootrom_i2c = true,
 	.utmi_sleep_enter = tegra210_utmi_sleep_enter,
 	.utmi_sleep_exit = tegra210_utmi_sleep_exit,
 };

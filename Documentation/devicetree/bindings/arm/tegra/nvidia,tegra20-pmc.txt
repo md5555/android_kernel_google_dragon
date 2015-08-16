@@ -173,3 +173,57 @@ pmc: pmc {
 		};
 	};
 };
+
+BootROM I2C commands:
+
+On Tegra210, a set of I2C commands can be programmed into the PMC scratch
+registers that will be executed by the BootROM on warm reset.  This can be
+used to ensure that various voltage rails are re-initialized to safe levels.
+These commands are described in the "bootrom-i2c" sub-node.
+
+Optional properties for bootrom-i2c sub-node:
+- nvidia,bus-clear-delay : Delay in us before sending an I2C bus clear.
+  Default is 500us.
+- nvidia,transfer-delay : Delay in us between independent I2C transfers.
+  Default is 500us.
+- nvidia,transfer-retries : Maximum number of retries for a particular I2C
+  command.  Default is 1.
+
+Command blocks are described in sub-nodes of the bootrom-i2c node.  Command
+block sub-nodes must be named "command-block-<n>", with n starting at 0.
+Up to 7 command blocks may be specified and up to 63 register address/value
+pairs may be specified per command block.
+
+Required properties for command-block sub-nodes:
+- nvidia,i2c-controller-id : ID of I2C controller to send I2C commands to.
+- nvidia,bus-addr : Bus address of the I2C device to write to.
+- nvidia,reg-addr : Array of registers to write to.
+- nvidia,reg-data : Array of values to write into the corresponding registers.
+
+Optional properties for command-block sub-nodes:
+- nvidia,16-bit-addr : Indicates that the I2C register addresses are 16-bits
+  wide.  Otherwise, register address/data are assumed to be 8-bits.
+- nvidia,pinmux-id : Pinmux used by the hardware when issuing I2C commands.
+                     Defaults to 0. Valid values are described in section 13.6.2
+                     "Pinmux Support" of the TegraX1 Technical Reference Manual.
+
+Example:
+
+/ Tegra board dts file
+{
+	...
+	pmc@7000f400 {
+		...
+		bootrom-i2c {
+			nvidia,transfer-delay = <500>;
+
+			command-block-0 {
+				nvidia,i2c-controller-id = <4>;
+				nvidia,pinmux-id = <0>;
+				nvidia,bus-addr = <0x3c>;
+				nvidia,reg-addr-0 = <0x16>;
+				nvidia,reg-data-0 = <0x20>;
+			};
+		};
+	};
+};
