@@ -7040,10 +7040,6 @@ dhd_module_exit(void)
 #endif /* defined(DHD_OF_SUPPORT) */
 }
 
-#if defined(CUSTOMER_HW2)
-extern int dhd_wifi_platform_register_device(void);
-#endif
-
 static int __init
 dhd_module_init(void)
 {
@@ -7071,10 +7067,6 @@ dhd_module_init(void)
 		strncpy(nv_bak_path, nvram_path, MOD_PARAM_PATHLEN);
 		nv_bak_path[MOD_PARAM_PATHLEN-1] = '\0';
 	}
-
-#if defined(CUSTOMER_HW2)
-	dhd_wifi_platform_register_device();
-#endif
 
 	do {
 		err = dhd_wifi_platform_register_drv();
