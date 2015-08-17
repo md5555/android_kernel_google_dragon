@@ -157,6 +157,26 @@ static long clk_cbus_round_rate(struct clk_hw *hw, unsigned long rate,
 {
 	struct clk *parent;
 	long new_rate;
+	unsigned long *freqs;
+	int num_freqs;
+	struct tegra_clk_cbus_shared *cbus =
+			to_clk_cbus_shared(hw);
+
+	if (!cbus->min_rate &&
+			!tegra_dvfs_get_freqs(hw->clk, &freqs, &num_freqs)) {
+		int i;
+
+		for (i = 0; i < num_freqs; i++) {
+			/* skip 1KHz placeholders */
+			if (freqs[i] <= 1 * KHZ)
+				continue;
+
+			if (!cbus->min_rate)
+				cbus->min_rate = freqs[i];
+
+			cbus->max_rate = freqs[i];
+		}
+	}
 
 	parent = clk_get_parent(hw->clk);
 	if (IS_ERR(parent)) {
