@@ -942,6 +942,17 @@
 	nvidia,core-power-req-active-high;
 	nvidia,sys-clock-req-active-high;
 	#nvidia,wake-cells = <3>;
+
+	bootrom-i2c {
+		command-block-0 {
+			nvidia,i2c-controller-id = <4>;
+			nvidia,pinmux-id = <0>;
+			nvidia,bus-addr = <0x3c>;
+			/* Set PPVAR_SOC to 1.0V */
+			nvidia,reg-addr = <0x16>, <0x1b>;
+			nvidia,reg-data = <0x20>, <0x20>;
+		};
+	};
 };
 
 &ccplex {
