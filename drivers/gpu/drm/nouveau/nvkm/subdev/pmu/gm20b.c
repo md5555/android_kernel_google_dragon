@@ -400,6 +400,8 @@ gm20b_pmu_init_vm(struct nvkm_pmu *ppmu)
 	nv_wo32(pmuvm->mem, 0x0208, lower_32_bits(pmu_area_len - 1));
 	nv_wo32(pmuvm->mem, 0x020c, upper_32_bits(pmu_area_len - 1));
 
+	ppmu->pmu_vm = pmuvm;
+
 	return ret;
 }
 

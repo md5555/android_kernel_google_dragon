@@ -61,18 +61,6 @@ struct pmu_mutex {
 	u32 ref_cnt;
 };
 
-struct pmu_buf_desc {
-	struct nvkm_gpuobj *obj;
-	struct nvkm_vma vma;
-	size_t size;
-};
-
-struct nvkm_pmu_priv_vm {
-	struct nvkm_gpuobj *mem;
-	struct nvkm_gpuobj *pgd;
-	struct nvkm_vm *vm;
-};
-
 struct pmu_payload {
 	struct {
 		void *buf;

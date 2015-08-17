@@ -1840,6 +1840,7 @@ gk20a_pmu_init_vm(struct gk20a_pmu_priv *priv, const struct firmware *fw)
 	struct nvkm_pmu_priv_vm *pmuvm = &priv->pmuvm;
 	struct nvkm_device *device = nv_device(&priv->base);
 	struct nvkm_vm *vm;
+	struct nvkm_pmu *pmu = &priv->base;
 	const u64 pmu_area_len = 300*1024;
 
 	/* mem for inst blk*/
@@ -1885,6 +1886,8 @@ gk20a_pmu_init_vm(struct gk20a_pmu_priv *priv, const struct firmware *fw)
 				 &priv->ucode.vma);
 	if (ret)
 		return ret;
+
+	pmu->pmu_vm = pmuvm;
 
 	return ret;
 }

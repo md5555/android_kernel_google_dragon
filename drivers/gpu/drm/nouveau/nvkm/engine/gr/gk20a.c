@@ -23,6 +23,8 @@
 #include "ctxgf100.h"
 
 #include <nvif/class.h>
+#include <subdev/fb.h>
+#include <subdev/pmu.h>
 #include <subdev/timer.h>
 
 static struct nvkm_oclass
@@ -33,6 +35,245 @@ gk20a_gr_sclass[] = {
 	{ KEPLER_COMPUTE_A, &nvkm_object_ofuncs, gf100_gr_90c0_omthds },
 	{}
 };
+
+#define GR_IDLE_CHECK_DEFAULT           100 /* usec */
+#define GR_IDLE_CHECK_MAX               5000 /* usec */
+
+#define FECS_CUR_CTX_VALID              0x40000000
+#define FECS_CUR_CTX_TARGET_VIDMEM      0x20000000
+
+static u32 gk20a_ctx_check_opcode(u32 opc, u32 reg, u32 value,
+						u32 return_on_match, u32 check)
+{
+	switch (opc) {
+	case GR_IS_UCODE_OP_EQUAL:
+		if (reg == value)
+			return return_on_match;
+		break;
+	case GR_IS_UCODE_OP_NOT_EQUAL:
+		if (reg != value)
+			return return_on_match;
+		break;
+	case GR_IS_UCODE_OP_AND:
+		if (reg & value)
+			return return_on_match;
+		break;
+	case GR_IS_UCODE_OP_LESSER:
+		if (reg < value)
+			return return_on_match;
+		break;
+	case GR_IS_UCODE_OP_LESSER_EQUAL:
+		if (reg <= value)
+			return return_on_match;
+		break;
+	case GR_IS_UCODE_OP_SKIP:
+		/* do no success check */
+		break;
+	default:
+		pr_err("invalid opcode 0x%x\n", opc);
+		return WAIT_UCODE_ERROR;
+	}
+
+	return check;
+}
+
+static int
+gk20a_gr_ctx_wait_ucode(struct gf100_gr_priv *priv, u32 mailbox_id,
+				   u32 *mailbox_ret, u32 opc_success,
+				   u32 mailbox_ok, u32 opc_fail,
+				   u32 mailbox_fail)
+{
+	unsigned long end_jiffies = jiffies + msecs_to_jiffies(20);
+	u32 delay = GR_IDLE_CHECK_DEFAULT;
+	u32 check = WAIT_UCODE_LOOP;
+	u32 reg;
+
+	while (check == WAIT_UCODE_LOOP) {
+		if (!time_before(jiffies, end_jiffies))
+			check = WAIT_UCODE_TIMEOUT;
+
+		reg = nv_rd32(priv, 0x00409800 + 4 * mailbox_id);
+
+		if (mailbox_ret)
+			*mailbox_ret = reg;
+
+		check = gk20a_ctx_check_opcode(opc_success, reg, mailbox_ok,
+						WAIT_UCODE_OK, check);
+
+		check = gk20a_ctx_check_opcode(opc_fail, reg, mailbox_fail,
+						WAIT_UCODE_ERROR, check);
+
+		usleep_range(delay, delay * 2);
+		delay = min_t(u32, delay << 1, GR_IDLE_CHECK_MAX);
+	}
+
+	if (check == WAIT_UCODE_TIMEOUT) {
+		nv_error(priv, "timeout waiting on ucode response\n");
+		return -ETIMEDOUT;
+	} else if (check == WAIT_UCODE_ERROR) {
+		nv_error(priv, "ucode method failed on mb.id = %d val = 0x%08x",
+							    mailbox_id, reg);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int
+gk20a_gr_submit_fecs_method_op(struct gf100_gr_priv *priv,
+						struct fecs_method_op_gk20a *op)
+{
+	int ret;
+
+	mutex_lock(&priv->fecs_mutex);
+
+	if (op->mailbox.id != FECS_CTX_MAILBOX_0)
+		nv_wr32(priv, 0x00409800 + 4 * op->mailbox.id,
+							      op->mailbox.data);
+
+	nv_wr32(priv, 0x00409840, op->mailbox.clr);
+
+	nv_debug(priv, "mailbox id = %x\n", op->mailbox.id);
+	nv_debug(priv, "mailbox data = %x\n", op->mailbox.data);
+	nv_debug(priv, "method data = %x\n", op->method.data);
+	nv_wr32(priv, 0x00409500, op->method.data);
+	nv_wr32(priv, 0x00409504, op->method.addr & 0xfff);
+
+	/*
+	 * op.mb.id == 4 cases require waiting for completion on
+	 * for op.mb.id == 0
+	 */
+	if (op->mailbox.id == FECS_CTX_MAILBOX_4)
+		op->mailbox.id = FECS_CTX_MAILBOX_0;
+
+	ret = gk20a_gr_ctx_wait_ucode(priv, op->mailbox.id, op->mailbox.ret,
+				      op->cond.ok, op->mailbox.ok,
+				      op->cond.fail, op->mailbox.fail);
+
+	mutex_unlock(&priv->fecs_mutex);
+
+	return ret;
+}
+
+static int
+gk20a_gr_fecs_set_reglist_virtual_addr(struct gf100_gr_priv *priv, u64 pmu_va)
+{
+	struct  fecs_method_op_gk20a op;
+
+	op.mailbox.id = FECS_CTX_MAILBOX_4;
+	op.mailbox.data = lower_32_bits(pmu_va >> 8);
+	op.mailbox.clr = ~0;
+	op.method.data = 1;
+	op.method.addr = 0x00000032;
+	op.mailbox.ret = NULL;
+	op.cond.ok = GR_IS_UCODE_OP_EQUAL;
+	op.mailbox.ok = 1;
+	op.cond.fail = GR_IS_UCODE_OP_SKIP;
+	op.mailbox.fail = 0;
+
+	return gk20a_gr_submit_fecs_method_op(priv, &op);
+}
+
+static int
+gk20a_gr_fecs_set_reglist_bind_inst(struct gf100_gr_priv *priv, u64 addr)
+{
+	struct fecs_method_op_gk20a op;
+
+	op.mailbox.id = FECS_CTX_MAILBOX_4;
+	op.mailbox.data = ((addr >> 12) |
+					FECS_CUR_CTX_VALID |
+					FECS_CUR_CTX_TARGET_VIDMEM);
+	op.mailbox.clr = ~0;
+	op.method.data = 1;
+	op.method.addr = 0x00000031;
+	op.mailbox.ret = NULL;
+	op.cond.ok = GR_IS_UCODE_OP_EQUAL;
+	op.mailbox.ok = 1;
+	op.cond.fail = GR_IS_UCODE_OP_SKIP;
+	op.mailbox.fail = 0;
+
+	return gk20a_gr_submit_fecs_method_op(priv, &op);
+}
+
+static int
+gk20a_gr_fecs_get_reglist_img_size(struct gf100_gr_priv *priv, u32 *size)
+{
+	struct fecs_method_op_gk20a op;
+
+	if (WARN_ON(size == NULL))
+		return -EINVAL;
+
+	 op.mailbox.id = FECS_CTX_MAILBOX_0;
+	 op.mailbox.data = 0;
+	 op.mailbox.clr = ~0;
+	 op.method.data = 1;
+	 op.method.addr = 0x00000030;
+	 op.mailbox.ret = size;
+	 op.cond.ok = GR_IS_UCODE_OP_NOT_EQUAL;
+	 op.mailbox.ok = 0;
+	 op.cond.fail = GR_IS_UCODE_OP_SKIP;
+	 op.mailbox.fail = 0;
+
+	return gk20a_gr_submit_fecs_method_op(priv, &op);
+}
+
+static int
+gk20a_gr_bind_fecs_elpg(struct gf100_gr_priv *priv)
+{
+	struct pmu_buf_desc *pg_buf;
+	unsigned int size;
+	int err;
+	struct nvkm_pmu_priv_vm *pmuvm;
+	struct nvkm_pmu *pmu = nvkm_pmu(priv);
+
+	mutex_init(&priv->fecs_mutex);
+	pg_buf = &pmu->pg_buf;
+	pmuvm = pmu->pmu_vm;
+
+	err = gk20a_gr_fecs_get_reglist_img_size(priv, &size);
+	if (err) {
+		nv_error(priv, "fail to query fecs pg buffer size\n");
+		return err;
+	}
+
+	if (!pg_buf->size) {
+		err = nvkm_gpuobj_new(nv_object(pmu), NULL, size, 0x1000, 0,
+				&pg_buf->obj);
+		if (err) {
+			nv_error(priv, "alloc for PG buffer failed\n");
+			return err;
+		}
+
+		err = nvkm_gpuobj_map_vm(nv_gpuobj(pg_buf->obj), pmuvm->vm,
+							NV_MEM_ACCESS_RW,
+							&pg_buf->vma);
+		if (err) {
+			nv_error(priv, "gpuobj map vm failed\n");
+			nvkm_gpuobj_ref(NULL, &pg_buf->obj);
+			return err;
+		}
+		pg_buf->size = size;
+	}
+
+	err = gk20a_gr_fecs_set_reglist_bind_inst(priv, pmuvm->mem->addr);
+	if (err) {
+		nv_error(priv, "fail to bind pmu inst to gr\n");
+		goto error;
+	}
+
+	err = gk20a_gr_fecs_set_reglist_virtual_addr(priv, pg_buf->vma.offset);
+	if (err) {
+		nv_error(priv, "fail to set pg buffer pmu va\n");
+		goto error;
+	}
+
+	return err;
+error:
+	nvkm_gpuobj_unmap(&pg_buf->vma);
+	nvkm_gpuobj_ref(NULL, &pg_buf->obj);
+
+	return err;
+}
 
 static void
 gk20a_gr_init_dtor(struct gf100_gr_pack *pack)
@@ -338,7 +579,13 @@ gk20a_gr_init(struct nvkm_object *object)
 
 	/* Missing LTC CBC init? */
 
-	return gf100_gr_init_ctxctl(priv);
+	ret = gf100_gr_init_ctxctl(priv);
+	if (ret) {
+		nv_error(priv, "gf100_gr_init_ctxctl failed\n");
+		return ret;
+	}
+
+	return gk20a_gr_bind_fecs_elpg(priv);
 }
 
 struct nvkm_oclass *

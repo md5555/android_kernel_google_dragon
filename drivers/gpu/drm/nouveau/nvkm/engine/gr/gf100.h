@@ -104,6 +104,8 @@ struct gf100_gr_priv {
 	u32 *data;
 
 	u8 magic_not_rop_nr;
+	/* use before submitting any method to FECS/FUC ucode */
+	struct mutex fecs_mutex;
 };
 
 struct gf100_gr_chan {

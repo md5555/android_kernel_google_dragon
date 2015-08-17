@@ -1,6 +1,19 @@
 #ifndef __NVKM_PMU_H__
 #define __NVKM_PMU_H__
 #include <core/subdev.h>
+#include <subdev/mmu.h>
+
+struct pmu_buf_desc {
+	struct nvkm_gpuobj *obj;
+	struct nvkm_vma vma;
+	size_t size;
+};
+
+struct nvkm_pmu_priv_vm {
+	struct nvkm_gpuobj *mem;
+	struct nvkm_gpuobj *pgd;
+	struct nvkm_vm *vm;
+};
 
 struct nvkm_pmu {
 	struct nvkm_subdev base;
@@ -24,6 +37,8 @@ struct nvkm_pmu {
 	bool fecs_secure_boot;
 	bool cold_boot;
 	bool gpccs_secure_boot;
+	struct pmu_buf_desc pg_buf;
+	struct nvkm_pmu_priv_vm *pmu_vm;
 	int (*secure_bootstrap)(struct nvkm_pmu *);
 	int (*boot_fecs)(struct nvkm_pmu *);
 	int (*message)(struct nvkm_pmu *, u32[2], u32, u32, u32, u32);
