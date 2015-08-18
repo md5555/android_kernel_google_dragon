@@ -37,6 +37,7 @@
 #define GK20A_PMU_UCODE_NB_MAX_OVERLAY	    32
 #define GK20A_PMU_UCODE_NB_MAX_DATE_LENGTH  64
 #define GK20A_PMU_TRACE_BUFSIZE             0x4000
+#define GK20A_PMU_SEQ_BUFSIZE               0x1000
 
 #define PMU_QUEUE_COUNT			5
 
@@ -53,7 +54,12 @@
 enum {
 	PMU_STATE_OFF,             /* 0  PMU is off */
 	PMU_STATE_STARTING,        /* 1  PMU is on, but not booted */
-	PMU_STATE_INIT_RECEIVED    /* 2  PMU init message received */
+	PMU_STATE_INIT_RECEIVED,   /* 2  PMU init message received */
+	PMU_STATE_ELPG_BOOTING,	   /* 3  PMU is booting */
+	PMU_STATE_ELPG_BOOTED,	   /* 4  ELPG is initialized */
+	PMU_STATE_LOADING_PG_BUF,  /* 5  Loading PG buf */
+	PMU_STATE_LOADING_ZBC,	   /* 6  Loading ZBC buf */
+	PMU_STATE_STARTED          /* 7  Fully unitialized */
 };
 
 struct pmu_mutex {
@@ -165,6 +171,74 @@ struct pmu_hdr {
 	u8 seq_id;
 };
 
+enum {
+	PMU_PG_CMD_ID_ELPG_CMD = 0,
+	PMU_PG_CMD_ID_ENG_BUF_LOAD,
+	PMU_PG_CMD_ID_ENG_BUF_UNLOAD,
+	PMU_PG_CMD_ID_PG_STAT,
+	PMU_PG_CMD_ID_PG_LOG_INIT,
+	PMU_PG_CMD_ID_PG_LOG_FLUSH,
+	PMU_PG_CMD_ID_PG_PARAM,
+	PMU_PG_CMD_ID_ELPG_INIT,
+	PMU_PG_CMD_ID_ELPG_POLL_CTXSAVE,
+	PMU_PG_CMD_ID_ELPG_ABORT_POLL,
+	PMU_PG_CMD_ID_ELPG_PMU_UP,
+	PMU_PG_CMD_ID_ELPG_DISALLOW,
+	PMU_PG_CMD_ID_ELPG_ALLOW,
+	PMU_PG_CMD_ID_AP,
+	PMU_PG_CMD_ID_PSI,
+	PMU_PG_CMD_ID_CG,
+	PMU_PG_CMD_ID_ZBC_TABLE_UPDATE,
+	PMU_PG_CMD_ID_PMU_RAIL_GATE_DISABLE = 0x20,
+	PMU_PG_CMD_ID_PMU_RAIL_GATE_ENABLE,
+	PMU_PG_CMD_ID_PMU_RAIL_SMU_MSG_DISABLE
+};
+
+enum {
+	PMU_PG_ELPG_CMD_INIT,
+	PMU_PG_ELPG_CMD_DISALLOW,
+	PMU_PG_ELPG_CMD_ALLOW,
+	PMU_PG_ELPG_CMD_FREEZE,
+	PMU_PG_ELPG_CMD_UNFREEZE,
+};
+
+struct pmu_pg_cmd_elpg_cmd {
+	u8 cmd_type;
+	u8 engine_id;
+	u16 cmd;
+};
+
+struct pmu_pg_cmd_eng_buf_load {
+	u8 cmd_type;
+	u8 engine_id;
+	u8 buf_idx;
+	u8 pad;
+	u16 buf_size;
+	u32 dma_base;
+	u8 dma_offset;
+	u8 dma_idx;
+};
+
+enum {
+	PMU_PG_STAT_CMD_ALLOC_DMEM = 0,
+};
+
+struct pmu_pg_cmd_stat {
+	u8 cmd_type;
+	u8 engine_id;
+	u16 sub_cmd_id;
+	u32 data;
+};
+
+struct pmu_pg_cmd {
+	union {
+		u8 cmd_type;
+		struct pmu_pg_cmd_elpg_cmd elpg_cmd;
+		struct pmu_pg_cmd_eng_buf_load eng_buf_load;
+		struct pmu_pg_cmd_stat stat;
+	};
+};
+
 struct pmu_perfmon_cmd_start_gk20a {
 	u8 cmd_type;
 	u8 group_id;
@@ -220,6 +294,60 @@ struct pmu_init_msg_pmu_gk20a {
 
 	u16 sw_managed_area_offset;
 	u16 sw_managed_area_size;
+};
+
+/*
+ * ELPG(Engine Level Clock gating) message structure.
+ * msg_type     -  ELPG message type.
+ * engine_id    -  Engine ID.
+ * msg          -  ELPG msg.
+ *
+ * NOTE: This structure should not be changed unless
+ * we do the same change @ PMU firmware side.
+ */
+struct pmu_pg_msg_elpg_msg {
+	u8 msg_type;
+	u8 engine_id;
+	u16 msg;
+};
+
+enum {
+	PMU_PG_STAT_MSG_RESP_DMEM_OFFSET = 0,
+};
+
+struct pmu_pg_msg_stat {
+	u8 msg_type;
+	u8 engine_id;
+	u16 sub_msg_id;
+	u32 data;
+};
+
+enum {
+	PMU_PG_MSG_ENG_BUF_LOADED,
+	PMU_PG_MSG_ENG_BUF_UNLOADED,
+	PMU_PG_MSG_ENG_BUF_FAILED,
+};
+
+struct pmu_pg_msg_eng_buf_stat {
+	u8 msg_type;
+	u8 engine_id;
+	u8 buf_idx;
+	u8 status;
+};
+
+/*
+ * Generic PG message structure
+ * elpg_msg     -  ELPG message struct.
+ * stat         -  ELPG stats msg struct.
+ * eng_buf_stat -  ELPG eng buff stat msg struct.
+ */
+struct pmu_pg_msg {
+	union {
+		u8 msg_type;
+		struct pmu_pg_msg_elpg_msg elpg_msg;
+		struct pmu_pg_msg_stat stat;
+		struct pmu_pg_msg_eng_buf_stat eng_buf_stat;
+	};
 };
 
 struct pmu_perfmon_msg_generic {
@@ -348,6 +476,7 @@ struct pmu_acr_cmd {
  * hdr     - PMU hdr format.
  * perfmon - Perfmon cmd i.e It's a cmd used to start/init Perfmon TASK in PMU.
  * acr     - ACR command type
+ * pg      - Powergating command type
  *
  * NOTE:
  * More type of commands (structs) can be added to this generic struct.
@@ -359,6 +488,7 @@ struct pmu_cmd {
 	union {
 		struct pmu_perfmon_cmd perfmon;
 		struct pmu_acr_cmd acr;
+		struct pmu_pg_cmd pg;
 	} cmd;
 };
 
@@ -377,6 +507,7 @@ struct pmu_init_msg {
  *	rc      -    pmu_rc related PMU msg
  *	perfmon -    Perfmon related PMU msg
  *	acr     -    ACR related PMU msg
+ *	pg      -    PG(Power gating) related PMU msg
  */
 struct pmu_msg {
 	struct pmu_hdr hdr;
@@ -385,6 +516,7 @@ struct pmu_msg {
 		struct pmu_rc_msg rc;
 		struct pmu_perfmon_msg perfmon;
 		struct pmu_acr_msg acr;
+		struct pmu_pg_msg pg;
 	} msg;
 };
 
@@ -552,13 +684,16 @@ struct gk20a_pmu_priv {
 	struct pmu_buf_desc ucode;
 	u32 *ucode_image;
 	struct pmu_buf_desc trace_buf;
+	struct pmu_buf_desc seq_buf;
 	struct mutex pmu_copy_lock;
 	struct mutex pmu_seq_lock;
 	bool pmu_ready;
+	bool elpg_enabled;
 	bool recovery_in_progress;
 	bool lspmu_wpr_init_done;
 	struct completion lspmu_completion;
 	int pmu_state;
+	int elpg_refcnt;
 	struct nvkm_pmu_priv_vm pmuvm;
 	struct gm20b_ctxsw_ucode_info ucode_info;
 	struct mutex isr_mutex;
@@ -566,6 +701,7 @@ struct gk20a_pmu_priv {
 	u32 stat_dmem_offset;
 	u8 pmu_mode;
 	u32 falcon_id;
+	u32 elpg_stat;
 	struct nvkm_pmu_allocator dmem;
 	struct pmu_queue queue[PMU_QUEUE_COUNT];
 	u32 next_seq_desc;

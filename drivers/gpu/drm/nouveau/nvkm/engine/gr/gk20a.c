@@ -267,6 +267,8 @@ gk20a_gr_bind_fecs_elpg(struct gf100_gr_priv *priv)
 		goto error;
 	}
 
+	complete(&pmu->gr_init);
+
 	return err;
 error:
 	nvkm_gpuobj_unmap(&pg_buf->vma);

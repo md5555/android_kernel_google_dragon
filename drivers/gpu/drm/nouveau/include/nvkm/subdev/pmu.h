@@ -34,6 +34,7 @@ struct nvkm_pmu {
 		u32 data[2];
 	} recv;
 
+	struct completion gr_init;
 	bool fecs_secure_boot;
 	bool cold_boot;
 	bool gpccs_secure_boot;

@@ -81,7 +81,6 @@ struct gm20b_ctxsw_bootloader_desc {
 /* defined by pmu hw spec */
 #define GK20A_PMU_VA_SIZE		(512 * 1024 * 1024)
 #define GK20A_PMU_UCODE_SIZE_MAX	(256 * 1024)
-#define GK20A_PMU_SEQ_BUF_SIZE		4096
 /* idle timeout */
 #define GK20A_IDLE_CHECK_DEFAULT	10000 /* usec */
 #define GK20A_IDLE_CHECK_MAX		5000 /* usec */
@@ -1563,10 +1562,31 @@ static int gm20b_init_pmu_setup_hw1(struct nvkm_pmu *ppmu,
 		}
 	}
 
+	if (!pmu->seq_buf.size) {
+		err = nvkm_gpuobj_new(nv_object(ppmu), NULL,
+					GK20A_PMU_SEQ_BUFSIZE, 0x1000, 0,
+					&pmu->seq_buf.obj);
+		if (err) {
+			nv_error(ppmu, "alloc for seq buf failed\n");
+			goto error;
+		}
+		err = nvkm_gpuobj_map_vm(nv_gpuobj(pmu->seq_buf.obj),
+						pmu->pmuvm.vm,
+						NV_MEM_ACCESS_RW,
+						&pmu->seq_buf.vma);
+		if (err) {
+			nv_error(ppmu, "mapping of seq buf failed\n");
+			goto error;
+		}
+
+		pmu->seq_buf.size = GK20A_PMU_SEQ_BUFSIZE;
+	}
+
 	memset(&args, 0x00, sizeof(struct pmu_cmdline_args_v1));
 
 	gk20a_pmu_seq_init(pmu);
 	reinit_completion(&pmu->lspmu_completion);
+	reinit_completion(&ppmu->gr_init);
 	mutex_lock(&pmu->isr_mutex);
 	pmu_reset(ppmu, pmc);
 	pmu->isr_enabled = true;
@@ -1983,6 +2003,8 @@ int gm20b_boot_secure(struct nvkm_pmu *ppmu)
 	return ret;
 
 error:
+	nvkm_gpuobj_unmap(&priv->seq_buf.vma);
+	nvkm_gpuobj_ref(NULL, &priv->seq_buf.obj);
 	nvkm_gpuobj_unmap(&priv->trace_buf.vma);
 	nvkm_gpuobj_ref(NULL, &priv->trace_buf.obj);
 	nvkm_gpuobj_unmap(&priv->acr.acr_ucode.vma);
@@ -2019,6 +2041,7 @@ gm20b_pmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	nvkm_alarm_init(&priv->alarm, gk20a_pmu_dvfs_work);
 	mutex_init(&priv->isr_mutex);
 	init_completion(&priv->lspmu_completion);
+	init_completion(&ppmu->gr_init);
 
 	ret = gm20b_prepare_ucode_blob(ppmu);
 	if (ret)

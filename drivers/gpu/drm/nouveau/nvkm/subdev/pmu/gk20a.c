@@ -43,6 +43,10 @@
 
 #define GK20A_PMU_DMEM_BLKSIZE2		    8
 
+#define PMU_PGENG_GR_BUFFER_IDX_INIT	(0)
+#define PMU_PGENG_GR_BUFFER_IDX_ZBC	(1)
+#define PMU_PGENG_GR_BUFFER_IDX_FECS	(2)
+
 #define PMU_UNIT_REWIND		(0x00)
 #define PMU_UNIT_PG		(0x03)
 #define PMU_UNIT_INIT		(0x07)
@@ -61,6 +65,9 @@
 #define PMU_DMEM_ALLOC_ALIGNMENT	(32)
 
 #define GK20A_PMU_UCODE_IMAGE	"gpmu_ucode.bin"
+
+#define PMU_PG_IDLE_THRESHOLD                   32000
+#define PMU_PG_POST_POWERUP_IDLE_THRESHOLD      1000000
 
 #define PMU_CMD_FLAGS_PMU_MASK		(0xF0)
 #define PMU_CMD_FLAGS_STATUS		BIT(0)
@@ -84,6 +91,12 @@ enum {
 #define PMU_INIT_MSG_TYPE_PMU_INIT 0
 
 #define PMU_RC_MSG_TYPE_UNHANDLED_CMD	0
+
+enum {
+	ENGINE_GR_GK20A	    = 0,
+	ENGINE_CE2_GK20A    = 1,
+	ENGINE_INVAL_GK20A
+};
 
 /* PERFMON */
 #define PMU_DOMAIN_GROUP_PSTATE		0
@@ -155,6 +168,26 @@ enum {
 	PMU_SEQ_STATE_CANCELLED
 };
 
+enum {
+	PMU_ELPG_STAT_OFF = 0,           /* 0 elpg is off */
+	PMU_ELPG_STAT_ON,                /* 1 elpg is on */
+	/* elpg is off, ALLOW cmd has been sent, wait for ack 2 */
+	PMU_ELPG_STAT_ON_PENDING,
+	/* elpg is on, DISALLOW cmd has been sent, wait for ack 3 */
+	PMU_ELPG_STAT_OFF_PENDING,
+	/*
+	 * elpg is off, caller has requested on, but ALLOW
+	 * cmd hasn't been sent due to ENABLE_ALLOW delay 4.
+	 */
+	PMU_ELPG_STAT_OFF_ON_PENDING
+};
+
+enum {
+	PMU_PG_ELPG_MSG_INIT_ACK,
+	PMU_PG_ELPG_MSG_DISALLOW_ACK,
+	PMU_PG_ELPG_MSG_ALLOW_ACK
+};
+
 struct gk20a_pmu_dvfs_data {
 	int p_load_target;
 	int p_load_max;
@@ -190,6 +223,8 @@ char *fw_name)
 	return ret;
 }
 
+static void
+gk20a_pmu_setup_hw(struct gk20a_pmu_priv *priv);
 /*reads memory allocated to nvgpu object*/
 void
 gpu_obj_memwr(struct nvkm_gpuobj *ucodeobj, int offset, void *src, int size)
@@ -1548,6 +1583,247 @@ gk20a_pmu_response_handle(struct gk20a_pmu_priv *priv, struct pmu_msg *msg)
 	return 0;
 }
 
+static void
+gk20a_pmu_handle_pg_stat_msg(struct nvkm_pmu *pmu, struct pmu_msg *msg,
+					void *param, u32 handle, u32 status)
+{
+	struct gk20a_pmu_priv *priv = param;
+
+	if (status != 0) {
+		nv_error(pmu, "ELPG cmd aborted\n");
+		/* TBD: disable ELPG */
+		return;
+	}
+
+	switch (msg->msg.pg.stat.sub_msg_id) {
+	case PMU_PG_STAT_MSG_RESP_DMEM_OFFSET:
+		nv_trace(pmu, "ALLOC DMEM OFFSET %x\n", msg->msg.pg.stat.data);
+		priv->stat_dmem_offset = msg->msg.pg.stat.data;
+		break;
+	default:
+		break;
+	}
+}
+
+static void
+gk20a_pmu_handle_pg_elpg_msg(struct nvkm_pmu *pmu, struct pmu_msg *msg,
+			void *param, u32 handle, u32 status)
+{
+	struct gk20a_pmu_priv *priv = param;
+	struct pmu_pg_msg_elpg_msg *elpg_msg = &msg->msg.pg.elpg_msg;
+
+	if (status != 0) {
+		nv_error(pmu, "ELPG cmd aborted\n");
+		/* TBD: disable ELPG */
+		return;
+	}
+
+	switch (elpg_msg->msg) {
+	case PMU_PG_ELPG_MSG_INIT_ACK:
+		nv_trace(pmu, "INIT_ELPG cmd ACK\n");
+		break;
+	case PMU_PG_ELPG_MSG_ALLOW_ACK:
+		nv_trace(pmu, "ELPG_ALLOW cmd ACK\n");
+		priv->elpg_stat = PMU_ELPG_STAT_ON;
+		break;
+	case PMU_PG_ELPG_MSG_DISALLOW_ACK:
+		nv_trace(pmu, "ELPG_DISALLOW cmd ACK\n");
+		priv->elpg_stat = PMU_ELPG_STAT_OFF;
+		if (priv->pmu_state == PMU_STATE_ELPG_BOOTING) {
+			priv->pmu_state = PMU_STATE_ELPG_BOOTED;
+			gk20a_pmu_setup_hw(priv);
+		}
+		break;
+	default:
+		nv_error(pmu, "wrong ELPG message : 0x%04x\n", elpg_msg->msg);
+	}
+}
+
+static void
+gk20a_pmu_handle_pg_buf_config_msg(struct nvkm_pmu *pmu,
+			struct pmu_msg *msg, void *param, u32 handle,
+			u32 status)
+{
+	struct gk20a_pmu_priv *priv = param;
+	struct pmu_pg_msg_eng_buf_stat *buf_stat = &msg->msg.pg.eng_buf_stat;
+
+	nv_debug(pmu, "PMU_PG_CMD_ID_ENG_BUF_LOADED cmd ACK\n");
+	if (status != 0) {
+		nv_error(pmu, "PGENG cmd aborted\n");
+		return;
+	}
+
+	priv->buf_loaded = (buf_stat->status == PMU_PG_MSG_ENG_BUF_LOADED);
+
+	if ((!priv->buf_loaded) &&
+				  (priv->pmu_state == PMU_STATE_LOADING_PG_BUF))
+		nv_error(pmu, "failed to load PGENG buffer\n");
+	else
+		gk20a_pmu_setup_hw(priv);
+}
+
+static int
+gk20a_init_pmu_bind_fecs(struct nvkm_pmu *pmu)
+{
+	struct gk20a_pmu_priv *priv = to_gk20a_priv(pmu);
+	struct pmu_cmd cmd;
+	u32 desc;
+
+	memset(&cmd, 0, sizeof(struct pmu_cmd));
+	cmd.hdr.unit_id = PMU_UNIT_PG;
+	cmd.hdr.size = PMU_CMD_HDR_SIZE +
+					 sizeof(struct pmu_pg_cmd_eng_buf_load);
+	cmd.cmd.pg.eng_buf_load.cmd_type = PMU_PG_CMD_ID_ENG_BUF_LOAD;
+	cmd.cmd.pg.eng_buf_load.engine_id = ENGINE_GR_GK20A;
+	cmd.cmd.pg.eng_buf_load.buf_idx = PMU_PGENG_GR_BUFFER_IDX_FECS;
+	cmd.cmd.pg.eng_buf_load.buf_size = pmu->pg_buf.size;
+	cmd.cmd.pg.eng_buf_load.dma_base =
+				lower_32_bits(pmu->pg_buf.vma.offset >> 8);
+	cmd.cmd.pg.eng_buf_load.dma_offset =
+				(u8)(pmu->pg_buf.vma.offset & 0xff);
+	cmd.cmd.pg.eng_buf_load.dma_idx = GK20A_PMU_DMAIDX_VIRT;
+
+	priv->buf_loaded = false;
+	nv_debug(pmu, "cmd post Load buffer -> PMU_PGENG_GR_BUFFER_IDX_FECS\n");
+	gk20a_pmu_cmd_post(pmu, &cmd, NULL, NULL, PMU_COMMAND_QUEUE_LPQ,
+			gk20a_pmu_handle_pg_buf_config_msg, priv, &desc, ~0);
+	priv->pmu_state = PMU_STATE_LOADING_PG_BUF;
+
+	return 0;
+}
+
+static void
+gk20a_pmu_setup_hw_load_zbc(struct nvkm_pmu *pmu)
+{
+	struct gk20a_pmu_priv *priv = to_gk20a_priv(pmu);
+	struct pmu_cmd cmd;
+	u32 desc;
+
+	memset(&cmd, 0, sizeof(struct pmu_cmd));
+	cmd.hdr.unit_id = PMU_UNIT_PG;
+	cmd.hdr.size = PMU_CMD_HDR_SIZE +
+					 sizeof(struct pmu_pg_cmd_eng_buf_load);
+	cmd.cmd.pg.eng_buf_load.cmd_type = PMU_PG_CMD_ID_ENG_BUF_LOAD;
+	cmd.cmd.pg.eng_buf_load.engine_id = ENGINE_GR_GK20A;
+	cmd.cmd.pg.eng_buf_load.buf_idx = PMU_PGENG_GR_BUFFER_IDX_ZBC;
+	cmd.cmd.pg.eng_buf_load.buf_size = GK20A_PMU_SEQ_BUFSIZE;
+	cmd.cmd.pg.eng_buf_load.dma_base =
+				lower_32_bits(priv->seq_buf.vma.offset >> 8);
+	cmd.cmd.pg.eng_buf_load.dma_offset =
+				(u8)(priv->seq_buf.vma.offset & 0xff);
+	cmd.cmd.pg.eng_buf_load.dma_idx = GK20A_PMU_DMAIDX_VIRT;
+
+	priv->buf_loaded = false;
+	nv_debug(pmu, "cmd post Load buffer -> PMU_PGENG_GR_BUFFER_IDX_ZBC\n");
+	gk20a_pmu_cmd_post(pmu, &cmd, NULL, NULL, PMU_COMMAND_QUEUE_LPQ,
+			gk20a_pmu_handle_pg_buf_config_msg, priv, &desc, ~0);
+	priv->pmu_state = PMU_STATE_LOADING_ZBC;
+}
+
+static int
+gk20a_pmu_init_powergating(struct nvkm_pmu *pmu)
+{
+	struct gk20a_pmu_priv *priv = to_gk20a_priv(pmu);
+	struct pmu_cmd cmd;
+	u32 seq;
+	int ret;
+
+	nv_wr32(pmu, 0x0010a6c0 + ENGINE_GR_GK20A * 4,
+			PMU_PG_IDLE_THRESHOLD);
+	nv_wr32(pmu, 0x0010a6e8 + ENGINE_GR_GK20A * 4,
+			PMU_PG_POST_POWERUP_IDLE_THRESHOLD);
+
+	ret = wait_for_completion_timeout(&pmu->gr_init,
+						msecs_to_jiffies(2000));
+	if (!ret) {
+		nv_error(pmu, "Gr init timeouts\n");
+		return ret;
+	}
+
+	nv_debug(pmu, "gr_init done, initialize powergating\n");
+	/* init ELPG */
+	memset(&cmd, 0, sizeof(struct pmu_cmd));
+	cmd.hdr.unit_id = PMU_UNIT_PG;
+	cmd.hdr.size = PMU_CMD_HDR_SIZE + sizeof(struct pmu_pg_cmd_elpg_cmd);
+	cmd.cmd.pg.elpg_cmd.cmd_type = PMU_PG_CMD_ID_ELPG_CMD;
+	cmd.cmd.pg.elpg_cmd.engine_id = ENGINE_GR_GK20A;
+	cmd.cmd.pg.elpg_cmd.cmd = PMU_PG_ELPG_CMD_INIT;
+
+	nv_debug(pmu, "cmd post PMU_PG_ELPG_CMD_INIT\n");
+	gk20a_pmu_cmd_post(pmu, &cmd, NULL, NULL, PMU_COMMAND_QUEUE_HPQ,
+			gk20a_pmu_handle_pg_elpg_msg, priv, &seq, ~0);
+	/* alloc dmem for powergating state log */
+	priv->stat_dmem_offset = 0;
+	memset(&cmd, 0, sizeof(struct pmu_cmd));
+	cmd.hdr.unit_id = PMU_UNIT_PG;
+	cmd.hdr.size = PMU_CMD_HDR_SIZE + sizeof(struct pmu_pg_cmd_stat);
+	cmd.cmd.pg.stat.cmd_type = PMU_PG_CMD_ID_PG_STAT;
+	cmd.cmd.pg.stat.engine_id = ENGINE_GR_GK20A;
+	cmd.cmd.pg.stat.sub_cmd_id = PMU_PG_STAT_CMD_ALLOC_DMEM;
+	cmd.cmd.pg.stat.data = 0;
+
+	nv_debug(pmu, "cmd post PMU_PG_STAT_CMD_ALLOC_DMEM\n");
+	gk20a_pmu_cmd_post(pmu, &cmd, NULL, NULL, PMU_COMMAND_QUEUE_LPQ,
+			gk20a_pmu_handle_pg_stat_msg, priv, &seq, ~0);
+
+	/*
+	 * Disallow ELPG initially
+	 * PMU ucode requires a disallow cmd before allow cmd.
+	 */
+	priv->elpg_stat = PMU_ELPG_STAT_OFF;
+	/* set for wait_event PMU_ELPG_STAT_OFF */
+	memset(&cmd, 0, sizeof(struct pmu_cmd));
+	cmd.hdr.unit_id = PMU_UNIT_PG;
+	cmd.hdr.size = PMU_CMD_HDR_SIZE + sizeof(struct pmu_pg_cmd_elpg_cmd);
+	cmd.cmd.pg.elpg_cmd.cmd_type = PMU_PG_CMD_ID_ELPG_CMD;
+	cmd.cmd.pg.elpg_cmd.engine_id = ENGINE_GR_GK20A;
+	cmd.cmd.pg.elpg_cmd.cmd = PMU_PG_ELPG_CMD_DISALLOW;
+
+	nv_debug(pmu, "cmd post PMU_PG_ELPG_CMD_DISALLOW\n");
+	gk20a_pmu_cmd_post(pmu, &cmd, NULL, NULL, PMU_COMMAND_QUEUE_HPQ,
+			gk20a_pmu_handle_pg_elpg_msg, priv, &seq, ~0);
+
+	if (priv->pmu_state == PMU_STATE_INIT_RECEIVED)
+		priv->pmu_state = PMU_STATE_ELPG_BOOTING;
+
+	return 0;
+}
+
+static void
+gk20a_pmu_setup_hw(struct gk20a_pmu_priv *priv)
+{
+	struct nvkm_pmu *pmu = &priv->base;
+	int err;
+
+	switch (priv->pmu_state) {
+	case PMU_STATE_INIT_RECEIVED:
+		nv_debug(pmu, "PMU INIT received\n");
+		err = gk20a_pmu_init_powergating(pmu);
+		if (err) {
+			nv_error(pmu, "init powergating failed\n");
+			return;
+		}
+		break;
+	case PMU_STATE_ELPG_BOOTED:
+		nv_debug(pmu, "elpg booted, bind fecs\n");
+		gk20a_init_pmu_bind_fecs(pmu);
+		break;
+	case PMU_STATE_LOADING_PG_BUF:
+		nv_debug(pmu, "loaded pg buf\n");
+		gk20a_pmu_setup_hw_load_zbc(pmu);
+		break;
+	case PMU_STATE_LOADING_ZBC:
+		nv_debug(pmu, "loaded zbc\n");
+		break;
+	case PMU_STATE_STARTED:
+		nv_debug(pmu, "PMU booted\n");
+		break;
+	default:
+		nv_error(pmu, "invalid state\n");
+		break;
+	}
+}
+
 static int
 gk20a_pmu_perfmon_start_sampling(struct gk20a_pmu_priv *priv)
 {
@@ -1696,6 +1972,7 @@ gk20a_pmu_process_init_msg(struct gk20a_pmu_priv *priv, struct pmu_msg *msg)
 	gk20adata->perfmon_counter_gk20a.index = 3;
 	gk20adata->perfmon_counter_gk20a.group_id = PMU_DOMAIN_GROUP_PSTATE;
 	priv->pmu_chip_data = (void *)gk20adata;
+	gk20a_pmu_setup_hw(priv);
 
 	return 0;
 }
@@ -1936,6 +2213,16 @@ gk20a_init_pmu_setup_sw(struct gk20a_pmu_priv *priv)
 	if (ret)
 		goto error;
 
+	ret = nvkm_gpuobj_new(nv_object(priv), NULL, GK20A_PMU_SEQ_BUFSIZE,
+					    0, 0, &priv->seq_buf.obj);
+	if (ret)
+		goto error;
+
+	ret = nvkm_gpuobj_map_vm(nv_gpuobj(priv->seq_buf.obj), pmuvm->vm,
+					NV_MEM_ACCESS_RW, &priv->seq_buf.vma);
+	if (ret)
+		goto error;
+
 	return 0;
 error:
 	kfree(priv->mutex);
@@ -2119,6 +2406,7 @@ gk20a_pmu_init(struct nvkm_object *object)
 	if (ret)
 		return ret;
 
+	reinit_completion(&pmu->gr_init);
 	priv->pmu_state = PMU_STATE_STARTING;
 	ret = gk20a_init_pmu_setup_hw1(priv, pmc);
 	if (ret)
@@ -2159,6 +2447,8 @@ gk20a_pmu_dtor(struct nvkm_object *object)
 {
 	struct gk20a_pmu_priv *priv = (void *)object;
 
+	nvkm_gpuobj_unmap(&priv->seq_buf.vma);
+	nvkm_gpuobj_ref(NULL, &priv->seq_buf.obj);
 	nvkm_gpuobj_unmap(&priv->trace_buf.vma);
 	nvkm_gpuobj_ref(NULL, &priv->trace_buf.obj);
 
@@ -2195,6 +2485,7 @@ gk20a_pmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	mutex_init(&priv->isr_mutex);
 	mutex_init(&priv->pmu_copy_lock);
 	mutex_init(&priv->pmu_seq_lock);
+	init_completion(&pmu->gr_init);
 	priv->data = &gk20a_dvfs_data;
 	pmu = &priv->base;
 	pmc = nvkm_mc(pmu);
