@@ -50,7 +50,7 @@ static void host1x_pushbuffer_destroy(struct push_buffer *pb)
 {
 	struct host1x_cdma *cdma = pb_to_cdma(pb);
 
-	tegra_bo_free_object(&cdma->pb_bo->gem);
+	tegra_bo_free_object_locked(&cdma->pb_bo->gem);
 	vunmap(pb->mapped);
 	cdma->pb_bo = NULL;
 	pb->mapped = NULL;
