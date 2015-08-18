@@ -1194,7 +1194,27 @@ static ssize_t tegra_dsi_read_response(struct tegra_dsi *dsi,
 
 static int tegra_dsi_transmit(struct tegra_dsi *dsi, unsigned long timeout)
 {
+	struct tegra_dsi_state *state = tegra_dsi_get_state(dsi);
+	struct tegra_output *output = &dsi->output;
+
+	BUG_ON(!mutex_is_locked(&dsi->dcs_lock));
+
 	tegra_dsi_writel(dsi, DSI_TRIGGER_HOST, DSI_TRIGGER);
+
+	if (dsi->master) {
+		state = tegra_dsi_get_state(dsi->master);
+		output = &dsi->master->output;
+	}
+
+	/*
+	 * If the dc is active, and we have a psr panel, force an update on
+	 * the dc before waiting for the trigger to clear. This is needed since
+	 * the commands will only be sent on frame end, and we could be waiting
+	 * a while for the next frame.
+	 */
+	if (dsi->dc_active && output->connector.display_info.supports_psr &&
+			state->base.crtc)
+		tegra_dc_force_update(state->base.crtc);
 
 	return wait_for(!(tegra_dsi_readl(dsi, DSI_TRIGGER) & DSI_TRIGGER_HOST),
 			timeout);
