@@ -72,6 +72,11 @@ struct nvkm_domain {
 	int mdiv;
 };
 
+struct nvkm_ustate {
+	__s8 min;
+	__s8 max;
+};
+
 struct nvkm_clk {
 	struct nvkm_subdev base;
 
@@ -88,8 +93,10 @@ struct nvkm_clk {
 	struct nvkm_notify pwrsrc_ntfy;
 	int pwrsrc;
 	int pstate; /* current */
-	int ustate_ac; /* user-requested (-1 disabled, -2 perfmon) */
-	int ustate_dc; /* user-requested (-1 disabled, -2 perfmon) */
+	struct {
+		struct nvkm_ustate dc;
+		struct nvkm_ustate ac;
+	} ustate; /* user-requested (-1 disabled, -2 perfmon) */
 	int astate; /* perfmon adjustment (base) */
 	int tstate; /* thermal adjustment (max-) */
 	int dstate; /* display adjustment (min+) */
@@ -157,7 +164,7 @@ int nv04_clk_pll_prog(struct nvkm_clk *, u32 reg1, struct nvkm_pll_vals *);
 int gt215_clk_pll_calc(struct nvkm_clk *, struct nvbios_pll *,
 		       int clk, struct nvkm_pll_vals *);
 
-int nvkm_clk_ustate(struct nvkm_clk *, int req, int pwr);
+int nvkm_clk_ustate(struct nvkm_clk *, int min, int max, int pwr);
 int nvkm_clk_astate(struct nvkm_clk *, int req, int rel, bool wait);
 int nvkm_clk_dstate(struct nvkm_clk *, int req, int rel);
 int nvkm_clk_tstate(struct nvkm_clk *, int req, int rel);

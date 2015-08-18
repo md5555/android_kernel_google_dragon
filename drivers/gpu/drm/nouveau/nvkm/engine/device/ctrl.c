@@ -48,14 +48,18 @@ nvkm_control_mthd_pstate_info(struct nvkm_object *object, void *data, u32 size)
 
 	if (clk) {
 		args->v0.count = clk->state_nr;
-		args->v0.ustate_ac = clk->ustate_ac;
-		args->v0.ustate_dc = clk->ustate_dc;
+		args->v0.ustate.ac.min = clk->ustate.ac.min;
+		args->v0.ustate.ac.max = clk->ustate.ac.max;
+		args->v0.ustate.dc.min = clk->ustate.dc.min;
+		args->v0.ustate.dc.max = clk->ustate.dc.max;
 		args->v0.pwrsrc = clk->pwrsrc;
 		args->v0.pstate = clk->pstate;
 	} else {
 		args->v0.count = 0;
-		args->v0.ustate_ac = NVIF_CONTROL_PSTATE_INFO_V0_USTATE_DISABLE;
-		args->v0.ustate_dc = NVIF_CONTROL_PSTATE_INFO_V0_USTATE_DISABLE;
+		args->v0.ustate.ac.min = NVIF_CONTROL_PSTATE_INFO_V0_USTATE_DISABLE;
+		args->v0.ustate.ac.max = NVIF_CONTROL_PSTATE_INFO_V0_USTATE_DISABLE;
+		args->v0.ustate.dc.min = NVIF_CONTROL_PSTATE_INFO_V0_USTATE_DISABLE;
+		args->v0.ustate.dc.max = NVIF_CONTROL_PSTATE_INFO_V0_USTATE_DISABLE;
 		args->v0.pwrsrc = -ENOSYS;
 		args->v0.pstate = NVIF_CONTROL_PSTATE_INFO_V0_PSTATE_UNKNOWN;
 	}
@@ -147,22 +151,30 @@ nvkm_control_mthd_pstate_user(struct nvkm_object *object, void *data, u32 size)
 
 	nv_ioctl(object, "control pstate user size %d\n", size);
 	if (nvif_unpack(args->v0, 0, 0, false)) {
-		nv_ioctl(object, "control pstate user vers %d ustate %d "
+		nv_ioctl(object, "control pstate user vers %d ustate %d/%d "
 				 "pwrsrc %d\n", args->v0.version,
-			 args->v0.ustate, args->v0.pwrsrc);
+			 args->v0.ustate.min, args->v0.ustate.max,
+			 args->v0.pwrsrc);
 		if (!clk)
 			return -ENODEV;
 	} else
 		return ret;
 
 	if (args->v0.pwrsrc >= 0) {
-		ret |= nvkm_clk_ustate(clk, args->v0.ustate, args->v0.pwrsrc);
+		if ((ret = nvkm_clk_ustate(clk, args->v0.ustate.min,
+			args->v0.ustate.max, args->v0.pwrsrc)))
+			return ret;
 	} else {
-		ret |= nvkm_clk_ustate(clk, args->v0.ustate, 0);
-		ret |= nvkm_clk_ustate(clk, args->v0.ustate, 1);
+		if ((ret = nvkm_clk_ustate(clk, args->v0.ustate.min,
+			args->v0.ustate.max, 0)))
+			return ret;
+
+		if ((ret = nvkm_clk_ustate(clk, args->v0.ustate.min,
+			args->v0.ustate.max, 1)))
+			return ret;
 	}
 
-	return ret;
+	return 0;
 }
 
 static int

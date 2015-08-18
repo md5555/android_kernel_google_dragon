@@ -290,13 +290,20 @@ struct nvif_perfctr_read_v0 {
 #define NVIF_CONTROL_PSTATE_ATTR                                           0x01
 #define NVIF_CONTROL_PSTATE_USER                                           0x02
 
+struct nvif_ustate {
+	__s8 min;
+	__s8 max;
+};
+
 struct nvif_control_pstate_info_v0 {
 	__u8  version;
 	__u8  count; /* out: number of power states */
 #define NVIF_CONTROL_PSTATE_INFO_V0_USTATE_DISABLE                         (-1)
 #define NVIF_CONTROL_PSTATE_INFO_V0_USTATE_PERFMON                         (-2)
-	__s8  ustate_ac; /* out: target pstate index */
-	__s8  ustate_dc; /* out: target pstate index */
+	struct {
+		struct nvif_ustate dc; // pwrsrc == 0
+		struct nvif_ustate ac; // pwrsrc == 1
+	}     ustate; /* out: target pstate index */
 	__s8  pwrsrc; /* out: current power source */
 #define NVIF_CONTROL_PSTATE_INFO_V0_PSTATE_UNKNOWN                         (-1)
 #define NVIF_CONTROL_PSTATE_INFO_V0_PSTATE_PERFMON                         (-2)
@@ -324,7 +331,7 @@ struct nvif_control_pstate_user_v0 {
 	__u8  version;
 #define NVIF_CONTROL_PSTATE_USER_V0_STATE_UNKNOWN                          (-1)
 #define NVIF_CONTROL_PSTATE_USER_V0_STATE_PERFMON                          (-2)
-	__s8  ustate; /*  in: pstate identifier */
+	struct nvif_ustate ustate; /*  in: pstate identifier */
 	__s8  pwrsrc; /*  in: target power source */
 	__u8  pad03[5];
 };

@@ -100,17 +100,25 @@ nouveau_sysfs_pstate_get(struct device *d, struct device_attribute *a, char *b)
 		} while (attr.index);
 
 		if (state >= 0) {
-			if (info.ustate_ac == state)
-				snappendf(buf, cnt, " AC");
-			if (info.ustate_dc == state)
-				snappendf(buf, cnt, " DC");
+			if (info.ustate.ac.min == state)
+				snappendf(buf, cnt, " a");
+			if (info.ustate.ac.max == state)
+				snappendf(buf, cnt, " A");
+			if (info.ustate.dc.min == state)
+				snappendf(buf, cnt, " d");
+			if (info.ustate.dc.max == state)
+				snappendf(buf, cnt, " D");
 			if (info.pstate == state)
 				snappendf(buf, cnt, " *");
 		} else {
-			if (info.ustate_ac < -1)
-				snappendf(buf, cnt, " AC");
-			if (info.ustate_dc < -1)
-				snappendf(buf, cnt, " DC");
+			if (info.ustate.ac.min < -1)
+				snappendf(buf, cnt, " a");
+			if (info.ustate.ac.max < -1)
+				snappendf(buf, cnt, " A");
+			if (info.ustate.dc.min < -1)
+				snappendf(buf, cnt, " d");
+			if (info.ustate.dc.max < -1)
+				snappendf(buf, cnt, " D");
 		}
 
 		snappendf(buf, cnt, "\n");
@@ -133,7 +141,7 @@ nouveau_sysfs_pstate_set(struct device *d, struct device_attribute *a,
 	struct device *dev = drm_dev->dev;
 	struct nouveau_sysfs *sysfs = nouveau_sysfs(drm_dev);
 	struct nvif_control_pstate_user_v0 args = { .pwrsrc = -EINVAL };
-	long value, ret;
+	long ret;
 	char *tmp;
 
 	if ((tmp = strchr(buf, '\n')))
@@ -148,16 +156,37 @@ nouveau_sysfs_pstate_set(struct device *d, struct device_attribute *a,
 		buf += 3;
 	}
 
-	if (!strcasecmp(buf, "none"))
-		args.ustate = NVIF_CONTROL_PSTATE_USER_V0_STATE_UNKNOWN;
-	else
-	if (!strcasecmp(buf, "auto"))
-		args.ustate = NVIF_CONTROL_PSTATE_USER_V0_STATE_PERFMON;
-	else {
-		ret = kstrtol(buf, 16, &value);
-		if (ret)
-			return ret;
-		args.ustate = value;
+	if (!strcasecmp(buf, "none")) {
+		args.ustate.min = NVIF_CONTROL_PSTATE_USER_V0_STATE_UNKNOWN;
+		args.ustate.max = NVIF_CONTROL_PSTATE_USER_V0_STATE_UNKNOWN;
+	} else
+	if (!strcasecmp(buf, "auto")) {
+		args.ustate.min = NVIF_CONTROL_PSTATE_USER_V0_STATE_PERFMON;
+		args.ustate.max = NVIF_CONTROL_PSTATE_USER_V0_STATE_PERFMON;
+	} else {
+		if ((tmp = strchr(buf, ','))) {
+			long min, max;
+			ret = kstrtol(&tmp[1], 16, &max);
+			if (ret)
+				return ret;
+
+			*tmp = '\0';
+			ret = kstrtol(buf, 16, &min);
+			if (ret)
+				return ret;
+
+			if (min > max)
+				return -EINVAL;
+
+			args.ustate.min = min;
+			args.ustate.max = max;
+		} else {
+			long value;
+			ret = kstrtol(buf, 16, &value);
+			if (ret)
+				return ret;
+			args.ustate.min = args.ustate.max = value;
+		}
 	}
 
 	/* make sure the Nouveau is not runtime suspended */

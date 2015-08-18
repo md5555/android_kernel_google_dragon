@@ -201,27 +201,32 @@ static void
 nvkm_pstate_work(struct work_struct *work)
 {
 	struct nvkm_clk *clk = container_of(work, typeof(*clk), work);
-	int pstate;
+	struct nvkm_ustate *ustate;
+	int pstate = 0;
 
 	if (!atomic_xchg(&clk->waiting, 0))
 		return;
 	clk->pwrsrc = power_supply_is_system_supplied();
 
-	nv_trace(clk, "P %d PWR %d U(AC) %d U(DC) %d A %d T %d D %d\n",
-		 clk->pstate, clk->pwrsrc, clk->ustate_ac, clk->ustate_dc,
+	nv_trace(clk, "P %d PWR %d Ua %d UA %d Ud %d UD %d A %d T %d D %d\n",
+		 clk->pstate, clk->pwrsrc,
+		 clk->ustate.ac.min, clk->ustate.ac.min,
+		 clk->ustate.dc.min, clk->ustate.dc.max,
 		 clk->astate, clk->tstate, clk->dstate);
 
-	pstate = clk->pwrsrc ? clk->ustate_ac : clk->ustate_dc;
-	if (clk->state_nr && pstate != -1) {
-		pstate = (pstate < 0) ? clk->astate : pstate;
+	ustate = clk->pwrsrc ? &clk->ustate.ac : &clk->ustate.dc;
+	if (clk->state_nr && ustate->min != -1 && ustate->max != -1) {
+		pstate = (ustate->min < 0) ? clk->astate : ustate->min;
 		pstate = min(pstate, clk->state_nr - 1 + clk->tstate);
+		pstate = (ustate->max < 0) ? pstate
+					   : min(pstate, (int)ustate->max);
 		pstate = max(pstate, clk->dstate);
 	} else {
 		pstate = clk->pstate = -1;
 	}
 
 	nv_trace(clk, "-> %d\n", pstate);
-	if (pstate != clk->pstate) {
+	if (pstate >= 0 && pstate != clk->pstate) {
 		int ret = nvkm_pstate_prog(clk, pstate);
 		if (ret) {
 			nv_error(clk, "error setting pstate %d: %d\n",
@@ -416,15 +421,24 @@ nvkm_clk_nstate(struct nvkm_clk *clk, const char *mode, int arglen)
 }
 
 int
-nvkm_clk_ustate(struct nvkm_clk *clk, int req, int pwr)
+nvkm_clk_ustate(struct nvkm_clk *clk, int min, int max, int pwr)
 {
-	int ret = nvkm_clk_ustate_update(clk, req);
-	if (ret >= 0) {
-		if (ret -= 2, pwr) clk->ustate_ac = ret;
-		else		   clk->ustate_dc = ret;
-		return nvkm_pstate_calc(clk, true);
-	}
-	return ret;
+	struct nvkm_ustate *ustate = pwr ? &clk->ustate.ac : &clk->ustate.dc;
+	int ret;
+
+	ret = nvkm_clk_ustate_update(clk, min);
+	if (ret >= 0)
+		ustate->min = ret - 2;
+	else
+		return ret;
+
+	ret = nvkm_clk_ustate_update(clk, max);
+	if (ret >= 0)
+		ustate->max = ret - 2;
+	else
+		return ret;
+
+	return nvkm_pstate_calc(clk, true);
 }
 
 int
@@ -547,8 +561,10 @@ nvkm_clk_create_(struct nvkm_object *parent, struct nvkm_object *engine,
 
 	INIT_LIST_HEAD(&clk->states);
 	clk->domains = clocks;
-	clk->ustate_ac = -1;
-	clk->ustate_dc = -1;
+	clk->ustate.ac.min = -1;
+	clk->ustate.ac.max = -1;
+	clk->ustate.dc.min = -1;
+	clk->ustate.dc.max = -1;
 	clk->tstate = 0;
 
 	INIT_WORK(&clk->work, nvkm_pstate_work);
@@ -576,17 +592,23 @@ nvkm_clk_create_(struct nvkm_object *parent, struct nvkm_object *engine,
 
 	mode = nvkm_stropt(device->cfgopt, "NvClkMode", &arglen);
 	if (mode) {
-		clk->ustate_ac = nvkm_clk_nstate(clk, mode, arglen);
-		clk->ustate_dc = nvkm_clk_nstate(clk, mode, arglen);
+		clk->ustate.ac.min = nvkm_clk_nstate(clk, mode, arglen);
+		clk->ustate.ac.max = nvkm_clk_nstate(clk, mode, arglen);
+		clk->ustate.dc.min = nvkm_clk_nstate(clk, mode, arglen);
+		clk->ustate.dc.max = nvkm_clk_nstate(clk, mode, arglen);
 	}
 
 	mode = nvkm_stropt(device->cfgopt, "NvClkModeAC", &arglen);
-	if (mode)
-		clk->ustate_ac = nvkm_clk_nstate(clk, mode, arglen);
+	if (mode) {
+		clk->ustate.ac.min = nvkm_clk_nstate(clk, mode, arglen);
+		clk->ustate.ac.max = nvkm_clk_nstate(clk, mode, arglen);
+	}
 
 	mode = nvkm_stropt(device->cfgopt, "NvClkModeDC", &arglen);
-	if (mode)
-		clk->ustate_dc = nvkm_clk_nstate(clk, mode, arglen);
+	if (mode) {
+		clk->ustate.dc.min = nvkm_clk_nstate(clk, mode, arglen);
+		clk->ustate.dc.max = nvkm_clk_nstate(clk, mode, arglen);
+	}
 
 	return 0;
 }
