@@ -200,7 +200,7 @@ mwifiex_sdio_remove(struct sdio_func *func)
 
 	cancel_work_sync(&adapter->iface_work);
 
-	if (user_rmmod) {
+	if (user_rmmod && !adapter->mfg_mode) {
 		if (adapter->is_suspended)
 			mwifiex_sdio_resume(adapter->dev);
 

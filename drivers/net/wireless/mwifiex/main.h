@@ -44,6 +44,8 @@
 #include "pcie.h"
 
 extern const char driver_version[];
+extern bool mfg_mode;
+extern char mfg_firmware[32];
 
 enum {
 	MWIFIEX_ASYNC_CMD,
@@ -851,6 +853,7 @@ struct mwifiex_adapter {
 	u8 curr_mem_idx;
 	bool scan_chan_gap_enabled;
 	struct sk_buff_head rx_data_q;
+	bool mfg_mode;
 };
 
 int mwifiex_init_lock_list(struct mwifiex_adapter *adapter);
@@ -1308,6 +1311,10 @@ u8 mwifiex_get_center_freq_index(struct mwifiex_private *priv, u8 band,
 int mwifiex_init_channel_scan_gap(struct mwifiex_adapter *adapter);
 int mwifiex_process_host_command(struct mwifiex_private *priv,
 				 struct iwreq *wrq);
+
+int mwifiex_sysfs_register(struct mwifiex_private *priv);
+void mwifiex_sysfs_unregister(struct mwifiex_private *priv);
+
 #ifdef CONFIG_DEBUG_FS
 void mwifiex_debugfs_init(void);
 void mwifiex_debugfs_remove(void);
