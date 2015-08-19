@@ -475,6 +475,7 @@ _nvkm_clk_fini(struct nvkm_object *object, bool suspend)
 {
 	struct nvkm_clk *clk = (void *)object;
 	nvkm_notify_put(&clk->pwrsrc_ntfy);
+	cancel_work_sync(&clk->work);
 	return nvkm_subdev_fini(&clk->base, suspend);
 }
 
