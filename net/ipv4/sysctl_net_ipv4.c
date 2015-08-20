@@ -737,6 +737,15 @@ static struct ctl_table ipv4_table[] = {
 		.extra2		= &one,
 	},
 	{
+		.procname	= "tcp_enable_nuke_addr",
+		.data		= &sysctl_tcp_enable_nuke_addr,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec_minmax,
+		.extra1		= &zero,
+		.extra2		= &one,
+	},
+	{
 		.procname       = "tcp_default_init_rwnd",
 		.data           = &sysctl_tcp_default_init_rwnd,
 		.maxlen         = sizeof(int),
