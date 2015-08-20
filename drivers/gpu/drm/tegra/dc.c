@@ -1126,17 +1126,16 @@ static void tegra_dc_finish_page_flip(struct tegra_dc *dc)
 {
 	struct drm_device *drm = dc->base.dev;
 	struct drm_crtc *crtc = &dc->base;
+	struct drm_framebuffer *fb = crtc->primary->state->fb;
 	unsigned long flags, base;
 	struct tegra_bo *bo;
 
 	spin_lock_irqsave(&drm->event_lock, flags);
 
-	if (!dc->event) {
-		spin_unlock_irqrestore(&drm->event_lock, flags);
-		return;
-	}
+	if (!fb)
+		goto out;
 
-	bo = tegra_fb_get_plane(crtc->primary->fb, 0);
+	bo = tegra_fb_get_plane(fb, 0);
 
 	spin_lock(&dc->lock);
 
@@ -1148,13 +1147,18 @@ static void tegra_dc_finish_page_flip(struct tegra_dc *dc)
 
 	spin_unlock(&dc->lock);
 
-	if (base == bo->paddr + crtc->primary->fb->offsets[0]) {
-		drm_crtc_send_vblank_event(crtc, dc->event);
-		drm_crtc_vblank_put(crtc);
-		dc->event = NULL;
+	if (base == bo->paddr + fb->offsets[0]) {
+		if (dc->event) {
+			drm_crtc_send_vblank_event(crtc, dc->event);
+			drm_crtc_vblank_put(crtc);
+			dc->event = NULL;
+		}
 		crtc->state->event = NULL;
+	} else {
+		DRM_ERROR("FB not latched\n");
 	}
 
+out:
 	spin_unlock_irqrestore(&drm->event_lock, flags);
 }
 
@@ -1170,8 +1174,8 @@ void tegra_dc_cancel_page_flip(struct drm_crtc *crtc, struct drm_file *file)
 		dc->event->base.destroy(&dc->event->base);
 		drm_crtc_vblank_put(crtc);
 		dc->event = NULL;
-		crtc->state->event = NULL;
 	}
+	crtc->state->event = NULL;
 
 	spin_unlock_irqrestore(&drm->event_lock, flags);
 }
@@ -1526,6 +1530,12 @@ static void tegra_crtc_atomic_begin(struct drm_crtc *crtc)
 		WARN_ON(drm_crtc_vblank_get(crtc) != 0);
 		WARN_ON(dc->event);
 		dc->event = crtc->state->event;
+	} else if (crtc->state->enable) {
+		/*
+		 * Wait for latch before returning from
+		 * tegra_atomic_wait_for_flip_complete
+		 */
+		crtc->state->event = ERR_PTR(-EINVAL);
 	}
 	spin_unlock_irqrestore(&drm->event_lock, flags);
 }

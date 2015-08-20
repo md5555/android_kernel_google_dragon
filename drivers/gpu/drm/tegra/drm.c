@@ -103,6 +103,13 @@ static void tegra_atomic_wait_for_flip_complete(struct drm_device *dev,
 						drm_vblank_count(dev, i),
 				msecs_to_jiffies(50));
 
+		if (crtc->primary && crtc->primary->state && crtc->primary->state->fb) {
+			if (!ret)
+				DRM_ERROR("Timeout waiting for FB=%x/%p\n",
+					crtc->primary->state->fb->base.id,
+					crtc->state->event);
+		}
+
 		drm_crtc_vblank_put(crtc);
 	}
 }
