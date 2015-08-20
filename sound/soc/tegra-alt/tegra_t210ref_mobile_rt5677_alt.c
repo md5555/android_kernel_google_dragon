@@ -27,6 +27,7 @@
 #include <linux/delay.h>
 #include <linux/switch.h>
 #include <linux/pm_runtime.h>
+#include <linux/input.h>
 
 #include <soc/tegra/sysedp.h>
 
@@ -100,7 +101,7 @@ static int tegra_t210ref_dai_init(struct snd_soc_pcm_runtime *rtd,
 		break;
 	}
 
-	pr_info("Setting pll_a = %d Hz clk_out = %d Hz\n",
+	pr_debug("Setting pll_a = %d Hz clk_out = %d Hz\n",
 			mclk, clk_out_rate);
 	err = tegra_alt_asoc_utils_set_rate(&machine->audio_clock,
 				rate, mclk, clk_out_rate);
@@ -329,7 +330,10 @@ static int tegra_rt5677_headset_init(struct snd_soc_pcm_runtime *runtime)
 	struct snd_soc_card *card = runtime->card;
 	struct snd_soc_codec *codec = runtime->codec;
 	struct tegra_t210ref *machine = snd_soc_card_get_drvdata(card);
+	struct snd_soc_jack *jack;
 	int ret;
+
+	snd_soc_codec_set_sysclk(codec, NAU8825_CLK_MCLK, 0, 0, SND_SOC_CLOCK_IN);
 
 	/* Enable Headset and 4 Buttons Jack detection */
 	ret = snd_soc_card_jack_new(card, "Headset Jack",
@@ -341,13 +345,17 @@ static int tegra_rt5677_headset_init(struct snd_soc_pcm_runtime *runtime)
 		dev_err(card->dev, "New Headset Jack failed! (%d)\n", ret);
 		return ret;
 	}
-	nau8825_enable_jack_detect(codec, &machine->jack);
+
+	jack = &machine->jack;
+
+	snd_jack_set_key(jack->jack, SND_JACK_BTN_0, KEY_MEDIA);
+	snd_jack_set_key(jack->jack, SND_JACK_BTN_1, KEY_VOICECOMMAND);
+	snd_jack_set_key(jack->jack, SND_JACK_BTN_2, KEY_VOLUMEUP);
+	snd_jack_set_key(jack->jack, SND_JACK_BTN_3, KEY_VOLUMEDOWN);
+	nau8825_enable_jack_detect(codec, jack);
 
 	return 0;
 }
-
-static const struct snd_soc_dapm_route tegra_t210ref_audio_map[] = {
-};
 
 static const struct snd_kcontrol_new tegra_t210ref_controls[] = {
 	SOC_DAPM_PIN_SWITCH("Int Spk"),
