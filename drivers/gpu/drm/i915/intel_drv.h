@@ -1014,8 +1014,6 @@ struct intel_connector *intel_connector_alloc(void);
 void intel_connector_dpms(struct drm_connector *, int mode);
 bool intel_connector_get_hw_state(struct intel_connector *connector);
 void intel_modeset_check_state(struct drm_device *dev);
-bool ibx_digital_port_connected(struct drm_i915_private *dev_priv,
-				struct intel_digital_port *port);
 void intel_connector_attach_encoder(struct intel_connector *connector,
 				    struct intel_encoder *encoder);
 struct drm_encoder *intel_best_encoder(struct drm_connector *connector);
