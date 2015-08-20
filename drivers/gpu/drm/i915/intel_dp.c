@@ -4499,6 +4499,8 @@ static bool ibx_digital_port_connected(struct drm_i915_private *dev_priv,
 
 	if (HAS_PCH_IBX(dev_priv->dev)) {
 		switch (port->port) {
+		case PORT_A:
+			return true;
 		case PORT_B:
 			bit = SDE_PORTB_HOTPLUG;
 			break;
@@ -4509,10 +4511,13 @@ static bool ibx_digital_port_connected(struct drm_i915_private *dev_priv,
 			bit = SDE_PORTD_HOTPLUG;
 			break;
 		default:
-			return true;
+			MISSING_CASE(port->port);
+			return false;
 		}
 	} else {
 		switch (port->port) {
+		case PORT_A:
+			return true;
 		case PORT_B:
 			bit = SDE_PORTB_HOTPLUG_CPT;
 			break;
@@ -4523,7 +4528,8 @@ static bool ibx_digital_port_connected(struct drm_i915_private *dev_priv,
 			bit = SDE_PORTD_HOTPLUG_CPT;
 			break;
 		default:
-			return true;
+			MISSING_CASE(port->port);
+			return false;
 		}
 	}
 
