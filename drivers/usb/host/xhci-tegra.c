@@ -909,10 +909,11 @@ static void tegra_xhci_probe_finish(const struct firmware *fw, void *context)
 	if (ret < 0)
 		goto put_usb2_hcd;
 
+	device_init_wakeup(tegra->dev, true);
+
 	ret = usb_add_hcd(tegra->hcd, tegra->irq, IRQF_SHARED);
 	if (ret < 0)
 		goto put_usb2_hcd;
-	device_wakeup_enable(tegra->hcd->self.controller);
 
 	/*
 	 * USB 2.0 roothub is stored in drvdata now. Swap it with the Tegra HCD.
