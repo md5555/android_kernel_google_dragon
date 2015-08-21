@@ -130,7 +130,7 @@ static const struct cvb_table tegra210_cpu_cvb_tables[] = {
 		.min_millivolts = 850,
 		.max_millivolts = 1170,
 		.alignment = {
-			.step_uv = 10000, /* 10mV */
+			.step_uv = 6250, /* 6.25mV */
 		},
 		.speedo_scale = 100,
 		.voltage_scale = 1000,
@@ -148,7 +148,7 @@ static const struct cvb_table tegra210_cpu_cvb_tables[] = {
 		.min_millivolts = 850,
 		.max_millivolts = 1170,
 		.alignment = {
-			.step_uv = 10000, /* 10mV */
+			.step_uv = 6250, /* 6.25mV */
 		},
 		.speedo_scale = 100,
 		.voltage_scale = 1000,
@@ -166,7 +166,7 @@ static const struct cvb_table tegra210_cpu_cvb_tables[] = {
 		.min_millivolts = 818,
 		.max_millivolts = 1170,
 		.alignment = {
-			.step_uv = 10000, /* 10mV */
+			.step_uv = 6250, /* 6.25mV */
 		},
 		.speedo_scale = 100,
 		.voltage_scale = 1000,
@@ -184,7 +184,7 @@ static const struct cvb_table tegra210_cpu_cvb_tables[] = {
 		.min_millivolts = 818,
 		.max_millivolts = 1170,
 		.alignment = {
-			.step_uv = 10000, /* 10mV */
+			.step_uv = 6250, /* 6.25mV */
 		},
 		.speedo_scale = 100,
 		.voltage_scale = 1000,
