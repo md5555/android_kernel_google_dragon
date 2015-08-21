@@ -1389,7 +1389,7 @@ static int tegra_xhci_powergate(struct tegra_xhci_hcd *tegra, bool runtime)
 	unsigned int i, j;
 	int ret;
 
-	dev_dbg(tegra->dev, "entering ELPG\n");
+	dev_info(tegra->dev, "entering ELPG\n");
 	mutex_lock(&tegra->lock);
 
 	/* Wait for ports to enter U3. */
@@ -1489,6 +1489,7 @@ static int tegra_xhci_powergate(struct tegra_xhci_hcd *tegra, bool runtime)
 
 unlock:
 	mutex_unlock(&tegra->lock);
+	dev_info(tegra->dev, "entering ELPG done\n");
 	return ret;
 }
 
@@ -1499,7 +1500,7 @@ static int tegra_xhci_unpowergate(struct tegra_xhci_hcd *tegra)
 	unsigned int i, j;
 	int ret;
 
-	dev_dbg(tegra->dev, "exiting ELPG\n");
+	dev_info(tegra->dev, "exiting ELPG\n");
 	mutex_lock(&tegra->lock);
 
 	clk_prepare_enable(tegra->pll_e);
@@ -1599,6 +1600,7 @@ static int tegra_xhci_unpowergate(struct tegra_xhci_hcd *tegra)
 	pm_runtime_mark_last_busy(tegra->dev);
 unlock:
 	mutex_unlock(&tegra->lock);
+	dev_info(tegra->dev, "exiting ELPG done\n");
 	return ret;
 }
 #endif

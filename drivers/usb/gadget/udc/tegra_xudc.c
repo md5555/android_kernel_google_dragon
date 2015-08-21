@@ -3335,7 +3335,7 @@ static int tegra_xudc_remove(struct platform_device *pdev)
 #if IS_ENABLED(CONFIG_PM_SLEEP) || IS_ENABLED(CONFIG_PM_RUNTIME)
 static int tegra_xudc_powergate(struct tegra_xudc *xudc)
 {
-	dev_dbg(xudc->dev, "entering ELPG\n");
+	dev_info(xudc->dev, "entering ELPG\n");
 
 	xudc->saved_regs.ctrl = xudc_readl(xudc, CTRL);
 	xudc->saved_regs.portpm = xudc_readl(xudc, PORTPM);
@@ -3356,6 +3356,8 @@ static int tegra_xudc_powergate(struct tegra_xudc *xudc)
 	regulator_bulk_disable(xudc->soc->num_supplies, xudc->supplies);
 	tegra_xudc_clk_disable(xudc);
 
+	dev_info(xudc->dev, "entering ELPG done\n");
+
 	return 0;
 }
 
@@ -3364,7 +3366,7 @@ static int tegra_xudc_unpowergate(struct tegra_xudc *xudc)
 	u32 val;
 	int err;
 
-	dev_dbg(xudc->dev, "exiting ELPG\n");
+	dev_info(xudc->dev, "exiting ELPG\n");
 
 	tegra_xudc_clk_enable(xudc);
 	err = regulator_bulk_enable(xudc->soc->num_supplies, xudc->supplies);
@@ -3405,6 +3407,8 @@ static int tegra_xudc_unpowergate(struct tegra_xudc *xudc)
 
 	xudc_writel(xudc, xudc->saved_regs.portpm, PORTPM);
 	xudc_writel(xudc, xudc->saved_regs.ctrl, CTRL);
+
+	dev_info(xudc->dev, "exiting ELPG done\n");
 
 	return 0;
 }
