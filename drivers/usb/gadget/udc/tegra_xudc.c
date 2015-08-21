@@ -2549,7 +2549,7 @@ static inline void clear_port_change(struct tegra_xudc *xudc, u32 flag)
 	xudc_writel(xudc, val, PORTSC);
 }
 
-static void tegra_xudc_handle_port_status(struct tegra_xudc *xudc)
+static void __tegra_xudc_handle_port_status(struct tegra_xudc *xudc)
 {
 	u32 portsc, porthalt;
 
@@ -2618,6 +2618,13 @@ static void tegra_xudc_handle_port_status(struct tegra_xudc *xudc)
 	}
 
 	dev_dbg(xudc->dev, "PORTSC = %#x\n", xudc_readl(xudc, PORTSC));
+}
+
+static void tegra_xudc_handle_port_status(struct tegra_xudc *xudc)
+{
+	while ((xudc_readl(xudc, PORTSC) & PORTSC_CHANGE_MASK) ||
+	       (xudc_readl(xudc, PORTHALT) & PORTHALT_STCHG_REQ))
+		__tegra_xudc_handle_port_status(xudc);
 }
 
 static void tegra_xudc_handle_event(struct tegra_xudc *xudc,
