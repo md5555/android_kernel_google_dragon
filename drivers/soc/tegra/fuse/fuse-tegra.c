@@ -144,9 +144,11 @@ static ssize_t tegra_fuse_cpu_id_show(struct device *child,
 {
 	int chip_id = tegra_get_chip_id();
 	int num_cpus = num_present_cpus();
-	struct cpufreq_policy *cpu_policy = cpufreq_cpu_get(0);
+	int max_freq;
 	char *generation, *cpus, *model = "";
 	char speed[10];
+
+	max_freq = cpufreq_quick_get_max(0);
 
 	switch (chip_id) {
 	case TEGRA20:
@@ -180,13 +182,13 @@ static ssize_t tegra_fuse_cpu_id_show(struct device *child,
 		cpus = " ";
 	};
 
-	if (cpu_policy->max > 1000000)
-		sprintf(speed, "%d.%02d Ghz", (cpu_policy->max / 1000000),
-			(cpu_policy->max % 1000000) / 10000);
-	else if (cpu_policy->max > 1000)
-		sprintf(speed, "%d Mhz", (cpu_policy->max / 1000));
+	if (max_freq > 1000000)
+		sprintf(speed, "%d.%02d Ghz", (max_freq / 1000000),
+			(max_freq % 1000000) / 10000);
+	else if (max_freq > 1000)
+		sprintf(speed, "%d Mhz", (max_freq / 1000));
 	else
-		sprintf(speed, "%d Khz", cpu_policy->max);
+		sprintf(speed, "%d Khz", max_freq);
 
 	return sprintf(buf, "%s %s%s @ %s\n", generation, cpus, model, speed);
 }
