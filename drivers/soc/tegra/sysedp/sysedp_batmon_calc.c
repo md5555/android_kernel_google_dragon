@@ -781,7 +781,9 @@ static int batmon_probe(struct platform_device *pdev)
 
 	psy = power_supply_get_by_phandle(pdev->dev.of_node, "power-supply");
 	if (!psy)
-		return -EFAULT;
+		return -EPROBE_DEFER;
+	else if (IS_ERR(psy))
+		return PTR_ERR(psy);
 
 	/* validate member of pdata->rbat_lut table */
 	if (!pdata->imax_mode) {
