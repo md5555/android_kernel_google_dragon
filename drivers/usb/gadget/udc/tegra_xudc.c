@@ -642,6 +642,17 @@ static void tegra_xudc_device_mode_off(struct tegra_xudc *xudc)
 		xudc_writel(xudc, val, PORTSC);
 	}
 
+	xudc->device_mode = false;
+	spin_unlock_irqrestore(&xudc->lock, flags);
+
+	/* Wait for disconnect event. */
+	if (connected)
+		wait_for_completion(&xudc->disconnect_complete);
+
+	/* Make sure interrupt handler has completed before powergating. */
+	synchronize_irq(xudc->irq);
+
+	spin_lock_irqsave(&xudc->lock, flags);
 	if (xudc->pullup) {
 		/*
 		  * For SS, state machine of device controller can take up to
@@ -653,16 +664,7 @@ static void tegra_xudc_device_mode_off(struct tegra_xudc *xudc)
 		val &= ~CTRL_ENABLE;
 		xudc_writel(xudc, val, CTRL);
 	}
-
-	xudc->device_mode = false;
 	spin_unlock_irqrestore(&xudc->lock, flags);
-
-	/* Wait for disconnect event. */
-	if (connected)
-		wait_for_completion(&xudc->disconnect_complete);
-
-	/* Make sure interrupt handler has completed before powergating. */
-	synchronize_irq(xudc->irq);
 
 	pm_runtime_put(xudc->dev);
 }
