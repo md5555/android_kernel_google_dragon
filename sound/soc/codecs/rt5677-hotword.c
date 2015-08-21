@@ -73,6 +73,7 @@ static int rt5677_hotword_load_fw(struct rt5677_dsp *dsp, const u8 *buf,
 	Elf32_Phdr *pr_hdr;
 	Elf32_Half i;
 	int ret = 0;
+	u32 zero = 0;
 
 	if (!buf || (len < sizeof(Elf32_Ehdr)))
 		return -ENOMEM;
@@ -106,6 +107,12 @@ static int rt5677_hotword_load_fw(struct rt5677_dsp *dsp, const u8 *buf,
 		}
 		pr_hdr++;
 	}
+
+	/* The dsp firmware doesn't work without this. The 4 bytes
+	 * [0x5ffe0374, 0x5ffe0377] near the end of .ResetVector.text section
+	 * have to be zeros. Why??
+	 */
+	rt5677_spi_write(0x5ffe0374, &zero, sizeof(zero));
 	return ret;
 }
 
