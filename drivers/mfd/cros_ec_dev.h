@@ -23,6 +23,7 @@
 extern struct attribute_group cros_ec_attr_group;
 extern struct attribute_group cros_ec_lightbar_attr_group;
 extern struct attribute_group cros_ec_pd_attr_group;
+extern struct attribute_group cros_usb_pd_charger_attr_group;
 
 /* lightbar utilities */
 extern bool ec_has_lightbar(struct cros_ec_dev *ec);
