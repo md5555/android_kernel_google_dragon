@@ -30,6 +30,7 @@
 #include <linux/firmware.h>
 
 #include "rt5677-spi.h"
+#include "rt5677-hotword.h"
 
 #define RT5677_SPI_BURST_LEN	240
 #define RT5677_SPI_HEADER	5
@@ -226,7 +227,12 @@ EXPORT_SYMBOL_GPL(rt5677_spi_write_firmware);
 static int rt5677_spi_probe(struct spi_device *spi)
 {
 	g_spi = spi;
-	return 0;
+	return rt5677_hotword_init(&spi->dev);
+}
+
+static int rt5677_spi_remove(struct spi_device *spi)
+{
+	return rt5677_hotword_free(&spi->dev);
 }
 
 static struct spi_driver rt5677_spi_driver = {
@@ -235,6 +241,7 @@ static struct spi_driver rt5677_spi_driver = {
 		.owner = THIS_MODULE,
 	},
 	.probe = rt5677_spi_probe,
+	.remove = rt5677_spi_remove,
 };
 module_spi_driver(rt5677_spi_driver);
 
