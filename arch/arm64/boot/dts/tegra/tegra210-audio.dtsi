@@ -89,6 +89,7 @@
 			pinctrl-0 = <>;
 			pinctrl-1 = <>;
 			status = "okay";
+			fsync-width = <0>;
 		};
 
 		i2s@702d1100 {
@@ -96,6 +97,7 @@
 			pinctrl-0 = <>;
 			pinctrl-1 = <>;
 			status = "okay";
+			fsync-width = <0>;
 		};
 
 		i2s@702d1200 {
@@ -104,6 +106,7 @@
 			pinctrl-0 = <>;
 			pinctrl-1 = <>;
 			status = "okay";
+			fsync-width = <0>;
 		};
 
 		i2s@702d1300 {
@@ -111,6 +114,7 @@
 			pinctrl-0 = <>;
 			pinctrl-1 = <>;
 			status = "okay";
+			fsync-width = <0>;
 		};
 
 		i2s@702d1400 {
@@ -118,6 +122,7 @@
 			pinctrl-0 = <>;
 			pinctrl-1 = <>;
 			status = "okay";
+			fsync-width = <0>;
 		};
 
 		dmic@702d4000 {
