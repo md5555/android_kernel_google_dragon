@@ -833,6 +833,24 @@
 		clock-names = "pclk";
 		#nvidia,wake-cells = <3>;
 		status = "disabled";
+
+		powergates {
+			venc {
+				clocks = <&tegra_car TEGRA210_CLK_VI>,
+					 <&tegra_car TEGRA210_CLK_CSI>,
+					 <&tegra_car TEGRA210_CLK_CILAB>,
+					 <&tegra_car TEGRA210_CLK_CILCD>,
+					 <&tegra_car TEGRA210_CLK_CILE>,
+					 <&tegra_car TEGRA210_CLK_ISP>,
+					 <&tegra_car TEGRA210_CLK_VI_I2C>;
+				clock-names = "vi", "csi", "cilab", "cilcd", "cile", "isp", "vi-i2c";
+				resets = <&tegra_car 20>,
+					 <&tegra_car TEGRA210_CLK_CSI>,
+					 <&tegra_car TEGRA210_CLK_ISP>,
+					 <&tegra_car TEGRA210_CLK_VI_I2C>;
+				reset-names = "vi", "csi", "isp", "vi-i2c";
+			};
+		};
 	};
 
 	mc: memory-controller@70019000 {
