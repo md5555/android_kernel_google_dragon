@@ -1073,7 +1073,7 @@ static void acpi_device_notify_fixed(void *data)
 static acpi_status acpi_device_fixed_event(void *data)
 {
 	acpi_os_execute(OSL_NOTIFY_HANDLER, acpi_device_notify_fixed, data);
-	return AE_OK;
+	return ACPI_INTERRUPT_HANDLED;
 }
 
 static int acpi_device_install_notify_handler(struct acpi_device *device)
