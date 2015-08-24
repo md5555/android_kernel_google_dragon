@@ -36,18 +36,15 @@
 			pinctrl@18000 {
 		                compatible = "marvell,mv88f6810-pinctrl";
 			};
-			spi@10600 {
+			spi@10680 {
 				pinctrl-names = "default";
-				pinctrl-0 = <&spi0_pins>;
+				pinctrl-0 = <&spi1_pins>;
 				status = "okay";
 
-				spi-flash@0 {
-					#address-cells = <1>;
-					#size-cells = <1>;
-					compatible = "st,m25p128";
-					reg = <0>; /* Chip select 0 */
-					spi-max-frequency = <50000000>;
-					m25p,fast-read;
+				spidev@0 {
+					compatible = "spidev";
+					reg = <0>;
+					spi-max-frequency = <25000000>;
 				};
 			};
 
