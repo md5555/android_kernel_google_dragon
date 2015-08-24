@@ -71,13 +71,14 @@ static struct snd_soc_pcm_stream tegra_rt5677_stream_params = {
 static int tegra_t210ref_dai_init(struct snd_soc_pcm_runtime *rtd,
 					int rate,
 					int channels,
-					u64 formats)
+					u64 formats,
+					int width)
 {
 	struct snd_soc_card *card = rtd->card;
 	struct tegra_t210ref *machine = snd_soc_card_get_drvdata(card);
 	struct snd_soc_pcm_stream *dai_params;
 	unsigned int idx, mclk, clk_out_rate;
-	int err;
+	int err, tdm_mask;
 
 	switch (rate) {
 	case 11025:
@@ -133,6 +134,12 @@ static int tegra_t210ref_dai_init(struct snd_soc_pcm_runtime *rtd,
 			dev_err(card->dev, "Can't set cpu dai bclk ratio\n");
 			return err;
 		}
+
+		tdm_mask = (1 << channels) - 1;
+		snd_soc_dai_set_tdm_slot(card->rtd[idx].codec_dai, tdm_mask, tdm_mask,
+			channels, width);
+		snd_soc_dai_set_tdm_slot(card->rtd[idx].cpu_dai, tdm_mask, tdm_mask,
+			channels, width);
 	}
 
 	return 0;
@@ -148,7 +155,8 @@ static int tegra_t210ref_hw_params(struct snd_pcm_substream *substream,
 
 	err = tegra_t210ref_dai_init(rtd, srate,
 			params_channels(params),
-			(1ULL << (params_format(params))));
+			(1ULL << (params_format(params))),
+			params_width(params));
 	if (err < 0) {
 		dev_err(card->dev, "Failed dai init\n");
 		return err;
