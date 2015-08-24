@@ -494,6 +494,7 @@ struct tegra_xudc {
 
 	struct tegra_xudc_save_regs saved_regs;
 	bool suspended;
+	bool powergated;
 
 	struct completion disconnect_complete;
 };
@@ -1068,15 +1069,13 @@ tegra_xudc_ep_queue(struct usb_ep *usb_ep, struct usb_request *usb_req,
 	req = to_xudc_req(usb_req);
 	xudc = ep->xudc;
 
-	if (pm_runtime_status_suspended(xudc->dev))
-		return -ESHUTDOWN;
-
 	spin_lock_irqsave(&xudc->lock, flags);
-	if (!ep->desc) {
-		spin_unlock_irqrestore(&xudc->lock, flags);
-		return -ESHUTDOWN;
+	if (xudc->powergated || !ep->desc) {
+		ret = -ESHUTDOWN;
+		goto unlock;
 	}
 	ret = __tegra_xudc_ep_queue(ep, req);
+unlock:
 	spin_unlock_irqrestore(&xudc->lock, flags);
 
 	return ret;
@@ -1229,15 +1228,13 @@ tegra_xudc_ep_dequeue(struct usb_ep *usb_ep, struct usb_request *usb_req)
 	req = to_xudc_req(usb_req);
 	xudc = ep->xudc;
 
-	if (pm_runtime_status_suspended(xudc->dev))
-		return -ESHUTDOWN;
-
 	spin_lock_irqsave(&xudc->lock, flags);
-	if (!ep->desc) {
-		spin_unlock_irqrestore(&xudc->lock, flags);
-		return -ESHUTDOWN;
+	if (xudc->powergated || !ep->desc) {
+		ret = -ESHUTDOWN;
+		goto unlock;
 	}
 	ret = __tegra_xudc_ep_dequeue(ep, req);
+unlock:
 	spin_unlock_irqrestore(&xudc->lock, flags);
 
 	return ret;
@@ -1296,17 +1293,19 @@ static int tegra_xudc_ep_set_halt(struct usb_ep *usb_ep, int value)
 	ep = to_xudc_ep(usb_ep);
 	xudc = ep->xudc;
 
-	if (pm_runtime_status_suspended(xudc->dev))
-		return -ESHUTDOWN;
-
 	spin_lock_irqsave(&xudc->lock, flags);
+	if (xudc->powergated) {
+		ret = -ESHUTDOWN;
+		goto unlock;
+	}
 	if (value && usb_endpoint_dir_in(ep->desc) &&
 	    !list_empty(&ep->queue)) {
-		spin_unlock_irqrestore(&xudc->lock, flags);
 		dev_err(xudc->dev, "can't halt ep with requests pending\n");
-		return -EAGAIN;
+		ret = -EAGAIN;
+		goto unlock;
 	}
 	ret = __tegra_xudc_ep_set_halt(ep, value);
+unlock:
 	spin_unlock_irqrestore(&xudc->lock, flags);
 
 	return ret;
@@ -1492,11 +1491,13 @@ static int tegra_xudc_ep_enable(struct usb_ep *usb_ep,
 	ep = to_xudc_ep(usb_ep);
 	xudc = ep->xudc;
 
-	if (pm_runtime_status_suspended(xudc->dev))
-		return -ESHUTDOWN;
-
 	spin_lock_irqsave(&xudc->lock, flags);
+	if (xudc->powergated) {
+		ret = -ESHUTDOWN;
+		goto unlock;
+	}
 	ret = __tegra_xudc_ep_enable(ep, desc);
+unlock:
 	spin_unlock_irqrestore(&xudc->lock, flags);
 
 	return ret;
@@ -1564,11 +1565,13 @@ static int tegra_xudc_ep_disable(struct usb_ep *usb_ep)
 	ep = to_xudc_ep(usb_ep);
 	xudc = ep->xudc;
 
-	if (pm_runtime_status_suspended(xudc->dev))
-		return -ESHUTDOWN;
-
 	spin_lock_irqsave(&xudc->lock, flags);
+	if (xudc->powergated) {
+		ret = -ESHUTDOWN;
+		goto unlock;
+	}
 	ret = __tegra_xudc_ep_disable(ep);
+unlock:
 	spin_unlock_irqrestore(&xudc->lock, flags);
 
 	return ret;
@@ -1630,12 +1633,20 @@ static struct usb_ep_ops tegra_xudc_ep0_ops = {
 static int tegra_xudc_gadget_get_frame(struct usb_gadget *gadget)
 {
 	struct tegra_xudc *xudc = to_xudc(gadget);
+	unsigned long flags;
+	int ret;
 
-	if (pm_runtime_status_suspended(xudc->dev))
-		return -ESHUTDOWN;
-
-	return (xudc_readl(xudc, MFINDEX) >> MFINDEX_FRAME_SHIFT) &
+	spin_lock_irqsave(&xudc->lock, flags);
+	if (xudc->powergated) {
+		ret = -ESHUTDOWN;
+		goto unlock;
+	}
+	ret = (xudc_readl(xudc, MFINDEX) >> MFINDEX_FRAME_SHIFT) &
 		MFINDEX_FRAME_MASK;
+unlock:
+	spin_unlock_irqrestore(&xudc->lock, flags);
+
+	return ret;
 }
 
 static void tegra_xudc_resume_device_state(struct tegra_xudc *xudc)
@@ -1672,12 +1683,14 @@ static int tegra_xudc_gadget_wakeup(struct usb_gadget *gadget)
 {
 	struct tegra_xudc *xudc = to_xudc(gadget);
 	unsigned long flags;
+	int ret = 0;
 	u32 val;
 
-	if (pm_runtime_status_suspended(xudc->dev))
-		return -ESHUTDOWN;
-
 	spin_lock_irqsave(&xudc->lock, flags);
+	if (xudc->powergated) {
+		ret = -ESHUTDOWN;
+		goto unlock;
+	}
 	val = xudc_readl(xudc, PORTPM);
 	if (((xudc->gadget.speed <= USB_SPEED_HIGH) &&
 	     (val & PORTPM_RWE)) ||
@@ -1693,9 +1706,10 @@ static int tegra_xudc_gadget_wakeup(struct usb_gadget *gadget)
 			xudc_writel(xudc, val, DEVNOTIF_LO);
 		}
 	}
+unlock:
 	spin_unlock_irqrestore(&xudc->lock, flags);
 
-	return 0;
+	return ret;
 }
 
 static int tegra_xudc_gadget_pullup(struct usb_gadget *gadget, int is_on)
@@ -1705,8 +1719,7 @@ static int tegra_xudc_gadget_pullup(struct usb_gadget *gadget, int is_on)
 	u32 val;
 
 	spin_lock_irqsave(&xudc->lock, flags);
-	if (!pm_runtime_status_suspended(xudc->dev) &&
-	    is_on != xudc->pullup) {
+	if (!xudc->powergated && is_on != xudc->pullup) {
 		val = xudc_readl(xudc, CTRL);
 		if (is_on && xudc->device_mode)
 			val |= CTRL_ENABLE;
@@ -3335,7 +3348,13 @@ static int tegra_xudc_remove(struct platform_device *pdev)
 #if IS_ENABLED(CONFIG_PM_SLEEP) || IS_ENABLED(CONFIG_PM_RUNTIME)
 static int tegra_xudc_powergate(struct tegra_xudc *xudc)
 {
+	unsigned long flags;
+
 	dev_info(xudc->dev, "entering ELPG\n");
+
+	spin_lock_irqsave(&xudc->lock, flags);
+	xudc->powergated = true;
+	spin_unlock_irqrestore(&xudc->lock, flags);
 
 	xudc->saved_regs.ctrl = xudc_readl(xudc, CTRL);
 	xudc->saved_regs.portpm = xudc_readl(xudc, PORTPM);
@@ -3363,6 +3382,7 @@ static int tegra_xudc_powergate(struct tegra_xudc *xudc)
 
 static int tegra_xudc_unpowergate(struct tegra_xudc *xudc)
 {
+	unsigned long flags;
 	u32 val;
 	int err;
 
@@ -3407,6 +3427,10 @@ static int tegra_xudc_unpowergate(struct tegra_xudc *xudc)
 
 	xudc_writel(xudc, xudc->saved_regs.portpm, PORTPM);
 	xudc_writel(xudc, xudc->saved_regs.ctrl, CTRL);
+
+	spin_lock_irqsave(&xudc->lock, flags);
+	xudc->powergated = false;
+	spin_unlock_irqrestore(&xudc->lock, flags);
 
 	dev_info(xudc->dev, "exiting ELPG done\n");
 
