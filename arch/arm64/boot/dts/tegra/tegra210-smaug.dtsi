@@ -240,6 +240,7 @@
 			regulator-max-microvolt = <4400000>;
 			gpio = <&gpio TEGRA_GPIO(V, 4) 0>;
 			enable-active-high;
+			regulator-boot-on;
 		};
 
 		pp3000_always: regulator@2 {
@@ -280,6 +281,7 @@
 			regulator-max-microvolt = <1800000>;
 			gpio = <&gpio TEGRA_GPIO(V, 3) 0>;
 			enable-active-high;
+			regulator-boot-on;
 		};
 
 		pp1800_cam: regulator@6 {
