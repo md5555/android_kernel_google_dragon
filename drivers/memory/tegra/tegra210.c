@@ -1081,6 +1081,11 @@ static const struct tegra_mc_flush tegra210_mc_flush[] = {
 	{TEGRA_SWGROUP_SDMMC4A,    0x970, 0x974,  0},
 	{TEGRA_SWGROUP_ISP2B,      0x970, 0x974,  1},
 	{TEGRA_SWGROUP_GPU,        0x970, 0x974,  2},
+	{TEGRA_SWGROUP_NVDEC,      0x970, 0x974,  5},
+	{TEGRA_SWGROUP_APE,        0x970, 0x974,  6},
+	{TEGRA_SWGROUP_SE,         0x970, 0x974,  7},
+	{TEGRA_SWGROUP_NVJPG,      0x970, 0x974,  8},
+	{TEGRA_SWGROUP_TSECB,      0x970, 0x974, 13},
 };
 
 static const struct tegra_smmu_soc tegra210_smmu_soc = {
