@@ -437,7 +437,6 @@ static int panel_jdi_setup_primary(struct mipi_dsi_device *dsi,
 	struct mipi_dsi_device *slave;
 	enum of_gpio_flags gpio_flags;
 	int ret;
-	unsigned int value;
 
 	slave = of_find_mipi_dsi_device_by_node(np);
 	of_node_put(np);
@@ -478,13 +477,6 @@ static int panel_jdi_setup_primary(struct mipi_dsi_device *dsi,
 		return ret;
 	}
 
-	value = (jdi->enable_gpio_flags & GPIO_ACTIVE_LOW) ? 1 : 0;
-	ret = gpio_direction_output(jdi->enable_gpio, value);
-	if (ret < 0) {
-		DRM_ERROR("Set enable gpio direction failed: %d\n", ret);
-		return ret;
-	}
-
 	jdi->reset_gpio = of_get_named_gpio_flags(dsi->dev.of_node,
 				"reset-gpio", 0, &gpio_flags);
 	if (!gpio_is_valid(jdi->reset_gpio)) {
@@ -498,13 +490,6 @@ static int panel_jdi_setup_primary(struct mipi_dsi_device *dsi,
 	ret = devm_gpio_request(&dsi->dev, jdi->reset_gpio, "jdi-reset");
 	if (ret < 0) {
 		DRM_ERROR("Request reset gpio failed: %d\n", ret);
-		return ret;
-	}
-
-	value = (jdi->reset_gpio_flags & GPIO_ACTIVE_LOW) ? 0 : 1;
-	ret = gpio_direction_output(jdi->reset_gpio, value);
-	if (ret < 0) {
-		DRM_ERROR("Set enable gpio direction failed: %d\n", ret);
 		return ret;
 	}
 
