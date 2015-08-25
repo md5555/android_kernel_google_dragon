@@ -27,6 +27,7 @@
 #include <linux/reset.h>
 #include <linux/slab.h>
 #include <sound/soc.h>
+#include <linux/irqchip/tegra-agic.h>
 
 #include "tegra210_xbar_alt.h"
 
@@ -82,15 +83,22 @@ static int tegra210_xbar_runtime_resume(struct device *dev)
 }
 
 #ifdef CONFIG_PM_SLEEP
-static int tegra210_xbar_child_suspend(struct device *dev, void *data)
-{
-	return platform_pm_suspend(dev);
-}
 
 static int tegra210_xbar_suspend(struct device *dev)
 {
 	regcache_mark_dirty(xbar->regmap);
-	device_for_each_child(dev, NULL, tegra210_xbar_child_suspend);
+	pm_runtime_get_sync(dev);
+	tegra_agic_save_registers();
+	pm_runtime_put(dev);
+
+	return 0;
+}
+
+static int tegra210_xbar_resume(struct device *dev)
+{
+	pm_runtime_get_sync(dev);
+	tegra_agic_restore_registers();
+	pm_runtime_put(dev);
 
 	return 0;
 }
@@ -964,7 +972,7 @@ static int tegra210_xbar_remove(struct platform_device *pdev)
 static const struct dev_pm_ops tegra210_xbar_pm_ops = {
 	SET_RUNTIME_PM_OPS(tegra210_xbar_runtime_suspend,
 			   tegra210_xbar_runtime_resume, NULL)
-	SET_SYSTEM_SLEEP_PM_OPS(tegra210_xbar_suspend, NULL)
+	SET_SYSTEM_SLEEP_PM_OPS(tegra210_xbar_suspend, tegra210_xbar_resume)
 };
 
 static struct platform_driver tegra210_xbar_driver = {
