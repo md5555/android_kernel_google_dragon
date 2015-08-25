@@ -280,6 +280,9 @@ struct mmc_card {
 #define MMC_QUIRK_SEC_ERASE_TRIM_BROKEN (1<<10)	/* Skip secure for erase/trim */
 #define MMC_QUIRK_BROKEN_IRQ_POLLING	(1<<11)	/* Polling SDIO_CCCR_INTx could create a fake interrupt */
 
+/* Chromium specifc quirk for Hynix EMMC */
+#define MMC_QUIRK_NOTIFY_POWEROFF_ON_SLEEP  (1<<12) /* Poweroff notification*/
+
 	unsigned int		erase_size;	/* erase size in sectors */
  	unsigned int		erase_shift;	/* if erase unit is power 2 */
  	unsigned int		pref_erase;	/* in sectors */
