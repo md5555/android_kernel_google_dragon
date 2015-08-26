@@ -501,7 +501,7 @@ struct tegra_xudc {
 
 #define XUDC_TRB_MAX_BUFFER_SIZE 65536
 #define XUDC_MAX_ISOCH_EPS 4
-#define XUDC_INTERRUPT_MODERATION_US 1000
+#define XUDC_INTERRUPT_MODERATION_US 100
 
 static struct usb_endpoint_descriptor tegra_xudc_ep0_desc = {
 	.bLength = USB_DT_ENDPOINT_SIZE,
