@@ -1510,7 +1510,7 @@ static int tegra_xhci_unpowergate(struct tegra_xhci_hcd *tegra)
 	clk_prepare_enable(tegra->hs_src_clk);
 	ret = regulator_bulk_enable(tegra->soc->num_supplies, tegra->supplies);
 	if (ret < 0)
-		return ret;
+		goto unlock;
 
 	for (i = 0; i < ARRAY_SIZE(tegra->phys); i++)
 		for (j = 0; j < tegra->soc->num_phys[i]; j++)
