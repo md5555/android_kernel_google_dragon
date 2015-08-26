@@ -40,8 +40,24 @@ int host1x_channel_list_init(struct host1x *host)
 int host1x_job_submit(struct host1x_job *job)
 {
 	struct host1x *host = dev_get_drvdata(job->channel->dev->parent);
+	int i;
+	int err;
 
-	return host1x_hw_channel_submit(host, job);
+	for (i = 0; i < job->num_syncpts; i++) {
+		err = host1x_module_busy(job->channel->dev);
+		if (err < 0)
+			goto error;
+	}
+
+	err = host1x_hw_channel_submit(host, job);
+	if (err)
+		goto error;
+
+	return 0;
+
+error:
+	host1x_module_idle_mult(job->channel->dev, i);
+	return err;
 }
 EXPORT_SYMBOL(host1x_job_submit);
 

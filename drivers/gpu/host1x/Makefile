@@ -1,4 +1,5 @@
 host1x-y = \
+	acm.o \
 	bus.o \
 	syncpt.o \
 	dev.o \

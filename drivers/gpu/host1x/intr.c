@@ -110,8 +110,12 @@ static void reset_threshold_interrupt(struct host1x *host,
 static void action_submit_complete(struct host1x_waitlist *waiter)
 {
 	struct host1x_channel *channel = waiter->data;
+	int nr_completed;
+
+	nr_completed = waiter->count;
 
 	host1x_cdma_update(&channel->cdma);
+	host1x_module_idle_mult(channel->dev, nr_completed);
 
 	/*  Add nr_completed to trace */
 	trace_host1x_channel_submit_complete(dev_name(channel->dev),
