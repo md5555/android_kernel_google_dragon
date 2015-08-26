@@ -29,6 +29,12 @@
 		clock-names = "clk_out_3";
 		cam2-gpios = <&gpio FCAM_RSTN GPIO_ACTIVE_HIGH>;
 	};
+
+	ad5823@c {
+		compatible = "adi,ad5823";
+		reg = <0xc>;
+		vdd-supply = <&pp2800l_fcam>;
+	};
 };
 
 / {
@@ -40,6 +46,9 @@
 				orientation = "0";
 				drivernode0 {
 					pcl_id = "s_IMX219";
+				};
+				drivernode1 {
+					pcl_id = "f_AD5823";
 				};
 			};
 
