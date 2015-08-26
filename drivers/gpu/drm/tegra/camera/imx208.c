@@ -35,6 +35,8 @@
 #include <linux/of_device.h>
 #include <linux/of_gpio.h>
 
+#include <soc/tegra/sysedp.h>
+
 #define IMX208_TABLE_WAIT_MS		0
 #define IMX208_TABLE_END		1
 #define IMX208_MAX_RETRIES		3
@@ -123,6 +125,7 @@ struct imx208_info {
 	struct regmap			*regmap;
 	atomic_t			in_use;
 	bool				powered_on;
+	struct sysedp_consumer		*sysedpc;
 };
 
 static const struct regmap_config sensor_regmap_config = {
@@ -503,10 +506,15 @@ static long imx208_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 	switch (cmd) {
 	case IMX208_IOCTL_SET_POWER:
-		if (arg)
+		if (arg) {
+			if (info->sysedpc)
+				sysedp_set_state(info->sysedpc, 1);
 			err = imx208_power_on(&info->power);
-		else
+		} else {
 			err = imx208_power_off(&info->power);
+			if (info->sysedpc)
+				sysedp_set_state(info->sysedpc, 0);
+		}
 		break;
 	case IMX208_IOCTL_SET_MODE:
 	{
@@ -700,6 +708,12 @@ imx208_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		return err;
 	}
 
+	info->sysedpc = sysedp_create_consumer(client->dev.of_node,
+						client->dev.of_node->name);
+	if (IS_ERR_OR_NULL(info->sysedpc))
+		dev_warn(&info->i2c_client->dev,
+			 "%s: Create sysedp consumer failed!\n", __func__);
+
 	dev_info(&info->i2c_client->dev, "[IMX208]: end of probing sensor.\n");
 	return 0;
 
@@ -709,6 +723,7 @@ static int imx208_remove(struct i2c_client *client)
 {
 	struct imx208_info *info = i2c_get_clientdata(client);
 
+	sysedp_free_consumer(info->sysedpc);
 	misc_deregister(&info->miscdev_info);
 	return 0;
 }
