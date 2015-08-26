@@ -212,7 +212,7 @@ static PVRSRV_ERROR PMRFinalizeDmaBuf(PMR_IMPL_PRIVDATA pvPriv)
 		void *pvKernAddr;
 		int i, err;
 
-		err = dma_buf_begin_cpu_access(psDmaBuf, 0, psDmaBuf->size, DMA_FROM_DEVICE);
+		err = dma_buf_begin_cpu_access(psDmaBuf, DMA_FROM_DEVICE);
 		if (err)
 		{
 			PVR_DPF((PVR_DBG_ERROR, "%s: Failed to begin cpu access for free poisoning", __func__));
@@ -236,7 +236,7 @@ static PVRSRV_ERROR PMRFinalizeDmaBuf(PMR_IMPL_PRIVDATA pvPriv)
 		}
 
 exit_end_access:
-		dma_buf_end_cpu_access(psDmaBuf, 0, psDmaBuf->size, DMA_TO_DEVICE);
+		dma_buf_end_cpu_access(psDmaBuf, DMA_TO_DEVICE);
 	}
 
 exit:
@@ -385,7 +385,7 @@ PMRAcquireKernelMappingDataDmaBuf(PMR_IMPL_PRIVDATA pvPriv,
 	PVRSRV_ERROR eError;
 	int err;
 
-	err = dma_buf_begin_cpu_access(psDmaBuf, 0, psDmaBuf->size, DMA_BIDIRECTIONAL);
+	err = dma_buf_begin_cpu_access(psDmaBuf, DMA_BIDIRECTIONAL);
 	if (err)
 	{
 		eError = PVRSRV_ERROR_PMR_NO_KERNEL_MAPPING;
@@ -405,7 +405,7 @@ PMRAcquireKernelMappingDataDmaBuf(PMR_IMPL_PRIVDATA pvPriv,
 	return PVRSRV_OK;
 
 fail_kmap:
-	dma_buf_end_cpu_access(psDmaBuf, 0, psDmaBuf->size, DMA_BIDIRECTIONAL);
+	dma_buf_end_cpu_access(psDmaBuf, DMA_BIDIRECTIONAL);
 
 fail:
 	PVR_ASSERT(eError != PVRSRV_OK);
@@ -421,7 +421,7 @@ static void PMRReleaseKernelMappingDataDmaBuf(PMR_IMPL_PRIVDATA pvPriv,
 
 	dma_buf_vunmap(psDmaBuf, pvKernAddr);
 
-	dma_buf_end_cpu_access(psDmaBuf, 0, psDmaBuf->size, DMA_BIDIRECTIONAL);
+	dma_buf_end_cpu_access(psDmaBuf, DMA_BIDIRECTIONAL);
 }
 
 static PVRSRV_ERROR PMRMMapDmaBuf(PMR_IMPL_PRIVDATA pvPriv,
@@ -526,10 +526,7 @@ PhysmemCreateNewDmaBufBackedPMR(PHYS_HEAP *psHeap,
 		void *pvKernAddr;
 		int i, err;
 
-		err = dma_buf_begin_cpu_access(psDmaBuf,
-					       0,
-					       psDmaBuf->size,
-					       DMA_FROM_DEVICE);
+		err = dma_buf_begin_cpu_access(psDmaBuf, DMA_FROM_DEVICE);
 		if (err)
 		{
 			eError = PVRSRV_ERROR_PMR_NO_KERNEL_MAPPING;
@@ -547,10 +544,7 @@ PhysmemCreateNewDmaBufBackedPMR(PHYS_HEAP *psHeap,
 					 bZeroOnAlloc ? "zeroing" : "poisoning"));
 				eError = PVRSRV_ERROR_PMR_NO_KERNEL_MAPPING;
 
-				dma_buf_end_cpu_access(psDmaBuf,
-						       0,
-						       psDmaBuf->size,
-						       DMA_TO_DEVICE);
+				dma_buf_end_cpu_access(psDmaBuf, DMA_TO_DEVICE);
 
 				goto fail_kmap;
 			}
@@ -567,10 +561,7 @@ PhysmemCreateNewDmaBufBackedPMR(PHYS_HEAP *psHeap,
 			dma_buf_kunmap(psDmaBuf, i, pvKernAddr);
 		}
 
-		dma_buf_end_cpu_access(psDmaBuf,
-				       0,
-				       psDmaBuf->size,
-				       DMA_TO_DEVICE);
+		dma_buf_end_cpu_access(psDmaBuf, DMA_TO_DEVICE);
 	}
 
 	uiPMRFlags = (PMR_FLAGS_T)(uiFlags & PVRSRV_MEMALLOCFLAGS_PMRFLAGSMASK);
