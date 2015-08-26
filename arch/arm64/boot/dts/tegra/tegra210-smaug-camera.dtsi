@@ -6,7 +6,7 @@
 #define CAM_AF_PWDN	TEGRA_GPIO(S, 5)
 
 &vii2c {
-	imx219@10 {
+	imx219: imx219@10 {
 		compatible = "sony,imx219";
 		reg = <0x10>;
 		vana-supply = <&pp2800l_rcam>;
@@ -17,7 +17,7 @@
 		reset-gpios = <&gpio RCAM_RSTN GPIO_ACTIVE_HIGH>;
 	};
 
-	imx208@37 {
+	imx208: imx208@37 {
 		compatible = "sony,imx208";
 		reg = <0x37>;
 		vana-supply = <&pp2800l_rcam>;
