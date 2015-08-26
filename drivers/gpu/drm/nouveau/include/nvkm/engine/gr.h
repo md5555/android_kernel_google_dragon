@@ -29,6 +29,7 @@ struct nvkm_gr {
 	/* Returns chipset-specific counts of units packed into an u64.
 	 */
 	u64 (*units)(struct nvkm_gr *);
+	int (*wait_idle)(struct nvkm_gr *);
 };
 
 static inline struct nvkm_gr *

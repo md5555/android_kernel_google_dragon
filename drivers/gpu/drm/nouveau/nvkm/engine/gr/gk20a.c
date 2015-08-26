@@ -42,6 +42,14 @@ gk20a_gr_sclass[] = {
 #define FECS_CUR_CTX_VALID              0x40000000
 #define FECS_CUR_CTX_TARGET_VIDMEM      0x20000000
 
+static int
+gk20a_gr_engine_wait_idle(struct nvkm_gr *gr)
+{
+	struct gf100_gr_priv *priv = (void *)gr;
+
+	return gf100_gr_wait_idle(priv);
+}
+
 static u32 gk20a_ctx_check_opcode(u32 opc, u32 reg, u32 value,
 						u32 return_on_match, u32 check)
 {
@@ -488,6 +496,7 @@ gk20a_gr_init(struct nvkm_object *object)
 {
 	struct gk20a_gr_oclass *oclass = (void *)object->oclass;
 	struct gf100_gr_priv *priv = (void *)object;
+	struct nvkm_gr *gr = nvkm_gr((void *)object);
 	const u32 magicgpc918 = DIV_ROUND_UP(0x00800000, priv->tpc_total);
 	u32 data[TPC_MAX / 8] = {};
 	u8  tpcnr[GPC_MAX];
@@ -502,6 +511,8 @@ gk20a_gr_init(struct nvkm_object *object)
 	nv_wr32(priv, 0x40802c, 0x1);
 
 	gf100_gr_mmio(priv, priv->fuc_sw_nonctx);
+
+	gr->wait_idle = gk20a_gr_engine_wait_idle;
 
 	ret = gk20a_gr_wait_mem_scrubbing(priv);
 	if (ret)

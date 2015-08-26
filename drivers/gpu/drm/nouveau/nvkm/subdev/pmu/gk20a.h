@@ -271,6 +271,12 @@ struct pmu_perfmon_cmd {
 	};
 };
 
+struct pmu_zbc_cmd {
+	u8 cmd_type;
+	u8 pad;
+	u16 entry_mask;
+};
+
 /*
  * Struct to contain PMU init msg format.
  * This is the structure used by PMU firmware
@@ -477,6 +483,7 @@ struct pmu_acr_cmd {
  * perfmon - Perfmon cmd i.e It's a cmd used to start/init Perfmon TASK in PMU.
  * acr     - ACR command type
  * pg      - Powergating command type
+ * zbc     - ZBC command type
  *
  * NOTE:
  * More type of commands (structs) can be added to this generic struct.
@@ -489,6 +496,7 @@ struct pmu_cmd {
 		struct pmu_perfmon_cmd perfmon;
 		struct pmu_acr_cmd acr;
 		struct pmu_pg_cmd pg;
+		struct pmu_zbc_cmd zbc;
 	} cmd;
 };
 

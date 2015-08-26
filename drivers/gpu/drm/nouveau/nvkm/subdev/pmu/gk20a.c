@@ -24,6 +24,7 @@
 #include "gk20a.h"
 #include <core/client.h>
 #include <core/gpuobj.h>
+#include <engine/gr.h>
 #include <subdev/bar.h>
 #include <subdev/fb.h>
 #include <subdev/mc.h>
@@ -35,6 +36,7 @@
 #include <linux/delay.h>
 #include <linux/firmware.h>
 #include <subdev/clk.h>
+#include <subdev/ltc.h>
 #include <subdev/timer.h>
 #include <subdev/volt.h>
 
@@ -63,6 +65,8 @@
 		(((id) < PMU_UNIT_END) || ((id) >= PMU_UNIT_TEST_START))
 #define PMU_DMEM_ALIGNMENT		(4)
 #define PMU_DMEM_ALLOC_ALIGNMENT	(32)
+
+#define ZBC_MASK(i)			(~(~(0) << ((i) + 1)) & 0xfffe)
 
 #define GK20A_PMU_UCODE_IMAGE	"gpmu_ucode.bin"
 
@@ -1662,6 +1666,34 @@ gk20a_pmu_handle_pg_buf_config_msg(struct nvkm_pmu *pmu,
 		gk20a_pmu_setup_hw(priv);
 }
 
+static void
+gk20a_pmu_handle_zbc_msg(struct nvkm_pmu *pmu, struct pmu_msg *msg,
+					    void *param, u32 handle, u32 status)
+{
+	nv_debug(pmu, "reply ZBC_TABLE_UPDATE\n");
+}
+
+static void
+gk20a_pmu_save_zbc(struct nvkm_pmu *pmu, u32 entries)
+{
+	struct gk20a_pmu_priv *priv = to_gk20a_priv(pmu);
+	struct pmu_cmd cmd;
+	u32 seq;
+
+	if (!priv->pmu_ready || !entries)
+		return;
+
+	memset(&cmd, 0, sizeof(struct pmu_cmd));
+	cmd.hdr.unit_id = PMU_UNIT_PG;
+	cmd.hdr.size = PMU_CMD_HDR_SIZE + sizeof(struct pmu_zbc_cmd);
+	cmd.cmd.zbc.cmd_type = PMU_PG_CMD_ID_ZBC_TABLE_UPDATE;
+	cmd.cmd.zbc.entry_mask = ZBC_MASK(entries);
+
+	nv_debug(pmu, "cmd post ZBC_TABLE_UPDATE enteries = %d\n", entries);
+	gk20a_pmu_cmd_post(pmu, &cmd, NULL, NULL, PMU_COMMAND_QUEUE_HPQ,
+			   gk20a_pmu_handle_zbc_msg, priv, &seq, ~0);
+}
+
 static int
 gk20a_init_pmu_bind_fecs(struct nvkm_pmu *pmu)
 {
@@ -1718,6 +1750,27 @@ gk20a_pmu_setup_hw_load_zbc(struct nvkm_pmu *pmu)
 	gk20a_pmu_cmd_post(pmu, &cmd, NULL, NULL, PMU_COMMAND_QUEUE_LPQ,
 			gk20a_pmu_handle_pg_buf_config_msg, priv, &desc, ~0);
 	priv->pmu_state = PMU_STATE_LOADING_ZBC;
+}
+
+static void
+gk20a_pmu_setup_hw_enable_elpg(struct nvkm_pmu *pmu)
+{
+	struct gk20a_pmu_priv *priv = to_gk20a_priv(pmu);
+	struct nvkm_gr *gr = nvkm_gr((void *)pmu);
+	struct nvkm_ltc *ltc = nvkm_ltc(priv);
+	int ret;
+
+	priv->initialized = true;
+	priv->pmu_state = PMU_STATE_STARTED;
+
+	if (gr->wait_idle) {
+		ret = gr->wait_idle(gr);
+		if (ret)
+			nv_error(pmu, "gr_wait_idle failed\n");
+	}
+
+	/* Save zbc table after PMU is initialized */
+	gk20a_pmu_save_zbc(pmu, ltc->zbc_max);
 }
 
 static int
@@ -1813,6 +1866,7 @@ gk20a_pmu_setup_hw(struct gk20a_pmu_priv *priv)
 		gk20a_pmu_setup_hw_load_zbc(pmu);
 		break;
 	case PMU_STATE_LOADING_ZBC:
+		gk20a_pmu_setup_hw_enable_elpg(pmu);
 		nv_debug(pmu, "loaded zbc\n");
 		break;
 	case PMU_STATE_STARTED:
