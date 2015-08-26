@@ -399,13 +399,14 @@ static int tegra_xhci_load_firmware(struct tegra_xhci_hcd *tegra)
 	csb_writel(tegra, 0, XUSB_FALC_DMACTL);
 
 	/* Wait for DMA to complete. */
-	timeout = jiffies + msecs_to_jiffies(10);
-	while (time_before(jiffies, timeout)) {
+	timeout = jiffies + msecs_to_jiffies(50);
+	do {
 		if (csb_readl(tegra, XUSB_CSB_MEMPOOL_L2IMEMOP_RESULT) &
 		    XUSB_CSB_MEMPOOL_L2IMEMOP_RESULT_VLD)
 			break;
 		usleep_range(100, 200);
-	}
+	} while (time_before(jiffies, timeout));
+
 	if (time_after_eq(jiffies, timeout)) {
 		dev_err(dev, "DMA timed out, status: %#x\n",
 			csb_readl(tegra, XUSB_CSB_MEMPOOL_L2IMEMOP_RESULT));
