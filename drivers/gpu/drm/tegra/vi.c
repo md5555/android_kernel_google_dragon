@@ -277,8 +277,6 @@ static int vi_open_channel(struct tegra_drm_client *client,
 {
 	struct vi *vi = to_vi(client);
 
-	pm_runtime_get_sync(vi->dev);
-
 	context->channel = host1x_channel_get(vi->channel);
 	if (!context->channel)
 		return -ENOMEM;
@@ -288,16 +286,11 @@ static int vi_open_channel(struct tegra_drm_client *client,
 
 static void vi_close_channel(struct tegra_drm_context *context)
 {
-	struct vi *vi = to_vi(context->client);
-
 	if (!context->channel)
 		return;
 
 	host1x_channel_put(context->channel);
 	context->channel = NULL;
-
-	pm_runtime_mark_last_busy(vi->dev);
-	pm_runtime_put_autosuspend(vi->dev);
 }
 
 static int vi_is_addr_reg(struct device *dev, u32 class, u32 offset)

@@ -186,8 +186,6 @@ static int isp_open_channel(struct tegra_drm_client *client,
 {
 	struct isp *isp = to_isp(client);
 
-	pm_runtime_get_sync(isp->dev);
-
 	context->channel = host1x_channel_get(isp->channel);
 	if (!context->channel)
 		return -ENOMEM;
@@ -197,16 +195,11 @@ static int isp_open_channel(struct tegra_drm_client *client,
 
 static void isp_close_channel(struct tegra_drm_context *context)
 {
-	struct isp *isp = to_isp(context->client);
-
 	if (!context->channel)
 		return;
 
 	host1x_channel_put(context->channel);
 	context->channel = NULL;
-
-	pm_runtime_mark_last_busy(isp->dev);
-	pm_runtime_put_autosuspend(isp->dev);
 }
 
 static int isp_is_addr_reg(struct device *dev, u32 class, u32 offset)

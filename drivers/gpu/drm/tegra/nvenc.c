@@ -249,31 +249,31 @@ static int nvenc_open_channel(struct tegra_drm_client *client,
 	struct nvenc *nvenc = to_nvenc(client);
 	int err;
 
-	pm_runtime_get_sync(nvenc->dev);
-
-	err = falcon_boot(&nvenc->falcon, nvenc->config->ucode_name);
+	err = host1x_module_busy(nvenc->dev);
 	if (err)
 		return err;
 
+	err = falcon_boot(&nvenc->falcon, nvenc->config->ucode_name);
+	if (err)
+		goto done;
+
 	context->channel = host1x_channel_get(nvenc->channel);
 	if (!context->channel)
-		return -ENOMEM;
+		err = -ENOMEM;
 
-	return 0;
+done:
+	host1x_module_idle(nvenc->dev);
+
+	return err;
 }
 
 static void nvenc_close_channel(struct tegra_drm_context *context)
 {
-	struct nvenc *nvenc = to_nvenc(context->client);
-
 	if (!context->channel)
 		return;
 
 	host1x_channel_put(context->channel);
 	context->channel = NULL;
-
-	pm_runtime_mark_last_busy(nvenc->dev);
-	pm_runtime_put_autosuspend(nvenc->dev);
 }
 
 static int nvenc_is_addr_reg(struct device *dev, u32 class, u32 offset)
@@ -473,8 +473,16 @@ static int __maybe_unused nvenc_runtime_suspend(struct device *dev)
 
 static int __maybe_unused nvenc_runtime_resume(struct device *dev)
 {
+	struct nvenc *nvenc = dev_get_drvdata(dev);
+	int err;
+
 	dev_info(dev, "%s\n", __func__);
-	return nvenc_power_on(dev);
+
+	err = nvenc_power_on(dev);
+	if (err)
+		return err;
+
+	return falcon_boot(&nvenc->falcon, nvenc->config->ucode_name);
 }
 
 static int __maybe_unused nvenc_suspend(struct device *dev)
