@@ -1,1 +1,2 @@
 obj-$(CONFIG_DRM_TEGRA_CAMERA_IMX219)     += imx219.o
+obj-$(CONFIG_DRM_TEGRA_CAMERA_IMX208)     += imx208.o
