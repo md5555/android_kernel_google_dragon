@@ -504,6 +504,9 @@
 		reg = <0x1e>;
 		interrupt-parent = <&gpio>;
 		interrupts = <TEGRA_GPIO(Z, 1) IRQ_TYPE_LEVEL_LOW>;
+		wakeup-source;
+		nvidia,pmc-wakeup = <&pmc
+				PMC_WAKE_TYPE_EVENT 35 PMC_TRIGGER_TYPE_LOW>;
 
 		ec_i2c_0: i2c-tunnel {
 			compatible = "google,cros-ec-i2c-tunnel";
