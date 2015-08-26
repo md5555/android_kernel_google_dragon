@@ -881,7 +881,7 @@
 
 		bl-name = "lp8557-backlight";
 		dev-ctrl = /bits/ 8 <0x02>;
-		init-brt = /bits/ 8 <0xFF>;
+		init-brt = /bits/ 8 <0x55>;
 
 		/* Full scale current, 20mA */
 		rom_11h {
