@@ -35,6 +35,8 @@
 #include <linux/of_device.h>
 #include <linux/of_gpio.h>
 
+#include <soc/tegra/sysedp.h>
+
 #include "imx219_tables.h"
 
 #define MCLK_INIT_RATE 24000000
@@ -55,6 +57,7 @@ struct imx219_info {
 	struct i2c_client		*i2c_client;
 	atomic_t			in_use;
 	bool				powered_on;
+	struct sysedp_consumer		*sysedpc;
 #ifdef CONFIG_DEBUG_FS
 	struct dentry			*debugfs_root;
 	u32				debug_i2c_offset;
@@ -490,10 +493,15 @@ imx219_ioctl(struct file *file,
 
 	switch (cmd) {
 	case IMX219_IOCTL_SET_POWER:
-		if (arg)
+		if (arg) {
+			if (info->sysedpc)
+				sysedp_set_state(info->sysedpc, 1);
 			err = imx219_power_on(info);
-		else
+		} else {
 			err = imx219_power_off(info);
+			if (info->sysedpc)
+				sysedp_set_state(info->sysedpc, 0);
+		}
 		if (err) {
 
 			dev_err(&info->i2c_client->dev,
@@ -723,6 +731,11 @@ imx219_probe(struct i2c_client *client, const struct i2c_device_id *id)
 			"%s:Unable to register misc device!\n", __func__);
 		return err;
 	}
+	info->sysedpc = sysedp_create_consumer(np, np->name);
+	if (IS_ERR_OR_NULL(info->sysedpc))
+		dev_warn(&info->i2c_client->dev,
+			 "%s: Create sysedp consumer failed!\n", __func__);
+
 	return 0;
 }
 
@@ -731,6 +744,7 @@ imx219_remove(struct i2c_client *client)
 {
 	struct imx219_info *info = i2c_get_clientdata(client);
 
+	sysedp_free_consumer(info->sysedpc);
 	misc_deregister(&info->miscdev_info);
 	return 0;
 }
