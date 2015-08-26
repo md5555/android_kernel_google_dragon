@@ -850,6 +850,149 @@
 					 <&tegra_car TEGRA210_CLK_ISP>,
 					 <&tegra_car TEGRA210_CLK_VI_I2C>;
 				reset-names = "vi", "csi", "isp", "vi-i2c";
+				swgroups = <&mc TEGRA_SWGROUP_VI>,
+					   <&mc TEGRA_SWGROUP_ISP2>;
+				swgroup-names = "vi", "isp2";
+				power-partitions = <&pg_sor>;
+			};
+
+			pcie {
+				clocks = <&tegra_car TEGRA210_CLK_AFI>,
+					 <&tegra_car TEGRA210_CLK_PCIE>,
+					 <&tegra_car TEGRA210_CLK_CML0>;
+				clock-names = "afi", "pcie", "cml0";
+				resets = <&tegra_car TEGRA210_CLK_AFI>,
+					 <&tegra_car TEGRA210_CLK_PCIE>;
+				reset-names = "afi", "pcie";
+				swgroups = <&mc TEGRA_SWGROUP_AFI>;
+				swgroup-names = "afi";
+			};
+
+			mpe {
+				clocks = <&tegra_car TEGRA210_CLK_NVENC>;
+				clock-names = "msenc";
+				resets = <&tegra_car TEGRA210_CLK_NVENC>;
+				reset-names = "msenc";
+				swgroups = <&mc TEGRA_SWGROUP_NVENC>;
+				swgroup-names = "nvenc";
+			};
+
+			sata {
+				clocks = <&tegra_car TEGRA210_CLK_SATA_OOB>,
+					 <&tegra_car TEGRA210_CLK_CML1>,
+					 <&tegra_car TEGRA210_CLK_SATA>;
+				clock-names = "sata_oob", "cml1", "sata";
+				resets = <&tegra_car TEGRA210_CLK_SATA_OOB>,
+					 <&tegra_car TEGRA210_CLK_SATA>;
+				reset-names = "sata_oob", "sata";
+				swgroups = <&mc TEGRA_SWGROUP_SATA>;
+				swgroup-names = "sata";
+			};
+
+			pg_sor: sor {
+				clocks = <&tegra_car TEGRA210_CLK_SOR0>,
+					 <&tegra_car TEGRA210_CLK_DSIA>,
+					 <&tegra_car TEGRA210_CLK_DSIB>,
+					 <&tegra_car TEGRA210_CLK_MIPI_CAL>,
+					 <&tegra_car TEGRA210_CLK_DPAUX>;
+				clock-names = "sor0", "dsia", "dsib", "mipi_cal", "dpaux";
+				resets = <&tegra_car TEGRA210_CLK_SOR0>,
+					 <&tegra_car TEGRA210_CLK_DSIA>,
+					 <&tegra_car TEGRA210_CLK_DSIB>,
+					 <&tegra_car TEGRA210_CLK_SOR1>,
+					 <&tegra_car TEGRA210_CLK_MIPI_CAL>;
+				reset-names = "sor0", "dsia", "dsib", "sor1", "mipi_cal";
+			};
+
+			dis {
+				clocks = <&tegra_car TEGRA210_CLK_DISP1>;
+				clock-names = "disp1";
+				resets = <&tegra_car TEGRA210_CLK_DISP1>;
+				reset-names = "disp1";
+				swgroups = <&mc TEGRA_SWGROUP_DC>;
+				swgroup-names = "dc";
+				power-partitions = <&pg_sor>;
+			};
+
+			disb {
+				clocks = <&tegra_car TEGRA210_CLK_DISP2>;
+				clock-names = "disp2";
+				resets = <&tegra_car TEGRA210_CLK_DISP2>;
+				reset-names = "disp2";
+				swgroups = <&mc TEGRA_SWGROUP_DCB>;
+				swgroup-names = "dcb";
+				power-partitions = <&pg_sor>;
+			};
+
+			xusba {
+				clocks = <&tegra_car TEGRA210_CLK_XUSB_SS>;
+				clock-names = "xusb_ss";
+				resets = <&tegra_car TEGRA210_CLK_XUSB_SS>;
+				reset-names = "xusb_ss";
+			};
+
+			xusbb {
+				clocks = <&tegra_car TEGRA210_CLK_XUSB_DEV>;
+				clock-names = "xusb_dev";
+				resets = <&tegra_car 95>;
+				reset-names = "xusb_dev";
+				swgroups = <&mc TEGRA_SWGROUP_XUSB_DEV>;
+				swgroup-names = "xusb_dev";
+			};
+
+			xusbc {
+				clocks = <&tegra_car TEGRA210_CLK_XUSB_HOST>;
+				clock-names = "xusb_host";
+				resets = <&tegra_car TEGRA210_CLK_XUSB_HOST>;
+				reset-names = "xusb_host";
+				swgroups = <&mc TEGRA_SWGROUP_XUSB_HOST>;
+				swgroup-names = "xusb_host";
+			};
+
+			vic {
+				clocks = <&tegra_car TEGRA210_CLK_VIC03>;
+				clock-names = "vic03";
+				resets = <&tegra_car TEGRA210_CLK_VIC03>;
+				reset-names = "vic03";
+				swgroups = <&mc TEGRA_SWGROUP_VIC>;
+				swgroup-names = "vic";
+			};
+
+			nvdec {
+				clocks = <&tegra_car TEGRA210_CLK_NVDEC>;
+				clock-names = "nvdec";
+				resets = <&tegra_car TEGRA210_CLK_NVDEC>;
+				reset-names = "nvdec";
+				swgroups = <&mc TEGRA_SWGROUP_NVDEC>;
+				swgroup-names = "nvdec";
+				power-partitions = <&pg_nvjpg>;
+			};
+
+			pg_nvjpg: nvjpg {
+				clocks = <&tegra_car TEGRA210_CLK_NVJPG>;
+				clock-names = "nvjpg";
+				resets = <&tegra_car TEGRA210_CLK_NVJPG>;
+				reset-names = "nvjpg";
+				swgroups = <&mc TEGRA_SWGROUP_NVJPG>;
+				swgroup-names = "nvjpg";
+			};
+
+			aud {
+				clocks = <&tegra_car TEGRA210_CLK_APE>;
+				clock-names = "ape";
+				resets = <&tegra_car TEGRA210_CLK_APE>;
+				reset-names = "ape";
+				swgroups = <&mc TEGRA_SWGROUP_APE>;
+				swgroup-names = "ape";
+			};
+
+			ve2 {
+				clocks = <&tegra_car TEGRA210_CLK_ISPB>;
+				clock-names = "ispb";
+				resets = <&tegra_car TEGRA210_CLK_ISPB>;
+				reset-names = "ispb";
+				swgroups = <&mc TEGRA_SWGROUP_ISP2B>;
+				swgroup-names = "isp2b";
 			};
 		};
 	};
