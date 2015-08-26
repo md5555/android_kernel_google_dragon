@@ -18,6 +18,17 @@
 		af-gpios = <&gpio CAM_AF_PWDN GPIO_ACTIVE_HIGH>;
 		reset-gpios = <&gpio RCAM_RSTN GPIO_ACTIVE_HIGH>;
 	};
+
+	imx208@37 {
+		compatible = "sony,imx208";
+		reg = <0x37>;
+		vana-supply = <&pp2800l_rcam>;
+		vdig-supply = <&pp1200_rcam>;
+		vif-supply = <&pp1800_cam>;
+		clocks = <&tegra_car TEGRA210_CLK_CLK_OUT_3>;
+		clock-names = "clk_out_3";
+		cam2-gpios = <&gpio FCAM_RSTN GPIO_ACTIVE_HIGH>;
+	};
 };
 
 / {
@@ -29,6 +40,15 @@
 				orientation = "0";
 				drivernode0 {
 					pcl_id = "s_IMX219";
+				};
+			};
+
+			module1{
+				badge = "A44_front_4BF215T1";
+				position = "front";
+				orientation = "0";
+				drivernode0 {
+					pcl_id = "s_IMX208";
 				};
 			};
 		};

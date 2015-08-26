@@ -1,0 +1,22 @@
+Sony Camera sensor imx208 driver interface
+
+Required properties:
+- compatible: Value should be "sony,imx208"
+- reg: Should contain I2C slave address of the driver.
+- vana-supply: Analog power supply 2.8v
+- vdig-supply: Digital power supply 1.2v
+- vif-supply: Digital IO power supply 1.8v
+- clocks: 24MHz mclk for sensor
+- cam2-gpios: Senor reset pin
+
+Example:
+	imx208@37 {
+		compatible = "sony,imx208";
+		reg = <0x37>;
+		vana-supply = <&pp2800l_rcam>;
+		vdig-supply = <&pp1200_rcam>;
+		vif-supply = <&pp1800_cam>;
+		clocks = <&tegra_car TEGRA210_CLK_CLK_OUT_3>;
+		clock-names = "clk_out_3";
+		cam2-gpios = <&gpio FCAM_RSTN GPIO_ACTIVE_HIGH>;
+	};
