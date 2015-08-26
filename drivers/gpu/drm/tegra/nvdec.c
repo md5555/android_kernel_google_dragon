@@ -262,31 +262,31 @@ static int nvdec_open_channel(struct tegra_drm_client *client,
 	struct nvdec *nvdec = to_nvdec(client);
 	int err;
 
-	pm_runtime_get_sync(nvdec->dev);
+	err = host1x_module_busy(nvdec->dev);
+	if (err < 0)
+		return err;
 
 	err = falcon_boot(&nvdec->falcon, nvdec->config->ucode_name);
 	if (err)
-		return err;
+		goto done;
 
 	context->channel = host1x_channel_get(nvdec->channel);
 	if (!context->channel)
-		return -ENOMEM;
+		err = -ENOMEM;
 
-	return 0;
+done:
+	host1x_module_idle(nvdec->dev);
+
+	return err;
 }
 
 static void nvdec_close_channel(struct tegra_drm_context *context)
 {
-	struct nvdec *nvdec = to_nvdec(context->client);
-
 	if (!context->channel)
 		return;
 
 	host1x_channel_put(context->channel);
 	context->channel = NULL;
-
-	pm_runtime_mark_last_busy(nvdec->dev);
-	pm_runtime_put_autosuspend(nvdec->dev);
 }
 
 static int nvdec_is_addr_reg(struct device *dev, u32 class, u32 offset)
@@ -495,8 +495,16 @@ static int __maybe_unused nvdec_runtime_suspend(struct device *dev)
 
 static int __maybe_unused nvdec_runtime_resume(struct device *dev)
 {
+	struct nvdec *nvdec = dev_get_drvdata(dev);
+	int err;
+
 	dev_info(dev, "%s\n", __func__);
-	return nvdec_power_on(dev);
+
+	err = nvdec_power_on(dev);
+	if (err)
+		return err;
+
+	return falcon_boot(&nvdec->falcon, nvdec->config->ucode_name);
 }
 
 static int __maybe_unused nvdec_suspend(struct device *dev)

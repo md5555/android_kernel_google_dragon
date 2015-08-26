@@ -176,31 +176,31 @@ static int nvjpg_open_channel(struct tegra_drm_client *client,
 	struct nvjpg *nvjpg = to_nvjpg(client);
 	int err;
 
-	pm_runtime_get_sync(nvjpg->dev);
+	err = host1x_module_busy(nvjpg->dev);
+	if (err < 0)
+		return err;
 
 	err = falcon_boot(&nvjpg->falcon, nvjpg->config->ucode_name);
 	if (err)
-		return err;
+		goto done;
 
 	context->channel = host1x_channel_get(nvjpg->channel);
 	if (!context->channel)
-		return -ENOMEM;
+		err = -ENOMEM;
+
+done:
+	host1x_module_idle(nvjpg->dev);
 
 	return 0;
 }
 
 static void nvjpg_close_channel(struct tegra_drm_context *context)
 {
-	struct nvjpg *nvjpg = to_nvjpg(context->client);
-
 	if (!context->channel)
 		return;
 
 	host1x_channel_put(context->channel);
 	context->channel = NULL;
-
-	pm_runtime_mark_last_busy(nvjpg->dev);
-	pm_runtime_put_autosuspend(nvjpg->dev);
 }
 
 static int nvjpg_is_addr_reg(struct device *dev, u32 class, u32 offset)
@@ -389,8 +389,16 @@ static int __maybe_unused nvjpg_runtime_suspend(struct device *dev)
 
 static int __maybe_unused nvjpg_runtime_resume(struct device *dev)
 {
+	struct nvjpg *nvjpg = dev_get_drvdata(dev);
+	int err;
+
 	dev_info(dev, "%s\n", __func__);
-	return nvjpg_power_on(dev);
+
+	err = nvjpg_power_on(dev);
+	if (err)
+		return err;
+
+	return falcon_boot(&nvjpg->falcon, nvjpg->config->ucode_name);
 }
 
 static int __maybe_unused nvjpg_suspend(struct device *dev)
