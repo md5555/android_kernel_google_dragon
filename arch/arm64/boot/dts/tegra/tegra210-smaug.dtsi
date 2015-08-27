@@ -1005,6 +1005,14 @@
 			nvidia,reg-addr = <0x16>, <0x1b>;
 			nvidia,reg-data = <0x20>, <0x20>;
 		};
+		command-block-1 {
+			nvidia,i2c-controller-id = <4>;
+			nvidia,pinmux-id = <0>;
+			nvidia,bus-addr = <0x68>;
+			/* Set RTCSECA2 to 0x1 to indicate a warm boot */
+			nvidia,reg-addr = <0x15>, <0x04>;
+			nvidia,reg-data = <0x01>, <0x0b>;
+		};
 	};
 };
 
