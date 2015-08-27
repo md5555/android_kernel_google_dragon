@@ -322,27 +322,6 @@ static int wifi_plat_dev_drv_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static int wifi_plat_dev_drv_suspend(struct platform_device *pdev, pm_message_t state)
-{
-	DHD_TRACE(("##> %s\n", __FUNCTION__));
-#if (LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 39)) && defined(OOB_INTR_ONLY) && \
-	defined(BCMSDIO)
-	bcmsdh_oob_intr_set(0);
-#endif /* (OOB_INTR_ONLY) */
-	return 0;
-}
-
-static int wifi_plat_dev_drv_resume(struct platform_device *pdev)
-{
-	DHD_TRACE(("##> %s\n", __FUNCTION__));
-#if (LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 39)) && defined(OOB_INTR_ONLY) && \
-	defined(BCMSDIO)
-	if (dhd_os_check_if_up(wl_cfg80211_get_dhdp()))
-		bcmsdh_oob_intr_set(1);
-#endif /* (OOB_INTR_ONLY) */
-	return 0;
-}
-
 static const struct platform_device_id wifi_platform_ids[] = {
 	{ WIFI_PLAT_NAME, 1 },
 	{ WIFI_PLAT_NAME2, 1 },
@@ -353,8 +332,6 @@ static const struct platform_device_id wifi_platform_ids[] = {
 static struct platform_driver wifi_platform_dev_driver = {
 	.probe          = wifi_plat_dev_drv_probe,
 	.remove         = wifi_plat_dev_drv_remove,
-	.suspend        = wifi_plat_dev_drv_suspend,
-	.resume         = wifi_plat_dev_drv_resume,
 	.driver         = {
 		.name   = WIFI_PLAT_NAME,
 #if defined(DHD_OF_SUPPORT)
