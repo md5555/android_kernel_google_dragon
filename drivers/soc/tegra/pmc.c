@@ -313,6 +313,13 @@
 #define PMC_FUSE_CTRL_PS18_LATCH_SET    (1 << 8)
 #define PMC_FUSE_CTRL_PS18_LATCH_CLEAR  (1 << 9)
 
+#define PMC_SCRATCH202				0x848
+#define  PMC_SCRATCH202_BOOTREASON_REBOOT	0x1
+#define  PMC_SCRATCH202_BOOTREASON_PANIC	0x2
+#define  PMC_SCRATCH202_BOOTREASON_WATCHDOG	0x3
+#define  PMC_SCRATCH202_BOOTREASON_THERMAL	0x4
+#define  PMC_SCRATCH202_BOOTREASON_MASK		0x7
+
 #define PMC_SCRATCH250				0x908
 #define  PMC_SCRATCH250_RETRIES_SHIFT		0
 #define  PMC_SCRATCH250_TRANSFER_DELAY_SHIFT	3
@@ -2695,6 +2702,40 @@ static struct platform_driver tegra_pmc_driver = {
 };
 module_platform_driver(tegra_pmc_driver);
 
+static int tegra_pmc_reboot_notifier(struct notifier_block *nb,
+				     unsigned long action, void *data)
+{
+	u32 value;
+
+	value = tegra_pmc_readl(PMC_SCRATCH202);
+	value &= ~PMC_SCRATCH202_BOOTREASON_MASK;
+	value |= PMC_SCRATCH202_BOOTREASON_REBOOT;
+	tegra_pmc_writel(value, PMC_SCRATCH202);
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block tegra_pmc_reboot_nb = {
+	.notifier_call = tegra_pmc_reboot_notifier,
+};
+
+static int tegra_pmc_panic_notifier(struct notifier_block *nb,
+				     unsigned long action, void *data)
+{
+	u32 value;
+
+	value = tegra_pmc_readl(PMC_SCRATCH202);
+	value &= ~PMC_SCRATCH202_BOOTREASON_MASK;
+	value |= PMC_SCRATCH202_BOOTREASON_PANIC;
+	tegra_pmc_writel(value, PMC_SCRATCH202);
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block tegra_pmc_panic_nb = {
+	.notifier_call = tegra_pmc_panic_notifier,
+};
+
 static int tegra_powergate_add_clock(struct tegra_powergate *pg,
 				     struct clk *clk)
 {
@@ -2881,6 +2922,10 @@ static int __init tegra_pmc_early_init(void)
 	tegra_lp0_wakeup.of_node = np;
 	INIT_LIST_HEAD(&tegra_lp0_wakeup.wake_list);
 #endif
+
+	register_reboot_notifier(&tegra_pmc_reboot_nb);
+	atomic_notifier_chain_register(&panic_notifier_list,
+				       &tegra_pmc_panic_nb);
 
 	return 0;
 }
