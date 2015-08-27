@@ -272,47 +272,25 @@ static int wifi_plat_dev_drv_probe(struct platform_device *pdev)
 		dhd_wifi_platdata = pdev->dev.platform_data;
 	}
 
+	platform_set_drvdata(pdev, adapter);
 	return dhd_wifi_platform_load();
 }
 
 static int wifi_plat_dev_drv_remove(struct platform_device *pdev)
 {
-	const struct platform_device_id *pdev_id = platform_get_device_id(pdev);
-	wifi_adapter_info_t *adapter;
+	wifi_adapter_info_t *adapter = platform_get_drvdata(pdev);
 
 	ASSERT(dhd_wifi_platdata != NULL);
 
-	if (pdev_id && pdev_id->driver_data) {
-		/* Android style wifi platform data device ("bcmdhd_wlan" or "bcm4329_wlan")
-		 * is kept for backward compatibility and supports only 1 adapter
-		 */
-		ASSERT(dhd_wifi_platdata->num_adapters == 1);
-		adapter = &dhd_wifi_platdata->adapters[0];
-		if (adapter->powered_on) {
+	if (adapter->powered_on) {
 #ifdef BCMPCIE
-			wifi_platform_bus_enumerate(adapter, FALSE);
-			OSL_SLEEP(100);
-			wifi_platform_set_power(adapter, FALSE, WIFI_TURNOFF_DELAY);
+		wifi_platform_bus_enumerate(adapter, FALSE);
+		OSL_SLEEP(100);
+		wifi_platform_set_power(adapter, FALSE, WIFI_TURNOFF_DELAY);
 #else
-			wifi_platform_set_power(adapter, FALSE, WIFI_TURNOFF_DELAY);
-			wifi_platform_bus_enumerate(adapter, FALSE);
+		wifi_platform_set_power(adapter, FALSE, WIFI_TURNOFF_DELAY);
+		wifi_platform_bus_enumerate(adapter, FALSE);
 #endif /* BCMPCIE */
-		}
-	} else {
-		/*
-		 * XXX: dtor: this is of course wrong way of doing this
-		 * as we should handle device one by one, I'll fix it
-		 * later.
-		 */
-		int i;
-
-		/* power down all adapters */
-		for (i = 0; i < dhd_wifi_platdata->num_adapters; i++) {
-			adapter = &dhd_wifi_platdata->adapters[i];
-			wifi_platform_set_power(adapter, FALSE, WIFI_TURNOFF_DELAY);
-			wifi_platform_bus_enumerate(adapter, FALSE);
-		}
-
 	}
 
 	return 0;
