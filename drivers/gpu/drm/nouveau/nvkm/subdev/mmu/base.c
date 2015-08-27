@@ -162,10 +162,15 @@ nvkm_vm_map_sg_table_with_iommu(struct nvkm_vma *vma, u64 delta, u64 length,
 	u64 iova;
 	dma_addr_t *addr_list, *list;
 
-	vma->iommu_mapping = mmu->map_sg_iommu(mmu, mem->sg, length, &iova);
-	if (IS_ERR(vma->iommu_mapping)) {
-		vma->iommu_mapping = NULL;
-		return;
+	if (likely(!vma->iommu_mapping)) {
+		vma->iommu_mapping = mmu->map_sg_iommu(mmu, mem->sg, length, &iova);
+		if (IS_ERR(vma->iommu_mapping)) {
+			vma->iommu_mapping = NULL;
+			return;
+		}
+		vma->iommu_iova = iova;
+	} else {
+		iova = vma->iommu_iova;
 	}
 
 	addr_list = kmalloc(sizeof(dma_addr_t) * num, GFP_KERNEL);

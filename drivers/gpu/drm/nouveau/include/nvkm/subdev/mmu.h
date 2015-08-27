@@ -53,6 +53,7 @@ struct nvkm_vma {
 	u64 offset;
 	u32 access;
 	void *iommu_mapping;
+	u64 iommu_iova;
 
 	struct nvkm_as *as;
 };
