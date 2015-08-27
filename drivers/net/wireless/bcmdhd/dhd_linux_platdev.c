@@ -44,7 +44,6 @@
 bool cfg_multichip = FALSE;
 bcmdhd_wifi_platdata_t *dhd_wifi_platdata = NULL;
 static int wifi_plat_dev_probe_ret = 0;
-static bool is_power_on = FALSE;
 #if defined(DHD_OF_SUPPORT)
 static bool dts_enabled = TRUE;
 extern struct resource dhd_wlan_resources;
@@ -157,10 +156,7 @@ int wifi_platform_set_power(wifi_adapter_info_t *adapter, bool on, unsigned long
 	if (msec && !err)
 		OSL_SLEEP(msec);
 
-	if (on && !err)
-		is_power_on = TRUE;
-	else
-		is_power_on = FALSE;
+	adapter->powered_on = on && !err;
 
 	return err;
 }
@@ -283,6 +279,7 @@ static int wifi_plat_dev_drv_remove(struct platform_device *pdev)
 {
 	const struct platform_device_id *pdev_id = platform_get_device_id(pdev);
 	wifi_adapter_info_t *adapter;
+
 	ASSERT(dhd_wifi_platdata != NULL);
 
 	if (pdev_id && pdev_id->driver_data) {
@@ -291,7 +288,7 @@ static int wifi_plat_dev_drv_remove(struct platform_device *pdev)
 		 */
 		ASSERT(dhd_wifi_platdata->num_adapters == 1);
 		adapter = &dhd_wifi_platdata->adapters[0];
-		if (is_power_on) {
+		if (adapter->powered_on) {
 #ifdef BCMPCIE
 			wifi_platform_bus_enumerate(adapter, FALSE);
 			OSL_SLEEP(100);
@@ -421,7 +418,6 @@ static int wifi_ctrlfunc_register_drv(void)
 		adapter->bus_num = -1;
 		adapter->slot_num = -1;
 		adapter->irq_num = -1;
-		is_power_on = FALSE;
 		wifi_plat_dev_probe_ret = 0;
 		dhd_wifi_platdata = kzalloc(sizeof(bcmdhd_wifi_platdata_t), GFP_KERNEL);
 		dhd_wifi_platdata->num_adapters = 1;
@@ -455,7 +451,7 @@ void wifi_ctrlfunc_unregister_drv(void)
 	if (dts_enabled) {
 		wifi_adapter_info_t *adapter;
 		adapter = &dhd_wifi_platdata->adapters[0];
-		if (is_power_on) {
+		if (adapter->powered_on) {
 			wifi_platform_set_power(adapter, FALSE, WIFI_TURNOFF_DELAY);
 			wifi_platform_bus_enumerate(adapter, FALSE);
 		}
