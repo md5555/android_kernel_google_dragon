@@ -27,7 +27,7 @@
 
 #include <linux/kernel.h>
 #include <linux/init.h>
-#include <linux/platform_device.h>
+#include <linux/of_device.h>
 #include <linux/delay.h>
 #include <linux/err.h>
 #include <linux/gpio.h>
@@ -56,9 +56,6 @@
 #define DHD_DT_COMPAT_ENTRY	"android,bcmdhd_wlan"
 
 #define BCM_DBG pr_debug
-
-static int gpio_wl_reg_on = -1;
-static int brcm_wake_irq = -1;
 
 #if !defined(CONFIG_WIFI_CONTROL_FUNC)
 #define WLAN_PLAT_NODFS_FLAG	0x01
@@ -301,61 +298,45 @@ err_skb_alloc:
 }
 #endif /* CONFIG_DHD_USE_STATIC_BUF */
 
-int dhd_wifi_init_gpio(void)
+struct wifi_dt_platform_data {
+	struct wifi_platform_data ctrl_ops;
+	const struct country_tables *country_tables;
+	struct device *dev;
+	int gpio_reg_on;
+	int gpio_host_wake;
+	int wake_irq;
+};
+
+static int dhd_wlan_power(struct wifi_platform_data *pdata, int on)
 {
-	int wl_reg_on;
-	int wl_host_wake;
-	struct device_node *np;
+	struct wifi_dt_platform_data *dt_pdata =
+		container_of(pdata, struct wifi_dt_platform_data, ctrl_ops);
+	struct device *dev = dt_pdata->dev;
+	int error;
 
-	np = of_find_compatible_node(NULL, NULL, DHD_DT_COMPAT_ENTRY);
-	if (!np) {
-		pr_warn("%s: BRCM WLAN mode not found\n", __func__);
-		return -ENODEV;
-	}
-
-	/* get wlan_reg_on */
-	wl_reg_on = of_get_named_gpio(np, "wl_reg_on", 0);
-	if (wl_reg_on >= 0) {
-		gpio_wl_reg_on = wl_reg_on;
-		BCM_DBG("%s: gpio_wl_reg_on:%d.\n", __FUNCTION__, gpio_wl_reg_on);
-	}
-
-	/* get host_wake irq */
-	wl_host_wake = of_get_named_gpio(np, "wl_host_wake", 0);
-	if (wl_host_wake >= 0) {
-		BCM_DBG("%s: wl_host_wake:%d.\n", __FUNCTION__, wl_host_wake);
-		brcm_wake_irq = gpio_to_irq(wl_host_wake);
-	}
-
-	if (gpio_request(gpio_wl_reg_on, "WL_REG_ON"))
-		pr_err("%s: Faiiled to request gpio %d for WL_REG_ON\n",
-			__func__, gpio_wl_reg_on);
-	else
-		pr_err("%s: gpio_request WL_REG_ON done\n", __func__);
-
-	return 0;
-}
-
-int dhd_wlan_power(struct wifi_platform_data *pdata, int on)
-{
-	pr_info("%s Enter: power %s\n", __func__, on ? "on" : "off");
+	dev_info(dev, "%s Enter: power %s\n", __func__, on ? "on" : "off");
 
 	if (on) {
-		if (gpio_direction_output(gpio_wl_reg_on, 1)) {
-			pr_err("%s: WL_REG_ON didn't output high\n", __func__);
-			return -EIO;
+		error = gpio_direction_output(dt_pdata->gpio_reg_on, 1);
+		if (error) {
+			dev_err(dev, "%s: WL_REG_ON didn't output high: %d\n",
+				__func__, error);
+			return error;
 		}
-		if (!gpio_get_value(gpio_wl_reg_on))
-			pr_err("[%s] gpio didn't set high.\n", __func__);
+
+		if (!gpio_get_value(dt_pdata->gpio_reg_on))
+			dev_err(dev, "[%s] gpio didn't set high.\n", __func__);
 	} else {
-		if (gpio_direction_output(gpio_wl_reg_on, 0)) {
-			pr_err("%s: WL_REG_ON didn't output low\n", __func__);
-			return -EIO;
+		error = gpio_direction_output(dt_pdata->gpio_reg_on, 0);
+		if (error) {
+			dev_err(dev, "%s: WL_REG_ON didn't output low: %d\n",
+				__func__, error);
+			return error;
 		}
 	}
+
 	return 0;
 }
-EXPORT_SYMBOL(dhd_wlan_power);
 
 static int dhd_wlan_reset(struct wifi_platform_data *pdata, int onoff)
 {
@@ -392,11 +373,11 @@ struct country_tables {
 static struct cntry_locales_custom bcm4354_sdio_translate_sta_dfs_table[] = {
 /* Table should be filled out based on custom platform regulatory requirement */
 	{"",   "XZ", 11},  /* Universal if Country code is unknown or empty */
-	{"US", "US", 0},
+	{"US", "Q1", 961},
 	{"AE", "AE", 1},
 	{"AR", "AR", 21},
 	{"AT", "AT", 4},
-	{"AU", "AU", 6},
+	{"AU", "E0", 944},
 	{"BE", "BE", 4},
 	{"BG", "BG", 4},
 	{"BN", "BN", 4},
@@ -405,13 +386,13 @@ static struct cntry_locales_custom bcm4354_sdio_translate_sta_dfs_table[] = {
 	{"CH", "CH", 4},
 	{"CY", "CY", 4},
 	{"CZ", "CZ", 4},
-	{"DE", "DE", 7},
+	{"DE", "E0", 944},
 	{"DK", "DK", 4},
 	{"EE", "EE", 4},
 	{"ES", "ES", 4},
 	{"FI", "FI", 4},
 	{"FR", "FR", 5},
-	{"GB", "GB", 6},
+	{"GB", "E0", 944},
 	{"GR", "GR", 4},
 	{"HK", "HK", 2},
 	{"HR", "HR", 4},
@@ -450,13 +431,13 @@ static struct cntry_locales_custom bcm4354_sdio_translate_sta_dfs_table[] = {
 	{"TR", "TR", 7},
 	{"TW", "TW", 1},
 	{"VN", "VN", 4},
-	{"IR", "XZ", 11},
-	{"SD", "XZ", 11},
-	{"SY", "XZ", 11},
-	{"GL", "XZ", 11},
-	{"PS", "XZ", 11},
-	{"TL", "XZ", 11},
-	{"MH", "XZ", 11},
+	{"IR", "XZ", 11},	/* Universal if Country code is IRAN, (ISLAMIC REPUBLIC OF) */
+	{"SD", "XZ", 11},	/* Universal if Country code is SUDAN */
+	{"SY", "XZ", 11},	/* Universal if Country code is SYRIAN ARAB REPUBLIC */
+	{"GL", "XZ", 11},	/* Universal if Country code is GREENLAND */
+	{"PS", "XZ", 11},	/* Universal if Country code is PALESTINIAN TERRITORIES */
+	{"TL", "XZ", 11},	/* Universal if Country code is TIMOR-LESTE (EAST TIMOR) */
+	{"MH", "XZ", 11},	/* Universal if Country code is MARSHALL ISLANDS */
 };
 
 static struct cntry_locales_custom bcm4354_sdio_translate_sta_nodfs_table[] = {
@@ -522,6 +503,19 @@ static struct cntry_locales_custom bcm4354_sdio_translate_sta_nodfs_table[] = {
 	{"TR", "E0", 26},
 	{"TW", "TW", 60},
 	{"ZA", "E0", 26},
+};
+
+static struct cntry_locales_custom bcm4354_sdio_translate_ap_table[] = {
+	{"", "XT", 993},
+};
+
+static struct country_tables bcm4354_sdio_country_tables = {
+	.sta_dfs_table = bcm4354_sdio_translate_sta_dfs_table,
+	.sta_dfs_size = ARRAY_SIZE(bcm4354_sdio_translate_sta_dfs_table),
+	.sta_nodfs_table = bcm4354_sdio_translate_sta_nodfs_table,
+	.sta_nodfs_size = ARRAY_SIZE(bcm4354_sdio_translate_sta_nodfs_table),
+	.ap_table = bcm4354_sdio_translate_ap_table,
+	.ap_size = ARRAY_SIZE(bcm4354_sdio_translate_ap_table),
 };
 
 static struct cntry_locales_custom bcm4356_pcie_translate_sta_dfs_table[] = {
@@ -639,6 +633,15 @@ static struct cntry_locales_custom bcm4356_pcie_translate_sta_nodfs_table[] = {
 
 static struct cntry_locales_custom bcm4356_pcie_translate_ap_table[] = {
 	{"JP", "JP", 991},
+};
+
+static struct country_tables bcm4356_pcie_country_tables = {
+	.sta_dfs_table = bcm4356_pcie_translate_sta_dfs_table,
+	.sta_dfs_size = ARRAY_SIZE(bcm4356_pcie_translate_sta_dfs_table),
+	.sta_nodfs_table = bcm4356_pcie_translate_sta_nodfs_table,
+	.sta_nodfs_size = ARRAY_SIZE(bcm4356_pcie_translate_sta_nodfs_table),
+	.ap_table = bcm4356_pcie_translate_ap_table,
+	.ap_size = ARRAY_SIZE(bcm4356_pcie_translate_ap_table),
 };
 
 static struct cntry_locales_custom bcm4358_pcie_translate_sta_dfs_table[] = {
@@ -775,7 +778,7 @@ static struct cntry_locales_custom bcm4358_pcie_translate_ap_table[] = {
 	{"JP", "JP", 988},
 };
 
-static struct country_tables dhd_country_tables = {
+static struct country_tables bcm4358_pcie_country_tables = {
 	.sta_dfs_table = bcm4358_pcie_translate_sta_dfs_table,
 	.sta_dfs_size = ARRAY_SIZE(bcm4358_pcie_translate_sta_dfs_table),
 	.sta_nodfs_table = bcm4358_pcie_translate_sta_nodfs_table,
@@ -787,6 +790,8 @@ static struct country_tables dhd_country_tables = {
 static void *dhd_wlan_get_country_code(struct wifi_platform_data *pdata,
 				       char *ccode, u32 flags)
 {
+	struct wifi_dt_platform_data *dt_pdata =
+		container_of(pdata, struct wifi_dt_platform_data, ctrl_ops);
 	struct cntry_locales_custom *locales;
 	int size;
 	int i;
@@ -795,67 +800,21 @@ static void *dhd_wlan_get_country_code(struct wifi_platform_data *pdata,
 		return NULL;
 
 	if (flags & WLAN_PLAT_AP_FLAG) {
-		locales = dhd_country_tables.ap_table;
-		size = dhd_country_tables.ap_size;
-		for (i = 0; i < size; i++)
-			if (strcmp(ccode, locales[i].iso_abbrev) == 0)
-				return &locales[i];
-	}
-
-	if (flags & WLAN_PLAT_NODFS_FLAG) {
-		locales = dhd_country_tables.sta_nodfs_table;
-		size = dhd_country_tables.sta_nodfs_size;
+		locales = dt_pdata->country_tables->ap_table;
+		size = dt_pdata->country_tables->ap_size;
+	} else if (flags & WLAN_PLAT_NODFS_FLAG) {
+		locales = dt_pdata->country_tables->sta_nodfs_table;
+		size = dt_pdata->country_tables->sta_nodfs_size;
 	} else {
-		locales = dhd_country_tables.sta_dfs_table;
-		size = dhd_country_tables.sta_dfs_size;
+		locales = dt_pdata->country_tables->sta_dfs_table;
+		size = dt_pdata->country_tables->sta_dfs_size;
 	}
 
 	for (i = 0; i < size; i++)
 		if (strcmp(ccode, locales[i].iso_abbrev) == 0)
 			return &locales[i];
+
 	return &locales[0];
-}
-
-static int dhd_wifi_init_country(void)
-{
-	struct device_node *np;
-	const char *chip_name;
-
-	np = of_find_compatible_node(NULL, NULL, DHD_DT_COMPAT_ENTRY);
-	if (!np) {
-		pr_warn("%s: BRCM WLAN node not found\n", __func__);
-		return -ENODEV;
-	}
-	if (of_property_read_string(np, "wl_chip", &chip_name)) {
-		pr_warn("%s: BRCM WLAN chip name not found\n", __func__);
-		return -ENODEV;
-	}
-	if (strcmp(chip_name, "bcm4354_sdio") == 0) {
-		dhd_country_tables.sta_dfs_table =
-			bcm4354_sdio_translate_sta_dfs_table;
-		dhd_country_tables.sta_dfs_size =
-			ARRAY_SIZE(bcm4354_sdio_translate_sta_dfs_table);
-		dhd_country_tables.sta_nodfs_table =
-			bcm4354_sdio_translate_sta_nodfs_table;
-		dhd_country_tables.sta_nodfs_size =
-			ARRAY_SIZE(bcm4354_sdio_translate_sta_nodfs_table);
-		dhd_country_tables.ap_table = NULL;
-		dhd_country_tables.ap_size = 0;
-	} else if (strcmp(chip_name, "bcm4356_pcie") == 0) {
-		dhd_country_tables.sta_dfs_table =
-			bcm4356_pcie_translate_sta_dfs_table;
-		dhd_country_tables.sta_dfs_size =
-			ARRAY_SIZE(bcm4356_pcie_translate_sta_dfs_table);
-		dhd_country_tables.sta_nodfs_table =
-			bcm4356_pcie_translate_sta_nodfs_table;
-		dhd_country_tables.sta_nodfs_size =
-			ARRAY_SIZE(bcm4356_pcie_translate_sta_nodfs_table);
-		dhd_country_tables.ap_table =
-			bcm4356_pcie_translate_ap_table;
-		dhd_country_tables.ap_size =
-			ARRAY_SIZE(bcm4356_pcie_translate_ap_table);
-	}
-	return 0;
 }
 
 static unsigned char brcm_mac_addr[IFHWADDRLEN] = { 0, 0x90, 0x4c, 0, 0, 0 };
@@ -919,22 +878,13 @@ static int dhd_wifi_get_mac_addr(struct wifi_platform_data *pdata,
 
 static int dhd_wlan_get_wake_irq(struct wifi_platform_data *pdata)
 {
-	return brcm_wake_irq;
+	struct wifi_dt_platform_data *dt_pdata =
+		container_of(pdata, struct wifi_dt_platform_data, ctrl_ops);
+
+	return dt_pdata->wake_irq;
 }
 
-struct resource dhd_wlan_resources[] = {
-	[0] = {
-		.name	= "bcmdhd_wlan_irq",
-		.start	= 0, /* Dummy */
-		.end	= 0, /* Dummy */
-		.flags	= IORESOURCE_IRQ | IORESOURCE_IRQ_SHAREABLE
-			| IORESOURCE_IRQ_HIGHLEVEL, /* Dummy */
-	},
-};
-EXPORT_SYMBOL(dhd_wlan_resources);
-
-
-struct wifi_platform_data dhd_wlan_control = {
+static const struct wifi_platform_data dhd_wlan_control = {
 	.set_power	= dhd_wlan_power,
 	.set_reset	= dhd_wlan_reset,
 	.set_carddetect	= dhd_wlan_set_carddetect,
@@ -945,22 +895,76 @@ struct wifi_platform_data dhd_wlan_control = {
 	.get_wake_irq	= dhd_wlan_get_wake_irq,
 	.get_country_code = dhd_wlan_get_country_code,
 };
-EXPORT_SYMBOL(dhd_wlan_control);
+
+const struct of_device_id wifi_dt_ids[] = {
+	{ .compatible = "bcm,bcm4354", .data = &bcm4354_sdio_country_tables },
+	{ .compatible = "bcm,bcm4356", .data = &bcm4356_pcie_country_tables },
+	{ .compatible = "bcm,bcm4358", .data = &bcm4358_pcie_country_tables },
+	{ /* sentinel */ }
+};
+
+struct wifi_platform_data *wifi_plat_dev_parse_dt(struct device *dev)
+{
+	struct device_node *np = dev->of_node;
+	const struct of_device_id *of_id;
+	struct wifi_dt_platform_data *pdata;
+	int error;
+
+	of_id = of_match_device(dev->driver->of_match_table, dev);
+	if (!of_id)
+		return ERR_PTR(-ENXIO);
+
+	pdata = devm_kzalloc(dev, sizeof(*pdata), GFP_KERNEL);
+	if (!pdata)
+		return ERR_PTR(-ENOMEM);
+
+	pdata->ctrl_ops = dhd_wlan_control;
+	pdata->country_tables = of_id->data;
+	pdata->dev = dev;
+
+	pdata->gpio_reg_on = of_get_named_gpio(np, "wl_reg_on", 0);
+	if (gpio_is_valid(pdata->gpio_reg_on))
+		dev_dbg(dev, "%s: gpio_wl_reg_on: %d\n",
+			__func__, pdata->gpio_reg_on);
+
+	/* get host_wake irq */
+	pdata->gpio_host_wake = of_get_named_gpio(np, "wl_host_wake", 0);
+	if (gpio_is_valid(pdata->gpio_host_wake)) {
+		dev_dbg(dev, "%s: wl_host_wake: %d\n",
+			__func__, pdata->gpio_host_wake);
+		pdata->wake_irq = gpio_to_irq(pdata->gpio_host_wake);
+	}
+
+	error = gpio_request(pdata->gpio_reg_on, "WL_REG_ON");
+	if (error)
+		dev_err(dev,
+			"%s: failed to request gpio %d for WL_REG_ON: %d\n",
+			__func__, pdata->gpio_reg_on, error);
+	else
+		dev_info(dev, "%s: gpio_request WL_REG_ON done\n", __func__);
+
+	error = gpio_direction_output(pdata->gpio_reg_on, 1);
+	if (error)
+		dev_err(dev, "%s: WL_REG_ON failed to pull up: %d\n",
+			__func__, error);
+	else
+		dev_dbg(dev, "%s: WL_REG_ON is pulled up\n", __func__);
+
+	dev_dbg(dev, "%s: Initial WL_REG_ON: [%d]\n",
+		__func__, gpio_get_value(pdata->gpio_reg_on));
+
+	return &pdata->ctrl_ops;
+}
 
 int __init dhd_wlan_init(void)
 {
-	int ret;
+	int ret = 0;
 
 	printk(KERN_INFO "%s: START\n", __FUNCTION__);
 
 #ifdef CONFIG_DHD_USE_STATIC_BUF
 	ret = dhd_init_wlan_mem();
 #endif
-
-	dhd_wifi_init_country();
-	ret = dhd_wifi_init_gpio();
-	dhd_wlan_resources[0].start = dhd_wlan_resources[0].end =
-		brcm_wake_irq;
 
 	return ret;
 }

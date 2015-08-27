@@ -43,15 +43,12 @@
 
 bool cfg_multichip = FALSE;
 bcmdhd_wifi_platdata_t *dhd_wifi_platdata = NULL;
-static int wifi_plat_dev_probe_ret = 0;
 #if defined(DHD_OF_SUPPORT)
 static bool dts_enabled = TRUE;
-extern struct resource dhd_wlan_resources;
-extern struct wifi_platform_data dhd_wlan_control;
+extern struct wifi_platform_data *wifi_plat_dev_parse_dt(struct device *);
+extern const struct of_device_id wifi_dt_ids[];
 #else
 static bool dts_enabled = FALSE;
-struct resource dhd_wlan_resources = {0};
-struct wifi_platform_data dhd_wlan_control = {0};
 #endif /* defined(DHD_OF_SUPPORT) */
 
 static int dhd_wifi_platform_load(void);
@@ -248,8 +245,9 @@ void *wifi_platform_get_country_code(wifi_adapter_info_t *adapter, char *ccode,
 static int wifi_plat_dev_drv_probe(struct platform_device *pdev)
 {
 	const struct platform_device_id *pdev_id = platform_get_device_id(pdev);
-	struct resource *resource;
+	struct resource *resource = NULL;
 	wifi_adapter_info_t *adapter;
+	int error;
 
 	adapter = devm_kzalloc(&pdev->dev, sizeof(wifi_adapter_info_t),
 				GFP_KERNEL);
@@ -262,7 +260,19 @@ static int wifi_plat_dev_drv_probe(struct platform_device *pdev)
 	adapter->slot_num = -1;
 	adapter->irq_num = -1;
 
-	if (pdev_id && pdev_id->driver_data) {
+#if defined(DHD_OF_SUPPORT)
+	adapter->wifi_plat_data = wifi_plat_dev_parse_dt(&pdev->dev);
+	error = PTR_ERR_OR_ZERO(adapter->wifi_plat_data);
+#else
+	error = -ENXIO;
+#endif
+
+	if (!error) {
+		/* Still one adapter for now */
+		dhd_wifi_platdata->adapters = adapter;
+	} else if (error != -ENXIO) {
+		return error;
+	} else if (pdev_id && pdev_id->driver_data) {
 		/* Android style wifi platform data device ("bcmdhd_wlan" or "bcm4329_wlan")
 		 * is kept for backward compatibility and supports only 1 adapter
 		 */
@@ -274,15 +284,18 @@ static int wifi_plat_dev_drv_probe(struct platform_device *pdev)
 		adapter->wifi_plat_data = pdev->dev.platform_data;
 
 		resource = platform_get_resource_byname(pdev, IORESOURCE_IRQ, "bcmdhd_wlan_irq");
-		if (resource == NULL)
+		if (!resource)
 			resource = platform_get_resource_byname(pdev, IORESOURCE_IRQ, "bcm4329_wlan_irq");
-		if (resource) {
-			adapter->irq_num = resource->start;
-			adapter->intr_flags = resource->flags & IRQF_TRIGGER_MASK;
-		}
 	} else {
-
 		dhd_wifi_platdata = pdev->dev.platform_data;
+	}
+
+	if (!resource)
+		resource = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
+
+	if (resource) {
+		adapter->irq_num = resource->start;
+		adapter->intr_flags = resource->flags & IRQF_TRIGGER_MASK;
 	}
 
 	platform_set_drvdata(pdev, adapter);
@@ -344,6 +357,9 @@ static struct platform_driver wifi_platform_dev_driver = {
 	.resume         = wifi_plat_dev_drv_resume,
 	.driver         = {
 		.name   = WIFI_PLAT_NAME,
+#if defined(DHD_OF_SUPPORT)
+		.of_match_table = wifi_dt_ids,
+#endif
 	},
 	.id_table	= wifi_platform_ids,
 };
@@ -365,7 +381,6 @@ static int wifi_ctrlfunc_register_drv(void)
 {
 	int err = 0;
 	struct device *dev;
-	wifi_adapter_info_t *adapter;
 	bool plat_dev_present;
 
 	/* XXX: dtor: this is stupid. Whatever. I'll fix it later */
@@ -413,41 +428,12 @@ static int wifi_ctrlfunc_register_drv(void)
 		return err;
 	}
 
-	if (dts_enabled) {
-		adapter = kzalloc(sizeof(wifi_adapter_info_t), GFP_KERNEL);
-		if (!adapter)
-			return -ENOMEM;
-
-		adapter->name = "DHD generic adapter";
-		adapter->bus_type = -1;
-		adapter->bus_num = -1;
-		adapter->slot_num = -1;
-		adapter->irq_num = dhd_wlan_resources.start;
-		adapter->intr_flags = dhd_wlan_resources.flags & IRQF_TRIGGER_MASK;
-		adapter->wifi_plat_data = (void *)&dhd_wlan_control;
-
-		dhd_wifi_platdata->adapters = adapter;
-
-		wifi_plat_dev_probe_ret = dhd_wifi_platform_load();
-	}
-
-	/* return probe function's return value if registeration succeeded */
-	return wifi_plat_dev_probe_ret;
+	return 0;
 }
 
 void wifi_ctrlfunc_unregister_drv(void)
 {
 	platform_driver_unregister(&wifi_platform_dev_driver);
-
-	if (dts_enabled) {
-		wifi_adapter_info_t *adapter = dhd_wifi_platdata->adapters;
-
-		if (adapter->powered_on) {
-			wifi_platform_set_power(adapter, FALSE, WIFI_TURNOFF_DELAY);
-			wifi_platform_bus_enumerate(adapter, FALSE);
-		}
-		kfree(adapter);
-	}
 
 	if (!cfg_multichip) {
 		kfree(dhd_wifi_platdata);
