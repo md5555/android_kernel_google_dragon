@@ -251,13 +251,26 @@ static int wifi_plat_dev_drv_probe(struct platform_device *pdev)
 	struct resource *resource;
 	wifi_adapter_info_t *adapter;
 
+	adapter = devm_kzalloc(&pdev->dev, sizeof(wifi_adapter_info_t),
+				GFP_KERNEL);
+	if (!adapter)
+		return -ENOMEM;
+
+	adapter->name = "DHD generic adapter";
+	adapter->bus_type = -1;
+	adapter->bus_num = -1;
+	adapter->slot_num = -1;
+	adapter->irq_num = -1;
+
 	if (pdev_id && pdev_id->driver_data) {
 		/* Android style wifi platform data device ("bcmdhd_wlan" or "bcm4329_wlan")
 		 * is kept for backward compatibility and supports only 1 adapter
 		 */
 		ASSERT(dhd_wifi_platdata != NULL);
 		ASSERT(dhd_wifi_platdata->num_adapters == 1);
-		adapter = &dhd_wifi_platdata->adapters[0];
+
+		dhd_wifi_platdata->adapters = adapter;
+
 		adapter->wifi_plat_data = pdev->dev.platform_data;
 
 		resource = platform_get_resource_byname(pdev, IORESOURCE_IRQ, "bcmdhd_wlan_irq");
@@ -389,17 +402,8 @@ static int wifi_ctrlfunc_register_drv(void)
 		 * DHD (either SDIO, USB or PCIe)
 		 */
 
-		/* XXX: dtor: this should be done in probe(), duh! */
-		adapter = kzalloc(sizeof(wifi_adapter_info_t), GFP_KERNEL);
-		adapter->name = "DHD generic adapter";
-		adapter->bus_type = -1;
-		adapter->bus_num = -1;
-		adapter->slot_num = -1;
-		adapter->irq_num = -1;
-		wifi_plat_dev_probe_ret = 0;
 		dhd_wifi_platdata = kzalloc(sizeof(bcmdhd_wifi_platdata_t), GFP_KERNEL);
 		dhd_wifi_platdata->num_adapters = 1;
-		dhd_wifi_platdata->adapters = adapter;
 	}
 
 	err = platform_driver_register(&wifi_platform_dev_driver);
@@ -410,11 +414,20 @@ static int wifi_ctrlfunc_register_drv(void)
 	}
 
 	if (dts_enabled) {
-		struct resource *resource;
+		adapter = kzalloc(sizeof(wifi_adapter_info_t), GFP_KERNEL);
+		if (!adapter)
+			return -ENOMEM;
+
+		adapter->name = "DHD generic adapter";
+		adapter->bus_type = -1;
+		adapter->bus_num = -1;
+		adapter->slot_num = -1;
+		adapter->irq_num = dhd_wlan_resources.start;
+		adapter->intr_flags = dhd_wlan_resources.flags & IRQF_TRIGGER_MASK;
 		adapter->wifi_plat_data = (void *)&dhd_wlan_control;
-		resource = &dhd_wlan_resources;
-		adapter->irq_num = resource->start;
-		adapter->intr_flags = resource->flags & IRQF_TRIGGER_MASK;
+
+		dhd_wifi_platdata->adapters = adapter;
+
 		wifi_plat_dev_probe_ret = dhd_wifi_platform_load();
 	}
 
@@ -427,19 +440,19 @@ void wifi_ctrlfunc_unregister_drv(void)
 	platform_driver_unregister(&wifi_platform_dev_driver);
 
 	if (dts_enabled) {
-		wifi_adapter_info_t *adapter;
-		adapter = &dhd_wifi_platdata->adapters[0];
+		wifi_adapter_info_t *adapter = dhd_wifi_platdata->adapters;
+
 		if (adapter->powered_on) {
 			wifi_platform_set_power(adapter, FALSE, WIFI_TURNOFF_DELAY);
 			wifi_platform_bus_enumerate(adapter, FALSE);
 		}
+		kfree(adapter);
 	}
 
-	kfree(dhd_wifi_platdata->adapters);
-	dhd_wifi_platdata->adapters = NULL;
-	dhd_wifi_platdata->num_adapters = 0;
-	kfree(dhd_wifi_platdata);
-	dhd_wifi_platdata = NULL;
+	if (!cfg_multichip) {
+		kfree(dhd_wifi_platdata);
+		dhd_wifi_platdata = NULL;
+	}
 }
 
 int dhd_wifi_platform_register_drv(void)
