@@ -93,7 +93,7 @@ void* wifi_platform_prealloc(wifi_adapter_info_t *adapter, int section, unsigned
 		return NULL;
 	plat_data = adapter->wifi_plat_data;
 	if (plat_data->mem_prealloc) {
-		alloc_ptr = plat_data->mem_prealloc(section, size);
+		alloc_ptr = plat_data->mem_prealloc(plat_data, section, size);
 		if (alloc_ptr) {
 			DHD_INFO(("success alloc section %d\n", section));
 			if (size != 0L)
@@ -151,7 +151,7 @@ int wifi_platform_set_power(wifi_adapter_info_t *adapter, bool on, unsigned long
 		}
 #endif /* ENABLE_4335BT_WAR */
 
-		err = plat_data->set_power(on);
+		err = plat_data->set_power(plat_data, on);
 	}
 
 	if (msec && !err)
@@ -176,7 +176,7 @@ int wifi_platform_bus_enumerate(wifi_adapter_info_t *adapter, bool device_presen
 
 	DHD_ERROR(("%s device present %d\n", __FUNCTION__, device_present));
 	if (plat_data->set_carddetect) {
-		err = plat_data->set_carddetect(device_present);
+		err = plat_data->set_carddetect(plat_data, device_present);
 	} else {
 #if defined(CONFIG_ARCH_MSM) && defined(BCMPCIE)
 		extern int msm_pcie_enumerate(u32 rc_idx);
@@ -195,7 +195,7 @@ int wifi_platform_get_wake_irq(wifi_adapter_info_t *adapter)
 		return -1;
 	plat_data = adapter->wifi_plat_data;
 	if (plat_data->get_wake_irq)
-		return plat_data->get_wake_irq();
+		return plat_data->get_wake_irq(plat_data);
 	return -1;
 }
 
@@ -224,7 +224,7 @@ int wifi_platform_get_mac_addr(wifi_adapter_info_t *adapter, unsigned char *buf)
 		return -EINVAL;
 	plat_data = adapter->wifi_plat_data;
 	if (plat_data->get_mac_addr) {
-		return plat_data->get_mac_addr(buf);
+		return plat_data->get_mac_addr(plat_data, buf);
 	}
 	return -EOPNOTSUPP;
 }
@@ -242,7 +242,7 @@ void *wifi_platform_get_country_code(wifi_adapter_info_t *adapter, char *ccode,
 
 	DHD_TRACE(("%s\n", __FUNCTION__));
 	if (plat_data->get_country_code) {
-		return plat_data->get_country_code(ccode, flags);
+		return plat_data->get_country_code(plat_data, ccode, flags);
 	}
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)) */
 

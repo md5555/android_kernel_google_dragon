@@ -30,11 +30,14 @@
 static void (*wifi_status_cb)(int card_present, void *dev_id);
 static void *wifi_status_cb_dev_id;
 
-static int dragon_wifi_reset(int on);
-static int dragon_wifi_power(int on);
-static int dragon_wifi_set_carddetect(int val);
-static int dragon_wifi_get_mac_addr(unsigned char *buf);
-static void *dragon_wifi_get_country_code(char *country_iso_code, u32 flags);
+static int dragon_wifi_reset(struct wifi_platform_data *pdata, int on);
+static int dragon_wifi_power(struct wifi_platform_data *pdata, int on);
+static int dragon_wifi_set_carddetect(struct wifi_platform_data *pdata,
+				      int val);
+static int dragon_wifi_get_mac_addr(struct wifi_platform_data *pdata,
+				    unsigned char *buf);
+static void *dragon_wifi_get_country_code(struct wifi_platform_data *pdata,
+					  char *country_iso_code, u32 flags);
 
 static int dragon_wlan_pwr = -1;
 
@@ -64,7 +67,7 @@ static struct platform_device dragon_wifi_device = {
 	},
 };
 
-static int dragon_wifi_set_carddetect(int val)
+static int dragon_wifi_set_carddetect(struct wifi_platform_data *pdata, int val)
 {
 	pr_debug("%s: %d\n", __func__, val);
 	if (wifi_status_cb)
@@ -74,7 +77,7 @@ static int dragon_wifi_set_carddetect(int val)
 	return 0;
 }
 
-static int dragon_wifi_power(int on)
+static int dragon_wifi_power(struct wifi_platform_data *pdata, int on)
 {
 	pr_info("%s: %d\n", __func__, on);
 
@@ -86,7 +89,7 @@ static int dragon_wifi_power(int on)
 	return 0;
 }
 
-static int dragon_wifi_reset(int on)
+static int dragon_wifi_reset(struct wifi_platform_data *pdata, int on)
 {
 	pr_debug("%s: do nothing\n", __func__);
 	return 0;
@@ -124,7 +127,8 @@ static int __init dragon_mac_addr_setup(char *str)
 
 __setup("androidboot.wifimacaddr=", dragon_mac_addr_setup);
 
-static int dragon_wifi_get_mac_addr(unsigned char *buf)
+static int dragon_wifi_get_mac_addr(struct wifi_platform_data *pdata,
+				    unsigned char *buf)
 {
 	uint rand_mac;
 
@@ -299,7 +303,8 @@ struct cntry_locales_custom country_code_nodfs_table[] = {
 	{"ZA", "E0", 26},
 };
 
-static void *dragon_wifi_get_country_code(char *country_iso_code, u32 flags)
+static void *dragon_wifi_get_country_code(struct wifi_platform_data *pdata,
+					  char *country_iso_code, u32 flags)
 {
 	struct cntry_locales_custom *locales;
 	int size, i;

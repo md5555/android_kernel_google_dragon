@@ -336,7 +336,7 @@ int dhd_wifi_init_gpio(void)
 	return 0;
 }
 
-int dhd_wlan_power(int on)
+int dhd_wlan_power(struct wifi_platform_data *pdata, int on)
 {
 	pr_info("%s Enter: power %s\n", __func__, on ? "on" : "off");
 
@@ -357,12 +357,12 @@ int dhd_wlan_power(int on)
 }
 EXPORT_SYMBOL(dhd_wlan_power);
 
-static int dhd_wlan_reset(int onoff)
+static int dhd_wlan_reset(struct wifi_platform_data *pdata, int onoff)
 {
 	return 0;
 }
 
-static int dhd_wlan_set_carddetect(int val)
+static int dhd_wlan_set_carddetect(struct wifi_platform_data *pdata, int val)
 {
 #if defined(CONFIG_BCMDHD_PCIE) && defined(CONFIG_ARCH_MSM) && defined(CONFIG_64BIT)
 	return msm_pcie_enumerate(1);
@@ -784,7 +784,8 @@ static struct country_tables dhd_country_tables = {
 	.ap_size = ARRAY_SIZE(bcm4358_pcie_translate_ap_table),
 };
 
-static void *dhd_wlan_get_country_code(char *ccode, u32 flags)
+static void *dhd_wlan_get_country_code(struct wifi_platform_data *pdata,
+				       char *ccode, u32 flags)
 {
 	struct cntry_locales_custom *locales;
 	int size;
@@ -897,7 +898,8 @@ static int __init dhd_mac_addr_setup(char *str)
 
 __setup("androidboot.wifimacaddr=", dhd_mac_addr_setup);
 
-static int dhd_wifi_get_mac_addr(unsigned char *buf)
+static int dhd_wifi_get_mac_addr(struct wifi_platform_data *pdata,
+				 unsigned char *buf)
 {
 	uint rand_mac;
 
@@ -915,7 +917,7 @@ static int dhd_wifi_get_mac_addr(unsigned char *buf)
 	return 0;
 }
 
-static int dhd_wlan_get_wake_irq(void)
+static int dhd_wlan_get_wake_irq(struct wifi_platform_data *pdata)
 {
 	return brcm_wake_irq;
 }
