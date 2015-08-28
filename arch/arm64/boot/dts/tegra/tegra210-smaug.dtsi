@@ -315,11 +315,7 @@
 		cpu {
 			trips {
 				balanced_cpu_trip0: balanced_cpu_trip {
-					/* TODO(bug#44169):
-					 * change back to 89degC once Tskin calibrated
-					 * and Tskin-throttle enabled
-					 */
-					temperature = <69000>;
+					temperature = <89000>;
 					hysteresis = <1000>;
 					type = "passive";
 				};
@@ -341,11 +337,7 @@
 		gpu {
 			trips {
 				balanced_gpu_trip0: balanced_gpu_trip {
-					/* TODO(bug#44169):
-					 * change back to 90degC once Tskin calibrated
-					 * and Tskin-throttle enabled
-					 */
-					temperature = <70000>;
+					temperature = <90000>;
 					hysteresis = <1000>;
 					type = "passive";
 				};
