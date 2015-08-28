@@ -24,10 +24,13 @@
 #include <linux/pm_runtime.h>
 #include <linux/reset.h>
 #include <soc/tegra/pmc.h>
+#include <soc/tegra/tegra_emc.h>
 #include <linux/iommu.h>
 
 #include "drm.h"
 #include "falcon.h"
+
+#define NVENC_MAX_CLK_RATE	716800000
 
 struct nvenc_config {
 	const char *ucode_name;
@@ -43,6 +46,8 @@ struct nvenc {
 	struct host1x_channel *channel;
 	struct device *dev;
 	struct clk *clk;
+	struct clk *cbus_clk;
+	struct clk *emc_clk;
 	struct reset_control *rst;
 
 	struct iommu_domain *domain;
@@ -70,6 +75,8 @@ static int nvenc_power_off(struct device *dev)
 		return err;
 
 	clk_disable_unprepare(nvenc->clk);
+	clk_disable_unprepare(nvenc->cbus_clk);
+	clk_disable_unprepare(nvenc->emc_clk);
 
 	return tegra_pmc_powergate(nvenc->config->powergate_id);
 }
@@ -83,14 +90,31 @@ static int nvenc_power_on(struct device *dev)
 	if (err)
 		return err;
 
+	err = clk_prepare_enable(nvenc->emc_clk);
+	if (err)
+		goto err_emc_clk;
+
+	err = clk_prepare_enable(nvenc->cbus_clk);
+	if (err)
+		goto err_cbus_clk;
+
 	err = tegra_pmc_unpowergate(nvenc->config->powergate_id);
 	if (err)
-		return err;
+		goto err_unpowergate;
 
 	err = clk_prepare_enable(nvenc->clk);
 	if (err)
-		tegra_pmc_powergate(nvenc->config->powergate_id);
+		goto err_nvenc_clk;
+	return err;
 
+err_nvenc_clk:
+	tegra_pmc_powergate(nvenc->config->powergate_id);
+err_unpowergate:
+	clk_disable_unprepare(nvenc->cbus_clk);
+err_cbus_clk:
+	clk_disable_unprepare(nvenc->emc_clk);
+err_emc_clk:
+	falcon_power_off(&nvenc->falcon);
 	return err;
 }
 
@@ -172,9 +196,51 @@ static int nvenc_exit(struct host1x_client *client)
 	return err;
 }
 
+static int nvenc_get_clk_rate(struct host1x_client *client, u64 *data,
+					u32 type)
+{
+	struct tegra_drm_client *drm = host1x_to_drm_client(client);
+	struct nvenc *nvenc = to_nvenc(drm);
+
+	switch (type) {
+	case DRM_TEGRA_REQ_TYPE_CLK_KHZ:
+		*data = clk_get_rate(nvenc->cbus_clk);
+		break;
+	case DRM_TEGRA_REQ_TYPE_BW_KBPS:
+		*data = clk_get_rate(nvenc->emc_clk);
+		break;
+	default:
+		dev_err(nvenc->dev, "Unknown Clock request type\n");
+		return -EINVAL;
+	}
+	return 0;
+}
+
+static int nvenc_set_clk_rate(struct host1x_client *client, u64 data,
+					u32 type)
+{
+	struct tegra_drm_client *drm = host1x_to_drm_client(client);
+	struct nvenc *nvenc = to_nvenc(drm);
+
+	switch (type) {
+	case DRM_TEGRA_REQ_TYPE_CLK_KHZ:
+		if (data > NVENC_MAX_CLK_RATE)
+			data = NVENC_MAX_CLK_RATE;
+		return clk_set_rate(nvenc->cbus_clk, data);
+	case DRM_TEGRA_REQ_TYPE_BW_KBPS:
+		return clk_set_rate(nvenc->emc_clk,
+				tegra_emc_bw_to_freq_req(data) * 1000);
+	default:
+		dev_err(nvenc->dev, "Unknown Clock request type\n");
+		return -EINVAL;
+	}
+}
+
 static const struct host1x_client_ops nvenc_client_ops = {
 	.init = nvenc_init,
 	.exit = nvenc_exit,
+	.get_clk_rate = nvenc_get_clk_rate,
+	.set_clk_rate = nvenc_set_clk_rate,
 };
 
 static int nvenc_open_channel(struct tegra_drm_client *client,
@@ -313,6 +379,16 @@ static int nvenc_probe(struct platform_device *pdev)
 	if (IS_ERR(nvenc->clk)) {
 		dev_err(&pdev->dev, "cannot get clock\n");
 		return PTR_ERR(nvenc->clk);
+	}
+	nvenc->cbus_clk = devm_clk_get(dev, "nvenc_cbus");
+	if (IS_ERR(nvenc->cbus_clk)) {
+		dev_err(dev, "cannot get nvenc cbus clock\n");
+		return PTR_ERR(nvenc->cbus_clk);
+	}
+	nvenc->emc_clk = devm_clk_get(dev, "emc");
+	if (IS_ERR(nvenc->emc_clk)) {
+		dev_err(dev, "cannot get emc clock\n");
+		return PTR_ERR(nvenc->emc_clk);
 	}
 	nvenc->rst = devm_reset_control_get(&pdev->dev, "nvenc");
 	if (IS_ERR(nvenc->rst)) {
