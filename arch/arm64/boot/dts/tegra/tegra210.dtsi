@@ -158,8 +158,10 @@
 			compatible = "nvidia,tegra210-nvenc";
 			reg = <0x0 0x544c0000 0x0 0x00040000>;
 			interrupts = <GIC_SPI 68 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&tegra_car TEGRA210_CLK_NVENC>;
-			clock-names = "nvenc";
+			clocks = <&tegra_car TEGRA210_CLK_NVENC>,
+				 <&tegra_car TEGRA210_CLK_MSENC_CBUS>,
+				 <&tegra_car TEGRA210_CLK_MSENC_EMC>;
+			clock-names = "nvenc", "nvenc_cbus", "emc";
 			resets = <&tegra_car TEGRA210_CLK_NVENC>;
 			reset-names = "nvenc";
 			iommus = <&mc TEGRA_SWGROUP_NVENC>;
