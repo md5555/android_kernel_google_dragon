@@ -226,10 +226,35 @@ static const struct gm20b_pllg_params gm20b_pllg_params = {
 	.vco_ctrl = 0x7 << 3,
 };
 
+struct gm20b_throt_ins {
+	struct gm20b_clk_priv *priv;
+	struct thermal_cooling_device *throt_cdev;
+	struct device_node *np;
+	struct list_head node;
+	unsigned long cur_state;
+	int throt_tab_size;
+	unsigned long *throt_tab;
+};
+
+enum gm20b_throt_type {
+	GM20B_THROT_BALANCED_CPU_GPU = 0,
+	GM20B_THROT_BALANCED_GPU_GPU,
+	GM20B_THROT_BALANCED_TSKIN_GPU,
+	GM20B_NUM_THROT_TYPE,
+};
+
+static const char *cdev_type[GM20B_NUM_THROT_TYPE] = {
+	[GM20B_THROT_BALANCED_CPU_GPU] = "gpu-balanced-cpu",
+	[GM20B_THROT_BALANCED_GPU_GPU] = "gpu-balanced-gpu",
+	[GM20B_THROT_BALANCED_TSKIN_GPU] = "gpu-balanced-tskin",
+};
+
 struct gm20b_clk_thermal {
 	bool in_suspend;
 	struct mutex suspend_lock;
-	struct thermal_cooling_device *throt_cdev;
+	struct gm20b_throt_ins *throt_ins[GM20B_NUM_THROT_TYPE];
+	struct mutex bthrot_lock;
+	struct list_head bthrot_list;
 	int throt_cur_tstate;
 	int edp_cur_tstate;
 };
@@ -297,8 +322,8 @@ static struct gpu_edp s_gpu = {
 };
 #endif
 
-static void gm20b_clk_throttle_cdev_unregister(struct gm20b_clk_priv *priv);
-static int gm20b_clk_throttle_cdev_register(struct gm20b_clk_priv *priv);
+static void gm20b_clk_throttle_init(struct gm20b_clk_priv *priv);
+static void gm20b_clk_throttle_deinit(struct gm20b_clk_priv *priv);
 static int gm20b_clk_edp_init(struct gm20b_clk_priv *priv);
 static void gm20b_clk_edp_deinit(struct gm20b_clk_priv *priv);
 static void gpu_edp_update_cap(void);
@@ -1521,7 +1546,7 @@ gm20b_clk_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 
 	mutex_init(&priv->clk_therm.suspend_lock);
 	priv->clk_therm.in_suspend = true;
-	gm20b_clk_throttle_cdev_register(priv);
+	gm20b_clk_throttle_init(priv);
 	gm20b_clk_edp_init(priv);
 
 	return 0;
@@ -1533,7 +1558,7 @@ gm20b_clk_dtor(struct nvkm_object *object)
 	struct gm20b_clk_priv *priv = (void *)object;
 
 	gm20b_clk_edp_deinit(priv);
-	gm20b_clk_throttle_cdev_unregister(priv);
+	gm20b_clk_throttle_deinit(priv);
 	_nvkm_subdev_dtor(object);
 }
 
@@ -1551,14 +1576,28 @@ gm20b_clk_oclass = {
 #ifdef CONFIG_THERMAL
 /* Implement GPU throttle */
 
+static int gm20b_freq_to_pstate(struct nvkm_clk *clk, unsigned long rate)
+{
+	int i;
+	unsigned long domain;
+
+	for (i = clk->state_nr - 1; i >= 0; i--) {
+		domain = gm20b_pstates[i].base.domain[nv_clk_src_gpc];
+		domain *= KHZ;
+		if (rate >= domain)
+			return i;
+	}
+
+	return 0;
+}
+
 static int
 gm20b_clk_throt_get_cdev_max_state(struct thermal_cooling_device *cdev,
 				unsigned long *max_state)
 {
-	struct gm20b_clk_priv *priv = (struct gm20b_clk_priv *)cdev->devdata;
-	struct nvkm_clk *clk = &priv->base;
+	struct gm20b_throt_ins *bthrot_ins = cdev->devdata;
+	*max_state = bthrot_ins->throt_tab_size;
 
-	*max_state = clk->state_nr - 1;
 	return 0;
 }
 
@@ -1566,8 +1605,9 @@ static int
 gm20b_clk_throt_get_cdev_cur_state(struct thermal_cooling_device *cdev,
 				unsigned long *cur_state)
 {
-	struct gm20b_clk_priv *priv = (struct gm20b_clk_priv *)cdev->devdata;
-	*cur_state = -priv->clk_therm.throt_cur_tstate;
+	struct gm20b_throt_ins *bthrot_ins = cdev->devdata;
+	*cur_state = bthrot_ins->cur_state;
+
 	return 0;
 }
 
@@ -1575,12 +1615,36 @@ static int
 gm20b_clk_throt_set_cdev_state(struct thermal_cooling_device *cdev,
 				unsigned long cur_state)
 {
-	struct gm20b_clk_priv *priv = (struct gm20b_clk_priv *)cdev->devdata;
+	struct gm20b_throt_ins *bthrot_ins_list, *bthrot_ins = cdev->devdata;
+	struct gm20b_clk_priv *priv = bthrot_ins->priv;
 	struct nvkm_clk *clk = &priv->base;
+	struct list_head *bthrot_list = &priv->clk_therm.bthrot_list;
 	int tstate, throt_cur_tstate, edp_cur_tstate;
+	unsigned long freq, cur_freq = ULONG_MAX;
+
+	if (bthrot_ins->cur_state == cur_state)
+		return 0;
+
+	bthrot_ins->cur_state = cur_state;
+
+	mutex_lock(&priv->clk_therm.bthrot_lock);
+	list_for_each_entry(bthrot_ins_list, bthrot_list, node) {
+		if (!bthrot_ins_list->cur_state)
+			continue;
+
+		freq = bthrot_ins_list->throt_tab[bthrot_ins_list->cur_state-1];
+		cur_freq = min(cur_freq, freq);
+	}
+
+	if (cur_freq == ULONG_MAX) {
+		tstate = 0;
+	} else {
+		tstate = gm20b_freq_to_pstate(&priv->base, cur_freq * KHZ);
+		tstate = clk->state_nr - 1 - tstate;
+	}
 
 	mutex_lock(&priv->clk_therm.suspend_lock);
-	priv->clk_therm.throt_cur_tstate = -cur_state;
+	priv->clk_therm.throt_cur_tstate = -tstate;
 
 	if (priv->clk_therm.in_suspend)
 		goto end;
@@ -1592,6 +1656,7 @@ gm20b_clk_throt_set_cdev_state(struct thermal_cooling_device *cdev,
 
 end:
 	mutex_unlock(&priv->clk_therm.suspend_lock);
+	mutex_unlock(&priv->clk_therm.bthrot_lock);
 	return 0;
 }
 
@@ -1601,53 +1666,168 @@ static struct thermal_cooling_device_ops gm20b_clk_throt_cooling_ops = {
 	.set_cur_state = gm20b_clk_throt_set_cdev_state,
 };
 
-static int
-gm20b_clk_throttle_cdev_register(struct gm20b_clk_priv *priv)
+static void gm20b_throt_free_table(struct gm20b_throt_ins *throttle)
+{
+	kfree(throttle->throt_tab);
+	throttle->throt_tab = NULL;
+}
+
+static int gm20b_throt_parse_table(struct gm20b_clk_priv *priv,
+				struct device_node *np,
+				struct gm20b_throt_ins *throttle)
 {
 	struct nvkm_clk *clk = &priv->base;
+	unsigned long *throttle_table;
+	struct device_node *t_np, *tc_np;
+	int num, ret = 0;
+
+	t_np = of_parse_phandle(np, "balanced-states", 0);
+	if (IS_ERR(t_np)) {
+		nv_error(clk, "Can't find phandle of balanced-states\n");
+		return -ENODATA;
+	}
+
+	num = of_get_child_count(t_np);
+	if (!num) {
+		nv_error(clk, "No throttle states in throttle table\n");
+		ret = -EINVAL;
+		goto err;
+	}
+
+	throttle_table = kcalloc(num, sizeof(unsigned long), GFP_KERNEL);
+	if (!throttle_table) {
+		nv_error(clk, "Allocate throttle table failed\n");
+		ret = -ENOMEM;
+		goto err;
+	}
+
+	num = 0;
+	for_each_child_of_node(t_np, tc_np) {
+		u32 val;
+
+		if (of_property_read_u32(tc_np, "gpu-freq", &val))
+			throttle_table[num] = (ULONG_MAX);
+		else
+			throttle_table[num] = val;
+
+		num++;
+	}
+
+	throttle->throt_tab_size = num;
+	throttle->throt_tab = throttle_table;
+	throttle->np = np;
+
+err:
+	of_node_put(t_np);
+	return ret;
+}
+
+static int
+gm20b_clk_throttle_cdev_register(struct gm20b_clk_priv *priv,
+				 enum gm20b_throt_type id)
+{
+	struct nvkm_clk *clk = &priv->base;
+	const char *type = cdev_type[id];
 	struct thermal_cooling_device *tcd;
 	struct platform_device *pdev;
 	struct device_node *np, *child;
+	struct gm20b_throt_ins *b_throt_ins;
+	int ret = 0;
 
 	pdev = nv_device(clk)->platformdev;
 	if (IS_ERR_OR_NULL(pdev))
 		return -EINVAL;
 	np = pdev->dev.of_node;
-	child = of_get_child_by_name(np, "gpu-throttle-cdev");
+
+	child = of_get_child_by_name(np, type);
 	if (!child) {
-		nv_error(clk, " No support for gpu_throttle cooling device\n");
+		nv_error(clk, " No support for %s cooling device\n", type);
 		return -EINVAL;
 	}
-	priv->clk_therm.throt_cur_tstate = 0;
+
+	b_throt_ins = kzalloc(sizeof(*b_throt_ins), GFP_KERNEL);
+	if (!b_throt_ins) {
+		of_node_put(child);
+		return -ENOMEM;
+	}
+
+	ret = gm20b_throt_parse_table(priv, child, b_throt_ins);
+	if (ret) {
+		ret = -EINVAL;
+		goto free_ins;
+	}
+
+	b_throt_ins->cur_state = 0;
+	b_throt_ins->priv = priv;
+
 	tcd = thermal_of_cooling_device_register(child,
-						"gpu_throttle",
-						priv,
+						(char *)type,
+						b_throt_ins,
 						&gm20b_clk_throt_cooling_ops);
 	of_node_put(child);
 	if (IS_ERR_OR_NULL(tcd)) {
 		nv_error(clk,
-			 "Failed register gpu_throttle cooling device\n");
-		return PTR_ERR(tcd);
+			 "Failed register %s cooling device\n", type);
+		ret = PTR_ERR(tcd);
+		goto free_table;
 	}
-	priv->clk_therm.throt_cdev = tcd;
+	b_throt_ins->throt_cdev = tcd;
 
-	return 0;
+	mutex_lock(&priv->clk_therm.bthrot_lock);
+	list_add(&b_throt_ins->node, &priv->clk_therm.bthrot_list);
+	mutex_unlock(&priv->clk_therm.bthrot_lock);
+
+	priv->clk_therm.throt_ins[id] = b_throt_ins;
+
+	of_node_put(child);
+	return ret;
+
+free_table:
+	gm20b_throt_free_table(b_throt_ins);
+free_ins:
+	kfree(b_throt_ins);
+	of_node_put(child);
+	return ret;
 }
 
 static void
-gm20b_clk_throttle_cdev_unregister(struct gm20b_clk_priv *priv)
+gm20b_clk_throttle_init(struct gm20b_clk_priv *priv)
 {
-	if (priv->clk_therm.throt_cdev)
-		thermal_cooling_device_unregister(priv->clk_therm.throt_cdev);
+	int i;
+
+	INIT_LIST_HEAD(&priv->clk_therm.bthrot_list);
+	mutex_init(&priv->clk_therm.bthrot_lock);
+	priv->clk_therm.throt_cur_tstate = 0;
+
+	for (i = 0; i < GM20B_NUM_THROT_TYPE; i++)
+		gm20b_clk_throttle_cdev_register(priv, i);
+}
+
+static void
+gm20b_clk_throttle_deinit(struct gm20b_clk_priv *priv)
+{
+	int i;
+	struct thermal_cooling_device *tcd;
+
+	for (i = 0; i < GM20B_NUM_THROT_TYPE; i++) {
+		if (!priv->clk_therm.throt_ins[i])
+			continue;
+
+		tcd = priv->clk_therm.throt_ins[i]->throt_cdev;
+		if (tcd)
+			thermal_cooling_device_unregister(tcd);
+
+		gm20b_throt_free_table(priv->clk_therm.throt_ins[i]);
+
+		kfree(priv->clk_therm.throt_ins[i]);
+		priv->clk_therm.throt_ins[i] = NULL;
+	}
 }
 #else
-static inline int
-gm20b_clk_throttle_cdev_register(struct gm20b_clk_priv *priv)
-{
-	return -EINVAL;
-}
 static inline void
-gm20b_clk_throttle_cdev_unregister(struct gm20b_clk_priv *priv) {}
+gm20b_clk_throttle_init(struct gm20b_clk_priv *priv) {}
+static inline void
+gm20b_clk_throttle_deinit(struct gm20b_clk_priv *priv) {}
 #endif /* CONFIG_THERMAL */
 
 #ifdef CONFIG_NOUVEAU_GPU_EDP
@@ -1677,20 +1857,6 @@ static int tegra_gpu_edp_parse_dt(struct device_node *np,
 		 "missing required parameter: nvidia,edp-limit\n"))
 		return -ENODATA;
 
-	return 0;
-}
-
-static int gm20b_freq_to_pstate(struct nvkm_clk *clk, unsigned long rate)
-{
-	int i;
-	unsigned long domain;
-
-	for (i = clk->state_nr - 1; i >= 0; i--) {
-		domain = gm20b_pstates[i].base.domain[nv_clk_src_gpc];
-		domain *= KHZ;
-		if (rate >= domain)
-			return i;
-	}
 	return 0;
 }
 
