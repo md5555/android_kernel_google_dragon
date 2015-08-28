@@ -46,6 +46,7 @@
 
 #include <soc/tegra/common.h>
 #include <soc/tegra/fuse.h>
+#include <soc/tegra/mc.h>
 #include <soc/tegra/pmc.h>
 
 #define UTMIP(port, x, y)		(((port) <= 2) ? (x) : (y))
@@ -361,10 +362,17 @@ struct tegra_powergate_rst {
 	struct list_head list;
 };
 
+struct tegra_powergate_flush {
+	const struct tegra_mc_flush *flush;
+	struct list_head list;
+};
+
 struct tegra_powergate {
 	const char *name;
 	struct list_head clk_list;
 	struct list_head rst_list;
+	struct tegra_mc *mc;
+	struct list_head flush_list;
 };
 
 /**
@@ -606,11 +614,15 @@ int tegra_powergate_sequence_power_up(int id, struct clk *clk,
 {
 	struct tegra_powergate_rst *extra_rst;
 	struct tegra_powergate_clk *extra_clk;
+	struct tegra_powergate_flush *pg_flush;
 	struct tegra_powergate *pg;
 	int ret;
 
 	if (!pmc->soc || id < 0 || id >= pmc->soc->num_powergates)
 		return -EINVAL;
+
+	if (!pmc->powergates)
+		return -EPROBE_DEFER;
 
 	pg = &pmc->powergates[id];
 
@@ -618,13 +630,10 @@ int tegra_powergate_sequence_power_up(int id, struct clk *clk,
 	if (pmc->powergate_count[id]++ > 0) {
 		ret = clk_prepare_enable(clk);
 	} else {
-		list_for_each_entry(extra_rst, &pg->rst_list, list)
-			reset_control_assert(extra_rst->rst);
-		reset_control_assert(rst);
-
 		ret = __tegra_powergate_set(id, true);
 		if (ret)
 			goto err_unref;
+		usleep_range(10, 20);
 
 		list_for_each_entry(extra_clk, &pg->clk_list, list) {
 			ret = clk_prepare_enable(extra_clk->clk);
@@ -635,16 +644,23 @@ int tegra_powergate_sequence_power_up(int id, struct clk *clk,
 		if (ret)
 			goto err_extra_clk;
 
+		list_for_each_entry(extra_rst, &pg->rst_list, list)
+			reset_control_assert(extra_rst->rst);
+		reset_control_assert(rst);
 		usleep_range(10, 20);
 
 		ret = __tegra_powergate_remove_clamping(id);
 		if (ret)
 			goto err_clamp;
-
 		usleep_range(10, 20);
 		reset_control_deassert(rst);
 		list_for_each_entry(extra_rst, &pg->rst_list, list)
 			reset_control_deassert(extra_rst->rst);
+		usleep_range(10, 20);
+
+		list_for_each_entry(pg_flush, &pg->flush_list, list)
+			tegra_mc_flush(pg->mc, pg_flush->flush, false);
+		usleep_range(10, 20);
 
 		list_for_each_entry(extra_clk, &pg->clk_list, list)
 			clk_disable_unprepare(extra_clk->clk);
@@ -654,11 +670,14 @@ int tegra_powergate_sequence_power_up(int id, struct clk *clk,
 	return ret;
 
 err_clamp:
+	reset_control_deassert(rst);
+	list_for_each_entry(extra_rst, &pg->rst_list, list)
+		reset_control_deassert(extra_rst->rst);
 	clk_disable_unprepare(clk);
 err_extra_clk:
 	list_for_each_entry_continue_reverse(extra_clk, &pg->clk_list, list)
 		clk_disable_unprepare(extra_clk->clk);
-	tegra_powergate_power_off(id);
+	__tegra_powergate_set(id, false);
 err_unref:
 	--pmc->powergate_count[id];
 	mutex_unlock(&pmc->powergates_lock);
@@ -678,11 +697,16 @@ int tegra_powergate_sequence_power_down(int id, struct clk *clk,
 					struct reset_control *rst)
 {
 	struct tegra_powergate_rst *extra_rst;
+	struct tegra_powergate_clk *extra_clk;
+	struct tegra_powergate_flush *pg_flush;
 	struct tegra_powergate *pg;
 	int ret = 0;
 
 	if (!pmc->soc || id < 0 || id >= pmc->soc->num_powergates)
 		return -EINVAL;
+
+	if (!pmc->powergates)
+		return -EPROBE_DEFER;
 
 	pg = &pmc->powergates[id];
 
@@ -692,6 +716,17 @@ int tegra_powergate_sequence_power_down(int id, struct clk *clk,
 	} else if (--pmc->powergate_count[id] > 0) {
 		clk_disable_unprepare(clk);
 	} else {
+		list_for_each_entry(extra_clk, &pg->clk_list, list) {
+			ret = clk_prepare_enable(extra_clk->clk);
+			if (ret)
+				goto err_extra_clk_enable;
+		}
+		usleep_range(10, 20);
+
+		list_for_each_entry(pg_flush, &pg->flush_list, list)
+			tegra_mc_flush(pg->mc, pg_flush->flush, true);
+		usleep_range(10, 20);
+
 		list_for_each_entry(extra_rst, &pg->rst_list, list) {
 			ret = reset_control_assert(extra_rst->rst);
 			if (ret)
@@ -703,6 +738,8 @@ int tegra_powergate_sequence_power_down(int id, struct clk *clk,
 		usleep_range(10, 20);
 
 		clk_disable_unprepare(clk);
+		list_for_each_entry(extra_clk, &pg->clk_list, list)
+			clk_disable_unprepare(extra_clk->clk);
 		usleep_range(10, 20);
 
 		ret = __tegra_powergate_set(id, false);
@@ -715,10 +752,21 @@ int tegra_powergate_sequence_power_down(int id, struct clk *clk,
 
 err_clk:
 	clk_prepare_enable(clk);
+	list_for_each_entry(extra_clk, &pg->clk_list, list)
+		clk_prepare_enable(extra_clk->clk);
 	reset_control_deassert(rst);
+
 err_extra_rst:
 	list_for_each_entry_continue_reverse(extra_rst, &pg->rst_list, list)
 		reset_control_deassert(extra_rst->rst);
+	usleep_range(10, 20);
+
+	list_for_each_entry(pg_flush, &pg->flush_list, list)
+		tegra_mc_flush(pg->mc, pg_flush->flush, false);
+
+err_extra_clk_enable:
+	list_for_each_entry_continue_reverse(extra_clk, &pg->clk_list, list)
+		clk_disable_unprepare(extra_clk->clk);
 
 	++pmc->powergate_count[id];
 	mutex_unlock(&pmc->powergates_lock);
@@ -2440,6 +2488,192 @@ out:
 	of_node_put(np);
 }
 
+static int tegra_powergate_add_clock(struct tegra_powergate *pg,
+				     struct clk *clk)
+{
+	struct tegra_powergate_clk *pg_clk;
+
+	pg_clk = devm_kmalloc(pmc->dev, sizeof(*pg_clk), GFP_KERNEL);
+	if (!pg_clk)
+		return -ENOMEM;
+
+	pg_clk->clk = clk;
+	list_add_tail(&pg_clk->list, &pg->clk_list);
+
+	return 0;
+}
+
+static int tegra_powergate_add_reset(struct tegra_powergate *pg,
+				     struct reset_control *rst)
+{
+	struct tegra_powergate_rst *pg_rst;
+
+	pg_rst = devm_kmalloc(pmc->dev, sizeof(*pg_rst), GFP_KERNEL);
+	if (!pg_rst)
+		return -ENOMEM;
+
+	pg_rst->rst = rst;
+	list_add_tail(&pg_rst->list, &pg->rst_list);
+
+	return 0;
+}
+
+static int tegra_powergate_add_flush(struct tegra_powergate *pg,
+				     const struct tegra_mc_flush *flush)
+{
+	struct tegra_powergate_flush *pg_flush;
+
+	pg_flush = devm_kmalloc(pmc->dev, sizeof(*pg_flush), GFP_KERNEL);
+	if (!pg_flush)
+		return -ENOMEM;
+
+	pg_flush->flush = flush;
+	list_add_tail(&pg_flush->list, &pg->flush_list);
+
+	return 0;
+}
+
+static int tegra_powergate_init_one(struct device_node *np,
+				struct tegra_powergate *pg)
+{
+	struct platform_device *pdev;
+	struct of_phandle_args args;
+	const char *id;
+	int count;
+	int i, ret = 0;
+
+	count = of_property_count_strings(np, "clock-names");
+	for (i = 0; i < count; ++i) {
+		struct clk *clk;
+
+		of_property_read_string_index(np, "clock-names",
+						i, &id);
+		clk = of_clk_get_by_name(np, id);
+		if (IS_ERR(clk)) {
+			pr_err("%s: Failed to get '%s' clock\n",
+				__func__, id);
+			continue;
+		}
+
+		ret = tegra_powergate_add_clock(pg, clk);
+		if (ret)
+			continue;
+
+		pr_info("%s: Added clock '%s' to powergate '%s'\n",
+			__func__, id, pg->name);
+	}
+
+	count = of_property_count_strings(np, "reset-names");
+	for (i = 0; i < count; ++i) {
+		struct reset_control *rst;
+
+		of_property_read_string_index(np, "reset-names",
+						i, &id);
+		rst = of_reset_control_get(np, id);
+		if (IS_ERR(rst)) {
+			pr_err("%s: Failed to get '%s' reset\n",
+				__func__, id);
+			continue;
+		}
+
+		ret = tegra_powergate_add_reset(pg, rst);
+		if (ret)
+			continue;
+
+		pr_info("%s: Added reset '%s' to powergate '%s'\n",
+			__func__, id, pg->name);
+
+	}
+
+	count = of_property_count_strings(np, "swgroup-names");
+	for (i = 0; i < count; i++) {
+		const struct tegra_mc_flush *flush;
+
+		ret = of_parse_phandle_with_fixed_args(np, "swgroups",
+				1, i, &args);
+		if (ret)
+			continue;
+
+		pdev = of_find_device_by_node(args.np);
+		if (!pdev) {
+			pr_err("%s: Failed to get mc device\n",
+				__func__);
+			continue;
+		}
+
+		if (!pg->mc) {
+			pg->mc = platform_get_drvdata(pdev);
+			if (!pg->mc) {
+				pr_err("%s: Failed to get mc handler\n",
+					__func__);
+				return -EPROBE_DEFER;
+			}
+		}
+
+		flush = tegra_mc_flush_get(pg->mc, args.args[0]);
+		if (!flush) {
+			pr_err("%s: Failed to get mc_flush for swgroup: %d\n",
+				__func__, args.args[0]);
+			continue;
+		}
+
+		of_property_read_string_index(np, "swgroup-names",
+				i, &id);
+
+		ret = tegra_powergate_add_flush(pg, flush);
+		if (ret)
+			continue;
+
+		pr_info("%s: Added mc_flush for swgroup '%s' to powergate '%s'\n",
+			__func__, id, pg->name);
+	}
+
+	return 0;
+}
+
+static int tegra_powergate_init(struct tegra_pmc *pmc,
+				struct device_node *pmc_np)
+{
+	struct device_node *pgs_np;
+	int ret = 0;
+	int p;
+
+	pmc->powergates = devm_kcalloc(pmc->dev, pmc->soc->num_powergates,
+				       sizeof(*pmc->powergates),
+				       GFP_KERNEL);
+	if (!pmc->powergates)
+		return -ENOMEM;
+
+	for (p = 0; p < pmc->soc->num_powergates; ++p) {
+		struct tegra_powergate *pg = &pmc->powergates[p];
+
+		pg->name = pmc->soc->powergates[p];
+		INIT_LIST_HEAD(&pg->clk_list);
+		INIT_LIST_HEAD(&pg->rst_list);
+		INIT_LIST_HEAD(&pg->flush_list);
+	}
+
+	pgs_np = of_get_child_by_name(pmc_np, "powergates");
+	if (!pgs_np)
+		return 0;
+
+	for (p = 0; p < pmc->soc->num_powergates; ++p) {
+		struct tegra_powergate *pg = &pmc->powergates[p];
+		struct device_node *np;
+
+		if (!pg->name)
+			continue;
+
+		np = of_get_child_by_name(pgs_np, pg->name);
+		if (!np)
+			continue;
+
+		ret = tegra_powergate_init_one(np, pg);
+	}
+
+	return ret;
+}
+
 static int tegra_pmc_probe(struct platform_device *pdev)
 {
 	void __iomem *base = pmc->base;
@@ -2472,6 +2706,10 @@ static int tegra_pmc_probe(struct platform_device *pdev)
 	tegra_pmc_init_tsense_reset(pmc);
 
 	tegra_pmc_init_bootrom_i2c(pmc);
+
+	err = tegra_powergate_init(pmc, pdev->dev.of_node);
+	if (err)
+		return err;
 
 	if (IS_ENABLED(CONFIG_DEBUG_FS)) {
 		err = tegra_powergate_debugfs_init();
@@ -2736,122 +2974,6 @@ static struct notifier_block tegra_pmc_panic_nb = {
 	.notifier_call = tegra_pmc_panic_notifier,
 };
 
-static int tegra_powergate_add_clock(struct tegra_powergate *pg,
-				     struct clk *clk)
-{
-	struct tegra_powergate_clk *pg_clk;
-
-	pg_clk = kmalloc(sizeof(*pg_clk), GFP_KERNEL);
-	if (!pg_clk)
-		return -ENOMEM;
-
-	pg_clk->clk = clk;
-	list_add_tail(&pg_clk->list, &pg->clk_list);
-
-	return 0;
-}
-
-static int tegra_powergate_add_reset(struct tegra_powergate *pg,
-				     struct reset_control *rst)
-{
-	struct tegra_powergate_rst *pg_rst;
-
-	pg_rst = kmalloc(sizeof(*pg_rst), GFP_KERNEL);
-	if (!pg_rst)
-		return -ENOMEM;
-
-	pg_rst->rst = rst;
-	list_add_tail(&pg_rst->list, &pg->rst_list);
-
-	return 0;
-}
-
-static int tegra_powergate_init(struct tegra_pmc *pmc,
-				struct device_node *pmc_np)
-{
-	struct device_node *pgs_np;
-	int ret;
-	int p;
-
-	pmc->powergates = kcalloc(pmc->soc->num_powergates,
-				  sizeof(*pmc->powergates),
-				  GFP_KERNEL);
-	if (!pmc->powergates)
-		return -ENOMEM;
-
-	for (p = 0; p < pmc->soc->num_powergates; ++p) {
-		struct tegra_powergate *pg = &pmc->powergates[p];
-
-		pg->name = pmc->soc->powergates[p];
-		INIT_LIST_HEAD(&pg->clk_list);
-		INIT_LIST_HEAD(&pg->rst_list);
-	}
-
-	pgs_np = of_get_child_by_name(pmc_np, "powergates");
-	if (!pgs_np)
-		return 0;
-
-	for (p = 0; p < pmc->soc->num_powergates; ++p) {
-		struct tegra_powergate *pg = &pmc->powergates[p];
-		struct device_node *np;
-		const char *id;
-		int count;
-		int i;
-
-		if (!pg->name)
-			continue;
-
-		np = of_get_child_by_name(pgs_np, pg->name);
-		if (!np)
-			continue;
-
-		count = of_property_count_strings(np, "clock-names");
-		for (i = 0; i < count; ++i) {
-			struct clk *clk;
-
-			of_property_read_string_index(np, "clock-names",
-							i, &id);
-			clk = of_clk_get_by_name(np, id);
-			if (IS_ERR(clk)) {
-				pr_err("%s: Failed to get '%s' clock\n",
-					__func__, id);
-				continue;
-			}
-
-			ret = tegra_powergate_add_clock(pg, clk);
-			if (ret)
-				continue;
-
-			pr_info("%s: Added clock '%s' to powergate '%s'\n",
-				__func__, id, pg->name);
-		}
-
-		count = of_property_count_strings(np, "reset-names");
-		for (i = 0; i < count; ++i) {
-			struct reset_control *rst;
-
-			of_property_read_string_index(np, "reset-names",
-							i, &id);
-			rst = of_reset_control_get(np, id);
-			if (IS_ERR(rst)) {
-				pr_err("%s: Failed to get '%s' reset\n",
-					__func__, id);
-				continue;
-			}
-
-			ret = tegra_powergate_add_reset(pg, rst);
-			if (ret)
-				continue;
-
-			pr_info("%s: Added reset '%s' to powergate '%s'\n",
-				__func__, id, pg->name);
-
-		}
-	}
-
-	return 0;
-}
-
 /*
  * Early initialization to allow access to registers in the very early boot
  * process.
@@ -2863,7 +2985,6 @@ static int __init tegra_pmc_early_init(void)
 	struct resource regs;
 	bool invert;
 	u32 value;
-	int ret;
 
 	if (!soc_is_tegra())
 		return 0;
@@ -2901,10 +3022,6 @@ static int __init tegra_pmc_early_init(void)
 			iounmap(pmc->base);
 			return -ENOMEM;
 		}
-
-		ret = tegra_powergate_init(pmc, np);
-		if (ret)
-			return ret;
 	}
 
 	invert = of_property_read_bool(np, "nvidia,invert-interrupt");
