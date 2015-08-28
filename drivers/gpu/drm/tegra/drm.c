@@ -349,6 +349,14 @@ static int tegra_drm_open(struct drm_device *drm, struct drm_file *filp)
 static void tegra_drm_context_free(struct tegra_drm_context *context)
 {
 	context->client->ops->close_channel(context);
+
+	mutex_lock(&context->lock);
+	if (context->keepon) {
+		host1x_module_idle(context->client->base.dev);
+		context->keepon = false;
+	}
+	mutex_unlock(&context->lock);
+
 	kfree(context);
 }
 
@@ -658,6 +666,7 @@ static int tegra_open_channel(struct drm_device *drm, void *data,
 			list_add(&context->list, &fpriv->contexts);
 			args->context = (uintptr_t)context;
 			context->client = client;
+			mutex_init(&context->lock);
 			return 0;
 		}
 
@@ -932,6 +941,66 @@ static int tegra_set_clk_rate(struct drm_device *drm, void *data,
 	}
 	return -EINVAL;
 }
+
+static int tegra_start_keepon(struct drm_device *drm, void *data,
+			      struct drm_file *file)
+{
+	struct tegra_drm_file *fpriv = file->driver_priv;
+	struct drm_tegra_keepon *args = data;
+	struct tegra_drm_context *context;
+	int err;
+
+	context = tegra_drm_get_context(args->context);
+
+	if (!tegra_drm_file_owns_context(fpriv, context))
+		return -ENODEV;
+
+	mutex_lock(&context->lock);
+
+	if (context->keepon) {
+		err = -EINVAL;
+		goto done;
+	}
+
+	err = host1x_module_busy(context->client->base.dev);
+	if (err < 0)
+		goto done;
+
+	context->keepon = true;
+
+done:
+	mutex_unlock(&context->lock);
+	return err;
+}
+
+static int tegra_stop_keepon(struct drm_device *drm, void *data,
+			      struct drm_file *file)
+{
+	struct tegra_drm_file *fpriv = file->driver_priv;
+	struct drm_tegra_keepon *args = data;
+	struct tegra_drm_context *context;
+	int err = 0;
+
+	context = tegra_drm_get_context(args->context);
+
+	if (!tegra_drm_file_owns_context(fpriv, context))
+		return -ENODEV;
+
+	mutex_lock(&context->lock);
+
+	if (!context->keepon) {
+		err = -EINVAL;
+		goto done;
+	}
+
+	context->keepon = false;
+
+	host1x_module_idle(context->client->base.dev);
+
+done:
+	mutex_unlock(&context->lock);
+	return err;
+}
 #endif
 
 static const struct drm_ioctl_desc tegra_drm_ioctls[] = {
@@ -952,6 +1021,8 @@ static const struct drm_ioctl_desc tegra_drm_ioctls[] = {
 	DRM_IOCTL_DEF_DRV(TEGRA_GEM_GET_FLAGS, tegra_gem_get_flags, DRM_UNLOCKED),
 	DRM_IOCTL_DEF_DRV(TEGRA_GET_CLK_RATE, tegra_get_clk_rate, DRM_UNLOCKED|DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(TEGRA_SET_CLK_RATE, tegra_set_clk_rate, DRM_UNLOCKED|DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(TEGRA_START_KEEPON, tegra_start_keepon, DRM_UNLOCKED|DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(TEGRA_STOP_KEEPON, tegra_stop_keepon, DRM_UNLOCKED|DRM_RENDER_ALLOW),
 #endif
 };
 

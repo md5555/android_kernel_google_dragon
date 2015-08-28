@@ -97,6 +97,8 @@ struct tegra_drm_context {
 	struct tegra_drm_client *client;
 	struct host1x_channel *channel;
 	struct list_head list;
+	struct mutex lock;
+	bool keepon;
 };
 
 struct tegra_drm_client_ops {
