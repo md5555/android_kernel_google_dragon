@@ -214,8 +214,21 @@
 			#cooling-cells = <2>; /* min followed by max */
 		};
 
-		gpu_throttle_cdev: gpu-throttle-cdev {
+		gpu_balanced_cpu_cdev: gpu-balanced-cpu {
 			status = "disabled";
+			balanced-states = <&t210_cpu_throttling_state>;
+			#cooling-cells = <2>; /* min followed by max */
+		};
+
+		gpu_balanced_gpu_cdev: gpu-balanced-gpu {
+			status = "disabled";
+			balanced-states = <&t210_gpu_throttling_state>;
+			#cooling-cells = <2>; /* min followed by max */
+		};
+
+		gpu_balanced_tskin_cdev: gpu-balanced-tskin {
+			status = "disabled";
+			balanced-states = <&t210_tskin_throttling_state>;
 			#cooling-cells = <2>; /* min followed by max */
 		};
 

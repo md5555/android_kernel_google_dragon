@@ -72,7 +72,15 @@
 			status = "okay";
 		};
 
-		gpu_throttle_cdev: gpu-throttle-cdev {
+		gpu_balanced_cpu_cdev: gpu-balanced-cpu {
+			status = "okay";
+		};
+
+		gpu_balanced_gpu_cdev: gpu-balanced-gpu {
+			status = "okay";
+		};
+
+		gpu_balanced_tskin_cdev: gpu-balanced-tskin {
 			status = "okay";
 		};
 
@@ -328,9 +336,9 @@
 					cooling-device = <&balanced_cpu THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
 				};
 
-				gpu_throttle_cpu_map {
+				balanced_cpu_map1 {
 					trip = <&balanced_cpu_trip0>;
-					cooling-device = <&gpu_throttle_cdev THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+					cooling-device = <&gpu_balanced_cpu_cdev THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
 				};
 			};
 		};
@@ -372,9 +380,9 @@
 					cooling-device = <&balanced_gpu THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
 				};
 
-				gpu_throttle_gpu_map {
+				balanced_gpu_map1 {
 					trip = <&balanced_gpu_trip0>;
-					cooling-device = <&gpu_throttle_cdev THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+					cooling-device = <&gpu_balanced_gpu_cdev THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
 				};
 
 				/* cooling maps for gpu DVFS voltage scaling */
@@ -464,14 +472,14 @@
 			};
 
 			cooling-maps {
-				balanced_tskin_map {
+				balanced_tskin_map0 {
 					trip = <&balanced_tskin_trip>;
 					cooling-device = <&balanced_tskin THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
 				};
 
-				gpu_throttle_tskin_map {
+				balanced_tskin_map1 {
 					trip = <&balanced_tskin_trip>;
-					cooling-device = <&gpu_throttle_cdev THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+					cooling-device = <&gpu_balanced_tskin_cdev THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
 				};
 			};
 		};
