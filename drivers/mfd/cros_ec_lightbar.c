@@ -407,7 +407,7 @@ static ssize_t store_program(struct device *dev, struct device_attribute *attr,
 		return -EINVAL;
 	}
 
-	dev_info(dev, "Copying %d byte program to EC", count);
+	dev_info(dev, "Copying %zu byte program to EC", count);
 
 	param.cmd = LIGHTBAR_CMD_SET_PROGRAM;
 	param.set_program.size = count;
