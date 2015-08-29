@@ -945,18 +945,18 @@ nouveau_vm_map_deferred(struct nvkm_vm *vm)
 static int
 nouveau_gem_do_pushbuf(struct nouveau_pushbuf_data *pb_data)
 {
-	struct nouveau_abi16 *abi16 = nouveau_abi16_get(pb_data->file_priv,
-							pb_data->dev);
+	struct nouveau_abi16 *abi16;
 	struct nouveau_cli *cli = nouveau_cli(pb_data->file_priv);
 	struct nouveau_channel *chan = pb_data->chan;
 	uint32_t *push = pb_data->push;
 	int i, ret;
 
+	nouveau_vm_map_deferred(cli->vm);
+
+	abi16 = nouveau_abi16_get(pb_data->file_priv, pb_data->dev);
 	if (unlikely(!abi16)) {
 		return -ENOMEM;
 	}
-
-	nouveau_vm_map_deferred(cli->vm);
 
 	ret = nouveau_dma_wait(chan, pb_data->nr_push + 1, 16);
 	if (ret) {
