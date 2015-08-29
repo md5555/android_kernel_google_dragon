@@ -3,10 +3,10 @@
 / {
 	pinmux: pinmux@700008d4 {
 		status = "okay";
-		pinctrl-names = "bootloader";
-		pinctrl-0 = <&pinmux_boot>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinmux_default>;
 
-		pinmux_boot: common {
+		pinmux_default: common {
 			pex_l0_rst_n_pa0 {
 				nvidia,pins = "pex_l0_rst_n_pa0";
 				nvidia,function = "rsvd1";
