@@ -49,8 +49,13 @@ nouveau_gem_object_del(struct drm_gem_object *gem)
 	if (WARN_ON(ret < 0 && ret != -EACCES))
 		return;
 
-	if (gem->import_attach)
+	if (gem->import_attach) {
+		ttm_bo_reserve(bo, false, false, false, NULL);
+		reservation_object_init(&bo->ttm_resv);
+		ttm_bo_unreserve(bo);
+		bo->resv = &bo->ttm_resv;
 		drm_prime_gem_destroy(gem, nvbo->bo.sg);
+	}
 
 	drm_gem_object_release(gem);
 
