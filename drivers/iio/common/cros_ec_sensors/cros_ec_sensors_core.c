@@ -110,8 +110,7 @@ int cros_ec_motion_send_host_cmd(struct cros_ec_sensors_core_state *state)
 	ret = cros_ec_cmd_xfer_status(state->ec, &state->msg);
 
 	/* Send host command. */
-	if (ret > 0)
-		/* We have some data */
+	if (ret >= 0)
 		return 0;
 	else
 		return -EIO;
@@ -215,6 +214,20 @@ const struct iio_chan_spec_ext_info cros_ec_sensors_ext_info[] = {
 };
 EXPORT_SYMBOL_GPL(cros_ec_sensors_ext_info);
 
+const struct iio_chan_spec_ext_info cros_ec_sensors_limited_info[] = {
+	{
+		.name = "id",
+		.shared = IIO_SHARED_BY_ALL,
+		.read = cros_ec_sensors_id
+	},
+	{
+		.name = "location",
+		.shared = IIO_SHARED_BY_ALL,
+		.read = cros_ec_sensors_loc
+	},
+	{ },
+};
+EXPORT_SYMBOL_GPL(cros_ec_sensors_limited_info);
 /*
  * idx_to_reg - convert sensor index into offset in shared memory region.
  *
