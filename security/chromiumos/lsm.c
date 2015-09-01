@@ -120,11 +120,20 @@ static void check_locking_enforcement(struct vfsmount *mnt)
 	 * If module locking is not enforced via a read-only block
 	 * device, allow sysctl to change modes for testing.
 	 */
-	ro = bdev_read_only(mnt->mnt_sb->s_bdev);
-	pr_info("dev(%u,%u): %s\n",
-		MAJOR(mnt->mnt_sb->s_bdev->bd_dev),
-		MINOR(mnt->mnt_sb->s_bdev->bd_dev),
-		ro ? "read-only" : "writable");
+	if (mnt->mnt_sb->s_bdev) {
+		ro = bdev_read_only(mnt->mnt_sb->s_bdev);
+		pr_info("dev(%u,%u): %s\n",
+			MAJOR(mnt->mnt_sb->s_bdev->bd_dev),
+			MINOR(mnt->mnt_sb->s_bdev->bd_dev),
+			ro ? "read-only" : "writable");
+	} else {
+		/*
+		 * In the weird case where there is no underlying block device
+		 * (e.g. tmpfs), assume it is read-only.
+		 */
+		ro = 1;
+		pr_info("dev(?,?): No s_bdev, assuming read-only.\n");
+	}
 
 	if (!ro) {
 		if (!register_sysctl_paths(chromiumos_sysctl_path,
