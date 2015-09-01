@@ -318,12 +318,16 @@ int snd_seq_device_register_driver(char *id, struct snd_seq_dev_ops *entry,
 	    entry->init_device == NULL || entry->free_device == NULL)
 		return -EINVAL;
 
+	snd_seq_autoload_lock();
 	ops = find_driver(id, 1);
-	if (ops == NULL)
+	if (ops == NULL) {
+		snd_seq_autoload_unlock();
 		return -ENOMEM;
+	}
 	if (ops->driver & DRIVER_LOADED) {
 		pr_warn("ALSA: seq: driver_register: driver '%s' already exists\n", id);
 		unlock_driver(ops);
+		snd_seq_autoload_unlock();
 		return -EBUSY;
 	}
 
@@ -340,6 +344,7 @@ int snd_seq_device_register_driver(char *id, struct snd_seq_dev_ops *entry,
 	mutex_unlock(&ops->reg_mutex);
 
 	unlock_driver(ops);
+	snd_seq_autoload_unlock();
 
 	return 0;
 }

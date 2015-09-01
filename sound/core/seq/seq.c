@@ -86,6 +86,7 @@ static int __init alsa_seq_init(void)
 {
 	int err;
 
+	snd_seq_autoload_lock();
 	if ((err = client_init_data()) < 0)
 		goto error;
 
@@ -110,6 +111,7 @@ static int __init alsa_seq_init(void)
 		goto error;
 
  error:
+	snd_seq_autoload_unlock();
 	return err;
 }
 
