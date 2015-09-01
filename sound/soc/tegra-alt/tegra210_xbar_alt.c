@@ -27,6 +27,7 @@
 #include <linux/reset.h>
 #include <linux/slab.h>
 #include <sound/soc.h>
+
 #include <linux/irqchip/tegra-agic.h>
 
 #include "tegra210_xbar_alt.h"
@@ -53,9 +54,19 @@ static const struct regmap_config tegra210_xbar_regmap_config = {
 static int tegra210_xbar_runtime_suspend(struct device *dev)
 {
 	regcache_cache_only(xbar->regmap, true);
+	regcache_mark_dirty(xbar->regmap);
 
 	clk_disable_unprepare(xbar->clk);
 	clk_disable_unprepare(xbar->clk_ape);
+
+	return 0;
+}
+
+static int tegra210_xbar_resume(struct device *dev)
+{
+	regcache_cache_only(xbar->regmap, false);
+	regcache_sync(xbar->regmap);
+	tegra_agic_restore_registers();
 
 	return 0;
 }
@@ -86,19 +97,10 @@ static int tegra210_xbar_runtime_resume(struct device *dev)
 
 static int tegra210_xbar_suspend(struct device *dev)
 {
+	regcache_cache_only(xbar->regmap, true);
 	regcache_mark_dirty(xbar->regmap);
-	pm_runtime_get_sync(dev);
+
 	tegra_agic_save_registers();
-	pm_runtime_put(dev);
-
-	return 0;
-}
-
-static int tegra210_xbar_resume(struct device *dev)
-{
-	pm_runtime_get_sync(dev);
-	tegra_agic_restore_registers();
-	pm_runtime_put(dev);
 
 	return 0;
 }
@@ -921,10 +923,10 @@ static int tegra210_xbar_probe(struct platform_device *pdev)
 
 	pm_runtime_enable(&pdev->dev);
 	if (!pm_runtime_enabled(&pdev->dev)) {
-		ret = tegra210_xbar_runtime_resume(&pdev->dev);
 		if (ret)
 			goto err_pm_disable;
 	}
+	ret = tegra210_xbar_runtime_resume(&pdev->dev);
 
 	ret = snd_soc_register_codec(&pdev->dev, &tegra210_xbar_codec,
 				tegra210_xbar_dais, ARRAY_SIZE(tegra210_xbar_dais));
@@ -970,8 +972,7 @@ static int tegra210_xbar_remove(struct platform_device *pdev)
 }
 
 static const struct dev_pm_ops tegra210_xbar_pm_ops = {
-	SET_RUNTIME_PM_OPS(tegra210_xbar_runtime_suspend,
-			   tegra210_xbar_runtime_resume, NULL)
+	SET_RUNTIME_PM_OPS(NULL, NULL, NULL)
 	SET_SYSTEM_SLEEP_PM_OPS(tegra210_xbar_suspend, tegra210_xbar_resume)
 };
 
