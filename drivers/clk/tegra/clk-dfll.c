@@ -1235,8 +1235,6 @@ static int dfll_disable(struct tegra_dfll *td)
 	dfll_set_mode(td, DFLL_DISABLED);
 	spin_unlock_irqrestore(&td->lock, flags);
 
-	pm_runtime_put_sync(td->dev);
-
 	return 0;
 }
 
@@ -1258,11 +1256,6 @@ static int dfll_enable(struct tegra_dfll *td)
 		spin_unlock_irqrestore(&td->lock, flags);
 		return -EPERM;
 	}
-	spin_unlock_irqrestore(&td->lock, flags);
-
-	pm_runtime_get_sync(td->dev);
-
-	spin_lock_irqsave(&td->lock, flags);
 	dfll_set_mode(td, DFLL_OPEN_LOOP);
 	spin_unlock_irqrestore(&td->lock, flags);
 
@@ -1360,6 +1353,20 @@ static int dfll_unlock(struct tegra_dfll *td)
  * always required before a clk_enable().
  */
 
+static int dfll_clk_prepare(struct clk_hw *hw)
+{
+	struct tegra_dfll *td = clk_hw_to_dfll(hw);
+
+	return pm_runtime_get_sync(td->dev);
+}
+
+static void dfll_clk_unprepare(struct clk_hw *hw)
+{
+	struct tegra_dfll *td = clk_hw_to_dfll(hw);
+
+	pm_runtime_put_sync(td->dev);
+}
+
 static int dfll_clk_is_enabled(struct clk_hw *hw)
 {
 	struct tegra_dfll *td = clk_hw_to_dfll(hw);
@@ -1433,6 +1440,8 @@ static int dfll_clk_set_rate(struct clk_hw *hw, unsigned long rate,
 }
 
 static const struct clk_ops dfll_clk_ops = {
+	.prepare	= dfll_clk_prepare,
+	.unprepare	= dfll_clk_unprepare,
 	.is_enabled	= dfll_clk_is_enabled,
 	.enable		= dfll_clk_enable,
 	.disable	= dfll_clk_disable,
@@ -1511,8 +1520,25 @@ static int attr_enable_get(void *data, u64 *val)
 static int attr_enable_set(void *data, u64 val)
 {
 	struct tegra_dfll *td = data;
+	int ret;
 
-	return val ? dfll_enable(td) : dfll_disable(td);
+	if (val) {
+		ret = pm_runtime_get_sync(td->dev);
+		if (ret < 0)
+			return ret;
+		ret =  dfll_enable(td);
+		if (ret < 0) {
+			pm_runtime_put_sync(td->dev);
+			return ret;
+		}
+	} else {
+		ret = dfll_disable(td);
+		if (ret < 0)
+			return ret;
+		pm_runtime_put_sync(td->dev);
+	}
+
+	return 0;
 }
 DEFINE_SIMPLE_ATTRIBUTE(enable_fops, attr_enable_get, attr_enable_set,
 			"%llu\n");
