@@ -496,6 +496,10 @@
 		storage = "enabled";
 	};
 
+	ion-tegra {
+		compatible = "nvidia,tegra210-ion-heaps";
+	};
+
 	balanced_tskin: balanced_tskin {
 		compatible = "nvidia,balanced-throttle";
 		clocks = <&tegra_car TEGRA210_CLK_CAP_THROTTLE_C3BUS>,
