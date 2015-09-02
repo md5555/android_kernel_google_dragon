@@ -267,6 +267,9 @@ static unsigned int calc_avail_budget(void)
 	s64 ibat_max, pbat;
 	if (pdata->imax_mode) {
 		ibat_max = div64_s64(psy_imax(), 1000);
+		if (!ibat_max)
+			pr_err("ibat_max is zero\n");
+
 		/* Pbat(mW) = Imax(mA) * Vsys_min(uV) / 1000000 */
 		pbat = div64_s64(ibat_max * pdata->vsys_min, 1000000);
 	} else {
