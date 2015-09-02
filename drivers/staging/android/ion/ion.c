@@ -489,7 +489,7 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 	struct ion_device *dev = client->dev;
 	struct ion_buffer *buffer = NULL;
 	struct ion_heap *heap;
-	int ret;
+	int ret = -ENODEV;
 
 	pr_debug("%s: len %zu align %zu heap_id_mask %u flags %x\n", __func__,
 		 len, align, heap_id_mask, flags);
@@ -509,6 +509,12 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 		/* if the caller didn't specify this heap id */
 		if (!((1 << heap->id) & heap_id_mask))
 			continue;
+
+		if (heap->masked_flags & flags) {
+			ret = -EINVAL;
+			break;
+		}
+
 		buffer = ion_buffer_create(heap, dev, len, align, flags);
 		if (!IS_ERR(buffer))
 			break;
@@ -516,7 +522,7 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 	up_read(&dev->lock);
 
 	if (buffer == NULL)
-		return ERR_PTR(-ENODEV);
+		return ERR_PTR(ret);
 
 	if (IS_ERR(buffer))
 		return ERR_CAST(buffer);
@@ -1131,8 +1137,8 @@ static int ion_mmap(struct dma_buf *dmabuf, struct vm_area_struct *vma)
 		return 0;
 	}
 
-	if (!(buffer->flags & ION_FLAG_CACHED))
-		vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
+	vma->vm_page_prot = ion_pgprot_memorytype(buffer->heap->flags,
+			buffer->flags, vma->vm_page_prot);
 
 	mutex_lock(&buffer->lock);
 	/* now map it to userspace */
@@ -1418,8 +1424,9 @@ static int ion_sync_for_device(struct ion_client *client, int fd)
 	}
 	buffer = dmabuf->priv;
 
-	dma_sync_sg_for_device(NULL, buffer->sg_table->sgl,
-			       buffer->sg_table->nents, DMA_BIDIRECTIONAL);
+	if (!(buffer->heap->flags & ION_HEAP_FLAG_DEVICE_MEM))
+		dma_sync_sg_for_device(NULL, buffer->sg_table->sgl,
+			           buffer->sg_table->nents, DMA_BIDIRECTIONAL);
 	dma_buf_put(dmabuf);
 	return 0;
 }

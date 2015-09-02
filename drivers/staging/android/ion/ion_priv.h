@@ -145,6 +145,11 @@ struct ion_heap_ops {
  * heap flags - flags between the heaps and core ion code
  */
 #define ION_HEAP_FLAG_DEFER_FREE (1 << 0)
+/*
+ * Heap memory should be mapped as device memory only. Among other things,
+ * this avoid any speculative accesses done in case of normal memory.
+ */
+#define ION_HEAP_FLAG_DEVICE_MEM (1 << 1)
 
 /**
  * private flags - flags internal to ion
@@ -164,6 +169,7 @@ struct ion_heap_ops {
  * @type:		type of heap
  * @ops:		ops struct as above
  * @flags:		flags
+ * @masked_flags:	flags not allowed for buffers allocated from this heap
  * @id:			id of heap, also indicates priority of this heap when
  *			allocating.  These are specified by platform data and
  *			MUST be unique
@@ -188,6 +194,7 @@ struct ion_heap {
 	enum ion_heap_type type;
 	struct ion_heap_ops *ops;
 	unsigned long flags;
+	unsigned long masked_flags;
 	unsigned int id;
 	const char *name;
 	struct shrinker shrinker;
@@ -199,6 +206,26 @@ struct ion_heap {
 
 	int (*debug_show)(struct ion_heap *heap, struct seq_file *, void *);
 };
+
+/*
+ * ion_pgprot_memorytype - determine protection bits based on given parameters
+ * @heap_flags:		heap flags
+ * @buffer_flags:	buffer flags
+ * @pgprot:		given protection bits
+ *
+ * returns protection bits based on heap flags, buffer flags and existing bits.
+ */
+static inline pgprot_t ion_pgprot_memorytype(unsigned long heap_flags,
+			unsigned long buffer_flags, pgprot_t pgprot)
+{
+	if (heap_flags & ION_HEAP_FLAG_DEVICE_MEM)
+		return pgprot_device_writecombine(pgprot);
+
+	if (!(buffer_flags & ION_FLAG_CACHED))
+		return pgprot_writecombine(pgprot);
+
+	return pgprot;
+}
 
 /**
  * ion_buffer_cached - this ion buffer is cached

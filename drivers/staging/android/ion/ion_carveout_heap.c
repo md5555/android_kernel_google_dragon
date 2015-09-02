@@ -135,13 +135,23 @@ static void ion_carveout_heap_unmap_dma(struct ion_heap *heap,
 {
 }
 
+static int ion_carveout_heap_map_user(struct ion_heap *heap,
+					struct ion_buffer *buffer,
+					struct vm_area_struct *vma)
+{
+	if (heap->flags & ION_HEAP_FLAG_DEVICE_MEM)
+		return -EINVAL;
+
+	return ion_heap_map_user(heap, buffer, vma);
+}
+
 static struct ion_heap_ops carveout_heap_ops = {
 	.allocate = ion_carveout_heap_allocate,
 	.free = ion_carveout_heap_free,
 	.phys = ion_carveout_heap_phys,
 	.map_dma = ion_carveout_heap_map_dma,
 	.unmap_dma = ion_carveout_heap_unmap_dma,
-	.map_user = ion_heap_map_user,
+	.map_user = ion_carveout_heap_map_user,
 	.map_kernel = ion_heap_map_kernel,
 	.unmap_kernel = ion_heap_unmap_kernel,
 };
@@ -149,17 +159,19 @@ static struct ion_heap_ops carveout_heap_ops = {
 struct ion_heap *ion_carveout_heap_create(struct ion_platform_heap *heap_data)
 {
 	struct ion_carveout_heap *carveout_heap;
-	int ret;
+	unsigned long heap_flags = heap_data->flags;
+	int ret = 0;
 
-	struct page *page;
-	size_t size;
+	if (!(heap_flags & ION_HEAP_FLAG_DEVICE_MEM)) {
 
-	page = pfn_to_page(PFN_DOWN(heap_data->base));
-	size = heap_data->size;
+		struct page *page = pfn_to_page(PFN_DOWN(heap_data->base));
+		size_t size = heap_data->size;
+		pgprot_t pgprot = ion_pgprot_memorytype(heap_flags, 0, PAGE_KERNEL);
 
-	ion_pages_sync_for_device(NULL, page, size, DMA_BIDIRECTIONAL);
+		ion_pages_sync_for_device(NULL, page, size, DMA_BIDIRECTIONAL);
 
-	ret = ion_heap_pages_zero(page, size, pgprot_writecombine(PAGE_KERNEL));
+		ret = ion_heap_pages_zero(page, size, pgprot);
+	}
 	if (ret)
 		return ERR_PTR(ret);
 
@@ -177,7 +189,10 @@ struct ion_heap *ion_carveout_heap_create(struct ion_platform_heap *heap_data)
 		     -1);
 	carveout_heap->heap.ops = &carveout_heap_ops;
 	carveout_heap->heap.type = ION_HEAP_TYPE_CARVEOUT;
-	carveout_heap->heap.flags = ION_HEAP_FLAG_DEFER_FREE;
+	carveout_heap->heap.flags = heap_flags | ION_HEAP_FLAG_DEFER_FREE;
+	if (heap_flags & ION_HEAP_FLAG_DEVICE_MEM)
+		carveout_heap->heap.masked_flags = ION_FLAG_CACHED |
+			ION_FLAG_CACHED_NEEDS_SYNC;
 
 	return &carveout_heap->heap;
 }

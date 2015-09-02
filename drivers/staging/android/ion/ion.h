@@ -44,6 +44,7 @@ struct ion_buffer;
  * @base:	base address of heap in physical memory if applicable
  * @size:	size of the heap in bytes if applicable
  * @align:	required alignment in physical memory if applicable
+ * @flags:	flags
  * @priv:	private info passed from the board file
  *
  * Provided by the board file.
@@ -55,6 +56,7 @@ struct ion_platform_heap {
 	ion_phys_addr_t base;
 	size_t size;
 	ion_phys_addr_t align;
+	unsigned long flags;
 	void *priv;
 };
 

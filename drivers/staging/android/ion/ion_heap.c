@@ -40,10 +40,7 @@ void *ion_heap_map_kernel(struct ion_heap *heap,
 	if (!pages)
 		return NULL;
 
-	if (buffer->flags & ION_FLAG_CACHED)
-		pgprot = PAGE_KERNEL;
-	else
-		pgprot = pgprot_writecombine(PAGE_KERNEL);
+	pgprot = ion_pgprot_memorytype(heap->flags, buffer->flags, PAGE_KERNEL);
 
 	for_each_sg(table->sgl, sg, table->nents, i) {
 		int npages_this_entry = PAGE_ALIGN(sg->length) / PAGE_SIZE;
@@ -109,7 +106,11 @@ static int ion_heap_clear_pages(struct page **pages, int num, pgprot_t pgprot)
 
 	if (!addr)
 		return -ENOMEM;
-	memset(addr, 0, PAGE_SIZE * num);
+
+	if (is_pgprot_device(pgprot))
+		memset_io(addr, 0, PAGE_SIZE * num);
+	else
+		memset(addr, 0, PAGE_SIZE * num);
 	vm_unmap_ram(addr, num);
 
 	return 0;
@@ -141,12 +142,8 @@ static int ion_heap_sglist_zero(struct scatterlist *sgl, unsigned int nents,
 int ion_heap_buffer_zero(struct ion_buffer *buffer)
 {
 	struct sg_table *table = buffer->sg_table;
-	pgprot_t pgprot;
-
-	if (buffer->flags & ION_FLAG_CACHED)
-		pgprot = PAGE_KERNEL;
-	else
-		pgprot = pgprot_writecombine(PAGE_KERNEL);
+	pgprot_t pgprot = ion_pgprot_memorytype(buffer->heap->flags,
+			buffer->flags, PAGE_KERNEL);
 
 	return ion_heap_sglist_zero(table->sgl, table->nents, pgprot);
 }
