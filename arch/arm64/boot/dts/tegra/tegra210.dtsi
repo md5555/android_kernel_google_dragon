@@ -139,8 +139,11 @@
 			clocks = <&tegra_car TEGRA210_CLK_NVDEC>,
 				 <&tegra_car TEGRA210_CLK_NVDEC_CBUS>,
 				 <&tegra_car TEGRA210_CLK_NVJPG>,
-				 <&tegra_car TEGRA210_CLK_NVDEC_EMC>;
-			clock-names = "nvdec", "nvdec_cbus", "nvjpg", "emc";
+				 <&tegra_car TEGRA210_CLK_NVDEC_EMC>,
+				 <&tegra_car TEGRA210_CLK_FUSE>,
+				 <&tegra_car TEGRA210_CLK_KFUSE>;
+			clock-names = "nvdec", "nvdec_cbus", "nvjpg", "emc",
+				      "fuse", "kfuse";
 			resets = <&tegra_car TEGRA210_CLK_NVDEC>,
 				 <&tegra_car TEGRA210_CLK_NVJPG>;
 			reset-names = "nvdec", "nvjpg";
