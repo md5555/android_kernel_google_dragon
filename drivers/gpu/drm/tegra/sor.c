@@ -3100,7 +3100,8 @@ static int tegra_sor_probe(struct platform_device *pdev)
 	return 0;
 
 hdcp:
-	drm_hdcp_unregister(&sor->hdcp);
+	if (sor->kfuse)
+		drm_hdcp_unregister(&sor->hdcp);
 remove:
 	if (sor->ops && sor->ops->remove)
 		sor->ops->remove(sor);
