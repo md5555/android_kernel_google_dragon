@@ -143,6 +143,8 @@ int tegra_pmc_hsic_sleep_exit(unsigned int port);
 int tegra_fuse_ps18_latch_set(void);
 int tegra_fuse_ps18_latch_clear(void);
 
+int tegra_slcg_register_notifier(int id, struct notifier_block *nb);
+int tegra_slcg_unregister_notifier(int id, struct notifier_block *nb);
 #else
 static inline int tegra_powergate_is_powered(int id)
 {
@@ -206,6 +208,17 @@ static inline int tegra_fuse_ps18_latch_clear(void)
 	return -ENOSYS;
 }
 
+static inline int tegra_slcg_register_notifier(int id,
+		struct notifier_block *nb)
+{
+	return -ENOSYS;
+}
+
+static inline int tegra_slcg_unregister_notifier(int id,
+		struct notifier_block *nb)
+{
+	return -ENOSYS;
+}
 #endif /* CONFIG_ARCH_TEGRA */
 
 #endif /* __SOC_TEGRA_PMC_H__ */

@@ -357,6 +357,11 @@ struct tegra_powergate_clk {
 	struct list_head list;
 };
 
+struct tegra_slcg_clk {
+	struct clk *clk;
+	struct list_head list;
+};
+
 struct tegra_powergate_rst {
 	struct reset_control *rst;
 	struct list_head list;
@@ -370,9 +375,11 @@ struct tegra_powergate_flush {
 struct tegra_powergate {
 	const char *name;
 	struct list_head clk_list;
+	struct list_head slcg_clk_list;
 	struct list_head rst_list;
 	struct tegra_mc *mc;
 	struct list_head flush_list;
+	struct raw_notifier_head slcg_notifier;
 	unsigned int num_dependencies;
 	unsigned int *dependencies;
 };
@@ -610,6 +617,7 @@ static int tegra_powergate_sequence_power_up(int id)
 {
 	struct tegra_powergate_rst *pg_rst;
 	struct tegra_powergate_clk *pg_clk;
+	struct tegra_slcg_clk *slcg_clk;
 	struct tegra_powergate_flush *pg_flush;
 	struct tegra_powergate *pg;
 	int ret;
@@ -648,6 +656,14 @@ static int tegra_powergate_sequence_power_up(int id)
 		list_for_each_entry(pg_flush, &pg->flush_list, list)
 			tegra_mc_flush(pg->mc, pg_flush->flush, false);
 		usleep_range(10, 20);
+
+		list_for_each_entry(slcg_clk, &pg->slcg_clk_list, list)
+			clk_prepare_enable(slcg_clk->clk);
+
+		raw_notifier_call_chain(&pg->slcg_notifier, 0, NULL);
+
+		list_for_each_entry(slcg_clk, &pg->slcg_clk_list, list)
+			clk_disable_unprepare(slcg_clk->clk);
 
 		list_for_each_entry(pg_clk, &pg->clk_list, list)
 			clk_disable_unprepare(pg_clk->clk);
@@ -2558,6 +2574,21 @@ static int tegra_powergate_add_clock(struct tegra_powergate *pg,
 	return 0;
 }
 
+static int tegra_powergate_add_slcg_clock(struct tegra_powergate *pg,
+				     struct clk *clk)
+{
+	struct tegra_slcg_clk *slcg_clk;
+
+	slcg_clk = devm_kmalloc(pmc->dev, sizeof(*slcg_clk), GFP_KERNEL);
+	if (!slcg_clk)
+		return -ENOMEM;
+
+	slcg_clk->clk = clk;
+	list_add_tail(&slcg_clk->list, &pg->slcg_clk_list);
+
+	return 0;
+}
+
 static int tegra_powergate_add_reset(struct tegra_powergate *pg,
 				     struct reset_control *rst)
 {
@@ -2611,9 +2642,13 @@ static int tegra_powergate_init_one(struct device_node *np,
 			continue;
 		}
 
-		ret = tegra_powergate_add_clock(pg, clk);
-		if (ret)
-			continue;
+		if (strncmp(id, "slcg_", 5)) {
+			if (tegra_powergate_add_clock(pg, clk))
+				continue;
+		} else {
+			if (tegra_powergate_add_slcg_clock(pg, clk))
+				continue;
+		}
 
 		pr_info("%s: Added clock '%s' to powergate '%s'\n",
 			__func__, id, pg->name);
@@ -2734,6 +2769,7 @@ static int tegra_powergate_init(struct tegra_pmc *pmc,
 
 		pg->name = pmc->soc->powergates[p];
 		INIT_LIST_HEAD(&pg->clk_list);
+		INIT_LIST_HEAD(&pg->slcg_clk_list);
 		INIT_LIST_HEAD(&pg->rst_list);
 		INIT_LIST_HEAD(&pg->flush_list);
 	}
@@ -2758,6 +2794,38 @@ static int tegra_powergate_init(struct tegra_pmc *pmc,
 
 	return ret;
 }
+
+int tegra_slcg_register_notifier(int id, struct notifier_block *nb)
+{
+	struct tegra_powergate *pg;
+
+	if (!pmc->soc || id < 0 || id >= pmc->soc->num_powergates)
+		return -EINVAL;
+
+	if (!pmc->powergates)
+		return -EPROBE_DEFER;
+
+	pg = &pmc->powergates[id];
+
+	return raw_notifier_chain_register(&pg->slcg_notifier, nb);
+}
+EXPORT_SYMBOL(tegra_slcg_register_notifier);
+
+int tegra_slcg_unregister_notifier(int id, struct notifier_block *nb)
+{
+	struct tegra_powergate *pg;
+
+	if (!pmc->soc || id < 0 || id >= pmc->soc->num_powergates)
+		return -EINVAL;
+
+	if (!pmc->powergates)
+		return -EPROBE_DEFER;
+
+	pg = &pmc->powergates[id];
+
+	return raw_notifier_chain_unregister(&pg->slcg_notifier, nb);
+}
+EXPORT_SYMBOL(tegra_slcg_unregister_notifier);
 
 static int tegra_pmc_probe(struct platform_device *pdev)
 {
