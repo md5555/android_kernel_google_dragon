@@ -2085,7 +2085,7 @@ static int find_vdd_map_entry_min(struct tegra_dfll *td, int uV)
  */
 static int dfll_build_i2c_lut(struct tegra_dfll *td)
 {
-	int ret = -EINVAL;
+	int ret;
 	int j, v, v_max, v_opp;
 	int selector;
 	unsigned long rate;
@@ -2096,26 +2096,35 @@ static int dfll_build_i2c_lut(struct tegra_dfll *td)
 	rate = ULONG_MAX;
 	opp = dev_pm_opp_find_freq_floor(td->soc->opp_dev, &rate);
 	if (IS_ERR(opp)) {
+		rcu_read_unlock();
 		dev_err(td->dev, "couldn't get vmax opp, empty opp table?\n");
-		goto out;
+		return PTR_ERR(opp);
 	}
 	v_max = dev_pm_opp_get_voltage(opp);
+
+	rcu_read_unlock();
 
 	v = td->soc->min_millivolts * 1000;
 	ret = find_vdd_map_entry_exact(td, v);
 	if (ret < 0)
-		goto out;
+		return ret;
 
 	td->i2c_lut[0] = ret;
 
 	for (j = 1, rate = 0; ; rate++) {
+		rcu_read_lock();
+
 		opp = dev_pm_opp_find_freq_ceil(td->soc->opp_dev, &rate);
-		if (IS_ERR(opp))
+		if (IS_ERR(opp)) {
+			rcu_read_unlock();
 			break;
+		}
 		v_opp = dev_pm_opp_get_voltage(opp);
 
 		if (v_opp <= td->soc->min_millivolts * 1000)
 			td->out_rate_min = dev_pm_opp_get_freq(opp);
+
+		rcu_read_unlock();
 
 		for (;;) {
 			v += max(1, (v_max - v) / (MAX_DFLL_VOLTAGES - j));
@@ -2124,7 +2133,7 @@ static int dfll_build_i2c_lut(struct tegra_dfll *td)
 
 			selector = find_vdd_map_entry_min(td, v);
 			if (selector < 0)
-				goto out;
+				return selector;
 			if (selector != td->i2c_lut[j - 1])
 				td->i2c_lut[j++] = selector;
 		}
@@ -2132,7 +2141,7 @@ static int dfll_build_i2c_lut(struct tegra_dfll *td)
 		v = (j == MAX_DFLL_VOLTAGES - 1) ? v_max : v_opp;
 		selector = find_vdd_map_entry_exact(td, v);
 		if (selector < 0)
-			goto out;
+			return selector;
 		if (selector != td->i2c_lut[j - 1])
 			td->i2c_lut[j++] = selector;
 
@@ -2152,9 +2161,6 @@ static int dfll_build_i2c_lut(struct tegra_dfll *td)
 			td->i2c_lut_uv[j] = regulator_list_voltage(td->vdd_reg,
 					td->i2c_lut[j]);
 	}
-
-out:
-	rcu_read_unlock();
 
 	return ret;
 }
