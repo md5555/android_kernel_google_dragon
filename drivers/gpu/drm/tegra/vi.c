@@ -16,6 +16,7 @@
 
 #include <linux/delay.h>
 #include <linux/clk.h>
+#include <linux/clk/tegra.h>
 #include <linux/host1x.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
@@ -43,8 +44,11 @@ struct vi {
 	struct host1x_channel *channel;
 	struct device *dev;
 	struct clk *clk;
+	struct clk *plld_clk;
 	struct reset_control *rst;
 	struct regulator *reg;
+
+	struct notifier_block slcg_notifier;
 
 	struct iommu_domain *domain;
 
@@ -60,6 +64,28 @@ static inline struct vi *to_vi(struct tegra_drm_client *client)
 static inline void vi_writel(struct vi *vi, u32 v, u32 r)
 {
 	writel(v, vi->regs + r);
+}
+
+static int vi_slcg_handler(struct notifier_block *nb,
+	unsigned long unused0, void *unused1)
+{
+	struct vi *vi = container_of(nb, struct vi, slcg_notifier);
+	int ret;
+
+	tegra210_csi_source_from_plld();
+	ret = clk_prepare_enable(vi->plld_clk);
+	if (ret) {
+		tegra210_csi_source_from_brick();
+		dev_err(vi->dev, "can't enable pll_d");
+		return ret;
+	}
+
+	udelay(1);
+
+	clk_disable_unprepare(vi->plld_clk);
+	tegra210_csi_source_from_brick();
+
+	return NOTIFY_OK;
 }
 
 static int vi_power_off(struct device *dev)
@@ -342,6 +368,10 @@ static int vi_probe(struct platform_device *pdev)
 	if (IS_ERR(vi->clk))
 		return PTR_ERR(vi->clk);
 
+	vi->plld_clk = devm_clk_get(dev, "pll_d");
+	if (IS_ERR(vi->plld_clk))
+		return PTR_ERR(vi->plld_clk);
+
 	vi->reg = devm_regulator_get(dev, "avdd-dsi-csi");
 	if (IS_ERR(vi->reg)) {
 		err = PTR_ERR(vi->reg);
@@ -359,6 +389,10 @@ static int vi_probe(struct platform_device *pdev)
 
 	INIT_LIST_HEAD(&vi->client.list);
 	vi->client.ops = &vi_ops;
+
+	vi->slcg_notifier.notifier_call = vi_slcg_handler;
+	tegra_slcg_register_notifier(vi->config->powergate_id,
+		&vi->slcg_notifier);
 
 	platform_set_drvdata(pdev, vi);
 
@@ -399,6 +433,9 @@ static int vi_remove(struct platform_device *pdev)
 			err);
 
 	vi_power_off(&pdev->dev);
+
+	tegra_slcg_unregister_notifier(vi->config->powergate_id,
+		&vi->slcg_notifier);
 
 	return err;
 }
