@@ -402,10 +402,10 @@ static int panel_jdi_debugfs_init(struct panel_jdi *jdi)
 {
 	jdi->debugfs_entry = debugfs_create_dir("jdi-lpm102a188a", NULL);
 
-	debugfs_create_file("register", S_IWUGO | S_IRUGO, jdi->debugfs_entry,
+	debugfs_create_file("register", S_IWUSR | S_IRUGO, jdi->debugfs_entry,
 				jdi, &jdi_register_fops);
 
-	debugfs_create_file("value", S_IWUGO | S_IRUGO, jdi->debugfs_entry,
+	debugfs_create_file("value", S_IWUSR | S_IRUGO, jdi->debugfs_entry,
 				jdi, &jdi_value_fops);
 
 	return 0;
