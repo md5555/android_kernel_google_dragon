@@ -911,10 +911,10 @@
 		dev-ctrl = /bits/ 8 <0x02>;
 		init-brt = /bits/ 8 <0x55>;
 
-		/* Full scale current, 20mA */
+		/* Full scale current, 18mA */
 		rom_11h {
 			rom-addr = /bits/ 8 <0x11>;
-			rom-val = /bits/ 8 <0x05>;
+			rom-val = /bits/ 8 <0x04>;
 		};
 
 		/* Frequency = 4.9kHz, magic undocumented val */
