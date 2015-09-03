@@ -162,6 +162,8 @@ struct tegra_dc {
 	struct drm_minor *minor;
 	struct dentry *debugfs;
 
+	struct notifier_block slcg_notifier;
+
 	/* page-flip handling */
 	struct drm_pending_vblank_event *event;
 

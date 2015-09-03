@@ -1650,6 +1650,24 @@ static irqreturn_t tegra_dc_irq(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
+static int tegra_dc_slcg_handler(struct notifier_block *nb,
+	unsigned long unused0, void *unused1)
+{
+	struct tegra_dc *dc = container_of(nb, struct tegra_dc, slcg_notifier);
+	u32 val;
+
+	val = tegra_dc_readl(dc, DC_COM_DSC_TOP_CTL);
+	val |= DSC_SLCG_OVERRIDE;
+	tegra_dc_writel(dc, val, DC_COM_DSC_TOP_CTL);
+
+	/* flush the previous write */
+	(void)tegra_dc_readl(dc, DC_CMD_DISPLAY_COMMAND);
+	val &= ~DSC_SLCG_OVERRIDE;
+	tegra_dc_writel(dc, val, DC_COM_DSC_TOP_CTL);
+
+	return NOTIFY_OK;
+}
+
 static int tegra_dc_show_regs(struct seq_file *s, void *data)
 {
 	struct drm_info_node *node = s->private;
@@ -2367,11 +2385,20 @@ static int tegra_dc_probe(struct platform_device *pdev)
 		return PTR_ERR(dc->rst);
 	}
 
+	regs = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	dc->regs = devm_ioremap_resource(&pdev->dev, regs);
+	if (IS_ERR(dc->regs))
+		return PTR_ERR(dc->regs);
+
 	if (dc->soc->has_powergate) {
 		if (dc->pipe == 0)
 			dc->powergate = TEGRA_POWERGATE_DIS;
 		else
 			dc->powergate = TEGRA_POWERGATE_DISB;
+
+		dc->slcg_notifier.notifier_call = tegra_dc_slcg_handler;
+		tegra_slcg_register_notifier(dc->powergate,
+			&dc->slcg_notifier);
 
 		err = tegra_pmc_unpowergate(dc->powergate);
 		if (err < 0) {
@@ -2407,11 +2434,6 @@ static int tegra_dc_probe(struct platform_device *pdev)
 	if (IS_ERR(dc->emc_clk))
 		dc->emc_clk = NULL;
 	clk_prepare_enable(dc->emc_clk);
-
-	regs = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	dc->regs = devm_ioremap_resource(&pdev->dev, regs);
-	if (IS_ERR(dc->regs))
-		return PTR_ERR(dc->regs);
 
 	dc->irq = platform_get_irq(pdev, 0);
 	if (dc->irq < 0) {
@@ -2466,6 +2488,9 @@ static int tegra_dc_remove(struct platform_device *pdev)
 	}
 
 	reset_control_assert(dc->rst);
+
+	tegra_slcg_unregister_notifier(dc->powergate,
+		&dc->slcg_notifier);
 
 	if (dc->soc->has_powergate)
 		tegra_pmc_powergate(dc->powergate);
