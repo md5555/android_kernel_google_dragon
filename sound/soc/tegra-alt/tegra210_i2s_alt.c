@@ -36,6 +36,8 @@
 #include <linux/delay.h>
 #include <linux/debugfs.h>
 
+#include <soc/tegra/pmc.h>
+
 #include "tegra210_xbar_alt.h"
 #include "tegra210_i2s_alt.h"
 
@@ -516,6 +518,35 @@ static int tegra210_i2s_codec_probe(struct snd_soc_codec *codec)
 	return 0;
 }
 
+static int tegra210_i2s_slcg_handler(struct notifier_block *nb,
+	unsigned long unused0, void *unused1)
+{
+	struct tegra210_i2s *i2s = container_of(nb, struct tegra210_i2s,
+								slcg_notifier);
+	unsigned int val, i2s_ctrl;
+
+	/* Save the I2S CTRL before implement MBIST WAR */
+	regmap_read(i2s->regmap, TEGRA210_I2S_CTRL, &i2s_ctrl);
+
+	/* Set I2S controller in master mode */
+	regmap_update_bits(i2s->regmap,
+		TEGRA210_I2S_CTRL,
+		TEGRA210_I2S_CTRL_MASTER_EN_MASK,
+		TEGRA210_I2S_CTRL_MASTER_EN);
+	/* Disable slcg, wait a while and re-enable it */
+	regmap_write(i2s->regmap, TEGRA210_I2S_CG, 0);
+	regmap_read(i2s->regmap, TEGRA210_I2S_CG, &val);
+
+	udelay(1);
+
+	regmap_write(i2s->regmap, TEGRA210_I2S_CG, 1);
+
+	/* Restore the I2S CTRL */
+	regmap_write(i2s->regmap, TEGRA210_I2S_CTRL, i2s_ctrl);
+
+	return NOTIFY_OK;
+}
+
 static struct snd_soc_dai_ops tegra210_i2s_dai_ops = {
 	.set_fmt	= tegra210_i2s_set_fmt,
 	.hw_params	= tegra210_i2s_hw_params,
@@ -846,6 +877,10 @@ static int tegra210_i2s_platform_probe(struct platform_device *pdev)
 		goto err_pll_a_out0_clk_put;
 	}
 
+	i2s->slcg_notifier.notifier_call = tegra210_i2s_slcg_handler;
+	tegra_slcg_register_notifier(TEGRA_POWERGATE_AUD,
+		&i2s->slcg_notifier);
+
 	regcache_cache_only(i2s->regmap, true);
 
 	if (of_property_read_u32(np, "nvidia,ahub-i2s-id",
@@ -966,6 +1001,9 @@ static int tegra210_i2s_platform_remove(struct platform_device *pdev)
 	pm_runtime_disable(&pdev->dev);
 	if (!pm_runtime_status_suspended(&pdev->dev))
 		tegra210_i2s_runtime_suspend(&pdev->dev);
+
+	tegra_slcg_unregister_notifier(TEGRA_POWERGATE_AUD,
+		&i2s->slcg_notifier);
 
 	devm_clk_put(&pdev->dev, i2s->clk_i2s);
 	devm_clk_put(&pdev->dev, i2s->clk_audio_sync);
