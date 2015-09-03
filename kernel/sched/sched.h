@@ -964,6 +964,17 @@ extern bool numabalancing_enabled;
 #define numabalancing_enabled (0)
 #endif /* CONFIG_NUMA_BALANCING */
 
+#ifdef CONFIG_FAIR_GROUP_SCHED
+#ifdef CONFIG_SCHED_DEBUG
+#define energy_aware sched_feat(ENERGY_AWARE)
+#else
+extern bool energy_aware;
+#endif /* CONFIG_SCHED_DEBUG */
+#else
+#define energy_aware (0)
+#endif
+
+
 static inline u64 global_rt_period(void)
 {
 	return (u64)sysctl_sched_rt_period * NSEC_PER_USEC;
