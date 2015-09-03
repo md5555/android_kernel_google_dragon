@@ -1264,6 +1264,7 @@ int
 gf100_grctx_generate(struct gf100_gr_priv *priv)
 {
 	struct gf100_grctx_oclass *oclass = (void *)nv_engine(priv)->cclass;
+	struct nvkm_ltc *ltc = nvkm_ltc(priv);
 	struct nvkm_bar *bar = nvkm_bar(priv);
 	struct nvkm_gpuobj *chan;
 	struct gf100_grctx info;
@@ -1346,6 +1347,8 @@ gf100_grctx_generate(struct gf100_gr_priv *priv)
 		ret = -EBUSY;
 		goto done;
 	}
+
+	ltc->flush(ltc);
 
 	priv->data = kmalloc(priv->size, GFP_KERNEL);
 	if (priv->data) {
