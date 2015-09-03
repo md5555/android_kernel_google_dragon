@@ -29,8 +29,13 @@
 #include "drm.h"
 #include "falcon.h"
 
+#define NV_PVIC_THI_CLK_OVERRIDE			0x00000e00
 #define NV_PVIC_THI_SLCG_OVERRIDE_LOW_A			0x0000008c
 #define NV_PVIC_THI_SLCG_OVERRIDE_HIGH_A		0x00000088
+#define NV_PVIC_FALCON_CGCTL				0x000010a0
+#define NV_PVIC_TFBIF_MCCIF_FIFOCTRL			0x00001604
+#define NV_PVIC_FALCON_CG2				0x00001134
+#define NV_PVIC_FALCON_CG1_SLCG				0x0000117c
 
 #define NVA0B6_VIDEO_COMPOSITOR_SET_APPLICATION_ID	0x00000200
 #define NVA0B6_VIDEO_COMPOSITOR_SET_FCE_UCODE_SIZE	0x0000071C
@@ -65,6 +70,7 @@ struct vic {
 	struct device *dev;
 	struct clk *clk;
 	struct reset_control *rst;
+	struct notifier_block slcg_notifier;
 
 	struct fce fce;
 	struct vic_ucode_fce_header_v1 *fce_header;
@@ -78,6 +84,38 @@ struct vic {
 static inline struct vic *to_vic(struct tegra_drm_client *client)
 {
 	return container_of(client, struct vic, client);
+}
+
+static inline void vic_writel(struct vic *vic, u32 v, u32 r)
+{
+	writel(v, vic->falcon.regs + r);
+}
+
+static int vic_slcg_handler(struct notifier_block *nb,
+	unsigned long unused0, void *unused1)
+{
+	struct vic *vic = container_of(nb, struct vic, slcg_notifier);
+
+	/* Disable slcg, wait a while and re-enable it */
+	vic_writel(vic, 0xffffffff, NV_PVIC_THI_CLK_OVERRIDE);
+	vic_writel(vic, 0x000000ff, NV_PVIC_THI_SLCG_OVERRIDE_HIGH_A);
+	vic_writel(vic, 0xffffffff, NV_PVIC_THI_SLCG_OVERRIDE_LOW_A);
+	vic_writel(vic, 0x00000001, NV_PVIC_FALCON_CGCTL);
+	vic_writel(vic, 0x00000000, NV_PVIC_TFBIF_MCCIF_FIFOCTRL);
+	vic_writel(vic, 0x00000003, NV_PVIC_FALCON_CG2);
+	vic_writel(vic, 0x00000003, NV_PVIC_FALCON_CG1_SLCG);
+
+	udelay(1);
+
+	vic_writel(vic, 0x00000000, NV_PVIC_THI_CLK_OVERRIDE);
+	vic_writel(vic, 0x00000000, NV_PVIC_THI_SLCG_OVERRIDE_HIGH_A);
+	vic_writel(vic, 0x00000000, NV_PVIC_THI_SLCG_OVERRIDE_LOW_A);
+	vic_writel(vic, 0x00000000, NV_PVIC_FALCON_CGCTL);
+	vic_writel(vic, 0x00000000, NV_PVIC_TFBIF_MCCIF_FIFOCTRL);
+	vic_writel(vic, 0x00000000, NV_PVIC_FALCON_CG2);
+	vic_writel(vic, 0x00000000, NV_PVIC_FALCON_CG1_SLCG);
+
+	return NOTIFY_OK;
 }
 
 static int vic_power_off(struct device *dev)
@@ -114,15 +152,6 @@ static int vic_power_on(struct device *dev)
 	err = clk_prepare_enable(vic->clk);
 	if (err)
 		goto err_enable_clk;
-
-	/*
-	 * Disable SLCG to workaround MBIST issue in IP level. This code
-	 * should be removed once the MBIST WAR has been completed and
-	 * done as part of tegra_powergate_sequence_power_up().
-	 */
-
-	writel(0xffffffff, vic->falcon.regs + NV_PVIC_THI_SLCG_OVERRIDE_LOW_A);
-	writel(0xffffffff, vic->falcon.regs + NV_PVIC_THI_SLCG_OVERRIDE_HIGH_A);
 
 	return 0;
 
@@ -413,6 +442,10 @@ static int vic_probe(struct platform_device *pdev)
 		return err;
 	}
 
+	vic->slcg_notifier.notifier_call = vic_slcg_handler;
+	tegra_slcg_register_notifier(vic->config->powergate_id,
+		&vic->slcg_notifier);
+
 	platform_set_drvdata(pdev, vic);
 
 	err = vic_power_on(&pdev->dev);
@@ -455,6 +488,9 @@ static int vic_remove(struct platform_device *pdev)
 			err);
 
 	vic_power_off(&pdev->dev);
+
+	tegra_slcg_unregister_notifier(vic->config->powergate_id,
+		&vic->slcg_notifier);
 
 	falcon_exit(&vic->falcon);
 
