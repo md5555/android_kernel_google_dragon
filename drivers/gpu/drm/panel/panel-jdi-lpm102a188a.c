@@ -439,6 +439,7 @@ static const struct drm_display_mode default_mode = {
 static int panel_jdi_get_modes(struct drm_panel *panel)
 {
 	struct drm_display_mode *mode;
+	struct drm_display_info *info = &panel->connector->display_info;
 
 	mode = drm_mode_duplicate(panel->drm, &default_mode);
 	if (!mode) {
@@ -452,8 +453,10 @@ static int panel_jdi_get_modes(struct drm_panel *panel)
 
 	drm_mode_probed_add(panel->connector, mode);
 
-	panel->connector->display_info.width_mm = 211;
-	panel->connector->display_info.height_mm = 148;
+	info->width_mm = 211;
+	info->height_mm = 148;
+	info->tearing_effect = DRM_TEARING_EFFECT_ACTIVE_LOW;
+	info->supports_psr = true;
 
 	return 1;
 }
