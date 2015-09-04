@@ -2025,7 +2025,7 @@ static struct tegra_clk_pll_params pll_u_vco_params = {
 };
 
 static struct tegra_clk tegra210_clks[tegra_clk_max] __initdata = {
-	[tegra_clk_ispb] = { .dt_id = TEGRA210_CLK_ISPB, .present = true },
+	[tegra_clk_ispb_9] = { .dt_id = TEGRA210_CLK_ISPB, .present = true },
 	[tegra_clk_rtc] = { .dt_id = TEGRA210_CLK_RTC, .present = true },
 	[tegra_clk_timer] = { .dt_id = TEGRA210_CLK_TIMER, .present = true },
 	[tegra_clk_uarta_8] = { .dt_id = TEGRA210_CLK_UARTA, .present = true },

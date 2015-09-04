@@ -116,6 +116,7 @@
 #define CLK_SOURCE_XUSB_SS_SRC 0x610
 #define CLK_SOURCE_XUSB_DEV_SRC 0x60c
 #define CLK_SOURCE_ISP 0x144
+#define CLK_SOURCE_ISPB 0x404
 #define CLK_SOURCE_SOR0 0x414
 #define CLK_SOURCE_DPAUX 0x418
 #define CLK_SOURCE_SATA_OOB 0x420
@@ -418,6 +419,13 @@ static const char *mux_pllp_pllc_plla_clkm[] = {
 };
 static u32 mux_pllp_pllc_plla_clkm_idx[] = {
 	[0] = 0, [1] = 2, [2] = 4, [3] = 6,
+};
+
+static const char *mux_pllc_pllp_plla_out0[] = {
+	"pll_c", "pll_p", "pll_a_out0"
+};
+static u32 mux_pllc_pllp_plla_out0_idx[] = {
+	[0] = 2, [1] = 4, [2] = 6,
 };
 
 static const char *mux_pllp_pllc_pllc4_out0_pllc4_out1_clkm_pllc4_out2[] = {
@@ -739,6 +747,7 @@ static struct tegra_periph_init_data periph_clks[] = {
 	MUX8("vi_sensor", mux_pllm_pllc2_c_c3_pllp_plla, CLK_SOURCE_VI_SENSOR, 164, TEGRA_PERIPH_NO_RESET, tegra_clk_vi_sensor_8),
 	MUX8("isp", mux_pllm_pllc_pllp_plla_clkm_pllc4, CLK_SOURCE_ISP, 23, TEGRA_PERIPH_ON_APB, tegra_clk_isp_8),
 	MUX8("isp", mux_pllc_pllp_plla1_pllc2_c3_clkm_pllc4, CLK_SOURCE_ISP, 23, TEGRA_PERIPH_ON_APB, tegra_clk_isp_9),
+	MUX8("ispb", mux_pllc_pllp_plla_out0, CLK_SOURCE_ISPB, 3, TEGRA_PERIPH_ON_APB, tegra_clk_ispb_9),
 	MUX8("entropy", mux_pllp_clkm1, CLK_SOURCE_ENTROPY, 149,  0, tegra_clk_entropy),
 	MUX8("entropy", mux_pllp_clkm_clk32_plle, CLK_SOURCE_ENTROPY, 149,  0, tegra_clk_entropy_8),
 	MUX8("hdmi_audio", mux_pllp3_pllc_clkm, CLK_SOURCE_HDMI_AUDIO, 176, TEGRA_PERIPH_NO_RESET, tegra_clk_hdmi_audio),

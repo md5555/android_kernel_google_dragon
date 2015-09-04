@@ -128,6 +128,7 @@ enum clk_id {
 	tegra_clk_isp_8,
 	tegra_clk_isp_9,
 	tegra_clk_ispb,
+	tegra_clk_ispb_9,
 	tegra_clk_kbc,
 	tegra_clk_kfuse,
 	tegra_clk_la,
