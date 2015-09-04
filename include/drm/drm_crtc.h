@@ -120,6 +120,10 @@ enum subpixel_order {
 #define DRM_COLOR_FORMAT_RGB444		(1<<0)
 #define DRM_COLOR_FORMAT_YCRCB444	(1<<1)
 #define DRM_COLOR_FORMAT_YCRCB422	(1<<2)
+
+/* drm_display_info::tearing_effect flags */
+#define DRM_TEARING_EFFECT_ACTIVE_LOW	(1<<0)
+
 /*
  * Describes a given display (e.g. CRT or flat panel) and its limitations.
  */
@@ -143,6 +147,9 @@ struct drm_display_info {
 	u8 edid_hdmi_dc_modes;
 
 	u8 cea_rev;
+
+	u8 tearing_effect;
+	bool supports_psr;
 };
 
 struct drm_framebuffer_funcs {
