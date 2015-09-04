@@ -705,10 +705,12 @@ struct gk20a_pmu_priv {
 	struct completion elpg_on_completion;
 	int pmu_state;
 	int elpg_disable_depth;
+	int clk_gating_disable_depth;
 	struct nvkm_pmu_priv_vm pmuvm;
 	struct gm20b_ctxsw_ucode_info ucode_info;
 	struct mutex isr_mutex;
 	struct mutex elpg_mutex;
+	struct mutex clk_gating_mutex;
 	bool isr_enabled;
 	u32 stat_dmem_offset;
 	u8 pmu_mode;
@@ -731,6 +733,19 @@ struct gk20a_pmu_priv {
 	void *pmu_chip_data;
 	int (*pmu_setup_elpg)(struct nvkm_pmu *pmu);
 };
+
+enum {
+	ENGINE_GR_GK20A		= 0,
+	ENGINE_CE2_GK20A	= 1,
+	ENGINE_INVAL_GK20A
+};
+
+enum {
+	ELCG_RUN,  /* clk always run, i.e. disable elcg */
+	ELCG_STOP, /* clk is stopped */
+	ELCG_AUTO  /* clk will run when non-idle, standard elcg mode */
+};
+
 void
 gpu_obj_memwr(struct nvkm_gpuobj *ucodeobj, int offset, void *src, int size);
 
@@ -797,6 +812,10 @@ gk20a_pmu_disable_elpg(struct nvkm_pmu *pmu);
 
 void
 gk20a_pmu_setup_hw(struct work_struct *work);
+
+void
+gk20a_init_elcg_mode(struct nvkm_pmu *ppmu, u32 mode, u32 engine);
+
 #define to_gk20a_priv(ptr) container_of(ptr, struct gk20a_pmu_priv, base)
 
 #endif

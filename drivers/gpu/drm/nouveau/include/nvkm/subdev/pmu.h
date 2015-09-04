@@ -38,11 +38,14 @@ struct nvkm_pmu {
 	bool fecs_secure_boot;
 	bool cold_boot;
 	bool gpccs_secure_boot;
+	bool elcg_enabled;
 	struct pmu_buf_desc pg_buf;
 	struct nvkm_pmu_priv_vm *pmu_vm;
 	int (*secure_bootstrap)(struct nvkm_pmu *);
 	int (*enable_elpg)(struct nvkm_pmu *);
 	int (*disable_elpg)(struct nvkm_pmu *);
+	int (*enable_clk_gating)(struct nvkm_pmu *);
+	int (*disable_clk_gating)(struct nvkm_pmu *);
 	int (*boot_fecs)(struct nvkm_pmu *);
 	int (*message)(struct nvkm_pmu *, u32[2], u32, u32, u32, u32);
 	void (*pgob)(struct nvkm_pmu *, bool);

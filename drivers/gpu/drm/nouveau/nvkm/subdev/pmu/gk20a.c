@@ -96,12 +96,6 @@ enum {
 
 #define PMU_RC_MSG_TYPE_UNHANDLED_CMD	0
 
-enum {
-	ENGINE_GR_GK20A	    = 0,
-	ENGINE_CE2_GK20A    = 1,
-	ENGINE_INVAL_GK20A
-};
-
 /* PERFMON */
 #define PMU_DOMAIN_GROUP_PSTATE		0
 #define PMU_DOMAIN_GROUP_GPC2CLK	1
@@ -1583,6 +1577,42 @@ gk20a_pmu_response_handle(struct gk20a_pmu_priv *priv, struct pmu_msg *msg)
 	return 0;
 }
 
+void
+gk20a_init_elcg_mode(struct nvkm_pmu *ppmu, u32 mode, u32 engine)
+{
+	u32 gate_ctrl;
+
+	gate_ctrl = nv_rd32(ppmu, 0x00020200 + engine * 4);
+	gate_ctrl = (gate_ctrl & ~0x3);
+
+	switch (mode) {
+	case ELCG_RUN:
+		/* set elpg to auto to meet hw expectation */
+		gate_ctrl = ((gate_ctrl & ~(0x3 << 4)) | 0x10);
+		break;
+	case ELCG_STOP:
+		gate_ctrl |= 0x2;
+		break;
+	case ELCG_AUTO:
+		gate_ctrl |= 0x1;
+		break;
+	default:
+		nv_error(ppmu, "invalid elcg mode %d", mode);
+	}
+
+	gate_ctrl &= ~(0x1f << 8);
+	gate_ctrl |= 9 << 8;
+	gate_ctrl &= ~(0x7 << 13);
+	gate_ctrl |= 2 << 13;
+
+	nv_wr32(ppmu, 0x00020200 + engine * 4, gate_ctrl);
+
+	/* default fecs_idle_filter to 0 */
+	nv_wr32(ppmu, 0x00020288, 0);
+	/* default hubmmu_idle_filter to 0 */
+	nv_wr32(ppmu, 0x0002028c, 0);
+}
+
 static void
 gk20a_pmu_handle_pg_stat_msg(struct nvkm_pmu *pmu, struct pmu_msg *msg,
 					void *param, u32 handle, u32 status)
@@ -1909,6 +1939,51 @@ gk20a_pmu_setup_hw_enable_elpg(struct nvkm_pmu *pmu)
 }
 
 static int
+gk20a_pmu_enable_clk_gating(struct nvkm_pmu *pmu)
+{
+	struct gk20a_pmu_priv *priv = to_gk20a_priv(pmu);
+	int ret;
+
+	mutex_lock(&priv->clk_gating_mutex);
+
+	if (--priv->clk_gating_disable_depth > 0) {
+		ret = 0;
+		goto do_nothing;
+	}
+
+	if (pmu->elcg_enabled) {
+		gk20a_init_elcg_mode(pmu, ELCG_AUTO, ENGINE_CE2_GK20A);
+		gk20a_init_elcg_mode(pmu, ELCG_AUTO, ENGINE_GR_GK20A);
+	}
+
+do_nothing:
+	mutex_unlock(&priv->clk_gating_mutex);
+	return 0;
+}
+
+static int
+gk20a_pmu_disable_clk_gating(struct nvkm_pmu *pmu)
+{
+	struct gk20a_pmu_priv *priv = to_gk20a_priv(pmu);
+	int ret;
+
+	mutex_lock(&priv->clk_gating_mutex);
+
+	if (priv->clk_gating_disable_depth++ > 0) {
+		ret = 0;
+		goto do_nothing;
+	}
+
+	gk20a_init_elcg_mode(pmu, ELCG_RUN, ENGINE_CE2_GK20A);
+	gk20a_init_elcg_mode(pmu, ELCG_RUN, ENGINE_GR_GK20A);
+
+do_nothing:
+	mutex_unlock(&priv->clk_gating_mutex);
+
+	return 0;
+}
+
+static int
 gk20a_pmu_init_powergating(struct nvkm_pmu *pmu)
 {
 	struct gk20a_pmu_priv *priv = to_gk20a_priv(pmu);
@@ -1929,6 +2004,11 @@ gk20a_pmu_init_powergating(struct nvkm_pmu *pmu)
 	}
 
 	nv_debug(pmu, "gr_init done, initialize powergating\n");
+
+	/* Initialize ELCG with disabled mode */
+	gk20a_init_elcg_mode(pmu, ELCG_RUN, ENGINE_GR_GK20A);
+	gk20a_init_elcg_mode(pmu, ELCG_RUN, ENGINE_CE2_GK20A);
+
 	/* init ELPG */
 	memset(&cmd, 0, sizeof(struct pmu_cmd));
 	cmd.hdr.unit_id = PMU_UNIT_PG;
@@ -2601,14 +2681,22 @@ gk20a_pmu_init(struct nvkm_object *object)
 
 	gk20a_pmu_dvfs_init(priv);
 	pmu->fecs_secure_boot = false;
+	pmu->elcg_enabled = false;
 
 	priv->pmu_setup_elpg = NULL;
+
+	pmu->enable_clk_gating = gk20a_pmu_enable_clk_gating;
+	pmu->disable_clk_gating = gk20a_pmu_disable_clk_gating;
 
 	nvkm_timer_alarm(priv, 2000000000, &priv->alarm);
 
 	mutex_lock(&priv->elpg_mutex);
 	priv->elpg_disable_depth = 0;
 	mutex_unlock(&priv->elpg_mutex);
+
+	mutex_lock(&priv->clk_gating_mutex);
+	priv->clk_gating_disable_depth = 0;
+	mutex_unlock(&priv->clk_gating_mutex);
 
 	return ret;
 }
@@ -2617,6 +2705,7 @@ static int
 gk20a_pmu_fini(struct nvkm_object *object, bool suspend)
 {
 	struct gk20a_pmu_priv *priv = (void *)object;
+	struct nvkm_pmu *pmu = (void *)object;
 	struct nvkm_mc *pmc = nvkm_mc(object);
 
 	nvkm_timer_alarm_cancel(priv, &priv->alarm);
@@ -2627,6 +2716,11 @@ gk20a_pmu_fini(struct nvkm_object *object, bool suspend)
 	mutex_lock(&priv->elpg_mutex);
 	priv->elpg_disable_depth = 0;
 	mutex_unlock(&priv->elpg_mutex);
+
+	mutex_lock(&priv->clk_gating_mutex);
+	priv->clk_gating_disable_depth = 0;
+	mutex_unlock(&priv->clk_gating_mutex);
+
 	mutex_lock(&priv->isr_mutex);
 	gk20a_pmu_enable(priv, pmc, false);
 	priv->isr_enabled = false;
@@ -2634,6 +2728,9 @@ gk20a_pmu_fini(struct nvkm_object *object, bool suspend)
 
 	priv->pmu_state = PMU_STATE_OFF;
 	priv->pmu_ready = false;
+
+	pmu->elcg_enabled = false;
+
 	nv_wr32(priv, 0x10a014, 0x00000060);
 
 	return nvkm_subdev_fini(&priv->base.base, suspend);
@@ -2683,6 +2780,7 @@ gk20a_pmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	mutex_init(&priv->pmu_copy_lock);
 	mutex_init(&priv->pmu_seq_lock);
 	mutex_init(&priv->elpg_mutex);
+	mutex_init(&priv->clk_gating_mutex);
 	init_completion(&pmu->gr_init);
 	priv->data = &gk20a_dvfs_data;
 	pmu = &priv->base;

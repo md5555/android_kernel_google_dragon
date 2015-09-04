@@ -459,6 +459,51 @@ gm20b_pmu_setup_elpg(struct nvkm_pmu *pmu)
 	return ret;
 }
 
+static int
+gm20b_pmu_disable_clk_gating(struct nvkm_pmu *pmu)
+{
+	struct gk20a_pmu_priv *priv = to_gk20a_priv(pmu);
+	int ret;
+
+	mutex_lock(&priv->clk_gating_mutex);
+
+	if (priv->clk_gating_disable_depth++ > 0) {
+		ret = 0;
+		goto do_nothing;
+	}
+
+	gk20a_init_elcg_mode(pmu, ELCG_RUN, ENGINE_CE2_GK20A);
+	gk20a_init_elcg_mode(pmu, ELCG_RUN, ENGINE_CE2_GK20A);
+do_nothing:
+	mutex_unlock(&priv->clk_gating_mutex);
+
+	return 0;
+}
+
+static int
+gm20b_pmu_enable_clk_gating(struct nvkm_pmu *pmu)
+{
+	struct gk20a_pmu_priv *priv = to_gk20a_priv(pmu);
+	int ret;
+
+	mutex_lock(&priv->clk_gating_mutex);
+
+	if (--priv->clk_gating_disable_depth > 0) {
+		ret = 0;
+		goto do_nothing;
+	}
+
+	if (pmu->elcg_enabled) {
+		gk20a_init_elcg_mode(pmu, ELCG_AUTO, ENGINE_CE2_GK20A);
+		gk20a_init_elcg_mode(pmu, ELCG_AUTO, ENGINE_GR_GK20A);
+	}
+
+do_nothing:
+	mutex_unlock(&priv->clk_gating_mutex);
+
+	return 0;
+}
+
 int
 pmu_reset(struct nvkm_pmu *ppmu, struct nvkm_mc *pmc)
 {
@@ -2216,6 +2261,10 @@ gm20b_pmu_fini(struct nvkm_object *object, bool suspend)
 		priv->elpg_disable_depth = 0;
 		mutex_unlock(&priv->elpg_mutex);
 		priv->pmu_state = PMU_STATE_OFF;
+		mutex_lock(&priv->clk_gating_mutex);
+		priv->clk_gating_disable_depth = 0;
+		mutex_unlock(&priv->clk_gating_mutex);
+		pmu->elcg_enabled = false;
 		priv->pmu_ready = false;
 		pmu->cold_boot = true;
 		priv->lspmu_wpr_init_done = false;
@@ -2266,18 +2315,26 @@ gm20b_pmu_init(struct nvkm_object *object) {
 	mutex_init(&priv->pmu_copy_lock);
 	mutex_init(&priv->pmu_seq_lock);
 	mutex_init(&priv->elpg_mutex);
+	mutex_init(&priv->clk_gating_mutex);
 	ppmu->secure_bootstrap = gm20b_boot_secure;
 	ppmu->boot_fecs = gm20b_boot_fecs;
 	ppmu->enable_elpg = gk20a_pmu_enable_elpg;
 	ppmu->disable_elpg = gk20a_pmu_disable_elpg;
+	ppmu->enable_clk_gating = gm20b_pmu_enable_clk_gating;
+	ppmu->disable_clk_gating = gm20b_pmu_disable_clk_gating;
 	ppmu->fecs_secure_boot = true;
 	ppmu->gpccs_secure_boot = false;
+	ppmu->elcg_enabled = false;
 
 	priv->pmu_setup_elpg = gm20b_pmu_setup_elpg;
 
 	mutex_lock(&priv->elpg_mutex);
 	priv->elpg_disable_depth = 0;
 	mutex_unlock(&priv->elpg_mutex);
+
+	mutex_lock(&priv->clk_gating_mutex);
+	priv->clk_gating_disable_depth = 0;
+	mutex_unlock(&priv->clk_gating_mutex);
 
 	gk20a_pmu_dvfs_init(priv);
 
