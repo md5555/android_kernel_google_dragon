@@ -1259,14 +1259,14 @@ static ssize_t tegra_dsi_host_transfer_packet(struct mipi_dsi_host *host,
 		}
 
 		err = tegra_dsi_transmit(dsi, 150);
-		if (err < 0)
-			continue;
-
-		tegra_dsi_writel(dsi, 1, DSI_INCR_SYNCPT_CONTROL);
-		tegra_dsi_writel(dsi, 0, DSI_INCR_SYNCPT_CONTROL);
+		if (err >= 0)
+			break;
 	}
 	if (err)
 		return err;
+
+	tegra_dsi_writel(dsi, 1, DSI_INCR_SYNCPT_CONTROL);
+	tegra_dsi_writel(dsi, 0, DSI_INCR_SYNCPT_CONTROL);
 
 	return 4 + packet->payload_length;
 }
