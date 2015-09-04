@@ -235,13 +235,7 @@ static int get_ec_usb_pd_power_info(struct port_data *port)
 
 	switch (resp.type) {
 	case USB_CHG_TYPE_NONE:
-		/* For dual-role devices when we are a source, the firmware
-		 * reports the type as NONE. Report such chargers as type USB.
-		 */
-		if (resp.dualrole)
-			port->psy_type = POWER_SUPPLY_TYPE_USB;
-		else
-			port->psy_type = POWER_SUPPLY_TYPE_UNKNOWN;
+		port->psy_type = POWER_SUPPLY_TYPE_USB;
 		break;
 	case USB_CHG_TYPE_PD:
 	case USB_CHG_TYPE_PROPRIETARY:
@@ -271,7 +265,7 @@ static int get_ec_usb_pd_power_info(struct port_data *port)
 	default:
 		dev_err(dev, "Port %d: default case!\n",
 			port->port_number);
-		port->psy_type = POWER_SUPPLY_TYPE_UNKNOWN;
+		port->psy_type = POWER_SUPPLY_TYPE_USB;
 	}
 
 	port->psy.type = port->psy_type;
@@ -650,7 +644,7 @@ static int cros_usb_pd_charger_probe(struct platform_device *pd)
 		psy->name = port->name;
 		psy->supplied_to = charger_supplied_to;
 		psy->num_supplicants = ARRAY_SIZE(charger_supplied_to);
-		psy->type = POWER_SUPPLY_TYPE_UNKNOWN;
+		psy->type = POWER_SUPPLY_TYPE_USB;
 		psy->get_property = cros_usb_pd_charger_get_prop;
 		psy->set_property = cros_usb_pd_charger_set_prop;
 		psy->property_is_writeable = cros_usb_pd_charger_is_writeable;
