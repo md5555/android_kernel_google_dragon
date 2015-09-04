@@ -87,6 +87,7 @@ static struct tegra_shared_clk shared_clks[] = {
 	SHARED_CLK("usb3.emc", "emc_master", 0, 0, 0, NULL, tegra_clk_usb3_emc),
 	SHARED_CLK("mon.emc", "emc_master", 0, 0, 0, NULL, tegra_clk_mon_emc),
 	SHARED_CLK("msenc.emc", "emc_master", SHARED_BW, 0, BIT(EMC_USER_MSENC), NULL, tegra_clk_msenc_emc),
+	SHARED_CLK("nvenc.emc", "emc_master", SHARED_BW, 0, BIT(EMC_USER_MSENC), NULL, tegra_clk_nvenc_emc),
 	SHARED_CLK("tsec.emc", "emc_master", 0, 0, 0, NULL, tegra_clk_tsec_emc),
 	SHARED_CLK("sdmmc4.emc", "emc_master", 0, 0, 0, NULL, tegra_clk_sdmmc4_emc),
 	SHARED_CLK("camera.emc", "emc_master", SHARED_ISO_BW, 0, BIT(EMC_USER_VI), NULL, tegra_clk_camera_emc),
