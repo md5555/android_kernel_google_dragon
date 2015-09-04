@@ -27,6 +27,8 @@
 #define DC_CMD_CONT_SYNCPT_VSYNC		0x028
 #define  SYNCPT_VSYNC_ENABLE (1 << 8)
 #define DC_CMD_DISPLAY_COMMAND_OPTION0		0x031
+#define MSF_ENABLE                             (1 << 1)
+#define MSF_POLARITY_LOW                       (1 << 0)
 #define DC_CMD_DISPLAY_COMMAND			0x032
 #define DISP_CTRL_MODE_STOP (0 << 5)
 #define DISP_CTRL_MODE_C_DISPLAY (1 << 5)
@@ -53,6 +55,7 @@
 #define WIN_A_UF_INT  (1 << 8)
 #define WIN_B_UF_INT  (1 << 9)
 #define WIN_C_UF_INT  (1 << 10)
+#define MSF_INT       (1 << 12)
 #define WIN_A_OF_INT  (1 << 14)
 #define WIN_B_OF_INT  (1 << 15)
 #define WIN_C_OF_INT  (1 << 16)

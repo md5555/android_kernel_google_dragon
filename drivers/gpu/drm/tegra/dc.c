@@ -64,6 +64,9 @@ struct tegra_dc_state {
 	unsigned long pclk;
 	unsigned int div;
 
+	bool nc_mode;
+	u8 tearing_effect;
+
 	u32 planes;
 	unsigned long emc_bandwidth; /* kbps */
 	bool update_emc; /* set to false when the emc has been updated */
@@ -1099,11 +1102,15 @@ u32 tegra_dc_get_vblank_counter(struct tegra_dc *dc)
 void tegra_dc_enable_vblank(struct tegra_dc *dc)
 {
 	unsigned long value, flags;
+	struct tegra_dc_state *state = to_dc_state(dc->base.state);
 
 	spin_lock_irqsave(&dc->lock, flags);
 
 	value = tegra_dc_readl(dc, DC_CMD_INT_MASK);
-	value |= VBLANK_INT;
+	if (state->nc_mode)
+		value |= MSF_INT;
+	else
+		value |= VBLANK_INT;
 	tegra_dc_writel(dc, value, DC_CMD_INT_MASK);
 
 	spin_unlock_irqrestore(&dc->lock, flags);
@@ -1112,11 +1119,15 @@ void tegra_dc_enable_vblank(struct tegra_dc *dc)
 void tegra_dc_disable_vblank(struct tegra_dc *dc)
 {
 	unsigned long value, flags;
+	struct tegra_dc_state *state = to_dc_state(dc->base.state);
 
 	spin_lock_irqsave(&dc->lock, flags);
 
 	value = tegra_dc_readl(dc, DC_CMD_INT_MASK);
-	value &= ~VBLANK_INT;
+	if (state->nc_mode)
+		value &= ~MSF_INT;
+	else
+		value &= ~VBLANK_INT;
 	tegra_dc_writel(dc, value, DC_CMD_INT_MASK);
 
 	spin_unlock_irqrestore(&dc->lock, flags);
@@ -1215,6 +1226,8 @@ tegra_crtc_atomic_duplicate_state(struct drm_crtc *crtc)
 	copy->pclk = state->pclk;
 	copy->div = state->div;
 	copy->planes = state->planes;
+	copy->nc_mode = state->nc_mode;
+	copy->tearing_effect = state->tearing_effect;
 	copy->emc_bandwidth = 0;
 	copy->update_emc = true;
 
@@ -1419,6 +1432,7 @@ static void tegra_dc_commit_state(struct tegra_dc *dc,
 static void tegra_dc_init_hw(struct tegra_dc *dc)
 {
 	u32 value;
+	struct tegra_dc_state *state = to_dc_state(dc->base.state);
 
 	if (dc->reg_initialized)
 		return;
@@ -1450,7 +1464,11 @@ static void tegra_dc_init_hw(struct tegra_dc *dc)
 		WINDOW_B_THRESHOLD(1) | WINDOW_C_THRESHOLD(1);
 	tegra_dc_writel(dc, value, DC_DISP_DISP_MEM_HIGH_PRIORITY_TIMER);
 
-	value = VBLANK_INT | WIN_A_UF_INT | WIN_B_UF_INT | WIN_C_UF_INT;
+	value = WIN_A_UF_INT | WIN_B_UF_INT | WIN_C_UF_INT;
+	if (state->nc_mode)
+		value |= MSF_INT;
+	else
+		value |= VBLANK_INT;
 	tegra_dc_writel(dc, value, DC_CMD_INT_ENABLE);
 
 	value = WIN_A_UF_INT | WIN_B_UF_INT | WIN_C_UF_INT;
@@ -1462,12 +1480,32 @@ static void tegra_dc_init_hw(struct tegra_dc *dc)
 	dc->reg_initialized = true;
 }
 
+static void tegra_crtc_get_display_info(struct drm_crtc *crtc)
+{
+	struct tegra_dc_state *state = to_dc_state(crtc->state);
+	struct drm_mode_config *config = &crtc->dev->mode_config;
+	struct drm_connector *connector;
+
+	list_for_each_entry(connector, &config->connector_list, head) {
+		if (connector->state->crtc != crtc)
+			continue;
+
+		state->nc_mode = connector->display_info.supports_psr;
+		state->tearing_effect = connector->display_info.tearing_effect;
+
+		/* We can only support one psr panel config, take the first */
+		break;
+	}
+}
+
 static void tegra_crtc_mode_set_nofb(struct drm_crtc *crtc)
 {
 	struct drm_display_mode *mode = &crtc->state->adjusted_mode;
 	struct tegra_dc_state *state = to_dc_state(crtc->state);
 	struct tegra_dc *dc = to_tegra_dc(crtc);
 	u32 value;
+
+	tegra_crtc_get_display_info(crtc);
 
 	tegra_dc_init_hw(dc);
 
@@ -1483,9 +1521,20 @@ static void tegra_crtc_mode_set_nofb(struct drm_crtc *crtc)
 		tegra_dc_writel(dc, value, DC_DISP_INTERLACE_CONTROL);
 	}
 
+	if (state->nc_mode) {
+		/* TODO: Get MSF source from dt */
+		value = MSF_ENABLE;
+		if (state->tearing_effect & DRM_TEARING_EFFECT_ACTIVE_LOW)
+			value |= MSF_POLARITY_LOW;
+		tegra_dc_writel(dc, value, DC_CMD_DISPLAY_COMMAND_OPTION0);
+	}
+
 	value = tegra_dc_readl(dc, DC_CMD_DISPLAY_COMMAND);
 	value &= ~DISP_CTRL_MODE_MASK;
-	value |= DISP_CTRL_MODE_C_DISPLAY;
+	if (state->nc_mode)
+		value |= DISP_CTRL_MODE_NC_DISPLAY;
+	else
+		value |= DISP_CTRL_MODE_C_DISPLAY;
 	tegra_dc_writel(dc, value, DC_CMD_DISPLAY_COMMAND);
 
 	value = tegra_dc_readl(dc, DC_CMD_DISPLAY_POWER_CONTROL);
@@ -2089,9 +2138,13 @@ static void tegra_crtc_atomic_flush(struct drm_crtc *crtc)
 {
 	struct tegra_dc_state *state = to_dc_state(crtc->state);
 	struct tegra_dc *dc = to_tegra_dc(crtc);
+	u32 value;
 
 	tegra_dc_writel(dc, state->planes << 8, DC_CMD_STATE_CONTROL);
-	tegra_dc_writel(dc, state->planes, DC_CMD_STATE_CONTROL);
+	value = state->planes;
+	if (state->nc_mode)
+		value |= GENERAL_ACT_REQ | NC_HOST_TRIG;
+	tegra_dc_writel(dc, value, DC_CMD_STATE_CONTROL);
 }
 
 static const struct drm_crtc_helper_funcs tegra_crtc_helper_funcs = {
@@ -2119,9 +2172,9 @@ static irqreturn_t tegra_dc_irq(int irq, void *data)
 		*/
 	}
 
-	if (status & VBLANK_INT) {
+	if ((status & VBLANK_INT) || (status & MSF_INT)) {
 		/*
-		dev_dbg(dc->dev, "%s(): vertical blank\n", __func__);
+		dev_dbg(dc->dev, "%s(): vertical blank %x\n", __func__, status);
 		*/
 		drm_crtc_handle_vblank(&dc->base);
 		tegra_dc_finish_page_flip(dc);
