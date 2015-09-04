@@ -204,8 +204,11 @@ nvkm_pstate_work(struct work_struct *work)
 	struct nvkm_ustate *ustate;
 	int pstate = 0;
 
-	if (!atomic_xchg(&clk->waiting, 0))
+	if (clk->stopped) {
+		complete(&clk->pstate_done);
 		return;
+	}
+
 	clk->pwrsrc = power_supply_is_system_supplied();
 
 	nv_trace(clk, "P %d PWR %d Ua %d UA %d Ud %d UD %d A %d T %d D %d\n",
@@ -234,17 +237,22 @@ nvkm_pstate_work(struct work_struct *work)
 		}
 	}
 
-	wake_up_all(&clk->wait);
+	complete(&clk->pstate_done);
 	nvkm_notify_get(&clk->pwrsrc_ntfy);
 }
 
 static int
 nvkm_pstate_calc(struct nvkm_clk *clk, bool wait)
 {
-	atomic_set(&clk->waiting, 1);
-	schedule_work(&clk->work);
-	if (wait)
-		wait_event(clk->wait, !atomic_read(&clk->waiting));
+	if (wait) {
+		mutex_lock(&clk->pstate_lock);
+		reinit_completion(&clk->pstate_done);
+		schedule_work(&clk->work);
+		wait_for_completion(&clk->pstate_done);
+		mutex_unlock(&clk->pstate_lock);
+	} else {
+		schedule_work(&clk->work);
+	}
 	return 0;
 }
 
@@ -489,7 +497,9 @@ _nvkm_clk_fini(struct nvkm_object *object, bool suspend)
 {
 	struct nvkm_clk *clk = (void *)object;
 	nvkm_notify_put(&clk->pwrsrc_ntfy);
+	clk->stopped = true;
 	cancel_work_sync(&clk->work);
+	complete(&clk->pstate_done);
 	return nvkm_subdev_fini(&clk->base, suspend);
 }
 
@@ -523,6 +533,7 @@ _nvkm_clk_init(struct nvkm_object *object)
 	clk->astate = clk->state_nr - 1;
 	clk->dstate = 0;
 	clk->pstate = -1;
+	clk->stopped = false;
 	nvkm_pstate_calc(clk, true);
 	return 0;
 }
@@ -568,8 +579,8 @@ nvkm_clk_create_(struct nvkm_object *parent, struct nvkm_object *engine,
 	clk->tstate = 0;
 
 	INIT_WORK(&clk->work, nvkm_pstate_work);
-	init_waitqueue_head(&clk->wait);
-	atomic_set(&clk->waiting, 0);
+	init_completion(&clk->pstate_done);
+	mutex_init(&clk->pstate_lock);
 
 	/* If no pstates are provided, try and fetch them from the BIOS */
 	if (!pstates) {

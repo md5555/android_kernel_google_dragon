@@ -87,8 +87,9 @@ struct nvkm_clk {
 	int state_nr;
 
 	struct work_struct work;
-	wait_queue_head_t wait;
-	atomic_t waiting;
+	struct completion pstate_done;
+	struct mutex pstate_lock;
+	bool stopped;
 
 	struct nvkm_notify pwrsrc_ntfy;
 	int pwrsrc;
