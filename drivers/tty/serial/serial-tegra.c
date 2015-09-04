@@ -312,7 +312,8 @@ static int tegra_set_baudrate(struct tegra_uart_port *tup, unsigned int baud)
 	}
 
 	lcr = tup->lcr_shadow;
-	lcr |= UART_LCR_DLAB;
+	lcr |= UART_LCR_DLAB | UART_LCR_STOP;
+	dev_err(tup->uport.dev, "HACK: 2 stop bits\n");
 	tegra_uart_write(tup, lcr, UART_LCR);
 
 	tegra_uart_write(tup, divisor & 0xFF, UART_TX);
@@ -1186,13 +1187,8 @@ static void tegra_uart_set_termios(struct uart_port *u,
 	}
 
 	/* Stop bits */
-	if (termios->c_cflag & CSTOPB) {
-		lcr |= UART_LCR_STOP;
-		symb_bit += 2;
-	} else {
-		lcr &= ~UART_LCR_STOP;
-		symb_bit++;
-	}
+	lcr |= UART_LCR_STOP;
+	symb_bit += 2;
 
 	tegra_uart_write(tup, lcr, UART_LCR);
 	tup->lcr_shadow = lcr;
