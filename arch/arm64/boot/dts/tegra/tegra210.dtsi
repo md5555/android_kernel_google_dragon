@@ -63,10 +63,11 @@
 				 <&tegra_car TEGRA210_CLK_CILE>,
 				 <&tegra_car TEGRA210_CLK_VI_SENSOR>,
 				 <&tegra_car TEGRA210_CLK_VI_SENSOR2>,
-				 <&tegra_car TEGRA210_CLK_VIM2_CLK>;
+				 <&tegra_car TEGRA210_CLK_VIM2_CLK>,
+				 <&tegra_car TEGRA210_CLK_PLL_D>;
 			clock-names = "vi", "csi", "csus", "sclk", "cilab",
 				      "cilcd", "cile", "vi_sensor",
-				      "vi_sensor2", "vim2_clk";
+				      "vi_sensor2", "vim2_clk", "pll_d";
 			resets = <&tegra_car 20>;
 			reset-names = "vi";
 			iommus = <&mc TEGRA_SWGROUP_VI>;
