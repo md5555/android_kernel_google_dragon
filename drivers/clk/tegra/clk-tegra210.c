@@ -2312,6 +2312,10 @@ static struct tegra_clk tegra210_clks[tegra_clk_max] __initdata = {
 	[tegra_clk_adsp_cpu_abus] = { .dt_id = TEGRA210_CLK_ADSP_CPU_ABUS, .present = false },
 	[tegra_clk_cap_vcore_abus] = { .dt_id = TEGRA210_CLK_CAP_VCORE_ABUS, .present = false },
 	[tegra_clk_override_abus] = { .dt_id = TEGRA210_CLK_OVERRIDE_ABUS, .present = false },
+	[tegra_clk_mc_capa] = { .dt_id = TEGRA210_CLK_MC_CAPA, .present = true },
+	[tegra_clk_mc_cbpa] = { .dt_id = TEGRA210_CLK_MC_CBPA, .present = true },
+	[tegra_clk_mc_ccpa] = { .dt_id = TEGRA210_CLK_MC_CCPA, .present = true },
+	[tegra_clk_mc_cdpa] = { .dt_id = TEGRA210_CLK_MC_CDPA, .present = true },
 };
 
 static struct tegra_devclk devclks[] __initdata = {
@@ -2447,6 +2451,10 @@ static struct tegra_devclk devclks[] __initdata = {
 	{ .con_id = "sbc3", .dt_id = TEGRA210_CLK_SBC3 },
 	{ .con_id = "sbc4", .dt_id = TEGRA210_CLK_SBC4 },
 	{ .con_id = "qspi", .dt_id = TEGRA210_CLK_QSPI },
+	{ .con_id = "mc_capa", .dt_id = TEGRA210_CLK_MC_CAPA },
+	{ .con_id = "mc_cbpa", .dt_id = TEGRA210_CLK_MC_CBPA },
+	{ .con_id = "mc_ccpa", .dt_id = TEGRA210_CLK_MC_CCPA },
+	{ .con_id = "mc_cdpa", .dt_id = TEGRA210_CLK_MC_CDPA },
 };
 
 static struct tegra_audio_clk_info tegra210_audio_plls[] = {
@@ -2914,6 +2922,10 @@ static struct tegra_clk_init_table common_init_table[] __initdata = {
 	{TEGRA210_CLK_CSUS, TEGRA210_CLK_CLK_MAX, 0, 1},
 	{TEGRA210_CLK_CAMERA_SCLK, TEGRA210_CLK_CLK_MAX, 0, 1},
 	{TEGRA210_CLK_CSI, TEGRA210_CLK_CLK_MAX, 0, 1},
+	{TEGRA210_CLK_MC_CAPA, TEGRA210_CLK_CLK_MAX, 0, 1},
+	{TEGRA210_CLK_MC_CBPA, TEGRA210_CLK_CLK_MAX, 0, 1},
+	{TEGRA210_CLK_MC_CCPA, TEGRA210_CLK_CLK_MAX, 0, 1},
+	{TEGRA210_CLK_MC_CDPA, TEGRA210_CLK_CLK_MAX, 0, 1},
 	/* This MUST be the last entry. */
 	{TEGRA210_CLK_CLK_MAX, TEGRA210_CLK_CLK_MAX, 0, 0},
 };
