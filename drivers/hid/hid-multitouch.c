@@ -118,6 +118,9 @@ struct mt_device {
 	bool serial_maybe;	/* need to check for serial protocol */
 	bool curvalid;		/* is the current contact valid? */
 	unsigned mt_flags;	/* flags to pass to input-mt */
+
+	struct rmi_data *rmi_data;
+	bool in_rmi_mode;
 };
 
 static void mt_post_parse_default_settings(struct mt_device *td);
@@ -720,6 +723,10 @@ static void mt_touch_report(struct hid_device *hid, struct hid_report *report)
 		mt_sync_frame(td, report->field[0]->hidinput->input);
 }
 
+static void rmi_reset(struct hid_device *hdev);
+static int rmi_raw_event(struct hid_device *hdev,
+		struct hid_report *report, u8 *data, int size);
+
 static void mt_touch_input_configured(struct hid_device *hdev,
 					struct hid_input *hi)
 {
@@ -743,6 +750,13 @@ static void mt_touch_input_configured(struct hid_device *hdev,
 	input_mt_init_slots(input, td->maxcontacts, td->mt_flags);
 
 	td->mt_flags = 0;
+
+	if (hdev->bus == BUS_I2C && hdev->group == HID_GROUP_MULTITOUCH_WIN_8 &&
+	    hdev->vendor == USB_VENDOR_ID_SYNAPTICS && hdev->product == 0x3370) {
+
+		hid_info(hdev, "Trying to reset Synaptics controller\n");
+		rmi_reset(hdev);
+	}
 }
 
 static int mt_input_mapping(struct hid_device *hdev, struct hid_input *hi,
@@ -1363,6 +1377,7 @@ static struct hid_driver mt_driver = {
 	.input_mapping = mt_input_mapping,
 	.input_mapped = mt_input_mapped,
 	.input_configured = mt_input_configured,
+	.raw_event = rmi_raw_event,
 	.feature_mapping = mt_feature_mapping,
 	.usage_table = mt_grabbed_usages,
 	.event = mt_event,
@@ -1373,3 +1388,628 @@ static struct hid_driver mt_driver = {
 #endif
 };
 module_hid_driver(mt_driver);
+
+/**************************************************/
+
+#define RMI_MOUSE_REPORT_ID		0x01 /* Mouse emulation Report */
+#define RMI_WRITE_REPORT_ID		0x09 /* Output Report */
+#define RMI_READ_ADDR_REPORT_ID		0x0a /* Output Report */
+#define RMI_READ_DATA_REPORT_ID		0x0b /* Input Report */
+#define RMI_ATTN_REPORT_ID		0x0c /* Input Report */
+#define RMI_SET_RMI_MODE_REPORT_ID	0x0f /* Feature Report */
+
+/* flags */
+#define RMI_READ_REQUEST_PENDING	BIT(0)
+#define RMI_READ_DATA_PENDING		BIT(1)
+#define RMI_STARTED			BIT(2)
+
+#define RMI_F01_CMD_DEVICE_RESET	1
+#define RMI_F01_DEFAULT_RESET_DELAY_MS	100
+
+#define RMI4_MAX_PAGE 0xff
+#define RMI4_PAGE_SIZE 0x0100
+
+#define PDT_START_SCAN_LOCATION 0x00e9
+#define PDT_END_SCAN_LOCATION	0x0005
+#define RMI4_END_OF_PDT(id) ((id) == 0x00 || (id) == 0xff)
+
+enum rmi_mode_type {
+	RMI_MODE_OFF			= 0,
+	RMI_MODE_ATTN_REPORTS		= 1,
+	RMI_MODE_NO_PACKED_ATTN_REPORTS	= 2,
+};
+
+struct pdt_entry {
+	u8 query_base_addr:8;
+	u8 command_base_addr:8;
+	u8 control_base_addr:8;
+	u8 data_base_addr:8;
+	u8 interrupt_source_count:3;
+	u8 bits3and4:2;
+	u8 function_version:2;
+	u8 bit7:1;
+	u8 function_number:8;
+} __attribute__((__packed__));
+
+struct rmi_function {
+	unsigned page;			/* page of the function */
+	u16 query_base_addr;		/* base address for queries */
+	u16 command_base_addr;		/* base address for commands */
+	u16 control_base_addr;		/* base address for controls */
+	u16 data_base_addr;		/* base address for datas */
+	unsigned int interrupt_base;	/* cross-function interrupt number
+					 * (uniq in the device)*/
+	unsigned int interrupt_count;	/* number of interrupts */
+	unsigned int report_size;	/* size of a report */
+	unsigned long irq_mask;		/* mask of the interrupts
+					 * (to be applied against ATTN IRQ) */
+};
+
+struct rmi_data {
+	struct mutex page_mutex;
+	int page;
+
+	wait_queue_head_t wait;
+
+	u8 *writeReport;
+	u8 *readReport;
+
+	int input_report_size;
+	int output_report_size;
+
+	unsigned long flags;
+
+	struct rmi_function f01;
+
+	unsigned int max_fingers;
+	unsigned int max_x;
+	unsigned int max_y;
+	unsigned int x_size_mm;
+	unsigned int y_size_mm;
+
+	unsigned int gpio_led_count;
+	unsigned int button_count;
+	unsigned long button_mask;
+	unsigned long button_state_mask;
+
+	struct input_dev *input;
+
+	struct work_struct reset_work;
+	struct hid_device *hdev;
+
+	unsigned long device_flags;
+	unsigned long firmware_id;
+
+	u8 f01_ctrl0;
+};
+
+#define RMI_PAGE(addr) (((addr) >> 8) & 0xff)
+
+static int rmi_write_report(struct hid_device *hdev, u8 *report, int len)
+{
+	int ret;
+
+	ret = hid_hw_output_report(hdev, (void *)report, len);
+	if (ret < 0) {
+		dev_err(&hdev->dev, "failed to write hid report (%d)\n", ret);
+		return ret;
+	}
+
+	return ret;
+}
+
+static int rmi_set_page(struct hid_device *hdev, struct rmi_data *data, u8 page)
+{
+	int retval;
+
+	data->writeReport[0] = RMI_WRITE_REPORT_ID;
+	data->writeReport[1] = 1;
+	data->writeReport[2] = 0xFF;
+	data->writeReport[4] = page;
+
+	retval = rmi_write_report(hdev, data->writeReport,
+			data->output_report_size);
+	if (retval != data->output_report_size) {
+		dev_err(&hdev->dev,
+			"%s: set page failed: %d.", __func__, retval);
+		return retval;
+	}
+
+	data->page = page;
+	return 0;
+}
+
+static int rmi_read_block(struct hid_device *hdev, struct rmi_data *data, u16 addr, void *buf,
+		const int len)
+{
+	int ret;
+	int bytes_read;
+	int bytes_needed;
+	int retries;
+	int read_input_count;
+
+	mutex_lock(&data->page_mutex);
+
+	if (RMI_PAGE(addr) != data->page) {
+		ret = rmi_set_page(hdev, data, RMI_PAGE(addr));
+		if (ret < 0)
+			goto exit;
+	}
+
+	for (retries = 5; retries > 0; retries--) {
+		data->writeReport[0] = RMI_READ_ADDR_REPORT_ID;
+		data->writeReport[1] = 0; /* old 1 byte read count */
+		data->writeReport[2] = addr & 0xFF;
+		data->writeReport[3] = (addr >> 8) & 0xFF;
+		data->writeReport[4] = len  & 0xFF;
+		data->writeReport[5] = (len >> 8) & 0xFF;
+
+		set_bit(RMI_READ_REQUEST_PENDING, &data->flags);
+
+		ret = rmi_write_report(hdev, data->writeReport,
+						data->output_report_size);
+		if (ret != data->output_report_size) {
+			clear_bit(RMI_READ_REQUEST_PENDING, &data->flags);
+			dev_err(&hdev->dev,
+				"failed to write request output report (%d)\n",
+				ret);
+			goto exit;
+		}
+
+		bytes_read = 0;
+		bytes_needed = len;
+		while (bytes_read < len) {
+			if (!wait_event_timeout(data->wait,
+				test_bit(RMI_READ_DATA_PENDING, &data->flags),
+					msecs_to_jiffies(1000))) {
+				hid_warn(hdev, "%s: timeout elapsed\n",
+					 __func__);
+				ret = -EAGAIN;
+				break;
+			}
+
+			read_input_count = data->readReport[1];
+			memcpy(buf + bytes_read, &data->readReport[2],
+				read_input_count < bytes_needed ?
+					read_input_count : bytes_needed);
+
+			bytes_read += read_input_count;
+			bytes_needed -= read_input_count;
+			clear_bit(RMI_READ_DATA_PENDING, &data->flags);
+		}
+
+		if (ret >= 0) {
+			ret = 0;
+			break;
+		}
+	}
+
+exit:
+	clear_bit(RMI_READ_REQUEST_PENDING, &data->flags);
+	mutex_unlock(&data->page_mutex);
+	return ret;
+}
+
+static inline int rmi_read(struct hid_device *hdev, struct rmi_data *data, u16 addr, void *buf)
+{
+	return rmi_read_block(hdev, data, addr, buf, 1);
+}
+
+static int rmi_write_block(struct hid_device *hdev, struct rmi_data *data, u16 addr, void *buf,
+		const int len)
+{
+	int ret;
+
+	mutex_lock(&data->page_mutex);
+
+	if (RMI_PAGE(addr) != data->page) {
+		ret = rmi_set_page(hdev, data, RMI_PAGE(addr));
+		if (ret < 0)
+			goto exit;
+	}
+
+	data->writeReport[0] = RMI_WRITE_REPORT_ID;
+	data->writeReport[1] = len;
+	data->writeReport[2] = addr & 0xFF;
+	data->writeReport[3] = (addr >> 8) & 0xFF;
+	memcpy(&data->writeReport[4], buf, len);
+
+	ret = rmi_write_report(hdev, data->writeReport,
+					data->output_report_size);
+	if (ret < 0) {
+		dev_err(&hdev->dev,
+			"failed to write request output report (%d)\n",
+			ret);
+		goto exit;
+	}
+	ret = 0;
+
+exit:
+	mutex_unlock(&data->page_mutex);
+	return ret;
+}
+
+static inline int rmi_write(struct hid_device *hdev, struct rmi_data *data, u16 addr, void *buf)
+{
+	return rmi_write_block(hdev, data, addr, buf, 1);
+}
+
+static int rmi_set_mode(struct hid_device *hdev, u8 mode)
+{
+	int ret;
+	u8 txbuf[2] = {RMI_SET_RMI_MODE_REPORT_ID, mode};
+
+	ret = hid_hw_raw_request(hdev, RMI_SET_RMI_MODE_REPORT_ID, txbuf,
+			sizeof(txbuf), HID_FEATURE_REPORT, HID_REQ_SET_REPORT);
+	if (ret < 0) {
+		dev_err(&hdev->dev, "unable to set rmi mode to %d (%d)\n", mode,
+			ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+#define RMI_DEVICE_F01_BASIC_QUERY_LEN	11
+
+static int rmi_populate_f01(struct hid_device *hdev, struct rmi_data *data)
+{
+	u8 basic_queries[RMI_DEVICE_F01_BASIC_QUERY_LEN];
+	u8 info[3];
+	int ret;
+	bool has_query42;
+	bool has_lts;
+	bool has_sensor_id;
+	bool has_ds4_queries = false;
+	bool has_build_id_query = false;
+	bool has_package_id_query = false;
+	u16 query_offset = data->f01.query_base_addr;
+	u16 prod_info_addr;
+	u8 ds4_query_len;
+
+	ret = rmi_read_block(hdev, data, query_offset, basic_queries,
+				RMI_DEVICE_F01_BASIC_QUERY_LEN);
+	if (ret) {
+		hid_err(hdev, "Can not read basic queries from Function 0x1.\n");
+		return ret;
+	}
+
+	has_lts = !!(basic_queries[0] & BIT(2));
+	has_sensor_id = !!(basic_queries[1] & BIT(3));
+	has_query42 = !!(basic_queries[1] & BIT(7));
+
+	query_offset += 11;
+	prod_info_addr = query_offset + 6;
+	query_offset += 10;
+
+	if (has_lts)
+		query_offset += 20;
+
+	if (has_sensor_id)
+		query_offset++;
+
+	if (has_query42) {
+		ret = rmi_read(hdev, data, query_offset, info);
+		if (ret) {
+			hid_err(hdev, "Can not read query42.\n");
+			return ret;
+		}
+		has_ds4_queries = !!(info[0] & BIT(0));
+		query_offset++;
+	}
+
+	if (has_ds4_queries) {
+		ret = rmi_read(hdev, data, query_offset, &ds4_query_len);
+		if (ret) {
+			hid_err(hdev, "Can not read DS4 Query length.\n");
+			return ret;
+		}
+		query_offset++;
+
+		if (ds4_query_len > 0) {
+			ret = rmi_read(hdev, data, query_offset, info);
+			if (ret) {
+				hid_err(hdev, "Can not read DS4 query.\n");
+				return ret;
+			}
+
+			has_package_id_query = !!(info[0] & BIT(0));
+			has_build_id_query = !!(info[0] & BIT(1));
+		}
+	}
+
+	if (has_package_id_query)
+		prod_info_addr++;
+
+	if (has_build_id_query) {
+		ret = rmi_read_block(hdev, data, prod_info_addr, info, 3);
+		if (ret) {
+			hid_err(hdev, "Can not read product info.\n");
+			return ret;
+		}
+
+		data->firmware_id = info[1] << 8 | info[0];
+		data->firmware_id += info[2] * 65536;
+	}
+
+	ret = rmi_read(hdev, data, data->f01.control_base_addr, &data->f01_ctrl0);
+
+	if (ret) {
+		hid_err(hdev, "can not read f01 ctrl0\n");
+		return ret;
+	}
+
+	return 0;
+}
+
+static void rmi_register_function(struct rmi_data *data,
+	struct pdt_entry *pdt_entry, int page, unsigned interrupt_count)
+{
+	struct rmi_function *f = NULL;
+	u16 page_base = page << 8;
+
+	switch (pdt_entry->function_number) {
+	case 0x01:
+		f = &data->f01;
+		break;
+	}
+
+	if (f) {
+		f->page = page;
+		f->query_base_addr = page_base | pdt_entry->query_base_addr;
+		f->command_base_addr = page_base | pdt_entry->command_base_addr;
+		f->control_base_addr = page_base | pdt_entry->control_base_addr;
+		f->data_base_addr = page_base | pdt_entry->data_base_addr;
+		f->interrupt_base = interrupt_count;
+		f->interrupt_count = pdt_entry->interrupt_source_count;
+	}
+}
+
+static int rmi_scan_pdt(struct hid_device *hdev, struct rmi_data *data)
+{
+	struct pdt_entry entry;
+	int page;
+	bool page_has_function;
+	int i;
+	int retval;
+	int interrupt = 0;
+	u16 page_start, pdt_start , pdt_end;
+
+	hid_info(hdev, "Scanning PDT...\n");
+
+	for (page = 0; (page <= RMI4_MAX_PAGE); page++) {
+		page_start = RMI4_PAGE_SIZE * page;
+		pdt_start = page_start + PDT_START_SCAN_LOCATION;
+		pdt_end = page_start + PDT_END_SCAN_LOCATION;
+
+		page_has_function = false;
+		for (i = pdt_start; i >= pdt_end; i -= sizeof(entry)) {
+			retval = rmi_read_block(hdev, data, i, &entry, sizeof(entry));
+			if (retval) {
+				hid_err(hdev,
+					"Read of PDT entry at %#06x failed.\n",
+					i);
+				goto error_exit;
+			}
+
+			if (RMI4_END_OF_PDT(entry.function_number))
+				break;
+
+			page_has_function = true;
+
+			hid_info(hdev, "Found F%02X on page %#04x\n",
+					entry.function_number, page);
+
+			rmi_register_function(data, &entry, page, interrupt);
+			interrupt += entry.interrupt_source_count;
+		}
+
+		if (!page_has_function)
+			break;
+	}
+
+	hid_info(hdev, "%s: Done with PDT scan.\n", __func__);
+	retval = 0;
+
+error_exit:
+	return retval;
+}
+
+static int rmi_populate(struct hid_device *hdev, struct rmi_data *data)
+{
+	int ret;
+
+	ret = rmi_scan_pdt(hdev, data);
+	if (ret) {
+		hid_err(hdev, "PDT scan failed with code %d.\n", ret);
+		return ret;
+	}
+
+	ret = rmi_populate_f01(hdev, data);
+	if (ret) {
+		hid_err(hdev, "Error while initializing F01 (%d).\n", ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+static int __rmi_reset(struct hid_device *hdev, struct rmi_data *data)
+{
+	int ret;
+	u8 reset = RMI_F01_CMD_DEVICE_RESET;
+
+	ret = rmi_write(hdev, data, data->f01.command_base_addr, &reset);
+	if (ret) {
+		hid_err(hdev, "can not write reset command\n");
+		return ret;
+	}
+
+	msleep(RMI_F01_DEFAULT_RESET_DELAY_MS);
+	hid_err(hdev, "device reset\n");
+	return 0;
+}
+
+static int rmi_check_valid_report_id(struct hid_device *hdev, unsigned type,
+		unsigned id, struct hid_report **report)
+{
+	int i;
+
+	*report = hdev->report_enum[type].report_id_hash[id];
+	if (*report) {
+		for (i = 0; i < (*report)->maxfield; i++) {
+			unsigned app = (*report)->field[i]->application;
+			if ((app & HID_USAGE_PAGE) >= HID_UP_MSVENDOR)
+				return 1;
+		}
+	}
+
+	return 0;
+}
+
+static int rmi_read_data_event(struct hid_device *hdev, struct rmi_data *rmi_data, u8 *data, int size)
+{
+	if (!test_bit(RMI_READ_REQUEST_PENDING, &rmi_data->flags)) {
+		hid_dbg(hdev, "no read request pending\n");
+		return 0;
+	}
+
+	memcpy(rmi_data->readReport, data, size < rmi_data->input_report_size ?
+			size : rmi_data->input_report_size);
+	set_bit(RMI_READ_DATA_PENDING, &rmi_data->flags);
+	wake_up(&rmi_data->wait);
+
+	return 1;
+}
+
+static int rmi_check_sanity(struct hid_device *hdev, u8 *data, int size)
+{
+	int valid_size = size;
+	/*
+	 * On the Dell XPS 13 9333, the bus sometimes get confused and fills
+	 * the report with a sentinel value "ff". Synaptics told us that such
+	 * behavior does not comes from the touchpad itself, so we filter out
+	 * such reports here.
+	 */
+
+	while ((data[valid_size - 1] == 0xff) && valid_size > 0)
+		valid_size--;
+
+	return valid_size;
+}
+
+static int rmi_raw_event(struct hid_device *hdev,
+		struct hid_report *report, u8 *data, int size)
+{
+	struct mt_device *td = hid_get_drvdata(hdev);
+	struct rmi_data *rmi_data = td->rmi_data;
+
+	if (!td->in_rmi_mode)
+		return 0;
+
+	size = rmi_check_sanity(hdev, data, size);
+	if (size < 2)
+		return 0;
+
+	if (data[0] == RMI_READ_DATA_REPORT_ID) {
+		rmi_read_data_event(hdev, rmi_data, data, size);
+		/* ignore it */
+		return -1;
+	}
+	return 0;
+}
+
+static void rmi_reset(struct hid_device *hdev)
+{
+	struct mt_device *td = hid_get_drvdata(hdev);
+	struct rmi_data *data;
+	int error;
+	size_t alloc_size;
+	struct hid_report *input_report;
+	struct hid_report *output_report;
+	struct hid_report *feature_report;
+
+	data = devm_kzalloc(&hdev->dev, sizeof(*data), GFP_KERNEL);
+	if (!data)
+		return;
+
+	data->hdev = hdev;
+	init_waitqueue_head(&data->wait);
+	mutex_init(&data->page_mutex);
+
+	/*
+	 * Check for the RMI specific report ids. If they are misisng
+	 * simply return and let the events be processed by hid-input
+	 */
+	if (!rmi_check_valid_report_id(hdev, HID_FEATURE_REPORT,
+	    RMI_SET_RMI_MODE_REPORT_ID, &feature_report)) {
+		hid_dbg(hdev, "device does not have set mode feature report\n");
+		return;
+	}
+
+	if (!rmi_check_valid_report_id(hdev, HID_INPUT_REPORT,
+	    RMI_ATTN_REPORT_ID, &input_report)) {
+		hid_dbg(hdev, "device does not have attention input report\n");
+		return;
+	}
+
+	data->input_report_size = (input_report->size >> 3) + 1 /* report id */;
+
+	if (!rmi_check_valid_report_id(hdev, HID_OUTPUT_REPORT,
+	    RMI_WRITE_REPORT_ID, &output_report)) {
+		hid_dbg(hdev,
+			"device does not have rmi write output report\n");
+		return;
+	}
+
+	data->output_report_size = (output_report->size >> 3)
+					+ 1 /* report id */;
+
+	alloc_size = data->output_report_size + data->input_report_size;
+
+	data->writeReport = devm_kzalloc(&hdev->dev, alloc_size, GFP_KERNEL);
+	if (!data->writeReport)
+		return;
+
+	data->readReport = data->writeReport + data->output_report_size;
+
+	td->rmi_data = data;
+
+	hid_dbg(hdev, "Opening low level driver\n");
+	error = hid_hw_open(hdev);
+	if (error)
+		return;
+
+	/* Allow incoming hid reports */
+	hid_device_io_start(hdev);
+
+	error = rmi_set_mode(hdev, RMI_MODE_ATTN_REPORTS);
+	if (error)
+		goto out_stop_io;
+
+	td->in_rmi_mode = true;
+
+	error = rmi_set_page(hdev, data, 0);
+	if (error < 0) {
+		dev_err(&hdev->dev, "failed to set page select to 0.\n");
+		goto out_mode;
+	}
+
+	error = rmi_populate(hdev, data);
+	if (error)
+		goto out_mode;
+
+	__rmi_reset(hdev, data);
+
+out_mode:
+	hid_info(hdev, "Resetting mode to MOUSE\n");
+	rmi_set_mode(hdev, RMI_MODE_OFF);
+	td->in_rmi_mode = false;
+out_stop_io:
+	hid_device_io_stop(hdev);
+	hid_hw_close(hdev);
+}
+
+/****************************************/
+
+
