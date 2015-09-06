@@ -583,8 +583,7 @@ static int ec_device_probe(struct platform_device *pdev)
 		cros_ec_sensors_register(ec);
 
 	/* Take control of the lightbar from the EC. */
-	if (ec_has_lightbar(ec))
-		lb_manual_suspend_ctrl(ec, 1);
+	lb_manual_suspend_ctrl(ec, 1);
 
 	dev_dark_resume_add_consumer(dev);
 
@@ -605,8 +604,7 @@ static int ec_device_remove(struct platform_device *pdev)
 	dev_dark_resume_remove_consumer(&pdev->dev);
 
 	/* Let the EC take over the lightbar again. */
-	if (ec_has_lightbar(ec))
-		lb_manual_suspend_ctrl(ec, 0);
+	lb_manual_suspend_ctrl(ec, 0);
 
 	mfd_remove_devices(ec->dev);
 	cdev_del(&ec->cdev);
@@ -617,7 +615,7 @@ static int ec_device_remove(struct platform_device *pdev)
 static int ec_device_suspend(struct device *dev)
 {
 	struct cros_ec_dev *ec = dev_get_drvdata(dev);
-	if (ec_has_lightbar(ec) && !dev_dark_resume_active(dev))
+	if (!dev_dark_resume_active(dev))
 		lb_suspend(ec);
 
 	return 0;
@@ -636,7 +634,7 @@ static int ec_device_resume(struct device *dev)
 		dev_err(ec->ec_dev->dev, "No EC response at resume: %d\n", ret);
 		return 0;
 	}
-	if (ec_has_lightbar(ec) && !dev_dark_resume_active(dev))
+	if (!dev_dark_resume_active(dev))
 		lb_resume(ec);
 
 	return 0;

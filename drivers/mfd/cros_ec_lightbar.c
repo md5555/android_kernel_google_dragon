@@ -43,6 +43,7 @@ static unsigned long lb_interval_jiffies = 50 * HZ / 1000;
  * If this is true, we won't do anything during suspend/resume.
  */
 static bool userspace_control;
+static struct cros_ec_dev *ec_with_lightbar;
 
 static ssize_t show_interval_msec(struct device *dev,
 				  struct device_attribute *attr, char *buf)
@@ -315,6 +316,9 @@ int lb_manual_suspend_ctrl(struct cros_ec_dev *ec, uint8_t enable)
 					      manual_suspend_ctrl);
 	int ret;
 
+	if (ec != ec_with_lightbar)
+		return 0;
+
 	param.cmd = LIGHTBAR_CMD_MANUAL_SUSPEND_CTRL;
 	param.manual_suspend_ctrl.enable = enable;
 	ret = lb_throttle();
@@ -330,7 +334,7 @@ int lb_manual_suspend_ctrl(struct cros_ec_dev *ec, uint8_t enable)
 
 int lb_suspend(struct cros_ec_dev *ec)
 {
-	if (userspace_control)
+	if (userspace_control || ec != ec_with_lightbar)
 		return 0;
 
 	return lb_send_empty_cmd(ec, LIGHTBAR_CMD_SUSPEND);
@@ -338,7 +342,7 @@ int lb_suspend(struct cros_ec_dev *ec)
 
 int lb_resume(struct cros_ec_dev *ec)
 {
-	if (userspace_control)
+	if (userspace_control || ec != ec_with_lightbar)
 		return 0;
 
 	return lb_send_empty_cmd(ec, LIGHTBAR_CMD_RESUME);
@@ -494,9 +498,10 @@ static umode_t cros_ec_lightbar_attrs_are_visible(struct kobject *kobj,
 		return 0;
 
 	/* Only instantiate this stuff if the EC has a lightbar */
-	if (ec_has_lightbar(ec))
+	if (ec_has_lightbar(ec)) {
+		ec_with_lightbar = ec;
 		return a->mode;
-
+	}
 	return 0;
 }
 
