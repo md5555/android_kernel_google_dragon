@@ -228,6 +228,7 @@ static const struct gm20b_pllg_params gm20b_pllg_params = {
 
 struct gm20b_clk_thermal {
 	bool in_suspend;
+	struct mutex suspend_lock;
 	struct thermal_cooling_device *throt_cdev;
 	int throt_cur_tstate;
 	int edp_cur_tstate;
@@ -1328,7 +1329,9 @@ gm20b_clk_fini(struct nvkm_object *object, bool suspend)
 	if (!suspend)
 		gpu_edp_update_cap();
 
+	mutex_lock(&priv->clk_therm.suspend_lock);
 	priv->clk_therm.in_suspend = suspend;
+	mutex_unlock(&priv->clk_therm.suspend_lock);
 
 	return ret;
 }
@@ -1498,6 +1501,7 @@ gm20b_clk_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	priv->napll_enabled = plat->gpu_speedo_id >= 1;
 	priv->pldiv_glitchless_supported = true;
 
+	mutex_init(&priv->clk_therm.suspend_lock);
 	priv->clk_therm.in_suspend = true;
 	gm20b_clk_throttle_cdev_register(priv);
 	gm20b_clk_edp_init(priv);
@@ -1557,16 +1561,19 @@ gm20b_clk_throt_set_cdev_state(struct thermal_cooling_device *cdev,
 	struct nvkm_clk *clk = &priv->base;
 	int tstate, throt_cur_tstate, edp_cur_tstate;
 
+	mutex_lock(&priv->clk_therm.suspend_lock);
 	priv->clk_therm.throt_cur_tstate = -cur_state;
 
 	if (priv->clk_therm.in_suspend)
-		return 0;
+		goto end;
 
 	throt_cur_tstate = priv->clk_therm.throt_cur_tstate;
 	edp_cur_tstate = priv->clk_therm.edp_cur_tstate;
 	tstate = min(throt_cur_tstate, edp_cur_tstate);
 	nvkm_clk_tstate(clk, tstate, 0);
 
+end:
+	mutex_unlock(&priv->clk_therm.suspend_lock);
 	return 0;
 }
 
@@ -1739,11 +1746,14 @@ static int store_edp_max(void *data, u64 val)
 
 	*attr->var = val;
 
+	mutex_lock(&ctx->priv->clk_therm.suspend_lock);
 	if (ctx->priv->clk_therm.in_suspend)
-		return 0;
+		goto end;
 
 	gpu_edp_update_cap();
 
+end:
+	mutex_unlock(&ctx->priv->clk_therm.suspend_lock);
 	return 0;
 }
 DEFINE_SIMPLE_ATTRIBUTE(edp_max_fops, show_edp_max, store_edp_max, "%llu\n");
@@ -1807,13 +1817,17 @@ static int max_gpu_power_notifier(struct notifier_block *b,
 {
 	struct gpu_edp *ctx = &s_gpu;
 
+	mutex_lock(&ctx->priv->clk_therm.suspend_lock);
 	ctx->sysedp_gpupwr = max_gpu_pwr;
 
-	if (ctx->priv->clk_therm.in_suspend)
+	if (ctx->priv->clk_therm.in_suspend) {
+		mutex_unlock(&ctx->priv->clk_therm.suspend_lock);
 		return NOTIFY_DONE;
+	}
 
 	gpu_edp_update_cap();
 
+	mutex_unlock(&ctx->priv->clk_therm.suspend_lock);
 	return NOTIFY_OK;
 }
 static struct notifier_block max_gpu_pwr_notifier_block = {
@@ -1853,13 +1867,16 @@ gm20b_clk_edp_set_cdev_state(struct thermal_cooling_device *cdev,
 {
 	struct gpu_edp *ctx = (struct gpu_edp *)cdev->devdata;
 
+	mutex_lock(&ctx->priv->clk_therm.suspend_lock);
 	ctx->edp_thermal_index = new_state;
 
 	if (ctx->priv->clk_therm.in_suspend)
-		return 0;
+		goto end;
 
 	gpu_edp_update_cap();
 
+end:
+	mutex_unlock(&ctx->priv->clk_therm.suspend_lock);
 	return 0;
 }
 
