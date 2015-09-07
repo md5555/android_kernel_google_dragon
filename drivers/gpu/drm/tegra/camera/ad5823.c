@@ -317,6 +317,7 @@ static int ad5823_probe(struct i2c_client *client,
 		return PTR_ERR(info->regmap);
 	}
 
+	info->i2c_client = client;
 	info->miscdev = ad5823_device;
 	info->miscdev.parent = &client->dev;
 
