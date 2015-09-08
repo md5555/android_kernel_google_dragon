@@ -746,15 +746,15 @@ static int panel_jdi_dsi_remove(struct mipi_dsi_device *dsi)
 
 	panel_jdi_disable(&jdi->base);
 
-	regulator_disable(jdi->supply);
-
-	/* T6 = 2ms */
-	usleep_range(2000, 4000);
-
 	regulator_disable(jdi->ddi_supply);
 
-	/* Specified by JDI @ 50ms, subject to change */
-	msleep(50);
+	/* T6 = 2ms plus some time to discharge capacitors */
+	usleep_range(7000, 9000);
+
+	regulator_disable(jdi->supply);
+
+	/* Specified by JDI @ 20ms, subject to change */
+	msleep(20);
 
 	drm_panel_detach(&jdi->base);
 	drm_panel_remove(&jdi->base);
@@ -773,12 +773,22 @@ static int panel_jdi_dsi_remove(struct mipi_dsi_device *dsi)
 static void panel_jdi_dsi_shutdown(struct mipi_dsi_device *dsi)
 {
 	struct panel_jdi *jdi = mipi_dsi_get_drvdata(dsi);
+	struct device *parent;
 
 	if (!jdi)
 		return;
 
+	/* ensure we shutdown the MIPI link first */
+	parent = get_device(dsi->dev.parent);
+	if (parent) {
+		if (parent->driver->shutdown)
+			parent->driver->shutdown(parent);
+		put_device(parent);
+	}
+
 	panel_jdi_debugfs_cleanup(jdi);
-	panel_jdi_disable(&jdi->base);
+	/* Turn off panel power rails */
+	panel_jdi_dsi_remove(dsi);
 }
 
 static struct mipi_dsi_driver panel_jdi_dsi_driver = {
