@@ -604,16 +604,11 @@ EXPORT_SYMBOL(tegra_powergate_gpu_set_clamping);
 /**
  * tegra_powergate_sequence_power_up() - power up partition
  * @id: partition ID
- * @clk: clock for partition
- * @rst: reset for partition
- *
- * Must be called with clk disabled, and returns with clk enabled.
  */
-int tegra_powergate_sequence_power_up(int id, struct clk *clk,
-				      struct reset_control *rst)
+int tegra_powergate_sequence_power_up(int id)
 {
-	struct tegra_powergate_rst *extra_rst;
-	struct tegra_powergate_clk *extra_clk;
+	struct tegra_powergate_rst *pg_rst;
+	struct tegra_powergate_clk *pg_clk;
 	struct tegra_powergate_flush *pg_flush;
 	struct tegra_powergate *pg;
 	int ret;
@@ -627,56 +622,48 @@ int tegra_powergate_sequence_power_up(int id, struct clk *clk,
 	pg = &pmc->powergates[id];
 
 	mutex_lock(&pmc->powergates_lock);
-	if (pmc->powergate_count[id]++ > 0) {
-		ret = clk_prepare_enable(clk);
-	} else {
+	if (pmc->powergate_count[id]++ == 0) {
 		ret = __tegra_powergate_set(id, true);
 		if (ret)
 			goto err_unref;
 		usleep_range(10, 20);
 
-		list_for_each_entry(extra_clk, &pg->clk_list, list) {
-			ret = clk_prepare_enable(extra_clk->clk);
+		list_for_each_entry(pg_clk, &pg->clk_list, list) {
+			ret = clk_prepare_enable(pg_clk->clk);
 			if (ret)
-				goto err_extra_clk;
+				goto err_pg_clk;
 		}
-		ret = clk_prepare_enable(clk);
-		if (ret)
-			goto err_extra_clk;
 
-		list_for_each_entry(extra_rst, &pg->rst_list, list)
-			reset_control_assert(extra_rst->rst);
-		reset_control_assert(rst);
+		list_for_each_entry(pg_rst, &pg->rst_list, list)
+			reset_control_assert(pg_rst->rst);
 		usleep_range(10, 20);
 
 		ret = __tegra_powergate_remove_clamping(id);
 		if (ret)
 			goto err_clamp;
 		usleep_range(10, 20);
-		reset_control_deassert(rst);
-		list_for_each_entry(extra_rst, &pg->rst_list, list)
-			reset_control_deassert(extra_rst->rst);
+
+		list_for_each_entry(pg_rst, &pg->rst_list, list)
+			reset_control_deassert(pg_rst->rst);
 		usleep_range(10, 20);
 
 		list_for_each_entry(pg_flush, &pg->flush_list, list)
 			tegra_mc_flush(pg->mc, pg_flush->flush, false);
 		usleep_range(10, 20);
 
-		list_for_each_entry(extra_clk, &pg->clk_list, list)
-			clk_disable_unprepare(extra_clk->clk);
+		list_for_each_entry(pg_clk, &pg->clk_list, list)
+			clk_disable_unprepare(pg_clk->clk);
 	}
 	mutex_unlock(&pmc->powergates_lock);
 
 	return ret;
 
 err_clamp:
-	reset_control_deassert(rst);
-	list_for_each_entry(extra_rst, &pg->rst_list, list)
-		reset_control_deassert(extra_rst->rst);
-	clk_disable_unprepare(clk);
-err_extra_clk:
-	list_for_each_entry_continue_reverse(extra_clk, &pg->clk_list, list)
-		clk_disable_unprepare(extra_clk->clk);
+	list_for_each_entry_continue_reverse(pg_rst, &pg->rst_list, list)
+		reset_control_deassert(pg_rst->rst);
+err_pg_clk:
+	list_for_each_entry_continue_reverse(pg_clk, &pg->clk_list, list)
+		clk_disable_unprepare(pg_clk->clk);
 	__tegra_powergate_set(id, false);
 err_unref:
 	--pmc->powergate_count[id];
@@ -688,16 +675,11 @@ EXPORT_SYMBOL(tegra_powergate_sequence_power_up);
 /**
  * tegra_powergate_sequence_power_down() - power down partition
  * @id: partition ID
- * @clk: clock for partition
- * @rst: reset for partition
- *
- * Must be called with clk enabled, and returns with clk disabled.
  */
-int tegra_powergate_sequence_power_down(int id, struct clk *clk,
-					struct reset_control *rst)
+int tegra_powergate_sequence_power_down(int id)
 {
-	struct tegra_powergate_rst *extra_rst;
-	struct tegra_powergate_clk *extra_clk;
+	struct tegra_powergate_rst *pg_rst;
+	struct tegra_powergate_clk *pg_clk;
 	struct tegra_powergate_flush *pg_flush;
 	struct tegra_powergate *pg;
 	int ret = 0;
@@ -713,13 +695,11 @@ int tegra_powergate_sequence_power_down(int id, struct clk *clk,
 	mutex_lock(&pmc->powergates_lock);
 	if (WARN_ON(pmc->powergate_count[id] == 0)) {
 		ret = -EINVAL;
-	} else if (--pmc->powergate_count[id] > 0) {
-		clk_disable_unprepare(clk);
-	} else {
-		list_for_each_entry(extra_clk, &pg->clk_list, list) {
-			ret = clk_prepare_enable(extra_clk->clk);
+	} else if (--pmc->powergate_count[id] == 0) {
+		list_for_each_entry(pg_clk, &pg->clk_list, list) {
+			ret = clk_prepare_enable(pg_clk->clk);
 			if (ret)
-				goto err_extra_clk_enable;
+				goto err_pg_clk_enable;
 		}
 		usleep_range(10, 20);
 
@@ -727,19 +707,15 @@ int tegra_powergate_sequence_power_down(int id, struct clk *clk,
 			tegra_mc_flush(pg->mc, pg_flush->flush, true);
 		usleep_range(10, 20);
 
-		list_for_each_entry(extra_rst, &pg->rst_list, list) {
-			ret = reset_control_assert(extra_rst->rst);
+		list_for_each_entry(pg_rst, &pg->rst_list, list) {
+			ret = reset_control_assert(pg_rst->rst);
 			if (ret)
-				goto err_extra_rst;
+				goto err_pg_rst;
 		}
-		ret = reset_control_assert(rst);
-		if (ret)
-			goto err_extra_rst;
 		usleep_range(10, 20);
 
-		clk_disable_unprepare(clk);
-		list_for_each_entry(extra_clk, &pg->clk_list, list)
-			clk_disable_unprepare(extra_clk->clk);
+		list_for_each_entry(pg_clk, &pg->clk_list, list)
+			clk_disable_unprepare(pg_clk->clk);
 		usleep_range(10, 20);
 
 		ret = __tegra_powergate_set(id, false);
@@ -751,22 +727,20 @@ int tegra_powergate_sequence_power_down(int id, struct clk *clk,
 	return 0;
 
 err_clk:
-	clk_prepare_enable(clk);
-	list_for_each_entry(extra_clk, &pg->clk_list, list)
-		clk_prepare_enable(extra_clk->clk);
-	reset_control_deassert(rst);
+	list_for_each_entry(pg_clk, &pg->clk_list, list)
+		clk_prepare_enable(pg_clk->clk);
 
-err_extra_rst:
-	list_for_each_entry_continue_reverse(extra_rst, &pg->rst_list, list)
-		reset_control_deassert(extra_rst->rst);
+err_pg_rst:
+	list_for_each_entry_continue_reverse(pg_rst, &pg->rst_list, list)
+		reset_control_deassert(pg_rst->rst);
 	usleep_range(10, 20);
 
 	list_for_each_entry(pg_flush, &pg->flush_list, list)
 		tegra_mc_flush(pg->mc, pg_flush->flush, false);
 
-err_extra_clk_enable:
-	list_for_each_entry_continue_reverse(extra_clk, &pg->clk_list, list)
-		clk_disable_unprepare(extra_clk->clk);
+err_pg_clk_enable:
+	list_for_each_entry_continue_reverse(pg_clk, &pg->clk_list, list)
+		clk_disable_unprepare(pg_clk->clk);
 
 	++pmc->powergate_count[id];
 	mutex_unlock(&pmc->powergates_lock);

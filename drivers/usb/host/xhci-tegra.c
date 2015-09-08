@@ -238,10 +238,6 @@ struct tegra_xhci_hcd {
 	struct tegra_xhci_ipfs_context ipfs_ctx;
 	struct tegra_xhci_fpci_context fpci_ctx;
 
-	struct tegra_mc *mc;
-	const struct tegra_mc_flush *mc_flush;
-	unsigned int swgroup;
-
 	bool suspended;
 
 	/* Firmware loading related */
@@ -493,9 +489,15 @@ static int tegra_xhci_clk_enable(struct tegra_xhci_hcd *tegra)
 {
 	int ret;
 
-	ret = clk_prepare_enable(tegra->pll_e);
+	ret = clk_prepare_enable(tegra->ss_clk);
 	if (ret < 0)
 		return ret;
+	ret = clk_prepare_enable(tegra->host_clk);
+	if (ret < 0)
+		goto disable_ss;
+	ret = clk_prepare_enable(tegra->pll_e);
+	if (ret < 0)
+		goto disable_host;
 	ret = clk_prepare_enable(tegra->falc_clk);
 	if (ret < 0)
 		goto disable_plle;
@@ -528,6 +530,10 @@ disable_falc:
 	clk_disable_unprepare(tegra->falc_clk);
 disable_plle:
 	clk_disable_unprepare(tegra->pll_e);
+disable_host:
+	clk_disable_unprepare(tegra->host_clk);
+disable_ss:
+	clk_disable_unprepare(tegra->ss_clk);
 	return ret;
 }
 
@@ -538,6 +544,8 @@ static void tegra_xhci_clk_disable(struct tegra_xhci_hcd *tegra)
 	clk_disable_unprepare(tegra->fs_src_clk);
 	clk_disable_unprepare(tegra->hs_src_clk);
 	clk_disable_unprepare(tegra->emc_clk);
+	clk_disable_unprepare(tegra->host_clk);
+	clk_disable_unprepare(tegra->ss_clk);
 }
 
 static int tegra_xhci_phy_enable(struct tegra_xhci_hcd *tegra)
@@ -792,34 +800,6 @@ static void tegra_xhci_quirks(struct device *dev, struct xhci_hcd *xhci)
 static int tegra_xhci_setup(struct usb_hcd *hcd)
 {
 	return xhci_gen_setup(hcd, tegra_xhci_quirks);
-}
-
-static int tegra_xhci_get_mc(struct tegra_xhci_hcd *tegra)
-{
-	struct of_phandle_args args;
-	struct platform_device *pdev;
-	int ret;
-
-	ret = of_parse_phandle_with_fixed_args(tegra->dev->of_node, "mc",
-					       1, 0, &args);
-	if (ret < 0)
-		return ret;
-
-	pdev = of_find_device_by_node(args.np);
-	if (!pdev) {
-		ret = -EPROBE_DEFER;
-		goto out;
-	}
-
-	tegra->mc = platform_get_drvdata(pdev);
-	tegra->swgroup = args.args[0];
-	tegra->mc_flush = tegra_mc_flush_get(tegra->mc, tegra->swgroup);
-	if (!tegra->mc_flush)
-		ret = -EINVAL;
-
-out:
-	of_node_put(args.np);
-	return ret;
 }
 
 static const char * const tegra_phy_names[] = {
@@ -1090,14 +1070,10 @@ static int tegra_xhci_probe(struct platform_device *pdev)
 		goto put_hcd;
 	}
 
-	ret = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_XUSBA,
-						tegra->ss_clk,
-						tegra->ss_rst);
+	ret = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_XUSBA);
 	if (ret < 0)
 		goto put_hcd;
-	ret = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_XUSBC,
-						tegra->host_clk,
-						tegra->host_rst);
+	ret = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_XUSBC);
 	if (ret < 0)
 		goto powergate_xusba;
 
@@ -1176,10 +1152,6 @@ static int tegra_xhci_probe(struct platform_device *pdev)
 		}
 	}
 
-	ret = tegra_xhci_get_mc(tegra);
-	if (ret < 0)
-		goto put_mbox;
-
 	tegra_xhci_ipfs_config(tegra);
 
 	ret = tegra_xhci_phy_enable(tegra);
@@ -1211,13 +1183,9 @@ unregister_extcon:
 disable_clk:
 	tegra_xhci_clk_disable(tegra);
 powergate_xusbc:
-	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBC,
-					    tegra->host_clk,
-					    tegra->host_rst);
+	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBC);
 powergate_xusba:
-	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBA,
-					    tegra->ss_clk,
-					    tegra->ss_rst);
+	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBA);
 put_hcd:
 	usb_put_hcd(hcd);
 	return ret;
@@ -1256,13 +1224,9 @@ static int tegra_xhci_remove(struct platform_device *pdev)
 	mbox_free_channel(tegra->mbox_chan);
 	tegra_xhci_phy_disable(tegra);
 	regulator_bulk_disable(tegra->soc->num_supplies, tegra->supplies);
-	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBC,
-					    tegra->host_clk,
-					    tegra->host_rst);
-	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBA,
-					    tegra->ss_clk,
-					    tegra->ss_rst);
 	tegra_xhci_clk_disable(tegra);
+	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBC);
+	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBA);
 
 	pm_runtime_disable(tegra->dev);
 	pm_runtime_put(tegra->dev);
@@ -1427,13 +1391,8 @@ static int tegra_xhci_powergate(struct tegra_xhci_hcd *tegra, bool runtime)
 	for (i = 0; i < tegra->soc->num_phys[USB3_PHY]; i++)
 		phy_power_off(tegra->phys[USB3_PHY][i]);
 
-	/* Flush XUSB_HOST MC client. */
-	tegra_mc_flush(tegra->mc, tegra->mc_flush, true);
-
 	/* Power off XUSB_SS partition. */
-	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBA,
-					    tegra->ss_clk,
-					    tegra->ss_rst);
+	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBA);
 
 	/* Save FPCI and IPFS context. */
 	tegra_xhci_save_fpci_context(tegra);
@@ -1467,10 +1426,7 @@ static int tegra_xhci_powergate(struct tegra_xhci_hcd *tegra, bool runtime)
 	}
 
 	/* Power off XUSB_HOST partition. */
-	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBC,
-					    tegra->host_clk,
-					    tegra->host_rst);
-	clk_disable_unprepare(tegra->falc_clk);
+	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBC);
 
 	/* Power off UTMI and HSIC PHYs. */
 	for (i = 0; i < tegra->soc->num_phys[UTMI_PHY]; i++)
@@ -1483,10 +1439,7 @@ static int tegra_xhci_powergate(struct tegra_xhci_hcd *tegra, bool runtime)
 			phy_exit(tegra->phys[i][j]);
 
 	regulator_bulk_disable(tegra->soc->num_supplies, tegra->supplies);
-	clk_disable_unprepare(tegra->hs_src_clk);
-	clk_disable_unprepare(tegra->fs_src_clk);
-	clk_disable_unprepare(tegra->emc_clk);
-	clk_disable_unprepare(tegra->pll_e);
+	tegra_xhci_clk_disable(tegra);
 
 unlock:
 	mutex_unlock(&tegra->lock);
@@ -1504,10 +1457,7 @@ static int tegra_xhci_unpowergate(struct tegra_xhci_hcd *tegra)
 	dev_info(tegra->dev, "exiting ELPG\n");
 	mutex_lock(&tegra->lock);
 
-	clk_prepare_enable(tegra->pll_e);
-	clk_prepare_enable(tegra->emc_clk);
-	clk_prepare_enable(tegra->fs_src_clk);
-	clk_prepare_enable(tegra->hs_src_clk);
+	tegra_xhci_clk_enable(tegra);
 	ret = regulator_bulk_enable(tegra->soc->num_supplies, tegra->supplies);
 	if (ret < 0)
 		goto unlock;
@@ -1540,10 +1490,7 @@ static int tegra_xhci_unpowergate(struct tegra_xhci_hcd *tegra)
 	}
 
 	/* Power on XUSB_HOST partition. */
-	clk_prepare_enable(tegra->falc_clk);
-	ret = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_XUSBC,
-						tegra->host_clk,
-						tegra->host_rst);
+	ret = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_XUSBC);
 	if (ret < 0)
 		goto unlock;
 
@@ -1553,14 +1500,9 @@ static int tegra_xhci_unpowergate(struct tegra_xhci_hcd *tegra)
 	tegra_xhci_restore_ipfs_context(tegra);
 
 	/* Power on XUSB_SS partition. */
-	ret = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_XUSBA,
-						tegra->ss_clk,
-						tegra->ss_rst);
+	ret = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_XUSBA);
 	if (ret < 0)
 		goto unlock;
-
-	/* Clear XUSB_HOST MC flush. */
-	tegra_mc_flush(tegra->mc, tegra->mc_flush, false);
 
 	/* Power on USB3 PHYs. */
 	for (i = 0; i < tegra->soc->num_phys[USB3_PHY]; i++) {

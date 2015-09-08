@@ -107,12 +107,13 @@ static int vic_power_on(struct device *dev)
 	if (err)
 		return err;
 
-	err = tegra_powergate_sequence_power_up(vic->config->powergate_id,
-						vic->clk, vic->rst);
-	if (err) {
-		falcon_power_off(&vic->falcon);
-		return err;
-	}
+	err = tegra_powergate_sequence_power_up(vic->config->powergate_id);
+	if (err)
+		goto err_power_up;
+
+	err = clk_prepare_enable(vic->clk);
+	if (err)
+		goto err_enable_clk;
 
 	/*
 	 * Disable SLCG to workaround MBIST issue in IP level. This code
@@ -124,6 +125,13 @@ static int vic_power_on(struct device *dev)
 	writel(0xffffffff, vic->falcon.regs + NV_PVIC_THI_SLCG_OVERRIDE_HIGH_A);
 
 	return 0;
+
+err_enable_clk:
+	tegra_powergate_power_off(vic->config->powergate_id);
+err_power_up:
+	falcon_power_off(&vic->falcon);
+
+	return err;
 }
 
 static void vic_finalize_poweron(struct vic *vic)

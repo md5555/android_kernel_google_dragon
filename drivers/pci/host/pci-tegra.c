@@ -1006,6 +1006,7 @@ static void tegra_pcie_power_off(struct tegra_pcie *pcie)
 	reset_control_assert(pcie->afi_rst);
 	reset_control_assert(pcie->pex_rst);
 
+	clk_disable_unprepare(pcie->pex_clk);
 	tegra_powergate_power_off(TEGRA_POWERGATE_PCIE);
 
 	err = regulator_bulk_disable(pcie->num_supplies, pcie->supplies);
@@ -1029,11 +1030,15 @@ static int tegra_pcie_power_on(struct tegra_pcie *pcie)
 	if (err < 0)
 		dev_err(pcie->dev, "failed to enable regulators: %d\n", err);
 
-	err = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_PCIE,
-						pcie->pex_clk,
-						pcie->pex_rst);
+	err = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_PCIE);
 	if (err) {
 		dev_err(pcie->dev, "powerup sequence failed: %d\n", err);
+		return err;
+	}
+
+	err = clk_prepare_enable(pcie->pex_clk);
+	if (err) {
+		dev_err(pcie->dev, "failed to enable clock: %d\n", err);
 		return err;
 	}
 

@@ -46,10 +46,8 @@ struct nvdec {
 	struct device *dev;
 	struct clk *clk;
 	struct clk *cbus_clk;
-	struct clk *nvjpg_clk;
 	struct clk *emc_clk;
 	struct reset_control *rst;
-	struct reset_control *nvjpg_rst;
 
 	struct iommu_domain *domain;
 
@@ -82,12 +80,6 @@ static int nvdec_power_off(struct device *dev)
 		return err;
 
 	clk_disable_unprepare(nvdec->emc_clk);
-
-	err = reset_control_assert(nvdec->nvjpg_rst);
-	if (err)
-		return err;
-
-	clk_disable_unprepare(nvdec->nvjpg_clk);
 	err = tegra_powergate_power_off(TEGRA_POWERGATE_NVJPG);
 	return err;
 }
@@ -106,15 +98,17 @@ static int nvdec_power_on(struct device *dev)
 		goto err_emc_clk;
 
 	/* NVDEC needs NVJPG to be powered up first */
-	err = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_NVJPG,
-					 nvdec->nvjpg_clk, nvdec->nvjpg_rst);
+	err = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_NVJPG);
 	if (err)
 		goto err_powergate_nvjpg;
 
-	err = tegra_powergate_sequence_power_up(nvdec->config->powergate_id,
-						 nvdec->clk, nvdec->rst);
+	err = tegra_powergate_sequence_power_up(nvdec->config->powergate_id);
 	if (err)
 		goto err_powergate_nvdec;
+
+	err = clk_prepare_enable(nvdec->clk);
+	if (err)
+		goto err_nvdec_clk;
 
 	err = clk_prepare_enable(nvdec->cbus_clk);
 	if (err)
@@ -122,6 +116,8 @@ static int nvdec_power_on(struct device *dev)
 	return 0;
 
 err_nvdec_cbus_clk:
+	clk_disable_unprepare(nvdec->clk);
+err_nvdec_clk:
 	tegra_powergate_power_off(nvdec->config->powergate_id);
 err_powergate_nvdec:
 	tegra_powergate_power_off(TEGRA_POWERGATE_NVJPG);
@@ -398,11 +394,6 @@ static int nvdec_probe(struct platform_device *pdev)
 		dev_err(dev, "cannot get nvdec cbus clock\n");
 		return PTR_ERR(nvdec->cbus_clk);
 	}
-	nvdec->nvjpg_clk = devm_clk_get(dev, "nvjpg");
-	if (IS_ERR(nvdec->nvjpg_clk)) {
-		dev_err(dev, "cannot get nvjpg clock\n");
-		return PTR_ERR(nvdec->nvjpg_clk);
-	}
 	nvdec->emc_clk = devm_clk_get(dev, "emc");
 	if (IS_ERR(nvdec->emc_clk)) {
 		dev_err(dev, "cannot get emc clock\n");
@@ -412,11 +403,6 @@ static int nvdec_probe(struct platform_device *pdev)
 	if (IS_ERR(nvdec->rst)) {
 		dev_err(dev, "cannot get reset\n");
 		return PTR_ERR(nvdec->rst);
-	}
-	nvdec->nvjpg_rst = devm_reset_control_get(&pdev->dev, "nvjpg");
-	if (IS_ERR(nvdec->nvjpg_rst)) {
-		dev_err(dev, "cannot get nvjpg reset\n");
-		return PTR_ERR(nvdec->nvjpg_rst);
 	}
 
 	nvdec->falcon.dev = dev;

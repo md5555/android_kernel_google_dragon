@@ -88,13 +88,19 @@ static int vi_power_on(struct device *dev)
 	struct vi *vi = dev_get_drvdata(dev);
 	int err;
 
-	err = tegra_powergate_sequence_power_up(vi->config->powergate_id,
-						vi->clk, vi->rst);
+	err = tegra_powergate_sequence_power_up(vi->config->powergate_id);
 	if (err)
 		return err;
 
+	err = clk_prepare_enable(vi->clk);
+	if (err) {
+		tegra_powergate_power_off(vi->config->powergate_id);
+		return err;
+	}
+
 	err = regulator_enable(vi->reg);
 	if (err) {
+		clk_disable_unprepare(vi->clk);
 		tegra_powergate_power_off(TEGRA_POWERGATE_VENC);
 		dev_err(dev, "enable csi regulator failed.\n");
 		return err;

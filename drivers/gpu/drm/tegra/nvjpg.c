@@ -83,8 +83,15 @@ static int nvjpg_power_on(struct device *dev)
 	if (err)
 		return err;
 
-	return tegra_powergate_sequence_power_up(nvjpg->config->powergate_id,
-						 nvjpg->clk, nvjpg->rst);
+	err = tegra_powergate_sequence_power_up(nvjpg->config->powergate_id);
+	if (err)
+		return err;
+
+	err = clk_prepare_enable(nvjpg->clk);
+	if (err)
+		tegra_powergate_power_off(nvjpg->config->powergate_id);
+
+	return err;
 }
 
 static void nvjpg_reset(struct device *dev)

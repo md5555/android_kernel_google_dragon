@@ -488,10 +488,6 @@ struct tegra_xudc {
 	struct phy *usb3_phy;
 	struct phy *utmi_phy;
 
-	struct tegra_mc *mc;
-	const struct tegra_mc_flush *mc_flush;
-	unsigned int swgroup;
-
 	struct tegra_xudc_save_regs saved_regs;
 	bool suspended;
 	bool powergated;
@@ -3012,9 +3008,15 @@ static int tegra_xudc_clk_enable(struct tegra_xudc *xudc)
 {
 	int err;
 
-	err = clk_prepare_enable(xudc->pll_e);
+	err = clk_prepare_enable(xudc->ss_clk);
 	if (err < 0)
 		return err;
+	err = clk_prepare_enable(xudc->dev_clk);
+	if (err < 0)
+		goto disable_ss_clk;
+	err = clk_prepare_enable(xudc->pll_e);
+	if (err < 0)
+		goto disable_dev_clk;
 	err = clk_prepare_enable(xudc->pll_u_480M);
 	if (err < 0)
 		goto disable_pll_e;
@@ -3033,6 +3035,10 @@ disable_pll_u_480M:
 	clk_disable_unprepare(xudc->pll_u_480M);
 disable_pll_e:
 	clk_disable_unprepare(xudc->pll_e);
+disable_dev_clk:
+	clk_disable_unprepare(xudc->dev_clk);
+disable_ss_clk:
+	clk_disable_unprepare(xudc->ss_clk);
 	return err;
 }
 
@@ -3042,6 +3048,8 @@ static void tegra_xudc_clk_disable(struct tegra_xudc *xudc)
 	clk_disable_unprepare(xudc->hs_src_clk);
 	clk_disable_unprepare(xudc->pll_u_480M);
 	clk_disable_unprepare(xudc->pll_e);
+	clk_disable_unprepare(xudc->dev_clk);
+	clk_disable_unprepare(xudc->ss_clk);
 }
 
 static int tegra_xudc_phy_power_on(struct tegra_xudc *xudc)
@@ -3078,34 +3086,6 @@ static void tegra_xudc_phy_power_off(struct tegra_xudc *xudc)
 	phy_power_off(xudc->utmi_phy);
 	phy_exit(xudc->usb3_phy);
 	phy_exit(xudc->utmi_phy);
-}
-
-static int tegra_xudc_get_mc(struct tegra_xudc *xudc)
-{
-	struct of_phandle_args args;
-	struct platform_device *pdev;
-	int ret;
-
-	ret = of_parse_phandle_with_fixed_args(xudc->dev->of_node, "mc",
-					       1, 0, &args);
-	if (ret < 0)
-		return ret;
-
-	pdev = of_find_device_by_node(args.np);
-	if (!pdev) {
-		ret = -EPROBE_DEFER;
-		goto out;
-	}
-
-	xudc->mc = platform_get_drvdata(pdev);
-	xudc->swgroup = args.args[0];
-	xudc->mc_flush = tegra_mc_flush_get(xudc->mc, xudc->swgroup);
-	if (!xudc->mc_flush)
-		ret = -EINVAL;
-
-out:
-	of_node_put(args.np);
-	return ret;
 }
 
 static const char * const tegra210_xudc_supply_names[] = {
@@ -3250,16 +3230,10 @@ static int tegra_xudc_probe(struct platform_device *pdev)
 		goto disable_regulator;
 	}
 
-	err = tegra_xudc_get_mc(xudc);
+	err = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_XUSBA);
 	if (err < 0)
 		goto disable_regulator;
-
-	err = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_XUSBA,
-						xudc->ss_clk, xudc->ss_rst);
-	if (err < 0)
-		goto disable_regulator;
-	err = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_XUSBB,
-						xudc->dev_clk, xudc->dev_rst);
+	err = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_XUSBB);
 	if (err < 0)
 		goto powergate_xusba;
 
@@ -3319,11 +3293,9 @@ disable_phy:
 disable_clk:
 	tegra_xudc_clk_disable(xudc);
 powergate_xusbb:
-	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBB,
-					    xudc->dev_clk, xudc->dev_rst);
+	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBB);
 powergate_xusba:
-	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBA,
-					    xudc->ss_clk, xudc->ss_rst);
+	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBA);
 disable_regulator:
 	regulator_bulk_disable(xudc->soc->num_supplies, xudc->supplies);
 	return err;
@@ -3342,10 +3314,8 @@ static int tegra_xudc_remove(struct platform_device *pdev)
 	tegra_xudc_free_event_ring(xudc);
 	tegra_xudc_phy_power_off(xudc);
 	tegra_xudc_clk_disable(xudc);
-	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBB,
-					    xudc->dev_clk, xudc->dev_rst);
-	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBA,
-					    xudc->ss_clk, xudc->ss_rst);
+	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBB);
+	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBA);
 	regulator_bulk_disable(xudc->soc->num_supplies, xudc->supplies);
 
 	pm_runtime_disable(xudc->dev);
@@ -3371,18 +3341,15 @@ static int tegra_xudc_powergate(struct tegra_xudc *xudc)
 	phy_power_off(xudc->usb3_phy);
 	phy_power_off(xudc->utmi_phy);
 
-	tegra_mc_flush(xudc->mc, xudc->mc_flush, true);
+	tegra_xudc_clk_disable(xudc);
 
-	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBA,
-					    xudc->ss_clk, xudc->ss_rst);
-	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBB,
-					    xudc->dev_clk, xudc->dev_rst);
+	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBA);
+	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBB);
 
 	phy_exit(xudc->usb3_phy);
 	phy_exit(xudc->utmi_phy);
 
 	regulator_bulk_disable(xudc->soc->num_supplies, xudc->supplies);
-	tegra_xudc_clk_disable(xudc);
 
 	dev_info(xudc->dev, "entering ELPG done\n");
 
@@ -3397,7 +3364,6 @@ static int tegra_xudc_unpowergate(struct tegra_xudc *xudc)
 
 	dev_info(xudc->dev, "exiting ELPG\n");
 
-	tegra_xudc_clk_enable(xudc);
 	err = regulator_bulk_enable(xudc->soc->num_supplies, xudc->supplies);
 	if (err < 0)
 		return err;
@@ -3405,16 +3371,14 @@ static int tegra_xudc_unpowergate(struct tegra_xudc *xudc)
 	phy_init(xudc->usb3_phy);
 	phy_init(xudc->utmi_phy);
 
-	err = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_XUSBB,
-						xudc->dev_clk, xudc->dev_rst);
+	err = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_XUSBB);
 	if (err < 0)
 		return err;
-	err = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_XUSBA,
-						xudc->ss_clk, xudc->ss_rst);
+	err = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_XUSBA);
 	if (err < 0)
 		return err;
 
-	tegra_mc_flush(xudc->mc, xudc->mc_flush, false);
+	tegra_xudc_clk_enable(xudc);
 
 	err = phy_power_on(xudc->utmi_phy);
 	if (err < 0)

@@ -83,8 +83,15 @@ static int nvenc_power_on(struct device *dev)
 	if (err)
 		return err;
 
-	return tegra_powergate_sequence_power_up(nvenc->config->powergate_id,
-						 nvenc->clk, nvenc->rst);
+	err = tegra_powergate_sequence_power_up(nvenc->config->powergate_id);
+	if (err)
+		return err;
+
+	err = clk_prepare_enable(nvenc->clk);
+	if (err)
+		tegra_powergate_power_off(nvenc->config->powergate_id);
+
+	return err;
 }
 
 static void nvenc_reset(struct device *dev)

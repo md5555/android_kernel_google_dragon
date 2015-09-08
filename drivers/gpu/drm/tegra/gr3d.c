@@ -281,21 +281,30 @@ static int gr3d_probe(struct platform_device *pdev)
 		}
 	}
 
-	err = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_3D, gr3d->clk,
-						gr3d->rst);
+	err = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_3D);
 	if (err < 0) {
 		dev_err(&pdev->dev, "failed to power up 3D unit\n");
 		return err;
 	}
 
+	err = clk_prepare_enable(gr3d->clk);
+	if (err < 0) {
+		dev_err(&pdev->dev, "failed to enable clock\n");
+		goto err_enable_clk;
+	}
+
 	if (gr3d->clk_secondary) {
-		err = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_3D1,
-							gr3d->clk_secondary,
-							gr3d->rst_secondary);
+		err = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_3D1);
 		if (err < 0) {
 			dev_err(&pdev->dev,
 				"failed to power up secondary 3D unit\n");
-			return err;
+			goto err_power_up_3d1;
+		}
+
+		err = clk_prepare_enable(gr3d->clk_secondary);
+		if (err < 0) {
+			dev_err(&pdev->dev, "failed to enable secondary clock\n");
+			goto err_enable_secondary_clk;
 		}
 	}
 
@@ -313,7 +322,7 @@ static int gr3d_probe(struct platform_device *pdev)
 	if (err < 0) {
 		dev_err(&pdev->dev, "failed to register host1x client: %d\n",
 			err);
-		return err;
+		goto err_host1x_register;
 	}
 
 	/* initialize address register map */
@@ -323,6 +332,17 @@ static int gr3d_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, gr3d);
 
 	return 0;
+
+err_host1x_register:
+	clk_prepare_enable(gr3d->clk_secondary);
+err_enable_secondary_clk:
+	tegra_powergate_power_off(TEGRA_POWERGATE_3D1);
+err_power_up_3d1:
+	clk_disable_unprepare(gr3d->clk);
+err_enable_clk:
+	tegra_powergate_power_off(TEGRA_POWERGATE_3D);
+
+	return err;
 }
 
 static int gr3d_remove(struct platform_device *pdev)
