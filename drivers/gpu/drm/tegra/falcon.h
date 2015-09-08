@@ -131,4 +131,10 @@ int falcon_power_off(struct falcon *falcon);
 /* Request the Falcon firmware to execute a VIC-specific method */
 void falcon_execute_method(struct falcon *falcon, u32 method, u32 data);
 
+/* Read falcon firmware ucode */
+int falcon_read_ucode(struct falcon *falcon, const char *ucode_name);
+
+/* Free falcon firmware ucode */
+void falcon_free_ucode(struct falcon *falcon);
+
 #endif /* _FALCON_H_ */

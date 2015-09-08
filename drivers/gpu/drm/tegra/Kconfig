@@ -14,6 +14,17 @@ config DRM_TEGRA
 	  To compile this driver as a module, choose M here: the module
 	  will be called tegra-drm.
 
+config NVDEC_BOOTLOADER
+	bool "Enable use of nvdec bootloader"
+	help
+	  This config enables nvdec driver to load BL (Boot Loader) and
+	  LS (Low Security) firmwares. BL firmware performs security checks
+	  required to decode secure content from netflix, widevine etc. before
+	  loading LS firmware.  Say N here if you want to disable nvdec
+	  bootloader and decode only clear/non-secure content.
+
+	  If unsure, say N
+
 if DRM_TEGRA
 
 config DRM_TEGRA_FBDEV

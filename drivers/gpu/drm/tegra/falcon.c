@@ -17,7 +17,7 @@
 #include "drm.h"
 #include "falcon.h"
 
-#define FALCON_IDLE_TIMEOUT_DEFAULT_MS		10
+#define FALCON_IDLE_TIMEOUT_DEFAULT_MS		100
 
 /**
  * This is a number (actually the NVIDIA PCI vendor ID) that is implanted in
@@ -127,7 +127,7 @@ static int falcon_setup_ucode_image(struct falcon *falcon,
 	return 0;
 }
 
-static void falcon_free_ucode(struct falcon *falcon)
+void falcon_free_ucode(struct falcon *falcon)
 {
 	if (falcon->ucode_vaddr) {
 		falcon->ops->free(falcon, falcon->ucode_size,
@@ -137,7 +137,7 @@ static void falcon_free_ucode(struct falcon *falcon)
 	}
 }
 
-static int falcon_read_ucode(struct falcon *falcon, const char *ucode_name)
+int falcon_read_ucode(struct falcon *falcon, const char *ucode_name)
 {
 	const struct firmware *ucode_fw;
 	int err;

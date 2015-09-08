@@ -15,6 +15,7 @@
  */
 
 #include <linux/of.h>
+#include <linux/of_address.h>
 #include <linux/of_device.h>
 #include <linux/of_platform.h>
 #include <linux/clk.h>
@@ -31,14 +32,29 @@
 
 #define NVDEC_MAX_CLK_RATE	716800000
 
+#define MC_SECURITY_CARVEOUT1_BOM_LO		0xc0c
+#define MC_SECURITY_CARVEOUT1_BOM_HI		0xc10
+#define MC_SECURITY_CARVEOUT1_SIZE_128KB	0xc14
+#define WPR_SIZE (128 * 1024)
+
+struct nvdec_bl_shared_data {
+	u32 ls_fw_start_addr;
+	u32 ls_fw_size;
+	u32 wpr_addr;
+	u32 wpr_size;
+};
+
 struct nvdec_config {
 	const char *ucode_name;
+	const char *ucode_name_bl;
+	const char *ucode_name_ls;
 	u32 class_id;
 	int powergate_id;
 };
 
 struct nvdec {
-	struct falcon falcon;
+	struct falcon falcon_bl;
+	struct falcon falcon_ls;
 
 	struct tegra_drm_client client;
 
@@ -47,9 +63,13 @@ struct nvdec {
 	struct clk *clk;
 	struct clk *cbus_clk;
 	struct clk *emc_clk;
+	struct clk *fuse;
+	struct clk *kfuse;
 	struct reset_control *rst;
 
 	struct iommu_domain *domain;
+
+	void __iomem *mc_base;
 
 	/* Platform configuration */
 	struct nvdec_config *config;
@@ -65,15 +85,23 @@ static int nvdec_power_off(struct device *dev)
 	struct nvdec *nvdec = dev_get_drvdata(dev);
 	int err;
 
-	err = falcon_power_off(&nvdec->falcon);
+	err = falcon_power_off(&nvdec->falcon_bl);
 	if (err)
 		return err;
+
+	if (IS_ENABLED(CONFIG_NVDEC_BOOTLOADER)) {
+		err = falcon_power_off(&nvdec->falcon_ls);
+		if (err)
+			return err;
+	}
 
 	err = reset_control_assert(nvdec->rst);
 	if (err)
 		return err;
 
 	clk_disable_unprepare(nvdec->clk);
+	clk_disable_unprepare(nvdec->kfuse);
+	clk_disable_unprepare(nvdec->fuse);
 	clk_disable_unprepare(nvdec->cbus_clk);
 	err = tegra_pmc_powergate(nvdec->config->powergate_id);
 	if (err)
@@ -88,9 +116,15 @@ static int nvdec_power_on(struct device *dev)
 	struct nvdec *nvdec = dev_get_drvdata(dev);
 	int err;
 
-	err = falcon_power_on(&nvdec->falcon);
+	err = falcon_power_on(&nvdec->falcon_bl);
 	if (err)
 		return err;
+
+	if (IS_ENABLED(CONFIG_NVDEC_BOOTLOADER)) {
+		err = falcon_power_on(&nvdec->falcon_ls);
+		if (err)
+			goto err_falcon_power_on;
+	}
 
 	err = clk_prepare_enable(nvdec->emc_clk);
 	if (err)
@@ -107,8 +141,21 @@ static int nvdec_power_on(struct device *dev)
 	err = clk_prepare_enable(nvdec->cbus_clk);
 	if (err)
 		goto err_nvdec_cbus_clk;
+
+	err = clk_prepare_enable(nvdec->fuse);
+	if (err)
+		goto err_nvdec_fuse_clk;
+
+	err = clk_prepare_enable(nvdec->kfuse);
+	if (err)
+		goto err_nvdec_kfuse_clk;
+
 	return 0;
 
+err_nvdec_kfuse_clk:
+	clk_disable_unprepare(nvdec->fuse);
+err_nvdec_fuse_clk:
+	clk_disable_unprepare(nvdec->cbus_clk);
 err_nvdec_cbus_clk:
 	clk_disable_unprepare(nvdec->clk);
 err_nvdec_clk:
@@ -116,7 +163,10 @@ err_nvdec_clk:
 err_unpowergate:
 	clk_disable_unprepare(nvdec->emc_clk);
 err_emc_clk:
-	falcon_power_off(&nvdec->falcon);
+	if (IS_ENABLED(CONFIG_NVDEC_BOOTLOADER))
+		falcon_power_off(&nvdec->falcon_ls);
+err_falcon_power_on:
+	falcon_power_off(&nvdec->falcon_bl);
 	return err;
 }
 
@@ -126,7 +176,7 @@ static void nvdec_reset(struct device *dev)
 
 	nvdec_power_off(dev);
 	nvdec_power_on(dev);
-	falcon_boot(&nvdec->falcon, nvdec->config->ucode_name);
+	falcon_boot(&nvdec->falcon_bl, NULL);
 }
 
 static int nvdec_init(struct host1x_client *client)
@@ -244,6 +294,57 @@ static const struct host1x_client_ops nvdec_client_ops = {
 	.set_clk_rate = nvdec_set_clk_rate,
 };
 
+static void nvdec_wpr_setup(struct nvdec *nvdec)
+{
+	size_t fb_data_offset;
+	u32 wpr_addr_lo, wpr_addr_hi;
+	struct nvdec_bl_shared_data shared_data;
+
+	fb_data_offset = (nvdec->falcon_bl.os.bin_data_offset +
+			  nvdec->falcon_bl.os.data_offset) / sizeof(u32);
+
+	shared_data.ls_fw_start_addr = nvdec->falcon_ls.ucode_paddr >> 8;
+	shared_data.ls_fw_size = nvdec->falcon_ls.ucode_size;
+
+	wpr_addr_lo = readl(nvdec->mc_base + MC_SECURITY_CARVEOUT1_BOM_LO);
+	wpr_addr_hi = readl(nvdec->mc_base + MC_SECURITY_CARVEOUT1_BOM_HI);
+	shared_data.wpr_addr = ((wpr_addr_hi << 24) & 0xff000000)
+		| ((wpr_addr_lo  >> 8) & 0xffffff);
+
+	shared_data.wpr_size = readl(nvdec->mc_base +
+				     MC_SECURITY_CARVEOUT1_SIZE_128KB);
+	shared_data.wpr_size *= WPR_SIZE;
+
+	memcpy(nvdec->falcon_bl.ucode_vaddr + fb_data_offset,
+	       &shared_data, sizeof(shared_data));
+}
+
+static int nvdec_read_ucode(struct nvdec *nvdec)
+{
+	int err;
+
+	if (IS_ENABLED(CONFIG_NVDEC_BOOTLOADER)) {
+		err = falcon_read_ucode(&nvdec->falcon_bl,
+					nvdec->config->ucode_name_bl);
+		if (err)
+			return err;
+
+		err = falcon_read_ucode(&nvdec->falcon_ls,
+					nvdec->config->ucode_name_ls);
+		if (err)
+			return err;
+
+		nvdec_wpr_setup(nvdec);
+	} else {
+		err = falcon_read_ucode(&nvdec->falcon_bl,
+					nvdec->config->ucode_name);
+		if (err)
+			return err;
+	}
+
+	return 0;
+}
+
 static int nvdec_open_channel(struct tegra_drm_client *client,
 			      struct tegra_drm_context *context)
 {
@@ -252,7 +353,11 @@ static int nvdec_open_channel(struct tegra_drm_client *client,
 
 	pm_runtime_get_sync(nvdec->dev);
 
-	err = falcon_boot(&nvdec->falcon, nvdec->config->ucode_name);
+	err = nvdec_read_ucode(nvdec);
+	if (err)
+		return err;
+
+	err = falcon_boot(&nvdec->falcon_bl, NULL);
 	if (err)
 		return err;
 
@@ -295,10 +400,9 @@ static const struct tegra_drm_client_ops nvdec_ops = {
 	.submit = tegra_drm_submit,
 };
 
-static void *nvdec_falcon_alloc(struct falcon *falcon, size_t size,
-				dma_addr_t *paddr)
+static void *__nvdec_falcon_alloc(struct nvdec *nvdec, size_t size,
+				  dma_addr_t *paddr)
 {
-	struct nvdec *nvdec = (struct nvdec *)falcon;
 	struct tegra_drm_client *drm = &nvdec->client;
 	struct drm_device *dev = dev_get_drvdata(drm->base.parent);
 	struct tegra_bo *bo;
@@ -316,22 +420,54 @@ static void *nvdec_falcon_alloc(struct falcon *falcon, size_t size,
 	return bo->vaddr;
 }
 
-static void nvdec_falcon_free(struct falcon *falcon, size_t size,
-			      dma_addr_t paddr, void *vaddr)
+static void *nvdec_falcon_bl_alloc(struct falcon *falcon, size_t size,
+				   dma_addr_t *paddr)
 {
-	struct nvdec *nvdec = (struct nvdec *)falcon;
+	struct nvdec *nvdec = container_of(falcon, struct nvdec, falcon_bl);
+
+	return __nvdec_falcon_alloc(nvdec, size, paddr);
+}
+
+static void nvdec_falcon_bl_free(struct falcon *falcon, size_t size,
+				 dma_addr_t paddr, void *vaddr)
+{
+	struct nvdec *nvdec = container_of(falcon, struct nvdec, falcon_bl);
 	DEFINE_DMA_ATTRS(attrs);
 
 	dma_free_attrs(nvdec->dev, size, vaddr, paddr, &attrs);
 }
 
-static const struct falcon_ops nvdec_falcon_ops = {
-	.alloc = nvdec_falcon_alloc,
-	.free = nvdec_falcon_free,
+static void *nvdec_falcon_ls_alloc(struct falcon *falcon, size_t size,
+				   dma_addr_t *paddr)
+{
+	struct nvdec *nvdec = container_of(falcon, struct nvdec, falcon_ls);
+
+	return __nvdec_falcon_alloc(nvdec, size, paddr);
+}
+
+static void nvdec_falcon_ls_free(struct falcon *falcon, size_t size,
+				 dma_addr_t paddr, void *vaddr)
+{
+	struct nvdec *nvdec = container_of(falcon, struct nvdec, falcon_ls);
+	DEFINE_DMA_ATTRS(attrs);
+
+	dma_free_attrs(nvdec->dev, size, vaddr, paddr, &attrs);
+}
+
+static const struct falcon_ops nvdec_falcon_bl_ops = {
+	.alloc = nvdec_falcon_bl_alloc,
+	.free = nvdec_falcon_bl_free,
+};
+
+static const struct falcon_ops nvdec_falcon_ls_ops = {
+	.alloc = nvdec_falcon_ls_alloc,
+	.free = nvdec_falcon_ls_free,
 };
 
 static const struct nvdec_config nvdec_t210_config = {
 	.ucode_name = "nvidia/tegra210/nvdec_ns.bin",
+	.ucode_name_bl = "nvidia/tegra210/nvdec_bl_prod.bin",
+	.ucode_name_ls = "nvidia/tegra210/nvdec_prod.bin",
 	.class_id = HOST1X_CLASS_NVDEC,
 	.powergate_id = TEGRA_POWERGATE_NVDEC,
 };
@@ -342,6 +478,11 @@ static struct of_device_id nvdec_match[] = {
 	{ },
 };
 
+static const struct of_device_id mc_match[] = {
+	{ .compatible = "nvidia,tegra210-mc" },
+	{},
+};
+
 static int nvdec_probe(struct platform_device *pdev)
 {
 	const struct of_device_id *match;
@@ -349,6 +490,7 @@ static int nvdec_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct host1x_syncpt **syncpts;
 	struct resource *regs;
+	struct device_node *node;
 	struct nvdec *nvdec;
 	int err;
 
@@ -372,9 +514,17 @@ static int nvdec_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	regs = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	nvdec->falcon.regs = devm_ioremap_resource(&pdev->dev, regs);
-	if (IS_ERR(nvdec->falcon.regs))
-		return PTR_ERR(nvdec->falcon.regs);
+	nvdec->falcon_bl.regs = devm_ioremap_resource(&pdev->dev, regs);
+	if (IS_ERR(nvdec->falcon_bl.regs))
+		return PTR_ERR(nvdec->falcon_bl.regs);
+
+	node = of_find_matching_node(NULL, mc_match);
+	if (!node)
+		return -ENODEV;
+
+	nvdec->mc_base = of_iomap(node, 0);
+	if (!nvdec->mc_base)
+		return -ENOMEM;
 
 	nvdec->clk = devm_clk_get(dev, NULL);
 	if (IS_ERR(nvdec->clk)) {
@@ -391,14 +541,32 @@ static int nvdec_probe(struct platform_device *pdev)
 		dev_err(dev, "cannot get emc clock\n");
 		return PTR_ERR(nvdec->emc_clk);
 	}
+
+	nvdec->kfuse = devm_clk_get(dev, "kfuse");
+	if (IS_ERR(nvdec->kfuse)) {
+		dev_err(dev, "cannot get kfuse clock\n");
+		return PTR_ERR(nvdec->kfuse);
+	}
+
+	nvdec->fuse = devm_clk_get(dev, "fuse");
+	if (IS_ERR(nvdec->fuse)) {
+		dev_err(dev, "cannot get fuse clock\n");
+		return PTR_ERR(nvdec->fuse);
+	}
+
 	nvdec->rst = devm_reset_control_get(&pdev->dev, "nvdec");
 	if (IS_ERR(nvdec->rst)) {
 		dev_err(dev, "cannot get reset\n");
 		return PTR_ERR(nvdec->rst);
 	}
 
-	nvdec->falcon.dev = dev;
-	nvdec->falcon.ops = &nvdec_falcon_ops;
+	nvdec->falcon_bl.dev = dev;
+	nvdec->falcon_bl.ops = &nvdec_falcon_bl_ops;
+
+	if (IS_ENABLED(CONFIG_NVDEC_BOOTLOADER)) {
+		nvdec->falcon_ls.dev = dev;
+		nvdec->falcon_ls.ops = &nvdec_falcon_ls_ops;
+	}
 
 	INIT_LIST_HEAD(&nvdec->client.base.list);
 	nvdec->client.base.ops = &nvdec_client_ops;
@@ -412,10 +580,18 @@ static int nvdec_probe(struct platform_device *pdev)
 	INIT_LIST_HEAD(&nvdec->client.list);
 	nvdec->client.ops = &nvdec_ops;
 
-	err = falcon_init(&nvdec->falcon);
+	err = falcon_init(&nvdec->falcon_bl);
 	if (err) {
-		dev_err(dev, "failed initializing falcon helper\n");
+		dev_err(dev, "failed initializing falcon BL helper\n");
 		return err;
+	}
+
+	if (IS_ENABLED(CONFIG_NVDEC_BOOTLOADER)) {
+		err = falcon_init(&nvdec->falcon_ls);
+		if (err) {
+			dev_err(dev, "failed initializing falcon ls helper\n");
+			goto error_falcon_exit_bl;
+		}
 	}
 
 	platform_set_drvdata(pdev, nvdec);
@@ -444,7 +620,11 @@ static int nvdec_probe(struct platform_device *pdev)
 error_nvdec_power_off:
 	nvdec_power_off(&pdev->dev);
 error_falcon_exit:
-	falcon_exit(&nvdec->falcon);
+	if (IS_ENABLED(CONFIG_NVDEC_BOOTLOADER))
+		falcon_exit(&nvdec->falcon_ls);
+error_falcon_exit_bl:
+	falcon_exit(&nvdec->falcon_bl);
+
 	return err;
 }
 
@@ -460,7 +640,10 @@ static int nvdec_remove(struct platform_device *pdev)
 
 	nvdec_power_off(&pdev->dev);
 
-	falcon_exit(&nvdec->falcon);
+	if (IS_ENABLED(CONFIG_NVDEC_BOOTLOADER))
+		falcon_exit(&nvdec->falcon_ls);
+
+	falcon_exit(&nvdec->falcon_bl);
 
 	return err;
 }
@@ -503,7 +686,11 @@ static int __maybe_unused nvdec_resume(struct device *dev)
 		return err;
 	}
 
-	return falcon_boot(&nvdec->falcon, nvdec->config->ucode_name);
+	err = nvdec_read_ucode(nvdec);
+	if (err)
+		return err;
+
+	return falcon_boot(&nvdec->falcon_bl, NULL);
 }
 
 static const struct dev_pm_ops nvdec_pm_ops = {
