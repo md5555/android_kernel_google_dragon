@@ -12,10 +12,8 @@
 		vana-supply = <&pp2800l_rcam>;
 		vdig-supply = <&pp1200_rcam>;
 		dovdd-supply = <&pp1800_cam>;
-		vdd_af1-supply = <&pp2800l_fcam>;
 		clocks = <&tegra_car TEGRA210_CLK_CLK_OUT_3>;
 		clock-names = "clk_out_3";
-		af-gpios = <&gpio CAM_AF_PWDN GPIO_ACTIVE_HIGH>;
 		reset-gpios = <&gpio RCAM_RSTN GPIO_ACTIVE_HIGH>;
 	};
 
@@ -34,6 +32,7 @@
 		compatible = "adi,ad5823";
 		reg = <0xc>;
 		vdd-supply = <&pp2800l_fcam>;
+		shutdown-gpio = <&gpio CAM_AF_PWDN GPIO_ACTIVE_HIGH>;
 	};
 };
 
