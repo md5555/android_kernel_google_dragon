@@ -46,7 +46,6 @@ struct imx219_power_rail {
 	struct regulator *vdd_af;
 	struct clk *mclk;
 	unsigned int reset_gpio;
-	unsigned int af_gpio;
 };
 
 struct imx219_info {
@@ -365,27 +364,12 @@ imx219_power_on(struct imx219_info *info)
 		dev_err(dev, "%s: set MCLK to 24MHz failed, MCLK set to default freq!\n",
 			__func__);
 
-	err = clk_prepare_enable(pw->mclk);
-	if (err < 0) {
-		dev_err(&info->i2c_client->dev, "%s: Fail to enable MCLK\n",
-			__func__);
-		return err;
-	}
-
-	gpio_set_value(pw->af_gpio, 1);
 	gpio_set_value(pw->reset_gpio, 0);
-	usleep_range(10, 20);
-
-	err = regulator_enable(pw->vdd_af);
-	if (err) {
-		dev_err(dev, "%s: fail to enable vdd_af", __func__);
-		goto imx219_vdd_af_fail;
-	}
 
 	err = regulator_enable(pw->avdd);
 	if (err) {
 		dev_err(dev, "%s: fail to enable avdd", __func__);
-		goto imx219_avdd_fail;
+		return err;
 	}
 
 	err = regulator_enable(pw->iovdd);
@@ -400,13 +384,29 @@ imx219_power_on(struct imx219_info *info)
 		goto imx219_dvdd_fail;
 	}
 
+	/* Wait for voltages to stabilize. */
+	usleep_range(100, 200);
+
+	err = clk_prepare_enable(pw->mclk);
+	if (err < 0) {
+		dev_err(&info->i2c_client->dev, "%s: Fail to enable MCLK\n",
+			__func__);
+		goto imx219_mclk_fail;
+	}
+
+	/* Wait several clocks before deasserting the reset (min. 0.5 uS). */
 	usleep_range(1, 2);
+
 	gpio_set_value(pw->reset_gpio, 1);
+
+	/* Wait for internal XCLR low-to-high (max. 200 uS). */
 	usleep_range(300, 310);
 
 	info->powered_on = true;
 	return 0;
 
+imx219_mclk_fail:
+	regulator_disable(pw->dvdd);
 
 imx219_dvdd_fail:
 	regulator_disable(pw->iovdd);
@@ -414,11 +414,6 @@ imx219_dvdd_fail:
 imx219_iovdd_fail:
 	regulator_disable(pw->avdd);
 
-imx219_avdd_fail:
-	regulator_disable(pw->vdd_af);
-
-imx219_vdd_af_fail:
-	clk_disable_unprepare(pw->mclk);
 	dev_err(&info->i2c_client->dev, "%s failed.\n", __func__);
 	return err;
 }
@@ -433,17 +428,20 @@ imx219_power_off(struct imx219_info *info)
 		return 0;
 	}
 
-	usleep_range(1, 2);
 	gpio_set_value(pw->reset_gpio, 0);
-	gpio_set_value(pw->af_gpio, 0);
-	usleep_range(1, 2);
 
-	regulator_disable(pw->vdd_af);
+	/* Wait for software standby to activate (max. 10 uS). */
+	usleep_range(20, 30);
+
 	regulator_disable(pw->dvdd);
 	regulator_disable(pw->iovdd);
 	regulator_disable(pw->avdd);
 
+	/* Wait for regulators to discharge. */
+	usleep_range(30, 40);
+
 	clk_disable_unprepare(pw->mclk);
+
 	info->powered_on = false;
 	return 0;
 }
@@ -689,15 +687,6 @@ imx219_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		return err;
 	}
 
-	pw->af_gpio = of_get_named_gpio(np, "af-gpios", 0);
-	err = devm_gpio_request_one(&client->dev, pw->af_gpio,
-					GPIOF_OUT_INIT_LOW, "cam-af");
-	if (err) {
-		dev_err(&client->dev,
-		"[IMX219]:%s:Unable to request af-gpio\n", __func__);
-		return err;
-	}
-
 	info->i2c_client = client;
 	atomic_set(&info->in_use, 0);
 	info->afdat_read = false;
@@ -729,13 +718,6 @@ imx219_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		dev_err(&info->i2c_client->dev, "%s Cannot get regulator dvodd\n",
 			__func__);
 		return PTR_ERR(pw->iovdd);
-	}
-
-	pw->vdd_af = devm_regulator_get(&info->i2c_client->dev, "vdd_af1");
-	if (IS_ERR(pw->vdd_af)) {
-		dev_err(&info->i2c_client->dev, "%s Cannot get regulator vdd_af1\n",
-			__func__);
-		return PTR_ERR(pw->vdd_af);
 	}
 
 	info->miscdev_info = imx219_device;
