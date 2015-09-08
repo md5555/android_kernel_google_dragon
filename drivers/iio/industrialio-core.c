@@ -97,6 +97,7 @@ static const char * const iio_modifier_names[] = {
 	[IIO_MOD_JOGGING] = "jogging",
 	[IIO_MOD_WALKING] = "walking",
 	[IIO_MOD_STILL] = "still",
+	[IIO_MOD_DOUBLE_TAP] = "double_tap",
 };
 
 /* relies on pairs of these shared then separate */

@@ -66,6 +66,7 @@ enum iio_modifier {
 	IIO_MOD_JOGGING,
 	IIO_MOD_WALKING,
 	IIO_MOD_STILL,
+	IIO_MOD_DOUBLE_TAP,
 };
 
 enum iio_event_type {
