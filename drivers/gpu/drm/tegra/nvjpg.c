@@ -71,7 +71,7 @@ static int nvjpg_power_off(struct device *dev)
 
 	clk_disable_unprepare(nvjpg->clk);
 
-	return tegra_powergate_power_off(nvjpg->config->powergate_id);
+	return tegra_pmc_powergate(nvjpg->config->powergate_id);
 }
 
 static int nvjpg_power_on(struct device *dev)
@@ -83,13 +83,13 @@ static int nvjpg_power_on(struct device *dev)
 	if (err)
 		return err;
 
-	err = tegra_powergate_sequence_power_up(nvjpg->config->powergate_id);
+	err = tegra_pmc_unpowergate(nvjpg->config->powergate_id);
 	if (err)
 		return err;
 
 	err = clk_prepare_enable(nvjpg->clk);
 	if (err)
-		tegra_powergate_power_off(nvjpg->config->powergate_id);
+		tegra_pmc_powergate(nvjpg->config->powergate_id);
 
 	return err;
 }

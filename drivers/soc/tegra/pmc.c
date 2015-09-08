@@ -373,6 +373,8 @@ struct tegra_powergate {
 	struct list_head rst_list;
 	struct tegra_mc *mc;
 	struct list_head flush_list;
+	unsigned int num_dependencies;
+	unsigned int *dependencies;
 };
 
 /**
@@ -487,7 +489,7 @@ static int __tegra_powergate_set(int id, bool new_state)
  * tegra_powergate_power_on() - power on partition
  * @id: partition ID
  */
-int tegra_powergate_power_on(int id)
+static int tegra_powergate_power_on(int id)
 {
 	int ret = 0;
 
@@ -506,7 +508,7 @@ int tegra_powergate_power_on(int id)
  * tegra_powergate_power_off() - power off partition
  * @id: partition ID
  */
-int tegra_powergate_power_off(int id)
+static int tegra_powergate_power_off(int id)
 {
 	int ret = 0;
 
@@ -522,7 +524,6 @@ int tegra_powergate_power_off(int id)
 
 	return ret;
 }
-EXPORT_SYMBOL(tegra_powergate_power_off);
 
 /**
  * tegra_powergate_is_powered() - check if partition is powered
@@ -605,7 +606,7 @@ EXPORT_SYMBOL(tegra_powergate_gpu_set_clamping);
  * tegra_powergate_sequence_power_up() - power up partition
  * @id: partition ID
  */
-int tegra_powergate_sequence_power_up(int id)
+static int tegra_powergate_sequence_power_up(int id)
 {
 	struct tegra_powergate_rst *pg_rst;
 	struct tegra_powergate_clk *pg_clk;
@@ -615,9 +616,6 @@ int tegra_powergate_sequence_power_up(int id)
 
 	if (!pmc->soc || id < 0 || id >= pmc->soc->num_powergates)
 		return -EINVAL;
-
-	if (!pmc->powergates)
-		return -EPROBE_DEFER;
 
 	pg = &pmc->powergates[id];
 
@@ -670,13 +668,12 @@ err_unref:
 	mutex_unlock(&pmc->powergates_lock);
 	return ret;
 }
-EXPORT_SYMBOL(tegra_powergate_sequence_power_up);
 
 /**
  * tegra_powergate_sequence_power_down() - power down partition
  * @id: partition ID
  */
-int tegra_powergate_sequence_power_down(int id)
+static int tegra_powergate_sequence_power_down(int id)
 {
 	struct tegra_powergate_rst *pg_rst;
 	struct tegra_powergate_clk *pg_clk;
@@ -686,9 +683,6 @@ int tegra_powergate_sequence_power_down(int id)
 
 	if (!pmc->soc || id < 0 || id >= pmc->soc->num_powergates)
 		return -EINVAL;
-
-	if (!pmc->powergates)
-		return -EPROBE_DEFER;
 
 	pg = &pmc->powergates[id];
 
@@ -746,7 +740,79 @@ err_pg_clk_enable:
 	mutex_unlock(&pmc->powergates_lock);
 	return ret;
 }
-EXPORT_SYMBOL(tegra_powergate_sequence_power_down);
+
+/**
+ * tegra_pmc_unpowergate() - unpowergate partition with dependency
+ * @id: partition ID
+ */
+int tegra_pmc_unpowergate(int id)
+{
+	struct tegra_powergate *pg;
+	int i, ret = 0;
+
+	if (!pmc->soc || id < 0 || id >= pmc->soc->num_powergates)
+		return -EINVAL;
+
+	if (!pmc->powergates)
+		return -EPROBE_DEFER;
+
+	pg = &pmc->powergates[id];
+
+	for (i = 0; i < pg->num_dependencies; i++) {
+		ret = tegra_powergate_sequence_power_up(pg->dependencies[i]);
+		if (ret)
+			goto powergate_deps;
+	}
+
+	ret = tegra_powergate_sequence_power_up(id);
+	if (ret)
+		goto powergate_deps;
+
+	return 0;
+
+powergate_deps:
+	for (; i > 0; i--)
+		tegra_powergate_sequence_power_down(pg->dependencies[i - 1]);
+	return ret;
+}
+EXPORT_SYMBOL(tegra_pmc_unpowergate);
+
+/**
+ * tegra_pmc_powergate - powergate partition with dependency
+ * @id: partition ID
+ */
+int tegra_pmc_powergate(int id)
+{
+	struct tegra_powergate *pg;
+	int i, ret = 0;
+
+	if (!pmc->soc || id < 0 || id >= pmc->soc->num_powergates)
+		return -EINVAL;
+
+	if (!pmc->powergates)
+		return -EPROBE_DEFER;
+
+	pg = &pmc->powergates[id];
+
+	ret = tegra_powergate_sequence_power_down(id);
+	if (ret)
+		return ret;
+
+	for (i = 0; i < pg->num_dependencies; i++) {
+		ret = tegra_powergate_sequence_power_down(pg->dependencies[i]);
+		if (ret)
+			goto unpowergate_deps;
+	}
+
+	return 0;
+
+unpowergate_deps:
+	for (; i > 0; i--)
+		tegra_powergate_sequence_power_up(pg->dependencies[i - 1]);
+	tegra_powergate_sequence_power_up(id);
+	return ret;
+}
+EXPORT_SYMBOL(tegra_pmc_powergate);
 
 #ifdef CONFIG_SMP
 /**
@@ -2462,6 +2528,21 @@ out:
 	of_node_put(np);
 }
 
+static int tegra_powergate_get_id(const char *pg_name)
+{
+	int i;
+
+	for (i = 0; i < pmc->soc->num_powergates; i++) {
+		if (!pmc->soc->powergates[i])
+			continue;
+
+		if (strcmp(pg_name, pmc->soc->powergates[i]) == 0)
+			return i;
+	}
+
+	return -EINVAL;
+}
+
 static int tegra_powergate_add_clock(struct tegra_powergate *pg,
 				     struct clk *clk)
 {
@@ -2512,6 +2593,7 @@ static int tegra_powergate_init_one(struct device_node *np,
 {
 	struct platform_device *pdev;
 	struct of_phandle_args args;
+	struct device_node *pg_np;
 	const char *id;
 	int count;
 	int i, ret = 0;
@@ -2600,6 +2682,35 @@ static int tegra_powergate_init_one(struct device_node *np,
 
 		pr_info("%s: Added mc_flush for swgroup '%s' to powergate '%s'\n",
 			__func__, id, pg->name);
+	}
+
+	count = of_count_phandle_with_args(np, "power-partitions", NULL);
+	if (count > 0) {
+		pg->dependencies = devm_kcalloc(pmc->dev, count,
+						sizeof(*pg->dependencies),
+						GFP_KERNEL);
+		if (!pg->dependencies) {
+			pr_err("%s: Failed to allocate memory for dependency list\n",
+				__func__);
+			return -ENOMEM;
+		}
+
+		for (i = 0; i < count; i++) {
+			pg_np = of_parse_phandle(np, "power-partitions", i);
+			if (pg_np) {
+				ret = tegra_powergate_get_id(pg_np->name);
+				if (ret < 0) {
+					pr_err("%s: Failed to get powergate ID for %s\n",
+					       __func__, pg_np->name);
+					of_node_put(pg_np);
+					return ret;
+				}
+				pg->dependencies[i] = ret;
+				of_node_put(pg_np);
+			}
+		}
+
+		pg->num_dependencies = count;
 	}
 
 	return 0;

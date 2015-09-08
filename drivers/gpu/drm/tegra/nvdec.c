@@ -75,12 +75,11 @@ static int nvdec_power_off(struct device *dev)
 
 	clk_disable_unprepare(nvdec->clk);
 	clk_disable_unprepare(nvdec->cbus_clk);
-	err = tegra_powergate_power_off(nvdec->config->powergate_id);
+	err = tegra_pmc_powergate(nvdec->config->powergate_id);
 	if (err)
 		return err;
 
 	clk_disable_unprepare(nvdec->emc_clk);
-	err = tegra_powergate_power_off(TEGRA_POWERGATE_NVJPG);
 	return err;
 }
 
@@ -97,14 +96,9 @@ static int nvdec_power_on(struct device *dev)
 	if (err)
 		goto err_emc_clk;
 
-	/* NVDEC needs NVJPG to be powered up first */
-	err = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_NVJPG);
+	err = tegra_pmc_unpowergate(nvdec->config->powergate_id);
 	if (err)
-		goto err_powergate_nvjpg;
-
-	err = tegra_powergate_sequence_power_up(nvdec->config->powergate_id);
-	if (err)
-		goto err_powergate_nvdec;
+		goto err_unpowergate;
 
 	err = clk_prepare_enable(nvdec->clk);
 	if (err)
@@ -118,10 +112,8 @@ static int nvdec_power_on(struct device *dev)
 err_nvdec_cbus_clk:
 	clk_disable_unprepare(nvdec->clk);
 err_nvdec_clk:
-	tegra_powergate_power_off(nvdec->config->powergate_id);
-err_powergate_nvdec:
-	tegra_powergate_power_off(TEGRA_POWERGATE_NVJPG);
-err_powergate_nvjpg:
+	tegra_pmc_powergate(nvdec->config->powergate_id);
+err_unpowergate:
 	clk_disable_unprepare(nvdec->emc_clk);
 err_emc_clk:
 	falcon_power_off(&nvdec->falcon);

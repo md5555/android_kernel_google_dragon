@@ -588,8 +588,7 @@ static int tegra_i2c_power_enable(struct tegra_i2c_dev *i2c_dev)
 	}
 
 	if (i2c_dev->hw->has_powergate) {
-		ret = tegra_powergate_sequence_power_up(
-				i2c_dev->hw->powergate_id);
+		ret = tegra_pmc_unpowergate(i2c_dev->hw->powergate_id);
 		if (ret)
 			goto err_regulator;
 
@@ -605,8 +604,7 @@ err_regulator:
 		regulator_disable(i2c_dev->reg);
 err_powergate:
 	if (i2c_dev->hw->has_powergate)
-		tegra_powergate_sequence_power_down(
-				i2c_dev->hw->powergate_id);
+		tegra_pmc_powergate(i2c_dev->hw->powergate_id);
 
 	return ret;
 }
@@ -617,8 +615,7 @@ static void tegra_i2c_power_disable(struct tegra_i2c_dev *i2c_dev)
 		regulator_disable(i2c_dev->reg);
 
 	if (i2c_dev->hw->has_powergate)
-		tegra_powergate_sequence_power_down(
-				i2c_dev->hw->powergate_id);
+		tegra_pmc_powergate(i2c_dev->hw->powergate_id);
 }
 
 static irqreturn_t tegra_i2c_isr(int irq, void *dev_id)

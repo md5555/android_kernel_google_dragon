@@ -118,7 +118,7 @@ static int tegra_ahci_power_on(struct ahci_host_priv *hpriv)
 	if (ret)
 		return ret;
 
-	ret = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_SATA);
+	ret = tegra_pmc_unpowergate(TEGRA_POWERGATE_SATA);
 	if (ret)
 		goto disable_regulators;
 
@@ -142,7 +142,7 @@ disable_power:
 	clk_disable_unprepare(tegra->sata_clk);
 
 err_enable_clk:
-	tegra_powergate_power_off(TEGRA_POWERGATE_SATA);
+	tegra_pmc_powergate(TEGRA_POWERGATE_SATA);
 
 disable_regulators:
 	regulator_bulk_disable(ARRAY_SIZE(tegra->supplies), tegra->supplies);

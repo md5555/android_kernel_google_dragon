@@ -1070,10 +1070,10 @@ static int tegra_xhci_probe(struct platform_device *pdev)
 		goto put_hcd;
 	}
 
-	ret = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_XUSBA);
+	ret = tegra_pmc_unpowergate(TEGRA_POWERGATE_XUSBA);
 	if (ret < 0)
 		goto put_hcd;
-	ret = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_XUSBC);
+	ret = tegra_pmc_unpowergate(TEGRA_POWERGATE_XUSBC);
 	if (ret < 0)
 		goto powergate_xusba;
 
@@ -1183,9 +1183,9 @@ unregister_extcon:
 disable_clk:
 	tegra_xhci_clk_disable(tegra);
 powergate_xusbc:
-	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBC);
+	tegra_pmc_powergate(TEGRA_POWERGATE_XUSBC);
 powergate_xusba:
-	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBA);
+	tegra_pmc_powergate(TEGRA_POWERGATE_XUSBA);
 put_hcd:
 	usb_put_hcd(hcd);
 	return ret;
@@ -1225,8 +1225,8 @@ static int tegra_xhci_remove(struct platform_device *pdev)
 	tegra_xhci_phy_disable(tegra);
 	regulator_bulk_disable(tegra->soc->num_supplies, tegra->supplies);
 	tegra_xhci_clk_disable(tegra);
-	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBC);
-	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBA);
+	tegra_pmc_powergate(TEGRA_POWERGATE_XUSBC);
+	tegra_pmc_powergate(TEGRA_POWERGATE_XUSBA);
 
 	pm_runtime_disable(tegra->dev);
 	pm_runtime_put(tegra->dev);
@@ -1392,7 +1392,7 @@ static int tegra_xhci_powergate(struct tegra_xhci_hcd *tegra, bool runtime)
 		phy_power_off(tegra->phys[USB3_PHY][i]);
 
 	/* Power off XUSB_SS partition. */
-	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBA);
+	tegra_pmc_powergate(TEGRA_POWERGATE_XUSBA);
 
 	/* Save FPCI and IPFS context. */
 	tegra_xhci_save_fpci_context(tegra);
@@ -1426,7 +1426,7 @@ static int tegra_xhci_powergate(struct tegra_xhci_hcd *tegra, bool runtime)
 	}
 
 	/* Power off XUSB_HOST partition. */
-	tegra_powergate_sequence_power_down(TEGRA_POWERGATE_XUSBC);
+	tegra_pmc_powergate(TEGRA_POWERGATE_XUSBC);
 
 	/* Power off UTMI and HSIC PHYs. */
 	for (i = 0; i < tegra->soc->num_phys[UTMI_PHY]; i++)
@@ -1490,7 +1490,7 @@ static int tegra_xhci_unpowergate(struct tegra_xhci_hcd *tegra)
 	}
 
 	/* Power on XUSB_HOST partition. */
-	ret = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_XUSBC);
+	ret = tegra_pmc_unpowergate(TEGRA_POWERGATE_XUSBC);
 	if (ret < 0)
 		goto unlock;
 
@@ -1500,7 +1500,7 @@ static int tegra_xhci_unpowergate(struct tegra_xhci_hcd *tegra)
 	tegra_xhci_restore_ipfs_context(tegra);
 
 	/* Power on XUSB_SS partition. */
-	ret = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_XUSBA);
+	ret = tegra_pmc_unpowergate(TEGRA_POWERGATE_XUSBA);
 	if (ret < 0)
 		goto unlock;
 

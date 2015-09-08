@@ -281,7 +281,7 @@ static int gr3d_probe(struct platform_device *pdev)
 		}
 	}
 
-	err = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_3D);
+	err = tegra_pmc_unpowergate(TEGRA_POWERGATE_3D);
 	if (err < 0) {
 		dev_err(&pdev->dev, "failed to power up 3D unit\n");
 		return err;
@@ -294,7 +294,7 @@ static int gr3d_probe(struct platform_device *pdev)
 	}
 
 	if (gr3d->clk_secondary) {
-		err = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_3D1);
+		err = tegra_pmc_unpowergate(TEGRA_POWERGATE_3D1);
 		if (err < 0) {
 			dev_err(&pdev->dev,
 				"failed to power up secondary 3D unit\n");
@@ -336,11 +336,11 @@ static int gr3d_probe(struct platform_device *pdev)
 err_host1x_register:
 	clk_prepare_enable(gr3d->clk_secondary);
 err_enable_secondary_clk:
-	tegra_powergate_power_off(TEGRA_POWERGATE_3D1);
+	tegra_pmc_powergate(TEGRA_POWERGATE_3D1);
 err_power_up_3d1:
 	clk_disable_unprepare(gr3d->clk);
 err_enable_clk:
-	tegra_powergate_power_off(TEGRA_POWERGATE_3D);
+	tegra_pmc_powergate(TEGRA_POWERGATE_3D);
 
 	return err;
 }
@@ -358,12 +358,12 @@ static int gr3d_remove(struct platform_device *pdev)
 	}
 
 	if (gr3d->clk_secondary) {
-		tegra_powergate_power_off(TEGRA_POWERGATE_3D1);
 		clk_disable_unprepare(gr3d->clk_secondary);
+		tegra_pmc_powergate(TEGRA_POWERGATE_3D1);
 	}
 
-	tegra_powergate_power_off(TEGRA_POWERGATE_3D);
 	clk_disable_unprepare(gr3d->clk);
+	tegra_pmc_powergate(TEGRA_POWERGATE_3D);
 
 	return 0;
 }

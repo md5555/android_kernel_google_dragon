@@ -2373,7 +2373,7 @@ static int tegra_dc_probe(struct platform_device *pdev)
 		else
 			dc->powergate = TEGRA_POWERGATE_DISB;
 
-		err = tegra_powergate_sequence_power_up(dc->powergate);
+		err = tegra_pmc_unpowergate(dc->powergate);
 		if (err < 0) {
 			dev_err(&pdev->dev, "failed to power partition: %d\n",
 				err);
@@ -2382,7 +2382,7 @@ static int tegra_dc_probe(struct platform_device *pdev)
 
 		err = clk_prepare_enable(dc->clk);
 		if (err < 0) {
-			tegra_powergate_power_off(dc->powergate);
+			tegra_pmc_powergate(dc->powergate);
 			dev_err(&pdev->dev, "failed to enable clock: %d\n",
 				err);
 			return err;
@@ -2468,7 +2468,7 @@ static int tegra_dc_remove(struct platform_device *pdev)
 	reset_control_assert(dc->rst);
 
 	if (dc->soc->has_powergate)
-		tegra_powergate_power_off(dc->powergate);
+		tegra_pmc_powergate(dc->powergate);
 
 	clk_disable_unprepare(dc->clk);
 	clk_disable_unprepare(dc->emc_clk);

@@ -124,14 +124,12 @@ struct tegra_utmi_pad_config {
 
 #ifdef CONFIG_ARCH_TEGRA
 int tegra_powergate_is_powered(int id);
-int tegra_powergate_power_on(int id);
-int tegra_powergate_power_off(int id);
 int tegra_powergate_remove_clamping(int id);
 /* Only for Tegra124 and later */
 int tegra_powergate_gpu_set_clamping(bool assert);
 
-int tegra_powergate_sequence_power_up(int id);
-int tegra_powergate_sequence_power_down(int id);
+int tegra_pmc_unpowergate(int id);
+int tegra_pmc_powergate(int id);
 
 int tegra_io_rail_power_on(int id);
 int tegra_io_rail_power_off(int id);
@@ -151,27 +149,17 @@ static inline int tegra_powergate_is_powered(int id)
 	return -ENOSYS;
 }
 
-static inline int tegra_powergate_power_on(int id)
-{
-	return -ENOSYS;
-}
-
-static inline int tegra_powergate_power_off(int id)
-{
-	return -ENOSYS;
-}
-
 static inline int tegra_powergate_remove_clamping(int id)
 {
 	return -ENOSYS;
 }
 
-static inline int tegra_powergate_sequence_power_up(int id)
+static inline int tegra_pmc_unpowergate(int id)
 {
 	return -ENOSYS;
 }
 
-static inline int tegra_powergate_sequence_power_down(int id)
+static inline int tegra_pmc_powergate(int id)
 {
 	return -ENOSYS;
 }
