@@ -843,8 +843,17 @@
 					 <&tegra_car TEGRA210_CLK_CILCD>,
 					 <&tegra_car TEGRA210_CLK_CILE>,
 					 <&tegra_car TEGRA210_CLK_ISP>,
-					 <&tegra_car TEGRA210_CLK_VI_I2C>;
-				clock-names = "vi", "csi", "cilab", "cilcd", "cile", "isp", "vi-i2c";
+					 <&tegra_car TEGRA210_CLK_VI_I2C>,
+					 <&tegra_car TEGRA210_CLK_MC_CAPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CBPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CCPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CDPA>,
+					 <&tegra_car TEGRA210_CLK_HOST1X>,
+					 <&tegra_car TEGRA210_CLK_VI_SLCG_OVR>,
+					 <&tegra_car TEGRA210_CLK_ISPA_SLCG_OVR>;
+				clock-names = "vi", "csi", "cilab", "cilcd", "cile", "isp", "vi-i2c",
+					"slcg_mc_capa", "slcg_mc_cbpa", "slcg_mc_ccpa", "slcg_mc_cdpa",
+					"slcg_host1x", "slcg_vi_slcg_ovr", "slcg_ispa_slcg_ovr";
 				resets = <&tegra_car 20>,
 					 <&tegra_car TEGRA210_CLK_CSI>,
 					 <&tegra_car TEGRA210_CLK_ISP>,
@@ -869,8 +878,14 @@
 			};
 
 			mpe {
-				clocks = <&tegra_car TEGRA210_CLK_NVENC>;
-				clock-names = "msenc";
+				clocks = <&tegra_car TEGRA210_CLK_NVENC>,
+					 <&tegra_car TEGRA210_CLK_MC_CAPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CBPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CCPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CDPA>,
+					 <&tegra_car TEGRA210_CLK_MSENC_SLCG_OVR>;
+				clock-names = "msenc", "slcg_mc_capa", "slcg_mc_cbpa",
+					"slcg_mc_ccpa", "slcg_mc_cdpa", "slcg_msenc_slcg_ovr";
 				resets = <&tegra_car TEGRA210_CLK_NVENC>;
 				reset-names = "msenc";
 				swgroups = <&mc TEGRA_SWGROUP_NVENC>;
@@ -880,8 +895,18 @@
 			sata {
 				clocks = <&tegra_car TEGRA210_CLK_SATA_OOB>,
 					 <&tegra_car TEGRA210_CLK_CML1>,
-					 <&tegra_car TEGRA210_CLK_SATA>;
-				clock-names = "sata_oob", "cml1", "sata";
+					 <&tegra_car TEGRA210_CLK_SATA>,
+					 <&tegra_car TEGRA210_CLK_MC_CAPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CBPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CCPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CDPA>,
+					 <&tegra_car TEGRA210_CLK_SATA_SLCG_OVR_FPCI>,
+					 <&tegra_car TEGRA210_CLK_SATA_SLCG_OVR_IPFS>,
+					 <&tegra_car TEGRA210_CLK_SATA_SLCG_OVR>;
+				clock-names = "sata_oob", "cml1", "sata", "slcg_mc_capa",
+					"slcg_mc_cbpa", "slcg_mc_ccpa", "slcg_mc_cdpa",
+					"slcg_sata_slcg_ovr_fpci", "slcg_sata_slcg_ovr_ipfs",
+					"slcg_sata_slcg_ovr";
 				resets = <&tegra_car TEGRA210_CLK_SATA_OOB>,
 					 <&tegra_car TEGRA210_CLK_SATA>;
 				reset-names = "sata_oob", "sata";
@@ -894,8 +919,22 @@
 					 <&tegra_car TEGRA210_CLK_DSIA>,
 					 <&tegra_car TEGRA210_CLK_DSIB>,
 					 <&tegra_car TEGRA210_CLK_MIPI_CAL>,
-					 <&tegra_car TEGRA210_CLK_DPAUX>;
-				clock-names = "sor0", "dsia", "dsib", "mipi_cal", "dpaux";
+					 <&tegra_car TEGRA210_CLK_DPAUX>,
+					 <&tegra_car TEGRA210_CLK_MC_CAPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CBPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CCPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CDPA>,
+					 <&tegra_car TEGRA210_CLK_HDA2HDMI>,
+					 <&tegra_car TEGRA210_CLK_HDA2CODEC_2X>,
+					 <&tegra_car TEGRA210_CLK_DISP1>,
+					 <&tegra_car TEGRA210_CLK_DISP2>,
+					 <&tegra_car TEGRA210_CLK_DISP1_SLCG_OVR>,
+					 <&tegra_car TEGRA210_CLK_DISP2_SLCG_OVR>;
+				clock-names = "sor0", "dsia", "dsib", "mipi_cal", "dpaux",
+					"slcg_mc_capa", "slcg_mc_cbpa", "slcg_mc_ccpa",
+					"slcg_mc_cdpa", "slcg_hda2hdmi", "slcg_hda2codec_2x",
+					"slcg_disp1", "slcg_disp2", "slcg_disp1_slcg_ovr",
+					"slcg_disp2_slcg_ovr";
 				resets = <&tegra_car TEGRA210_CLK_SOR0>,
 					 <&tegra_car TEGRA210_CLK_DSIA>,
 					 <&tegra_car TEGRA210_CLK_DSIB>,
@@ -905,8 +944,15 @@
 			};
 
 			dis {
-				clocks = <&tegra_car TEGRA210_CLK_DISP1>;
-				clock-names = "disp1";
+				clocks = <&tegra_car TEGRA210_CLK_DISP1>,
+					 <&tegra_car TEGRA210_CLK_MC_CAPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CBPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CCPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CDPA>,
+					 <&tegra_car TEGRA210_CLK_HOST1X>,
+					 <&tegra_car TEGRA210_CLK_DISP1_SLCG_OVR>;
+				clock-names = "disp1", "slcg_mc_capa", "slcg_mc_cbpa", "slcg_mc_ccpa",
+					"slcg_mc_cdpa", "slcg_host1x", "slcg_disp1_slcg_ovr";
 				resets = <&tegra_car TEGRA210_CLK_DISP1>;
 				reset-names = "disp1";
 				swgroups = <&mc TEGRA_SWGROUP_DC>;
@@ -915,8 +961,15 @@
 			};
 
 			disb {
-				clocks = <&tegra_car TEGRA210_CLK_DISP2>;
-				clock-names = "disp2";
+				clocks = <&tegra_car TEGRA210_CLK_DISP2>,
+					 <&tegra_car TEGRA210_CLK_MC_CAPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CBPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CCPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CDPA>,
+					 <&tegra_car TEGRA210_CLK_HOST1X>,
+					 <&tegra_car TEGRA210_CLK_DISP2_SLCG_OVR>;
+				clock-names = "disp2", "slcg_mc_capa", "slcg_mc_cbpa", "slcg_mc_ccpa",
+					"slcg_mc_cdpa", "slcg_host1x", "slcg_disp2_slcg_ovr";
 				resets = <&tegra_car TEGRA210_CLK_DISP2>;
 				reset-names = "disp2";
 				swgroups = <&mc TEGRA_SWGROUP_DCB>;
@@ -925,15 +978,35 @@
 			};
 
 			xusba {
-				clocks = <&tegra_car TEGRA210_CLK_XUSB_SS>;
-				clock-names = "xusb_ss";
+				clocks = <&tegra_car TEGRA210_CLK_XUSB_SS>,
+					 <&tegra_car TEGRA210_CLK_MC_CAPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CBPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CCPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CDPA>,
+					 <&tegra_car TEGRA210_CLK_XUSB_HOST>,
+					 <&tegra_car TEGRA210_CLK_XUSB_DEV>,
+					 <&tegra_car TEGRA210_CLK_XUSB_HOST_SLCG_OVR>,
+					 <&tegra_car TEGRA210_CLK_XUSB_DEV_SLCG_OVR>;
+				clock-names = "xusb_ss", "slcg_mc_capa", "slcg_mc_cbpa", "slcg_mc_ccpa",
+					"slcg_mc_cdpa", "slcg_xusb_host", "slcg_xusb_dev",
+					"slcg_xusb_host_slcg_ovr", "slcg_xusb_dev_slcg_ovr";
 				resets = <&tegra_car TEGRA210_CLK_XUSB_SS>;
 				reset-names = "xusb_ss";
 			};
 
 			xusbb {
-				clocks = <&tegra_car TEGRA210_CLK_XUSB_DEV>;
-				clock-names = "xusb_dev";
+				clocks = <&tegra_car TEGRA210_CLK_XUSB_DEV>,
+					 <&tegra_car TEGRA210_CLK_MC_CAPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CBPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CCPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CDPA>,
+					 <&tegra_car TEGRA210_CLK_XUSB_SS>,
+					 <&tegra_car TEGRA210_CLK_XUSB_HOST>,
+					 <&tegra_car TEGRA210_CLK_XUSB_HOST_SLCG_OVR>,
+					 <&tegra_car TEGRA210_CLK_XUSB_DEV_SLCG_OVR>;
+				clock-names = "xusb_dev", "slcg_mc_capa", "slcg_mc_cbpa",
+					"slcg_mc_ccpa", "slcg_mc_cdpa", "slcg_xusb_ss", "slcg_xusb_host",
+					"slcg_xusb_host_slcg_ovr", "slcg_xusb_dev_slcg_ovr";
 				resets = <&tegra_car 95>;
 				reset-names = "xusb_dev";
 				swgroups = <&mc TEGRA_SWGROUP_XUSB_DEV>;
@@ -941,8 +1014,18 @@
 			};
 
 			xusbc {
-				clocks = <&tegra_car TEGRA210_CLK_XUSB_HOST>;
-				clock-names = "xusb_host";
+				clocks = <&tegra_car TEGRA210_CLK_XUSB_HOST>,
+					 <&tegra_car TEGRA210_CLK_MC_CAPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CBPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CCPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CDPA>,
+					 <&tegra_car TEGRA210_CLK_XUSB_SS>,
+					 <&tegra_car TEGRA210_CLK_XUSB_DEV>,
+					 <&tegra_car TEGRA210_CLK_XUSB_DEV_SLCG_OVR>,
+					 <&tegra_car TEGRA210_CLK_XUSB_HOST_SLCG_OVR>;
+				clock-names = "xusb_host", "slcg_mc_capa", "slcg_mc_cbpa",
+					"slcg_mc_ccpa", "slcg_mc_cdpa", "slcg_xusb_ss", "slcg_xusb_dev",
+					"slcg_xusb_dev_slcg_ovr", "slcg_xusb_host_slcg_ovr";
 				resets = <&tegra_car TEGRA210_CLK_XUSB_HOST>;
 				reset-names = "xusb_host";
 				swgroups = <&mc TEGRA_SWGROUP_XUSB_HOST>;
@@ -950,8 +1033,15 @@
 			};
 
 			vic {
-				clocks = <&tegra_car TEGRA210_CLK_VIC03>;
-				clock-names = "vic03";
+				clocks = <&tegra_car TEGRA210_CLK_VIC03>,
+					 <&tegra_car TEGRA210_CLK_MC_CAPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CBPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CCPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CDPA>,
+					 <&tegra_car TEGRA210_CLK_VIC03_SLCG_OVR>,
+					 <&tegra_car TEGRA210_CLK_HOST1X>;
+				clock-names = "vic03", "slcg_mc_capa", "slcg_mc_cbpa", "slcg_mc_ccpa",
+					"slcg_mc_cdpa", "slcg_vic03_slcg_ovr", "slcg_host1x";
 				resets = <&tegra_car TEGRA210_CLK_VIC03>;
 				reset-names = "vic03";
 				swgroups = <&mc TEGRA_SWGROUP_VIC>;
@@ -959,8 +1049,17 @@
 			};
 
 			nvdec {
-				clocks = <&tegra_car TEGRA210_CLK_NVDEC>;
-				clock-names = "nvdec";
+				clocks = <&tegra_car TEGRA210_CLK_NVDEC>,
+					 <&tegra_car TEGRA210_CLK_MC_CAPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CBPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CCPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CDPA>,
+					 <&tegra_car TEGRA210_CLK_NVDEC_SLCG_OVR>,
+					 <&tegra_car TEGRA210_CLK_NVJPG>,
+					 <&tegra_car TEGRA210_CLK_NVJPG_SLCG_OVR>;
+				clock-names = "nvdec", "slcg_mc_capa", "slcg_mc_cbpa", "slcg_mc_ccpa",
+					"slcg_mc_cdpa", "slcg_nvdec_slcg_ovr", "slcg_nvjpg",
+					"slcg_nvjpg_slcg_ovr";
 				resets = <&tegra_car TEGRA210_CLK_NVDEC>;
 				reset-names = "nvdec";
 				swgroups = <&mc TEGRA_SWGROUP_NVDEC>;
@@ -969,8 +1068,17 @@
 			};
 
 			pg_nvjpg: nvjpg {
-				clocks = <&tegra_car TEGRA210_CLK_NVJPG>;
-				clock-names = "nvjpg";
+				clocks = <&tegra_car TEGRA210_CLK_NVJPG>,
+					 <&tegra_car TEGRA210_CLK_MC_CAPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CBPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CCPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CDPA>,
+					 <&tegra_car TEGRA210_CLK_NVJPG_SLCG_OVR>,
+					 <&tegra_car TEGRA210_CLK_NVDEC>,
+					 <&tegra_car TEGRA210_CLK_NVDEC_SLCG_OVR>;
+				clock-names = "nvjpg", "slcg_mc_capa", "slcg_mc_cbpa", "slcg_mc_ccpa",
+					"slcg_mc_cdpa", "slcg_nvjpg_slcg_ovr", "slcg_nvdec",
+					"slcg_nvdec_slcg_ovr";
 				resets = <&tegra_car TEGRA210_CLK_NVJPG>;
 				reset-names = "nvjpg";
 				swgroups = <&mc TEGRA_SWGROUP_NVJPG>;
@@ -978,8 +1086,24 @@
 			};
 
 			aud {
-				clocks = <&tegra_car TEGRA210_CLK_APE>;
-				clock-names = "ape";
+				clocks = <&tegra_car TEGRA210_CLK_APE>,
+					 <&tegra_car TEGRA210_CLK_MC_CAPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CBPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CCPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CDPA>,
+					 <&tegra_car TEGRA210_CLK_I2S0>,
+					 <&tegra_car TEGRA210_CLK_I2S1>,
+					 <&tegra_car TEGRA210_CLK_I2S2>,
+					 <&tegra_car TEGRA210_CLK_I2S3>,
+					 <&tegra_car TEGRA210_CLK_I2S4>,
+					 <&tegra_car TEGRA210_CLK_SPDIF_OUT>,
+					 <&tegra_car TEGRA210_CLK_D_AUDIO>,
+					 <&tegra_car TEGRA210_CLK_APE_SLCG_OVR>,
+					 <&tegra_car TEGRA210_CLK_D_AUDIO_SLCG_OVR>;
+				clock-names = "ape", "slcg_mc_capa", "slcg_mc_cbpa", "slcg_mc_ccpa",
+					"slcg_mc_cdpa", "slcg_i2s0", "slcg_i2s1", "slcg_i2s2", "slcg_i2s3",
+					"slcg_i2s4", "slcg_spdif_out", "slcg_d_audio", "slcg_ape_slcg_ovr",
+					"slcg_d_audio_slcg_ovr";
 				resets = <&tegra_car TEGRA210_CLK_APE>;
 				reset-names = "ape";
 				swgroups = <&mc TEGRA_SWGROUP_APE>;
@@ -987,8 +1111,15 @@
 			};
 
 			ve2 {
-				clocks = <&tegra_car TEGRA210_CLK_ISPB>;
-				clock-names = "ispb";
+				slcg-clk-num = <5>;
+				clocks = <&tegra_car TEGRA210_CLK_ISPB>,
+					 <&tegra_car TEGRA210_CLK_MC_CAPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CBPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CCPA>,
+					 <&tegra_car TEGRA210_CLK_MC_CDPA>,
+					 <&tegra_car TEGRA210_CLK_ISPB_SLCG_OVR>;
+				clock-names = "ispb", "slcg_mc_capa", "slcg_mc_cbpa", "slcg_mc_ccpa",
+					"slcg_mc_cdpa", "slcg_ispb_slcg_ovr";
 				resets = <&tegra_car TEGRA210_CLK_ISPB>;
 				reset-names = "ispb";
 				swgroups = <&mc TEGRA_SWGROUP_ISP2B>;
