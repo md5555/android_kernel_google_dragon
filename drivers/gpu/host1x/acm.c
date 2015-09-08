@@ -17,7 +17,13 @@
 
 int host1x_module_busy(struct device *dev)
 {
-	return pm_runtime_get_sync(dev);
+	int err;
+
+	err = pm_runtime_get_sync(dev);
+	if (err < 0)
+		return err;
+
+	return 0;
 }
 
 void host1x_module_idle(struct device *dev)
