@@ -861,45 +861,45 @@ static int gic_notifier(struct notifier_block *self, unsigned long cmd,	void *v)
 	struct gic_chip_data *gic =
 		container_of(self, struct gic_chip_data, pm_notifier_block);
 #ifdef CONFIG_GIC_NON_BANKED
-		/* Skip over unused GICs */
-		if (!gic->get_base)
-			continue;
+	/* Skip over unused GICs */
+	if (!gic->get_base)
+		return NOTIFY_OK;
 #endif
-		if (gic->is_percpu) {
-			switch (cmd) {
-			case CPU_PM_ENTER:
-				gic_cpu_save(gic);
-				break;
-			case CPU_PM_ENTER_FAILED:
-			case CPU_PM_EXIT:
-				gic_cpu_restore(gic);
-				break;
-			case CPU_CLUSTER_PM_ENTER:
-				gic_dist_save(gic);
-				break;
-			case CPU_CLUSTER_PM_ENTER_FAILED:
-			case CPU_CLUSTER_PM_EXIT:
-				gic_dist_restore(gic);
-				break;
-			}
-		} else {
-			switch (cmd) {
-			case MOD_DOMAIN_POWER_ON:
-				gic_dist_restore(gic);
-				gic_cpu_restore(gic);
-#ifdef CONFIG_TEGRA_APE_AGIC
-				tegra_agic_suspended = false;
-#endif
-				break;
-			case MOD_DOMAIN_POWER_OFF:
-				gic_cpu_save(gic);
-				gic_dist_save(gic);
-#ifdef CONFIG_TEGRA_APE_AGIC
-				tegra_agic_suspended = true;
-#endif
-				break;
-			}
+	if (gic->is_percpu) {
+		switch (cmd) {
+		case CPU_PM_ENTER:
+			gic_cpu_save(gic);
+			break;
+		case CPU_PM_ENTER_FAILED:
+		case CPU_PM_EXIT:
+			gic_cpu_restore(gic);
+			break;
+		case CPU_CLUSTER_PM_ENTER:
+			gic_dist_save(gic);
+			break;
+		case CPU_CLUSTER_PM_ENTER_FAILED:
+		case CPU_CLUSTER_PM_EXIT:
+			gic_dist_restore(gic);
+			break;
 		}
+	} else {
+		switch (cmd) {
+		case MOD_DOMAIN_POWER_ON:
+			gic_dist_restore(gic);
+			gic_cpu_restore(gic);
+#ifdef CONFIG_TEGRA_APE_AGIC
+			tegra_agic_suspended = false;
+#endif
+			break;
+		case MOD_DOMAIN_POWER_OFF:
+			gic_cpu_save(gic);
+			gic_dist_save(gic);
+#ifdef CONFIG_TEGRA_APE_AGIC
+			tegra_agic_suspended = true;
+#endif
+			break;
+		}
+	}
 	return NOTIFY_OK;
 }
 
