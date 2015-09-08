@@ -539,7 +539,7 @@ nouveau_gem_ioctl_set_info(struct drm_device *dev, void *data,
 			ret = nouveau_bo_vma_add_offset(nvbo, cli->vm, new_vma,
 							req->offset, true);
 			if (ret) {
-				kfree(vma);
+				kfree(new_vma);
 				/*
 				 * We just removed this...so we should be
 				 * able to re-add it without error.
