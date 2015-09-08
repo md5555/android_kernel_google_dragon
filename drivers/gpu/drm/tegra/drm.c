@@ -140,7 +140,7 @@ static void tegra_atomic_complete(struct tegra_drm *tegra,
 	tegra_dc_update_emc_pre_commit(state);
 
 	drm_atomic_helper_commit_modeset_disables(drm, state);
-	drm_atomic_helper_commit_planes(drm, state);
+	drm_atomic_helper_commit_planes(drm, state, false);
 	drm_atomic_helper_commit_modeset_enables(drm, state);
 
 	tegra_atomic_wait_for_flip_complete(drm, state);
