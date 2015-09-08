@@ -424,11 +424,7 @@ static int imx208_power_on(struct imx208_power_rail *pw)
 		dev_err(dev, "%s: Cannot set MCLK to %d\n",
 			__func__, MCLK_INIT_RATE);
 	}
-	err = clk_prepare_enable(info->mclk);
-	if (err) {
-		dev_err(dev, "%s: Cannot enable MClk\n", __func__);
-		return err;
-	}
+
 	gpio_set_value(info->cam2_gpio, 0);
 	usleep_range(10, 20);
 
@@ -449,10 +445,21 @@ static int imx208_power_on(struct imx208_power_rail *pw)
 		dev_err(dev, "%s: Fail to enable iovdd\n", __func__);
 		goto imx208_iovdd_fail;
 	}
-	usleep_range(1, 2);
+
+	/* Wait for voltages to stabilize. */
+	usleep_range(100, 200);
+
 	gpio_set_value(info->cam2_gpio, 1);
 
-	usleep_range(300, 310);
+	err = clk_prepare_enable(info->mclk);
+	if (err) {
+		dev_err(dev, "%s: Cannot enable MClk\n", __func__);
+		return err;
+	}
+
+	/* Wait for communication start (min. 300 uS). */
+	usleep_range(301, 310);
+
 	info->powered_on = true;
 	return 0;
 
@@ -476,15 +483,20 @@ static int imx208_power_off(struct imx208_power_rail *pw)
 		dev_err(&info->i2c_client->dev, "Already off\n");
 		return 0;
 	}
-	clk_disable_unprepare(info->mclk);
 
+	/* Frame output end -> XCLR falling/INCK end (min. 128 INCK cycles). */
 	usleep_range(1, 2);
+
+	clk_disable_unprepare(info->mclk);
 	gpio_set_value(info->cam2_gpio, 0);
+
+	/* XCLR falling -> power supply down (min 500 nS). */
 	usleep_range(1, 2);
 
 	regulator_disable(pw->iovdd);
 	regulator_disable(pw->dvdd);
 	regulator_disable(pw->avdd);
+
 	info->powered_on = false;
 	return 0;
 }
