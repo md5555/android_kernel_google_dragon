@@ -569,6 +569,9 @@ struct nv50_disp_overlay_v0 {
 #define FERMI_A_ZBC_COLOR                                                  0x00
 #define FERMI_A_ZBC_DEPTH                                                  0x01
 #define FERMI_A_ZCULL_BIND                                                 0x02
+#define FERMI_A_ZBC_QUERY_COLOR                                            0x03
+#define FERMI_A_ZBC_QUERY_DEPTH                                            0x04
+#define FERMI_A_ZBC_QUERY_TABLE_SIZE                                       0x05
 
 struct fermi_a_zbc_color_v0 {
 	__u8  version;
@@ -606,6 +609,16 @@ struct fermi_a_zbc_depth_v0 {
 	__u8  pad03[5];
 	__u32 ds;
 	__u32 l2;
+};
+
+struct fermi_a_zbc_query_v0 {
+	__u8 version;
+	__u8  pad03[3];
+	__u32 ds[4];
+	__u32 l2[4];
+	__u32 format;
+	__u32 index;
+	__u32 table_size;
 };
 
 struct fermi_a_zcull_bind_v0 {

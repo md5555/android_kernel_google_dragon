@@ -82,8 +82,10 @@ gf100_gr_zbc_color_get(struct gf100_gr_priv *priv, int format,
 		}
 	}
 
-	if (zbc < 0)
+	if (zbc < 0) {
+		nv_error(priv, "no space for zbc color\n");
 		return zbc;
+	}
 
 	memcpy(priv->zbc_color[zbc].ds, ds, sizeof(priv->zbc_color[zbc].ds));
 	memcpy(priv->zbc_color[zbc].l2, l2, sizeof(priv->zbc_color[zbc].l2));
@@ -126,8 +128,10 @@ gf100_gr_zbc_depth_get(struct gf100_gr_priv *priv, int format,
 		}
 	}
 
-	if (zbc < 0)
+	if (zbc < 0) {
+		nv_error(priv, "no space for zbc depth\n");
 		return zbc;
+	}
 
 	priv->zbc_depth[zbc].format = format;
 	priv->zbc_depth[zbc].ds = ds;
@@ -180,6 +184,7 @@ gf100_fermi_mthd_zbc_color(struct nvkm_object *object, void *data, u32 size)
 			}
 			break;
 		default:
+			nv_error(priv, "invalid zbc color %d\n", args->v0.format);
 			return -EINVAL;
 		}
 	}
@@ -204,8 +209,79 @@ gf100_fermi_mthd_zbc_depth(struct nvkm_object *object, void *data, u32 size)
 							   args->v0.l2);
 			return (ret >= 0) ? 0 : -ENOSPC;
 		default:
+			nv_error(priv, "invalid zbc depth %d\n", args->v0.format);
 			return -EINVAL;
 		}
+	}
+
+	return ret;
+}
+
+static int
+gf100_fermi_mthd_zbc_query_color(struct nvkm_object *object, void *data,
+		u32 size)
+{
+	struct gf100_gr_priv *priv = (void *)object->engine;
+	union {
+		struct fermi_a_zbc_query_v0 v0;
+	} *args = data;
+	struct nvkm_ltc *ltc = nvkm_ltc(priv);
+	int ret = -EINVAL;
+
+	if (nvif_unpack(args->v0, 0, 0, false)) {
+		int i = args->v0.index;
+
+		if (i < ltc->zbc_min || i > ltc->zbc_max)
+			return -EINVAL;
+
+		args->v0.format = priv->zbc_color[i].format;
+		memcpy(args->v0.ds, priv->zbc_color[i].ds, sizeof(args->v0.ds));
+		memcpy(args->v0.l2, priv->zbc_color[i].l2, sizeof(args->v0.l2));
+		ret = 0;
+	}
+
+	return ret;
+}
+
+static int
+gf100_fermi_mthd_zbc_query_depth(struct nvkm_object *object, void *data,
+		u32 size)
+{
+	struct gf100_gr_priv *priv = (void *)object->engine;
+	union {
+		struct fermi_a_zbc_query_v0 v0;
+	} *args = data;
+	struct nvkm_ltc *ltc = nvkm_ltc(priv);
+	int ret = -EINVAL;
+
+	if (nvif_unpack(args->v0, 0, 0, false)) {
+		int i = args->v0.index;
+
+		if (i < ltc->zbc_min || i > ltc->zbc_max)
+			return -EINVAL;
+
+		args->v0.format = priv->zbc_depth[i].format;
+		args->v0.ds[0] = priv->zbc_depth[i].ds;
+		ret = 0;
+	}
+
+	return ret;
+}
+
+static int
+gf100_fermi_mthd_zbc_query_table_size(struct nvkm_object *object, void *data,
+		u32 size)
+{
+	struct gf100_gr_priv *priv = (void *)object->engine;
+	union {
+		struct fermi_a_zbc_query_v0 v0;
+	} *args = data;
+	struct nvkm_ltc *ltc = nvkm_ltc(priv);
+	int ret = -EINVAL;
+
+	if (nvif_unpack(args->v0, 0, 0, false)) {
+		args->v0.table_size = ltc->zbc_max;
+		ret = 0;
 	}
 
 	return ret;
@@ -290,6 +366,12 @@ gf100_fermi_mthd(struct nvkm_object *object, u32 mthd, void *data, u32 size)
 		return gf100_fermi_mthd_zbc_color(object, data, size);
 	case FERMI_A_ZBC_DEPTH:
 		return gf100_fermi_mthd_zbc_depth(object, data, size);
+	case FERMI_A_ZBC_QUERY_COLOR:
+		return gf100_fermi_mthd_zbc_query_color(object, data, size);
+	case FERMI_A_ZBC_QUERY_DEPTH:
+		return gf100_fermi_mthd_zbc_query_depth(object, data, size);
+	case FERMI_A_ZBC_QUERY_TABLE_SIZE:
+		return gf100_fermi_mthd_zbc_query_table_size(object, data, size);
 	case FERMI_A_ZCULL_BIND:
 		return gf100_fermi_mthd_zcull_bind(object, data, size);
 	default:
