@@ -114,6 +114,7 @@ struct ad5823_info {
 	struct nv_focuser_config config;
 	struct miscdevice miscdev;
 	struct regmap *regmap;
+	int shutdown_gpio;
 	u32 active_features;
 	u32 supported_features;
 	atomic_t in_use;
@@ -225,11 +226,27 @@ static long ad5823_ioctl(struct file *file,
 
 static int ad5823_power_on(struct ad5823_info *info)
 {
-	return regulator_enable(info->regulator);
+	int ret;
+
+	ret = regulator_enable(info->regulator);
+	if (ret)
+		return ret;
+
+	/* Wait for voltages to stabilize. */
+	usleep_range(100, 200);
+
+	gpio_set_value(info->shutdown_gpio, 1);
+
+	/* Wait for the focuser to power up (typ. 100 uS). */
+	usleep_range(200, 300);
+
+	return 0;
 }
 
 static int ad5823_power_off(struct ad5823_info *info)
 {
+	gpio_set_value(info->shutdown_gpio, 0);
+
 	return regulator_disable(info->regulator);
 }
 
@@ -302,6 +319,14 @@ static int ad5823_probe(struct i2c_client *client,
 		return -EFAULT;
 
 	atomic_set(&info->in_use, 0);
+
+	info->shutdown_gpio = of_get_named_gpio(np, "shutdown-gpio", 0);
+	err = devm_gpio_request_one(&client->dev, info->shutdown_gpio,
+					GPIOF_OUT_INIT_LOW, "cam-af");
+	if (err) {
+		dev_err(&client->dev, "[AD5823]: unable to request shutdown-gpio\n");
+		return err;
+	}
 
 	info->regulator = devm_regulator_get(&client->dev, "vdd");
 	if (IS_ERR(info->regulator)) {
