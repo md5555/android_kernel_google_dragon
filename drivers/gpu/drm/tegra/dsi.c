@@ -1458,6 +1458,18 @@ out:
 	return err;
 }
 
+static void tegra_dsi_host_force_lp00(struct tegra_dsi *dsi)
+{
+	u32 value = tegra_dsi_readl(dsi, DSI_HOST_CONTROL);
+	value &= ~DSI_HOST_CONTROL_HS;
+	value &= ~DSI_HOST_CONTROL_ULPM_MASK;
+	value |= DSI_HOST_CONTROL_ULPM_ENTER;
+	tegra_dsi_writel(dsi, value, DSI_HOST_CONTROL);
+
+	if (dsi->slave)
+		tegra_dsi_host_force_lp00(dsi->slave);
+}
+
 static int tegra_dsi_ganged_setup(struct tegra_dsi *dsi)
 {
 	struct clk *parent;
@@ -1726,6 +1738,24 @@ static int tegra_dsi_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static void tegra_dsi_shutdown(struct platform_device *pdev)
+{
+	struct tegra_dsi *dsi = platform_get_drvdata(pdev);
+	struct tegra_output *output = &dsi->output;
+
+	/* Send turn off commands to the panel */
+	if (output->panel)
+		drm_panel_disable(output->panel);
+	/* stop sending data on MIPI link */
+	tegra_dsi_video_disable(dsi);
+	/* turn off the MIPI link (LP0-0 mode) */
+	tegra_dsi_host_force_lp00(dsi);
+	msleep(1);
+	/* Put the panel under reset and disable it */
+	if (output->panel)
+		drm_panel_unprepare(output->panel);
+}
+
 static const struct of_device_id tegra_dsi_of_match[] = {
 	{ .compatible = "nvidia,tegra210-dsi", },
 	{ .compatible = "nvidia,tegra132-dsi", },
@@ -1742,4 +1772,5 @@ struct platform_driver tegra_dsi_driver = {
 	},
 	.probe = tegra_dsi_probe,
 	.remove = tegra_dsi_remove,
+	.shutdown = tegra_dsi_shutdown,
 };
