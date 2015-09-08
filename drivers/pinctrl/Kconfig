@@ -152,7 +152,7 @@ config PINCTRL_TEGRA210
 
 config PINCTRL_TEGRA_XUSB
 	bool
-	depends on MAILBOX
+	select MAILBOX
 	select GENERIC_PHY
 	select PINCONF
 	select PINMUX
@@ -160,10 +160,12 @@ config PINCTRL_TEGRA_XUSB
 config PINCTRL_TEGRA124_XUSB
 	def_bool y if ARCH_TEGRA_124_SOC || ARCH_TEGRA_132_SOC
 	select PINCTRL_TEGRA_XUSB
+	select MAILBOX
 
 config PINCTRL_TEGRA210_XUSB
 	def_bool y if ARCH_TEGRA_210_SOC
 	select PINCTRL_TEGRA_XUSB
+	select MAILBOX
 
 config PINCTRL_TZ1090
 	bool "Toumaz Xenif TZ1090 pin control driver"
