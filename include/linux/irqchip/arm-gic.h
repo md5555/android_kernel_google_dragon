@@ -90,12 +90,12 @@
 #define GICH_MISR_EOI			(1 << 0)
 #define GICH_MISR_U			(1 << 1)
 
+#ifndef __ASSEMBLY__
+
 enum domain_gic_pm_event {
 	MOD_DOMAIN_POWER_ON,
 	MOD_DOMAIN_POWER_OFF
 };
-
-#ifndef __ASSEMBLY__
 
 #include <linux/irqdomain.h>
 
