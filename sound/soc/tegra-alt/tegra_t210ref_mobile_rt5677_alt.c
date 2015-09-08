@@ -86,7 +86,7 @@ static int tegra_t210ref_dai_init(struct snd_soc_pcm_runtime *rtd,
 	case 44100:
 	case 88200:
 	case 176000:
-		clk_out_rate = 11289600; /* Codec rate */
+		clk_out_rate = 11289600 * 2; /* Codec rate */
 		mclk = 11289600 * 2; /* PLL_A rate */
 		break;
 	case 8000:
@@ -97,7 +97,7 @@ static int tegra_t210ref_dai_init(struct snd_soc_pcm_runtime *rtd,
 	case 96000:
 	case 192000:
 	default:
-		clk_out_rate = 12288000;
+		clk_out_rate = 12288000 * 2;
 		mclk = 12288000 * 2;
 		break;
 	}
@@ -413,8 +413,8 @@ static int tegra_t210ref_set_mclk(struct tegra_t210ref *machine, struct device *
 {
 	int err;
 	int rate = 48000;
-	int clk_out_rate = rate * 256; /* Codec rate */
-	int mclk = clk_out_rate * 2; /* PLL_A rate */
+	int clk_out_rate = rate * 512; /* Codec rate */
+	int mclk = clk_out_rate; /* PLL_A rate */
 
 	pr_info("Setting pll_a = %d Hz clk_out = %d Hz\n",
 			mclk, clk_out_rate);
