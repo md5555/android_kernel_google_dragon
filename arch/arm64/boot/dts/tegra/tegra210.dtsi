@@ -1295,13 +1295,16 @@
 	};
 
 	i2c6: i2c@7000d100 {
-		compatible = "nvidia,tegra210-i2c", "nvidia,tegra124-i2c";
-		reg = <0x0 0x7000d100 0x0 0x100>;
+		compatible = "nvidia,tegra210-i2c-dpaux";
+		reg = <0x0 0x7000d100 0x0 0x100>,
+		      <0x0 0x545c0000 0x0 0x40000>;
 		interrupts = <GIC_SPI 63 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <1>;
 		#size-cells = <0>;
-		clocks = <&tegra_car TEGRA210_CLK_I2C6>;
-		clock-names = "div-clk";
+		clocks = <&tegra_car TEGRA210_CLK_I2C6>,
+			 <&tegra_car TEGRA210_CLK_DPAUX>,
+			 <&tegra_car TEGRA210_CLK_SOR0>;
+		clock-names = "div-clk", "dpaux-clk", "sor-clk";
 		resets = <&tegra_car 166>;
 		reset-names = "i2c";
 		dmas = <&apbdma 30>, <&apbdma 30>;
