@@ -530,7 +530,7 @@ _nvkm_clk_init(struct nvkm_object *object)
 
 	nvkm_pstate_info(clk, &clk->bstate);
 
-	clk->astate = clk->state_nr - 1;
+	clk->astate = 2;
 	clk->dstate = 0;
 	clk->pstate = -1;
 	clk->stopped = false;
