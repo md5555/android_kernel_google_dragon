@@ -179,7 +179,7 @@ static inline void channel_set_field(struct tegra_adma_chan *tdc,
 {
 	u32 t;
 
-	t = readl(tdc->tdma->base_addr + reg);
+	t = readl(tdc->tdma->base_addr + tdc->chan_base_offset + reg);
 	writel((t & ~((mask) << (shift))) + (((val) &
 		(mask)) << (shift)), tdc->tdma->base_addr +
 		tdc->chan_base_offset + reg);
