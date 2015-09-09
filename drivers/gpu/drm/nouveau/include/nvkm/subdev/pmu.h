@@ -41,6 +41,8 @@ struct nvkm_pmu {
 	struct pmu_buf_desc pg_buf;
 	struct nvkm_pmu_priv_vm *pmu_vm;
 	int (*secure_bootstrap)(struct nvkm_pmu *);
+	int (*enable_elpg)(struct nvkm_pmu *);
+	int (*disable_elpg)(struct nvkm_pmu *);
 	int (*boot_fecs)(struct nvkm_pmu *);
 	int (*message)(struct nvkm_pmu *, u32[2], u32, u32, u32, u32);
 	void (*pgob)(struct nvkm_pmu *, bool);

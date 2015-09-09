@@ -695,16 +695,20 @@ struct gk20a_pmu_priv {
 	struct pmu_buf_desc seq_buf;
 	struct mutex pmu_copy_lock;
 	struct mutex pmu_seq_lock;
+	struct work_struct pg_init;
 	bool pmu_ready;
 	bool elpg_enabled;
 	bool recovery_in_progress;
 	bool lspmu_wpr_init_done;
 	struct completion lspmu_completion;
+	struct completion elpg_off_completion;
+	struct completion elpg_on_completion;
 	int pmu_state;
-	int elpg_refcnt;
+	int elpg_disable_depth;
 	struct nvkm_pmu_priv_vm pmuvm;
 	struct gm20b_ctxsw_ucode_info ucode_info;
 	struct mutex isr_mutex;
+	struct mutex elpg_mutex;
 	bool isr_enabled;
 	u32 stat_dmem_offset;
 	u8 pmu_mode;
@@ -725,6 +729,7 @@ struct gk20a_pmu_priv {
 	u32 sample_buffer;
 	bool buf_loaded;
 	void *pmu_chip_data;
+	int (*pmu_setup_elpg)(struct nvkm_pmu *pmu);
 };
 void
 gpu_obj_memwr(struct nvkm_gpuobj *ucodeobj, int offset, void *src, int size);
@@ -784,6 +789,14 @@ gm20b_pmu_init_acr(struct nvkm_pmu *pmu);
 void
 gk20a_pmu_seq_init(struct gk20a_pmu_priv *priv);
 
+int
+gk20a_pmu_enable_elpg(struct nvkm_pmu *pmu);
+
+int
+gk20a_pmu_disable_elpg(struct nvkm_pmu *pmu);
+
+void
+gk20a_pmu_setup_hw(struct work_struct *work);
 #define to_gk20a_priv(ptr) container_of(ptr, struct gk20a_pmu_priv, base)
 
 #endif

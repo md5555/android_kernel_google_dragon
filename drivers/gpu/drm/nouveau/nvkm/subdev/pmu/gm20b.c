@@ -335,6 +335,130 @@ struct ls_flcn_mgr {
 	struct lsfm_managed_ucode_img *ucode_img_list;
 };
 
+/*
+ * Structure/object which single register write need to be done during PG init
+ * sequence to set PROD values.
+ */
+struct pg_init_sequence_list {
+	u32 regaddr;
+	u32 writeval;
+};
+
+/* PROD settings for ELPG sequencing registers*/
+static struct pg_init_sequence_list pg_init_seq_gm20b[] = {
+	{ 0x0010ab10, 0x00008180 },
+	{ 0x0010e118, 0x83828180 },
+	{ 0x0010e068, 0x00000000 },
+	{ 0x0010e06c, 0x00000080 },
+	{ 0x0010e06c, 0x00000081 },
+	{ 0x0010e06c, 0x00000082 },
+	{ 0x0010e06c, 0x00000083 },
+	{ 0x0010e06c, 0x00000084 },
+	{ 0x0010e06c, 0x00000085 },
+	{ 0x0010e06c, 0x00000086 },
+	{ 0x0010e06c, 0x00000087 },
+	{ 0x0010e06c, 0x00000088 },
+	{ 0x0010e06c, 0x00000089 },
+	{ 0x0010e06c, 0x0000008a },
+	{ 0x0010e06c, 0x0000008b },
+	{ 0x0010e06c, 0x0000008c },
+	{ 0x0010e06c, 0x0000008d },
+	{ 0x0010e06c, 0x0000008e },
+	{ 0x0010e06c, 0x0000008f },
+	{ 0x0010e06c, 0x00000090 },
+	{ 0x0010e06c, 0x00000091 },
+	{ 0x0010e06c, 0x00000092 },
+	{ 0x0010e06c, 0x00000093 },
+	{ 0x0010e06c, 0x00000094 },
+	{ 0x0010e06c, 0x00000095 },
+	{ 0x0010e06c, 0x00000096 },
+	{ 0x0010e06c, 0x00000097 },
+	{ 0x0010e06c, 0x00000098 },
+	{ 0x0010e06c, 0x00000099 },
+	{ 0x0010e06c, 0x0000009a },
+	{ 0x0010e06c, 0x0000009b },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010e06c, 0x00000000 },
+	{ 0x0010ab14, 0x00000000 },
+	{ 0x0010ab18, 0x00000000 },
+	{ 0x0010e024, 0x00000000 },
+	{ 0x0010e028, 0x00000000 },
+	{ 0x0010e11c, 0x00000000 },
+	{ 0x0010e120, 0x00000000 },
+	{ 0x0010ab1c, 0x02010155 },
+	{ 0x0010e020, 0x001b1b55 },
+	{ 0x0010e124, 0x01030355 },
+	{ 0x0010ab20, 0x89abcdef },
+	{ 0x0010ab24, 0x00000000 },
+	{ 0x0010e02c, 0x89abcdef },
+	{ 0x0010e030, 0x00000000 },
+	{ 0x0010e128, 0x89abcdef },
+	{ 0x0010e12c, 0x00000000 },
+	{ 0x0010ab28, 0x74444444 },
+	{ 0x0010ab2c, 0x70000000 },
+	{ 0x0010e034, 0x74444444 },
+	{ 0x0010e038, 0x70000000 },
+	{ 0x0010e130, 0x74444444 },
+	{ 0x0010e134, 0x70000000 },
+	{ 0x0010ab30, 0x00000000 },
+	{ 0x0010ab34, 0x00000001 },
+	{ 0x00020004, 0x00000000 },
+	{ 0x0010e138, 0x00000000 },
+	{ 0x0010e040, 0x00000000 },
+};
+
+static int
+gm20b_pmu_setup_elpg(struct nvkm_pmu *pmu)
+{
+	int ret = 0;
+	u32 reg_writes;
+	u32 index;
+
+	reg_writes = ARRAY_SIZE(pg_init_seq_gm20b);
+	/* Initialize registers with production values*/
+	for (index = 0; index < reg_writes; index++)
+		nv_wr32(pmu, pg_init_seq_gm20b[index].regaddr,
+					pg_init_seq_gm20b[index].writeval);
+
+	return ret;
+}
+
 int
 pmu_reset(struct nvkm_pmu *ppmu, struct nvkm_mc *pmc)
 {
@@ -1585,6 +1709,7 @@ static int gm20b_init_pmu_setup_hw1(struct nvkm_pmu *ppmu,
 	memset(&args, 0x00, sizeof(struct pmu_cmdline_args_v1));
 
 	gk20a_pmu_seq_init(pmu);
+	INIT_WORK(&pmu->pg_init, gk20a_pmu_setup_hw);
 	reinit_completion(&pmu->lspmu_completion);
 	reinit_completion(&ppmu->gr_init);
 	mutex_lock(&pmu->isr_mutex);
@@ -2041,6 +2166,8 @@ gm20b_pmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	nvkm_alarm_init(&priv->alarm, gk20a_pmu_dvfs_work);
 	mutex_init(&priv->isr_mutex);
 	init_completion(&priv->lspmu_completion);
+	init_completion(&priv->elpg_off_completion);
+	init_completion(&priv->elpg_on_completion);
 	init_completion(&ppmu->gr_init);
 
 	ret = gm20b_prepare_ucode_blob(ppmu);
@@ -2061,11 +2188,14 @@ gm20b_pmu_fini(struct nvkm_object *object, bool suspend)
 
 	if (suspend) {
 		cancel_work_sync(&priv->base.recv.work);
+		cancel_work_sync(&priv->pg_init);
 		mutex_lock(&priv->isr_mutex);
 		gk20a_pmu_enable(priv, pmc, false);
 		priv->isr_enabled = false;
 		mutex_unlock(&priv->isr_mutex);
-
+		mutex_lock(&priv->elpg_mutex);
+		priv->elpg_disable_depth = 0;
+		mutex_unlock(&priv->elpg_mutex);
 		priv->pmu_state = PMU_STATE_OFF;
 		priv->pmu_ready = false;
 		pmu->cold_boot = true;
@@ -2114,10 +2244,19 @@ gm20b_pmu_init(struct nvkm_object *object) {
 
 	mutex_init(&priv->pmu_copy_lock);
 	mutex_init(&priv->pmu_seq_lock);
+	mutex_init(&priv->elpg_mutex);
 	ppmu->secure_bootstrap = gm20b_boot_secure;
 	ppmu->boot_fecs = gm20b_boot_fecs;
+	ppmu->enable_elpg = gk20a_pmu_enable_elpg;
+	ppmu->disable_elpg = gk20a_pmu_disable_elpg;
 	ppmu->fecs_secure_boot = true;
 	ppmu->gpccs_secure_boot = false;
+
+	priv->pmu_setup_elpg = gm20b_pmu_setup_elpg;
+
+	mutex_lock(&priv->elpg_mutex);
+	priv->elpg_disable_depth = 0;
+	mutex_unlock(&priv->elpg_mutex);
 
 	gk20a_pmu_dvfs_init(priv);
 
