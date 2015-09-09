@@ -122,6 +122,13 @@
 #define I2C_SLV_CONFIG_LOAD			(1 << 1)
 #define I2C_TIMEOUT_CONFIG_LOAD			(1 << 2)
 
+#define DPAUX_HYBRID_PADCTL			0x124
+#define DPAUX_MODE_I2C				(1 << 0)
+#define DPAUX_I2C_SCL_INPUT_RCV			(1 << 14)
+#define DPAUX_I2C_SDA_INPUT_RCV			(1 << 15)
+
+#define DPAUX_HYBRID_SPARE			0x134
+
 /*
  * msg_end_type: The bus control which need to be send at end of transfer.
  * @MSG_END_STOP: Send stop pulse at end of transfer.
@@ -150,6 +157,8 @@ enum msg_end_type {
  * @has_powergate: Controller is located inside a powergate partition.
  * @is_vi: Identifies the VI i2c controller, has a different register layout,
  *		and needs more clocks.
+ * @is_dpaux: Identifies the DPAUX i2c controller, has separate pad control
+ *		setings, and is in a different power domain.
  * @powergate: Powergate partition ID, if applicable.
  * @clk_divisor_hs_mode: Clock divisor in HS mode.
  * @clk_divisor_std_fast_mode: Clock divisor in standard/fast mode. It is
@@ -165,6 +174,7 @@ struct tegra_i2c_hw_feature {
 	bool has_regulator;
 	bool has_powergate;
 	bool is_vi;
+	bool is_dpaux;
 	int powergate_id;
 	int clk_divisor_hs_mode;
 	int clk_divisor_std_fast_mode;
@@ -198,9 +208,12 @@ struct tegra_i2c_dev {
 	struct clk *fast_clk;
 	struct clk *slow_clk;
 	struct clk *host1x_clk;
+	struct clk *sor_clk;
+	struct clk *dpaux_clk;
 	struct regulator *reg;
 	struct reset_control *rst;
 	void __iomem *base;
+	void __iomem *dpaux_base;
 	int cont_id;
 	int irq;
 	bool irq_disabled;
@@ -213,8 +226,6 @@ struct tegra_i2c_dev {
 	u32 bus_clk_rate;
 	u16 clk_divisor_non_hs_mode;
 	bool is_suspended;
-	void __iomem *i2c6_padctl_reg;
-	void __iomem *i2c6_powerup_reg;
 };
 
 static void dvc_writel(struct tegra_i2c_dev *i2c_dev, u32 val, unsigned long reg)
@@ -446,6 +457,21 @@ static void tegra_vi_init(struct tegra_i2c_dev *i2c_dev)
 	i2c_writel(i2c_dev, 0x0, I2C_TLOW_SEXT);
 }
 
+/*
+ * The I2C controller used for DPAUX lives in the SOR partition and has
+ * additional pad control and power control registers which must be
+ * programmed.
+ */
+static void tegra_dpaux_init(struct tegra_i2c_dev *i2c_dev)
+{
+	u32 val;
+
+	val = DPAUX_MODE_I2C | DPAUX_I2C_SCL_INPUT_RCV |
+		DPAUX_I2C_SDA_INPUT_RCV;
+	writel(val, i2c_dev->dpaux_base + DPAUX_HYBRID_PADCTL);
+	writel(0x0, i2c_dev->dpaux_base + DPAUX_HYBRID_SPARE);
+}
+
 static inline int tegra_i2c_clock_enable(struct tegra_i2c_dev *i2c_dev)
 {
 	int ret;
@@ -478,9 +504,27 @@ static inline int tegra_i2c_clock_enable(struct tegra_i2c_dev *i2c_dev)
 			goto err_slow_disable;
 		}
 	}
+	if (i2c_dev->hw->is_dpaux) {
+		ret = clk_prepare_enable(i2c_dev->dpaux_clk);
+		if (ret < 0) {
+			dev_err(i2c_dev->dev,
+				"Enabling dpaux clk failed, err %d\n", ret);
+			goto err_div_disable;
+		}
+
+		ret = clk_prepare_enable(i2c_dev->sor_clk);
+		if (ret < 0) {
+			dev_err(i2c_dev->dev,
+				"Enabling sor clk failed, err %d\n", ret);
+			goto err_dpaux_disable;
+		}
+	}
 
 	return 0;
 
+err_dpaux_disable:
+	if (i2c_dev->hw->is_dpaux)
+		clk_disable_unprepare(i2c_dev->dpaux_clk);
 err_slow_disable:
 	if (i2c_dev->hw->is_vi)
 		clk_disable_unprepare(i2c_dev->slow_clk);
@@ -495,6 +539,10 @@ err_fast_disable:
 
 static inline void tegra_i2c_clock_disable(struct tegra_i2c_dev *i2c_dev)
 {
+	if (i2c_dev->hw->is_dpaux) {
+		clk_disable_unprepare(i2c_dev->sor_clk);
+		clk_disable_unprepare(i2c_dev->dpaux_clk);
+	}
 	if (i2c_dev->hw->is_vi) {
 		clk_disable_unprepare(i2c_dev->host1x_clk);
 		clk_disable_unprepare(i2c_dev->slow_clk);
@@ -523,6 +571,9 @@ static int tegra_i2c_init(struct tegra_i2c_dev *i2c_dev)
 
 	if (i2c_dev->is_dvc)
 		tegra_dvc_init(i2c_dev);
+
+	if (i2c_dev->hw->is_dpaux)
+		tegra_dpaux_init(i2c_dev);
 
 	val = I2C_CNFG_NEW_MASTER_FSM | I2C_CNFG_PACKET_MODE_EN |
 		(0x2 << I2C_CNFG_DEBOUNCE_CNT_SHIFT);
@@ -886,6 +937,19 @@ static const struct tegra_i2c_hw_feature tegra210_i2c_vi_hw = {
 	.is_vi = true,
 };
 
+static const struct tegra_i2c_hw_feature tegra210_i2c_dpaux_hw = {
+	.has_continue_xfer_support = true,
+	.has_per_pkt_xfer_complete_irq = true,
+	.has_single_clk_source = true,
+	.clk_divisor_hs_mode = 1,
+	.clk_divisor_std_fast_mode = 0x19,
+	.clk_divisor_fast_plus_mode = 0,
+	.has_config_load_reg = true,
+	.has_powergate = true,
+	.powergate_id = TEGRA_POWERGATE_SOR,
+	.is_dpaux = true,
+};
+
 /* Match table for of_platform binding */
 static const struct of_device_id tegra_i2c_of_match[] = {
 	{ .compatible = "nvidia,tegra124-i2c", .data = &tegra124_i2c_hw, },
@@ -895,23 +959,11 @@ static const struct of_device_id tegra_i2c_of_match[] = {
 	{ .compatible = "nvidia,tegra20-i2c-dvc", .data = &tegra20_i2c_hw, },
 	{ .compatible = "nvidia,tegra210-i2c-vi",
 		.data = &tegra210_i2c_vi_hw, },
+	{ .compatible = "nvidia,tegra210-i2c-dpaux",
+		.data = &tegra210_i2c_dpaux_hw, },
 	{},
 };
 MODULE_DEVICE_TABLE(of, tegra_i2c_of_match);
-
-static void tegra_i2c_set_i2c6_padctl(void __iomem *padctl_reg)
-{
-	pr_info("DPAUX_HYBRID_PADCTL_0 value was %08x\n", readl(padctl_reg));
-	writel(0xc001, padctl_reg);
-	pr_info("DPAUX_HYBRID_PADCTL_0 value is %08x\n", readl(padctl_reg));
-}
-
-static void tegra_i2c_set_i2c6_powerup(void __iomem *powerup_reg)
-{
-	pr_info("DPAUX_HYBRID_SPARE_0 value was %08x\n", readl(powerup_reg));
-	writel(0x0, powerup_reg);
-	pr_info("DPAUX_HYBRID_SPARE_0 value is %08x\n", readl(powerup_reg));
-}
 
 static int tegra_i2c_probe(struct platform_device *pdev)
 {
@@ -924,7 +976,6 @@ static int tegra_i2c_probe(struct platform_device *pdev)
 	int irq;
 	int ret = 0;
 	int clk_multiplier = I2C_CLK_MULTIPLIER_STD_FAST_MODE;
-	struct clk *c;
 
 	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	base = devm_ioremap_resource(&pdev->dev, mem);
@@ -947,36 +998,6 @@ static int tegra_i2c_probe(struct platform_device *pdev)
 	i2c_dev = devm_kzalloc(&pdev->dev, sizeof(*i2c_dev), GFP_KERNEL);
 	if (!i2c_dev)
 		return -ENOMEM;
-
-	/*
-	 * I2C6 of t124/t132/t210 needs DPAUX_HYBRID_PADCTL_0 set to 0xc001
-	 * which requires bringing up the dpaux and sor0 blocks.
-	 * t210 also needs pads to be powered up via DPAUX_HYBRID_SPARE_0.
-	 */
-	if ((of_device_is_compatible(pdev->dev.of_node,
-					"nvidia,tegra124-i2c") ||
-	     of_device_is_compatible(pdev->dev.of_node,
-					"nvidia,tegra210-i2c")) &&
-	    mem->start == 0x7000d100) {
-		c = clk_get_sys(NULL, "dpaux");
-		WARN_ON(IS_ERR_OR_NULL(c));
-		clk_prepare_enable(c);
-
-		c = clk_get_sys(NULL, "sor0");
-		WARN_ON(IS_ERR_OR_NULL(c));
-		clk_prepare_enable(c);
-
-		i2c_dev->i2c6_padctl_reg =
-			devm_ioremap(&pdev->dev, 0x545c0124, 4);
-		tegra_i2c_set_i2c6_padctl(i2c_dev->i2c6_padctl_reg);
-
-		if (of_device_is_compatible(pdev->dev.of_node,
-					"nvidia,tegra210-i2c")) {
-			i2c_dev->i2c6_powerup_reg =
-				devm_ioremap(&pdev->dev, 0x545c0134, 4);
-			tegra_i2c_set_i2c6_powerup(i2c_dev->i2c6_powerup_reg);
-		}
-	}
 
 	i2c_dev->base = base;
 	i2c_dev->div_clk = div_clk;
@@ -1016,6 +1037,31 @@ static int tegra_i2c_probe(struct platform_device *pdev)
 			return PTR_ERR(fast_clk);
 		}
 		i2c_dev->fast_clk = fast_clk;
+	}
+
+	if (i2c_dev->hw->is_dpaux) {
+		i2c_dev->dpaux_clk = devm_clk_get(&pdev->dev, "dpaux-clk");
+		if (IS_ERR(i2c_dev->dpaux_clk)) {
+			dev_err(&pdev->dev, "missing dpaux clock\n");
+			return PTR_ERR(i2c_dev->dpaux_clk);
+		}
+		i2c_dev->sor_clk = devm_clk_get(&pdev->dev, "sor-clk");
+		if (IS_ERR(i2c_dev->sor_clk)) {
+			dev_err(&pdev->dev, "missing sor clock\n");
+			return PTR_ERR(i2c_dev->sor_clk);
+		}
+
+		res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+		if (!res) {
+			dev_err(&pdev->dev, "missing dpaux registers\n");
+			return -ENODEV;
+		}
+		i2c_dev->dpaux_base = devm_ioremap(&pdev->dev, res->start,
+						   resource_size(res));
+		if (IS_ERR(i2c_dev->dpaux_base)) {
+			dev_err(&pdev->dev, "failed to map dpaux registers\n");
+			return PTR_ERR(i2c_dev->dpaux_base);
+		}
 	}
 
 	if (i2c_dev->hw->is_vi) {
@@ -1141,11 +1187,6 @@ static int tegra_i2c_resume(struct device *dev)
 {
 	struct tegra_i2c_dev *i2c_dev = dev_get_drvdata(dev);
 	int ret;
-
-	if (i2c_dev->i2c6_padctl_reg)
-		tegra_i2c_set_i2c6_padctl(i2c_dev->i2c6_padctl_reg);
-	if (i2c_dev->i2c6_powerup_reg)
-		tegra_i2c_set_i2c6_powerup(i2c_dev->i2c6_powerup_reg);
 
 	i2c_lock_adapter(&i2c_dev->adapter);
 

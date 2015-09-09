@@ -7,6 +7,7 @@ Required properties:
 	"nvidia,tegra20-i2c"
 	"nvidia,tegra20-i2c-dvc"
 	"nvidia,tegra210-i2c-vi"
+	"nvidia,tegra210-i2c-dpaux"
   Details of compatible are as follows:
   nvidia,tegra20-i2c-dvc: Tegra20 has specific I2C controller called as DVC I2C
 	controller. This only support master mode of I2C communication. Register
@@ -40,7 +41,12 @@ Required properties:
 	of VI block. It has different register addressing layout and requires
 	additional initialization before issuing transfers. Moreover, it needs
 	two additional clocks and external regulator.
+  nvidia,tegra210-i2c-dpaux: Tegra210 has an I2C controller which is part of
+	the DPAUX block.  It requires additional initialization before issuing
+	transfers and two additional clocks.
 - reg: Should contain I2C controller registers physical address and length.
+  For the Tegra210 DPAUX I2C, the DPAUX controller registers physical address
+  and length must also be specified.
 - interrupts: Should contain I2C controller interrupts.
 - address-cells: Address cells for I2C device address.
 - size-cells: Size of the I2C device address.
@@ -56,6 +62,10 @@ Required properties:
   - div-clk
   - slow-clk
   - host1x-clk
+  Tegra210 DPAUX I2C:
+  - div-clk
+  - dpaux-clk
+  - sor-clk
 - avdd-supply: (Tegra210 VI I2C only) External regulator driving the analog
   interface. See ../regulator/regulator.txt for details.
 - resets: Must contain an entry for each entry in reset-names.
