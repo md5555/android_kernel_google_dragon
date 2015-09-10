@@ -125,27 +125,18 @@ extern int __pm_genpd_add_device(struct generic_pm_domain *genpd,
 				 struct device *dev,
 				 struct gpd_timing_data *td);
 
-extern int __pm_genpd_name_add_device(const char *domain_name,
-				      struct device *dev,
-				      struct gpd_timing_data *td);
-
 extern int pm_genpd_remove_device(struct generic_pm_domain *genpd,
 				  struct device *dev);
 extern int pm_genpd_add_subdomain(struct generic_pm_domain *genpd,
 				  struct generic_pm_domain *new_subdomain);
-extern int pm_genpd_add_subdomain_names(const char *master_name,
-					const char *subdomain_name);
 extern int pm_genpd_remove_subdomain(struct generic_pm_domain *genpd,
 				     struct generic_pm_domain *target);
 extern int pm_genpd_attach_cpuidle(struct generic_pm_domain *genpd, int state);
-extern int pm_genpd_name_attach_cpuidle(const char *name, int state);
 extern int pm_genpd_detach_cpuidle(struct generic_pm_domain *genpd);
-extern int pm_genpd_name_detach_cpuidle(const char *name);
 extern void pm_genpd_init(struct generic_pm_domain *genpd,
 			  struct dev_power_governor *gov, bool is_off);
 
 extern int pm_genpd_poweron(struct generic_pm_domain *genpd);
-extern int pm_genpd_name_poweron(const char *domain_name);
 
 extern struct dev_power_governor simple_qos_governor;
 extern struct dev_power_governor pm_domain_always_on_gov;
@@ -165,12 +156,6 @@ static inline int __pm_genpd_add_device(struct generic_pm_domain *genpd,
 {
 	return -ENOSYS;
 }
-static inline int __pm_genpd_name_add_device(const char *domain_name,
-					     struct device *dev,
-					     struct gpd_timing_data *td)
-{
-	return -ENOSYS;
-}
 static inline int pm_genpd_remove_device(struct generic_pm_domain *genpd,
 					 struct device *dev)
 {
@@ -178,11 +163,6 @@ static inline int pm_genpd_remove_device(struct generic_pm_domain *genpd,
 }
 static inline int pm_genpd_add_subdomain(struct generic_pm_domain *genpd,
 					 struct generic_pm_domain *new_sd)
-{
-	return -ENOSYS;
-}
-static inline int pm_genpd_add_subdomain_names(const char *master_name,
-					       const char *subdomain_name)
 {
 	return -ENOSYS;
 }
@@ -195,15 +175,7 @@ static inline int pm_genpd_attach_cpuidle(struct generic_pm_domain *genpd, int s
 {
 	return -ENOSYS;
 }
-static inline int pm_genpd_name_attach_cpuidle(const char *name, int state)
-{
-	return -ENOSYS;
-}
 static inline int pm_genpd_detach_cpuidle(struct generic_pm_domain *genpd)
-{
-	return -ENOSYS;
-}
-static inline int pm_genpd_name_detach_cpuidle(const char *name)
 {
 	return -ENOSYS;
 }
@@ -215,22 +187,12 @@ static inline int pm_genpd_poweron(struct generic_pm_domain *genpd)
 {
 	return -ENOSYS;
 }
-static inline int pm_genpd_name_poweron(const char *domain_name)
-{
-	return -ENOSYS;
-}
 #endif
 
 static inline int pm_genpd_add_device(struct generic_pm_domain *genpd,
 				      struct device *dev)
 {
 	return __pm_genpd_add_device(genpd, dev, NULL);
-}
-
-static inline int pm_genpd_name_add_device(const char *domain_name,
-					   struct device *dev)
-{
-	return __pm_genpd_name_add_device(domain_name, dev, NULL);
 }
 
 #ifdef CONFIG_PM_GENERIC_DOMAINS_RUNTIME
