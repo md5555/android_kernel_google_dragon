@@ -159,8 +159,8 @@
 			reg = <0x0 0x544c0000 0x0 0x00040000>;
 			interrupts = <GIC_SPI 68 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&tegra_car TEGRA210_CLK_NVENC>,
-				 <&tegra_car TEGRA210_CLK_MSENC_CBUS>,
-				 <&tegra_car TEGRA210_CLK_MSENC_EMC>;
+				 <&tegra_car TEGRA210_CLK_NVENC_CBUS>,
+				 <&tegra_car TEGRA210_CLK_NVENC_EMC>;
 			clock-names = "nvenc", "nvenc_cbus", "emc";
 			resets = <&tegra_car TEGRA210_CLK_NVENC>;
 			reset-names = "nvenc";
@@ -893,11 +893,11 @@
 					 <&tegra_car TEGRA210_CLK_MC_CBPA>,
 					 <&tegra_car TEGRA210_CLK_MC_CCPA>,
 					 <&tegra_car TEGRA210_CLK_MC_CDPA>,
-					 <&tegra_car TEGRA210_CLK_MSENC_SLCG_OVR>;
-				clock-names = "msenc", "slcg_mc_capa", "slcg_mc_cbpa",
+					 <&tegra_car TEGRA210_CLK_NVENC_SLCG_OVR>;
+				clock-names = "nvenc", "slcg_mc_capa", "slcg_mc_cbpa",
 					"slcg_mc_ccpa", "slcg_mc_cdpa", "slcg_msenc_slcg_ovr";
 				resets = <&tegra_car TEGRA210_CLK_NVENC>;
-				reset-names = "msenc";
+				reset-names = "nvenc";
 				swgroups = <&mc TEGRA_SWGROUP_NVENC>;
 				swgroup-names = "nvenc";
 			};
