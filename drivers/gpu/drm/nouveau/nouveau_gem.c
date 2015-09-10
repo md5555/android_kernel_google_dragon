@@ -520,9 +520,23 @@ nouveau_gem_ioctl_set_info(struct drm_device *dev, void *data,
 		 */
 		if (req->offset) {
 			struct nvkm_vma *new_vma;
+			struct nvkm_as *as;
+			unsigned old_page_shift = nvbo->page_shift;
 
 			nouveau_cancel_defer_vm_map(vma, nvbo);
 			nouveau_bo_vma_del(nvbo, vma);
+
+			/*
+			 * If this offset falls within an address space
+			 * allocation, then honor the address space allocation's
+			 * alignment request (as->align_shift).  This may
+			 * result in changing the nvbo to map with small page
+			 * size when previously it was mapped with large page
+			 * size.
+			 */
+			as = nvkm_vm_find_as(cli->vm, req->offset);
+			if (as)
+				nvbo->page_shift = as->align_shift;
 
 			new_vma = kzalloc(sizeof(*vma), GFP_KERNEL);
 			if (!new_vma) {
@@ -530,6 +544,7 @@ nouveau_gem_ioctl_set_info(struct drm_device *dev, void *data,
 				 * We just removed this...so we should be
 				 * able to re-add it without error.
 				 */
+				nvbo->page_shift = old_page_shift;
 				nouveau_bo_vma_add_offset(nvbo, cli->vm,
 							vma, vma->offset, true);
 				ret = -ENOMEM;
@@ -544,6 +559,7 @@ nouveau_gem_ioctl_set_info(struct drm_device *dev, void *data,
 				 * We just removed this...so we should be
 				 * able to re-add it without error.
 				 */
+				nvbo->page_shift = old_page_shift;
 				nouveau_bo_vma_add_offset(nvbo, cli->vm,
 							vma, vma->offset, true);
 				goto unreserve;

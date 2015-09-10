@@ -36,6 +36,7 @@ struct nvkm_as {
 	struct nvkm_mm mm;
 	u64 offset;
 	u64 length;
+	u32 align_shift;
 
 	struct nvkm_mm_node *node;
 };
@@ -168,4 +169,5 @@ int nvkm_vm_as_alloc(struct nvkm_vm *, u64 align, u64 length, u32 page_shift,
 int nvkm_vm_as_alloc_at_offset(struct nvkm_vm *, u64 offset, u64 length,
 			       u32 page_shift);
 int nvkm_vm_as_free(struct nvkm_vm *, u64 offset);
+struct nvkm_as *nvkm_vm_find_as(struct nvkm_vm *vm, u64 offset);
 #endif

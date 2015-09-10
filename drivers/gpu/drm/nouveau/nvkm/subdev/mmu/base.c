@@ -390,7 +390,7 @@ nvkm_vm_map_pgt(struct nvkm_vm *vm, u32 pde, u32 type)
 	return 0;
 }
 
-static struct nvkm_as *
+struct nvkm_as *
 nvkm_vm_find_as(struct nvkm_vm *vm, u64 offset)
 {
 	struct nvkm_as *as;
@@ -725,6 +725,19 @@ int nvkm_vm_as_alloc(struct nvkm_vm *vm, u64 align, u64 length, u32 page_shift,
 	if (!as)
 		return -ENOMEM;
 
+	/*
+	 * Figure out the requested alignment for mappings done in this address
+	 * space allocation.  We want to either use big or small page mappings.
+	 */
+	if ((ffs(align) - 1) >= mmu->lpg_shift)
+		as->align_shift = mmu->lpg_shift;
+	else if ((ffs(align) - 1) >= mmu->spg_shift)
+		as->align_shift = mmu->spg_shift;
+	else {
+		ret = -EINVAL;
+		goto error;
+	}
+
 	mutex_lock(&nv_subdev(mmu)->mutex);
 
 	/* Try to allocate the address space from the main address allocator */
@@ -753,6 +766,7 @@ error_mm_free:
 	nvkm_mm_free(&vm->mm, &as->node);
 error_unlock:
 	mutex_unlock(&nv_subdev(mmu)->mutex);
+error:
 	kfree(as);
 	return ret;
 }
