@@ -632,7 +632,7 @@ struct gm20b_acr {
 	u64 ucode_blob_start;/*Start address of ucode blob*/
 	u32 ucode_blob_size;/*ucode blob size*/
 	struct bin_hdr *bl_bin_hdr;
-	struct hsflcn_bl_desc *pmu_hsbl_desc;
+	struct hsflcn_bl_desc pmu_hsbl_desc;
 	struct bin_hdr *hsbin_hdr;
 	struct acr_fw_header *fw_hdr;
 	u32 pmu_args;

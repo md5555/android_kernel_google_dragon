@@ -204,6 +204,9 @@ struct gk20a_pmu_dvfs_dev_status {
 void
 gk20a_release_firmware(struct nvkm_pmu *ppmu, const struct firmware *pfw)
 {
+	if (WARN_ON(!pfw))
+		return;
+
 	nv_debug(ppmu, "firmware released\n");
 	release_firmware(pfw);
 }

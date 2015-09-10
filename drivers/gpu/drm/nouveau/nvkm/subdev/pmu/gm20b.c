@@ -1527,6 +1527,8 @@ gm20b_prepare_ucode_blob(struct nvkm_pmu *ppmu)
 
 	nv_debug(ppmu, "prepare ucode blob success\n");
 	gm20b_free_acr_resources(ppmu, plsfm);
+	gk20a_release_firmware(ppmu, priv->acr.pmu_fw);
+	gk20a_release_firmware(ppmu, priv->acr.pmu_desc);
 
 	return 0;
 }
@@ -1598,7 +1600,7 @@ static int bl_bootstrap(struct nvkm_pmu *ppmu,
 	u32 virt_addr = 0;
 	u32 tag = 0;
 	u32 index = 0;
-	struct hsflcn_bl_desc *pmu_bl_gm10x_desc = acr->pmu_hsbl_desc;
+	struct hsflcn_bl_desc *pmu_bl_gm10x_desc = &acr->pmu_hsbl_desc;
 
 	nv_mask(ppmu, 0x0010a048, 0x1, 0x1);
 	nv_wr32(ppmu, 0x0010a480, (0xfffffff &
@@ -1647,33 +1649,17 @@ static int gm20b_init_pmu_setup_hw1(struct nvkm_pmu *ppmu,
 
 	/* TODO remove this when perfmon is used for pstate/dvfs scaling */
 	pmu->perfmon_sampling_enabled = false;
-	pmu->mutex_cnt = MUTEX_CNT;
-	pmu->mutex = kzalloc(pmu->mutex_cnt *
-				sizeof(struct pmu_mutex), GFP_KERNEL);
-	if (!pmu->mutex) {
-		nv_error(ppmu, "not enough space\n");
-		return -ENOMEM;
-	}
 
 	for (i = 0; i < pmu->mutex_cnt; i++)
 		pmu->mutex[i].index = i;
 
-	pmu->seq = kzalloc(PMU_MAX_NUM_SEQUENCES *
-		sizeof(struct pmu_sequence), GFP_KERNEL);
-
-	if (!pmu->seq) {
-		nv_error(ppmu, "not enough space ENOMEM\n");
-		kfree(pmu->mutex);
-		return -ENOMEM;
-	}
-
-	if (!pmu->trace_buf.vma.node) {
+	if (!pmu->trace_buf.size) {
 		err = nvkm_gpuobj_new(nv_object(ppmu), NULL,
 					GK20A_PMU_TRACE_BUFSIZE, 0x1000, 0,
 					&pmu->trace_buf.obj);
 		if (err) {
 			nv_error(ppmu, "alloc for trace buf failed\n");
-			goto error;
+			return err;
 		}
 
 		err = nvkm_gpuobj_map_vm(nv_gpuobj(pmu->trace_buf.obj),
@@ -1682,8 +1668,10 @@ static int gm20b_init_pmu_setup_hw1(struct nvkm_pmu *ppmu,
 					&pmu->trace_buf.vma);
 		if (err) {
 			nv_error(ppmu, "mapping of trace buf failed\n");
-			goto error;
+			return err;
 		}
+
+		pmu->trace_buf.size = GK20A_PMU_TRACE_BUFSIZE;
 	}
 
 	if (!pmu->seq_buf.size) {
@@ -1692,7 +1680,7 @@ static int gm20b_init_pmu_setup_hw1(struct nvkm_pmu *ppmu,
 					&pmu->seq_buf.obj);
 		if (err) {
 			nv_error(ppmu, "alloc for seq buf failed\n");
-			goto error;
+			return err;
 		}
 		err = nvkm_gpuobj_map_vm(nv_gpuobj(pmu->seq_buf.obj),
 						pmu->pmuvm.vm,
@@ -1700,7 +1688,7 @@ static int gm20b_init_pmu_setup_hw1(struct nvkm_pmu *ppmu,
 						&pmu->seq_buf.vma);
 		if (err) {
 			nv_error(ppmu, "mapping of seq buf failed\n");
-			goto error;
+			return err;
 		}
 
 		pmu->seq_buf.size = GK20A_PMU_SEQ_BUFSIZE;
@@ -1743,15 +1731,8 @@ static int gm20b_init_pmu_setup_hw1(struct nvkm_pmu *ppmu,
 	gk20a_pmu_enable_irq(pmu, pmc, false);
 	pmu->isr_enabled = false;
 	mutex_unlock(&pmu->isr_mutex);
-	err = bl_bootstrap(ppmu, desc, bl_sz);
-	if (err)
-		return err;
-	return 0;
-error:
-	kfree(pmu->mutex);
-	kfree(pmu->seq);
 
-	return err;
+	return bl_bootstrap(ppmu, desc, bl_sz);
 }
 
 /*
@@ -1771,8 +1752,9 @@ int pmu_exec_gen_bl(struct nvkm_pmu *pmu, void *desc, u8 b_wait_for_halt)
 	struct gm20b_acr *acr = &priv->acr;
 	u32 bl_sz;
 	const struct firmware *hsbl_fw = acr->hsbl_fw;
-	struct hsflcn_bl_desc *pmu_bl_gm10x_desc;
-	u32 *pmu_bl_gm10x = NULL;
+	struct hsflcn_bl_desc *pmu_bl_desc = &acr->pmu_hsbl_desc;
+	struct hsflcn_bl_desc *pmu_hsbl_desc;
+	u32 *pmu_bl = NULL;
 
 	if (!acr->hsbl_ucode.size) {
 		err = gk20a_load_firmware(pmu, &hsbl_fw,
@@ -1783,12 +1765,13 @@ int pmu_exec_gen_bl(struct nvkm_pmu *pmu, void *desc, u8 b_wait_for_halt)
 		}
 		acr->hsbl_fw = hsbl_fw;
 		acr->bl_bin_hdr = (struct bin_hdr *)hsbl_fw->data;
-		acr->pmu_hsbl_desc = (struct hsflcn_bl_desc *)(hsbl_fw->data +
+		pmu_hsbl_desc = (struct hsflcn_bl_desc *)(hsbl_fw->data +
 				acr->bl_bin_hdr->header_offset);
-		pmu_bl_gm10x_desc = acr->pmu_hsbl_desc;
-		pmu_bl_gm10x = (u32 *)(hsbl_fw->data +
+
+		*pmu_bl_desc = *pmu_hsbl_desc;
+		pmu_bl = (u32 *)(hsbl_fw->data +
 			acr->bl_bin_hdr->data_offset);
-		bl_sz = ALIGN(pmu_bl_gm10x_desc->bl_img_hdr.bl_code_size,
+		bl_sz = ALIGN(pmu_bl_desc->bl_img_hdr.bl_code_size,
 				256);
 		acr->hsbl_ucode.size = bl_sz;
 		nv_debug(pmu, "Executing Generic Bootloader\n");
@@ -1797,7 +1780,9 @@ int pmu_exec_gen_bl(struct nvkm_pmu *pmu, void *desc, u8 b_wait_for_halt)
 				&acr->hsbl_ucode.obj);
 		if (err) {
 			nv_error(pmu, "acr bl ucode alloc failed\n");
-			goto err_done;
+			gk20a_release_firmware(pmu, hsbl_fw);
+			acr->hsbl_fw = NULL;
+			return -ENOMEM;
 		}
 
 		err = nvkm_gpuobj_map_vm(nv_gpuobj(acr->hsbl_ucode.obj),
@@ -1805,14 +1790,20 @@ int pmu_exec_gen_bl(struct nvkm_pmu *pmu, void *desc, u8 b_wait_for_halt)
 					&acr->hsbl_ucode.vma);
 		if (err) {
 			nv_error(pmu, "acr bl ucode mapping to vm failed\n");
+			gk20a_release_firmware(pmu, hsbl_fw);
+			acr->hsbl_fw = NULL;
 			goto err_free_gpuobj;
 		}
+
 		nv_debug(pmu, "acr->hsbl_ucode.vma.offset is: 0x%llx\n",
 			acr->hsbl_ucode.vma.offset);
 
 		for (i = 0; i < (bl_sz) >> 2; i++)
-			nv_wo32(acr->hsbl_ucode.obj, i*4, pmu_bl_gm10x[i]);
+			nv_wo32(acr->hsbl_ucode.obj, i * 4, pmu_bl[i]);
+
 		nv_debug(pmu, "Copied HSBL ucode to iova\n");
+		gk20a_release_firmware(pmu, hsbl_fw);
+		acr->hsbl_fw = NULL;
 	}
 	/*
 	 * Disable interrupts to avoid kernel hitting breakpoint due
@@ -1860,9 +1851,10 @@ int pmu_exec_gen_bl(struct nvkm_pmu *pmu, void *desc, u8 b_wait_for_halt)
 
 	return 0;
 err_unmap_bl:
+	nvkm_gpuobj_unmap(&priv->acr.hsbl_ucode.vma);
 err_free_gpuobj:
-err_done:
-	release_firmware(hsbl_fw);
+	nvkm_gpuobj_ref(NULL, &priv->acr.hsbl_ucode.obj);
+
 	return err;
 }
 
@@ -1917,7 +1909,9 @@ int gm20b_bootstrap_hs_flcn(struct nvkm_pmu *ppmu)
 						acr->fw_hdr->patch_sig)) < 0) {
 			nv_error(ppmu, "patch signatures fail\n");
 			err = -1;
-			goto err_release_acr_fw;
+			gk20a_release_firmware(ppmu, acr_fw);
+			acr->acr_fw = NULL;
+			return err;
 		}
 
 		err = nvkm_gpuobj_new(nv_object(ppmu), NULL,
@@ -1925,7 +1919,9 @@ int gm20b_bootstrap_hs_flcn(struct nvkm_pmu *ppmu)
 				&acr->acr_ucode.obj);
 		if (err) {
 			nv_error(ppmu, "alloc for acr ucode failed\n");
-			goto err_release_acr_fw;
+			gk20a_release_firmware(ppmu, acr_fw);
+			acr->acr_fw = NULL;
+			return -ENOMEM;
 		}
 		err = nvkm_gpuobj_map_vm(nv_gpuobj(acr->acr_ucode.obj),
 						pmu->pmuvm.vm,
@@ -1933,7 +1929,9 @@ int gm20b_bootstrap_hs_flcn(struct nvkm_pmu *ppmu)
 						&acr->acr_ucode.vma);
 		if (err) {
 			nv_error(ppmu, "alloc for acr ucode failed\n");
-			goto err_release_acr_fw;
+			gk20a_release_firmware(ppmu, acr_fw);
+			acr->acr_fw = NULL;
+			goto err_map_acr_gpuobj;
 		}
 		nv_debug(ppmu, "acr_ucode.vma.offset is: 0x%llX\n",
 			acr->acr_ucode.vma.offset);
@@ -1977,15 +1975,20 @@ int gm20b_bootstrap_hs_flcn(struct nvkm_pmu *ppmu)
 			bl_dmem_desc->code_dma_base +
 			((acr_ucode_header_t210_load[2]) >> 8);
 		bl_dmem_desc->data_size = acr_ucode_header_t210_load[3];
+		gk20a_release_firmware(ppmu, acr_fw);
+		acr->acr_fw = NULL;
 	}
 	err = pmu_exec_gen_bl(ppmu, bl_dmem_desc, 1);
 	if (err)
-		goto err_release_acr_fw;
+		goto err_acr_exec;
 
 	return 0;
-err_release_acr_fw:
-	release_firmware(acr_fw);
-	acr->acr_fw = NULL;
+
+err_acr_exec:
+	nvkm_gpuobj_unmap(&pmu->acr.acr_ucode.vma);
+err_map_acr_gpuobj:
+	nvkm_gpuobj_ref(NULL, &pmu->acr.acr_ucode.obj);
+
 	return err;
 }
 
@@ -2156,6 +2159,22 @@ gm20b_pmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	if (ret)
 		return ret;
 
+	priv->mutex_cnt = MUTEX_CNT;
+	priv->mutex = kzalloc(priv->mutex_cnt *
+				sizeof(struct pmu_mutex), GFP_KERNEL);
+	if (!priv->mutex) {
+		nv_error(ppmu, "alloc for pmu_mutexes failed\n");
+		return -ENOMEM;
+	}
+
+	priv->seq = kzalloc(PMU_MAX_NUM_SEQUENCES *
+		sizeof(struct pmu_sequence), GFP_KERNEL);
+	if (!priv->seq) {
+		nv_error(ppmu, "alloc for sequences failed\n");
+		kfree(priv->mutex);
+		return -ENOMEM;
+	}
+
 	ppmu = &priv->base;
 	mc = ioremap(TEGRA_MC_BASE, 0x00000d00);
 	ppmu->cold_boot = true;
@@ -2228,6 +2247,8 @@ gm20b_pmu_dtor(struct nvkm_object *object)
 	nvkm_gpuobj_ref(NULL, &pmu->acr.hsbl_ucode.obj);
 	ppmu->cold_boot = true;
 	gk20a_pmu_allocator_destroy(&pmu->dmem);
+	kfree(pmu->mutex);
+	kfree(pmu->seq);
 }
 
 static int
