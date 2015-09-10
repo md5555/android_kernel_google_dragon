@@ -149,7 +149,7 @@
 };
 
 &i2c1 {
-	clock-frequency = <400000>;
+	clock-frequency = <1500000>;
 	status = "okay";
 
 	mt6311: mt6311@6b {
