@@ -29,6 +29,7 @@
 #include <linux/init.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
+#include <linux/iopoll.h>
 #include <linux/irq.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
@@ -471,6 +472,14 @@ static u32 tegra_pmc_readl(unsigned long offset)
 static void tegra_pmc_writel(u32 value, unsigned long offset)
 {
 	writel(value, pmc->base + offset);
+}
+
+static int tegra_pmc_readl_poll(unsigned long offset, u32 mask, u32 value)
+{
+	u32 regval;
+
+	return readl_poll_timeout(pmc->base + offset, regval,
+				  (regval & mask) == value, 10, 250);
 }
 
 /**
@@ -1011,24 +1020,6 @@ static int tegra_io_rail_prepare(int id, unsigned long *request,
 	return 0;
 }
 
-static int tegra_io_rail_poll(unsigned long offset, unsigned long mask,
-			      unsigned long val, unsigned long timeout)
-{
-	unsigned long value;
-
-	timeout = jiffies + msecs_to_jiffies(timeout);
-
-	while (time_after(timeout, jiffies)) {
-		value = tegra_pmc_readl(offset);
-		if ((value & mask) == val)
-			return 0;
-
-		usleep_range(250, 1000);
-	}
-
-	return -ETIMEDOUT;
-}
-
 static void tegra_io_rail_unprepare(void)
 {
 	tegra_pmc_writel(DPD_SAMPLE_DISABLE, DPD_SAMPLE);
@@ -1052,7 +1043,7 @@ int tegra_io_rail_power_on(int id)
 	value |= IO_DPD_REQ_CODE_OFF;
 	tegra_pmc_writel(value, request);
 
-	err = tegra_io_rail_poll(status, mask, 0, 250);
+	err = tegra_pmc_readl_poll(status, mask, 0);
 	if (err < 0)
 		return err;
 
@@ -1080,7 +1071,7 @@ int tegra_io_rail_power_off(int id)
 	value |= IO_DPD_REQ_CODE_ON;
 	tegra_pmc_writel(value, request);
 
-	err = tegra_io_rail_poll(status, mask, mask, 250);
+	err = tegra_pmc_readl_poll(status, mask, mask);
 	if (err < 0)
 		return err;
 
