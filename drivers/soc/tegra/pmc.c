@@ -76,6 +76,8 @@
 #define PMC_DPD_ENABLE_ON		(1 << 0)
 #define PMC_DPD_ENABLE_TSC_MULT_ENABLE	(1 << 1)
 
+#define CLAMP_STATUS			0x2c
+
 #define PWRGATE_TOGGLE			0x30
 #define  PWRGATE_TOGGLE_START		(1 << 8)
 
@@ -498,7 +500,8 @@ static int __tegra_powergate_set(int id, bool new_state)
 
 	tegra_pmc_writel(PWRGATE_TOGGLE_START | id, PWRGATE_TOGGLE);
 
-	return 0;
+	return tegra_pmc_readl_poll(PWRGATE_STATUS, BIT(id),
+				    new_state ? BIT(id) : 0);
 }
 
 /**
@@ -573,7 +576,7 @@ static int __tegra_powergate_remove_clamping(int id)
 
 	tegra_pmc_writel(mask, REMOVE_CLAMPING);
 
-	return 0;
+	return tegra_pmc_readl_poll(CLAMP_STATUS, mask, 0);
 }
 
 /**
