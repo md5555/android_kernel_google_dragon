@@ -25,7 +25,7 @@ struct gk20a_mmu_priv {
 
 void gk20a_instobj_map_sg(struct nvkm_vma *vma, struct nvkm_object *object,
 			  struct nvkm_mem *mem, u32 pte, u32 cnt,
-			  dma_addr_t *list);
+			  dma_addr_t *list, u64 delta);
 
 void gk20a_instobj_unmap_sg(struct nvkm_object *object, u32 pte, u32 cnt);
 

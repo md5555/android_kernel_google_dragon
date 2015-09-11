@@ -83,7 +83,8 @@ nv44_vm_fill(struct nvkm_gpuobj *pgt, dma_addr_t null,
 
 static void
 nv44_vm_map_sg(struct nvkm_vma *vma, struct nvkm_gpuobj *pgt,
-	       struct nvkm_mem *mem, u32 pte, u32 cnt, dma_addr_t *list)
+	       struct nvkm_mem *mem, u32 pte, u32 cnt, dma_addr_t *list,
+	       u64 delta)
 {
 	struct nv04_mmu_priv *priv = (void *)vma->vm->mmu;
 	u32 tmp[4];

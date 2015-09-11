@@ -123,7 +123,7 @@ next_pde:
 		for (m = 0; m < len; m++)
 			addr_list[m] = sgdma + (m << PAGE_SHIFT);
 
-		mmu->map_sg(vma, pgt, mem, pte, len, addr_list);
+		mmu->map_sg(vma, pgt, mem, pte, len, addr_list, 0);
 		kfree(addr_list);
 		pte += m;
 		num -= m;
@@ -185,6 +185,7 @@ nvkm_vm_map_sg_table_with_iommu(struct nvkm_vma *vma, u64 delta, u64 length,
 
 	lpidx = 0;
 	list = addr_list;
+	delta = 0;
 	while (num) {
 		struct nvkm_gpuobj *pgt;
 		u32 lpoff, pde, pte, end, len;
@@ -199,11 +200,12 @@ nvkm_vm_map_sg_table_with_iommu(struct nvkm_vma *vma, u64 delta, u64 length,
 			end = max;
 		len = end - pte;
 
-		mmu->map_sg(vma, pgt, mem, pte, len, list);
+		mmu->map_sg(vma, pgt, mem, pte, len, list, delta);
 
 		num  -= len;
 		list += len;
 		lpidx += len;
+		delta += len << mmu->lpg_shift;
 	}
 
 	kfree(addr_list);
@@ -237,7 +239,7 @@ nvkm_vm_map_sg(struct nvkm_vma *vma, u64 delta, u64 length,
 			end = max;
 		len = end - pte;
 
-		mmu->map_sg(vma, pgt, mem, pte, len, list);
+		mmu->map_sg(vma, pgt, mem, pte, len, list, 0);
 
 		num  -= len;
 		pte  += len;

@@ -46,7 +46,8 @@ struct gk20a_mapping {
 
 extern void
 gk20a_instobj_map_sg(struct nvkm_vma *vma, struct nvkm_object *object,
-		struct nvkm_mem *mem, u32 pte, u32 cnt, dma_addr_t *list);
+		struct nvkm_mem *mem, u32 pte, u32 cnt, dma_addr_t *list,
+		u64 delta);
 extern void
 gk20a_instobj_unmap_sg(struct nvkm_object *object, u32 pte, u32 cnt);
 
@@ -140,9 +141,10 @@ gk20a_mapping_insert(struct nvkm_mmu *mmu, struct gk20a_mapping *mapping,
 
 static void
 gk20a_vm_map_sg(struct nvkm_vma *vma, struct nvkm_gpuobj *pgt,
-		struct nvkm_mem *mem, u32 pte, u32 cnt, dma_addr_t *list)
+		struct nvkm_mem *mem, u32 pte, u32 cnt, dma_addr_t *list,
+		u64 delta)
 {
-	gk20a_instobj_map_sg(vma, pgt->parent, mem, pte, cnt, list);
+	gk20a_instobj_map_sg(vma, pgt->parent, mem, pte, cnt, list, delta);
 }
 
 static void

@@ -127,14 +127,18 @@ gk20a_instobj_rd32(struct nvkm_object *object, u64 offset)
 
 void
 gk20a_instobj_map_sg(struct nvkm_vma *vma, struct nvkm_object *object,
-		     struct nvkm_mem *mem, u32 pte, u32 cnt, dma_addr_t *list)
+		     struct nvkm_mem *mem, u32 pte, u32 cnt, dma_addr_t *list,
+		     u64 delta)
 {
 	struct gk20a_instmem_priv *priv = (void *)nvkm_instmem(object);
+	struct nvkm_mmu *mmu = nvkm_mmu(priv);
 	unsigned long flags;
 	u32 target = (vma->access & NV_MEM_ACCESS_NOSNOOP) ? 6 : 4;
 	u32 memtype = mem->memtype & 0xff;
 	u32 *ramin_ptr;
 	u32 tag = 0;
+
+	WARN_ON(delta & ((1 << mmu->lpg_shift) - 1));
 
 	if (!mem->cached)
 		target |= 1;
@@ -162,7 +166,7 @@ gk20a_instobj_map_sg(struct nvkm_vma *vma, struct nvkm_object *object,
 	nv_rd32(priv, 0x700000);
 
 	if (mem->tag)
-		tag = mem->tag->offset;
+		tag = mem->tag->offset + (delta >> mmu->lpg_shift);
 
 	pte <<= 1;
 	while (cnt--) {

@@ -18,7 +18,8 @@ void gf100_vm_map(struct nvkm_vma *vma, struct nvkm_gpuobj *pgt,
 	     struct nvkm_mem *mem, u32 pte, u32 cnt, u64 phys, u64 delta);
 
 void gf100_vm_map_sg(struct nvkm_vma *vma, struct nvkm_gpuobj *pgt,
-		struct nvkm_mem *mem, u32 pte, u32 cnt, dma_addr_t *list);
+		struct nvkm_mem *mem, u32 pte, u32 cnt, dma_addr_t *list,
+		u64 delta);
 
 void gf100_vm_unmap(struct nvkm_gpuobj *pgt, u32 pte, u32 cnt);
 

@@ -104,7 +104,8 @@ struct nvkm_mmu {
 		    struct nvkm_mem *, u32 pte, u32 cnt,
 		    u64 phys, u64 delta);
 	void (*map_sg)(struct nvkm_vma *, struct nvkm_gpuobj *,
-		       struct nvkm_mem *, u32 pte, u32 cnt, dma_addr_t *);
+		       struct nvkm_mem *, u32 pte, u32 cnt, dma_addr_t *,
+		       u64 delta);
 	void * (*map_sg_iommu)(struct nvkm_mmu *, struct sg_table *, u64 length,
 			u64 *iova);
 	void (*unmap)(struct nvkm_gpuobj *pgt, u32 pte, u32 cnt);

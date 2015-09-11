@@ -112,7 +112,8 @@ gf100_vm_map(struct nvkm_vma *vma, struct nvkm_gpuobj *pgt,
 
 void
 gf100_vm_map_sg(struct nvkm_vma *vma, struct nvkm_gpuobj *pgt,
-		struct nvkm_mem *mem, u32 pte, u32 cnt, dma_addr_t *list)
+		struct nvkm_mem *mem, u32 pte, u32 cnt, dma_addr_t *list,
+		u64 delta)
 {
 	u32 target = (vma->access & NV_MEM_ACCESS_NOSNOOP) ? 7 : 5;
 	/* compressed storage types are invalid for system memory */
