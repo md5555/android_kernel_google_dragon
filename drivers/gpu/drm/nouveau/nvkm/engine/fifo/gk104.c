@@ -325,13 +325,25 @@ gk104_fifo_chan_fini(struct nvkm_object *object, bool suspend)
 	struct gk104_fifo_priv *priv = (void *)object->engine;
 	struct gk104_fifo_chan *chan = (void *)object;
 	u32 chid = chan->base.chid;
+	int err;
+
+	if (suspend &&
+		!nv_wait(priv, 0x002640 + chan->engine * 8, 0x80000000,
+			0x00000000)) {
+		nv_error(priv, "fifo engine %d wait idle timeout\n",
+				chan->engine);
+		return -ETIMEDOUT;
+	}
 
 	if (chan->state == RUNNING && (chan->state = STOPPED) == STOPPED) {
 		nv_mask(priv, 0x800004 + (chid * 8), 0x00000800, 0x00000800);
 		gk104_fifo_runlist_update(priv, chan->engine);
 	}
 
-	gk104_fifo_chan_kick(chan);
+	err = gk104_fifo_chan_kick(chan);
+	if (err && suspend)
+		return err;
+
 	nv_wr32(priv, 0x800000 + (chid * 8), 0x00000000);
 	return nvkm_fifo_channel_fini(&chan->base, suspend);
 }
