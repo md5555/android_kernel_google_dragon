@@ -990,7 +990,7 @@ static int clk_plle_training(struct tegra_clk_pll *pll)
 static int clk_plle_enable(struct clk_hw *hw)
 {
 	struct tegra_clk_pll *pll = to_clk_pll(hw);
-	unsigned long input_rate = clk_get_rate(clk_get_parent(hw->clk));
+	unsigned long input_rate = __clk_get_rate(__clk_get_parent(hw->clk));
 	struct tegra_clk_pll_freq_table sel;
 	u32 val;
 	int err;
@@ -1101,12 +1101,17 @@ static const struct utmi_clk_param utmi_parameters[] = {
 static int clk_pllu_enable(struct clk_hw *hw)
 {
 	struct tegra_clk_pll *pll = to_clk_pll(hw);
+	struct clk *osc = __clk_lookup("osc");
 	unsigned long flags, input_rate;
 	unsigned int i;
 	int ret = 0;
 	u32 val;
 
-	input_rate = clk_get_rate(clk_get_parent(clk_get_parent(hw->clk)));
+	if (!osc) {
+		pr_err("%s: failed to get OSC clock\n", __func__);
+		return -EINVAL;
+	}
+	input_rate = __clk_get_rate(osc);
 
 	if (pll->lock)
 		spin_lock_irqsave(pll->lock, flags);
@@ -1632,7 +1637,7 @@ static int clk_plle_tegra114_enable(struct clk_hw *hw)
 	u32 val;
 	int ret;
 	unsigned long flags = 0;
-	unsigned long input_rate = clk_get_rate(clk_get_parent(hw->clk));
+	unsigned long input_rate = __clk_get_rate(__clk_get_parent(hw->clk));
 
 	if (_get_table_rate(hw, &sel, pll->params->fixed_rate, input_rate))
 		return -EINVAL;
@@ -1757,12 +1762,17 @@ static void clk_plle_tegra114_disable(struct clk_hw *hw)
 static int clk_pllu_tegra114_enable(struct clk_hw *hw)
 {
 	struct tegra_clk_pll *pll = to_clk_pll(hw);
+	struct clk *osc = __clk_lookup("osc");
 	unsigned long flags, input_rate;
 	unsigned int i;
 	int ret = 0;
 	u32 val;
 
-	input_rate = clk_get_rate(clk_get_parent(clk_get_parent(hw->clk)));
+	if (!osc) {
+		pr_err("%s: failed to get OSC clock\n", __func__);
+		return -EINVAL;
+	}
+	input_rate = __clk_get_rate(osc);
 
 	if (pll->lock)
 		spin_lock_irqsave(pll->lock, flags);
@@ -2447,7 +2457,7 @@ static int clk_plle_tegra210_enable(struct clk_hw *hw)
 	u32 val;
 	int ret = 0;
 	unsigned long flags = 0;
-	unsigned long input_rate = clk_get_rate(clk_get_parent(hw->clk));
+	unsigned long input_rate = __clk_get_rate(__clk_get_parent(hw->clk));
 
 	if (_get_table_rate(hw, &sel, pll->params->fixed_rate, input_rate))
 		return -EINVAL;
@@ -2571,12 +2581,17 @@ static int clk_plle_tegra210_is_enabled(struct clk_hw *hw)
 static int clk_pllu_tegra210_enable(struct clk_hw *hw)
 {
 	struct tegra_clk_pll *pll = to_clk_pll(hw);
+	struct clk *osc = __clk_lookup("osc");
 	unsigned long flags, input_rate;
 	unsigned int i;
 	int ret = 0;
 	u32 val;
 
-	input_rate = clk_get_rate(clk_get_parent(clk_get_parent(hw->clk)));
+	if (!osc) {
+		pr_err("%s: failed to get OSC clock\n", __func__);
+		return -EINVAL;
+	}
+	input_rate = __clk_get_rate(osc);
 
 	if (pll->lock)
 		spin_lock_irqsave(pll->lock, flags);
