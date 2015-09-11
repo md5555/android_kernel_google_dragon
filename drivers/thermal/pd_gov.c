@@ -446,10 +446,11 @@ static int pd_thermal_gov_throttle(struct thermal_zone_device *tz, int trip)
 	struct thermal_instance *instance;
 	enum thermal_trip_type trip_type;
 	long trip_temp;
-	unsigned long target;
+	unsigned long target, hyst;
 
 	tz->ops->get_trip_type(tz, trip, &trip_type);
 	tz->ops->get_trip_temp(tz, trip, &trip_temp);
+	tz->ops->get_trip_hyst(tz, trip, &hyst);
 
 	mutex_lock(&tz->lock);
 
@@ -470,7 +471,7 @@ static int pd_thermal_gov_throttle(struct thermal_zone_device *tz, int trip)
 		else if (target < instance->lower)
 			target = instance->lower;
 
-		if ((tz->temperature < trip_temp) &&
+		if ((tz->temperature < (trip_temp - hyst)) &&
 		    (instance->target == instance->lower) &&
 		    (target == instance->lower))
 			target = THERMAL_NO_TARGET;
