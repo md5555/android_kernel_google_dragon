@@ -15,7 +15,7 @@
 	compatible = "google,smaug", "nvidia,tegra210";
 
         chosen {
-		bootargs = "cros_legacy console=ttyS0,115200n8 init=/init rw kgdboc=ttyS0 earlycon=uart8250,mmio32,0x70006000 ignore_loglevel=1 drm.atomic=1 firmware_class.path=/vendor/firmware androidboot.selinux=permissive no_console_suspend";
+		bootargs = "cros_legacy console=ttyS0,115200n8 init=/init rw kgdboc=ttyS0 earlycon=uart8250,mmio32,0x70006000 ignore_loglevel=1 drm.atomic=1 firmware_class.path=/vendor/firmware no_console_suspend";
 	};
 
 	memory {
