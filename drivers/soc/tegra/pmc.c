@@ -2650,7 +2650,7 @@ static int tegra_powergate_init_one(struct device_node *np,
 				continue;
 		}
 
-		pr_info("%s: Added clock '%s' to powergate '%s'\n",
+		pr_debug("%s: Added clock '%s' to powergate '%s'\n",
 			__func__, id, pg->name);
 	}
 
@@ -2671,7 +2671,7 @@ static int tegra_powergate_init_one(struct device_node *np,
 		if (ret)
 			continue;
 
-		pr_info("%s: Added reset '%s' to powergate '%s'\n",
+		pr_debug("%s: Added reset '%s' to powergate '%s'\n",
 			__func__, id, pg->name);
 
 	}
@@ -2715,7 +2715,7 @@ static int tegra_powergate_init_one(struct device_node *np,
 		if (ret)
 			continue;
 
-		pr_info("%s: Added mc_flush for swgroup '%s' to powergate '%s'\n",
+		pr_debug("%s: Added mc_flush for swgroup '%s' to powergate '%s'\n",
 			__func__, id, pg->name);
 	}
 
