@@ -280,6 +280,8 @@ static int tegra_drm_load(struct drm_device *drm, unsigned long flags)
 	if (err < 0)
 		goto device;
 
+	drm->vblank_disable_allowed = true;
+
 	err = tegra_drm_fb_init(drm);
 	if (err < 0)
 		goto vblank;
