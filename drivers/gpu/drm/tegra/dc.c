@@ -1494,6 +1494,8 @@ static void tegra_crtc_mode_set_nofb(struct drm_crtc *crtc)
 	tegra_dc_writel(dc, value, DC_CMD_DISPLAY_POWER_CONTROL);
 
 	tegra_dc_commit(dc);
+
+	drm_crtc_vblank_on(crtc);
 }
 
 static void tegra_crtc_prepare(struct drm_crtc *crtc)
@@ -1503,7 +1505,6 @@ static void tegra_crtc_prepare(struct drm_crtc *crtc)
 
 static void tegra_crtc_commit(struct drm_crtc *crtc)
 {
-	drm_crtc_vblank_on(crtc);
 }
 
 static int tegra_crtc_atomic_check(struct drm_crtc *crtc,
