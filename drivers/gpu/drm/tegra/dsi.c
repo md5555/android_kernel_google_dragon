@@ -693,11 +693,6 @@ static void tegra_dsi_disable(struct tegra_dsi *dsi)
 {
 	u32 value;
 
-	if (dsi->slave) {
-		tegra_dsi_ganged_disable(dsi->slave);
-		tegra_dsi_ganged_disable(dsi);
-	}
-
 	mutex_lock(&dsi->dcs_lock);
 
 	value = tegra_dsi_readl(dsi, DSI_POWER_CONTROL);
@@ -791,6 +786,19 @@ static const struct drm_encoder_funcs tegra_dsi_encoder_funcs = {
 
 static void tegra_dsi_encoder_dpms(struct drm_encoder *encoder, int mode)
 {
+	struct tegra_output *output = encoder_to_output(encoder);
+	struct tegra_dsi *dsi = to_dsi(output);
+
+	switch (mode) {
+	case DRM_MODE_DPMS_STANDBY:
+	case DRM_MODE_DPMS_SUSPEND:
+	case DRM_MODE_DPMS_OFF:
+		tegra_dsi_disable(dsi);
+		break;
+	case DRM_MODE_DPMS_ON:
+		tegra_dsi_enable(dsi);
+		break;
+	}
 }
 
 static void tegra_dsi_encoder_disable(struct drm_encoder *encoder)
@@ -826,6 +834,11 @@ static void tegra_dsi_encoder_disable(struct drm_encoder *encoder)
 
 	if (output->panel)
 		drm_panel_unprepare(output->panel);
+
+	if (dsi->slave) {
+		tegra_dsi_ganged_disable(dsi->slave);
+		tegra_dsi_ganged_disable(dsi);
+	}
 
 	tegra_dsi_disable(dsi);
 
@@ -920,7 +933,7 @@ static void tegra_dsi_encoder_mode_set(struct drm_encoder *encoder,
 		dsi->slave->dc_active = true;
 
 	/* enable DSI controller */
-	tegra_dsi_enable(dsi);
+	tegra_dsi_encoder_dpms(encoder, DRM_MODE_DPMS_ON);
 
 	mutex_unlock(&dsi->dcs_lock);
 
