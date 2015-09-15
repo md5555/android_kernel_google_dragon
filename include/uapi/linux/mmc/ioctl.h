@@ -48,6 +48,13 @@ struct mmc_ioc_cmd {
 #define MMC_IOC_CMD _IOWR(MMC_BLOCK_MAJOR, 0, struct mmc_ioc_cmd)
 
 /*
+ * MMC_FFU_CMD: use same API as IOC_CMD but specify the device and firmware that
+ * should be uploaded to the given device. Implements eMMC 5.x FFU with
+ * necessary "flexibility" for different vendor's implementations.
+ */
+#define MMC_FFU_CMD _IOWR(MMC_BLOCK_MAJOR, 2, struct mmc_ioc_cmd)
+
+/*
  * Since this ioctl is only meant to enhance (and not replace) normal access
  * to the mmc bus device, an upper data transfer limit of MMC_IOC_MAX_BYTES
  * is enforced per ioctl call.  For larger data transfers, use the normal
