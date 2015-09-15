@@ -96,6 +96,110 @@ enum {
 
 #define PMU_RC_MSG_TYPE_UNHANDLED_CMD	0
 
+/* slcg gr */
+static const
+struct gating_desc gk20a_slcg_gr[] = {
+	{.addr = 0x004041f4, .prod = 0x00000000, .disable = 0x03fffffe},
+	{.addr = 0x00409894, .prod = 0x00000040, .disable = 0x0003fffe},
+	{.addr = 0x004078c4, .prod = 0x00000000, .disable = 0x000001fe},
+	{.addr = 0x00406004, .prod = 0x00000000, .disable = 0x0001fffe},
+	{.addr = 0x00405864, .prod = 0x00000000, .disable = 0x000001fe},
+	{.addr = 0x00405910, .prod = 0x00000000, .disable = 0xfffffffe},
+	{.addr = 0x00408044, .prod = 0x00000000, .disable = 0x000007fe},
+	{.addr = 0x00407004, .prod = 0x00000000, .disable = 0x0000001e},
+	{.addr = 0x0041a894, .prod = 0x00000000, .disable = 0x0003fffe},
+	{.addr = 0x00418504, .prod = 0x00000000, .disable = 0x0001fffe},
+	{.addr = 0x0041860c, .prod = 0x00000000, .disable = 0x000001fe},
+	{.addr = 0x0041868c, .prod = 0x00000000, .disable = 0x0000001e},
+	{.addr = 0x0041871c, .prod = 0x00000000, .disable = 0x0000003e},
+	{.addr = 0x00418388, .prod = 0x00000000, .disable = 0x00000001},
+	{.addr = 0x0041882c, .prod = 0x00000000, .disable = 0x0001fffe},
+	{.addr = 0x00418bc0, .prod = 0x00000000, .disable = 0x000001fe},
+	{.addr = 0x00418974, .prod = 0x00000000, .disable = 0x0001fffe},
+	{.addr = 0x00418c74, .prod = 0x00000000, .disable = 0xfffffffe},
+	{.addr = 0x00418cf4, .prod = 0x00000000, .disable = 0xfffffffe},
+	{.addr = 0x00418d74, .prod = 0x00000000, .disable = 0xfffffffe},
+	{.addr = 0x00418f10, .prod = 0x00000000, .disable = 0xfffffffe},
+	{.addr = 0x00418e10, .prod = 0x00000000, .disable = 0xfffffffe},
+	{.addr = 0x00419024, .prod = 0x00000000, .disable = 0x000001fe},
+	{.addr = 0x00419a44, .prod = 0x00000000, .disable = 0x0000000e},
+	{.addr = 0x00419a4c, .prod = 0x00000000, .disable = 0x000001fe},
+	{.addr = 0x00419a54, .prod = 0x00000000, .disable = 0x0000003e},
+	{.addr = 0x00419a5c, .prod = 0x00000000, .disable = 0x0000000e},
+	{.addr = 0x00419a64, .prod = 0x00000000, .disable = 0x000001fe},
+	{.addr = 0x00419a6c, .prod = 0x00000000, .disable = 0x0000000e},
+	{.addr = 0x00419a74, .prod = 0x00000000, .disable = 0x0000000e},
+	{.addr = 0x00419a7c, .prod = 0x00000000, .disable = 0x0000003e},
+	{.addr = 0x00419a84, .prod = 0x00000000, .disable = 0x0000000e},
+	{.addr = 0x00419ad0, .prod = 0x00000000, .disable = 0x0000000e},
+	{.addr = 0x0041986c, .prod = 0x0000dfc0, .disable = 0x00fffffe},
+	{.addr = 0x00419cd8, .prod = 0x00000000, .disable = 0x001ffffe},
+	{.addr = 0x00419ce0, .prod = 0x00000000, .disable = 0x001ffffe},
+	{.addr = 0x00419c74, .prod = 0x00000000, .disable = 0x0000001e},
+	{.addr = 0x00419fd4, .prod = 0x00000000, .disable = 0x0003fffe},
+	{.addr = 0x00419fdc, .prod = 0x00000000, .disable = 0xfffffffe},
+	{.addr = 0x00419fe4, .prod = 0x00000000, .disable = 0x0000000e},
+	{.addr = 0x00419ff4, .prod = 0x00000000, .disable = 0x00003ffe},
+	{.addr = 0x00419ffc, .prod = 0x00000000, .disable = 0x0001fffe},
+	{.addr = 0x0041be2c, .prod = 0x020bbfc0, .disable = 0xfffffffe},
+	{.addr = 0x0041bfec, .prod = 0x00000000, .disable = 0xfffffffe},
+	{.addr = 0x0041bed4, .prod = 0x00000000, .disable = 0xfffffffe},
+	{.addr = 0x00408814, .prod = 0x00000000, .disable = 0x0001fffe},
+	{.addr = 0x0040881c, .prod = 0x00000000, .disable = 0x0001fffe},
+	{.addr = 0x00408a84, .prod = 0x00000000, .disable = 0x0001fffe},
+	{.addr = 0x00408a8c, .prod = 0x00000000, .disable = 0x0001fffe},
+	{.addr = 0x00408a94, .prod = 0x00000000, .disable = 0x0001fffe},
+	{.addr = 0x00408a9c, .prod = 0x00000000, .disable = 0x0001fffe},
+	{.addr = 0x00408aa4, .prod = 0x00000000, .disable = 0x0001fffe},
+	{.addr = 0x00408aac, .prod = 0x00000000, .disable = 0x0001fffe},
+	{.addr = 0x004089ac, .prod = 0x00000000, .disable = 0x0001fffe},
+	{.addr = 0x00408a24, .prod = 0x00000000, .disable = 0x000001ff},
+	{.addr = 0x0017e050, .prod = 0x00000000, .disable = 0x00fffffe},
+	{.addr = 0x001200a8, .prod = 0x00000000, .disable = 0x00000001},
+	{.addr = 0x0010e48c, .prod = 0x00000000, .disable = 0x0000003e},
+	{.addr = 0x00001c04, .prod = 0x00000000, .disable = 0x000000fe},
+	{.addr = 0x00106f28, .prod = 0x00000040, .disable = 0x000007fe},
+	{.addr = 0x000206b8, .prod = 0x00000000, .disable = 0x0000000f},
+	{.addr = 0x0017ea98, .prod = 0x00000000, .disable = 0xfffffffe},
+	{.addr = 0x00106f28, .prod = 0x00000040, .disable = 0x000007fe},
+	{.addr = 0x00120048, .prod = 0x00000000, .disable = 0x00000049},
+};
+
+/* slcg perf */
+static const
+struct gating_desc gk20a_slcg_perf[] = {
+	{.addr = 0x001be018, .prod = 0x000001ff, .disable = 0x00000000},
+	{.addr = 0x001bc018, .prod = 0x000001ff, .disable = 0x00000000},
+	{.addr = 0x001b8018, .prod = 0x000001ff, .disable = 0x00000000},
+	{.addr = 0x001b4124, .prod = 0x00000001, .disable = 0x00000000},
+};
+
+/* therm gr */
+static const
+struct gating_desc gk20a_slcg_therm[] = {
+	{.addr = 0x000206b8, .prod = 0x00000000, .disable = 0x0000000f},
+};
+
+void
+gk20a_enable_load_gating_prod(struct nvkm_pmu *pmu,
+			  const struct gating_desc *desc, int size)
+{
+	unsigned int i;
+
+	for (i = 0; i < size; i++)
+		nv_wr32(pmu, desc[i].addr, desc[i].prod);
+}
+
+void
+gk20a_disable_load_gating_prod(struct nvkm_pmu *pmu,
+			  const struct gating_desc *desc, int size)
+{
+	unsigned int i;
+
+	for (i = 0; i < size; i++)
+		nv_wr32(pmu, desc[i].addr, desc[i].disable);
+}
+
 /* PERFMON */
 #define PMU_DOMAIN_GROUP_PSTATE		0
 #define PMU_DOMAIN_GROUP_GPC2CLK	1
@@ -1956,6 +2060,14 @@ gk20a_pmu_enable_clk_gating(struct nvkm_pmu *pmu)
 		gk20a_init_elcg_mode(pmu, ELCG_AUTO, ENGINE_GR_GK20A);
 	}
 
+	if (pmu->slcg_enabled) {
+		gk20a_enable_load_gating_prod(pmu, gk20a_slcg_gr,
+					  ARRAY_SIZE(gk20a_slcg_gr));
+		gk20a_enable_load_gating_prod(pmu, gk20a_slcg_therm,
+					  ARRAY_SIZE(gk20a_slcg_therm));
+		gk20a_enable_load_gating_prod(pmu, gk20a_slcg_perf,
+					  ARRAY_SIZE(gk20a_slcg_perf));
+	}
 do_nothing:
 	mutex_unlock(&priv->clk_gating_mutex);
 	return 0;
@@ -1976,6 +2088,13 @@ gk20a_pmu_disable_clk_gating(struct nvkm_pmu *pmu)
 
 	gk20a_init_elcg_mode(pmu, ELCG_RUN, ENGINE_CE2_GK20A);
 	gk20a_init_elcg_mode(pmu, ELCG_RUN, ENGINE_GR_GK20A);
+
+	gk20a_disable_load_gating_prod(pmu, gk20a_slcg_gr,
+					  ARRAY_SIZE(gk20a_slcg_gr));
+	gk20a_disable_load_gating_prod(pmu, gk20a_slcg_therm,
+					  ARRAY_SIZE(gk20a_slcg_therm));
+	gk20a_disable_load_gating_prod(pmu, gk20a_slcg_perf,
+					  ARRAY_SIZE(gk20a_slcg_perf));
 
 do_nothing:
 	mutex_unlock(&priv->clk_gating_mutex);
@@ -2682,6 +2801,7 @@ gk20a_pmu_init(struct nvkm_object *object)
 	gk20a_pmu_dvfs_init(priv);
 	pmu->fecs_secure_boot = false;
 	pmu->elcg_enabled = false;
+	pmu->slcg_enabled = false;
 
 	priv->pmu_setup_elpg = NULL;
 
@@ -2730,6 +2850,7 @@ gk20a_pmu_fini(struct nvkm_object *object, bool suspend)
 	priv->pmu_ready = false;
 
 	pmu->elcg_enabled = false;
+	pmu->slcg_enabled = false;
 
 	nv_wr32(priv, 0x10a014, 0x00000060);
 

@@ -459,6 +459,155 @@ gm20b_pmu_setup_elpg(struct nvkm_pmu *pmu)
 	return ret;
 }
 
+/* slcg bus */
+static const
+struct gating_desc gm20b_slcg_bus[] = {
+	{.addr = 0x00001c04, .prod = 0x00000000, .disable = 0x000003fe},
+};
+
+/* slcg ce2 */
+static const
+struct gating_desc gm20b_slcg_ce2[] = {
+	{.addr = 0x00106f28, .prod = 0x00000000, .disable = 0x000007fe},
+};
+
+/* slcg chiplet */
+static const
+struct gating_desc gm20b_slcg_chiplet[] = {
+	{.addr = 0x0010c07c, .prod = 0x00000000, .disable = 0x00000007},
+	{.addr = 0x0010e07c, .prod = 0x00000000, .disable = 0x00000007},
+	{.addr = 0x0010d07c, .prod = 0x00000000, .disable = 0x00000007},
+	{.addr = 0x0010e17c, .prod = 0x00000000, .disable = 0x00000007},
+};
+
+/* slcg fb */
+static const
+struct gating_desc gm20b_slcg_fb[] = {
+	{.addr = 0x00100d14, .prod = 0x00000000, .disable = 0xfffffffe},
+	{.addr = 0x00100c9c, .prod = 0x00000000, .disable = 0x000001fe},
+};
+
+/* slcg fifo */
+static const
+struct gating_desc gm20b_slcg_fifo[] = {
+	{.addr = 0x000026ac, .prod = 0x00000100, .disable = 0x0001fffe},
+};
+
+/* slcg gr */
+static const
+struct gating_desc gm20b_slcg_gr[] = {
+	{.addr = 0x004041f4, .prod = 0x00000000, .disable = 0x03fffffe},
+	{.addr = 0x0040917c, .prod = 0x00020008, .disable = 0x0003fffe},
+	{.addr = 0x00409894, .prod = 0x00000040, .disable = 0x0003fffe},
+	{.addr = 0x004078c4, .prod = 0x00000000, .disable = 0x000001fe},
+	{.addr = 0x00406004, .prod = 0x00000000, .disable = 0x0001fffe},
+	{.addr = 0x00405864, .prod = 0x00000000, .disable = 0x000001fe},
+	{.addr = 0x00405910, .prod = 0xfffffff0, .disable = 0xfffffffe},
+	{.addr = 0x00408044, .prod = 0x00000000, .disable = 0x000007fe},
+	{.addr = 0x00407004, .prod = 0x00000000, .disable = 0x0000007e},
+	{.addr = 0x0041a17c, .prod = 0x00020008, .disable = 0x0003fffe},
+	{.addr = 0x0041a894, .prod = 0x00000040, .disable = 0x0003fffe},
+	{.addr = 0x00418504, .prod = 0x00000000, .disable = 0x0007fffe},
+	{.addr = 0x0041860c, .prod = 0x00000000, .disable = 0x000001fe},
+	{.addr = 0x0041868c, .prod = 0x00000000, .disable = 0x0000001e},
+	{.addr = 0x0041871c, .prod = 0x00000000, .disable = 0x0000003e},
+	{.addr = 0x00418388, .prod = 0x00000000, .disable = 0x00000001},
+	{.addr = 0x0041882c, .prod = 0x00000000, .disable = 0x0001fffe},
+	{.addr = 0x00418bc0, .prod = 0x00000000, .disable = 0x000001fe},
+	{.addr = 0x00418974, .prod = 0x00000000, .disable = 0x0001fffe},
+	{.addr = 0x00418c74, .prod = 0xffffffc0, .disable = 0xfffffffe},
+	{.addr = 0x00418cf4, .prod = 0xfffffffc, .disable = 0xfffffffe},
+	{.addr = 0x00418d74, .prod = 0xffffffe0, .disable = 0xfffffffe},
+	{.addr = 0x00418f10, .prod = 0xffffffe0, .disable = 0xfffffffe},
+	{.addr = 0x00418e10, .prod = 0xfffffffe, .disable = 0xfffffffe},
+	{.addr = 0x00419024, .prod = 0x000001fe, .disable = 0x000001fe},
+	{.addr = 0x0041889c, .prod = 0x00000000, .disable = 0x000001fe},
+	{.addr = 0x00419d64, .prod = 0x00000000, .disable = 0x000001ff},
+	{.addr = 0x00419a44, .prod = 0x00000000, .disable = 0x0000000e},
+	{.addr = 0x00419a4c, .prod = 0x00000000, .disable = 0x000001fe},
+	{.addr = 0x00419a54, .prod = 0x00000000, .disable = 0x0000003e},
+	{.addr = 0x00419a5c, .prod = 0x00000000, .disable = 0x0000000e},
+	{.addr = 0x00419a64, .prod = 0x00000000, .disable = 0x000001fe},
+	{.addr = 0x00419a6c, .prod = 0x00000000, .disable = 0x0000000e},
+	{.addr = 0x00419a74, .prod = 0x00000000, .disable = 0x0000000e},
+	{.addr = 0x00419a7c, .prod = 0x00000000, .disable = 0x0000003e},
+	{.addr = 0x00419a84, .prod = 0x00000000, .disable = 0x0000000e},
+	{.addr = 0x0041986c, .prod = 0x00000104, .disable = 0x00fffffe},
+	{.addr = 0x00419cd8, .prod = 0x00000000, .disable = 0x001ffffe},
+	{.addr = 0x00419ce0, .prod = 0x00000000, .disable = 0x001ffffe},
+	{.addr = 0x00419c74, .prod = 0x0000001e, .disable = 0x0000001e},
+	{.addr = 0x00419fd4, .prod = 0x00000000, .disable = 0x0003fffe},
+	{.addr = 0x00419fdc, .prod = 0xffedff00, .disable = 0xfffffffe},
+	{.addr = 0x00419fe4, .prod = 0x00001b00, .disable = 0x00001ffe},
+	{.addr = 0x00419ff4, .prod = 0x00000000, .disable = 0x00003ffe},
+	{.addr = 0x00419ffc, .prod = 0x00000000, .disable = 0x0001fffe},
+	{.addr = 0x0041be2c, .prod = 0x04115fc0, .disable = 0xfffffffe},
+	{.addr = 0x0041bfec, .prod = 0xfffffff0, .disable = 0xfffffffe},
+	{.addr = 0x0041bed4, .prod = 0xfffffff6, .disable = 0xfffffffe},
+	{.addr = 0x00408814, .prod = 0x00000000, .disable = 0x0001fffe},
+	{.addr = 0x0040881c, .prod = 0x00000000, .disable = 0x0001fffe},
+	{.addr = 0x00408a84, .prod = 0x00000000, .disable = 0x0001fffe},
+	{.addr = 0x00408a8c, .prod = 0x00000000, .disable = 0x0001fffe},
+	{.addr = 0x00408a94, .prod = 0x00000000, .disable = 0x0001fffe},
+	{.addr = 0x00408a9c, .prod = 0x00000000, .disable = 0x0001fffe},
+	{.addr = 0x00408aa4, .prod = 0x00000000, .disable = 0x0001fffe},
+	{.addr = 0x00408aac, .prod = 0x00000000, .disable = 0x0001fffe},
+	{.addr = 0x004089ac, .prod = 0x00000000, .disable = 0x0001fffe},
+	{.addr = 0x00408a24, .prod = 0x00000000, .disable = 0x000001ff},
+};
+
+/* slcg ltc */
+static const
+struct gating_desc gm20b_slcg_ltc[] = {
+	{.addr = 0x0017e050, .prod = 0x00000000, .disable = 0xfffffffe},
+	{.addr = 0x0017e35c, .prod = 0x00000000, .disable = 0xfffffffe},
+};
+
+/* slcg perf */
+static const
+struct gating_desc gm20b_slcg_perf[] = {
+	{.addr = 0x001be018, .prod = 0x000001ff, .disable = 0x00000000},
+	{.addr = 0x001bc018, .prod = 0x000001ff, .disable = 0x00000000},
+	{.addr = 0x001b8018, .prod = 0x000001ff, .disable = 0x00000000},
+	{.addr = 0x001b4124, .prod = 0x00000001, .disable = 0x00000000},
+};
+
+/* slcg PriRing */
+static const
+struct gating_desc gm20b_slcg_priring[] = {
+	{.addr = 0x001200a8, .prod = 0x00000000, .disable = 0x00000001},
+};
+
+/* slcg pwr_csb */
+static const
+struct gating_desc gm20b_slcg_pwr_csb[] = {
+	{.addr = 0x0000017c, .prod = 0x00020008, .disable = 0x0003fffe},
+	{.addr = 0x00000e74, .prod = 0x00000000, .disable = 0x0000000f},
+	{.addr = 0x00000a74, .prod = 0x00000000, .disable = 0x00007ffe},
+	{.addr = 0x000016b8, .prod = 0x00000000, .disable = 0x0000000f},
+};
+
+/* slcg pmu */
+static const
+struct gating_desc gm20b_slcg_pmu[] = {
+	{.addr = 0x0010a17c, .prod = 0x00020008, .disable = 0x0003fffe},
+	{.addr = 0x0010aa74, .prod = 0x00000000, .disable = 0x00007ffe},
+	{.addr = 0x0010ae74, .prod = 0x00000000, .disable = 0x0000000f},
+};
+
+/* therm gr */
+static const
+struct gating_desc gm20b_slcg_therm[] = {
+	{.addr = 0x000206b8, .prod = 0x00000000, .disable = 0x0000000f},
+};
+
+/* slcg Xbar */
+static const
+struct gating_desc gm20b_slcg_xbar[] = {
+	{.addr = 0x0013cbe4, .prod = 0x00000000, .disable = 0x1ffffffe},
+	{.addr = 0x0013cc04, .prod = 0x00000000, .disable = 0x1ffffffe},
+};
+
 static int
 gm20b_pmu_disable_clk_gating(struct nvkm_pmu *pmu)
 {
@@ -474,6 +623,34 @@ gm20b_pmu_disable_clk_gating(struct nvkm_pmu *pmu)
 
 	gk20a_init_elcg_mode(pmu, ELCG_RUN, ENGINE_CE2_GK20A);
 	gk20a_init_elcg_mode(pmu, ELCG_RUN, ENGINE_CE2_GK20A);
+
+	gk20a_disable_load_gating_prod(pmu, gm20b_slcg_bus,
+					ARRAY_SIZE(gm20b_slcg_bus));
+	gk20a_disable_load_gating_prod(pmu, gm20b_slcg_ce2,
+					ARRAY_SIZE(gm20b_slcg_ce2));
+	gk20a_disable_load_gating_prod(pmu, gm20b_slcg_chiplet,
+					ARRAY_SIZE(gm20b_slcg_chiplet));
+	gk20a_disable_load_gating_prod(pmu, gm20b_slcg_fb,
+					ARRAY_SIZE(gm20b_slcg_fb));
+	gk20a_disable_load_gating_prod(pmu, gm20b_slcg_fifo,
+					ARRAY_SIZE(gm20b_slcg_fifo));
+	gk20a_disable_load_gating_prod(pmu, gm20b_slcg_gr,
+					ARRAY_SIZE(gm20b_slcg_gr));
+	gk20a_disable_load_gating_prod(pmu, gm20b_slcg_ltc,
+					ARRAY_SIZE(gm20b_slcg_ltc));
+	gk20a_disable_load_gating_prod(pmu, gm20b_slcg_perf,
+					ARRAY_SIZE(gm20b_slcg_perf));
+	gk20a_disable_load_gating_prod(pmu, gm20b_slcg_priring,
+					ARRAY_SIZE(gm20b_slcg_priring));
+	gk20a_disable_load_gating_prod(pmu, gm20b_slcg_pwr_csb,
+					ARRAY_SIZE(gm20b_slcg_pwr_csb));
+	gk20a_disable_load_gating_prod(pmu, gm20b_slcg_therm,
+					ARRAY_SIZE(gm20b_slcg_therm));
+	gk20a_disable_load_gating_prod(pmu, gm20b_slcg_pmu,
+					ARRAY_SIZE(gm20b_slcg_pmu));
+	gk20a_disable_load_gating_prod(pmu, gm20b_slcg_xbar,
+					ARRAY_SIZE(gm20b_slcg_xbar));
+
 do_nothing:
 	mutex_unlock(&priv->clk_gating_mutex);
 
@@ -496,6 +673,35 @@ gm20b_pmu_enable_clk_gating(struct nvkm_pmu *pmu)
 	if (pmu->elcg_enabled) {
 		gk20a_init_elcg_mode(pmu, ELCG_AUTO, ENGINE_CE2_GK20A);
 		gk20a_init_elcg_mode(pmu, ELCG_AUTO, ENGINE_GR_GK20A);
+	}
+
+	if (pmu->slcg_enabled) {
+		gk20a_enable_load_gating_prod(pmu, gm20b_slcg_bus,
+						ARRAY_SIZE(gm20b_slcg_bus));
+		gk20a_enable_load_gating_prod(pmu, gm20b_slcg_ce2,
+						ARRAY_SIZE(gm20b_slcg_ce2));
+		gk20a_enable_load_gating_prod(pmu, gm20b_slcg_chiplet,
+						ARRAY_SIZE(gm20b_slcg_chiplet));
+		gk20a_enable_load_gating_prod(pmu, gm20b_slcg_fb,
+						ARRAY_SIZE(gm20b_slcg_fb));
+		gk20a_enable_load_gating_prod(pmu, gm20b_slcg_fifo,
+						ARRAY_SIZE(gm20b_slcg_fifo));
+		gk20a_enable_load_gating_prod(pmu, gm20b_slcg_gr,
+						ARRAY_SIZE(gm20b_slcg_gr));
+		gk20a_enable_load_gating_prod(pmu, gm20b_slcg_ltc,
+						ARRAY_SIZE(gm20b_slcg_ltc));
+		gk20a_enable_load_gating_prod(pmu, gm20b_slcg_perf,
+						ARRAY_SIZE(gm20b_slcg_perf));
+		gk20a_enable_load_gating_prod(pmu, gm20b_slcg_priring,
+						ARRAY_SIZE(gm20b_slcg_priring));
+		gk20a_enable_load_gating_prod(pmu, gm20b_slcg_pwr_csb,
+						ARRAY_SIZE(gm20b_slcg_pwr_csb));
+		gk20a_enable_load_gating_prod(pmu, gm20b_slcg_therm,
+						ARRAY_SIZE(gm20b_slcg_therm));
+		gk20a_enable_load_gating_prod(pmu, gm20b_slcg_pmu,
+						ARRAY_SIZE(gm20b_slcg_pmu));
+		gk20a_enable_load_gating_prod(pmu, gm20b_slcg_xbar,
+					ARRAY_SIZE(gm20b_slcg_xbar));
 	}
 
 do_nothing:
@@ -2265,6 +2471,7 @@ gm20b_pmu_fini(struct nvkm_object *object, bool suspend)
 		priv->clk_gating_disable_depth = 0;
 		mutex_unlock(&priv->clk_gating_mutex);
 		pmu->elcg_enabled = false;
+		pmu->slcg_enabled = false;
 		priv->pmu_ready = false;
 		pmu->cold_boot = true;
 		priv->lspmu_wpr_init_done = false;
@@ -2325,6 +2532,7 @@ gm20b_pmu_init(struct nvkm_object *object) {
 	ppmu->fecs_secure_boot = true;
 	ppmu->gpccs_secure_boot = false;
 	ppmu->elcg_enabled = false;
+	ppmu->slcg_enabled = false;
 
 	priv->pmu_setup_elpg = gm20b_pmu_setup_elpg;
 

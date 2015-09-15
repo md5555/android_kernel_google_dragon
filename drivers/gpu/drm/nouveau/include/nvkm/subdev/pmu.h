@@ -39,6 +39,7 @@ struct nvkm_pmu {
 	bool cold_boot;
 	bool gpccs_secure_boot;
 	bool elcg_enabled;
+	bool slcg_enabled;
 	struct pmu_buf_desc pg_buf;
 	struct nvkm_pmu_priv_vm *pmu_vm;
 	int (*secure_bootstrap)(struct nvkm_pmu *);

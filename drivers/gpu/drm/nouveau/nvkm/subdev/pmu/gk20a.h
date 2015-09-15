@@ -734,6 +734,12 @@ struct gk20a_pmu_priv {
 	int (*pmu_setup_elpg)(struct nvkm_pmu *pmu);
 };
 
+struct gating_desc {
+	u32 addr;
+	u32 prod;
+	u32 disable;
+};
+
 enum {
 	ENGINE_GR_GK20A		= 0,
 	ENGINE_CE2_GK20A	= 1,
@@ -815,6 +821,14 @@ gk20a_pmu_setup_hw(struct work_struct *work);
 
 void
 gk20a_init_elcg_mode(struct nvkm_pmu *ppmu, u32 mode, u32 engine);
+
+void
+gk20a_enable_load_gating_prod(struct nvkm_pmu *pmu,
+			const struct gating_desc *desc, int size);
+
+void
+gk20a_disable_load_gating_prod(struct nvkm_pmu *pmu,
+			const struct gating_desc *desc, int size);
 
 #define to_gk20a_priv(ptr) container_of(ptr, struct gk20a_pmu_priv, base)
 
