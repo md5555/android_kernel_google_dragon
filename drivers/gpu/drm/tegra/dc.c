@@ -1150,7 +1150,6 @@ static void tegra_dc_finish_page_flip(struct tegra_dc *dc)
 	if (base == bo->paddr + fb->offsets[0]) {
 		if (dc->event) {
 			drm_crtc_send_vblank_event(crtc, dc->event);
-			drm_crtc_vblank_put(crtc);
 			dc->event = NULL;
 		}
 		crtc->state->event = NULL;
@@ -1172,7 +1171,6 @@ void tegra_dc_cancel_page_flip(struct drm_crtc *crtc, struct drm_file *file)
 
 	if (dc->event && dc->event->base.file_priv == file) {
 		dc->event->base.destroy(&dc->event->base);
-		drm_crtc_vblank_put(crtc);
 		dc->event = NULL;
 	}
 	crtc->state->event = NULL;
@@ -1527,7 +1525,6 @@ static void tegra_crtc_atomic_begin(struct drm_crtc *crtc)
 	spin_lock_irqsave(&drm->event_lock, flags);
 	if (crtc->state->event) {
 		crtc->state->event->pipe = drm_crtc_index(crtc);
-		WARN_ON(drm_crtc_vblank_get(crtc) != 0);
 		WARN_ON(dc->event);
 		dc->event = crtc->state->event;
 	/*
