@@ -136,7 +136,8 @@ nouveau_cli_destroy(struct nouveau_cli *cli)
 static void
 nouveau_accel_fini(struct nouveau_drm *drm)
 {
-	destroy_workqueue(drm->gem_unmap_wq);
+	if (drm->gem_unmap_wq)
+		destroy_workqueue(drm->gem_unmap_wq);
 	nouveau_channel_del(&drm->channel);
 	nvif_object_fini(&drm->ntfy);
 	nvkm_gpuobj_ref(NULL, &drm->notify);
