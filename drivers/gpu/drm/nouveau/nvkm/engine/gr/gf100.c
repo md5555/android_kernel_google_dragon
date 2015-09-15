@@ -1291,12 +1291,16 @@ gf100_gr_init_ctxctl(struct gf100_gr_priv *priv)
 		if (pmu->fecs_secure_boot && pmu->cold_boot) {
 			nv_debug(priv, "secure boot FECS and PMU\n");
 			pmu->secure_bootstrap(pmu);
+			priv->gr_recovery_in_progress = false;
 		} else if (pmu->fecs_secure_boot && !pmu->cold_boot) {
+			if (pmu->disable_elpg)
+				pmu->disable_elpg(pmu);
 			ret = pmu->boot_fecs(pmu);
 			if (ret) {
 				nv_error(priv, "secure boot FECS failed\n");
 				return ret;
 			}
+			priv->gr_recovery_in_progress = true;
 			nv_debug(priv, "secure boot FECS OK\n");
 		} else {
 			gf100_gr_init_fw(priv, 0x409000,

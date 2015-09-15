@@ -496,6 +496,7 @@ gk20a_gr_init(struct nvkm_object *object)
 {
 	struct gk20a_gr_oclass *oclass = (void *)object->oclass;
 	struct gf100_gr_priv *priv = (void *)object;
+	struct nvkm_pmu *pmu = nvkm_pmu(priv);
 	struct nvkm_gr *gr = nvkm_gr((void *)object);
 	const u32 magicgpc918 = DIV_ROUND_UP(0x00800000, priv->tpc_total);
 	u32 data[TPC_MAX / 8] = {};
@@ -594,11 +595,22 @@ gk20a_gr_init(struct nvkm_object *object)
 
 	ret = gf100_gr_init_ctxctl(priv);
 	if (ret) {
-		nv_error(priv, "gf100_gr_init_ctxctl failed\n");
+		nv_error(priv, "gf100_gr_init_ctxctl failed: %d\n", ret);
 		return ret;
 	}
 
-	return gk20a_gr_bind_fecs_elpg(priv);
+	ret = gk20a_gr_bind_fecs_elpg(priv);
+	if (ret) {
+		nv_error(priv, "gk20a_gr_bind_fecs_elpg failed: %d\n", ret);
+		return ret;
+	}
+
+	if (priv->gr_recovery_in_progress) {
+		if (pmu->enable_elpg)
+			pmu->enable_elpg(pmu);
+	}
+
+	return ret;
 }
 
 struct nvkm_oclass *
