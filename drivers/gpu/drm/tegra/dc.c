@@ -1530,11 +1530,12 @@ static void tegra_crtc_atomic_begin(struct drm_crtc *crtc)
 		WARN_ON(drm_crtc_vblank_get(crtc) != 0);
 		WARN_ON(dc->event);
 		dc->event = crtc->state->event;
-	} else if (crtc->state->enable) {
-		/*
-		 * Wait for latch before returning from
-		 * tegra_atomic_wait_for_flip_complete
-		 */
+	/*
+	 * If we are active, enabled, and changing planes, set a fake event to
+	 * force a latch wait in tegra_atomic_wait_for_flip_complete
+	 */
+	} else if (crtc->state->enable && crtc->state->active &&
+			crtc->state->planes_changed) {
 		crtc->state->event = ERR_PTR(-EINVAL);
 	}
 	spin_unlock_irqrestore(&drm->event_lock, flags);
