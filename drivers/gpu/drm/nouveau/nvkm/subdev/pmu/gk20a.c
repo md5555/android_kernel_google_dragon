@@ -368,6 +368,21 @@ struct gating_desc gk20a_pg_gr[] = {
 	{.addr = 0x004089d4, .prod = 0xff00a725, .disable = 0x00000000},
 };
 
+struct pmu_pg_stats {
+	u64 pg_entry_start_timestamp;
+	u64 pg_ingating_start_timestamp;
+	u64 pg_exit_start_timestamp;
+	u64 pg_ungating_start_timestamp;
+	u32 pg_avg_entry_time_us;
+	u32 pg_ingating_cnt;
+	u32 pg_ingating_time_us;
+	u32 pg_avg_exit_time_us;
+	u32 pg_ungating_count;
+	u32 pg_ungating_time_us;
+	u32 pg_gating_cnt;
+	u32 pg_gating_deny_cnt;
+};
+
 void
 gk20a_enable_load_gating_prod(struct nvkm_pmu *pmu,
 			  const struct gating_desc *desc, int size)
@@ -2935,6 +2950,118 @@ gk20a_pmu_pgob(struct nvkm_pmu *pmu, bool enable)
 {
 }
 
+static int elpg_stats_show(struct seq_file *s, void *data)
+{
+	struct gk20a_pmu_priv *priv = s->private;
+	struct nvkm_pmu *pmu = &priv->base;
+	struct device *dev = nv_device_base(nv_device(priv));
+	struct pmu_pg_stats stats;
+	int ret;
+
+	if (!priv->pmu_ready) {
+		nv_error(pmu, "PMU not ready\n");
+		return -EAGAIN;
+	}
+
+	ret = pm_runtime_get_sync(dev);
+	if (ret < 0) {
+		nv_error(pmu, "power up gpu failed: %d\n", ret);
+		return ret;
+	}
+
+	gk20a_copy_from_dmem(priv, priv->stat_dmem_offset,
+		(u8 *)&stats, sizeof(struct pmu_pg_stats), 0);
+
+	seq_printf(s, "pg_entry_start_timestamp : 0x%016llx\n",
+		stats.pg_entry_start_timestamp);
+	seq_printf(s, "pg_exit_start_timestamp : 0x%016llx\n",
+		stats.pg_exit_start_timestamp);
+	seq_printf(s, "pg_ingating_start_timestamp : 0x%016llx\n",
+		stats.pg_ingating_start_timestamp);
+	seq_printf(s, "pg_ungating_start_timestamp : 0x%016llx\n",
+		stats.pg_ungating_start_timestamp);
+	seq_printf(s, "pg_avg_entry_time_us : 0x%08x\n",
+		stats.pg_avg_entry_time_us);
+	seq_printf(s, "pg_avg_exit_time_us : 0x%08x\n",
+		stats.pg_avg_exit_time_us);
+	seq_printf(s, "pg_ingating_cnt : 0x%08x\n",
+		stats.pg_ingating_cnt);
+	seq_printf(s, "pg_ingating_time_us : 0x%08x\n",
+		stats.pg_ingating_time_us);
+	seq_printf(s, "pg_ungating_count : 0x%08x\n",
+		stats.pg_ungating_count);
+	seq_printf(s, "pg_ungating_time_us 0x%08x:\n",
+		stats.pg_ungating_time_us);
+	seq_printf(s, "pg_gating_cnt : 0x%08x\n",
+		stats.pg_gating_cnt);
+	seq_printf(s, "pg_gating_deny_cnt : 0x%08x\n",
+		stats.pg_gating_deny_cnt);
+
+	seq_printf(s, "pmu_pmu_idle_mask_supp_r(3): 0x%08x\n",
+		nv_rd32(pmu, 0x0010a9f0 + 3 * 8));
+	seq_printf(s, "pmu_pmu_idle_mask_1_supp_r(3): 0x%08x\n",
+		nv_rd32(pmu, 0x0010a9f4 + 3 * 8));
+	seq_printf(s, "pmu_pmu_idle_ctrl_supp_r(3): 0x%08x\n",
+		nv_rd32(pmu, 0x0010aa30 + 3*8));
+	seq_printf(s, "pmu_pmu_pg_idle_cnt_r(0): 0x%08x\n",
+		nv_rd32(pmu, 0x0010a710));
+	seq_printf(s, "pmu_pmu_pg_intren_r(0): 0x%08x\n",
+		nv_rd32(pmu, 0x0010a760));
+
+	seq_printf(s, "pmu_pmu_idle_count_r(3): 0x%08x\n",
+		nv_rd32(pmu, 0x0010a508 + 3 * 16));
+	seq_printf(s, "pmu_pmu_idle_count_r(4): 0x%08x\n",
+		nv_rd32(pmu, 0x0010a508 + 4 * 16));
+	seq_printf(s, "pmu_pmu_idle_count_r(7): 0x%08x\n",
+		nv_rd32(pmu, 0x0010a508 + 7 * 16));
+	seq_printf(s, "PG threshold value: 0x%08x\n\n\n",
+		nv_rd32(pmu, 0x0010a6c0 + ENGINE_GR_GK20A * 4));
+
+	pm_runtime_mark_last_busy(dev);
+	pm_runtime_put_autosuspend(dev);
+	return 0;
+}
+
+static int elpg_stats_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, elpg_stats_show, inode->i_private);
+}
+
+static const struct file_operations elpg_stats_fops = {
+	.open		= elpg_stats_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
+void
+gk20a_pmu_debugfs_unregister(struct gk20a_pmu_priv *priv)
+{
+	debugfs_remove_recursive(priv->dbgfs_dir);
+}
+
+int
+gk20a_pmu_debugfs_register(struct gk20a_pmu_priv *priv)
+{
+	struct dentry *d;
+
+	priv->dbgfs_dir = debugfs_create_dir("PMU", NULL);
+	if (!priv->dbgfs_dir) {
+		pr_err("%s: Failed to make debugfs node\n", __func__);
+		return -ENOMEM;
+	}
+
+	d = debugfs_create_file(
+		"elpg_stats", 0644, priv->dbgfs_dir, priv, &elpg_stats_fops);
+	if (!d) {
+		pr_err("elpg_stats register failed\n");
+		gk20a_pmu_debugfs_unregister(priv);
+		return -ENODEV;
+	}
+
+	return 0;
+}
+
 static int
 gk20a_pmu_init(struct nvkm_object *object)
 {
@@ -3031,6 +3158,7 @@ gk20a_pmu_dtor(struct nvkm_object *object)
 	nvkm_gpuobj_ref(NULL, &priv->pmuvm.mem);
 	gk20a_pmu_allocator_destroy(&priv->dmem);
 	kfree(priv->pmu_chip_data);
+	gk20a_pmu_debugfs_unregister(priv);
 }
 
 struct gk20a_pmu_dvfs_data gk20a_dvfs_data = {
@@ -3100,6 +3228,10 @@ gk20a_pmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	}
 
 	ret = gk20a_init_pmu_setup_sw(priv);
+	if (ret)
+		goto err;
+
+	ret = gk20a_pmu_debugfs_register(priv);
 	if (ret)
 		goto err;
 

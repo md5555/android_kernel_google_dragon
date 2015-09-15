@@ -17,6 +17,7 @@
 #include <subdev/mmu.h>
 #include <subdev/timer.h>
 #include <subdev/mc.h>
+#include <linux/debugfs.h>
 
 #define BUSY_SLOT	0
 #define CLK_SLOT	7
@@ -777,6 +778,7 @@ struct gk20a_pmu_priv {
 	bool buf_loaded;
 	void *pmu_chip_data;
 	int (*pmu_setup_elpg)(struct nvkm_pmu *pmu);
+	struct dentry *dbgfs_dir;
 };
 
 struct gating_desc {
@@ -874,7 +876,11 @@ gk20a_enable_load_gating_prod(struct nvkm_pmu *pmu,
 void
 gk20a_disable_load_gating_prod(struct nvkm_pmu *pmu,
 			const struct gating_desc *desc, int size);
+int
+gk20a_pmu_debugfs_register(struct gk20a_pmu_priv *priv);
 
+void
+gk20a_pmu_debugfs_unregister(struct gk20a_pmu_priv *priv);
 #define to_gk20a_priv(ptr) container_of(ptr, struct gk20a_pmu_priv, base)
 
 #endif

@@ -2611,6 +2611,10 @@ gm20b_pmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	if (ret)
 		nv_error(ppmu, "prepare ucode failed\n");
 
+	ret = gk20a_pmu_debugfs_register(priv);
+	if (ret)
+		nv_error(ppmu, "debugfs register failed\n");
+
 	return ret;
 }
 
@@ -2671,6 +2675,7 @@ gm20b_pmu_dtor(struct nvkm_object *object)
 	nvkm_gpuobj_ref(NULL, &pmu->acr.hsbl_ucode.obj);
 	ppmu->cold_boot = true;
 	gk20a_pmu_allocator_destroy(&pmu->dmem);
+	gk20a_pmu_debugfs_unregister(pmu);
 	kfree(pmu->mutex);
 	kfree(pmu->seq);
 	kfree(pmu->pmu_chip_data);
