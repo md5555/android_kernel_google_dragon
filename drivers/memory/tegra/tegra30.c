@@ -942,6 +942,7 @@ static const struct tegra_smmu_soc tegra30_smmu_soc = {
 	.supports_round_robin_arbitration = false,
 	.supports_request_limit = false,
 	.num_tlb_lines = 16,
+	.tlb_line_size = 16,
 	.num_asids = 4,
 };
 
