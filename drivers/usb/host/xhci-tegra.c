@@ -912,6 +912,10 @@ static void tegra_xhci_probe_finish(const struct firmware *fw, void *context)
 	if (ret < 0)
 		goto put_usb3_hcd;
 
+	/* Enable wake for both USB2.0 and USB3.0 hub */
+	device_init_wakeup(&tegra->hcd->self.root_hub->dev, true);
+	device_init_wakeup(&xhci->shared_hcd->self.root_hub->dev, true);
+
 	/* Enable firmware messages from controller. */
 	msg.cmd = MBOX_CMD_MSG_ENABLED;
 	msg.data = 0;
@@ -1552,7 +1556,7 @@ unlock:
 static int tegra_xhci_suspend(struct device *dev)
 {
 	struct tegra_xhci_hcd *tegra = dev_get_drvdata(dev);
-	int ret;
+	int ret = 0;
 
 	mutex_lock(&tegra->lock);
 	tegra->suspended = true;
