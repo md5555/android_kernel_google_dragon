@@ -1313,10 +1313,9 @@ static void tegra_crtc_disable(struct drm_crtc *crtc)
 			   PW4_ENABLE | PM0_ENABLE | PM1_ENABLE);
 		tegra_dc_writel(dc, value, DC_CMD_DISPLAY_POWER_CONTROL);
 	}
+	dc->dpms = DRM_MODE_DPMS_OFF;
 
 	drm_crtc_vblank_off(crtc);
-
-	dc->reg_initialized = false;
 }
 
 static bool tegra_crtc_mode_fixup(struct drm_crtc *crtc,
@@ -1434,9 +1433,6 @@ static void tegra_dc_init_hw(struct tegra_dc *dc)
 	u32 value;
 	struct tegra_dc_state *state = to_dc_state(dc->base.state);
 
-	if (dc->reg_initialized)
-		return;
-
 	/* initialize display controller */
 	if (dc->syncpt) {
 		u32 syncpt = host1x_syncpt_id(dc->syncpt);
@@ -1476,8 +1472,6 @@ static void tegra_dc_init_hw(struct tegra_dc *dc)
 
 	if (dc->soc->supports_border_color)
 		tegra_dc_writel(dc, 0, DC_DISP_BORDER_COLOR);
-
-	dc->reg_initialized = true;
 }
 
 static void tegra_crtc_get_display_info(struct drm_crtc *crtc)
@@ -1507,7 +1501,12 @@ static void tegra_crtc_mode_set_nofb(struct drm_crtc *crtc)
 
 	tegra_crtc_get_display_info(crtc);
 
-	tegra_dc_init_hw(dc);
+	/*
+	 * If we're already initialized, don't re-initialize the hardware. This
+	 * will disable our vblank interrupt, making hw out-of-sync with sw.
+	 */
+	if (dc->dpms == DRM_MODE_DPMS_OFF)
+		tegra_dc_init_hw(dc);
 
 	tegra_dc_commit_state(dc, state);
 
@@ -1541,6 +1540,8 @@ static void tegra_crtc_mode_set_nofb(struct drm_crtc *crtc)
 	value |= PW0_ENABLE | PW1_ENABLE | PW2_ENABLE | PW3_ENABLE |
 		 PW4_ENABLE | PM0_ENABLE | PM1_ENABLE;
 	tegra_dc_writel(dc, value, DC_CMD_DISPLAY_POWER_CONTROL);
+
+	dc->dpms = DRM_MODE_DPMS_ON;
 
 	tegra_dc_commit(dc);
 
@@ -2973,6 +2974,7 @@ static int tegra_dc_probe(struct platform_device *pdev)
 	INIT_LIST_HEAD(&dc->list);
 	dc->dev = &pdev->dev;
 	dc->soc = id->data;
+	dc->dpms = DRM_MODE_DPMS_OFF;
 
 	err = tegra_dc_parse_dt(dc);
 	if (err < 0)

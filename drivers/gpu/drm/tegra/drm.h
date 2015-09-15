@@ -176,7 +176,7 @@ struct tegra_dc {
 
 	struct iommu_domain *domain;
 
-	bool reg_initialized;
+	int dpms;
 
 	struct tegra_mc *mc;
 	unsigned int *mc_win_clients;
