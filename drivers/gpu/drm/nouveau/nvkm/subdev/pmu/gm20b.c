@@ -608,6 +608,123 @@ struct gating_desc gm20b_slcg_xbar[] = {
 	{.addr = 0x0013cc04, .prod = 0x00000000, .disable = 0x1ffffffe},
 };
 
+/* blcg bus */
+static const
+struct gating_desc gm20b_blcg_bus[] = {
+	{.addr = 0x00001c00, .prod = 0x00000042, .disable = 0x00000000},
+};
+
+/* blcg fb */
+static const
+struct gating_desc gm20b_blcg_fb[] = {
+	{.addr = 0x00100d10, .prod = 0x0000c242, .disable = 0x00000000},
+	{.addr = 0x00100d30, .prod = 0x0000c242, .disable = 0x00000000},
+	{.addr = 0x00100d3c, .prod = 0x00000242, .disable = 0x00000000},
+	{.addr = 0x00100d48, .prod = 0x0000c242, .disable = 0x00000000},
+	{.addr = 0x00100d1c, .prod = 0x00000042, .disable = 0x00000000},
+	{.addr = 0x00100c98, .prod = 0x00000242, .disable = 0x00000000},
+};
+
+/* blcg fifo */
+static const
+struct gating_desc gm20b_blcg_fifo[] = {
+	{.addr = 0x000026a4, .prod = 0x0000c242, .disable = 0x00000000},
+};
+
+/* blcg gr */
+static const
+struct gating_desc gm20b_blcg_gr[] = {
+	{.addr = 0x004041f0, .prod = 0x00004046, .disable = 0x00000000},
+	{.addr = 0x00409890, .prod = 0x0000007f, .disable = 0x00000000},
+	{.addr = 0x004098b0, .prod = 0x0000007f, .disable = 0x00000000},
+	{.addr = 0x004078c0, .prod = 0x00000042, .disable = 0x00000000},
+	{.addr = 0x00406000, .prod = 0x00004044, .disable = 0x00000000},
+	{.addr = 0x00405860, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x0040590c, .prod = 0x00004044, .disable = 0x00000000},
+	{.addr = 0x00408040, .prod = 0x00004044, .disable = 0x00000000},
+	{.addr = 0x00407000, .prod = 0x00004041, .disable = 0x00000000},
+	{.addr = 0x00405bf0, .prod = 0x00004044, .disable = 0x00000000},
+	{.addr = 0x0041a890, .prod = 0x0000007f, .disable = 0x00000000},
+	{.addr = 0x0041a8b0, .prod = 0x0000007f, .disable = 0x00000000},
+	{.addr = 0x00418500, .prod = 0x00004044, .disable = 0x00000000},
+	{.addr = 0x00418608, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00418688, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00418718, .prod = 0x00000042, .disable = 0x00000000},
+	{.addr = 0x00418828, .prod = 0x00000044, .disable = 0x00000000},
+	{.addr = 0x00418bbc, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00418970, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00418c70, .prod = 0x00004044, .disable = 0x00000000},
+	{.addr = 0x00418cf0, .prod = 0x00004044, .disable = 0x00000000},
+	{.addr = 0x00418d70, .prod = 0x00004044, .disable = 0x00000000},
+	{.addr = 0x00418f0c, .prod = 0x00004044, .disable = 0x00000000},
+	{.addr = 0x00418e0c, .prod = 0x00004044, .disable = 0x00000000},
+	{.addr = 0x00419020, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00419038, .prod = 0x00000042, .disable = 0x00000000},
+	{.addr = 0x00418898, .prod = 0x00000042, .disable = 0x00000000},
+	{.addr = 0x00419a40, .prod = 0x00000042, .disable = 0x00000000},
+	{.addr = 0x00419a48, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00419a50, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00419a58, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00419a60, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00419a68, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00419a70, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00419a78, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00419a80, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00419868, .prod = 0x00000042, .disable = 0x00000000},
+	{.addr = 0x00419cd4, .prod = 0x00000002, .disable = 0x00000000},
+	{.addr = 0x00419cdc, .prod = 0x00000002, .disable = 0x00000000},
+	{.addr = 0x00419c70, .prod = 0x00004044, .disable = 0x00000000},
+	{.addr = 0x00419fd0, .prod = 0x00004044, .disable = 0x00000000},
+	{.addr = 0x00419fd8, .prod = 0x00004046, .disable = 0x00000000},
+	{.addr = 0x00419fe0, .prod = 0x00004044, .disable = 0x00000000},
+	{.addr = 0x00419fe8, .prod = 0x00000042, .disable = 0x00000000},
+	{.addr = 0x00419ff0, .prod = 0x00004045, .disable = 0x00000000},
+	{.addr = 0x00419ff8, .prod = 0x00000002, .disable = 0x00000000},
+	{.addr = 0x00419f90, .prod = 0x00000002, .disable = 0x00000000},
+	{.addr = 0x0041be28, .prod = 0x00000042, .disable = 0x00000000},
+	{.addr = 0x0041bfe8, .prod = 0x00004044, .disable = 0x00000000},
+	{.addr = 0x0041bed0, .prod = 0x00004044, .disable = 0x00000000},
+	{.addr = 0x00408810, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00408818, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00408a80, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00408a88, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00408a90, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00408a98, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00408aa0, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00408aa8, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x004089a8, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x004089b0, .prod = 0x00000042, .disable = 0x00000000},
+	{.addr = 0x004089b8, .prod = 0x00004042, .disable = 0x00000000},
+};
+
+/* blcg ltc */
+static const
+struct gating_desc gm20b_blcg_ltc[] = {
+	{.addr = 0x0017e030, .prod = 0x00000044, .disable = 0x00000000},
+	{.addr = 0x0017e040, .prod = 0x00000044, .disable = 0x00000000},
+	{.addr = 0x0017e3e0, .prod = 0x00000044, .disable = 0x00000000},
+	{.addr = 0x0017e3c8, .prod = 0x00000044, .disable = 0x00000000},
+};
+
+/* blcg pwr_csb  */
+static const
+struct gating_desc gm20b_blcg_pwr_csb[] = {
+	{.addr = 0x00000a70, .prod = 0x00000045, .disable = 0x00000000},
+};
+
+/* blcg pmu */
+static const
+struct gating_desc gm20b_blcg_pmu[] = {
+	{.addr = 0x0010aa70, .prod = 0x00000045, .disable = 0x00000000},
+};
+
+/* blcg Xbar */
+static const
+struct gating_desc gm20b_blcg_xbar[] = {
+	{.addr = 0x0013cbe0, .prod = 0x00000042, .disable = 0x00000000},
+	{.addr = 0x0013cc00, .prod = 0x00000042, .disable = 0x00000000},
+};
+
 static int
 gm20b_pmu_disable_clk_gating(struct nvkm_pmu *pmu)
 {
@@ -650,6 +767,23 @@ gm20b_pmu_disable_clk_gating(struct nvkm_pmu *pmu)
 					ARRAY_SIZE(gm20b_slcg_pmu));
 	gk20a_disable_load_gating_prod(pmu, gm20b_slcg_xbar,
 					ARRAY_SIZE(gm20b_slcg_xbar));
+
+	gk20a_disable_load_gating_prod(pmu, gm20b_blcg_bus,
+					ARRAY_SIZE(gm20b_blcg_bus));
+	gk20a_disable_load_gating_prod(pmu, gm20b_blcg_fb,
+					ARRAY_SIZE(gm20b_blcg_fb));
+	gk20a_disable_load_gating_prod(pmu, gm20b_blcg_fifo,
+					ARRAY_SIZE(gm20b_blcg_fifo));
+	gk20a_disable_load_gating_prod(pmu, gm20b_blcg_gr,
+					ARRAY_SIZE(gm20b_blcg_gr));
+	gk20a_disable_load_gating_prod(pmu, gm20b_blcg_ltc,
+					ARRAY_SIZE(gm20b_blcg_ltc));
+	gk20a_disable_load_gating_prod(pmu, gm20b_blcg_pmu,
+					ARRAY_SIZE(gm20b_blcg_pmu));
+	gk20a_disable_load_gating_prod(pmu, gm20b_blcg_pwr_csb,
+					ARRAY_SIZE(gm20b_blcg_pwr_csb));
+	gk20a_disable_load_gating_prod(pmu, gm20b_blcg_xbar,
+					ARRAY_SIZE(gm20b_blcg_xbar));
 
 do_nothing:
 	mutex_unlock(&priv->clk_gating_mutex);
@@ -702,6 +836,25 @@ gm20b_pmu_enable_clk_gating(struct nvkm_pmu *pmu)
 						ARRAY_SIZE(gm20b_slcg_pmu));
 		gk20a_enable_load_gating_prod(pmu, gm20b_slcg_xbar,
 					ARRAY_SIZE(gm20b_slcg_xbar));
+	}
+
+	if (pmu->blcg_enabled) {
+		gk20a_enable_load_gating_prod(pmu, gm20b_blcg_bus,
+						ARRAY_SIZE(gm20b_blcg_bus));
+		gk20a_enable_load_gating_prod(pmu, gm20b_blcg_fb,
+						ARRAY_SIZE(gm20b_blcg_fb));
+		gk20a_enable_load_gating_prod(pmu, gm20b_blcg_fifo,
+						ARRAY_SIZE(gm20b_blcg_fifo));
+		gk20a_enable_load_gating_prod(pmu, gm20b_blcg_gr,
+						ARRAY_SIZE(gm20b_blcg_gr));
+		gk20a_enable_load_gating_prod(pmu, gm20b_blcg_ltc,
+						ARRAY_SIZE(gm20b_blcg_ltc));
+		gk20a_enable_load_gating_prod(pmu, gm20b_blcg_pmu,
+						ARRAY_SIZE(gm20b_blcg_pmu));
+		gk20a_enable_load_gating_prod(pmu, gm20b_blcg_pwr_csb,
+						ARRAY_SIZE(gm20b_blcg_pwr_csb));
+		gk20a_enable_load_gating_prod(pmu, gm20b_blcg_xbar,
+						ARRAY_SIZE(gm20b_blcg_xbar));
 	}
 
 do_nothing:
@@ -2472,6 +2625,7 @@ gm20b_pmu_fini(struct nvkm_object *object, bool suspend)
 		mutex_unlock(&priv->clk_gating_mutex);
 		pmu->elcg_enabled = false;
 		pmu->slcg_enabled = false;
+		pmu->blcg_enabled = false;
 		priv->pmu_ready = false;
 		pmu->cold_boot = true;
 		priv->lspmu_wpr_init_done = false;
@@ -2533,6 +2687,7 @@ gm20b_pmu_init(struct nvkm_object *object) {
 	ppmu->gpccs_secure_boot = false;
 	ppmu->elcg_enabled = false;
 	ppmu->slcg_enabled = false;
+	ppmu->blcg_enabled = false;
 
 	priv->pmu_setup_elpg = gm20b_pmu_setup_elpg;
 

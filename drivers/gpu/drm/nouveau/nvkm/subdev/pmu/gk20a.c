@@ -180,6 +180,194 @@ struct gating_desc gk20a_slcg_therm[] = {
 	{.addr = 0x000206b8, .prod = 0x00000000, .disable = 0x0000000f},
 };
 
+/* blcg gr */
+static const
+struct gating_desc gk20a_blcg_gr[] = {
+	{.addr = 0x004041f0, .prod = 0x00004046, .disable = 0x00000000},
+	{.addr = 0x00409890, .prod = 0x0000007f, .disable = 0x00000000},
+	{.addr = 0x004098b0, .prod = 0x0000007f, .disable = 0x00000000},
+	{.addr = 0x004078c0, .prod = 0x00000042, .disable = 0x00000000},
+	{.addr = 0x00406000, .prod = 0x00004044, .disable = 0x00000000},
+	{.addr = 0x00405860, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x0040590c, .prod = 0x00004044, .disable = 0x00000000},
+	{.addr = 0x00408040, .prod = 0x00004044, .disable = 0x00000000},
+	{.addr = 0x00407000, .prod = 0x00004041, .disable = 0x00000000},
+	{.addr = 0x00405bf0, .prod = 0x00004044, .disable = 0x00000000},
+	{.addr = 0x0041a890, .prod = 0x0000007f, .disable = 0x00000000},
+	{.addr = 0x0041a8b0, .prod = 0x0000007f, .disable = 0x00000000},
+	{.addr = 0x00418500, .prod = 0x00004044, .disable = 0x00000000},
+	{.addr = 0x00418608, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00418688, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00418718, .prod = 0x00000042, .disable = 0x00000000},
+	{.addr = 0x00418828, .prod = 0x00000044, .disable = 0x00000000},
+	{.addr = 0x00418bbc, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00418970, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00418c70, .prod = 0x00004044, .disable = 0x00000000},
+	{.addr = 0x00418cf0, .prod = 0x00004044, .disable = 0x00000000},
+	{.addr = 0x00418d70, .prod = 0x00004044, .disable = 0x00000000},
+	{.addr = 0x00418f0c, .prod = 0x00004044, .disable = 0x00000000},
+	{.addr = 0x00418e0c, .prod = 0x00004044, .disable = 0x00000000},
+	{.addr = 0x00419020, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00419038, .prod = 0x00000042, .disable = 0x00000000},
+	{.addr = 0x00419a40, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00419a48, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00419a50, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00419a58, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00419a60, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00419a68, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00419a70, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00419a78, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00419a80, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00419acc, .prod = 0x00004047, .disable = 0x00000000},
+	{.addr = 0x00419868, .prod = 0x00000043, .disable = 0x00000000},
+	{.addr = 0x00419cd4, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00419cdc, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00419c70, .prod = 0x00004045, .disable = 0x00000000},
+	{.addr = 0x00419fd0, .prod = 0x00004043, .disable = 0x00000000},
+	{.addr = 0x00419fd8, .prod = 0x00004045, .disable = 0x00000000},
+	{.addr = 0x00419fe0, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00419fe8, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00419ff0, .prod = 0x00004044, .disable = 0x00000000},
+	{.addr = 0x00419ff8, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00419f90, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x0041be28, .prod = 0x00000042, .disable = 0x00000000},
+	{.addr = 0x0041bfe8, .prod = 0x00004044, .disable = 0x00000000},
+	{.addr = 0x0041bed0, .prod = 0x00004044, .disable = 0x00000000},
+	{.addr = 0x00408810, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00408818, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00408a80, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00408a88, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00408a90, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00408a98, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00408aa0, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x00408aa8, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x004089a8, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x004089b0, .prod = 0x00000042, .disable = 0x00000000},
+	{.addr = 0x004089b8, .prod = 0x00004042, .disable = 0x00000000},
+	{.addr = 0x0017ea60, .prod = 0x00000044, .disable = 0x00000000},
+	{.addr = 0x0017ea68, .prod = 0x00000044, .disable = 0x00000000},
+	{.addr = 0x00100d30, .prod = 0x0000c242, .disable = 0x00000000},
+	{.addr = 0x00100d48, .prod = 0x0000c242, .disable = 0x00000000},
+	{.addr = 0x00100d3c, .prod = 0x00000242, .disable = 0x00000000},
+	{.addr = 0x0017ea78, .prod = 0x00000044, .disable = 0x00000000},
+	{.addr = 0x0017e040, .prod = 0x00000044, .disable = 0x00000000},
+	{.addr = 0x00100d1c, .prod = 0x00000042, .disable = 0x00000000},
+	{.addr = 0x00106f24, .prod = 0x0000c242, .disable = 0x00000000},
+	{.addr = 0x0041be00, .prod = 0x00000004, .disable = 0x00000007},
+	{.addr = 0x00100d10, .prod = 0x0000c242, .disable = 0x00000000},
+	{.addr = 0x0017ea70, .prod = 0x00000044, .disable = 0x00000000},
+	{.addr = 0x00001c00, .prod = 0x00000042, .disable = 0x00000000},
+	{.addr = 0x00100c98, .prod = 0x00000242, .disable = 0x00000000},
+	{.addr = 0x0017e030, .prod = 0x00000044, .disable = 0x00000000},
+};
+
+/* pg gr */
+static const
+struct gating_desc gk20a_pg_gr[] = {
+	{.addr = 0x004041f8, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x004041fc, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00409898, .prod = 0x10140000, .disable = 0x00000000},
+	{.addr = 0x0040989c, .prod = 0xff00000a, .disable = 0x00000000},
+	{.addr = 0x004078c8, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x004078cc, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00406008, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x0040600c, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00405868, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x0040586c, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00405914, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00405924, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00408048, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x0040804c, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00407008, .prod = 0x10140000, .disable = 0x00000000},
+	{.addr = 0x0040700c, .prod = 0xff00000a, .disable = 0x00000000},
+	{.addr = 0x00405bf8, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00405bfc, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x0041a898, .prod = 0x10140000, .disable = 0x00000000},
+	{.addr = 0x0041a89c, .prod = 0xff00000a, .disable = 0x00000000},
+	{.addr = 0x00418510, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00418514, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00418610, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00418614, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00418690, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00418694, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00418720, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00418724, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00418840, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00418844, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00418bc4, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00418bc8, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00418978, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x0041897c, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00418c78, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00418c7c, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00418cf8, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00418cfc, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00418d78, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00418d7c, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00418f14, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00418f18, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00418e14, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00418e18, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00419030, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00419050, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00419a88, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00419a8c, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00419a90, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00419a94, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00419a98, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00419a9c, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00419aa0, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00419aa4, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00419ad4, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00419ad8, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00419870, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00419874, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00419ce4, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00419cf0, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00419c78, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00419c7c, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00419fa0, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00419fa4, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00419fa8, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00419fac, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00419fb0, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00419fb4, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00419fb8, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00419fbc, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00419fc0, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00419fc4, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00419fc8, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00419fcc, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x0041be30, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x0041be34, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x0041bff0, .prod = 0x10747c00, .disable = 0x00000000},
+	{.addr = 0x0041bff4, .prod = 0xff00000a, .disable = 0x00000000},
+	{.addr = 0x0041bed8, .prod = 0x10240a00, .disable = 0x00000000},
+	{.addr = 0x0041bee0, .prod = 0xff00000a, .disable = 0x00000000},
+	{.addr = 0x00408820, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00408824, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00408828, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x0040882c, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00408ac0, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00408ac4, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00408ac8, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00408acc, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00408ad0, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00408ad4, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00408ad8, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00408adc, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00408ae0, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00408ae4, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x00408ae8, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x00408aec, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x004089c0, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x004089c4, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x004089c8, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x004089cc, .prod = 0xff00a725, .disable = 0x00000000},
+	{.addr = 0x004089d0, .prod = 0x10940000, .disable = 0x00000000},
+	{.addr = 0x004089d4, .prod = 0xff00a725, .disable = 0x00000000},
+};
+
 void
 gk20a_enable_load_gating_prod(struct nvkm_pmu *pmu,
 			  const struct gating_desc *desc, int size)
@@ -2068,6 +2256,14 @@ gk20a_pmu_enable_clk_gating(struct nvkm_pmu *pmu)
 		gk20a_enable_load_gating_prod(pmu, gk20a_slcg_perf,
 					  ARRAY_SIZE(gk20a_slcg_perf));
 	}
+
+	if (pmu->blcg_enabled) {
+		gk20a_enable_load_gating_prod(pmu, gk20a_blcg_gr,
+					  ARRAY_SIZE(gk20a_blcg_gr));
+		gk20a_enable_load_gating_prod(pmu, gk20a_pg_gr,
+					  ARRAY_SIZE(gk20a_pg_gr));
+	}
+
 do_nothing:
 	mutex_unlock(&priv->clk_gating_mutex);
 	return 0;
@@ -2095,6 +2291,11 @@ gk20a_pmu_disable_clk_gating(struct nvkm_pmu *pmu)
 					  ARRAY_SIZE(gk20a_slcg_therm));
 	gk20a_disable_load_gating_prod(pmu, gk20a_slcg_perf,
 					  ARRAY_SIZE(gk20a_slcg_perf));
+
+	gk20a_disable_load_gating_prod(pmu, gk20a_blcg_gr,
+					  ARRAY_SIZE(gk20a_blcg_gr));
+	gk20a_disable_load_gating_prod(pmu, gk20a_pg_gr,
+					  ARRAY_SIZE(gk20a_pg_gr));
 
 do_nothing:
 	mutex_unlock(&priv->clk_gating_mutex);
@@ -2802,6 +3003,7 @@ gk20a_pmu_init(struct nvkm_object *object)
 	pmu->fecs_secure_boot = false;
 	pmu->elcg_enabled = false;
 	pmu->slcg_enabled = false;
+	pmu->blcg_enabled = false;
 
 	priv->pmu_setup_elpg = NULL;
 
@@ -2851,6 +3053,7 @@ gk20a_pmu_fini(struct nvkm_object *object, bool suspend)
 
 	pmu->elcg_enabled = false;
 	pmu->slcg_enabled = false;
+	pmu->blcg_enabled = false;
 
 	nv_wr32(priv, 0x10a014, 0x00000060);
 
