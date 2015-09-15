@@ -767,6 +767,43 @@ static int drm_helper_choose_crtc_dpms(struct drm_crtc *crtc)
 }
 
 /**
+ * drm_helper_dpms_attached_encoders() - applies dpms to attached encoders
+ * @crtc: the crtc to match encoders to
+ * @mode: the dpms mode to apply
+ *
+ * In psr/oneshot mode of operation, it may be desirable to apply a dpms mode
+ * to all encoders attached to a crtc without affecting their
+ * connector/bridge/panel. This allows the caller to disable the crtc and
+ * encoder while keeping the attached display active, while it self refreshes
+ *
+ * Note that we specifically mean dpms in this context, and delibrately
+ * choose not to use enable/disable since those are potentially more heavy-
+ * handed than dpms. ie: a disable/enable cycle might require modeset or
+ * similar to bring things back up, whereas a dpms off/on should be lighter
+ * weight.
+ */
+void drm_helper_dpms_attached_encoders(struct drm_crtc *crtc, int mode)
+{
+	struct drm_mode_config *config = &crtc->dev->mode_config;
+	struct drm_connector *connector;
+	struct drm_encoder *encoder;
+	struct drm_encoder_helper_funcs *funcs;
+
+	list_for_each_entry(connector, &config->connector_list, head) {
+		if (connector->state->crtc != crtc)
+			continue;
+
+		encoder = connector->state->best_encoder;
+		if (!encoder)
+			continue;
+
+		funcs = encoder->helper_private;
+		if (funcs->dpms)
+			funcs->dpms(encoder, mode);
+	}
+}
+
+/**
  * drm_helper_connector_dpms() - connector dpms helper implementation
  * @connector: affected connector
  * @mode: DPMS mode

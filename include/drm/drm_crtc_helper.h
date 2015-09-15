@@ -175,6 +175,8 @@ extern bool drm_crtc_helper_set_mode(struct drm_crtc *crtc,
 				     struct drm_framebuffer *old_fb);
 extern bool drm_helper_crtc_in_use(struct drm_crtc *crtc);
 extern bool drm_helper_encoder_in_use(struct drm_encoder *encoder);
+extern void drm_helper_dpms_attached_encoders(struct drm_crtc *crtc,
+					      int mode);
 
 extern void drm_helper_connector_dpms(struct drm_connector *connector, int mode);
 
