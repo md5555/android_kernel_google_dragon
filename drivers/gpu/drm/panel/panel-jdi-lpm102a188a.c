@@ -445,8 +445,10 @@ static int panel_jdi_setup_primary(struct mipi_dsi_device *dsi,
 		return -EPROBE_DEFER;
 
 	jdi = devm_kzalloc(&dsi->dev, sizeof(*jdi), GFP_KERNEL);
-	if (!jdi)
-		return -ENOMEM;
+	if (!jdi) {
+		ret = -ENOMEM;
+		goto out_slave;
+	}
 
 	mipi_dsi_set_drvdata(dsi, jdi);
 	jdi->mode = &default_mode;
@@ -454,18 +456,23 @@ static int panel_jdi_setup_primary(struct mipi_dsi_device *dsi,
 	jdi->dsi = dsi;
 
 	jdi->supply = devm_regulator_get(&dsi->dev, "power");
-	if (IS_ERR(jdi->supply))
-		return PTR_ERR(jdi->supply);
+	if (IS_ERR(jdi->supply)) {
+		ret = PTR_ERR(jdi->supply);
+		goto out_slave;
+	}
 
 	jdi->ddi_supply = devm_regulator_get(&dsi->dev, "ddi");
-	if (IS_ERR(jdi->ddi_supply))
-		return PTR_ERR(jdi->ddi_supply);
+	if (IS_ERR(jdi->ddi_supply)) {
+		ret = PTR_ERR(jdi->ddi_supply);
+		goto out_slave;
+	}
 
 	jdi->enable_gpio = of_get_named_gpio_flags(dsi->dev.of_node,
 				"enable-gpio", 0, &gpio_flags);
 	if (!gpio_is_valid(jdi->enable_gpio)) {
 		DRM_ERROR("enable gpio not found: %d\n", ret);
-		return -ENODEV;
+		ret = -ENODEV;
+		goto out_slave;
 	}
 
 	if (gpio_flags & OF_GPIO_ACTIVE_LOW)
@@ -474,14 +481,15 @@ static int panel_jdi_setup_primary(struct mipi_dsi_device *dsi,
 	ret = devm_gpio_request(&dsi->dev, jdi->enable_gpio, "jdi-enable");
 	if (ret < 0) {
 		DRM_ERROR("Request enable gpio failed: %d\n", ret);
-		return ret;
+		goto out_slave;
 	}
 
 	jdi->reset_gpio = of_get_named_gpio_flags(dsi->dev.of_node,
 				"reset-gpio", 0, &gpio_flags);
 	if (!gpio_is_valid(jdi->reset_gpio)) {
 		DRM_ERROR("reset gpio not found: %d\n", ret);
-		return -ENODEV;
+		ret = -ENODEV;
+		goto out_slave;
 	}
 
 	if (gpio_flags & OF_GPIO_ACTIVE_LOW)
@@ -490,13 +498,13 @@ static int panel_jdi_setup_primary(struct mipi_dsi_device *dsi,
 	ret = devm_gpio_request(&dsi->dev, jdi->reset_gpio, "jdi-reset");
 	if (ret < 0) {
 		DRM_ERROR("Request reset gpio failed: %d\n", ret);
-		return ret;
+		goto out_slave;
 	}
 
 	ret = regulator_enable(jdi->supply);
 	if (ret < 0) {
 		DRM_ERROR("failed to enable supply: %d\n", ret);
-		return ret;
+		goto out_slave;
 	}
 
 	/* T1 = 2ms */
@@ -505,7 +513,7 @@ static int panel_jdi_setup_primary(struct mipi_dsi_device *dsi,
 	ret = regulator_enable(jdi->ddi_supply);
 	if (ret < 0) {
 		DRM_ERROR("failed to enable ddi_supply: %d\n", ret);
-		return ret;
+		goto out_supply;
 	}
 
 	/* T2 = 1ms */
@@ -518,12 +526,21 @@ static int panel_jdi_setup_primary(struct mipi_dsi_device *dsi,
 	ret = drm_panel_add(&jdi->base);
 	if (ret < 0) {
 		DRM_ERROR("drm_panel_add failed: %d\n", ret);
-		return ret;
+		goto out_ddi_supply;
 	}
 
 	panel_jdi_debugfs_init(jdi);
 
 	return 0;
+
+out_ddi_supply:
+	regulator_disable(jdi->ddi_supply);
+out_supply:
+	regulator_disable(jdi->supply);
+out_slave:
+	put_device(&slave->dev);
+
+	return ret;
 }
 
 static int panel_jdi_dsi_probe(struct mipi_dsi_device *dsi)
