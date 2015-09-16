@@ -474,7 +474,6 @@ nouveau_gem_ioctl_set_info(struct drm_device *dev, void *data,
 	struct nvkm_fb *pfb = nvxx_fb(&drm->device);
 	struct drm_nouveau_gem_info *req = data;
 	bool gpu_cacheable = !(req->domain & NOUVEAU_GEM_DOMAIN_COHERENT);
-	bool force_coherent = false;
 	struct drm_gem_object *gem;
 	struct nouveau_bo *nvbo;
 	struct nvkm_mem *mem;
@@ -490,14 +489,10 @@ nouveau_gem_ioctl_set_info(struct drm_device *dev, void *data,
 	if (!gem)
 		return -ENOENT;
 
-	if (!nv_device_is_cpu_coherent(nvxx_device(&drm->device)))
-		force_coherent = !gpu_cacheable;
-
 	nvbo = nouveau_gem_object(gem);
 
 	if (nvbo->tile_mode != req->tile_mode ||
 	    nvbo->tile_flags != req->tile_flags ||
-	    nvbo->force_coherent != force_coherent ||
 	    nvbo->gpu_cacheable != gpu_cacheable ||
 	    req->offset) {
 
@@ -572,7 +567,6 @@ nouveau_gem_ioctl_set_info(struct drm_device *dev, void *data,
 		mem = nvbo->bo.mem.mm_node;
 		nvbo->tile_mode = req->tile_mode;
 		nvbo->tile_flags = req->tile_flags;
-		nvbo->force_coherent = force_coherent;
 		nvbo->gpu_cacheable = gpu_cacheable;
 
 		/* Need to rewrite page tables */
