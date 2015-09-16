@@ -636,6 +636,32 @@ static struct miscdevice imx208_device = {
 
 MODULE_DEVICE_TABLE(of, imx208_of_match);
 
+static int imx208_check_module(struct imx208_info *info)
+{
+	u8 module_id[2];
+	int err;
+	struct imx208_power_rail *pw = &info->power;
+
+	err = imx208_power_on(pw);
+	if (err)
+		return err;
+
+	err = imx208_read_reg(info, 0x0000, &module_id[0]);
+	if (err)
+		goto check_fail;
+
+	err = imx208_read_reg(info, 0x0001, &module_id[1]);
+	if (err)
+		goto check_fail;
+
+	if (module_id[0] != 0x02 || module_id[1] != 0x08)
+		err = -ENODEV;
+
+check_fail:
+	imx208_power_off(pw);
+	return err;
+}
+
 static int
 imx208_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
@@ -699,10 +725,17 @@ imx208_probe(struct i2c_client *client, const struct i2c_device_id *id)
 
 	i2c_set_clientdata(client, info);
 	info->powered_on = false;
+
+	err = imx208_check_module(info);
+	if (err) {
+		dev_err(&client->dev, "%s: Module check failed", __func__);
+		return err;
+	}
+
 	info->miscdev_info = imx208_device;
 	err = misc_register(&info->miscdev_info);
 	if (err) {
-		dev_err(&info->i2c_client->dev,
+		dev_err(&client->dev,
 			"%s:Unable to register misc device!\n", __func__);
 		return err;
 	}
