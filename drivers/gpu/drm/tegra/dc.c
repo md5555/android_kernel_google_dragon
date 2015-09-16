@@ -357,6 +357,14 @@ static void tegra_dc_setup_window(struct tegra_dc *dc, unsigned int index,
 	value = V_PRESCALED_SIZE(v_size) | H_PRESCALED_SIZE(h_size);
 	tegra_dc_writel(dc, value, DC_WIN_PRESCALED_SIZE);
 
+	h_offset = (window->src.x >> 16) * bpp;
+	if (window->right_left)
+		h_offset += (window->src.w >> 16) * bpp - 1;
+
+	v_offset = (window->src.y >> 16);
+	if (window->bottom_up)
+		v_offset += (window->src.h >> 16) - 1;
+
 	/*
 	 * For DDA computations the number of bytes per pixel for YUV planar
 	 * modes needs to take into account all Y, U and V components.
@@ -401,14 +409,6 @@ static void tegra_dc_setup_window(struct tegra_dc *dc, unsigned int index,
 	} else {
 		tegra_dc_writel(dc, window->stride[0], DC_WIN_LINE_STRIDE);
 	}
-
-	h_offset = (window->src.x >> 16) * bpp;
-	if (window->right_left)
-		h_offset += (window->src.w >> 16) * bpp - 1;
-
-	v_offset = (window->src.y >> 16);
-	if (window->bottom_up)
-		v_offset += (window->src.h >> 16) - 1;
 
 	tegra_dc_writel(dc, h_offset, DC_WINBUF_ADDR_H_OFFSET);
 	tegra_dc_writel(dc, v_offset, DC_WINBUF_ADDR_V_OFFSET);
