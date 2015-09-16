@@ -610,6 +610,9 @@ gk20a_gr_init(struct nvkm_object *object)
 			pmu->enable_elpg(pmu);
 	}
 
+	if (pmu->enable_clk_gating)
+		pmu->enable_clk_gating(pmu);
+
 	return ret;
 }
 
