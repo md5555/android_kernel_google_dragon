@@ -588,7 +588,7 @@ static int mmc_blk_ioctl_cmd(struct block_device *bdev,
 	struct mmc_blk_ioc_data *idata;
 	struct mmc_blk_data *md;
 	struct mmc_card *card;
-	int err;
+	int err, ioc_err;
 
 	/*
 	 * The caller must have CAP_SYS_RAWIO, and must be calling this on the
@@ -616,19 +616,18 @@ static int mmc_blk_ioctl_cmd(struct block_device *bdev,
 
 	mmc_get_card(card);
 
-	err = __mmc_blk_ioctl_cmd(card, md, idata);
+	ioc_err = __mmc_blk_ioctl_cmd(card, md, idata);
 
 	mmc_put_card(card);
 
-	if (!err)
-		err = mmc_blk_ioctl_copy_to_user(ic_ptr, idata);
+	err = mmc_blk_ioctl_copy_to_user(ic_ptr, idata);
 
 cmd_done:
 	mmc_blk_put(md);
 cmd_err:
 	kfree(idata->buf);
 	kfree(idata);
-	return err;
+	return ioc_err ? ioc_err : err;
 }
 
 static int mmc_blk_ffu_cmd(struct block_device *bdev,
@@ -681,7 +680,7 @@ static int mmc_blk_ioctl_multi_cmd(struct block_device *bdev,
 	struct mmc_ioc_cmd __user *cmds = user->cmds;
 	struct mmc_card *card;
 	struct mmc_blk_data *md;
-	int i, err = -EFAULT;
+	int i, err = 0, ioc_err = 0;
 	__u64 num_of_cmds;
 
 	/*
@@ -724,22 +723,14 @@ static int mmc_blk_ioctl_multi_cmd(struct block_device *bdev,
 
 	mmc_get_card(card);
 
-	for (i = 0; i < num_of_cmds; i++) {
-		err = __mmc_blk_ioctl_cmd(card, md, idata[i]);
-		if (err) {
-			mmc_put_card(card);
-			goto cmd_done;
-		}
-	}
+	for (i = 0; i < num_of_cmds && !ioc_err; i++)
+		ioc_err = __mmc_blk_ioctl_cmd(card, md, idata[i]);
 
 	mmc_put_card(card);
 
 	/* copy to user if data and response */
-	for (i = 0; i < num_of_cmds; i++) {
+	for (i = 0; i < num_of_cmds && !err; i++)
 		err = mmc_blk_ioctl_copy_to_user(&cmds[i], idata[i]);
-		if (err)
-			break;
-	}
 
 cmd_done:
 	mmc_blk_put(md);
@@ -749,7 +740,7 @@ cmd_err:
 		kfree(idata[i]);
 	}
 	kfree(idata);
-	return err;
+	return ioc_err ? ioc_err : err;
 }
 
 static int mmc_blk_ioctl(struct block_device *bdev, fmode_t mode,
