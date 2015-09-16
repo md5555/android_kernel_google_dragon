@@ -359,11 +359,6 @@ imx219_power_on(struct imx219_info *info)
 		return 0;
 	}
 
-	err = clk_set_rate(pw->mclk, MCLK_INIT_RATE);
-	if (!err)
-		dev_err(dev, "%s: set MCLK to 24MHz failed, MCLK set to default freq!\n",
-			__func__);
-
 	gpio_set_value(pw->reset_gpio, 0);
 
 	err = regulator_enable(pw->avdd);

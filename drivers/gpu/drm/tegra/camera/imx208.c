@@ -419,11 +419,6 @@ static int imx208_power_on(struct imx208_power_rail *pw)
 		dev_err(&info->i2c_client->dev, "Already on\n");
 		return 0;
 	}
-	err = clk_set_rate(info->mclk, MCLK_INIT_RATE);
-	if (err) {
-		dev_err(dev, "%s: Cannot set MCLK to %d\n",
-			__func__, MCLK_INIT_RATE);
-	}
 
 	gpio_set_value(info->cam2_gpio, 0);
 	usleep_range(10, 20);
