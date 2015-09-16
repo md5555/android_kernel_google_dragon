@@ -627,18 +627,54 @@ static void tegra_smmu_pte_put_use(struct tegra_smmu_as *as, unsigned long iova)
 	}
 }
 
+static void tegra_smmu_pte_put_use_range(struct tegra_smmu_as *as,
+		unsigned long iova, unsigned int len)
+{
+	unsigned int i;
+
+	for (i = 0; i < len; i++)
+		tegra_smmu_pte_put_use(as, iova + i * PAGE_SIZE);
+}
+
 static void tegra_smmu_set_pte(struct tegra_smmu_as *as, unsigned long iova,
 			       u32 *pte, dma_addr_t pte_dma, u32 val)
 {
-	struct tegra_smmu *smmu = as->smmu;
-	unsigned long offset = offset_in_page(pte);
-
 	*pte = val;
+}
 
-	dma_sync_single_range_for_device(smmu->dev, pte_dma, offset,
-					 4, DMA_TO_DEVICE);
-	smmu_flush_ptc(smmu, pte_dma, offset);
-	smmu_flush_tlb_group(smmu, as->id, iova);
+static void tegra_smmu_flush_pte_range(struct tegra_smmu_as *as,
+				unsigned long iova, unsigned int num_ptes, u32 *pte,
+				dma_addr_t pt_dma)
+{
+	struct tegra_smmu *smmu = as->smmu;
+	unsigned int tlb_lines_per_atom;
+	unsigned int ptes_per_tlb_line;
+	unsigned int ptes_per_atom;
+	unsigned long offset;
+	unsigned long iova_end;
+	int i;
+
+	ptes_per_atom = smmu->mc->soc->atom_size / sizeof(*pte);
+	ptes_per_tlb_line = smmu->soc->tlb_line_size / sizeof(*pte);
+	tlb_lines_per_atom = smmu->mc->soc->atom_size
+				/ smmu->soc->tlb_line_size;
+
+	offset = round_down(offset_in_page(pte), smmu->mc->soc->atom_size);
+
+	iova_end = iova + num_ptes * PAGE_SIZE;
+	iova = round_down(iova, ptes_per_atom * PAGE_SIZE);
+	iova_end = round_up(iova_end, ptes_per_atom * PAGE_SIZE);
+	num_ptes = (iova_end - iova) / PAGE_SIZE;
+	while (num_ptes) {
+		smmu_flush_ptc(smmu, pt_dma, offset);
+		for (i = 0; i < tlb_lines_per_atom; i++) {
+			smmu_flush_tlb_group(smmu, as->id, iova);
+			iova += ptes_per_tlb_line * PAGE_SIZE;
+		}
+		offset += smmu->mc->soc->atom_size;
+		num_ptes -= ptes_per_atom;
+	}
+
 	smmu_flush(smmu);
 }
 
@@ -677,19 +713,55 @@ static size_t tegra_smmu_unmap(struct iommu_domain *domain, unsigned long iova,
 	dma_addr_t pte_dma;
 	u32 *pte;
 
-	might_sleep();
-
 	pte = tegra_smmu_pte_lookup(as, iova, &pte_dma);
 	if (!pte || !*pte)
 		return 0;
 
 	tegra_smmu_set_pte(as, iova, pte, pte_dma, 0);
 
-	mutex_lock(&as->lock);
-	tegra_smmu_pte_put_use(as, iova);
-	mutex_unlock(&as->lock);
-
 	return size;
+}
+
+static void tegra_smmu_flush(struct iommu_domain *domain, unsigned long iova,
+			     size_t size)
+{
+	struct tegra_smmu_as *as = to_smmu_as(domain);
+	struct tegra_smmu *smmu = as->smmu;
+	u32 num = size >> PAGE_SHIFT;
+
+	might_sleep();
+
+	while (num) {
+		unsigned int pt_index = iova_pt_index(iova);
+		unsigned int len, end;
+		unsigned long offset;
+		dma_addr_t pte_dma;
+		u32 *pte;
+
+		end = pt_index + num;
+		if (end > SMMU_NUM_PTE)
+			end = SMMU_NUM_PTE;
+		len = end - pt_index;
+
+		pte = tegra_smmu_pte_lookup(as, iova, &pte_dma);
+		if (!pte)
+			goto next_pde;
+
+		offset = offset_in_page(pte);
+		dma_sync_single_range_for_device(smmu->dev, pte_dma, offset,
+						 sizeof(*pte) * len, DMA_TO_DEVICE);
+
+		tegra_smmu_flush_pte_range(as, iova, len, pte, pte_dma);
+		if (*pte == 0) {
+			mutex_lock(&as->lock);
+			tegra_smmu_pte_put_use_range(as, iova, len);
+			mutex_unlock(&as->lock);
+		}
+
+next_pde:
+		num -= len;
+		iova += len << PAGE_SHIFT;
+	}
 }
 
 static phys_addr_t tegra_smmu_iova_to_phys(struct iommu_domain *domain,
@@ -768,6 +840,7 @@ static const struct iommu_ops tegra_smmu_ops = {
 	.map = tegra_smmu_map,
 	.unmap = tegra_smmu_unmap,
 	.map_sg = default_iommu_map_sg,
+	.flush = tegra_smmu_flush,
 	.iova_to_phys = tegra_smmu_iova_to_phys,
 
 	.pgsize_bitmap = SZ_4K,
