@@ -1947,7 +1947,10 @@ static void
 gk20a_pmu_handle_zbc_msg(struct nvkm_pmu *pmu, struct pmu_msg *msg,
 					    void *param, u32 handle, u32 status)
 {
+	struct gk20a_pmu_priv *priv = param;
+
 	nv_debug(pmu, "reply ZBC_TABLE_UPDATE\n");
+	schedule_work(&priv->pg_init);
 }
 
 static void
@@ -2359,6 +2362,7 @@ gk20a_pmu_setup_hw(struct work_struct *work)
 		nv_debug(pmu, "loaded zbc\n");
 		break;
 	case PMU_STATE_STARTED:
+		gk20a_pmu_enable_elpg(pmu);
 		nv_debug(pmu, "PMU booted\n");
 		break;
 	default:
