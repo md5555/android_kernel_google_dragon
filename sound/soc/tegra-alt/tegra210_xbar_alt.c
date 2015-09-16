@@ -86,10 +86,10 @@ static int tegra210_xbar_runtime_resume(struct device *dev)
 
 static int tegra210_xbar_suspend(struct device *dev)
 {
-	regcache_mark_dirty(xbar->regmap);
 	pm_runtime_get_sync(dev);
 	tegra_agic_save_registers();
-	pm_runtime_put(dev);
+	pm_runtime_put_sync(dev);
+	regcache_mark_dirty(xbar->regmap);
 
 	return 0;
 }
@@ -98,7 +98,7 @@ static int tegra210_xbar_resume(struct device *dev)
 {
 	pm_runtime_get_sync(dev);
 	tegra_agic_restore_registers();
-	pm_runtime_put(dev);
+	pm_runtime_put_sync(dev);
 
 	return 0;
 }
