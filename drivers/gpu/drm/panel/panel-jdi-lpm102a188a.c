@@ -431,7 +431,7 @@ static const struct of_device_id jdi_of_match[] = {
 MODULE_DEVICE_TABLE(of, jdi_of_match);
 
 static int panel_jdi_setup_primary(struct mipi_dsi_device *dsi,
-			struct device_node *np)
+				   struct device_node *np)
 {
 	struct panel_jdi *jdi;
 	struct mipi_dsi_device *slave;
