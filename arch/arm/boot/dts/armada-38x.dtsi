@@ -217,6 +217,11 @@
 					marvell,function = "i2c0";
 				};
 
+				i2c1_pins: i2c-pins-1 {
+					marvell,pins = "mpp26", "mpp27";
+					marvell,function = "i2c1";
+				};
+
 				mdio_pins: mdio-pins {
 					marvell,pins = "mpp4", "mpp5";
 					marvell,function = "ge";

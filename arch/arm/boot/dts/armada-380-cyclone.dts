@@ -84,6 +84,20 @@
 				};
 			};
 
+			i2c@11100 {
+				pinctrl-names = "default";
+				pinctrl-0 = <&i2c1_pins>;
+				status = "okay";
+				clock-frequency = <100000>;
+
+				trusted-platform-module {
+					compatible = "infineon,slb9645tt";
+					reg = <0x20>;
+					powered-while-suspended;
+				};
+			};
+
+
 			serial@12000 {
 				/*
 				 * Exported on the micro USB connector CON16
