@@ -484,7 +484,6 @@ nouveau_drm_load(struct drm_device *dev, unsigned long flags)
 		pm_runtime_set_active(dev->dev);
 		pm_runtime_allow(dev->dev);
 		pm_runtime_mark_last_busy(dev->dev);
-		pm_runtime_put(dev->dev);
 	}
 	return 0;
 
@@ -508,7 +507,8 @@ nouveau_drm_unload(struct drm_device *dev)
 {
 	struct nouveau_drm *drm = nouveau_drm(dev);
 
-	pm_runtime_get_sync(dev->dev);
+	if (nouveau_runtime_pm != 0)
+		pm_runtime_forbid(dev->dev);
 	nouveau_fbcon_fini(dev);
 	nouveau_accel_fini(drm);
 	nouveau_hwmon_fini(dev);
