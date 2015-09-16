@@ -1311,8 +1311,15 @@ static size_t iommu_pgsize(struct iommu_domain *domain,
 	return pgsize;
 }
 
-int iommu_map(struct iommu_domain *domain, unsigned long iova,
-	      phys_addr_t paddr, size_t size, int prot)
+static void iommu_flush(struct iommu_domain *domain, unsigned long iova,
+			size_t size)
+{
+	if (domain->ops->flush)
+		domain->ops->flush(domain, iova, size);
+}
+
+static int __iommu_map(struct iommu_domain *domain, unsigned long iova,
+		       phys_addr_t paddr, size_t size, int prot)
 {
 	unsigned long orig_iova = iova;
 	unsigned int min_pagesz;
@@ -1365,12 +1372,27 @@ int iommu_map(struct iommu_domain *domain, unsigned long iova,
 
 	return ret;
 }
+
+int iommu_map(struct iommu_domain *domain, unsigned long iova,
+	      phys_addr_t paddr, size_t size, int prot)
+{
+	int ret;
+
+	ret = __iommu_map(domain, iova, paddr, size, prot);
+	if (ret)
+		return ret;
+
+	iommu_flush(domain, iova, size);
+
+	return 0;
+}
 EXPORT_SYMBOL_GPL(iommu_map);
 
 size_t iommu_unmap(struct iommu_domain *domain, unsigned long iova, size_t size)
 {
 	size_t unmapped_page, unmapped = 0;
 	unsigned int min_pagesz;
+	unsigned long ori_iova = iova;
 
 	if (unlikely(domain->ops->unmap == NULL ||
 		     domain->ops->pgsize_bitmap == 0UL))
@@ -1413,6 +1435,8 @@ size_t iommu_unmap(struct iommu_domain *domain, unsigned long iova, size_t size)
 		unmapped += unmapped_page;
 	}
 
+	iommu_flush(domain, ori_iova, unmapped);
+
 	trace_unmap(iova, 0, size);
 	return unmapped;
 }
@@ -1443,18 +1467,23 @@ size_t default_iommu_map_sg(struct iommu_domain *domain, unsigned long iova,
 		if (!IS_ALIGNED(s->offset, min_pagesz))
 			goto out_err;
 
-		ret = iommu_map(domain, iova + mapped, phys, s->length, prot);
+		ret = __iommu_map(domain, iova + mapped, phys, s->length, prot);
 		if (ret)
 			goto out_err;
 
 		mapped += s->length;
 	}
 
+	iommu_flush(domain, iova, mapped);
+
 	return mapped;
 
 out_err:
 	/* undo mappings already done */
 	iommu_unmap(domain, iova, mapped);
+
+	/* flush in case part of our mapping already got cached */
+	iommu_flush(domain, iova, mapped);
 
 	return 0;
 
