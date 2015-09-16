@@ -659,6 +659,30 @@ static const struct miscdevice imx219_device = {
 	.fops = &imx219_fileops,
 };
 
+static int imx219_check_module(struct imx219_info *info)
+{
+	u8 module_id[2];
+	int err;
+
+	err = imx219_power_on(info);
+	if (err)
+		return err;
+
+	err = imx219_read_reg(info->i2c_client, 0x0000, &module_id[0]);
+	if (err)
+		goto check_fail;
+
+	err = imx219_read_reg(info->i2c_client, 0x0001, &module_id[1]);
+	if (err)
+		goto check_fail;
+
+	if (module_id[0] != 0x02 || module_id[1] != 0x19)
+		err = -ENODEV;
+
+check_fail:
+	imx219_power_off(info);
+	return err;
+}
 static int
 imx219_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
@@ -724,6 +748,13 @@ imx219_probe(struct i2c_client *client, const struct i2c_device_id *id)
 
 	info->miscdev_info = imx219_device;
 	i2c_set_clientdata(client, info);
+
+	err = imx219_check_module(info);
+	if (err) {
+		dev_err(&client->dev, "%s: Module check failed", __func__);
+		return err;
+	}
+
 	err = misc_register(&info->miscdev_info);
 	if (err) {
 		dev_err(&info->i2c_client->dev,
