@@ -188,7 +188,6 @@ static int tegra210_admaif_runtime_suspend(struct device *dev)
 	struct tegra210_admaif *admaif = dev_get_drvdata(dev);
 
 	regcache_cache_only(admaif->regmap, true);
-	regcache_mark_dirty(admaif->regmap);
 	pm_runtime_put_sync(dev->parent);
 
 	return 0;
@@ -210,6 +209,16 @@ static int tegra210_admaif_runtime_resume(struct device *dev)
 
 	return 0;
 }
+
+#ifdef CONFIG_PM_SLEEP
+static int tegra210_admaif_suspend(struct device *dev)
+{
+	struct tegra210_admaif *admaif = dev_get_drvdata(dev);
+
+	regcache_mark_dirty(admaif->regmap);
+	return 0;
+}
+#endif
 
 static int tegra210_admaif_set_pack_mode(struct regmap *map, unsigned int reg,
 					int valid_bit)
@@ -691,11 +700,10 @@ static int tegra210_admaif_probe(struct platform_device *pdev)
 
 	pm_runtime_enable(&pdev->dev);
 	if (!pm_runtime_enabled(&pdev->dev)) {
+		ret = tegra210_admaif_runtime_resume(&pdev->dev);
 		if (ret)
 			goto err_pm_disable;
 	}
-
-	ret = tegra210_admaif_runtime_resume(&pdev->dev);
 
 	for (i = 0; i < admaif->soc_data->num_ch; i++) {
 		admaif->playback_dma_data[i].addr = res->start +
@@ -792,8 +800,9 @@ static int tegra210_admaif_remove(struct platform_device *pdev)
 }
 
 static const struct dev_pm_ops tegra210_admaif_pm_ops = {
-	SET_RUNTIME_PM_OPS(NULL, NULL, NULL)
-	SET_SYSTEM_SLEEP_PM_OPS(tegra210_admaif_runtime_suspend, tegra210_admaif_runtime_resume)
+	SET_RUNTIME_PM_OPS(tegra210_admaif_runtime_suspend,
+			   tegra210_admaif_runtime_resume, NULL)
+	SET_SYSTEM_SLEEP_PM_OPS(tegra210_admaif_suspend, NULL)
 };
 
 static struct platform_driver tegra210_admaif_driver = {
