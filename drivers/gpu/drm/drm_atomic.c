@@ -667,6 +667,7 @@ drm_atomic_plane_get_property(struct drm_plane *plane,
 static int drm_atomic_plane_check(struct drm_plane *plane,
 		struct drm_plane_state *state)
 {
+	struct drm_mode_config *config;
 	unsigned int fb_width, fb_height;
 	unsigned int i;
 
@@ -697,6 +698,14 @@ static int drm_atomic_plane_check(struct drm_plane *plane,
 		DRM_DEBUG_ATOMIC("Invalid pixel format %s\n",
 				 drm_get_format_name(state->fb->pixel_format));
 		return -EINVAL;
+	}
+
+	/* Check whether the source width and height are within limits */
+	config = &plane->dev->mode_config;
+	if (state->src_w > (config->max_width << 16) ||
+		state->src_h > (config->max_height << 16)) {
+		DRM_DEBUG_ATOMIC("Src coordinates exceed size limits\n");
+		return -ERANGE;
 	}
 
 	/* Give drivers some help against integer overflows */

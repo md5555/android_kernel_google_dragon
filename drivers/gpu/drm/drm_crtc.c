@@ -2694,6 +2694,20 @@ int drm_mode_setcrtc(struct drm_device *dev, void *data,
 			}
 		}
 
+		if (fb->width > config->max_width) {
+			DRM_DEBUG_KMS("bad framebuffer width %d, should be <= %d\n",
+					fb->width, config->max_width);
+			ret = -EINVAL;
+			goto out;
+		}
+
+		if (fb->height > config->max_height) {
+			DRM_DEBUG_KMS("bad framebuffer height %d, should be <= %d\n",
+					fb->height, config->max_height);
+			ret = -EINVAL;
+			goto out;
+		}
+
 		mode = drm_mode_create(dev);
 		if (!mode) {
 			ret = -ENOMEM;
@@ -3210,14 +3224,14 @@ static struct drm_framebuffer *add_framebuffer_internal(struct drm_device *dev,
 		return ERR_PTR(-EINVAL);
 	}
 
-	if ((config->min_width > r->width) || (r->width > config->max_width)) {
-		DRM_DEBUG_KMS("bad framebuffer width %d, should be >= %d && <= %d\n",
-			  r->width, config->min_width, config->max_width);
+	if (config->min_width > r->width) {
+		DRM_DEBUG_KMS("bad framebuffer width %d, should be >= %d\n",
+			  r->width, config->min_width);
 		return ERR_PTR(-EINVAL);
 	}
-	if ((config->min_height > r->height) || (r->height > config->max_height)) {
-		DRM_DEBUG_KMS("bad framebuffer height %d, should be >= %d && <= %d\n",
-			  r->height, config->min_height, config->max_height);
+	if (config->min_height > r->height) {
+		DRM_DEBUG_KMS("bad framebuffer height %d, should be >= %d\n",
+			  r->height, config->min_height);
 		return ERR_PTR(-EINVAL);
 	}
 
