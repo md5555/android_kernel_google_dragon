@@ -237,6 +237,10 @@ static void gem_unmap_work(struct work_struct *__work)
 	struct reservation_object *resv = nvbo->bo.resv;
 	struct reservation_object_list *fobj;
 	struct fence *fence = NULL;
+	int ret;
+
+	ret = pm_runtime_get_sync(dev->dev);
+	WARN_ON(ret < 0 && ret != -EACCES);
 
 	if (mapped)
 		WARN_ON(nvkm_vm_wait(vma->vm));
@@ -267,6 +271,11 @@ static void gem_unmap_work(struct work_struct *__work)
 	mutex_unlock(&dev->struct_mutex);
 
 	kfree(del_work);
+
+	if (ret >= 0) {
+		pm_runtime_mark_last_busy(dev->dev);
+		pm_runtime_put_autosuspend(dev->dev);
+	}
 }
 
 /*
@@ -1178,11 +1187,19 @@ nouveau_gem_pushbuf_queue_process_work(struct work_struct *work)
 {
 	struct nouveau_channel *chan = container_of(work,
 			struct nouveau_channel,  pushbuf_work);
+	struct device *dev = chan->drm->dev->dev;
 	int ret;
+
+	ret = pm_runtime_get_sync(dev);
+	if (WARN_ON(ret < 0 && ret != -EACCES))
+		return;
 
 	ret = nouveau_gem_pushbuf_queue_process(chan);
 	if (ret)
 		printk(KERN_ERR "nouveau pushbuf_2 failed: %d", ret);
+
+	pm_runtime_mark_last_busy(dev);
+	pm_runtime_put_autosuspend(dev);
 }
 
 static void
