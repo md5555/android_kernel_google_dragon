@@ -60,21 +60,37 @@ int blkdev_issue_discard(struct block_device *bdev, sector_t sector,
 	granularity = max(q->limits.discard_granularity >> 9, 1U);
 	alignment = (bdev_discard_alignment(bdev) >> 9) % granularity;
 
-	/*
-	 * Ensure that max_discard_sectors is of the proper
-	 * granularity, so that requests stay aligned after a split.
-	 */
-	max_discard_sectors = min(q->limits.max_discard_sectors, UINT_MAX >> 9);
-	max_discard_sectors -= max_discard_sectors % granularity;
-	if (unlikely(!max_discard_sectors)) {
-		/* Avoid infinite loop below. Being cautious never hurts. */
-		return -EOPNOTSUPP;
-	}
+	max_discard_sectors = min(q->limits.max_discard_sectors,
+						UINT_MAX >> 9);
 
 	if (flags & BLKDEV_DISCARD_SECURE) {
 		if (!blk_queue_secdiscard(q))
 			return -EOPNOTSUPP;
 		type |= REQ_SECURE;
+		/*
+		 * Secure erase performs better by telling the device
+		 * about the largest range possible.  Secure erase
+		 * piecemeal will likely result in mapped sectors
+		 * getting evacuated from one range and parked in
+		 * another range that will get erased by a future
+		 * erase command.  This does NOT happen for normal
+		 * TRIM or DISCARD operations.
+		 *
+		 * 32GB was a compromise to avoid blocking the device
+		 * for potentially minute(s) at a time.
+		 */
+		if (max_discard_sectors < (1 << (25-9)))	/* 32GiB */
+			max_discard_sectors = 1 << (25-9);
+	}
+
+	/*
+	 * Ensure that max_discard_sectors is of the proper
+	 * granularity, so that requests stay aligned after a split.
+	 */
+	max_discard_sectors -= max_discard_sectors % granularity;
+	if (unlikely(!max_discard_sectors)) {
+		/* Avoid infinite loop below. Being cautious never hurts. */
+		return -EOPNOTSUPP;
 	}
 
 	atomic_set(&bb.done, 1);
