@@ -69,6 +69,7 @@ struct panel_jdi {
 
 	struct mutex lock;
 	bool enabled;
+	int brightness;
 
 	struct dentry *debugfs_entry;
 	u8 current_register;
@@ -108,7 +109,7 @@ static int backlight_jdi_update_status(struct backlight_device *bl)
 
 	mutex_lock(&jdi->lock);
 
-	if (!jdi->enabled) {
+	if (!jdi->enabled || jdi->brightness == brightness) {
 		ret = 0;
 		goto out;
 	}
@@ -119,6 +120,7 @@ static int backlight_jdi_update_status(struct backlight_device *bl)
 		goto out;
 	}
 
+	jdi->brightness = brightness;
 out:
 	mutex_unlock(&jdi->lock);
 	return ret;
@@ -209,6 +211,7 @@ static int panel_jdi_disable(struct drm_panel *panel)
 	/* Specified by JDI @ 150ms, subject to change */
 	msleep(150);
 
+	jdi->brightness = 0;
 out:
 	mutex_unlock(&jdi->lock);
 	return ret;
@@ -411,6 +414,10 @@ static int panel_jdi_enable(struct drm_panel *panel)
 
 	jdi->enabled = true;
 	mutex_unlock(&jdi->lock);
+
+	ret = backlight_jdi_update_status(jdi->bl);
+	if (ret)
+		DRM_ERROR("failed to update backlight: %d\n", ret);
 
 	return ret;
 }
