@@ -104,7 +104,7 @@ static int of_thermal_set_trips(struct thermal_zone_device *tz, long temp)
 		return 0;
 
 	/* No need to change trip points */
-	if (temp > data->prev_low_trip && temp < data->prev_high_trip)
+	if (temp >= data->prev_low_trip && temp <= data->prev_high_trip)
 		return 0;
 
 	for (i = 0; i < data->ntrips; ++i) {
