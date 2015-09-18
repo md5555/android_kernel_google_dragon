@@ -1491,7 +1491,8 @@ static void tegra_dc_init_hw(struct tegra_dc *dc)
 		value |= VBLANK_INT;
 	tegra_dc_writel(dc, value, DC_CMD_INT_ENABLE);
 
-	value = WIN_A_UF_INT | WIN_B_UF_INT | WIN_C_UF_INT;
+	value = tegra_dc_readl(dc, DC_CMD_INT_MASK);
+	value |= WIN_A_UF_INT | WIN_B_UF_INT | WIN_C_UF_INT;
 	tegra_dc_writel(dc, value, DC_CMD_INT_MASK);
 
 	if (dc->soc->supports_border_color)
