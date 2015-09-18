@@ -567,7 +567,7 @@ static void enable_tsensor(struct tegra_soctherm *tegra,
  *
  * Return: temperature in millicelsius.
  */
-static long temp_convert(int cap, int a, int b)
+static int temp_convert(int cap, int a, int b)
 {
 	cap *= a;
 	cap >>= 10;
@@ -587,7 +587,7 @@ static long temp_convert(int cap, int a, int b)
  */
 static int translate_temp(u16 val)
 {
-	long t;
+	int t;
 
 	t = ((val & READBACK_VALUE_MASK) >> READBACK_VALUE_SHIFT) * 1000;
 	if (val & READBACK_ADD_HALF)
@@ -2040,7 +2040,7 @@ static int regs_show(struct seq_file *s, void *data)
 		state = REG_GET(r, TS_CPU0_STATUS1_TEMP_VALID);
 		seq_printf(s, "Temp(%d/", state);
 		state = REG_GET(r, TS_CPU0_STATUS1_TEMP);
-		seq_printf(s, "%ld) ", translate_temp(state));
+		seq_printf(s, "%d) ", translate_temp(state));
 
 		r = soctherm_readl(ts,
 				TS_TSENSE_REG_OFFSET(TS_CPU0_STATUS0, i));
@@ -2049,7 +2049,7 @@ static int regs_show(struct seq_file *s, void *data)
 		state = REG_GET(r, TS_CPU0_STATUS0_CAPTURE);
 		therm_a = (s16)(REG_GET_MASK(tsensors[i].calib, SENSOR_CONFIG2_THERMA_MASK));
 		therm_b = (s16)(REG_GET_MASK(tsensors[i].calib, SENSOR_CONFIG2_THERMB_MASK));
-		seq_printf(s, "%d) (Converted-temp(%ld) ", state, temp_convert(state, therm_a, therm_b));
+		seq_printf(s, "%d) (Converted-temp(%d) ", state, temp_convert(state, therm_a, therm_b));
 
 		r = soctherm_readl(ts,
 				TS_TSENSE_REG_OFFSET(TS_CPU0_CONFIG0, i));
@@ -2080,14 +2080,14 @@ static int regs_show(struct seq_file *s, void *data)
 
 	r = soctherm_readl(ts, TS_TEMP1);
 	state = REG_GET(r, TS_TEMP1_CPU_TEMP);
-	seq_printf(s, "Temperatures: CPU(%ld) ", translate_temp(state));
+	seq_printf(s, "Temperatures: CPU(%d) ", translate_temp(state));
 	state = REG_GET(r, TS_TEMP1_GPU_TEMP);
-	seq_printf(s, " GPU(%ld) ", translate_temp(state));
+	seq_printf(s, " GPU(%d) ", translate_temp(state));
 	r = soctherm_readl(ts, TS_TEMP2);
 	state = REG_GET(r, TS_TEMP2_PLLX_TEMP);
-	seq_printf(s, " PLLX(%ld) ", translate_temp(state));
+	seq_printf(s, " PLLX(%d) ", translate_temp(state));
 	state = REG_GET(r, TS_TEMP2_MEM_TEMP);
-	seq_printf(s, " MEM(%ld)\n", translate_temp(state));
+	seq_printf(s, " MEM(%d)\n", translate_temp(state));
 
 	for (i = 0; tsensor_groups[i]; i++) {
 		seq_printf(s, "%s:\n", tsensor_groups[i]->name);
@@ -2344,7 +2344,7 @@ static int temp_log_show(struct seq_file *s, void *data)
 		}
 
 		state = REG_GET(r, TS_CPU0_STATUS1_TEMP);
-		seq_printf(s, "\t%ld", translate_temp(state));
+		seq_printf(s, "\t%d", translate_temp(state));
 	}
 	seq_puts(s, "\n");
 
