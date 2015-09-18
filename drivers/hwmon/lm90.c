@@ -895,7 +895,7 @@ static ssize_t show_temp11(struct device *dev, struct device_attribute *devattr,
 	return sprintf(buf, "%d\n", read_temp11(dev, attr->index));
 }
 
-static int lm90_read_temp(void *dev, long *temp)
+static int lm90_read_temp(void *dev, int *temp)
 {
 	struct _therm_id *id = (struct _therm_id *)dev;
 
