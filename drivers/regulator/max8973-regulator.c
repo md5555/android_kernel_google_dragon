@@ -440,7 +440,7 @@ static int max8973_init_dcdc(struct max8973_chip *max,
 	return ret;
 }
 
-static int max8973_thermal_read_temp(void *data, long *temp)
+static int max8973_thermal_read_temp(void *data, int *temp)
 {
 	struct max8973_chip *mchip = data;
 	unsigned int val;
