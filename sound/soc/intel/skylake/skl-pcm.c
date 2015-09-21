@@ -559,6 +559,9 @@ static int skl_link_hw_free(struct snd_pcm_substream *substream,
 				snd_soc_dai_get_dma_data(dai, substream);
 	struct hdac_ext_link *link;
 
+	if (!link_dev)
+		return 0;
+
 	dev_dbg(dai->dev, "%s: %s\n", __func__, dai->name);
 
 	link_dev->link_prepared = 0;
@@ -567,6 +570,7 @@ static int skl_link_hw_free(struct snd_pcm_substream *substream,
 	if (!link)
 		return -EINVAL;
 
+	snd_soc_dai_set_dma_data(dai, substream, NULL);
 	snd_hdac_ext_link_clear_stream_id(link, hdac_stream(link_dev)->stream_tag);
 	snd_hdac_ext_stream_release(link_dev, HDAC_EXT_STREAM_TYPE_LINK);
 	return 0;
