@@ -1489,8 +1489,6 @@ static int tegra210_emc_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	thermal_zone_of_sensor_register(&pdev->dev, 0, NULL, &dram_therm_ops);
-
 	tegra_emc_init_done = true;
 
 	tegra_emc_debug_init();
@@ -1541,3 +1539,29 @@ static int __init tegra210_emc_init(void)
 	return platform_driver_register(&tegra210_emc_driver);
 }
 subsys_initcall(tegra210_emc_init);
+
+static int __init tegra210_emc_late_init(void)
+{
+	struct device_node *node;
+	struct platform_device *pdev;
+
+	if (!tegra_emc_init_done)
+		return -ENODEV;
+
+	node = of_find_matching_node(NULL, tegra210_emc_of_match);
+	if (!node) {
+		dev_err(&pdev->dev, "Error finding EMC node.\n");
+		return -EINVAL;
+	}
+
+	pdev = of_find_device_by_node(node);
+	if (!pdev) {
+		dev_err(&pdev->dev, "Error finding EMC device.\n");
+		return -EINVAL;
+	}
+
+	thermal_zone_of_sensor_register(&pdev->dev, 0, NULL, &dram_therm_ops);
+
+	return 0;
+}
+late_initcall(tegra210_emc_late_init);
