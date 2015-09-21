@@ -1613,368 +1613,18 @@ static void tegra_crtc_atomic_begin(struct drm_crtc *crtc)
 	spin_unlock_irqrestore(&drm->event_lock, flags);
 }
 
-/*
- * Note about fixed point arithmetic:
- * ----------------------------------
- * calc_disp_params(...) contains fixed point values and arithmetic due to the
- * need to use floating point values. All fixed point values have the "_fp" or
- * "_FP" suffix in their name. Functions/values used to convert between real and
- * fixed point values are listed below:
- *    - FP_FACTOR
- *    - LA_REAL_TO_FP(real_val)
- *    - LA_FP_TO_REAL(fp_val)
- */
-static void calc_disp_params(struct drm_crtc *crtc,
-				struct tegra_plane *tp,
-				struct tegra_plane_state *tps,
-				int num_wins,
-				int mc_client_id,
-				unsigned int emc_freq_hz,
-				unsigned int total_active_space_bw,
-				unsigned long bw_kbps,
-				struct tegra_dc_to_la_params *disp_params)
+static int tegra_dc_program_bandwidth(struct tegra_dc *dc,
+				      unsigned long bandwidth)
 {
-	struct tegra_dc *dc = to_tegra_dc(crtc);
-	const struct tegra_disp_client *dci =
-		tegra_la_get_disp_client_info(dc->mc,
-					      dc->mc_win_clients[tp->index]);
-	unsigned int bw_mbps = DIV_ROUND_UP(bw_kbps, 1000);
-	unsigned int bw_mbps_fp = LA_REAL_TO_FP(bw_mbps);
-	bool win_rotated;
-	unsigned int surface_width;
-	bool vertical_scaling_enabled;
-	bool pitch = (tps->tiling.mode == TEGRA_BO_TILING_MODE_PITCH);
-	bool planar, yuv;
-	bool packed_yuv422 = ((tps->format == WIN_COLOR_DEPTH_YCbCr422) ||
-			      (tps->format == WIN_COLOR_DEPTH_YUV422));
-	unsigned int bytes_per_pixel;
-	struct drm_display_mode *mode = &crtc->state->mode;
-	unsigned int total_h = mode->htotal;
-	unsigned int total_v = mode->vtotal;
-	unsigned int total_screen_area = total_h * total_v;
-	unsigned int total_active_area = mode->hdisplay * mode->vdisplay;
-	unsigned int total_blank_area = total_screen_area - total_active_area;
-	unsigned int c1_fp, c2, c3;
-	unsigned int bpp_for_line_buffer_storage_fp;
-	unsigned int latency_buffering_available_in_reqd_buffering_fp;
-	unsigned long emc_freq_mhz = emc_freq_hz / 1000000;
-	unsigned int bw_disruption_time_usec_fp;
-	unsigned int scaled_row_srt_sz_bytes;
-	unsigned int static_la_snap_to_row_srt_emcclk;
-	unsigned int slow_row_srt_sz_bytes_fp;
-	unsigned int effective_row_srt_sz_bytes_fp;
-	unsigned int drain_time_usec_fp;
-	unsigned int total_latency_usec_fp;
-	unsigned int bw_disruption_buffering_bytes_fp;
-	unsigned int reqd_lines = 0;
-	unsigned int lines_of_latency;
-	unsigned int thresh_lwm_bytes_fp;
-	unsigned int total_buf_sz_bytes = dci->line_buf_sz_bytes +
-					  dci->mccif_size_bytes;
-	unsigned int total_vblank_bw;
-	unsigned int bw_display_fp, bw_delta_fp, bw_other_wins;
-	unsigned int fill_rate_other_wins_fp;
-	unsigned int dvfs_time_nsec = tegra_emc_get_clk_latency(emc_freq_hz);
-	unsigned int data_shortfall_other_wins_fp;
-	unsigned int duration_usec_fp;
-	unsigned int spool_up_buffering_adj_bytes = 0;
-
-	bw_disruption_time_usec_fp = LA_BW_DISRUPTION_TIME_EMCCLKS_FP /
-				     emc_freq_mhz;
-
-	scaled_row_srt_sz_bytes = min((unsigned long)LA_ROW_SRT_SZ_BYTES,
-				      16 * min(emc_freq_mhz + 50, 400ul));
-
-	static_la_snap_to_row_srt_emcclk =
-		LA_FP_TO_REAL(LA_STATIC_LA_SNAP_ARB_TO_ROW_SRT_EMCCLKS_FP);
-
-	slow_row_srt_sz_bytes_fp = (LA_MAX_DRAIN_TIME_USEC * emc_freq_mhz -
-				    static_la_snap_to_row_srt_emcclk) *
-				   2 * LA_DRAM_WIDTH_BITS /
-				   8 * LA_CONS_MEM_EFFICIENCY_FP;
-
-	effective_row_srt_sz_bytes_fp =
-		min(LA_REAL_TO_FP(scaled_row_srt_sz_bytes),
-		    slow_row_srt_sz_bytes_fp);
-
-	drain_time_usec_fp = effective_row_srt_sz_bytes_fp * LA_FP_FACTOR /
-			     (emc_freq_mhz * LA_DRAM_WIDTH_BITS / 4 *
-			     LA_CONS_MEM_EFFICIENCY_FP) +
-			     LA_STATIC_LA_SNAP_ARB_TO_ROW_SRT_EMCCLKS_FP /
-			     emc_freq_mhz;
-
-	total_latency_usec_fp = drain_time_usec_fp +
-				LA_ST_LA_MINUS_SNAP_ARB_TO_ROW_SRT_EMCCLKS_FP /
-				emc_freq_mhz;
-
-	bw_disruption_buffering_bytes_fp = bw_mbps *
-					   max(bw_disruption_time_usec_fp,
-					       total_latency_usec_fp) +
-					   LA_REAL_TO_FP(1) / 2;
-
-	if (tegra_dc_format_is_yuv(tps->format, &planar)) {
-		yuv = true;
-		bytes_per_pixel = 2;
-	} else {
-		yuv = false;
-		bytes_per_pixel = tp->base.fb->bits_per_pixel / 8;
-	}
-
-	disp_params->drain_time_usec_fp = drain_time_usec_fp;
-
-	if (dc->soc->supports_scan_column &&
-			((BIT(DRM_ROTATE_90) | BIT(DRM_ROTATE_270)) &
-				tps->base.rotation)) {
-		win_rotated = true;
-		surface_width = tps->base.src_h >> 16;
-		vertical_scaling_enabled =
-			(tps->base.src_w == tps->base.crtc_w) ? false : true;
-	} else {
-		win_rotated = false;
-		surface_width = tps->base.src_w >> 16;
-		vertical_scaling_enabled =
-			(tps->base.src_h == tps->base.crtc_h) ? false : true;
-	}
-
-	if ((dci->line_buf_sz_bytes == 0) || (pitch == true)) {
-		reqd_lines = 0;
-	} else if (win_rotated && planar) {
-		if (vertical_scaling_enabled)
-			reqd_lines = 17;
-		else
-			reqd_lines = 16;
-	} else {
-		if (win_rotated) {
-			if (vertical_scaling_enabled)
-				reqd_lines = DIV_ROUND_UP(16, bytes_per_pixel);
-			else
-				reqd_lines = 16 / bytes_per_pixel;
-		} else {
-			if (vertical_scaling_enabled)
-				reqd_lines = 3;
-			else
-				reqd_lines = 1;
-		}
-	}
-
-	if (reqd_lines > 0 && !vertical_scaling_enabled && win_rotated)
-		lines_of_latency = 1;
-	else
-		lines_of_latency = 0;
-
-	if (((tps->format == WIN_COLOR_DEPTH_YCbCr422R) ||
-	     (tps->format == WIN_COLOR_DEPTH_YUV422R) ||
-	     (tps->format == WIN_COLOR_DEPTH_YCbCr422RA) ||
-	     (tps->format == WIN_COLOR_DEPTH_YUV422RA)) &&
-	    !win_rotated) {
-		c1_fp = LA_REAL_TO_FP(5) / 2;
-	} else {
-		c1_fp = LA_REAL_TO_FP(1);
-	}
-
-	if ((((tps->format == WIN_COLOR_DEPTH_YCbCr420P) ||
-	      (tps->format == WIN_COLOR_DEPTH_YUV420P)) &&
-	    !win_rotated) || (yuv && win_rotated)) {
-		c2 = 3;
-	} else {
-		c2 = bytes_per_pixel;
-	}
-
-	c3 = (packed_yuv422 && win_rotated) ? 2 : 1;
-	latency_buffering_available_in_reqd_buffering_fp = surface_width *
-							   lines_of_latency *
-							   c1_fp * c2 * c3;
-
-	switch (tps->format) {
-	/* YUV 420 case*/
-	case WIN_COLOR_DEPTH_YCbCr420P:
-	case WIN_COLOR_DEPTH_YUV420P:
-		c1_fp = (win_rotated) ?  LA_REAL_TO_FP(2) : LA_REAL_TO_FP(3);
-		break;
-
-	/* YUV 422 case */
-	case WIN_COLOR_DEPTH_YCbCr422:
-	case WIN_COLOR_DEPTH_YUV422:
-	case WIN_COLOR_DEPTH_YCbCr422P:
-	case WIN_COLOR_DEPTH_YUV422P:
-		c1_fp = (win_rotated) ?  LA_REAL_TO_FP(3) : LA_REAL_TO_FP(2);
-		break;
-
-	/* YUV 422R case */
-	case WIN_COLOR_DEPTH_YCbCr422R:
-	case WIN_COLOR_DEPTH_YUV422R:
-	case WIN_COLOR_DEPTH_YCbCr422RA:
-	case WIN_COLOR_DEPTH_YUV422RA:
-		c1_fp = (win_rotated) ?  LA_REAL_TO_FP(2) : LA_REAL_TO_FP(5);
-		break;
-
-	default:
-		c1_fp = LA_REAL_TO_FP(bytes_per_pixel);
-		break;
-	}
-
-	c2 = (packed_yuv422 && win_rotated) ? 2 : 1;
-	bpp_for_line_buffer_storage_fp = c1_fp * c2;
-
-	thresh_lwm_bytes_fp = surface_width * reqd_lines *
-			      bpp_for_line_buffer_storage_fp;
-
-	if (bw_disruption_buffering_bytes_fp >=
-	    latency_buffering_available_in_reqd_buffering_fp)
-		thresh_lwm_bytes_fp += bw_disruption_buffering_bytes_fp -
-			       latency_buffering_available_in_reqd_buffering_fp;
-
-	disp_params->thresh_lwm_bytes = LA_FP_TO_REAL(thresh_lwm_bytes_fp);
-
-	if ((dci->win_type == TEGRA_LA_DISP_WIN_TYPE_FULL) ||
-	    (dci->win_type == TEGRA_LA_DISP_WIN_TYPE_FULLA) ||
-	    (dci->win_type == TEGRA_LA_DISP_WIN_TYPE_FULLB)) {
-		total_vblank_bw = total_buf_sz_bytes / total_blank_area;
-	} else {
-		total_vblank_bw = 0;
-	}
-
-	bw_display_fp = LA_DISP_CATCHUP_FACTOR_FP *
-			max(total_active_space_bw, total_vblank_bw);
-	bw_delta_fp = bw_mbps_fp - (bw_display_fp / num_wins);
-
-	bw_other_wins = total_active_space_bw - bw_mbps;
-
-	if (num_wins > 0) {
-		fill_rate_other_wins_fp = bw_display_fp -
-					  LA_REAL_TO_FP(bw_other_wins);
-	} else {
-		fill_rate_other_wins_fp = 0;
-	}
-
-	data_shortfall_other_wins_fp = dvfs_time_nsec * bw_other_wins *
-				       LA_FP_FACTOR / 1000;
-
-	duration_usec_fp = (fill_rate_other_wins_fp == 0) ? 0 :
-			   data_shortfall_other_wins_fp * LA_FP_FACTOR /
-			   fill_rate_other_wins_fp;
-
-	if (bw_delta_fp > 0)
-		spool_up_buffering_adj_bytes = bw_delta_fp * duration_usec_fp /
-					       LA_FP_FACTOR / LA_FP_FACTOR;
-
-	disp_params->spool_up_buffering_adj_bytes =
-						spool_up_buffering_adj_bytes;
-}
-
-static int tegra_dc_set_latency_allowance(struct drm_crtc *crtc,
-					  unsigned long emc_freq,
-					  struct drm_atomic_state *old_state)
-{
-	struct tegra_dc *dc = to_tegra_dc(crtc);
-	struct tegra_dc_state *dcs = to_dc_state(crtc->state);
-	struct drm_plane *plane;
-	struct tegra_plane *tp;
-	struct drm_plane_state *unused;
-	struct tegra_plane_state *tps;
-	struct clk *emc = clk_get_parent(dc->emc_clk);
-	struct tegra_dc_to_la_params disp_params = {0};
-	unsigned int emc_freq_hz;
-	unsigned int emc_la_freq_hz = 0;
-	int i, num_wins = 0;
-	unsigned int total_active_space_bw = 0;
-
-	if (!dc->emc_la_clk)
-		return 0;
-
-	for_each_plane_in_state(old_state, plane, unused, i) {
-		if (plane->crtc != crtc)
-			continue;
-
-		tps = to_tegra_plane_state(plane->state);
-		num_wins++;
-		total_active_space_bw += tps->plane_emc_bw;
-	}
-
-	for_each_plane_in_state(old_state, plane, unused, i) {
-		if (plane->crtc != crtc)
-			continue;
-
-		tp = to_tegra_plane(plane);
-		tps = to_tegra_plane_state(plane->state);
-
-		emc_freq_hz = tegra_emc_bw_to_freq_req(tps->plane_emc_bw) *
-			      1000;
-		/*
-		 * use clk_round_rate on root emc clock instead to
-		 * get correct rate.
-		 */
-		emc_freq_hz = clk_round_rate(emc, emc_freq_hz);
-
-		while (1) {
-			int err;
-			unsigned long next_freq = 0;
-
-			calc_disp_params(crtc, tp, tps, num_wins,
-					 dc->mc_win_clients[tp->index],
-					 emc_freq_hz, total_active_space_bw,
-					 tps->plane_emc_bw, &disp_params);
-
-			if (dc->pipe)
-				disp_params.total_dc1_bw = dcs->emc_bandwidth;
-			else
-				disp_params.total_dc0_bw = dcs->emc_bandwidth;
-
-			err = tegra_la_set_disp_la(dc->mc,
-						  dc->mc_win_clients[tp->index],
-						  emc_freq_hz,
-						  tps->plane_emc_bw,
-						  disp_params);
-			if (!err) {
-				if (emc_freq_hz > emc_la_freq_hz)
-					emc_la_freq_hz = emc_freq_hz;
-				break;
-			}
-
-			next_freq = clk_round_rate(emc, emc_freq_hz + 1000000);
-
-			if (emc_freq_hz != next_freq)
-				emc_freq_hz = next_freq;
-			else
-				break;
-		}
-	}
-
-	emc_la_freq_hz = clk_round_rate(emc, emc_la_freq_hz);
-	clk_set_rate(dc->emc_la_clk, emc_la_freq_hz);
-	return 0;
-}
-
-static int tegra_dc_program_bandwidth(struct drm_crtc *crtc,
-				      struct drm_atomic_state *old_state)
-{
-	struct tegra_dc *dc;
-	struct tegra_dc_state *dc_state;
 	unsigned long freq;
-	int err;
 
-	dc = to_tegra_dc(crtc);
-	dc_state = to_dc_state(crtc->state);
 	if (!dc->emc_clk)
 		return 0;
 
-	freq = tegra_emc_bw_to_freq_req(dc_state->emc_bandwidth) * 1000;
+	bandwidth *= 2; /* double bandwidth to avoid underflow */
+	freq = tegra_emc_bw_to_freq_req(bandwidth) * 1000;
 
-	err = clk_set_rate(dc->emc_clk, freq);
-	if (err) {
-		dev_err(dc->dev, "Set DC emc clock to %lu failed: %d\n",
-			freq, err);
-		return err;
-	}
-
-	/* Program MC LA/PTSA registers */
-	err = tegra_dc_set_latency_allowance(crtc, freq, old_state);
-	if (err) {
-		dev_err(dc->dev, "Set DC latency allowance failed: %d\n", err);
-		return err;
-	}
-
-	return 0;
+	return clk_set_rate(dc->emc_clk, freq);
 }
 
 static u64 tegra_dc_calculate_bandwidth(int pclk, struct drm_plane_state *state)
@@ -2097,66 +1747,49 @@ int tegra_dc_evaluate_bandwidth(struct drm_atomic_state *state)
 	return 0;
 }
 
-void tegra_dc_update_emc_pre_commit(struct drm_atomic_state *old_state)
+void tegra_dc_update_emc_pre_commit(struct drm_crtc *crtc,
+				    struct drm_crtc_state *old_crtc_state)
 {
-	struct drm_crtc *crtc;
-	struct drm_crtc_state *old_crtc_state;
-	struct tegra_dc *dc;
-	struct tegra_dc_state *old_dc_state;
-	struct tegra_dc_state *new_dc_state;
-	int i, ret;
+	struct tegra_dc *dc = to_tegra_dc(crtc);
+	struct tegra_dc_state *old_state = to_dc_state(old_crtc_state);
+	struct tegra_dc_state *new_state = to_dc_state(crtc->state);
+	int ret;
 
-	for_each_crtc_in_state(old_state, crtc, old_crtc_state, i) {
-		dc = to_tegra_dc(crtc);
-		old_dc_state = to_dc_state(old_crtc_state);
-		new_dc_state = to_dc_state(crtc->state);
-
-		/* Don't drop the emc clock early if it's decreasing */
-		if (new_dc_state->emc_bandwidth < old_dc_state->emc_bandwidth) {
-			continue;
-		/* If we're not changing the clock, mark it updated */
-		} else if (new_dc_state->emc_bandwidth ==
-				old_dc_state->emc_bandwidth) {
-			new_dc_state->update_emc = false;
-			continue;
-		}
-
-		DRM_INFO("%s old_bw=%ld new_bw=%ld\n", __func__,
-			  old_dc_state->emc_bandwidth,
-			  new_dc_state->emc_bandwidth);
-
-		/* Program the emc early if the bandwidth is increasing */
-		ret = tegra_dc_program_bandwidth(crtc, old_state);
-		if (ret)
-			DRM_ERROR("Failed to program emc bandwidth %d\n", ret);
-		else
-			new_dc_state->update_emc = false;
+	/* Don't drop the emc clock early if it's decreasing */
+	if (new_state->emc_bandwidth < old_state->emc_bandwidth) {
+		return;
+	/* If we're not changing the clock, mark it updated */
+	} else if (new_state->emc_bandwidth == old_state->emc_bandwidth) {
+		new_state->update_emc = false;
+		return;
 	}
+
+	DRM_INFO("%s old_bw=%ld new_bw=%ld\n", __func__,
+		  old_state->emc_bandwidth, new_state->emc_bandwidth);
+
+	/* Program the emc early if the bandwidth is increasing */
+	ret = tegra_dc_program_bandwidth(dc, new_state->emc_bandwidth);
+	if (ret)
+		DRM_ERROR("Failed to program emc bandwidth %d\n", ret);
+	else
+		new_state->update_emc = false;
 }
 
-void tegra_dc_update_emc_post_commit(struct drm_atomic_state *old_state)
+void tegra_dc_update_emc_post_commit(struct drm_crtc *crtc)
 {
-	struct drm_crtc *crtc;
-	struct drm_crtc_state *old_crtc_state;
-	struct tegra_dc *dc;
-	struct tegra_dc_state *new_dc_state;
-	int i, ret;
+	struct tegra_dc *dc = to_tegra_dc(crtc);
+	struct tegra_dc_state *state = to_dc_state(crtc->state);
+	int ret;
 
-	for_each_crtc_in_state(old_state, crtc, old_crtc_state, i) {
-		dc = to_tegra_dc(crtc);
-		new_dc_state = to_dc_state(crtc->state);
+	if (!state || !state->update_emc)
+		return;
 
-		if (!new_dc_state || !new_dc_state->update_emc)
-			continue;
-
-		DRM_INFO("%s new_bw=%ld\n",
-			__func__, new_dc_state->emc_bandwidth);
-		ret = tegra_dc_program_bandwidth(crtc, old_state);
-		if (ret)
-			DRM_ERROR("Failed to program emc bandwidth %d\n", ret);
-		else
-			new_dc_state->update_emc = false;
-	}
+	DRM_INFO("%s new_bw=%ld\n", __func__, state->emc_bandwidth);
+	ret = tegra_dc_program_bandwidth(dc, state->emc_bandwidth);
+	if (ret)
+		DRM_ERROR("Failed to program emc bandwidth %d\n", ret);
+	else
+		state->update_emc = false;
 }
 
 static void tegra_crtc_atomic_flush(struct drm_crtc *crtc)
