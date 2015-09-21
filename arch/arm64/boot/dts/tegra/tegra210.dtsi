@@ -948,9 +948,9 @@
 				resets = <&tegra_car TEGRA210_CLK_SOR0>,
 					 <&tegra_car TEGRA210_CLK_DSIA>,
 					 <&tegra_car TEGRA210_CLK_DSIB>,
-					 <&tegra_car TEGRA210_CLK_SOR1>,
+					 <&tegra_car TEGRA210_CLK_DPAUX>,
 					 <&tegra_car TEGRA210_CLK_MIPI_CAL>;
-				reset-names = "sor0", "dsia", "dsib", "sor1", "mipi_cal";
+				reset-names = "sor0", "dsia", "dsib", "dpaux", "mipi_cal";
 			};
 
 			dis {
