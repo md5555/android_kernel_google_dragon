@@ -29,7 +29,6 @@
 
 static void (*wifi_status_cb)(int card_present, void *dev_id);
 static void *wifi_status_cb_dev_id;
-static int dragon_wifi_status_register(void (*callback)(int , void *), void *);
 
 static int dragon_wifi_reset(int on);
 static int dragon_wifi_power(int on);
@@ -64,17 +63,6 @@ static struct platform_device dragon_wifi_device = {
 		.platform_data = &dragon_wifi_control,
 	},
 };
-
-static int dragon_wifi_status_register(
-		void (*callback)(int card_present, void *dev_id),
-		void *dev_id)
-{
-	if (wifi_status_cb)
-		return -EAGAIN;
-	wifi_status_cb = callback;
-	wifi_status_cb_dev_id = dev_id;
-	return 0;
-}
 
 static int dragon_wifi_set_carddetect(int val)
 {
