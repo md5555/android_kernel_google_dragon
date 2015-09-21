@@ -524,27 +524,6 @@ static int tegra_powergate_power_on(int id)
 }
 
 /**
- * tegra_powergate_power_off() - power off partition
- * @id: partition ID
- */
-static int tegra_powergate_power_off(int id)
-{
-	int ret = 0;
-
-	if (!pmc->soc || id < 0 || id >= pmc->soc->num_powergates)
-		return -EINVAL;
-
-	mutex_lock(&pmc->powergates_lock);
-	if (WARN_ON(pmc->powergate_count[id] == 0))
-		ret = -EINVAL;
-	else if (--pmc->powergate_count[id] == 0)
-		ret = __tegra_powergate_set(id, false);
-	mutex_unlock(&pmc->powergates_lock);
-
-	return ret;
-}
-
-/**
  * tegra_powergate_is_powered() - check if partition is powered
  * @id: partition ID
  */
