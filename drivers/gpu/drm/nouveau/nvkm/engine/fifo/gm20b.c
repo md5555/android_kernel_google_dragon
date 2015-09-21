@@ -21,13 +21,33 @@
  */
 #include "gk104.h"
 
+static int
+gm20b_fifo_init(struct nvkm_object *object)
+{
+	struct gk104_fifo_priv *priv = (void *)object;
+	int i, ret;
+
+	ret = gk104_fifo_init(object);
+	if (ret)
+		return ret;
+
+	/* set fb timeout period to max */
+	nv_mask(priv, 0x002a04, 0x3fffffff, 0x3fffffff);
+
+	/* set pbdma timeout period */
+	for (i = 0; i < priv->spoon_nr; i++)
+		nv_wr32(priv, 0x04012c + i * 0x2000, 0xffffffff);
+
+	return 0;
+}
+
 struct nvkm_oclass *
 gm20b_fifo_oclass = &(struct gk104_fifo_impl) {
 	.base.handle = NV_ENGINE(FIFO, 0x2b),
 	.base.ofuncs = &(struct nvkm_ofuncs) {
 		.ctor = gm204_fifo_ctor,
 		.dtor = gk104_fifo_dtor,
-		.init = gk104_fifo_init,
+		.init = gm20b_fifo_init,
 		.fini = gk104_fifo_fini,
 	},
 	.channels = 512,
