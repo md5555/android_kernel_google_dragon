@@ -41,7 +41,7 @@ struct max77620_therm_zone {
 	long				hd_threshold_temp;
 };
 
-static int max77620_thermal_read_temp(void *data, long *temp)
+static int max77620_thermal_read_temp(void *data, int *temp)
 {
 	struct max77620_therm_zone *ptherm_zone = data;
 	u8 val;
