@@ -385,7 +385,7 @@ static unsigned long
 pd_thermal_gov_get_target(struct thermal_zone_device *tz,
 			   struct thermal_cooling_device *cdev,
 			   enum thermal_trip_type trip_type,
-			   unsigned long trip_temp)
+			   int trip_temp)
 {
 	struct pd_thermal_governor *gov = tz_to_gov(tz);
 	int last_temperature = tz->passive ? tz->last_temperature : trip_temp;
@@ -402,11 +402,11 @@ pd_thermal_gov_get_target(struct thermal_zone_device *tz,
 	max_err = (s64)gov->max_err_temp * (s64)gov->max_err_gain;
 
 	/* Calculate proportional term */
-	proportional = (s64)tz->temperature - (s64)trip_temp;
+	proportional = tz->temperature - trip_temp;
 	proportional *= gov->gain_p;
 
 	/* Calculate derivative term */
-	derivative = (s64)tz->temperature - (s64)last_temperature;
+	derivative = tz->temperature - last_temperature;
 	derivative *= gov->gain_d;
 	derivative *= MSEC_PER_SEC;
 	derivative = div64_s64(derivative, passive_delay);
@@ -445,8 +445,8 @@ static int pd_thermal_gov_throttle(struct thermal_zone_device *tz, int trip)
 {
 	struct thermal_instance *instance;
 	enum thermal_trip_type trip_type;
-	long trip_temp;
-	unsigned long target, hyst;
+	int trip_temp, hyst;
+	unsigned long target;
 
 	tz->ops->get_trip_type(tz, trip, &trip_type);
 	tz->ops->get_trip_temp(tz, trip, &trip_temp);
