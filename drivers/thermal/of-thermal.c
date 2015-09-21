@@ -76,7 +76,7 @@ struct __thermal_zone {
 	int polling_delay;
 	int slope;
 	int offset;
-	long prev_low_trip, prev_high_trip;
+	int prev_low_trip, prev_high_trip;
 
 	/* trip data */
 	int ntrips;
@@ -93,10 +93,10 @@ struct __thermal_zone {
 
 /***   Automatic trip handling   ***/
 
-static int of_thermal_set_trips(struct thermal_zone_device *tz, long temp)
+static int of_thermal_set_trips(struct thermal_zone_device *tz, int temp)
 {
 	struct __thermal_zone *data = tz->devdata;
-	long low = LONG_MIN, high = LONG_MAX;
+	int low = INT_MIN, high = INT_MAX;
 	int i;
 
 	/* Hardware trip points not supported */
@@ -119,7 +119,7 @@ static int of_thermal_set_trips(struct thermal_zone_device *tz, long temp)
 	}
 
 	dev_dbg(&tz->device,
-		"temperature %ld, updating trip points to %ld, %ld\n",
+		"temperature %d, updating trip points to %d, %d\n",
 		temp, low, high);
 
 	data->prev_low_trip = low;
@@ -851,8 +851,8 @@ thermal_of_build_thermal_zone(struct device_node *np)
 	/* trips */
 	child = of_get_child_by_name(np, "trips");
 
-	tz->prev_high_trip = LONG_MIN;
-	tz->prev_low_trip = LONG_MAX;
+	tz->prev_high_trip = INT_MIN;
+	tz->prev_low_trip = INT_MAX;
 
 	/* No trips provided */
 	if (!child)

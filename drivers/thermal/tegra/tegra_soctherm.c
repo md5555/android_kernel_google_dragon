@@ -443,8 +443,8 @@ struct tegra_thermctl_zone {
 	struct tegra_soctherm *tegra;
 	const struct tegra_tsensor_group *sensor_group;
 	struct thermal_zone_device *tz;
-	long cur_low_trip;
-	long cur_high_trip;
+	int cur_low_trip;
+	int cur_high_trip;
 };
 
 /**
@@ -612,7 +612,7 @@ static int tegra_thermctl_get_temp(void *data, int *out_temp)
 	return 0;
 }
 
-static int tegra_thermctl_set_trips(void *data, long low, long high)
+static int tegra_thermctl_set_trips(void *data, int low, int high)
 {
 	struct tegra_thermctl_zone *zone = data;
 	u32 val;
@@ -946,13 +946,13 @@ static irqreturn_t soctherm_edp_isr_thread(int irq, void *dev_id)
  *
  * Return: The precision adjusted capped temperature in millicelsius.
  */
-static int enforce_temp_range(struct device *dev, long trip_temp)
+static int enforce_temp_range(struct device *dev, int trip_temp)
 {
-	long temp;
+	int temp;
 
 	temp = clamp_val(trip_temp, min_low_temp, max_high_temp);
 	if (temp != trip_temp)
-		dev_info(dev, "soctherm: trip temp %ld forced to %ld\n",
+		dev_info(dev, "soctherm: trip temp %d forced to %d\n",
 			 trip_temp, temp);
 	return temp;
 }
@@ -1012,7 +1012,7 @@ static int thermtrip_clear(struct device *dev,
  */
 static int thermtrip_program(struct device *dev,
 			     const struct tegra_tsensor_group *sg,
-			     long trip_temp)
+			     int trip_temp)
 {
 	struct tegra_soctherm *ts = dev_get_drvdata(dev);
 	u32 r;
@@ -1171,7 +1171,7 @@ static int thermtrip_configure_from_dt(struct device *dev)
 }
 
 static inline void prog_hw_threshold(struct device *dev,
-				     long trip_temp,
+				     int trip_temp,
 				     const struct tegra_tsensor_group *sg,
 				     int throt)
 {
@@ -1206,7 +1206,7 @@ static inline void prog_hw_threshold(struct device *dev,
 
 static int throttrip_program(struct device *dev,
 			     const struct tegra_tsensor_group *sg,
-			     long trip_temp)
+			     int trip_temp)
 {
 	if (!dev || !sg)
 		return -EINVAL;
