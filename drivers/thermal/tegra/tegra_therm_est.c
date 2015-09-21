@@ -42,7 +42,7 @@ struct thermal_trip_info {
 struct therm_est_subdevice {
 	struct thermal_zone_device *th;
 	s32 coeffs[HIST_LEN];
-	long hist[HIST_LEN];
+	int hist[HIST_LEN];
 };
 
 struct therm_estimator {
@@ -53,9 +53,9 @@ struct therm_estimator {
 
 	struct workqueue_struct *workqueue;
 	struct delayed_work therm_est_work;
-	long cur_temp;
-	long low_limit;
-	long high_limit;
+	int cur_temp;
+	int low_limit;
+	int high_limit;
 	int ntemp;
 	u32 toffset;
 	u32 polling_period;
@@ -68,10 +68,10 @@ struct therm_estimator {
 };
 
 static int therm_est_update_tripped_state(struct therm_estimator *est,
-					  int trip, unsigned long *temp)
+					  int trip, int *temp)
 {
 	struct thermal_trip_info *trip_state = &est->trips[trip];
-	unsigned long trip_temp, zone_temp, hyst;
+	int trip_temp, zone_temp, hyst;
 	struct thermal_instance *instance;
 
 	est->thz->ops->get_trip_temp(est->thz, trip, &trip_temp);
@@ -106,8 +106,8 @@ static int therm_est_update_tripped_state(struct therm_estimator *est,
 static void therm_est_update_limits(struct therm_estimator *est)
 {
 	const int MAX_HIGH_TEMP = 128000;
-	long low_temp = 0, high_temp = MAX_HIGH_TEMP;
-	long trip_temp, passive_low_temp = MAX_HIGH_TEMP;
+	int low_temp = 0, high_temp = MAX_HIGH_TEMP;
+	int trip_temp, passive_low_temp = MAX_HIGH_TEMP;
 	enum thermal_trip_type trip_type;
 	struct thermal_trip_info *trip_state;
 	int i;
@@ -150,7 +150,7 @@ static void therm_est_work_func(struct work_struct *work)
 					therm_est_work);
 
 	for (i = 0; i < est->ndevs; i++) {
-		unsigned long temp;
+		int temp;
 		struct thermal_zone_device *thz = est->devs[i].th;
 
 		if (!thz || thermal_zone_get_temp(thz, &temp))
@@ -184,7 +184,7 @@ static void therm_est_work_func(struct work_struct *work)
 				msecs_to_jiffies(est->polling_period));
 }
 
-static int therm_est_get_temp(void *dev, long *temp)
+static int therm_est_get_temp(void *dev, int *temp)
 {
 	struct therm_estimator *est = dev;
 
@@ -296,7 +296,7 @@ static int show_temps(struct seq_file *s, void *data)
 			int index;
 
 			index = (est->ntemp - j + HIST_LEN) % HIST_LEN;
-			seq_printf(s, " %ld", est->devs[i].hist[index]);
+			seq_printf(s, " %d", est->devs[i].hist[index]);
 		}
 		seq_puts(s, "\n");
 	}
@@ -322,7 +322,7 @@ static int therm_est_init_history(struct therm_estimator *est)
 
 	for (i = 0; i < est->ndevs; i++) {
 		struct thermal_zone_device *thz;
-		unsigned long temp;
+		int temp;
 		int j;
 
 		thz = est->devs[i].th;

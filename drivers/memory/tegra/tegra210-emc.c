@@ -873,7 +873,7 @@ static int emc_read_mrr(int dev, int addr)
 	return val;
 }
 
-static int emc_get_dram_temp(void *dev, long *temp)
+static int emc_get_dram_temp(void *dev, int *temp)
 {
 	int mr4 = 0;
 	unsigned long flags;
@@ -1060,7 +1060,9 @@ static const struct file_operations emc_usage_table_fops = {
 
 static int dram_temp_get(void *data, u64 *val)
 {
-	emc_get_dram_temp(data, (long *)val);
+	int temp;
+	emc_get_dram_temp(data, &temp);
+	*val = temp;
 	return 0;
 }
 DEFINE_SIMPLE_ATTRIBUTE(dram_temp_fops, dram_temp_get, NULL,
