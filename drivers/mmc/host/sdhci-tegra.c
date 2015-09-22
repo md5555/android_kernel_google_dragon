@@ -57,6 +57,11 @@
 #define SDHCI_VNDR_TUN_CTRL0_MUL_M_SHIFT	6
 #define SDHCI_VNDR_TUN_CTRL0_MUL_M_VAL		0x1
 #define SDHCI_VNDR_TUN_CTRL0_RETUNE_REQ_EN	0x8000000
+#define SDHCI_VNDR_TUN_CTRL0_TUN_ITERATIONS_MASK	0x7
+#define SDHCI_VNDR_TUN_CTRL0_TUN_ITERATIONS_SHIFT	13
+#define SDHCI_VNDR_TUN_CTRL0_TUN_ITERATIONS_64		1
+#define SDHCI_VNDR_TUN_CTRL0_TUN_ITERATIONS_128		2
+#define SDHCI_VNDR_TUN_CTRL0_TUN_ITERATIONS_256		4
 
 #define SDHCI_VNDR_TUN_CTRL1			0x1c4
 #define SDHCI_VNDR_TUN_CTRL1_TUN_STEP_SIZE_MASK	0x77
@@ -200,6 +205,36 @@ static void sdhci_tegra_set_trim_sel_vreg(struct sdhci_host *host, bool enable)
 	}
 	sdhci_writel(host, misc_ctrl, SDMMC_VNDR_IO_TRIM_CTRL);
 	udelay(wait_usecs);
+}
+
+static int sdhci_tegra_get_max_tuning_iterations(struct sdhci_host *sdhci)
+{
+	u16 hw_tuning_iterations;
+	u32 vendor_ctrl;
+	int ret;
+
+	switch (sdhci->mmc->ios.timing) {
+	case MMC_TIMING_UHS_SDR50:
+		hw_tuning_iterations = SDHCI_VNDR_TUN_CTRL0_TUN_ITERATIONS_256;
+		ret = 256;
+		break;
+	case MMC_TIMING_UHS_SDR104:
+	case MMC_TIMING_MMC_HS200:
+	case MMC_TIMING_MMC_HS400:
+	default:
+		hw_tuning_iterations = SDHCI_VNDR_TUN_CTRL0_TUN_ITERATIONS_128;
+		ret = 128;
+		break;
+	}
+
+	vendor_ctrl = sdhci_readl(sdhci, SDHCI_VNDR_TUN_CTRL0);
+	vendor_ctrl &= ~(SDHCI_VNDR_TUN_CTRL0_TUN_ITERATIONS_MASK <<
+			 SDHCI_VNDR_TUN_CTRL0_TUN_ITERATIONS_SHIFT);
+	vendor_ctrl |= (hw_tuning_iterations <<
+			SDHCI_VNDR_TUN_CTRL0_TUN_ITERATIONS_SHIFT);
+	sdhci_writel(sdhci, vendor_ctrl, SDHCI_VNDR_TUN_CTRL0);
+
+	return ret;
 }
 
 static int sdhci_tegra_do_calibration(struct sdhci_host *host)
@@ -417,6 +452,7 @@ static const struct sdhci_ops sdhci_tegra_ops = {
 	.set_uhs_signaling = sdhci_tegra_set_uhs_signaling,
 	.get_max_clock = sdhci_pltfm_clk_get_max_clock,
 	.enable_dma = sdhci_tegra_enable_dma,
+	.get_max_tuning_iterations = sdhci_tegra_get_max_tuning_iterations,
 };
 
 static const struct sdhci_pltfm_data sdhci_tegra20_pdata = {
