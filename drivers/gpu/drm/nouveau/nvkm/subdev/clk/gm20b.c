@@ -1333,6 +1333,10 @@ gm20b_clk_fini(struct nvkm_object *object, bool suspend)
 	priv->clk_therm.in_suspend = suspend;
 	mutex_unlock(&priv->clk_therm.suspend_lock);
 
+	/* reset EMC rate so it could be recalculated when init */
+	if (suspend)
+		priv->emc_rate = 0;
+
 	return ret;
 }
 
@@ -1343,7 +1347,7 @@ gm20b_clk_init(struct nvkm_object *object)
 	struct gm20b_gpcpll *gpcpll = &priv->gpcpll;
 	struct gm20b_pll *pll = &gpcpll->pll;
 	u32 val;
-	int ret;
+	int ret, i;
 
 	/*
 	 * Initial frequency, low enough to be safe at Vmin (default 1/3
@@ -1375,6 +1379,20 @@ gm20b_clk_init(struct nvkm_object *object)
 		if (ret)
 			return ret;
 	}
+
+	if (!priv->emc_rate) {
+		for (i = 0; i < ARRAY_SIZE(gm20b_pstates); i++) {
+			u32 gpc = gm20b_pstates[i].base.domain[nv_clk_src_gpc];
+			u32 emc = gm20b_pstates[i].base.domain[nv_clk_src_emc];
+			if (gpc >= gpcpll->rate / 2) {
+				priv->emc_rate = emc * GM20B_CLK_EMC_MDIV;
+				break;
+			}
+		}
+		nv_debug(priv, "Initial EMC freq=%luKHz\n",
+				priv->emc_rate / GM20B_CLK_EMC_MDIV);
+	}
+
 
 	ret = nvkm_clk_init(&priv->base);
 	if (ret)
