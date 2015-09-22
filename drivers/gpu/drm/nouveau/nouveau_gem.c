@@ -290,6 +290,16 @@ nouveau_gem_object_unmap(struct nouveau_bo *nvbo, struct nvkm_vma *vma)
 	struct nouveau_drm *drm = nouveau_bdev(nvbo->bo.bdev);
 	struct nouveau_vma_delete_work *del_work;
 
+	/*
+	 * If the vma mapping is still deferred, and we want to free the
+	 * vma (i.e. we did not submit a pushbuffer that uses this buffer
+	 * object, which is normally how mapping deferrals get flushed),
+	 * we need to pull the vma off of the deferred mapping list so that
+	 * the mapping deferral flush that will happen on the next pushbuffer
+	 * submit doesn't try to access our just-freed vma.
+	 */
+        nouveau_cancel_defer_vm_map(vma, nvbo);
+
 	del_work = (struct nouveau_vma_delete_work*) kzalloc(sizeof(*del_work), GFP_KERNEL);
 	if (WARN_ON(!del_work))
 		return;
