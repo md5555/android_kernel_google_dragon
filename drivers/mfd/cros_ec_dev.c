@@ -491,7 +491,7 @@ static void cros_ec_sensors_register(struct cros_ec_dev *ec)
 		}
 		sensor_platforms[id].sensor_num = i;
 		sensor_cells[id].id = sensor_type[resp.info.type];
-		sensor_cells[id].platform_data = &sensor_platforms[i];
+		sensor_cells[id].platform_data = &sensor_platforms[id];
 		sensor_cells[id].pdata_size =
 			sizeof(struct cros_ec_sensor_platform);
 
@@ -503,7 +503,7 @@ static void cros_ec_sensors_register(struct cros_ec_dev *ec)
 
 		sensor_cells[id].name = "cros-ec-angle";
 		sensor_cells[id].id = 0;
-		sensor_cells[id].platform_data = &sensor_platforms[i];
+		sensor_cells[id].platform_data = &sensor_platforms[id];
 		sensor_cells[id].pdata_size =
 			sizeof(struct cros_ec_sensor_platform);
 		id++;
