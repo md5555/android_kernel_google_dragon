@@ -35,6 +35,8 @@
 #define SDHCI_CLK_CTRL_INPUT_IO_CLK		0x2
 #define SDHCI_CLK_CTRL_SPI_MODE_CLKEN_OVERRIDE	0x4
 #define SDHCI_CLK_CTRL_PADPIPE_CLKEN_OVERRIDE	0x8
+#define SDHCI_CLK_CTRL_TRIM_VAL_SHIFT		24
+#define SDHCI_CLK_CTRL_TRIM_VAL_MASK		0x1f
 
 #define SDHCI_VNDR_SYS_SW_CTRL			0x104
 #define SDHCI_VNDR_SYS_SW_CTRL_WR_CRC_TMCLK	0x40000000
@@ -112,6 +114,7 @@ struct sdhci_tegra {
 	u32 pu_3v3_offset;
 	u32 pd_3v3_offset;
 	bool use_bdsdmem_pads;
+	u32 trim_delay;
 };
 
 static u16 sdhci_tegra_readw(struct sdhci_host *host, int reg)
@@ -352,6 +355,12 @@ static void sdhci_tegra_reset(struct sdhci_host *host, u8 mask)
 		sdhci_writel(host, vendor_ctrl, SDHCI_VNDR_TUN_CTRL1);
 	}
 
+	vendor_ctrl = sdhci_readl(host, SDHCI_TEGRA_VENDOR_CLK_CTRL);
+	vendor_ctrl &= ~(SDHCI_CLK_CTRL_TRIM_VAL_MASK <<
+			SDHCI_CLK_CTRL_TRIM_VAL_SHIFT);
+	vendor_ctrl |= tegra_host->trim_delay << SDHCI_CLK_CTRL_TRIM_VAL_SHIFT;
+	sdhci_writel(host, vendor_ctrl, SDHCI_TEGRA_VENDOR_CLK_CTRL);
+
 	/* Use timeout clk data timeout counter for generating wr crc status */
 	if (soc_data->nvquirks & NVQUIRK_TMCLK_WR_CRC_TIMEOUT) {
 		vendor_ctrl = sdhci_readl(host, SDHCI_VNDR_SYS_SW_CTRL);
@@ -548,6 +557,10 @@ static int sdhci_tegra_parse_dt(struct device *dev)
 			     &tegra_host->pd_3v3_offset);
 	tegra_host->use_bdsdmem_pads =
 		of_property_read_bool(np, "nvidia,use-bdsdmem-pads");
+
+	of_property_read_u32(np, "nvidia,trim-delay",
+			     &tegra_host->trim_delay);
+
 	return mmc_of_parse(host->mmc);
 }
 

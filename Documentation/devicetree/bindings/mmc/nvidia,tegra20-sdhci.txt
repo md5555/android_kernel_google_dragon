@@ -22,6 +22,7 @@ Optional properties:
 - nvidia,pd-1v8-offset : Specifies pulldown offset for 1.8V signal modes
 - nvidia,pu-3v3-offset : Specifies pullup offset for 3.3V signal modes
 - nvidia,pd-3v3-offset : Specifies pulldown offset for 3.3V signal modes
+- nvidia,trim-delay : Specifies the outbound tap value
 
 Example:
 
