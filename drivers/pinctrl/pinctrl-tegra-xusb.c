@@ -1157,7 +1157,7 @@ static int tegra_xusb_padctl_probe(struct platform_device *pdev)
 	} else {
 		err = tegra_xusb_setup_usb(padctl);
 		if (err)
-			goto unregister;
+			goto free_mailbox;
 	}
 
 	padctl->provider = devm_of_phy_provider_register(&pdev->dev,
@@ -1165,11 +1165,16 @@ static int tegra_xusb_padctl_probe(struct platform_device *pdev)
 	if (IS_ERR(padctl->provider)) {
 		err = PTR_ERR(padctl->provider);
 		dev_err(&pdev->dev, "failed to register PHYs: %d\n", err);
-		goto unregister;
+		goto free_mailbox;
 	}
 
 	return 0;
 
+free_mailbox:
+	if (!IS_ERR(padctl->mbox_chan)) {
+		cancel_work_sync(&padctl->mbox_req_work);
+		mbox_free_channel(padctl->mbox_chan);
+	}
 unregister:
 	pinctrl_unregister(padctl->pinctrl);
 soc_remove:
