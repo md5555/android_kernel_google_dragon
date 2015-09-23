@@ -37,7 +37,7 @@ enum page_size_index {
 	BIG_PAGE_INDEX = 1
 };
 
-void
+static void
 nvkm_vm_map_at(struct nvkm_vma *vma, u64 delta, struct nvkm_mem *node)
 {
 	struct nvkm_vm *vm = vma->vm;
@@ -272,7 +272,7 @@ nvkm_vm_map(struct nvkm_vma *vma, struct nvkm_mem *node)
 	}
 }
 
-void
+static void
 nvkm_vm_unmap_at(struct nvkm_vma *vma, u64 delta, u64 length)
 {
 	struct nvkm_vm *vm = vma->vm;
@@ -320,7 +320,7 @@ nvkm_vm_unmap_at(struct nvkm_vma *vma, u64 delta, u64 length)
 	ltc->flush(ltc);
 }
 
-void
+static void
 nvkm_vm_unmap_iommu(struct nvkm_vma *vma)
 {
 	struct nvkm_mmu *mmu = vma->vm->mmu;

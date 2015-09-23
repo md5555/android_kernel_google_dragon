@@ -159,9 +159,7 @@ int  nvkm_vm_get(struct nvkm_vm *, u64 size, u32 page_shift, u32 access,
 		 struct nvkm_vma *);
 void nvkm_vm_put(struct nvkm_vma *);
 void nvkm_vm_map(struct nvkm_vma *, struct nvkm_mem *);
-void nvkm_vm_map_at(struct nvkm_vma *, u64 offset, struct nvkm_mem *);
 void nvkm_vm_unmap(struct nvkm_vma *);
-void nvkm_vm_unmap_at(struct nvkm_vma *, u64 offset, u64 length);
 int nvkm_vm_fence(struct nvkm_vm *, struct fence *);
 int nvkm_vm_wait(struct nvkm_vm *);
 int nvkm_vm_as_alloc(struct nvkm_vm *, u64 align, u64 length, u32 page_shift,
