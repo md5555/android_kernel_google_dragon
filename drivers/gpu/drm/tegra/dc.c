@@ -1139,11 +1139,8 @@ void tegra_dc_enable_vblank(struct tegra_dc *dc)
 	unsigned long value, flags;
 	struct tegra_dc_state *state = to_dc_state(dc->base.state);
 
-	if (state->nc_mode && dc->dpms == DRM_MODE_DPMS_STANDBY) {
+	if (state->nc_mode && dc->dpms == DRM_MODE_DPMS_STANDBY)
 		tegra_crtc_dpms(&dc->base, DRM_MODE_DPMS_ON);
-		drm_helper_dpms_attached_encoders(&dc->base,
-				DRM_MODE_DPMS_ON);
-	}
 
 	spin_lock_irqsave(&dc->lock, flags);
 
@@ -1173,11 +1170,8 @@ void tegra_dc_disable_vblank(struct tegra_dc *dc)
 
 	spin_unlock_irqrestore(&dc->lock, flags);
 
-	if (state->nc_mode && dc->dpms == DRM_MODE_DPMS_ON) {
-		drm_helper_dpms_attached_encoders(&dc->base,
-				DRM_MODE_DPMS_STANDBY);
+	if (state->nc_mode && dc->dpms == DRM_MODE_DPMS_ON)
 		tegra_crtc_dpms(&dc->base, DRM_MODE_DPMS_STANDBY);
-	}
 }
 
 static void tegra_dc_finish_page_flip(struct tegra_dc *dc)

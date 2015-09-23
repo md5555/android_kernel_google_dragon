@@ -693,14 +693,19 @@ static void tegra_dsi_disable(struct tegra_dsi *dsi)
 {
 	u32 value;
 
+	mutex_lock(&dsi->dcs_lock);
+
 	value = tegra_dsi_readl(dsi, DSI_POWER_CONTROL);
 	value &= ~DSI_POWER_CONTROL_ENABLE;
 	tegra_dsi_writel(dsi, value, DSI_POWER_CONTROL);
+	dsi->dc_active = false;
+
+	mutex_unlock(&dsi->dcs_lock);
 
 	if (dsi->slave)
 		tegra_dsi_disable(dsi->slave);
-	else
-		udelay(5000);
+
+	usleep_range(5000, 10000);
 }
 
 static void tegra_dsi_soft_reset(struct tegra_dsi *dsi)
@@ -836,9 +841,6 @@ static void tegra_dsi_encoder_disable(struct drm_encoder *encoder)
 	}
 
 	tegra_dsi_disable(dsi);
-	dsi->dc_active = false;
-	if (dsi->slave)
-		dsi->slave->dc_active = false;
 
 	return;
 }
@@ -1349,15 +1351,10 @@ static ssize_t tegra_dsi_host_transfer(struct mipi_dsi_host *host,
 				       const struct mipi_dsi_msg *msg)
 {
 	struct tegra_dsi *dsi = host_to_tegra(host);
-	struct tegra_dsi_state *state;
 	struct mipi_dsi_msg msg_local;
 	struct mipi_dsi_packet packet;
 	ssize_t err;
 	u32 value;
-
-	state = tegra_dsi_get_state(dsi);
-	if (dsi->master)
-		state = tegra_dsi_get_state(dsi->master);
 
 	mutex_lock(&dsi->dcs_lock);
 
@@ -1393,8 +1390,6 @@ static ssize_t tegra_dsi_host_transfer(struct mipi_dsi_host *host,
 			goto out;
 		}
 
-		drm_crtc_vblank_get(state->base.crtc);
-
 	/* If dc is inactive, setup the dsi block to transmit a message */
 	} else {
 		err = tegra_dsi_host_config_for_dcs(host, &msg_local, &packet);
@@ -1415,13 +1410,13 @@ static ssize_t tegra_dsi_host_transfer(struct mipi_dsi_host *host,
 
 	err = tegra_dsi_host_transfer_packet(host, &msg_local, &packet);
 	if (err < 0)
-		goto out_vblank;
+		goto out;
 
 	if ((msg_local.flags & MIPI_DSI_MSG_REQ_ACK) ||
 	    (msg_local.rx_buf && msg_local.rx_len > 0)) {
 		err = tegra_dsi_wait_for_response(dsi, 250);
 		if (err < 0)
-			goto out_vblank;
+			goto out;
 
 		value = tegra_dsi_readl(dsi, DSI_RD_DATA);
 		switch (value) {
@@ -1456,10 +1451,6 @@ static ssize_t tegra_dsi_host_transfer(struct mipi_dsi_host *host,
 		 */
 		err = 4 + packet.payload_length;
 	}
-
-out_vblank:
-	if (dsi->dc_active)
-		drm_crtc_vblank_put(state->base.crtc);
 
 out:
 	mutex_unlock(&dsi->dcs_lock);
