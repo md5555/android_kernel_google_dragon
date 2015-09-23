@@ -607,12 +607,6 @@ static void tegra_uart_rx_dma_complete(void *args)
 	tegra_uart_copy_rx_to_tty(tup, port, count);
 
 	tegra_uart_handle_rx_pio(tup, port);
-	if (tty) {
-		spin_unlock_irqrestore(&u->lock, flags);
-		tty_flip_buffer_push(port);
-		spin_lock_irqsave(&u->lock, flags);
-		tty_kref_put(tty);
-	}
 	tegra_uart_start_rx_dma(tup);
 
 	/* Activate flow control to start transfer */
@@ -621,6 +615,10 @@ static void tegra_uart_rx_dma_complete(void *args)
 
 done:
 	spin_unlock_irqrestore(&u->lock, flags);
+	if (tty) {
+		tty_flip_buffer_push(port);
+		tty_kref_put(tty);
+	}
 }
 
 static void tegra_uart_handle_rx_dma(struct tegra_uart_port *tup,
@@ -645,16 +643,17 @@ static void tegra_uart_handle_rx_dma(struct tegra_uart_port *tup,
 	tegra_uart_copy_rx_to_tty(tup, port, count);
 
 	tegra_uart_handle_rx_pio(tup, port);
+	tegra_uart_start_rx_dma(tup);
+
+	if (tup->rts_active)
+		set_rts(tup, true);
+
 	if (tty) {
 		spin_unlock_irqrestore(&u->lock, *flags);
 		tty_flip_buffer_push(port);
 		spin_lock_irqsave(&u->lock, *flags);
 		tty_kref_put(tty);
 	}
-	tegra_uart_start_rx_dma(tup);
-
-	if (tup->rts_active)
-		set_rts(tup, true);
 }
 
 static int tegra_uart_start_rx_dma(struct tegra_uart_port *tup)
