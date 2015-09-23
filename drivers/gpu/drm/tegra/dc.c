@@ -1756,9 +1756,6 @@ void tegra_dc_update_emc_pre_commit(struct drm_crtc *crtc,
 		return;
 	}
 
-	DRM_INFO("%s old_bw=%ld new_bw=%ld\n", __func__,
-		  old_state->emc_bandwidth, new_state->emc_bandwidth);
-
 	/* Program the emc early if the bandwidth is increasing */
 	ret = tegra_dc_program_bandwidth(dc, new_state->emc_bandwidth);
 	if (ret)
@@ -1776,7 +1773,6 @@ void tegra_dc_update_emc_post_commit(struct drm_crtc *crtc)
 	if (!state || !state->update_emc)
 		return;
 
-	DRM_INFO("%s new_bw=%ld\n", __func__, state->emc_bandwidth);
 	ret = tegra_dc_program_bandwidth(dc, state->emc_bandwidth);
 	if (ret)
 		DRM_ERROR("Failed to program emc bandwidth %d\n", ret);
