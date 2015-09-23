@@ -53,6 +53,8 @@ enum brcmf_pcie_state {
 #define BRCMF_PCIE_4356_NVRAM_NAME		"brcm/brcmfmac4356-pcie.txt"
 #define BRCMF_PCIE_43570_FW_NAME		"brcm/brcmfmac43570-pcie.bin"
 #define BRCMF_PCIE_43570_NVRAM_NAME		"brcm/brcmfmac43570-pcie.txt"
+#define BRCMF_PCIE_4371_FW_NAME			"brcm/brcmfmac4371-pcie.bin"
+#define BRCMF_PCIE_4371_NVRAM_NAME		"brcm/brcmfmac4371-pcie.txt"
 
 #define BRCMF_PCIE_FW_UP_TIMEOUT		2000 /* msec */
 
@@ -191,6 +193,8 @@ MODULE_FIRMWARE(BRCMF_PCIE_4354_FW_NAME);
 MODULE_FIRMWARE(BRCMF_PCIE_4354_NVRAM_NAME);
 MODULE_FIRMWARE(BRCMF_PCIE_43570_FW_NAME);
 MODULE_FIRMWARE(BRCMF_PCIE_43570_NVRAM_NAME);
+MODULE_FIRMWARE(BRCMF_PCIE_4371_FW_NAME);
+MODULE_FIRMWARE(BRCMF_PCIE_4371_NVRAM_NAME);
 
 
 struct brcmf_pcie_console {
@@ -1338,6 +1342,10 @@ static int brcmf_pcie_get_fwnames(struct brcmf_pciedev_info *devinfo)
 		fw_name = BRCMF_PCIE_43570_FW_NAME;
 		nvram_name = BRCMF_PCIE_43570_NVRAM_NAME;
 		break;
+	case BRCM_CC_4371_CHIP_ID:
+		fw_name = BRCMF_PCIE_4371_FW_NAME;
+		nvram_name = BRCMF_PCIE_4371_NVRAM_NAME;
+		break;
 	default:
 		brcmf_err("Unsupported chip 0x%04x\n", devinfo->ci->chip);
 		return -ENODEV;
@@ -1857,6 +1865,7 @@ static struct pci_device_id brcmf_pcie_devid_table[] = {
 	BRCMF_PCIE_DEVICE(BRCM_PCIE_43567_DEVICE_ID),
 	BRCMF_PCIE_DEVICE(BRCM_PCIE_43570_DEVICE_ID),
 	BRCMF_PCIE_DEVICE(BRCM_PCIE_43602_DEVICE_ID),
+	BRCMF_PCIE_DEVICE(BRCM_PCIE_4371_DEVICE_ID),
 	{ /* end: all zeroes */ }
 };
 
