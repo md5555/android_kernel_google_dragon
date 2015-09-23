@@ -1205,8 +1205,6 @@ static void tegra_dc_finish_page_flip(struct tegra_dc *dc)
 			dc->event = NULL;
 		}
 		crtc->state->event = NULL;
-	} else {
-		DRM_ERROR("FB not latched\n");
 	}
 
 out:
