@@ -10,6 +10,8 @@
 #ifndef __SOC_TEGRA_XUSB_H__
 #define __SOC_TEGRA_XUSB_H__
 
+#include <linux/mutex.h>
+
 /* Command requests from the firmware */
 enum tegra_xusb_mbox_cmd {
 	MBOX_CMD_MSG_ENABLED = 1,
@@ -61,5 +63,7 @@ tegra_xusb_utmi_phy_get_pad_config(struct phy *phy,
 
 extern int tegra_xusb_utmi_set_vbus_override(struct phy *phy);
 extern int tegra_xusb_utmi_clear_vbus_override(struct phy *phy);
+
+extern struct mutex xusb_lock;
 
 #endif /* __SOC_TEGRA_XUSB_H__ */
