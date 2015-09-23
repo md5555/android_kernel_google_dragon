@@ -51,6 +51,7 @@ struct tegra_smmu_as {
 	struct page **pts;
 	struct page *pd;
 	dma_addr_t pd_dma;
+	struct mutex lock;
 	unsigned id;
 	u32 attr;
 };
@@ -414,6 +415,8 @@ static int tegra_smmu_as_prepare(struct tegra_smmu *smmu,
 	if (err < 0)
 		goto err_unmap;
 
+	mutex_init(&as->lock);
+
 	smmu_flush_ptc(smmu, as->pd_dma, 0);
 	smmu_flush_tlb_asid(smmu, as->id);
 
@@ -646,13 +649,20 @@ static int tegra_smmu_map(struct iommu_domain *domain, unsigned long iova,
 	dma_addr_t pte_dma;
 	u32 *pte;
 
+	might_sleep();
+	mutex_lock(&as->lock);
+
 	pte = as_get_pte(as, iova, &pte_dma);
-	if (!pte)
+	if (!pte) {
+		mutex_unlock(&as->lock);
 		return -ENOMEM;
+	}
 
 	/* If we aren't overwriting a pre-existing entry, increment use */
 	if (*pte == 0)
 		tegra_smmu_pte_get_use(as, iova);
+
+	mutex_unlock(&as->lock);
 
 	tegra_smmu_set_pte(as, iova, pte, pte_dma,
 			   __phys_to_pfn(paddr) | SMMU_PTE_ATTR);
