@@ -68,6 +68,8 @@ struct panel_jdi {
 	unsigned long enable_gpio_flags;
 	int reset_gpio;
 	unsigned long reset_gpio_flags;
+	int ts_reset_gpio;
+	unsigned long ts_reset_gpio_flags;
 
 	const struct drm_display_mode *mode;
 
@@ -269,6 +271,9 @@ static int panel_jdi_unprepare(struct drm_panel *panel)
 
 	gpio_set_value(jdi->reset_gpio,
 		(jdi->reset_gpio_flags & GPIO_ACTIVE_LOW) ? 0 : 1);
+	if (gpio_is_valid(jdi->ts_reset_gpio))
+		gpio_set_value(jdi->ts_reset_gpio,
+			(jdi->ts_reset_gpio_flags & GPIO_ACTIVE_LOW) ? 0 : 1);
 
 	/* T4 = 1ms */
 	usleep_range(1000, 3000);
@@ -428,11 +433,19 @@ static int panel_jdi_prepare(struct drm_panel *panel)
 	ret = mipi_dsi_dcs_exit_sleep_mode(jdi->slave);
 	if (ret < 0)
 		DRM_ERROR("failed to exit sleep mode: %d\n", ret);
+
+	/* Spec'd by JDI @>67ms, between SleepOUT and deasserting touch reset */
+	msleep(70);
+
+	if (gpio_is_valid(jdi->ts_reset_gpio))
+		gpio_set_value(jdi->ts_reset_gpio,
+		       (jdi->ts_reset_gpio_flags & GPIO_ACTIVE_LOW) ? 1 : 0);
+
 	/*
 	 * We need to wait 150ms between mipi_dsi_dcs_exit_sleep_mode() and
 	 * mipi_dsi_dcs_set_display_on().
 	 */
-	msleep(150);
+	msleep(80);
 
 out:
 	mutex_unlock(&jdi->lock);
@@ -707,6 +720,22 @@ static int panel_jdi_setup_primary(struct mipi_dsi_device *dsi,
 	if (ret < 0) {
 		DRM_ERROR("Request reset gpio failed: %d\n", ret);
 		goto out_slave;
+	}
+
+	jdi->ts_reset_gpio = of_get_named_gpio_flags(dsi->dev.of_node,
+				"ts-reset-gpio", 0, &gpio_flags);
+	if (!gpio_is_valid(jdi->ts_reset_gpio)) {
+		DRM_INFO("ts reset gpio not found: %d\n", ret);
+	} else {
+		if (gpio_flags & OF_GPIO_ACTIVE_LOW)
+			jdi->ts_reset_gpio_flags |= GPIO_ACTIVE_LOW;
+
+		ret = devm_gpio_request(&dsi->dev, jdi->ts_reset_gpio,
+			"jdi-ts-reset");
+		if (ret < 0) {
+			DRM_ERROR("Request ts reset gpio failed: %d\n", ret);
+			goto out_slave;
+		}
 	}
 
 	i2c_np = of_parse_phandle(dsi->dev.of_node, "backlight", 0);

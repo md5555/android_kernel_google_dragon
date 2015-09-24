@@ -13,6 +13,7 @@ Optional properties:
 - backlight: phandle pointing to the i2c node representing the attached lp8557
 	     backlight controller
 - panel-boot-on: Denotes whether firmware has initialized the panel
+- ts-reset-gpio: gpio controlling the tp_reset line into the panel
 
 Example:
 	panel: panel@0 {
@@ -25,6 +26,7 @@ Example:
 
 		enable-gpio = <&gpio TEGRA_GPIO(H, 5) GPIO_ACTIVE_HIGH>;
 		reset-gpio = <&gpio TEGRA_GPIO(H, 3) GPIO_ACTIVE_LOW>;
+		ts-reset-gpio = <&gpio TEGRA_GPIO(V, 6) GPIO_ACTIVE_LOW>;
 
 		backlight = <&backlight>;
 		panel-boot-on;
