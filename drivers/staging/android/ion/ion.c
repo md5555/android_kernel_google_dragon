@@ -1438,6 +1438,8 @@ static int ion_cachemaint(struct ion_client *client,
 	struct ion_buffer *buffer;
 	struct scatterlist *sg;
 	struct vm_area_struct *vma;
+	struct ion_device *ion_dev = client->dev;
+	struct device *dev = ion_dev->dev.this_device;
 	size_t sg_offset = 0;
 	size_t sync_start, sync_end;
 	int i;
@@ -1505,12 +1507,12 @@ static int ion_cachemaint(struct ion_client *client,
 
 			switch (cacheop) {
 			case ION_CACHEMAINT_FOR_DEVICE:
-				dma_sync_single_for_device(NULL, dma, len,
+				dma_sync_single_for_device(dev, dma, len,
 							   DMA_BIDIRECTIONAL);
 				break;
 
 			case ION_CACHEMAINT_FOR_CPU:
-				dma_sync_single_for_cpu(NULL, dma, len,
+				dma_sync_single_for_cpu(dev, dma, len,
 							DMA_BIDIRECTIONAL);
 				break;
 
