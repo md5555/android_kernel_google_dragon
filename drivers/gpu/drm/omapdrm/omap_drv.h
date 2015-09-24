@@ -133,8 +133,8 @@ void omap_gem_describe_objects(struct list_head *list, struct seq_file *m);
 int omap_gem_resume(struct device *dev);
 #endif
 
-int omap_irq_enable_vblank(struct drm_device *dev, int crtc_id);
-void omap_irq_disable_vblank(struct drm_device *dev, int crtc_id);
+int omap_irq_enable_vblank(struct drm_device *dev, unsigned int pipe);
+void omap_irq_disable_vblank(struct drm_device *dev, unsigned int pipe);
 irqreturn_t omap_irq_handler(int irq, void *arg);
 void omap_irq_preinstall(struct drm_device *dev);
 int omap_irq_postinstall(struct drm_device *dev);

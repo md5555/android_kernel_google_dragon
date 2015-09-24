@@ -21,9 +21,9 @@ struct exynos_drm_manager;
 struct exynos_drm_overlay;
 
 int exynos_drm_crtc_create(struct exynos_drm_manager *manager);
-int exynos_drm_crtc_enable_vblank(struct drm_device *dev, int pipe);
-void exynos_drm_crtc_disable_vblank(struct drm_device *dev, int pipe);
-void exynos_drm_crtc_finish_pageflip(struct drm_device *dev, int pipe);
+int exynos_drm_crtc_enable_vblank(struct drm_device *dev, unsigned int pipe);
+void exynos_drm_crtc_disable_vblank(struct drm_device *dev, unsigned int pipe);
+void exynos_drm_crtc_finish_pageflip(struct drm_device *dev, unsigned int pipe);
 void exynos_drm_crtc_complete_scanout(struct drm_framebuffer *fb);
 
 void exynos_drm_crtc_plane_mode_set(struct drm_crtc *crtc,
