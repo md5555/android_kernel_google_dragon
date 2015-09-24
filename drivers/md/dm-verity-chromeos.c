@@ -159,9 +159,9 @@ static int chromeos_invalidate_kernel_bio(struct block_device *root_bdev)
 	 */
 	int rw = REQ_SYNC | REQ_SOFTBARRIER | REQ_NOIDLE;
 
-	devt = get_boot_dev_from_root_dev(root_bdev);
+	devt = get_boot_dev();
 	if (!devt) {
-		devt = get_boot_dev();
+		devt = get_boot_dev_from_root_dev(root_bdev);
 		if (!devt)
 			return -EINVAL;
 	}
