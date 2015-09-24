@@ -392,7 +392,7 @@ static int vi_probe(struct platform_device *pdev)
 	err = vi_power_on(&pdev->dev);
 	if (err) {
 		dev_err(dev, "cannot power on device\n");
-		return err;
+		goto error_slcg;
 	}
 
 	err = host1x_client_register(&vi->client.base);
@@ -412,6 +412,9 @@ static int vi_probe(struct platform_device *pdev)
 
 error_vi_power_off:
 	vi_power_off(&pdev->dev);
+error_slcg:
+	tegra_slcg_unregister_notifier(vi->config->powergate_id,
+				       &vi->slcg_notifier);
 	return err;
 }
 

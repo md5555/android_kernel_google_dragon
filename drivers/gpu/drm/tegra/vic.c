@@ -451,7 +451,7 @@ static int vic_probe(struct platform_device *pdev)
 	err = vic_power_on(&pdev->dev);
 	if (err) {
 		dev_err(dev, "cannot turn on the device\n");
-		goto error_falcon_exit;
+		goto error_slcg;
 	}
 
 	err = host1x_client_register(&vic->client.base);
@@ -472,7 +472,9 @@ static int vic_probe(struct platform_device *pdev)
 
 error_vic_power_off:
 	vic_power_off(&pdev->dev);
-error_falcon_exit:
+error_slcg:
+	tegra_slcg_unregister_notifier(vic->config->powergate_id,
+				       &vic->slcg_notifier);
 	falcon_exit(&vic->falcon);
 	return err;
 }
