@@ -108,8 +108,10 @@
 		vic: vic@54340000 {
 			compatible = "nvidia,tegra210-vic";
 			reg = <0x0 0x54340000 0x0 0x00040000>;
-			clocks = <&tegra_car TEGRA210_CLK_VIC03>;
-			clock-names = "vic";
+			clocks = <&tegra_car TEGRA210_CLK_VIC03>,
+				 <&tegra_car TEGRA210_CLK_VIC03_CBUS>,
+				 <&tegra_car TEGRA210_CLK_VIC_EMC>;
+			clock-names = "vic", "vic_cbus", "emc";
 			resets = <&tegra_car TEGRA210_CLK_VIC03>;
 			reset-names = "vic";
 			iommus = <&mc TEGRA_SWGROUP_VIC>;
