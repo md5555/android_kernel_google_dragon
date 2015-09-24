@@ -83,7 +83,6 @@ snd-soc-rt5651-objs := rt5651.o
 snd-soc-rt5670-objs := rt5670.o
 snd-soc-rt5677-objs := rt5677.o
 snd-soc-rt5677-spi-objs := rt5677-spi.o
-snd-soc-rt5677-spi-$(CONFIG_SND_SOC_RT5677_HOTWORD) += rt5677-hotword.o
 snd-soc-sgtl5000-objs := sgtl5000.o
 snd-soc-alc5623-objs := alc5623.o
 snd-soc-alc5632-objs := alc5632.o

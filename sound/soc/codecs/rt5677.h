@@ -1698,7 +1698,6 @@ enum {
 	RT5677_AIF4,
 	RT5677_AIF5,
 	RT5677_AIFS,
-	RT5677_DSPBUFF,
 };
 
 enum {
