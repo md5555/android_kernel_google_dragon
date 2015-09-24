@@ -371,12 +371,23 @@ static void tegra_dc_setup_window(struct tegra_dc *dc, unsigned int index,
 	if (window->bottom_up)
 		v_offset += (window->src.h >> 16) - 1;
 
-	/*
-	 * For DDA computations the number of bytes per pixel for YUV planar
-	 * modes needs to take into account all Y, U and V components.
-	 */
-	if (yuv && planar)
+	if (yuv && planar) {
+		/*
+		 * For YUV planar format, h_offset must be even unless window
+		 * is flipped horizontally, in which case it needs to be odd;
+		 * v_offset must be even unless window is flipped vertically,
+		 * in which case it needs to be an odd.
+		 */
+		h_offset = (h_offset & ~1) | (window->right_left ? 1 : 0);
+		v_offset = (v_offset & ~1) | (window->bottom_up ? 1 : 0);
+		/*
+		 * For DDA computations the number of bytes per pixel for YUV
+		 * planar modes needs to take into account all Y, U and V
+		 * components.
+		 */
 		bpp = 2;
+	}
+
 
 	if (window->scan_column) {
 		h_dda = compute_dda_inc(window->src.h, window->dst.w, false, bpp);
