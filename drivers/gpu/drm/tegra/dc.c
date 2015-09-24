@@ -1332,6 +1332,9 @@ static void tegra_crtc_disable(struct drm_crtc *crtc)
 	tegra_crtc_dpms(crtc, DRM_MODE_DPMS_OFF);
 
 	drm_crtc_vblank_off(crtc);
+
+	if (dc->soc->has_powergate)
+		tegra_pmc_powergate(dc->powergate);
 }
 
 static bool tegra_crtc_mode_fixup(struct drm_crtc *crtc,
@@ -1518,6 +1521,9 @@ static void tegra_crtc_mode_set_nofb(struct drm_crtc *crtc)
 	u32 value;
 
 	tegra_crtc_get_display_info(crtc);
+
+	if (dc->dpms == DRM_MODE_DPMS_OFF && dc->soc->has_powergate)
+		tegra_pmc_unpowergate(dc->powergate);
 
 	/*
 	 * If we're already initialized (ie: DPMS_ON || DPMS_STANDBY), don't re-
@@ -2224,6 +2230,10 @@ static int tegra_dc_init(struct host1x_client *client)
 		goto cleanup;
 	}
 
+	/* Matches the ungate in probe() */
+	if (dc->soc->has_powergate)
+		tegra_pmc_powergate(dc->powergate);
+
 	return 0;
 
 cleanup:
@@ -2238,6 +2248,10 @@ cleanup:
 		dc->domain = NULL;
 	}
 
+	/* Matches the ungate in probe() */
+	if (dc->soc->has_powergate)
+		tegra_pmc_powergate(dc->powergate);
+
 	return err;
 }
 
@@ -2245,6 +2259,9 @@ static int tegra_dc_exit(struct host1x_client *client)
 {
 	struct tegra_dc *dc = host1x_client_to_dc(client);
 	int err;
+
+	if (dc->soc->has_powergate)
+		tegra_pmc_unpowergate(dc->powergate);
 
 	devm_free_irq(dc->dev, dc->irq, dc);
 
@@ -2264,6 +2281,9 @@ static int tegra_dc_exit(struct host1x_client *client)
 		iommu_detach_device(dc->domain, dc->dev);
 		dc->domain = NULL;
 	}
+
+	if (dc->soc->has_powergate)
+		tegra_pmc_powergate(dc->powergate);
 
 	return 0;
 }
