@@ -24,10 +24,13 @@
 #include <linux/pm_runtime.h>
 #include <linux/reset.h>
 #include <soc/tegra/pmc.h>
+#include <soc/tegra/tegra_emc.h>
 #include <linux/iommu.h>
 
 #include "drm.h"
 #include "falcon.h"
+
+#define VIC_MAX_CLK_RATE				627200000
 
 #define NV_PVIC_THI_CLK_OVERRIDE			0x00000e00
 #define NV_PVIC_THI_SLCG_OVERRIDE_LOW_A			0x0000008c
@@ -69,6 +72,8 @@ struct vic {
 	struct host1x_channel *channel;
 	struct device *dev;
 	struct clk *clk;
+	struct clk *cbus_clk;
+	struct clk *emc_clk;
 	struct reset_control *rst;
 	struct notifier_block slcg_notifier;
 
@@ -132,6 +137,8 @@ static int vic_power_off(struct device *dev)
 		return err;
 
 	clk_disable_unprepare(vic->clk);
+	clk_disable_unprepare(vic->cbus_clk);
+	clk_disable_unprepare(vic->emc_clk);
 
 	return tegra_pmc_powergate(vic->config->powergate_id);
 }
@@ -145,21 +152,32 @@ static int vic_power_on(struct device *dev)
 	if (err)
 		return err;
 
+	err = clk_prepare_enable(vic->emc_clk);
+	if (err)
+		goto err_emc_clk;
+
+	err = clk_prepare_enable(vic->cbus_clk);
+	if (err)
+		goto err_cbus_clk;
+
 	err = tegra_pmc_unpowergate(vic->config->powergate_id);
 	if (err)
-		goto err_power_up;
+		goto err_unpowergate;
 
 	err = clk_prepare_enable(vic->clk);
 	if (err)
-		goto err_enable_clk;
+		goto err_vic_clk;
 
 	return 0;
 
-err_enable_clk:
+err_vic_clk:
 	tegra_pmc_powergate(vic->config->powergate_id);
-err_power_up:
+err_unpowergate:
+	clk_disable_unprepare(vic->cbus_clk);
+err_cbus_clk:
+	clk_disable_unprepare(vic->emc_clk);
+err_emc_clk:
 	falcon_power_off(&vic->falcon);
-
 	return err;
 }
 
@@ -259,9 +277,49 @@ static int vic_exit(struct host1x_client *client)
 	return err;
 }
 
+static int vic_get_clk_rate(struct host1x_client *client, u64 *data, u32 type)
+{
+	struct tegra_drm_client *drm = host1x_to_drm_client(client);
+	struct vic *vic = to_vic(drm);
+
+	switch (type) {
+	case DRM_TEGRA_REQ_TYPE_CLK_KHZ:
+		*data = clk_get_rate(vic->cbus_clk);
+		break;
+	case DRM_TEGRA_REQ_TYPE_BW_KBPS:
+		*data = clk_get_rate(vic->emc_clk);
+		break;
+	default:
+		dev_err(vic->dev, "Unknown Clock request type\n");
+		return -EINVAL;
+	}
+	return 0;
+}
+
+static int vic_set_clk_rate(struct host1x_client *client, u64 data, u32 type)
+{
+	struct tegra_drm_client *drm = host1x_to_drm_client(client);
+	struct vic *vic = to_vic(drm);
+
+	switch (type) {
+	case DRM_TEGRA_REQ_TYPE_CLK_KHZ:
+		if (data > VIC_MAX_CLK_RATE)
+			data = VIC_MAX_CLK_RATE;
+		return clk_set_rate(vic->cbus_clk, data);
+	case DRM_TEGRA_REQ_TYPE_BW_KBPS:
+		return clk_set_rate(vic->emc_clk,
+				tegra_emc_bw_to_freq_req(data) * 1000);
+	default:
+		dev_err(vic->dev, "Unknown Clock request type\n");
+		return -EINVAL;
+	}
+}
+
 static const struct host1x_client_ops vic_client_ops = {
 	.init = vic_init,
 	.exit = vic_exit,
+	.get_clk_rate = vic_get_clk_rate,
+	.set_clk_rate = vic_set_clk_rate,
 };
 
 static int vic_open_channel(struct tegra_drm_client *client,
@@ -414,6 +472,16 @@ static int vic_probe(struct platform_device *pdev)
 	if (IS_ERR(vic->clk)) {
 		dev_err(&pdev->dev, "cannot get clock\n");
 		return PTR_ERR(vic->clk);
+	}
+	vic->cbus_clk = devm_clk_get(dev, "vic_cbus");
+	if (IS_ERR(vic->cbus_clk)) {
+		dev_err(&pdev->dev, "cannot get vic cbus clock\n");
+		return PTR_ERR(vic->cbus_clk);
+	}
+	vic->emc_clk = devm_clk_get(dev, "emc");
+	if (IS_ERR(vic->emc_clk)) {
+		dev_err(&pdev->dev, "cannot get emc clock\n");
+		return PTR_ERR(vic->emc_clk);
 	}
 	vic->rst = devm_reset_control_get(&pdev->dev, "vic");
 	if (IS_ERR(vic->rst)) {
