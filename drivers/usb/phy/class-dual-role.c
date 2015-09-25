@@ -22,6 +22,7 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/stat.h>
+#include <linux/sysfs.h>
 #include <linux/types.h>
 
 #define DUAL_ROLE_NOTIFICATION_TIMEOUT 2000
@@ -70,6 +71,8 @@ static char *kstrdupcase(const char *str, gfp_t gfp, bool to_upper)
 	return ret;
 }
 
+static struct attribute_group dual_role_attr_group;
+
 static void dual_role_changed_work(struct work_struct *work)
 {
 	struct dual_role_phy_instance *dual_role =
@@ -77,6 +80,8 @@ static void dual_role_changed_work(struct work_struct *work)
 			 changed_work);
 
 	dev_dbg(&dual_role->dev, "%s\n", __func__);
+	/* Update the write permission of the nodes */
+	sysfs_update_group(&dual_role->dev.kobj, &dual_role_attr_group);
 	kobject_uevent(&dual_role->dev.kobj, KOBJ_CHANGE);
 }
 
