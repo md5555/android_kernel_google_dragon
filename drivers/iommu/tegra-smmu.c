@@ -677,12 +677,17 @@ static size_t tegra_smmu_unmap(struct iommu_domain *domain, unsigned long iova,
 	dma_addr_t pte_dma;
 	u32 *pte;
 
+	might_sleep();
+
 	pte = tegra_smmu_pte_lookup(as, iova, &pte_dma);
 	if (!pte || !*pte)
 		return 0;
 
 	tegra_smmu_set_pte(as, iova, pte, pte_dma, 0);
+
+	mutex_lock(&as->lock);
 	tegra_smmu_pte_put_use(as, iova);
+	mutex_unlock(&as->lock);
 
 	return size;
 }
