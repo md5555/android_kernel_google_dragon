@@ -119,6 +119,48 @@ static inline void tegra_dsi_writel(struct tegra_dsi *dsi, u32 value,
 	writel(value, dsi->regs + (reg << 2));
 }
 
+static inline bool tegra_dsi_dc_active(struct tegra_dsi *dsi)
+{
+	if (dsi->master)
+		return dsi->master->dc_active;
+	return dsi->dc_active;
+}
+
+static inline void tegra_dsi_set_dc_active(struct tegra_dsi *dsi, bool active)
+{
+	if (dsi->master)
+		dsi->master->dc_active = active;
+	else
+		dsi->dc_active = active;
+}
+
+static inline int tegra_dsi_is_locked(struct tegra_dsi *dsi)
+{
+	struct mutex *lock = &dsi->dcs_lock;
+	if (dsi->master)
+		lock = &dsi->master->dcs_lock;
+
+	return mutex_is_locked(lock);
+}
+
+static inline void tegra_dsi_lock(struct tegra_dsi *dsi)
+{
+	struct mutex *lock = &dsi->dcs_lock;
+	if (dsi->master)
+		lock = &dsi->master->dcs_lock;
+
+	mutex_lock(lock);
+}
+
+static inline void tegra_dsi_unlock(struct tegra_dsi *dsi)
+{
+	struct mutex *lock = &dsi->dcs_lock;
+	if (dsi->master)
+		lock = &dsi->master->dcs_lock;
+
+	mutex_unlock(lock);
+}
+
 static int tegra_dsi_show_regs(struct seq_file *s, void *data)
 {
 	struct drm_info_node *node = s->private;
@@ -693,14 +735,14 @@ static void tegra_dsi_disable(struct tegra_dsi *dsi)
 {
 	u32 value;
 
-	mutex_lock(&dsi->dcs_lock);
+	tegra_dsi_lock(dsi);
 
 	value = tegra_dsi_readl(dsi, DSI_POWER_CONTROL);
 	value &= ~DSI_POWER_CONTROL_ENABLE;
 	tegra_dsi_writel(dsi, value, DSI_POWER_CONTROL);
-	dsi->dc_active = false;
+	tegra_dsi_set_dc_active(dsi, false);
 
-	mutex_unlock(&dsi->dcs_lock);
+	tegra_dsi_unlock(dsi);
 
 	if (dsi->slave)
 		tegra_dsi_disable(dsi->slave);
@@ -918,7 +960,7 @@ static void tegra_dsi_encoder_mode_set(struct drm_encoder *encoder,
 	if (output->panel)
 		drm_panel_prepare(output->panel);
 
-	mutex_lock(&dsi->dcs_lock);
+	tegra_dsi_lock(dsi);
 
 	tegra_dsi_configure(dsi, dc->pipe, mode);
 
@@ -928,14 +970,12 @@ static void tegra_dsi_encoder_mode_set(struct drm_encoder *encoder,
 	tegra_dc_writel(dc, value, DC_DISP_DISP_WIN_OPTIONS);
 
 	tegra_dc_commit(dc);
-	dsi->dc_active = true;
-	if (dsi->slave)
-		dsi->slave->dc_active = true;
+	tegra_dsi_set_dc_active(dsi, true);
 
 	/* enable DSI controller */
 	tegra_dsi_encoder_dpms(encoder, DRM_MODE_DPMS_ON);
 
-	mutex_unlock(&dsi->dcs_lock);
+	tegra_dsi_unlock(dsi);
 
 	if (output->panel)
 		drm_panel_enable(output->panel);
@@ -1210,7 +1250,7 @@ static int tegra_dsi_transmit(struct tegra_dsi *dsi, unsigned long timeout)
 	struct tegra_dsi_state *state = tegra_dsi_get_state(dsi);
 	struct tegra_output *output = &dsi->output;
 
-	BUG_ON(!mutex_is_locked(&dsi->dcs_lock));
+	BUG_ON(!tegra_dsi_is_locked(dsi));
 
 	tegra_dsi_writel(dsi, DSI_TRIGGER_HOST, DSI_TRIGGER);
 
@@ -1225,7 +1265,8 @@ static int tegra_dsi_transmit(struct tegra_dsi *dsi, unsigned long timeout)
 	 * the commands will only be sent on frame end, and we could be waiting
 	 * a while for the next frame.
 	 */
-	if (dsi->dc_active && output->connector.display_info.supports_psr &&
+	if (tegra_dsi_dc_active(dsi) &&
+			output->connector.display_info.supports_psr &&
 			state->base.crtc)
 		tegra_dc_force_update(state->base.crtc);
 
@@ -1265,7 +1306,7 @@ static ssize_t tegra_dsi_host_transfer_packet(struct mipi_dsi_host *host,
 	int i, retries = 3;
 	u32 value;
 
-	BUG_ON(!mutex_is_locked(&dsi->dcs_lock));
+	BUG_ON(!tegra_dsi_is_locked(dsi));
 
 	for (i = 0; i < retries; i++) {
 		/* reset underflow/overflow flags */
@@ -1356,13 +1397,13 @@ static ssize_t tegra_dsi_host_transfer(struct mipi_dsi_host *host,
 	ssize_t err;
 	u32 value;
 
-	mutex_lock(&dsi->dcs_lock);
+	tegra_dsi_lock(dsi);
 
 	/* We need to make a copy to possibly inject our own flags */
 	memcpy(&msg_local, msg, sizeof(msg_local));
 
 	/* HW ECC and CRC are disabled when dc is active */
-	if (dsi->dc_active)
+	if (tegra_dsi_dc_active(dsi))
 		msg_local.flags |= MIPI_DSI_MSG_SW_ECC | MIPI_DSI_MSG_SW_CRC;
 
 	err = mipi_dsi_create_packet(&packet, &msg_local);
@@ -1376,7 +1417,7 @@ static ssize_t tegra_dsi_host_transfer(struct mipi_dsi_host *host,
 	}
 
 	/* If the dc is active, we have a few more considerations to make */
-	if (dsi->dc_active) {
+	if (tegra_dsi_dc_active(dsi)) {
 		/* Must use the host FIFO */
 		if (packet.size > dsi->host_fifo_depth * 4) {
 			err = -ENOSPC;
@@ -1453,7 +1494,7 @@ static ssize_t tegra_dsi_host_transfer(struct mipi_dsi_host *host,
 	}
 
 out:
-	mutex_unlock(&dsi->dcs_lock);
+	tegra_dsi_unlock(dsi);
 
 	return err;
 }
