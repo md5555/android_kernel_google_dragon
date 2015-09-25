@@ -80,12 +80,44 @@ static inline struct panel_jdi *to_panel_jdi(struct drm_panel *panel)
 	return container_of(panel, struct panel_jdi, base);
 }
 
-static int panel_jdi_write_display_brightness(struct panel_jdi *jdi,
-					      u32 brightness)
+static int backlight_jdi_set_power(struct panel_jdi *jdi, bool power)
+{
+	int ret;
+	u32 value = 0;
+
+	if (power)
+		value = 1;
+
+	ret = i2c_smbus_write_byte_data(jdi->client, I2C_LP8557_COMMAND, value);
+	if (ret) {
+		DRM_ERROR("Failed to write backlight command reg %d", ret);
+		return ret;
+	}
+	return 0;
+}
+
+static int backlight_jdi_write_display_brightness(struct panel_jdi *jdi,
+						  u32 brightness)
 {
 	int ret;
 	u8 data;
 
+	if (jdi->brightness == brightness)
+		return 0;
+
+	if (brightness == 0) {
+		ret = backlight_jdi_set_power(jdi, false);
+		if (ret) {
+			DRM_ERROR("Failed to disable backlight ret=%d\n", ret);
+			return ret;
+		}
+	} else if (jdi->brightness == 0) {
+		ret = backlight_jdi_set_power(jdi, true);
+		if (ret) {
+			DRM_ERROR("Failed to enable backlight ret=%d\n", ret);
+			return ret;
+		}
+	}
 	data = RSP_WRITE_DISPLAY_BRIGHTNESS(brightness);
 
 	ret = mipi_dsi_dcs_write(jdi->slave,
@@ -109,12 +141,12 @@ static int backlight_jdi_update_status(struct backlight_device *bl)
 
 	mutex_lock(&jdi->lock);
 
-	if (!jdi->enabled || jdi->brightness == brightness) {
+	if (!jdi->enabled) {
 		ret = 0;
 		goto out;
 	}
 
-	ret = panel_jdi_write_display_brightness(jdi, brightness);
+	ret = backlight_jdi_write_display_brightness(jdi, brightness);
 	if (ret) {
 		DRM_ERROR("write_display_brightness failed with %d\n", ret);
 		goto out;
@@ -187,7 +219,7 @@ static int panel_jdi_disable(struct drm_panel *panel)
 	if (!jdi->enabled)
 		goto out;
 
-	ret = panel_jdi_write_display_brightness(jdi, 0);
+	ret = backlight_jdi_write_display_brightness(jdi, 0);
 	if (ret < 0)
 		DRM_ERROR("failed to set backlight on: %d\n", ret);
 
@@ -271,9 +303,9 @@ static int backlight_jdi_prepare(struct panel_jdi *jdi)
 	if (!reinitialize)
 		return 0;
 
-	ret = i2c_smbus_write_byte_data(cl, I2C_LP8557_COMMAND, 0x00);
+	ret = backlight_jdi_set_power(jdi, false);
 	if (ret) {
-		DRM_ERROR("Failed to write backlight command reg %d", ret);
+		DRM_ERROR("Failed to disable backlight ret=%d", ret);
 		return ret;
 	}
 
@@ -287,9 +319,9 @@ static int backlight_jdi_prepare(struct panel_jdi *jdi)
 		}
 	}
 
-	ret = i2c_smbus_write_byte_data(cl, I2C_LP8557_COMMAND, 0x01);
+	ret = backlight_jdi_set_power(jdi, true);
 	if (ret) {
-		DRM_ERROR("Failed to write backlight command reg %d", ret);
+		DRM_ERROR("Failed to enable backlight ret=%d", ret);
 		return ret;
 	}
 
