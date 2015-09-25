@@ -484,6 +484,66 @@ nouveau_gem_info(struct drm_file *file_priv, struct drm_gem_object *gem,
 	return 0;
 }
 
+static int nouveau_gem_remap(struct nouveau_drm *drm, struct nvkm_vm *vm,
+			     struct nvkm_vma *vma, struct nouveau_bo *nvbo,
+			     u64 offset, struct nvkm_vma **new_vma)
+{
+	struct nvkm_as *as;
+	unsigned old_page_shift = nvbo->page_shift;
+	int ret;
+
+	/* Unmap the old vma. */
+	nouveau_cancel_defer_vm_map(vma, nvbo);
+	nouveau_bo_vma_del(nvbo, vma);
+
+	/*
+	 * If this offset falls within an address space allocation, then honor
+	 * the address space allocation's alignment request (as->align_shift).
+	 * This may result in changing the nvbo to map with small page size
+	 * when previously it was mapped with large page size.
+	 */
+	as = nvkm_vm_find_as(vm, offset);
+	if (as)
+		nvbo->page_shift = as->align_shift;
+
+	*new_vma = kzalloc(sizeof(*vma), GFP_KERNEL);
+	if (!*new_vma) {
+		ret = -ENOMEM;
+		goto error;
+	}
+
+	/*
+	 * Try mapping the new vma.  If this succeeds, we're done, so delete
+	 * the old vma and return the new vma.
+	 */
+	ret = nouveau_bo_vma_add_offset(nvbo, vm, *new_vma, offset, true);
+	if (!ret)
+		return 0;
+
+	/*
+	 * We could have failed if there is an unmap pending for a given
+	 * address, and we ask for that address again, so flush the pending
+	 * unmaps and try again.
+	 */
+	flush_workqueue(drm->gem_unmap_wq);
+	ret = nouveau_bo_vma_add_offset(nvbo, vm, *new_vma, offset, true);
+	if (!ret)
+		return 0;
+
+	/*
+	 * We failed, so delete the new vma, and restore the old one.  We just
+	 * removed the old one...so we should be able to re-add it without
+	 * error.
+	 */
+	kfree(*new_vma);
+	*new_vma = NULL;
+
+error:
+	nvbo->page_shift = old_page_shift;
+	nouveau_bo_vma_add_offset(nvbo, vm, vma, vma->offset, true);
+	return ret;
+}
+
 int
 nouveau_gem_ioctl_set_info(struct drm_device *dev, void *data,
 			   struct drm_file *file_priv)
@@ -526,58 +586,15 @@ nouveau_gem_ioctl_set_info(struct drm_device *dev, void *data,
 		}
 
 		/*
-		 * If nonzero offset, we need to redo the mapping (if it
-		 * has happened already, free the old vma, and make a new vma
-		 * that spans the address (offset) we are asking for.
-		 *
-		 * On failure, we need to add the old one back.
+		 * If nonzero offset, remap with the new offset (this results
+		 * in a new vma).
 		 */
 		if (req->offset) {
 			struct nvkm_vma *new_vma;
-			struct nvkm_as *as;
-			unsigned old_page_shift = nvbo->page_shift;
-
-			nouveau_cancel_defer_vm_map(vma, nvbo);
-			nouveau_bo_vma_del(nvbo, vma);
-
-			/*
-			 * If this offset falls within an address space
-			 * allocation, then honor the address space allocation's
-			 * alignment request (as->align_shift).  This may
-			 * result in changing the nvbo to map with small page
-			 * size when previously it was mapped with large page
-			 * size.
-			 */
-			as = nvkm_vm_find_as(cli->vm, req->offset);
-			if (as)
-				nvbo->page_shift = as->align_shift;
-
-			new_vma = kzalloc(sizeof(*vma), GFP_KERNEL);
-			if (!new_vma) {
-				/*
-				 * We just removed this...so we should be
-				 * able to re-add it without error.
-				 */
-				nvbo->page_shift = old_page_shift;
-				nouveau_bo_vma_add_offset(nvbo, cli->vm,
-							vma, vma->offset, true);
-				ret = -ENOMEM;
+			ret = nouveau_gem_remap(drm, cli->vm, vma, nvbo,
+						req->offset, &new_vma);
+			if (ret)
 				goto unreserve;
-			}
-
-			ret = nouveau_bo_vma_add_offset(nvbo, cli->vm, new_vma,
-							req->offset, true);
-			if (ret) {
-				kfree(new_vma);
-				/*
-				 * We just removed this...so we should be
-				 * able to re-add it without error.
-				 */
-				nvbo->page_shift = old_page_shift;
-				nouveau_bo_vma_add_offset(nvbo, cli->vm,
-							vma, vma->offset, true);
-				goto unreserve;
-			}
 
 			kfree(vma);
 			vma = new_vma;
