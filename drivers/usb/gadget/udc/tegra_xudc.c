@@ -3230,11 +3230,9 @@ static int tegra_xudc_probe(struct platform_device *pdev)
 		goto disable_regulator;
 	}
 
-	mutex_lock(&xusb_lock);
-
 	err = tegra_pmc_unpowergate(TEGRA_POWERGATE_XUSBA);
 	if (err < 0)
-		goto unlock;
+		goto disable_regulator;
 	err = tegra_pmc_unpowergate(TEGRA_POWERGATE_XUSBB);
 	if (err < 0)
 		goto powergate_xusba;
@@ -3281,8 +3279,6 @@ static int tegra_xudc_probe(struct platform_device *pdev)
 
 	tegra_xudc_update_data_role(xudc);
 
-	mutex_unlock(&xusb_lock);
-
 	pm_runtime_set_active(&pdev->dev);
 
 	return 0;
@@ -3299,8 +3295,6 @@ powergate_xusbb:
 	tegra_pmc_powergate(TEGRA_POWERGATE_XUSBB);
 powergate_xusba:
 	tegra_pmc_powergate(TEGRA_POWERGATE_XUSBA);
-unlock:
-	mutex_unlock(&xusb_lock);
 disable_regulator:
 	regulator_bulk_disable(xudc->soc->num_supplies, xudc->supplies);
 	return err;

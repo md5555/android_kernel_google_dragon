@@ -249,9 +249,6 @@ struct tegra_xhci_hcd {
 
 static struct hc_driver __read_mostly tegra_xhci_hc_driver;
 
-DEFINE_MUTEX(xusb_lock);
-EXPORT_SYMBOL_GPL(xusb_lock);
-
 static inline struct tegra_xhci_hcd *
 mbox_work_to_tegra(struct work_struct *work)
 {
@@ -889,17 +886,15 @@ static void tegra_xhci_probe_finish(const struct firmware *fw, void *context)
 		goto put_usb2_hcd;
 	memcpy(tegra->fw_data, fw->data, tegra->fw_size);
 
-	mutex_lock(&xusb_lock);
-
 	ret = tegra_xhci_load_firmware(tegra);
 	if (ret < 0)
-		goto unlock;
+		goto put_usb2_hcd;
 
 	device_init_wakeup(tegra->dev, true);
 
 	ret = usb_add_hcd(tegra->hcd, tegra->irq, IRQF_SHARED);
 	if (ret < 0)
-		goto unlock;
+		goto put_usb2_hcd;
 
 	/*
 	 * USB 2.0 roothub is stored in drvdata now. Swap it with the Tegra HCD.
@@ -936,8 +931,6 @@ static void tegra_xhci_probe_finish(const struct firmware *fw, void *context)
 		tegra_xhci_reset_sspi(tegra);
 	mutex_unlock(&tegra->lock);
 
-	mutex_unlock(&xusb_lock);
-
 	pm_runtime_use_autosuspend(dev);
 	pm_runtime_set_autosuspend_delay(dev, 2000);
 	pm_runtime_set_active(dev);
@@ -952,8 +945,6 @@ put_usb3_hcd:
 dealloc_usb2_hcd:
 	usb_remove_hcd(tegra->hcd);
 	kfree(xhci);
-unlock:
-	mutex_unlock(&xusb_lock);
 put_usb2_hcd:
 	usb_put_hcd(tegra->hcd);
 	tegra->hcd = NULL;
@@ -1082,11 +1073,9 @@ static int tegra_xhci_probe(struct platform_device *pdev)
 		goto put_hcd;
 	}
 
-	mutex_lock(&xusb_lock);
-
 	ret = tegra_pmc_unpowergate(TEGRA_POWERGATE_XUSBA);
 	if (ret < 0)
-		goto unlock;
+		goto put_hcd;
 	ret = tegra_pmc_unpowergate(TEGRA_POWERGATE_XUSBC);
 	if (ret < 0)
 		goto powergate_xusba;
@@ -1174,8 +1163,6 @@ static int tegra_xhci_probe(struct platform_device *pdev)
 
 	tegra_xhci_update_data_role(tegra);
 
-	mutex_unlock(&xusb_lock);
-
 	ret = request_firmware_nowait(THIS_MODULE, true,
 				      tegra->soc->firmware_file,
 				      tegra->dev, GFP_KERNEL, tegra,
@@ -1202,8 +1189,6 @@ powergate_xusbc:
 	tegra_pmc_powergate(TEGRA_POWERGATE_XUSBC);
 powergate_xusba:
 	tegra_pmc_powergate(TEGRA_POWERGATE_XUSBA);
-unlock:
-	mutex_unlock(&xusb_lock);
 put_hcd:
 	usb_put_hcd(hcd);
 	return ret;
