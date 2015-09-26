@@ -234,7 +234,6 @@ static void gem_unmap_work(struct work_struct *__work)
 	struct nvkm_vma *vma = del_work->vma;
 	struct nouveau_bo *nvbo = del_work->nvbo;
 	struct drm_device *dev = nvbo->gem.dev;
-	const bool mapped = nvbo->bo.mem.mem_type != TTM_PL_SYSTEM;
 	struct reservation_object *resv = nvbo->bo.resv;
 	struct reservation_object_list *fobj;
 	struct fence *fence = NULL;
@@ -243,7 +242,7 @@ static void gem_unmap_work(struct work_struct *__work)
 	ret = pm_runtime_get_sync(dev->dev);
 	WARN_ON(ret < 0 && ret != -EACCES);
 
-	if (mapped)
+	if (vma->mapped)
 		WARN_ON(nvkm_vm_wait(vma->vm));
 
 	fobj = reservation_object_get_list(resv);
@@ -258,10 +257,10 @@ static void gem_unmap_work(struct work_struct *__work)
 	else
 		fence = reservation_object_get_excl(nvbo->bo.resv);
 
-	if (fence && mapped) {
+	if (fence && vma->mapped) {
 		nouveau_fence_work(fence, nouveau_gem_object_delete, vma);
 	} else {
-		if (mapped)
+		if (vma->mapped)
 			nvkm_vm_unmap(vma);
 		nvkm_vm_put(vma);
 		kfree(vma);
@@ -299,7 +298,8 @@ nouveau_gem_object_unmap(struct nouveau_bo *nvbo, struct nvkm_vma *vma)
 	 * the mapping deferral flush that will happen on the next pushbuffer
 	 * submit doesn't try to access our just-freed vma.
 	 */
-        nouveau_cancel_defer_vm_map(vma, nvbo);
+	if (!vma->mapped)
+	        nouveau_cancel_defer_vm_map(vma, nvbo);
 
 	del_work = (struct nouveau_vma_delete_work*) kzalloc(sizeof(*del_work), GFP_KERNEL);
 	if (WARN_ON(!del_work))

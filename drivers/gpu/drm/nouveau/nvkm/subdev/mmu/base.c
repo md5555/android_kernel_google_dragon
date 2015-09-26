@@ -270,6 +270,8 @@ nvkm_vm_map(struct nvkm_vma *vma, struct nvkm_mem *node)
 	} else {
 		nvkm_vm_map_at(vma, 0, node);
 	}
+
+	vma->mapped = true;
 }
 
 static void
@@ -335,6 +337,8 @@ nvkm_vm_unmap(struct nvkm_vma *vma)
 
 	if (vma->iommu_mapping)
 		nvkm_vm_unmap_iommu(vma);
+
+	vma->mapped = false;
 }
 
 static void
