@@ -941,7 +941,6 @@ static void tegra_xhci_probe_finish(const struct firmware *fw, void *context)
 	pm_runtime_use_autosuspend(dev);
 	pm_runtime_set_autosuspend_delay(dev, 2000);
 	pm_runtime_set_active(dev);
-	pm_runtime_enable(dev);
 
 	return;
 

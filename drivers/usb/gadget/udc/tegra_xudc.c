@@ -3284,7 +3284,6 @@ static int tegra_xudc_probe(struct platform_device *pdev)
 	mutex_unlock(&xusb_lock);
 
 	pm_runtime_set_active(&pdev->dev);
-	pm_runtime_enable(&pdev->dev);
 
 	return 0;
 
