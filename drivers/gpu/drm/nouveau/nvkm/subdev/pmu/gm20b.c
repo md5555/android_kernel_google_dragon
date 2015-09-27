@@ -2563,6 +2563,13 @@ gm20b_pmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	if (ret)
 		return ret;
 
+	priv->pmu_chip_data = kzalloc(sizeof(struct pmu_gk20a_data),
+			GFP_KERNEL);
+	if (!priv->pmu_chip_data) {
+		nv_error(priv, "failed to allocate mem for chip data\n");
+		return -ENOMEM;
+	}
+
 	priv->mutex_cnt = MUTEX_CNT;
 	priv->mutex = kzalloc(priv->mutex_cnt *
 				sizeof(struct pmu_mutex), GFP_KERNEL);
@@ -2659,6 +2666,7 @@ gm20b_pmu_dtor(struct nvkm_object *object)
 	gk20a_pmu_allocator_destroy(&pmu->dmem);
 	kfree(pmu->mutex);
 	kfree(pmu->seq);
+	kfree(pmu->pmu_chip_data);
 }
 
 static int

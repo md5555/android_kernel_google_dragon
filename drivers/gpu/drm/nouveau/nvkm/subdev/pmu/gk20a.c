@@ -388,50 +388,6 @@ gk20a_disable_load_gating_prod(struct nvkm_pmu *pmu,
 		nv_wr32(pmu, desc[i].addr, desc[i].disable);
 }
 
-/* PERFMON */
-#define PMU_DOMAIN_GROUP_PSTATE		0
-#define PMU_DOMAIN_GROUP_GPC2CLK	1
-#define PMU_DOMAIN_GROUP_NUM		2
-
-enum pmu_perfmon_cmd_start_fields {
-	COUNTER_ALLOC
-};
-
-#define PMU_PERFMON_PCT_TO_INC		58
-#define PMU_PERFMON_PCT_TO_DEC		23
-
-struct pmu_perfmon_counter_gk20a {
-	u8 index;
-	u8 flags;
-	u8 group_id;
-	u8 valid;
-	u16 upper_threshold; /* units of 0.01% */
-	u16 lower_threshold; /* units of 0.01% */
-};
-struct pmu_gk20a_data {
-	struct pmu_perfmon_counter_gk20a perfmon_counter_gk20a;
-	u32 perfmon_state_id[PMU_DOMAIN_GROUP_NUM];
-};
-
-#define PMU_PERFMON_FLAG_ENABLE_INCREASE	(0x00000001)
-#define PMU_PERFMON_FLAG_ENABLE_DECREASE	(0x00000002)
-#define PMU_PERFMON_FLAG_CLEAR_PREV		(0x00000004)
-
-/* PERFMON CMD */
-enum {
-	PMU_PERFMON_CMD_ID_START = 0,
-	PMU_PERFMON_CMD_ID_STOP  = 1,
-	PMU_PERFMON_CMD_ID_INIT  = 2
-};
-
-/* PERFMON MSG */
-enum {
-	PMU_PERFMON_MSG_ID_INCREASE_EVENT = 0,
-	PMU_PERFMON_MSG_ID_DECREASE_EVENT = 1,
-	PMU_PERFMON_MSG_ID_INIT_EVENT     = 2,
-	PMU_PERFMON_MSG_ID_ACK            = 3
-};
-
 /* Writen by pmu, read by Sw, accessed by interrupt handler, no lock. */
 #define PMU_MESSAGE_QUEUE		4
 
@@ -2515,19 +2471,14 @@ gk20a_pmu_process_init_msg(struct gk20a_pmu_priv *priv, struct pmu_msg *msg)
 {
 	struct pmu_init_msg_pmu_gk20a *init;
 	u32 tail, i;
-	struct pmu_gk20a_data *gk20adata;
+	struct pmu_gk20a_data *gk20adata = priv->pmu_chip_data;
 
 	tail = nv_rd32(priv, 0x0010a4cc);
-
 	gk20a_copy_from_dmem(priv, tail,
 				(u8 *)&msg->hdr, PMU_MSG_HDR_SIZE, 0);
-	gk20adata = kzalloc(sizeof(*gk20adata), GFP_KERNEL);
-	if (!gk20adata)
-		return -ENOMEM;
 
 	if (msg->hdr.unit_id != PMU_UNIT_INIT) {
 		nv_error(priv, "expecting init msg\n");
-		kfree(gk20adata);
 		return -EINVAL;
 	}
 
@@ -2536,7 +2487,6 @@ gk20a_pmu_process_init_msg(struct gk20a_pmu_priv *priv, struct pmu_msg *msg)
 
 	if (msg->msg.init.msg_type != PMU_INIT_MSG_TYPE_PMU_INIT) {
 		nv_error(priv, "expecting init msg\n");
-		kfree(gk20adata);
 		return -EINVAL;
 	}
 
@@ -2557,7 +2507,6 @@ gk20a_pmu_process_init_msg(struct gk20a_pmu_priv *priv, struct pmu_msg *msg)
 
 	gk20adata->perfmon_counter_gk20a.index = 3;
 	gk20adata->perfmon_counter_gk20a.group_id = PMU_DOMAIN_GROUP_PSTATE;
-	priv->pmu_chip_data = (void *)gk20adata;
 	schedule_work(&priv->pg_init);
 
 	return 0;
@@ -3076,6 +3025,7 @@ gk20a_pmu_dtor(struct nvkm_object *object)
 	nvkm_gpuobj_ref(NULL, &priv->pmuvm.pgd);
 	nvkm_gpuobj_ref(NULL, &priv->pmuvm.mem);
 	gk20a_pmu_allocator_destroy(&priv->dmem);
+	kfree(priv->pmu_chip_data);
 }
 
 struct gk20a_pmu_dvfs_data gk20a_dvfs_data = {
@@ -3114,6 +3064,13 @@ gk20a_pmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	pmu->disable_elpg = gk20a_pmu_disable_elpg;
 	init_completion(&priv->elpg_off_completion);
 	init_completion(&priv->elpg_on_completion);
+
+	priv->pmu_chip_data = kzalloc(sizeof(struct pmu_gk20a_data),
+			GFP_KERNEL);
+	if (!priv->pmu_chip_data) {
+		nv_error(priv, "failed to allocate mem for chip data\n");
+		return -ENOMEM;
+	}
 
 	ret = gk20a_load_firmware(pmu, &pmufw, GK20A_PMU_UCODE_IMAGE);
 	if (ret < 0) {

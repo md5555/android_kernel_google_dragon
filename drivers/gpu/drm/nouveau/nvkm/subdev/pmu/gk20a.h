@@ -95,6 +95,51 @@ struct pmu_allocation_gk20a {
 	} alloc;
 };
 
+/* PERFMON */
+#define PMU_DOMAIN_GROUP_PSTATE		0
+#define PMU_DOMAIN_GROUP_GPC2CLK	1
+#define PMU_DOMAIN_GROUP_NUM		2
+
+enum pmu_perfmon_cmd_start_fields {
+	COUNTER_ALLOC
+};
+
+#define PMU_PERFMON_PCT_TO_INC		58
+#define PMU_PERFMON_PCT_TO_DEC		23
+
+struct pmu_perfmon_counter_gk20a {
+	u8 index;
+	u8 flags;
+	u8 group_id;
+	u8 valid;
+	u16 upper_threshold; /* units of 0.01% */
+	u16 lower_threshold; /* units of 0.01% */
+};
+
+struct pmu_gk20a_data {
+	struct pmu_perfmon_counter_gk20a perfmon_counter_gk20a;
+	u32 perfmon_state_id[PMU_DOMAIN_GROUP_NUM];
+};
+
+#define PMU_PERFMON_FLAG_ENABLE_INCREASE	(0x00000001)
+#define PMU_PERFMON_FLAG_ENABLE_DECREASE	(0x00000002)
+#define PMU_PERFMON_FLAG_CLEAR_PREV		(0x00000004)
+
+/* PERFMON CMD */
+enum {
+	PMU_PERFMON_CMD_ID_START = 0,
+	PMU_PERFMON_CMD_ID_STOP  = 1,
+	PMU_PERFMON_CMD_ID_INIT  = 2
+};
+
+/* PERFMON MSG */
+enum {
+	PMU_PERFMON_MSG_ID_INCREASE_EVENT = 0,
+	PMU_PERFMON_MSG_ID_DECREASE_EVENT = 1,
+	PMU_PERFMON_MSG_ID_INIT_EVENT     = 2,
+	PMU_PERFMON_MSG_ID_ACK            = 3
+};
+
 struct gm20b_ctxsw_ucode_segment {
 	u32 offset;
 	u32 size;
