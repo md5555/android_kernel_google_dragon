@@ -1478,7 +1478,8 @@ static int
 gk20a_pmu_allocator_init(struct nvkm_pmu_allocator *allocator,
 		const char *name, u32 start, u32 len)
 {
-	memset(allocator, 0, sizeof(struct nvkm_pmu_allocator));
+	/* kfree is safe even bitmap is NULL */
+	kfree(allocator->bitmap);
 
 	allocator->base = start;
 	allocator->size = len;
