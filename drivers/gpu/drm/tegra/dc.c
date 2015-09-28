@@ -919,10 +919,6 @@ static void tegra_cursor_atomic_update(struct drm_plane *plane,
 	bo = tegra_fb_get_plane(plane->state->fb, 0);
 	dc = to_tegra_dc(plane->state->crtc);
 
-	/* rien ne va plus */
-	if (!plane->state->crtc || !plane->state->fb)
-		return;
-
 	switch (state->crtc_w) {
 	case 32:
 		value |= CURSOR_SIZE_32x32;
