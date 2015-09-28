@@ -203,7 +203,7 @@ static int nvenc_get_clk_rate(struct host1x_client *client, u64 *data,
 	struct nvenc *nvenc = to_nvenc(drm);
 
 	switch (type) {
-	case DRM_TEGRA_REQ_TYPE_CLK_KHZ:
+	case DRM_TEGRA_REQ_TYPE_CLK_HZ:
 		*data = clk_get_rate(nvenc->cbus_clk);
 		break;
 	case DRM_TEGRA_REQ_TYPE_BW_KBPS:
@@ -223,7 +223,7 @@ static int nvenc_set_clk_rate(struct host1x_client *client, u64 data,
 	struct nvenc *nvenc = to_nvenc(drm);
 
 	switch (type) {
-	case DRM_TEGRA_REQ_TYPE_CLK_KHZ:
+	case DRM_TEGRA_REQ_TYPE_CLK_HZ:
 		if (data > NVENC_MAX_CLK_RATE)
 			data = NVENC_MAX_CLK_RATE;
 		return clk_set_rate(nvenc->cbus_clk, data);

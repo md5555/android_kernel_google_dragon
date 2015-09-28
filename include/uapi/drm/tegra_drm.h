@@ -170,7 +170,7 @@ struct drm_tegra_gem_get_flags {
 };
 
 enum request_type {
-	DRM_TEGRA_REQ_TYPE_CLK_KHZ = 0,
+	DRM_TEGRA_REQ_TYPE_CLK_HZ = 0,
 	DRM_TEGRA_REQ_TYPE_BW_KBPS,
 };
 

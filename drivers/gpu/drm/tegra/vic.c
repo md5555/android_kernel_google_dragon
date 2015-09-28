@@ -283,7 +283,7 @@ static int vic_get_clk_rate(struct host1x_client *client, u64 *data, u32 type)
 	struct vic *vic = to_vic(drm);
 
 	switch (type) {
-	case DRM_TEGRA_REQ_TYPE_CLK_KHZ:
+	case DRM_TEGRA_REQ_TYPE_CLK_HZ:
 		*data = clk_get_rate(vic->cbus_clk);
 		break;
 	case DRM_TEGRA_REQ_TYPE_BW_KBPS:
@@ -302,7 +302,7 @@ static int vic_set_clk_rate(struct host1x_client *client, u64 data, u32 type)
 	struct vic *vic = to_vic(drm);
 
 	switch (type) {
-	case DRM_TEGRA_REQ_TYPE_CLK_KHZ:
+	case DRM_TEGRA_REQ_TYPE_CLK_HZ:
 		if (data > VIC_MAX_CLK_RATE)
 			data = VIC_MAX_CLK_RATE;
 		return clk_set_rate(vic->cbus_clk, data);
