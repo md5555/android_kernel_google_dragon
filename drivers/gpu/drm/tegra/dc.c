@@ -1814,6 +1814,9 @@ static void tegra_crtc_atomic_flush(struct drm_crtc *crtc)
 	struct tegra_dc *dc = to_tegra_dc(crtc);
 	u32 value;
 
+	if (dc->dpms == DRM_MODE_DPMS_OFF)
+		return;
+
 	tegra_dc_writel(dc, state->planes << 8, DC_CMD_STATE_CONTROL);
 	value = state->planes;
 	if (state->nc_mode)
