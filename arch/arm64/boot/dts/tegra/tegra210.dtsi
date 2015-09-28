@@ -175,8 +175,10 @@
 			compatible = "nvidia,tegra210-isp";
 			reg = <0x0 0x54600000 0x0 0x00040000>;
 			interrupts = <GIC_SPI 71 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&tegra_car TEGRA210_CLK_ISP>;
-			clock-names = "isp";
+			clocks = <&tegra_car TEGRA210_CLK_ISP>,
+				 <&tegra_car TEGRA210_CLK_ISPA_ISP_CBUS>,
+				 <&tegra_car TEGRA210_CLK_ISPA_EMC>;
+			clock-names = "isp", "isp_cbus", "emc";
 			resets = <&tegra_car TEGRA210_CLK_ISP>;
 			reset-names = "isp";
 			iommus = <&mc TEGRA_SWGROUP_ISP2>;
@@ -186,8 +188,10 @@
 			compatible = "nvidia,tegra210-isp";
 			reg = <0x0 0x54680000 0x0 0x00040000>;
 			interrupts = <GIC_SPI 70 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&tegra_car TEGRA210_CLK_ISPB>;
-			clock-names = "isp";
+			clocks = <&tegra_car TEGRA210_CLK_ISPB>,
+				 <&tegra_car TEGRA210_CLK_ISPB_ISP_CBUS>,
+				 <&tegra_car TEGRA210_CLK_ISPB_EMC>;
+			clock-names = "isp", "isp_cbus", "emc";
 			resets = <&tegra_car TEGRA210_CLK_ISPB>;
 			reset-names = "isp";
 			iommus = <&mc TEGRA_SWGROUP_ISP2B>;
