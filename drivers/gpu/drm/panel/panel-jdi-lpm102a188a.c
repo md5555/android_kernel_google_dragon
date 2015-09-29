@@ -49,6 +49,10 @@ static struct backlight_jdi_init {
 		.reg = I2C_LP8557_LEDEN,
 		.value = LP8557_LEDEN_4V_0V | LP8557_LEDEN_6_CURRENT_SINKS,
 	},
+	{
+		.reg = I2C_LP8557_SMOOTHING_STEP,
+		.value = LP8557_SMOOTHING_HEAVY | LP8557_SMOOTHING_STEP_200MS,
+	},
 };
 
 struct panel_jdi {

@@ -46,4 +46,7 @@
 #define I2C_LP8557_LEDEN				0x14
 #define LP8557_LEDEN_6_CURRENT_SINKS			(0x3F << 0)
 #define LP8557_LEDEN_4V_0V				(0x02 << 6)
+#define I2C_LP8557_SMOOTHING_STEP			0x15
+#define LP8557_SMOOTHING_HEAVY				(0x03 << 6)
+#define LP8557_SMOOTHING_STEP_200MS			(0x03 << 0)
 #endif
