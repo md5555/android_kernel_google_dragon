@@ -110,5 +110,4 @@ void host1x_intr_enable_host_irq(struct host1x *host, int irq,
 /* Disable a general host irq */
 void host1x_intr_disable_host_irq(struct host1x *host, int irq);
 
-irqreturn_t host1x_syncpt_thresh_fn(void *dev_id);
 #endif
