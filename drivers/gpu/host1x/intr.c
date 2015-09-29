@@ -297,9 +297,7 @@ int host1x_intr_init(struct host1x *host, unsigned int irq_gen,
 			 "host1x_sp_%02d", id);
 	}
 
-	host1x_intr_start(host);
-
-	return 0;
+	return host1x_intr_start(host);
 }
 
 void host1x_intr_deinit(struct host1x *host)
@@ -308,7 +306,7 @@ void host1x_intr_deinit(struct host1x *host)
 	destroy_workqueue(host->intr_wq);
 }
 
-void host1x_intr_start(struct host1x *host)
+int host1x_intr_start(struct host1x *host)
 {
 	u32 hz = clk_get_rate(host->clk);
 	int err;
@@ -316,14 +314,14 @@ void host1x_intr_start(struct host1x *host)
 	mutex_lock(&host->intr_mutex);
 	err = host1x_hw_intr_init_host_sync(host, DIV_ROUND_UP(hz, 1000000),
 					    syncpt_thresh_work);
-	if (err) {
-		mutex_unlock(&host->intr_mutex);
-		return;
-	}
+	if (err)
+		goto done;
 
-	host1x_hw_intr_request_host_general_irq(host);
+	err = host1x_hw_intr_request_host_general_irq(host);
 
+done:
 	mutex_unlock(&host->intr_mutex);
+	return err;
 }
 
 void host1x_intr_stop(struct host1x *host)

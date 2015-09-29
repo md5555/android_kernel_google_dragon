@@ -94,7 +94,7 @@ int host1x_intr_init(struct host1x *host, unsigned int irq_gen,
 void host1x_intr_deinit(struct host1x *host);
 
 /* Enable host1x sync point interrupt */
-void host1x_intr_start(struct host1x *host);
+int host1x_intr_start(struct host1x *host);
 
 /* Disable host1x sync point interrupt */
 void host1x_intr_stop(struct host1x *host);
