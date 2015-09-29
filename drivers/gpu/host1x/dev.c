@@ -165,6 +165,13 @@ static int host1x_probe(struct platform_device *pdev)
 		return err;
 	}
 
+	host->clk_actmon = devm_clk_get(&pdev->dev, "actmon");
+	if (IS_ERR(host->clk_actmon)) {
+		dev_err(&pdev->dev, "failed to get actmon clock\n");
+		err = PTR_ERR(host->clk_actmon);
+		return err;
+	}
+
 	err = host1x_channel_list_init(host);
 	if (err) {
 		dev_err(&pdev->dev, "failed to initialize channel list\n");
