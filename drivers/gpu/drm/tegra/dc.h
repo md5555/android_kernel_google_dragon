@@ -312,6 +312,7 @@
 #define DC_DISP_DC_PIXEL_COUNT			0x4ce
 #define DC_DISP_SD_HISTOGRAM(x)			(0x4cf + (x))
 #define DC_DISP_SD_BL_PARAMETERS		0x4d7
+#define   INSTANTANEOUS_PORTION(x)		(((x) & 0xff) << 16)
 #define DC_DISP_SD_BL_TF(x)			(0x4d8 + (x))
 #define DC_DISP_SD_BL_CONTROL			0x4dc
 #define DC_DISP_SD_HW_K_VALUES			0x4dd
@@ -461,5 +462,10 @@
 #define DC_WINBUF_AD_UFLOW_STATUS		0xbca
 #define DC_WINBUF_BD_UFLOW_STATUS		0xdca
 #define DC_WINBUF_CD_UFLOW_STATUS		0xfca
+
+#define DC_A_WINBUF_AD_MEMFETCH_CONTROL		0xbeb
+#define DC_B_WINBUF_BD_MEMFETCH_CONTROL		0xdeb
+#define DC_C_WINBUF_CD_MEMFETCH_CONTROL		0xfeb
+#define MEMFETCH_RESET_ENABLE			(1 << 0)
 
 #endif /* TEGRA_DC_H */
