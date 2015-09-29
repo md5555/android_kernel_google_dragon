@@ -589,6 +589,22 @@ nouveau_do_suspend(struct drm_device *dev, bool runtime)
 			goto fail_display;
 	}
 
+	NV_INFO(drm, "waiting for client channels to go idle...\n");
+	list_for_each_entry(cli, &drm->clients, head) {
+		mutex_lock(&cli->mutex);
+		if (cli->abi16) {
+			struct nouveau_abi16 *abi16 = cli->abi16;
+			struct nouveau_abi16_chan *chan;
+
+			list_for_each_entry(chan, &abi16->channels, head) {
+				ret = nouveau_channel_idle(chan->chan);
+				if (ret)
+					goto fail_display;
+			}
+		}
+		mutex_unlock(&cli->mutex);
+	}
+
 	NV_INFO(drm, "suspending client object trees...\n");
 	if (drm->fence && nouveau_fence(drm)->suspend) {
 		if (!nouveau_fence(drm)->suspend(drm)) {
@@ -624,6 +640,7 @@ fail_display:
 		NV_INFO(drm, "resuming display...\n");
 		nouveau_display_resume(dev, runtime);
 	}
+	NV_ERROR(drm, "suspend aborted!\n");
 	return ret;
 }
 
