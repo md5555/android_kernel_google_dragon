@@ -3280,6 +3280,7 @@ static int tegra_xudc_probe(struct platform_device *pdev)
 	tegra_xudc_update_data_role(xudc);
 
 	pm_runtime_set_active(&pdev->dev);
+	pm_runtime_enable(&pdev->dev);
 
 	return 0;
 
