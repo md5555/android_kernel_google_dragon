@@ -26,6 +26,8 @@
 #include "cdma.h"
 #include "job.h"
 
+#define HOST1X_NUM_HOST_ISR	32
+
 struct host1x_syncpt;
 struct host1x_syncpt_base;
 struct host1x_channel;
@@ -88,6 +90,10 @@ struct host1x_intr_ops {
 	void (*disable_syncpt_intr)(struct host1x *host, u32 id);
 	void (*disable_all_syncpt_intrs)(struct host1x *host);
 	int (*free_syncpt_irq)(struct host1x *host);
+	int (*request_host_general_irq)(struct host1x *host);
+	void (*free_host_general_irq)(struct host1x *host);
+	void (*enable_host_irq)(struct host1x *host, int irq);
+	void (*disable_host_irq)(struct host1x *host, int irq);
 };
 
 struct host1x_info {
@@ -111,6 +117,12 @@ struct host1x {
 	struct mutex intr_mutex;
 	struct workqueue_struct *intr_wq;
 	int intr_syncpt_irq;
+
+	/* For general interrupts */
+	int intr_general_irq;
+	u32 intstatus;
+	void (*host_isr[HOST1X_NUM_HOST_ISR])(u32, void *);
+	void *host_isr_priv[HOST1X_NUM_HOST_ISR];
 
 	const struct host1x_syncpt_ops *syncpt_op;
 	const struct host1x_intr_ops *intr_op;
@@ -209,6 +221,26 @@ static inline void host1x_hw_intr_disable_all_syncpt_intrs(struct host1x *host)
 static inline int host1x_hw_intr_free_syncpt_irq(struct host1x *host)
 {
 	return host->intr_op->free_syncpt_irq(host);
+}
+
+static inline int host1x_hw_intr_request_host_general_irq(struct host1x *host)
+{
+	return host->intr_op->request_host_general_irq(host);
+}
+
+static inline void host1x_hw_intr_enable_host_irq(struct host1x *host, int irq)
+{
+	host->intr_op->enable_host_irq(host, irq);
+}
+
+static inline void host1x_hw_intr_disable_host_irq(struct host1x *host, int irq)
+{
+	host->intr_op->disable_host_irq(host, irq);
+}
+
+static inline void host1x_hw_intr_free_host_general_irq(struct host1x *host)
+{
+	host->intr_op->free_host_general_irq(host);
 }
 
 static inline int host1x_hw_channel_init(struct host1x *host,

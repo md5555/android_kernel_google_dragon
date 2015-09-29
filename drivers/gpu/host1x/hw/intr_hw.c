@@ -132,11 +132,123 @@ static int _host1x_free_syncpt_irq(struct host1x *host)
 	return 0;
 }
 
+/**
+ * Host general interrupt service function
+ * Handles read / write failures
+ */
+static irqreturn_t general_isr(int irq, void *dev_id)
+{
+	struct host1x *host = dev_id;
+	unsigned long stat, intstat;
+	u32 ext_stat, addr;
+	int i;
+
+	intstat = host1x_sync_readl(host, HOST1X_SYNC_INTSTATUS);
+	host->intstatus = intstat;
+
+	/* Handle host1x interrupt in ISR */
+	stat = host1x_sync_readl(host, HOST1X_SYNC_HINTSTATUS);
+	ext_stat = host1x_sync_readl(host, HOST1X_SYNC_HINTSTATUS_EXT);
+
+	for_each_set_bit(i, &stat, HOST1X_NUM_HOST_ISR) {
+		if (host->host_isr[i])
+			host->host_isr[i](stat, host->host_isr_priv[i]);
+	}
+
+	if (HOST1X_SYNC_HINTSTATUS_EXT_IP_READ_INT_V(ext_stat)) {
+		addr = host1x_sync_readl(host,
+					 HOST1X_SYNC_IP_READ_TIMEOUT_ADDR);
+		pr_err("Host read timeout at address %x\n", addr);
+	}
+
+	if (HOST1X_SYNC_HINTSTATUS_EXT_IP_WRITE_INT_V(ext_stat)) {
+		addr = host1x_sync_readl(host,
+					 HOST1X_SYNC_IP_WRITE_TIMEOUT_ADDR);
+		pr_err("Host write timeout at address %x\n", addr);
+	}
+
+	host1x_sync_writel(host, ext_stat, HOST1X_SYNC_HINTSTATUS_EXT);
+	host1x_sync_writel(host, stat, HOST1X_SYNC_HINTSTATUS);
+
+	host1x_sync_writel(host, intstat, HOST1X_SYNC_INTSTATUS);
+	return IRQ_HANDLED;
+}
+
+static int _host1x_intr_request_host_general_irq(struct host1x *host)
+{
+	int err;
+	u32 val;
+
+	/* master disable for general (not syncpt) host interrupts */
+	host1x_sync_writel(host, 0, HOST1X_SYNC_INTMASK);
+
+	/* clear status & extstatus */
+	host1x_sync_writel(host, 0xfffffffful, HOST1X_SYNC_HINTSTATUS_EXT);
+	host1x_sync_writel(host, 0xfffffffful, HOST1X_SYNC_HINTSTATUS);
+
+	err = devm_request_irq(host->dev, host->intr_general_irq,
+			       general_isr, 0,
+			       "host1x_general", host);
+	if (IS_ERR_VALUE(err)) {
+		WARN_ON(1);
+		return err;
+	}
+
+	/* enable extra interrupt sources IP_READ_INT and IP_WRITE_INT */
+	host1x_sync_writel(host, BIT(30) | BIT(31), HOST1X_SYNC_HINTMASK_EXT);
+
+	/* enable extra interrupt sources */
+	val = host1x_sync_readl(host, HOST1X_SYNC_HINTMASK);
+	val |= BIT(31);
+	host1x_sync_writel(host, val, HOST1X_SYNC_HINTMASK);
+
+	/* enable host module interrupt to CPU0 */
+	host1x_sync_writel(host, BIT(0), HOST1X_SYNC_INTC0MASK);
+
+	/* master enable for general (not syncpt) host interrupts */
+	host1x_sync_writel(host, BIT(0), HOST1X_SYNC_INTMASK);
+
+	return err;
+}
+
+static void _host1x_intr_enable_host_irq(struct host1x *host, int irq)
+{
+	long val;
+
+	val = host1x_sync_readl(host, HOST1X_SYNC_HINTMASK);
+	val |= BIT(irq);
+	host1x_sync_writel(host, val, HOST1X_SYNC_HINTMASK);
+}
+
+static void _host1x_intr_disable_host_irq(struct host1x *host, int irq)
+{
+	long val;
+
+	val = host1x_sync_readl(host, HOST1X_SYNC_HINTMASK);
+	val &= ~BIT(irq);
+	host1x_sync_writel(host, val, HOST1X_SYNC_HINTMASK);
+}
+
+static void _host1x_intr_free_host_general_irq(struct host1x *host)
+{
+	/* master disable for general (not syncpt) host interrupts */
+	host1x_sync_writel(host, 0, HOST1X_SYNC_INTMASK);
+
+	devm_free_irq(host->dev, host->intr_general_irq, host);
+}
+
 static const struct host1x_intr_ops host1x_intr_ops = {
+	/* Syncpt interrupts */
 	.init_host_sync = _host1x_intr_init_host_sync,
 	.set_syncpt_threshold = _host1x_intr_set_syncpt_threshold,
 	.enable_syncpt_intr = _host1x_intr_enable_syncpt_intr,
 	.disable_syncpt_intr = _host1x_intr_disable_syncpt_intr,
 	.disable_all_syncpt_intrs = _host1x_intr_disable_all_syncpt_intrs,
 	.free_syncpt_irq = _host1x_free_syncpt_irq,
+
+	/* Host general interrupts */
+	.request_host_general_irq = _host1x_intr_request_host_general_irq,
+	.enable_host_irq = _host1x_intr_enable_host_irq,
+	.disable_host_irq = _host1x_intr_disable_host_irq,
+	.free_host_general_irq = _host1x_intr_free_host_general_irq,
 };

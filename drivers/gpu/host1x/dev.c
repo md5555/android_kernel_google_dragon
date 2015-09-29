@@ -110,6 +110,7 @@ static int host1x_probe(struct platform_device *pdev)
 	struct host1x *host;
 	struct resource *regs;
 	int syncpt_irq;
+	int general_irq;
 	int err;
 
 	id = of_match_device(host1x_of_match, &pdev->dev);
@@ -124,7 +125,13 @@ static int host1x_probe(struct platform_device *pdev)
 
 	syncpt_irq = platform_get_irq(pdev, 0);
 	if (syncpt_irq < 0) {
-		dev_err(&pdev->dev, "failed to get IRQ\n");
+		dev_err(&pdev->dev, "failed to get syncpt IRQ\n");
+		return -ENXIO;
+	}
+
+	general_irq = platform_get_irq(pdev, 1);
+	if (general_irq < 0) {
+		dev_err(&pdev->dev, "failed to get general IRQ\n");
 		return -ENXIO;
 	}
 
@@ -176,7 +183,7 @@ static int host1x_probe(struct platform_device *pdev)
 		goto fail_unprepare_disable;
 	}
 
-	err = host1x_intr_init(host, syncpt_irq);
+	err = host1x_intr_init(host, general_irq, syncpt_irq);
 	if (err) {
 		dev_err(&pdev->dev, "failed to initialize interrupts\n");
 		goto fail_deinit_syncpt;

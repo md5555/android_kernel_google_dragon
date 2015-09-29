@@ -86,10 +86,11 @@ int host1x_intr_add_action(struct host1x *host, u32 id, u32 thresh,
  */
 void host1x_intr_put_ref(struct host1x *host, u32 id, void *ref);
 
-/* Initialize host1x sync point interrupt */
-int host1x_intr_init(struct host1x *host, unsigned int irq_sync);
+/* Initialize host1x general and sync point interrupts */
+int host1x_intr_init(struct host1x *host, unsigned int irq_gen,
+		     unsigned int irq_sync);
 
-/* Deinitialize host1x sync point interrupt */
+/* Deinitialize host1x general and sync point interrupts */
 void host1x_intr_deinit(struct host1x *host);
 
 /* Enable host1x sync point interrupt */
@@ -97,6 +98,17 @@ void host1x_intr_start(struct host1x *host);
 
 /* Disable host1x sync point interrupt */
 void host1x_intr_stop(struct host1x *host);
+
+/*
+ * Enable a general host irq, and register a callback and callback context for
+ * that irq.
+ */
+void host1x_intr_enable_host_irq(struct host1x *host, int irq,
+				 void (*host_isr)(u32, void *),
+				 void *priv);
+
+/* Disable a general host irq */
+void host1x_intr_disable_host_irq(struct host1x *host, int irq);
 
 irqreturn_t host1x_syncpt_thresh_fn(void *dev_id);
 #endif

@@ -274,12 +274,14 @@ void host1x_intr_put_ref(struct host1x *host, u32 id, void *ref)
 	kref_put(&waiter->refcount, waiter_release);
 }
 
-int host1x_intr_init(struct host1x *host, unsigned int irq_sync)
+int host1x_intr_init(struct host1x *host, unsigned int irq_gen,
+		     unsigned int irq_sync)
 {
 	unsigned int id;
 	u32 nb_pts = host1x_syncpt_nb_pts(host);
 
 	mutex_init(&host->intr_mutex);
+	host->intr_general_irq = irq_gen;
 	host->intr_syncpt_irq = irq_sync;
 	host->intr_wq = create_workqueue("host_syncpt");
 	if (!host->intr_wq)
@@ -318,6 +320,9 @@ void host1x_intr_start(struct host1x *host)
 		mutex_unlock(&host->intr_mutex);
 		return;
 	}
+
+	host1x_hw_intr_request_host_general_irq(host);
+
 	mutex_unlock(&host->intr_mutex);
 }
 
@@ -352,7 +357,30 @@ void host1x_intr_stop(struct host1x *host)
 		}
 	}
 
+	host1x_hw_intr_free_host_general_irq(host);
 	host1x_hw_intr_free_syncpt_irq(host);
 
 	mutex_unlock(&host->intr_mutex);
+}
+
+void host1x_intr_enable_host_irq(struct host1x *host, int irq,
+				 void (*host_isr)(u32, void *),
+				 void *priv)
+{
+	if (!irq)
+		return;
+
+	host->host_isr[irq] = host_isr;
+	host->host_isr_priv[irq] = priv;
+	host1x_hw_intr_enable_host_irq(host, irq);
+}
+
+void host1x_intr_disable_host_irq(struct host1x *host, int irq)
+{
+	if (!irq)
+		return;
+
+	host1x_hw_intr_disable_host_irq(host, irq);
+	host->host_isr[irq] = NULL;
+	host->host_isr_priv[irq] = NULL;
 }
