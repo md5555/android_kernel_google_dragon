@@ -186,5 +186,10 @@ int main(void)
 	DEVID_FIELD(rio_device_id, asm_did);
 	DEVID_FIELD(rio_device_id, asm_vid);
 
+	DEVID(hda_device_id);
+	DEVID_FIELD(hda_device_id, vendor_id);
+	DEVID_FIELD(hda_device_id, rev_id);
+	DEVID_FIELD(hda_device_id, api_version);
+
 	return 0;
 }
