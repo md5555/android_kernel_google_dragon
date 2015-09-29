@@ -21,6 +21,7 @@
 #include "host1x04_hardware.h"
 
 /* include code */
+#include "actmon_hw.c"
 #include "cdma_hw.c"
 #include "channel_hw.c"
 #include "debug_hw.c"
@@ -31,6 +32,7 @@
 
 int host1x04_init(struct host1x *host)
 {
+	host->actmon_op = &host1x_actmon_ops;
 	host->channel_op = &host1x_channel_ops;
 	host->cdma_op = &host1x_cdma_ops;
 	host->cdma_pb_op = &host1x_pushbuffer_ops;

@@ -1,5 +1,8 @@
+ccflags-y += -Idrivers/devfreq
+
 host1x-y = \
 	acm.o \
+	actmon.o \
 	bus.o \
 	syncpt.o \
 	dev.o \
