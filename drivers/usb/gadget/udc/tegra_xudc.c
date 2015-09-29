@@ -3329,8 +3329,6 @@ static int tegra_xudc_powergate(struct tegra_xudc *xudc)
 {
 	unsigned long flags;
 
-	dev_info(xudc->dev, "entering ELPG\n");
-
 	spin_lock_irqsave(&xudc->lock, flags);
 	xudc->powergated = true;
 	spin_unlock_irqrestore(&xudc->lock, flags);
@@ -3351,8 +3349,6 @@ static int tegra_xudc_powergate(struct tegra_xudc *xudc)
 
 	regulator_bulk_disable(xudc->soc->num_supplies, xudc->supplies);
 
-	dev_info(xudc->dev, "entering ELPG done\n");
-
 	return 0;
 }
 
@@ -3361,8 +3357,6 @@ static int tegra_xudc_unpowergate(struct tegra_xudc *xudc)
 	unsigned long flags;
 	u32 val;
 	int err;
-
-	dev_info(xudc->dev, "exiting ELPG\n");
 
 	err = regulator_bulk_enable(xudc->soc->num_supplies, xudc->supplies);
 	if (err < 0)
@@ -3404,8 +3398,6 @@ static int tegra_xudc_unpowergate(struct tegra_xudc *xudc)
 	spin_lock_irqsave(&xudc->lock, flags);
 	xudc->powergated = false;
 	spin_unlock_irqrestore(&xudc->lock, flags);
-
-	dev_info(xudc->dev, "exiting ELPG done\n");
 
 	return 0;
 }
