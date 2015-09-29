@@ -20,6 +20,7 @@
 #include <linux/platform_device.h>
 #include <linux/device.h>
 
+#include "actmon.h"
 #include "channel.h"
 #include "syncpt.h"
 #include "intr.h"
@@ -96,6 +97,26 @@ struct host1x_intr_ops {
 	void (*disable_host_irq)(struct host1x *host, int irq);
 };
 
+struct host1x_actmon_ops {
+	void __iomem * (*get_actmon_regs)(struct host1x_actmon *actmon);
+	int (*init)(struct host1x_actmon *actmon);
+	void (*deinit)(struct host1x_actmon *actmon);
+	u32 (*read_avg)(struct host1x_actmon *actmon);
+	u32 (*read_count)(struct host1x_actmon *actmon);
+	u32 (*read_count_norm)(struct host1x_actmon *actmon);
+	u32 (*read_avg_norm)(struct host1x_actmon *actmon);
+	void (*update_sample_period)(struct host1x_actmon *actmon);
+	void (*set_sample_period_norm)(struct host1x_actmon *actmon,
+				       long usecs);
+	long (*get_sample_period_norm)(struct host1x_actmon *actmon);
+	long (*get_sample_period)(struct host1x_actmon *actmon);
+	void (*set_k)(struct host1x_actmon *actmon, u32 k);
+	u32 (*get_k)(struct host1x_actmon *actmon);
+	void (*debug_init)(struct host1x_actmon *actmon, struct dentry *de);
+	int (*set_high_wmark)(struct host1x_actmon *actmon, u32 val);
+	int (*set_low_wmark)(struct host1x_actmon *actmon, u32 val);
+};
+
 struct host1x_info {
 	int	nb_channels;		/* host1x: num channels supported */
 	int	nb_pts;			/* host1x: num syncpoints supported */
@@ -130,6 +151,7 @@ struct host1x {
 	const struct host1x_channel_ops *channel_op;
 	const struct host1x_cdma_ops *cdma_op;
 	const struct host1x_pushbuffer_ops *cdma_pb_op;
+	const struct host1x_actmon_ops *actmon_op;
 	const struct host1x_debug_ops *debug_op;
 
 	struct host1x_syncpt *nop_sp;

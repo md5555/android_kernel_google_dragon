@@ -20,8 +20,10 @@
 #include <linux/slab.h>
 #include <soc/tegra/tegra_emc.h>
 
-static int host1x_module_update_rate(struct host1x_client *client,
-				     enum host1x_clock_index index)
+#include "actmon.h"
+
+int host1x_module_update_rate(struct host1x_client *client,
+			      enum host1x_clock_index index)
 {
 	struct host1x_client_clock *clock = &client->clocks[index];
 	struct host1x_user *user;
@@ -77,11 +79,15 @@ int host1x_module_busy(struct host1x_client *client)
 	if (err < 0)
 		return err;
 
+	host1x_actmon_notify_busy(client);
+
 	return 0;
 }
 
 void host1x_module_idle(struct host1x_client *client)
 {
+	host1x_actmon_notify_idle(client);
+
 	pm_runtime_mark_last_busy(client->dev);
 	pm_runtime_put_autosuspend(client->dev);
 }

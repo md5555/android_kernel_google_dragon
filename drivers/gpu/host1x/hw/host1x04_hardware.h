@@ -22,6 +22,7 @@
 #include <linux/types.h>
 #include <linux/bitops.h>
 
+#include "hw_host1x04_actmon.h"
 #include "hw_host1x04_channel.h"
 #include "hw_host1x04_sync.h"
 #include "hw_host1x04_uclass.h"

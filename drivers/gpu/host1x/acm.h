@@ -19,6 +19,9 @@
 
 #include <linux/host1x.h>
 
+int host1x_module_update_rate(struct host1x_client *client,
+			      enum host1x_clock_index index);
+
 int host1x_module_add_user(struct host1x_client *client,
 			   struct host1x_user *userctx);
 

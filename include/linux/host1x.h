@@ -22,6 +22,7 @@
 #include <linux/device.h>
 #include <linux/types.h>
 #include <uapi/linux/host1x.h>
+#include <linux/devfreq.h>
 
 enum host1x_class {
 	HOST1X_CLASS_HOST1X = 0x1,
@@ -70,6 +71,27 @@ struct host1x_client_clock {
 	int pixels_per_cycle;
 };
 
+struct host1x_actmon_data {
+	/* Inputs prior to initializing actmon */
+	u32 actmon_regs;
+	unsigned int actmon_irq;
+	const char *devfreq_governor;
+
+	struct host1x_user user;
+
+	struct host1x_actmon *actmon;
+
+	struct clk *clk;
+
+	struct dentry *debugfs;
+	struct devfreq *power_manager;
+
+	ktime_t last_event_time;
+
+	struct devfreq_dev_profile devfreq_profile;
+	struct devfreq_dev_status dev_stat;
+};
+
 struct host1x_client {
 	struct list_head list;
 	struct device *parent;
@@ -92,6 +114,8 @@ struct host1x_client {
 	/* List of users and rate requests */
 	struct list_head user_list;
 	struct mutex user_list_lock;
+
+	struct host1x_actmon_data *actmon_data;
 };
 
 /*
@@ -378,5 +402,10 @@ int host1x_module_set_rate(struct host1x_client *client,
 			   enum host1x_clock_index index,
 			   unsigned long rate,
 			   enum host1x_user_constraint_type type);
+int host1x_actmon_init(struct host1x_client *client,
+		       struct host1x_actmon_data *actmon_data);
+void host1x_actmon_deinit(struct host1x_client *client);
+int host1x_actmon_enable(struct host1x_client *client);
+void host1x_actmon_disable(struct host1x_client *client);
 
 #endif
