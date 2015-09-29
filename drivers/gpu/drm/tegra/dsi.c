@@ -1780,6 +1780,13 @@ static void tegra_dsi_shutdown(struct platform_device *pdev)
 	struct tegra_dsi *dsi = platform_get_drvdata(pdev);
 	struct tegra_output *output = &dsi->output;
 
+	tegra_dsi_lock(dsi);
+	if (!tegra_dsi_dc_active(dsi)) {
+		tegra_dsi_unlock(dsi);
+		return;
+	}
+	tegra_dsi_unlock(dsi);
+
 	/* Send turn off commands to the panel */
 	if (output->panel)
 		drm_panel_disable(output->panel);
