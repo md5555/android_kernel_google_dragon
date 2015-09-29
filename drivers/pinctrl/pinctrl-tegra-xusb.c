@@ -774,6 +774,19 @@ int tegra_xusb_utmi_clear_vbus_override(struct phy *phy)
 }
 EXPORT_SYMBOL_GPL(tegra_xusb_utmi_clear_vbus_override);
 
+bool tegra_xusb_utmi_phy_is_dual_role(struct phy *phy)
+{
+	struct tegra_xusb_utmi_phy *utmi;
+
+	if (!phy)
+		return false;
+
+	utmi = phy_get_drvdata(phy);
+
+	return utmi->dr_mode == USB_DR_MODE_OTG;
+}
+EXPORT_SYMBOL_GPL(tegra_xusb_utmi_phy_is_dual_role);
+
 static inline struct tegra_xusb_padctl *
 mbox_work_to_padctl(struct work_struct *work)
 {

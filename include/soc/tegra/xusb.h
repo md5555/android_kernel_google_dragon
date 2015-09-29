@@ -62,4 +62,6 @@ tegra_xusb_utmi_phy_get_pad_config(struct phy *phy,
 extern int tegra_xusb_utmi_set_vbus_override(struct phy *phy);
 extern int tegra_xusb_utmi_clear_vbus_override(struct phy *phy);
 
+extern bool tegra_xusb_utmi_phy_is_dual_role(struct phy *phy);
+
 #endif /* __SOC_TEGRA_XUSB_H__ */
