@@ -2689,8 +2689,9 @@ static void __init tegra210_pll_init(void __iomem *clk_base,
 	clks[TEGRA210_CLK_PLL_D_OUT0] = clk;
 
 	/* PLLRE */
-	clk = tegra_clk_register_pllre("pll_re_vco", "pll_ref", clk_base, pmc,
-			     0, &pll_re_vco_params, &pll_re_lock, pll_ref_freq);
+	clk = tegra_clk_register_pllre_tegra210("pll_re_vco", "pll_ref",
+			     clk_base, pmc, 0, &pll_re_vco_params,
+			     &pll_re_lock, pll_ref_freq);
 	clk_register_clkdev(clk, "pll_re_vco", NULL);
 	clks[TEGRA210_CLK_PLL_RE_VCO] = clk;
 
@@ -2699,6 +2700,14 @@ static void __init tegra210_pll_init(void __iomem *clk_base,
 					 pll_vco_post_div_table, &pll_re_lock);
 	clk_register_clkdev(clk, "pll_re_out", NULL);
 	clks[TEGRA210_CLK_PLL_RE_OUT] = clk;
+
+	clk = tegra_clk_register_divider("pll_re_out1_div", "pll_re_vco",
+			clk_base + PLLRE_OUT1, 0, TEGRA_DIVIDER_ROUND_UP,
+			8, 8, 1, NULL);
+	clk = tegra_clk_register_pll_out("pll_re_out1", "pll_re_out1_div",
+			clk_base + PLLRE_OUT1, 1, 0,
+			CLK_SET_RATE_PARENT, 0, NULL);
+	clks[TEGRA210_CLK_PLL_RE_OUT1] = clk;
 
 	/* PLLE */
 	clk = tegra_clk_register_plle_tegra210("pll_e", "pll_ref",
@@ -2921,7 +2930,7 @@ static struct tegra_clk_init_table common_init_table[] __initdata = {
 	{TEGRA210_CLK_DFLL_SOC, TEGRA210_CLK_PLL_P, 51000000, 1},
 	{TEGRA210_CLK_DFLL_REF, TEGRA210_CLK_PLL_P, 51000000, 1},
 	{TEGRA210_CLK_SBC4, TEGRA210_CLK_PLL_P, 12000000, 0},
-	{TEGRA210_CLK_PLL_RE_VCO, TEGRA210_CLK_CLK_MAX, 672000000, 0},
+	{TEGRA210_CLK_PLL_RE_OUT1, TEGRA210_CLK_CLK_MAX, 0, 0},
 	{TEGRA210_CLK_PLL_U_OUT1, TEGRA210_CLK_CLK_MAX, 48000000, 1},
 	{TEGRA210_CLK_PLL_U_OUT2, TEGRA210_CLK_CLK_MAX, 60000000, 1},
 	{TEGRA210_CLK_XUSB_GATE, TEGRA210_CLK_CLK_MAX, 0, 1},
