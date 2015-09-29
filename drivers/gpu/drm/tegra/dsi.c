@@ -960,6 +960,10 @@ static void tegra_dsi_encoder_mode_set(struct drm_encoder *encoder,
 
 	tegra_dsi_configure(dsi, dc->pipe, mode);
 
+	if (output->connector.display_info.bpc >= 8)
+		tegra_dc_writel(dc, DITHER_CONTROL_DISABLE,
+				DC_DISP_DISP_COLOR_CONTROL);
+
 	/* enable display controller */
 	value = tegra_dc_readl(dc, DC_DISP_DISP_WIN_OPTIONS);
 	value |= DSI_ENABLE;
