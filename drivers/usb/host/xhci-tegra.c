@@ -1156,11 +1156,25 @@ static int tegra_xhci_probe(struct platform_device *pdev)
 		}
 	}
 
+	/*
+	 * Port 0 may be configured for dual-role operation (host and device),
+	 * if so, the xHCI host may not access that port instance while the
+	 * XUSBB partition is ungated but still under reset.  Since the device
+	 * controller may gate/ungate XUSBB independently of the xHCI host,
+	 * forcibly ungate XUSBB here so that the xHCI does not race with the
+	 * XUSBB gate/ungate sequences.
+	 */
+	if (tegra_xusb_utmi_phy_is_dual_role(tegra->phys[UTMI_PHY][0])) {
+		ret = tegra_pmc_unpowergate(TEGRA_POWERGATE_XUSBB);
+		if (ret < 0)
+			goto put_mbox;
+	}
+
 	tegra_xhci_ipfs_config(tegra);
 
 	ret = tegra_xhci_phy_enable(tegra);
 	if (ret < 0)
-		goto put_mbox;
+		goto powergate_xusbb;
 
 	tegra_xhci_update_data_role(tegra);
 
@@ -1175,6 +1189,9 @@ static int tegra_xhci_probe(struct platform_device *pdev)
 
 disable_phy:
 	tegra_xhci_phy_disable(tegra);
+powergate_xusbb:
+	if (tegra_xusb_utmi_phy_is_dual_role(tegra->phys[UTMI_PHY][0]))
+		tegra_pmc_powergate(TEGRA_POWERGATE_XUSBB);
 put_mbox:
 	mbox_free_channel(tegra->mbox_chan);
 disable_regulator:
@@ -1229,6 +1246,8 @@ static int tegra_xhci_remove(struct platform_device *pdev)
 	tegra_xhci_phy_disable(tegra);
 	regulator_bulk_disable(tegra->soc->num_supplies, tegra->supplies);
 	tegra_xhci_clk_disable(tegra);
+	if (tegra_xusb_utmi_phy_is_dual_role(tegra->phys[UTMI_PHY][0]))
+		tegra_pmc_powergate(TEGRA_POWERGATE_XUSBB);
 	tegra_pmc_powergate(TEGRA_POWERGATE_XUSBC);
 	tegra_pmc_powergate(TEGRA_POWERGATE_XUSBA);
 
@@ -1432,6 +1451,10 @@ static int tegra_xhci_powergate(struct tegra_xhci_hcd *tegra, bool runtime)
 	/* Power off XUSB_HOST partition. */
 	tegra_pmc_powergate(TEGRA_POWERGATE_XUSBC);
 
+	/* Power off XUSB_DEV partition (if necessary). */
+	if (tegra_xusb_utmi_phy_is_dual_role(tegra->phys[UTMI_PHY][0]))
+		tegra_pmc_powergate(TEGRA_POWERGATE_XUSBB);
+
 	/* Power off UTMI and HSIC PHYs. */
 	for (i = 0; i < tegra->soc->num_phys[UTMI_PHY]; i++)
 		phy_power_off(tegra->phys[UTMI_PHY][i]);
@@ -1492,6 +1515,10 @@ static int tegra_xhci_unpowergate(struct tegra_xhci_hcd *tegra)
 		if (ret < 0)
 			goto unlock;
 	}
+
+	/* Power on XUSB_DEV partition (if necessary). */
+	if (tegra_xusb_utmi_phy_is_dual_role(tegra->phys[UTMI_PHY][0]))
+		tegra_pmc_unpowergate(TEGRA_POWERGATE_XUSBB);
 
 	/* Power on XUSB_HOST partition. */
 	ret = tegra_pmc_unpowergate(TEGRA_POWERGATE_XUSBC);
