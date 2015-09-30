@@ -491,6 +491,7 @@ static int panel_jdi_get_modes(struct drm_panel *panel)
 
 	info->width_mm = 211;
 	info->height_mm = 148;
+	info->bpc = 8;
 	info->tearing_effect = DRM_TEARING_EFFECT_ACTIVE_LOW;
 	info->supports_psr = true;
 
