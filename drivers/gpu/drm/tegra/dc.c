@@ -1116,19 +1116,17 @@ u32 tegra_dc_get_vblank_counter(struct tegra_dc *dc)
 	return drm_crtc_vblank_count(&dc->base);
 }
 
-static void tegra_crtc_dpms(struct drm_crtc *crtc, int mode)
+static void tegra_dc_dpms(struct tegra_dc *dc, int mode)
 {
-	struct tegra_dc *dc = to_tegra_dc(crtc);
-	unsigned long flags;
 	u32 value, enable_mask;
+
+	WARN_ON(!spin_is_locked(&dc->lock));
 
 	enable_mask = PW0_ENABLE | PW1_ENABLE | PW2_ENABLE | PW3_ENABLE |
 			PW4_ENABLE | PM0_ENABLE | PM1_ENABLE;
 
-	spin_lock_irqsave(&dc->lock, flags);
-
 	if (dc->dpms == mode)
-		goto out;
+		return;
 
 	value = tegra_dc_readl(dc, DC_CMD_DISPLAY_POWER_CONTROL);
 	switch (mode) {
@@ -1142,13 +1140,10 @@ static void tegra_crtc_dpms(struct drm_crtc *crtc, int mode)
 	case DRM_MODE_DPMS_SUSPEND:
 	default:
 		WARN(1, "DPMS mode %d unsupported!\n", mode);
-		goto out;
+		return;
 	}
 	tegra_dc_writel(dc, value, DC_CMD_DISPLAY_POWER_CONTROL);
 	dc->dpms = mode;
-
-out:
-	spin_unlock_irqrestore(&dc->lock, flags);
 }
 
 void tegra_dc_enable_vblank(struct tegra_dc *dc)
@@ -1156,10 +1151,10 @@ void tegra_dc_enable_vblank(struct tegra_dc *dc)
 	unsigned long value, flags;
 	struct tegra_dc_state *state = to_dc_state(dc->base.state);
 
-	if (state->nc_mode && dc->dpms == DRM_MODE_DPMS_STANDBY)
-		tegra_crtc_dpms(&dc->base, DRM_MODE_DPMS_ON);
-
 	spin_lock_irqsave(&dc->lock, flags);
+
+	if (state->nc_mode && dc->dpms == DRM_MODE_DPMS_STANDBY)
+		tegra_dc_dpms(dc, DRM_MODE_DPMS_ON);
 
 	value = tegra_dc_readl(dc, DC_CMD_INT_MASK);
 	if (state->nc_mode)
@@ -1185,10 +1180,10 @@ void tegra_dc_disable_vblank(struct tegra_dc *dc)
 		value &= ~VBLANK_INT;
 	tegra_dc_writel(dc, value, DC_CMD_INT_MASK);
 
-	spin_unlock_irqrestore(&dc->lock, flags);
-
 	if (state->nc_mode && dc->dpms == DRM_MODE_DPMS_ON)
-		tegra_crtc_dpms(&dc->base, DRM_MODE_DPMS_STANDBY);
+		tegra_dc_dpms(dc, DRM_MODE_DPMS_STANDBY);
+
+	spin_unlock_irqrestore(&dc->lock, flags);
 }
 
 static void tegra_dc_finish_page_flip(struct tegra_dc *dc)
@@ -1335,6 +1330,7 @@ static int tegra_dc_wait_idle(struct tegra_dc *dc, unsigned long timeout)
 static void tegra_crtc_disable(struct drm_crtc *crtc)
 {
 	struct tegra_dc *dc = to_tegra_dc(crtc);
+	unsigned long flags;
 
 	if (!tegra_dc_idle(dc)) {
 		tegra_dc_stop(dc);
@@ -1346,7 +1342,9 @@ static void tegra_crtc_disable(struct drm_crtc *crtc)
 		tegra_dc_wait_idle(dc, 100);
 	}
 
-	tegra_crtc_dpms(crtc, DRM_MODE_DPMS_OFF);
+	spin_lock_irqsave(&dc->lock, flags);
+	tegra_dc_dpms(dc, DRM_MODE_DPMS_OFF);
+	spin_unlock_irqrestore(&dc->lock, flags);
 
 	drm_crtc_vblank_off(crtc);
 
@@ -1555,6 +1553,9 @@ static void tegra_crtc_mode_set_nofb(struct drm_crtc *crtc)
 	spin_lock_irqsave(&dc->lock, flags);
 	if (dc->dpms == DRM_MODE_DPMS_OFF)
 		tegra_dc_init_hw(dc);
+
+	tegra_dc_dpms(dc, DRM_MODE_DPMS_ON);
+
 	spin_unlock_irqrestore(&dc->lock, flags);
 
 	tegra_dc_commit_state(dc, state);
@@ -1584,8 +1585,6 @@ static void tegra_crtc_mode_set_nofb(struct drm_crtc *crtc)
 	else
 		value |= DISP_CTRL_MODE_C_DISPLAY;
 	tegra_dc_writel(dc, value, DC_CMD_DISPLAY_COMMAND);
-
-	tegra_crtc_dpms(crtc, DRM_MODE_DPMS_ON);
 
 	tegra_dc_commit(dc);
 
@@ -1825,7 +1824,6 @@ static void tegra_crtc_atomic_flush(struct drm_crtc *crtc)
 }
 
 static const struct drm_crtc_helper_funcs tegra_crtc_helper_funcs = {
-	.dpms = tegra_crtc_dpms,
 	.disable = tegra_crtc_disable,
 	.mode_fixup = tegra_crtc_mode_fixup,
 	.mode_set_nofb = tegra_crtc_mode_set_nofb,
