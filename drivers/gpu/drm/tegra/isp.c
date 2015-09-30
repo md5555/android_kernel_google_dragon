@@ -25,6 +25,7 @@
 #include <linux/reset.h>
 #include <linux/iommu.h>
 #include <soc/tegra/pmc.h>
+#include <soc/tegra/tegra_emc.h>
 
 #include "drm.h"
 
@@ -43,6 +44,8 @@ struct isp {
 	struct host1x_channel *channel;
 	struct device *dev;
 	struct clk *clk;
+	struct clk *cbus_clk;
+	struct clk *emc_clk;
 	struct reset_control *rst;
 
 	struct iommu_domain *domain;
@@ -65,6 +68,8 @@ static int isp_power_off(struct device *dev)
 	if (err)
 		return err;
 
+	clk_disable_unprepare(isp->emc_clk);
+	clk_disable_unprepare(isp->cbus_clk);
 	clk_disable_unprepare(isp->clk);
 
 	return tegra_pmc_powergate(isp->config->powergate_id);
@@ -81,9 +86,28 @@ static int isp_power_on(struct device *dev)
 
 	ret = clk_prepare_enable(isp->clk);
 	if (ret < 0) {
-		dev_err(dev, "failed to enable clock\n");
-		tegra_pmc_powergate(isp->config->powergate_id);
+		dev_err(dev, "failed to enable isp clk\n");
+		goto isp_enable_fail;
 	}
+	ret = clk_prepare_enable(isp->cbus_clk);
+	if (ret < 0) {
+		dev_err(dev, "failed to enable isp cbus clk\n");
+		goto cbus_enable_fail;
+	}
+	ret = clk_prepare_enable(isp->emc_clk);
+	if (ret < 0) {
+		dev_err(dev, "failed to enable isp emc clk\n");
+		goto emc_enable_fail;
+	}
+
+	return ret;
+
+emc_enable_fail:
+	clk_disable_unprepare(isp->cbus_clk);
+cbus_enable_fail:
+	clk_disable_unprepare(isp->clk);
+isp_enable_fail:
+	tegra_pmc_powergate(isp->config->powergate_id);
 
 	return ret;
 }
@@ -176,9 +200,47 @@ static int isp_exit(struct host1x_client *client)
 	return 0;
 }
 
+static int isp_get_clk_rate(struct host1x_client *client, u64 *data, u32 type)
+{
+	struct tegra_drm_client *drm = host1x_to_drm_client(client);
+	struct isp *isp = to_isp(drm);
+
+	switch (type) {
+	case DRM_TEGRA_REQ_TYPE_CLK_HZ:
+		*data = clk_get_rate(isp->cbus_clk);
+		break;
+	case DRM_TEGRA_REQ_TYPE_BW_KBPS:
+		*data = clk_get_rate(isp->emc_clk);
+		break;
+	default:
+		dev_err(isp->dev, "Unknown Clock request type\n");
+		return -EINVAL;
+	}
+	return 0;
+}
+
+static int isp_set_clk_rate(struct host1x_client *client, u64 data, u32 type)
+{
+	struct tegra_drm_client *drm = host1x_to_drm_client(client);
+	struct isp *isp = to_isp(drm);
+
+	switch (type) {
+	case DRM_TEGRA_REQ_TYPE_CLK_HZ:
+		return clk_set_rate(isp->cbus_clk, data);
+	case DRM_TEGRA_REQ_TYPE_BW_KBPS:
+		return clk_set_rate(isp->emc_clk,
+				tegra_emc_bw_to_freq_req(data) * 1000);
+	default:
+		dev_err(isp->dev, "Unknown Clock request type\n");
+		return -EINVAL;
+	}
+}
+
 static const struct host1x_client_ops isp_client_ops = {
 	.init = isp_init,
 	.exit = isp_exit,
+	.set_clk_rate = isp_set_clk_rate,
+	.get_clk_rate = isp_get_clk_rate,
 };
 
 static int isp_open_channel(struct tegra_drm_client *client,
@@ -274,9 +336,15 @@ static int isp_probe(struct platform_device *pdev)
 	if (IS_ERR(isp->regs))
 		return PTR_ERR(isp->regs);
 
-	isp->clk = devm_clk_get(dev, NULL);
+	isp->clk = devm_clk_get(dev, "isp");
 	if (IS_ERR(isp->clk))
 		return PTR_ERR(isp->clk);
+	isp->cbus_clk = devm_clk_get(dev, "isp_cbus");
+	if (IS_ERR(isp->cbus_clk))
+		return PTR_ERR(isp->cbus_clk);
+	isp->emc_clk = devm_clk_get(dev, "emc");
+	if (IS_ERR(isp->emc_clk))
+		return PTR_ERR(isp->emc_clk);
 
 	isp->rst = devm_reset_control_get(&pdev->dev, "isp");
 	if (IS_ERR(isp->rst)) {
