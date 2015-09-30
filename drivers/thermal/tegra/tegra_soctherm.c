@@ -2002,6 +2002,7 @@ static int soctherm_oc_int_init(struct platform_device *pdev, int num_irqs)
 }
 
 #ifdef CONFIG_DEBUG_FS
+
 static int regs_show(struct seq_file *s, void *data)
 {
 	struct platform_device *pdev = s->private;
@@ -2374,6 +2375,159 @@ static const struct file_operations temp_log_fops = {
 	.release	= single_release,
 };
 
+static int thermtrip_read(struct platform_device *pdev,
+			  const char *type, u32 *temp)
+{
+	struct tegra_soctherm *ts = platform_get_drvdata(pdev);
+	const struct tegra_tsensor_group *sg;
+	u32 state;
+	int r;
+
+	sg = find_sensor_group_by_name(ts, type);
+	if (!sg) {
+		dev_err(&pdev->dev, "Read %s thermtrip failed\n", type);
+		return -EINVAL;
+	}
+
+	r = soctherm_readl(ts, THERMTRIP);
+	state = REG_GET_MASK(r, sg->thermtrip_threshold_mask);
+	state *= ts->thresh_grain;
+	*temp = state;
+
+	return 0;
+}
+
+static int thermtrip_write(struct platform_device *pdev,
+			   const char *type, int temp)
+{
+	struct tegra_soctherm *ts = platform_get_drvdata(pdev);
+	const struct tegra_tsensor_group *sg;
+	int r;
+	u32 state;
+
+	sg = find_sensor_group_by_name(ts, type);
+	if (!sg)
+		return -EINVAL;
+
+	r = soctherm_readl(ts, THERMTRIP);
+	state = REG_GET_MASK(r, sg->thermtrip_enable_mask);
+	if (!state) {
+		dev_err(&pdev->dev, "%s thermtrip not enabled.\n", type);
+		return -EINVAL;
+	}
+
+	r = thermtrip_program(&pdev->dev, sg, temp);
+	if (r) {
+		dev_err(&pdev->dev, "Set %s thermtrip failed.\n", type);
+		return r;
+	}
+
+	return 0;
+}
+
+#define DEFINE_THERMTRIP_SIMPLE_ATTR(__name, __type)			\
+static int __name##_show(void *data, u64 *val)				\
+{									\
+	struct platform_device *pdev = data;				\
+	u32 temp;							\
+	int r;								\
+									\
+	r = thermtrip_read(pdev, __type, &temp);			\
+	if (r < 0)							\
+		return 0;						\
+	*val = temp;							\
+									\
+	return 0;							\
+}									\
+									\
+static int __name##_set(void *data, u64 val)				\
+{									\
+	struct platform_device *pdev = data;				\
+	int r;								\
+									\
+	r = thermtrip_write(pdev, __type, val);				\
+	if (r)								\
+		return r;						\
+	else								\
+		return 0;						\
+}									\
+DEFINE_SIMPLE_ATTRIBUTE(__name##_fops, __name##_show, __name##_set, "%lld\n")
+
+static int throttrip_read(struct platform_device *pdev,
+			  const char *type, s32 *temp)
+{
+	struct tegra_soctherm *ts = platform_get_drvdata(pdev);
+	const struct tegra_tsensor_group *sg;
+	s32 state, reg_off;
+	int r;
+
+	sg = find_sensor_group_by_name(ts, type);
+	if (!sg) {
+		dev_err(&pdev->dev, "Read %s hw throttle trip failed\n", type);
+		return -EINVAL;
+	}
+
+	reg_off = TS_THERM_REG_OFFSET(sg->thermctl_lvl0_offset, 2);
+	r = soctherm_readl(ts, reg_off);
+
+	state = REG_GET_MASK(r, sg->thermctl_lvl0_up_thresh_mask);
+	state = sign_extend32(state, sg->bptt - 1);
+	state *= ts->thresh_grain;
+	*temp = state;
+
+	return 0;
+}
+
+static int throttrip_write(struct platform_device *pdev,
+			   const char *type, int temp)
+{
+	struct tegra_soctherm *ts = platform_get_drvdata(pdev);
+	const struct tegra_tsensor_group *sg;
+
+	sg = find_sensor_group_by_name(ts, type);
+	if (!sg) {
+		dev_err(&pdev->dev, "Write %s hw throttle trip failed\n", type);
+		return -EINVAL;
+	}
+
+	prog_hw_threshold(&pdev->dev, temp, sg, THROTTLE_HEAVY);
+
+	return 0;
+}
+
+#define DEFINE_THROTTRIP_SIMPLE_ATTR(__name, __type)			\
+static int __name##_show(void *data, u64 *val)				\
+{									\
+	struct platform_device *pdev = data;				\
+	s32 temp;							\
+	int r;								\
+									\
+	r = throttrip_read(pdev, __type, &temp);			\
+	if (r < 0)							\
+		return r;						\
+	*val = temp;							\
+									\
+	return 0;							\
+}									\
+									\
+static int __name##_set(void *data, u64 val)				\
+{									\
+	struct platform_device *pdev = data;				\
+	int r;								\
+									\
+	r = throttrip_write(pdev, __type, val);				\
+	if (r)								\
+		return r;						\
+	else								\
+		return 0;						\
+}									\
+DEFINE_SIMPLE_ATTRIBUTE(__name##_fops, __name##_show, __name##_set, "%lld\n")
+
+DEFINE_THERMTRIP_SIMPLE_ATTR(cpu_thermtrip, "cpu");
+DEFINE_THERMTRIP_SIMPLE_ATTR(gpu_thermtrip, "gpu");
+DEFINE_THROTTRIP_SIMPLE_ATTR(cpu_throttrip, "cpu");
+DEFINE_THROTTRIP_SIMPLE_ATTR(gpu_throttrip, "gpu");
+
 static int soctherm_debug_init(struct platform_device *pdev)
 {
 	struct dentry *tegra_soctherm_root;
@@ -2383,6 +2537,15 @@ static int soctherm_debug_init(struct platform_device *pdev)
 			    pdev, &regs_fops);
 	debugfs_create_file("temp_log", 0644, tegra_soctherm_root,
 			    pdev, &temp_log_fops);
+	debugfs_create_file("cpu_thermtrip", S_IRUGO | S_IWUSR,
+			   tegra_soctherm_root, pdev, &cpu_thermtrip_fops);
+	debugfs_create_file("gpu_thermtrip", S_IRUGO | S_IWUSR,
+			   tegra_soctherm_root, pdev, &gpu_thermtrip_fops);
+	debugfs_create_file("cpu_throttrip", S_IRUGO | S_IWUSR,
+			   tegra_soctherm_root, pdev, &cpu_throttrip_fops);
+	debugfs_create_file("gpu_throttrip", S_IRUGO | S_IWUSR,
+			   tegra_soctherm_root, pdev, &gpu_throttrip_fops);
+
 	return 0;
 }
 #else
