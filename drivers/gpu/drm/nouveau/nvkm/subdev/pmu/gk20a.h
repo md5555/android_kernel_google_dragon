@@ -743,7 +743,8 @@ struct gk20a_pmu_priv {
 	struct mutex pmu_seq_lock;
 	struct work_struct pg_init;
 	bool pmu_ready;
-	bool elpg_enabled;
+	bool allow_elpg;
+	struct mutex allow_elpg_mutex;
 	bool recovery_in_progress;
 	bool lspmu_wpr_init_done;
 	struct completion lspmu_completion;

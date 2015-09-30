@@ -2596,12 +2596,14 @@ gm20b_pmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	ppmu = &priv->base;
 	mc = ioremap(TEGRA_MC_BASE, 0x00000d00);
 	ppmu->cold_boot = true;
+	priv->allow_elpg = true;
 
 	nv_subdev(ppmu)->intr = gk20a_pmu_intr;
 
 	priv->data = &gk20a_dvfs_data;
 	nvkm_alarm_init(&priv->alarm, gk20a_pmu_dvfs_work);
 	mutex_init(&priv->isr_mutex);
+	mutex_init(&priv->allow_elpg_mutex);
 	init_completion(&priv->lspmu_completion);
 	init_completion(&priv->elpg_off_completion);
 	init_completion(&priv->elpg_on_completion);
@@ -2676,6 +2678,7 @@ gm20b_pmu_dtor(struct nvkm_object *object)
 	ppmu->cold_boot = true;
 	gk20a_pmu_allocator_destroy(&pmu->dmem);
 	gk20a_pmu_debugfs_unregister(pmu);
+	mutex_destroy(&pmu->allow_elpg_mutex);
 	kfree(pmu->mutex);
 	kfree(pmu->seq);
 	kfree(pmu->pmu_chip_data);

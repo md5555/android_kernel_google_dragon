@@ -2070,13 +2070,22 @@ gk20a_pmu_elpg_ctrl_locked(struct nvkm_pmu *pmu, bool enable)
 			gk20a_pmu_handle_pg_elpg_msg, pmu, &seq, ~0);
 }
 
-int
-gk20a_pmu_enable_elpg(struct nvkm_pmu *pmu)
+/**
+ * Return: <0 if error, 1 if ELPG is already enabled, 0 for
+ * success
+*/
+int gk20a_pmu_enable_elpg(struct nvkm_pmu *pmu)
 {
 	struct gk20a_pmu_priv *priv = to_gk20a_priv(pmu);
 	int ret;
 
 	mutex_lock(&priv->elpg_mutex);
+
+	if (!priv->elpg_disable_depth) {
+		WARN(1, "Trying to enable ELPG without disable.\n");
+		ret = -EFAULT;
+		goto exit_unlock;
+	}
 
 	if (--priv->elpg_disable_depth > 0) {
 		ret = 0;
@@ -2089,8 +2098,10 @@ gk20a_pmu_enable_elpg(struct nvkm_pmu *pmu)
 	 */
 
 	/* return if ELPG is already on or on_pending */
-	if (priv->elpg_stat == PMU_ELPG_STAT_ON)
+	if (priv->elpg_stat == PMU_ELPG_STAT_ON) {
+		ret = 1;
 		goto exit_unlock;
+	}
 
 	if (priv->elpg_stat == PMU_ELPG_STAT_ON_PENDING)
 		goto exit_unlock;
@@ -2117,16 +2128,23 @@ gk20a_pmu_enable_elpg(struct nvkm_pmu *pmu)
 
 	ret = wait_for_completion_timeout(&priv->elpg_on_completion,
 						msecs_to_jiffies(2000));
-	if (!ret)
+	if (!ret) {
 		nv_error(pmu, "ELPG on timeout\n");
+		ret = -EFAULT;
+	} else {
+		ret = 0;
+	}
 
 exit_unlock:
 	mutex_unlock(&priv->elpg_mutex);
 	return ret;
 }
 
-int
-gk20a_pmu_disable_elpg(struct nvkm_pmu *pmu)
+/**
+ * Return: <0 if error, 1 if ELPG is already disabled, 0 for
+ * success
+*/
+int gk20a_pmu_disable_elpg(struct nvkm_pmu *pmu)
 {
 	struct gk20a_pmu_priv *priv = to_gk20a_priv(pmu);
 	int ret;
@@ -2138,8 +2156,10 @@ gk20a_pmu_disable_elpg(struct nvkm_pmu *pmu)
 		goto exit_unlock;
 	}
 
-	if (priv->elpg_stat == PMU_ELPG_STAT_OFF)
+	if (priv->elpg_stat == PMU_ELPG_STAT_OFF) {
+		ret = 1;
 		goto exit_unlock;
+	}
 
 	if (priv->elpg_stat == PMU_ELPG_STAT_OFF_PENDING)
 		goto exit_unlock;
@@ -2167,13 +2187,11 @@ gk20a_pmu_disable_elpg(struct nvkm_pmu *pmu)
 
 	ret = wait_for_completion_timeout(&priv->elpg_off_completion,
 							msecs_to_jiffies(2000));
-	if (!ret)
+	if (!ret) {
 		nv_error(pmu, "ELPG off timeout\n");
-
-	if (priv->elpg_stat != PMU_ELPG_STAT_OFF) {
-		nv_error(pmu, "ELPG_DISALLOW failed\n");
-		ret = -EBUSY;
-		goto exit_unlock;
+		ret = -EFAULT;
+	} else {
+		ret = 0;
 	}
 
 exit_unlock:
@@ -3030,6 +3048,60 @@ static const struct file_operations elpg_stats_fops = {
 	.release	= single_release,
 };
 
+static int allow_elpg_show(struct seq_file *s, void *data)
+{
+	struct gk20a_pmu_priv *priv = s->private;
+
+	seq_printf(s, "%d\n", priv->allow_elpg);
+	return 0;
+}
+
+static int allow_elpg_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, allow_elpg_show, inode->i_private);
+}
+
+static ssize_t allow_elpg_write(struct file *file,
+	const char __user *userbuf, size_t count, loff_t *ppos)
+{
+	struct seq_file *s = file->private_data;
+	struct gk20a_pmu_priv *priv = s->private;
+	struct nvkm_pmu *pmu = &priv->base;
+	struct device *dev = nv_device_base(nv_device(priv));
+	unsigned long val = 0;
+	int ret;
+
+	if (kstrtoul_from_user(userbuf, count, 0, &val) < 0)
+		return -EINVAL;
+
+	ret = pm_runtime_get_sync(dev);
+	if (ret < 0) {
+		nv_error(pmu, "power up gpu failed: %d\n", ret);
+		return ret;
+	}
+
+	/* Don't turn on gk20a unnecessarily */
+	mutex_lock(&priv->allow_elpg_mutex);
+	if (val && !priv->allow_elpg)
+		gk20a_pmu_enable_elpg(pmu);
+	else if (!val && priv->allow_elpg)
+		gk20a_pmu_disable_elpg(pmu);
+	priv->allow_elpg = val;
+	mutex_unlock(&priv->allow_elpg_mutex);
+
+	pm_runtime_mark_last_busy(dev);
+	pm_runtime_put_autosuspend(dev);
+	return count;
+}
+
+static const struct file_operations allow_elpg_fops = {
+	.open		= allow_elpg_open,
+	.read		= seq_read,
+	.write		= allow_elpg_write,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
 void
 gk20a_pmu_debugfs_unregister(struct gk20a_pmu_priv *priv)
 {
@@ -3051,6 +3123,15 @@ gk20a_pmu_debugfs_register(struct gk20a_pmu_priv *priv)
 		"elpg_stats", 0644, priv->dbgfs_dir, priv, &elpg_stats_fops);
 	if (!d) {
 		pr_err("elpg_stats register failed\n");
+		gk20a_pmu_debugfs_unregister(priv);
+		return -ENODEV;
+	}
+
+	d = debugfs_create_file(
+		"allow_elpg", S_IRUGO | S_IWUSR, priv->dbgfs_dir, priv,
+				&allow_elpg_fops);
+	if (!d) {
+		pr_err("allow_elpg register failed\n");
 		gk20a_pmu_debugfs_unregister(priv);
 		return -ENODEV;
 	}
@@ -3155,6 +3236,7 @@ gk20a_pmu_dtor(struct nvkm_object *object)
 	gk20a_pmu_allocator_destroy(&priv->dmem);
 	kfree(priv->pmu_chip_data);
 	gk20a_pmu_debugfs_unregister(priv);
+	mutex_destroy(&priv->allow_elpg_mutex);
 }
 
 struct gk20a_pmu_dvfs_data gk20a_dvfs_data = {
@@ -3182,6 +3264,7 @@ gk20a_pmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	mutex_init(&priv->isr_mutex);
 	mutex_init(&priv->pmu_copy_lock);
 	mutex_init(&priv->pmu_seq_lock);
+	mutex_init(&priv->allow_elpg_mutex);
 	mutex_init(&priv->elpg_mutex);
 	mutex_init(&priv->clk_gating_mutex);
 	init_completion(&pmu->gr_init);
@@ -3191,6 +3274,7 @@ gk20a_pmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	nv_subdev(pmu)->intr = gk20a_pmu_intr;
 	pmu->enable_elpg = gk20a_pmu_enable_elpg;
 	pmu->disable_elpg = gk20a_pmu_disable_elpg;
+	priv->allow_elpg = true;
 	init_completion(&priv->elpg_off_completion);
 	init_completion(&priv->elpg_on_completion);
 
