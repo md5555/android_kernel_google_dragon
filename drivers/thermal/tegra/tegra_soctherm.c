@@ -2528,6 +2528,60 @@ DEFINE_THERMTRIP_SIMPLE_ATTR(gpu_thermtrip, "gpu");
 DEFINE_THROTTRIP_SIMPLE_ATTR(cpu_throttrip, "cpu");
 DEFINE_THROTTRIP_SIMPLE_ATTR(gpu_throttrip, "gpu");
 
+/**
+ * soctherm_get_cpu_throt_state - read the current state of the CPU pulse skipper
+ *
+ * Determine the current state of the CPU thermal throttling pulse
+ * skipper. This works on T124 and T210 by comparing
+ * @dividend and @divisor with the current state of the hardware.
+ *
+ * For T132 switch to Denver:CCROC NV_THERM style status.  Does
+ * not currently work on T132.
+ *
+ * Return: throttle state, -ENOTSUPP on T13x.
+ *
+ */
+static int soctherm_get_cpu_throt_state(struct tegra_soctherm *ts)
+{
+	u16 m, n, dividend, division;
+	int r, depth;
+
+	if (ts->is_ccroc)
+		return -ENOTSUPP;
+
+	r = soctherm_readl(ts, CPU_PSKIP_STATUS);
+	if (!REG_GET(r, XPU_PSKIP_STATUS_ENABLED))
+		return 0;
+
+	m = REG_GET(r, XPU_PSKIP_STATUS_M);
+	n = REG_GET(r, XPU_PSKIP_STATUS_N);
+
+	depth = ts->throttle[THROTTLE_HEAVY].cpu_throt_depth;
+	dividend = THROT_DEPTH_DIVIDEND(depth);
+	division = 0xff;
+
+	if (m == dividend && n == division)
+		return 1;
+	else
+		return 0;
+}
+
+static int hw_throt_state_show(void *data, u64 *val)
+{
+	struct platform_device *pdev = data;
+	struct tegra_soctherm *ts = platform_get_drvdata(pdev);
+	int throt_state;
+
+	throt_state = soctherm_get_cpu_throt_state(ts);
+	if (throt_state < 0)
+		return throt_state;
+
+	*val = throt_state;
+	return 0;
+}
+DEFINE_SIMPLE_ATTRIBUTE(hw_throt_state_fops, hw_throt_state_show,
+			NULL, "%llu\n");
+
 static int soctherm_debug_init(struct platform_device *pdev)
 {
 	struct dentry *tegra_soctherm_root;
@@ -2545,6 +2599,8 @@ static int soctherm_debug_init(struct platform_device *pdev)
 			   tegra_soctherm_root, pdev, &cpu_throttrip_fops);
 	debugfs_create_file("gpu_throttrip", S_IRUGO | S_IWUSR,
 			   tegra_soctherm_root, pdev, &gpu_throttrip_fops);
+	debugfs_create_file("hw_throt_state", S_IRUGO,
+			   tegra_soctherm_root, pdev, &hw_throt_state_fops);
 
 	return 0;
 }
