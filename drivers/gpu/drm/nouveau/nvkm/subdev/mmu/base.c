@@ -305,8 +305,19 @@ nvkm_vm_unmap_at(struct nvkm_vma *vma, u64 delta, u64 length)
 		}
 	}
 
-	ltc->flush(ltc);
+	/*
+	 * Make sure that modified PTEs are not in GPU cache, so that
+	 * after GMMU TLB flush, new values can be loaded into TLB.
+	 */
+	ltc->invalidate(ltc);
 	mmu->flush(vm);
+	/*
+	 * Make sure that GPU cache does not contain any dirty lines
+	 * related to the buffer being unmapped. Otherwise we could
+	 * end up with write-back triggered already after freeing the
+	 * memory to the system (or unmapping from IOMMU if it is used).
+	 */
+	ltc->flush(ltc);
 }
 
 void
