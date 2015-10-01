@@ -2798,6 +2798,14 @@ static __init void tegra210_shared_clk_init(void)
 	clk_register_clkdev(clk, "c3bus", NULL);
 	clks[TEGRA210_CLK_C3BUS] = clk;
 
+	clk = tegra_clk_register_shared("ispa.cbus", &cbus_parents[0], 1, 0, 0,
+					0, "ispa");
+	clks[TEGRA210_CLK_ISPA_ISP_CBUS] = clk;
+
+	clk = tegra_clk_register_shared("ispb.cbus", &cbus_parents[0], 1, 0, 0,
+					0, "ispb");
+	clks[TEGRA210_CLK_ISPB_ISP_CBUS] = clk;
+
 	clk = tegra_clk_register_shared("vic03.cbus", &cbus_parents[1], 1, 0, 0,
 					0, "vic03");
 	clks[TEGRA210_CLK_VIC03_CBUS] = clk;
