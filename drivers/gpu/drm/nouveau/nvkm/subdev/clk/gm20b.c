@@ -1942,6 +1942,16 @@ end:
 }
 DEFINE_SIMPLE_ATTRIBUTE(edp_max_fops, show_edp_max, store_edp_max, "%llu\n");
 
+static int gpu_edp_limit_get(void *data, u64 *val)
+{
+	struct gpu_edp *ctx = data;
+	*val = tegra_ppm_get_maxf(ctx->ppm, ctx->imax,
+				  TEGRA_PPM_UNITS_MILLIAMPS,
+				  ctx->temperature, 1);
+	return 0;
+}
+DEFINE_SIMPLE_ATTRIBUTE(gpu_edp_limit_fops, gpu_edp_limit_get, NULL, "%lld\n");
+
 static struct dentry *tegra_gpu_edp_debugfs_init(struct gpu_edp *ctx,
 						const char *name)
 {
@@ -1978,6 +1988,11 @@ static struct dentry *tegra_gpu_edp_debugfs_init(struct gpu_edp *ctx,
 				  edp_dir, &ctx->temperature);
 	if (IS_ERR_OR_NULL(file))
 		nv_error(clk, "Create GPU EDP debugfs temperature failed.\n");
+
+	file = debugfs_create_file("gpu_edp_limit", S_IRUGO,
+				   edp_dir, ctx, &gpu_edp_limit_fops);
+	if (IS_ERR_OR_NULL(file))
+		nv_error(clk, "Create GPU EDP debugfs gpu_edp_limit failed.\n");
 
 	return edp_dir;
 }
