@@ -289,11 +289,11 @@ nouveau_fence_emit_initted(struct nouveau_fence *fence,
 	if (!ret) {
 		fence_get(&fence->base);
 		spin_lock_irq(&fctx->lock);
+		list_add_tail(&fence->head, &fctx->pending);
 
 		if (nouveau_fence_update(chan, fctx))
 			nvif_notify_put(&fctx->notify);
 
-		list_add_tail(&fence->head, &fctx->pending);
 		spin_unlock_irq(&fctx->lock);
 	}
 
