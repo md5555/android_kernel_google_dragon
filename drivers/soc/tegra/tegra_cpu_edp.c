@@ -185,6 +185,15 @@ bool tegra_cpu_edp_ready(void)
 EXPORT_SYMBOL(tegra_cpu_edp_ready);
 
 #ifdef CONFIG_DEBUG_FS
+static int cpu_edp_limit_get(void *data, u64 *val)
+{
+	struct cpu_edp *ctx = data;
+	*val = (u64)tegra_get_edp_max_freq(ctx,
+					cpumask_weight(&ctx->edp_cpumask));
+	return 0;
+}
+DEFINE_SIMPLE_ATTRIBUTE(cpu_edp_limit_fops, cpu_edp_limit_get, NULL, "%lld\n");
+
 static struct dentry *tegra_edp_debugfs_init(struct cpu_edp *ctx,
 					     const char *name)
 {
@@ -198,6 +207,8 @@ static struct dentry *tegra_edp_debugfs_init(struct cpu_edp *ctx,
 			   edp_dir, &ctx->pdata.reg_edp);
 	debugfs_create_u32("temperature", S_IRUGO | S_IWUSR,
 			   edp_dir, &ctx->temperature);
+	debugfs_create_file("cpu_edp_limit", S_IRUGO,
+			    edp_dir, ctx, &cpu_edp_limit_fops);
 
 	return edp_dir;
 }
