@@ -185,6 +185,7 @@ struct tegra_dc {
 	struct iommu_domain *domain;
 
 	int dpms;
+	bool vblank_enabled;
 
 	struct tegra_mc *mc;
 	unsigned int *mc_win_clients;

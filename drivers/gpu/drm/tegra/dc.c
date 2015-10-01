@@ -1146,22 +1146,35 @@ static void tegra_dc_dpms(struct tegra_dc *dc, int mode)
 	dc->dpms = mode;
 }
 
-void tegra_dc_enable_vblank(struct tegra_dc *dc)
+static void tegra_dc_enable_vblank_impl(struct tegra_dc *dc)
 {
-	unsigned long value, flags;
+	unsigned long value;
 	struct tegra_dc_state *state = to_dc_state(dc->base.state);
 
-	spin_lock_irqsave(&dc->lock, flags);
-
+	WARN_ON(!spin_is_locked(&dc->lock));
 	if (state->nc_mode && dc->dpms == DRM_MODE_DPMS_STANDBY)
 		tegra_dc_dpms(dc, DRM_MODE_DPMS_ON);
 
 	value = tegra_dc_readl(dc, DC_CMD_INT_MASK);
-	if (state->nc_mode)
+	if (state->nc_mode) {
 		value |= MSF_INT;
-	else
+		value &= ~VBLANK_INT;
+	} else {
 		value |= VBLANK_INT;
+		value &= ~MSF_INT;
+	}
 	tegra_dc_writel(dc, value, DC_CMD_INT_MASK);
+}
+
+void tegra_dc_enable_vblank(struct tegra_dc *dc)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&dc->lock, flags);
+
+	dc->vblank_enabled = true;
+	if (dc->soc->has_powergate && dc->dpms != DRM_MODE_DPMS_OFF)
+		tegra_dc_enable_vblank_impl(dc);
 
 	spin_unlock_irqrestore(&dc->lock, flags);
 }
@@ -1173,6 +1186,7 @@ void tegra_dc_disable_vblank(struct tegra_dc *dc)
 
 	spin_lock_irqsave(&dc->lock, flags);
 
+	dc->vblank_enabled = false;
 	value = tegra_dc_readl(dc, DC_CMD_INT_MASK);
 	if (state->nc_mode)
 		value &= ~MSF_INT;
@@ -1555,6 +1569,18 @@ static void tegra_crtc_mode_set_nofb(struct drm_crtc *crtc)
 		tegra_dc_init_hw(dc);
 
 	tegra_dc_dpms(dc, DRM_MODE_DPMS_ON);
+
+	/*
+	 * Note that in addition to enabling vblank that may have been deferred
+	 * while we were powergated, this will also switch between using the TE
+	 * or VBLANK interrupt depending on the new nc_mode in state.
+	 *
+	 * For example, if we were previously using VBLANK_INT as vblank
+	 * interrupt source and the new mode supports psr, we'll switch to using
+	 * MSF_INT here.
+	 */
+	if (dc->vblank_enabled)
+		tegra_dc_enable_vblank_impl(dc);
 
 	spin_unlock_irqrestore(&dc->lock, flags);
 
