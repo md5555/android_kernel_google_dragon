@@ -32,6 +32,7 @@
 
 /* Tegra SDHOST controller vendor register definitions */
 #define SDHCI_TEGRA_VENDOR_CLK_CTRL		0x100
+#define SDHCI_CLK_CTRL_SDMMC_CLK		0x1
 #define SDHCI_CLK_CTRL_INPUT_IO_CLK		0x2
 #define SDHCI_CLK_CTRL_SPI_MODE_CLKEN_OVERRIDE	0x4
 #define SDHCI_CLK_CTRL_PADPIPE_CLKEN_OVERRIDE	0x8
@@ -209,6 +210,35 @@ static void sdhci_tegra_set_trim_sel_vreg(struct sdhci_host *host, bool enable)
 	}
 	sdhci_writel(host, misc_ctrl, SDMMC_VNDR_IO_TRIM_CTRL);
 	udelay(wait_usecs);
+}
+
+static int sdhci_tegra_clk_enable(struct sdhci_host *host)
+{
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	u32 val;
+	int ret;
+
+	ret = clk_prepare_enable(pltfm_host->clk);
+	if (ret < 0)
+		return ret;
+
+	val = sdhci_readl(host, SDHCI_TEGRA_VENDOR_CLK_CTRL);
+	val |= SDHCI_CLK_CTRL_SDMMC_CLK;
+	sdhci_writel(host, val, SDHCI_TEGRA_VENDOR_CLK_CTRL);
+
+	return 0;
+}
+
+static void sdhci_tegra_clk_disable(struct sdhci_host *host)
+{
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	u32 val;
+
+	val = sdhci_readl(host, SDHCI_TEGRA_VENDOR_CLK_CTRL);
+	val &= ~SDHCI_CLK_CTRL_SDMMC_CLK;
+	sdhci_writel(host, val, SDHCI_TEGRA_VENDOR_CLK_CTRL);
+
+	clk_disable_unprepare(pltfm_host->clk);
 }
 
 static int sdhci_tegra_get_max_tuning_iterations(struct sdhci_host *sdhci)
@@ -709,8 +739,8 @@ static int sdhci_tegra_probe(struct platform_device *pdev)
 		rc = PTR_ERR(clk);
 		goto err_clk_get;
 	}
-	clk_prepare_enable(clk);
 	pltfm_host->clk = clk;
+	sdhci_tegra_clk_enable(host);
 
 	rc = sdhci_add_host(host);
 	if (rc)
@@ -726,7 +756,7 @@ static int sdhci_tegra_probe(struct platform_device *pdev)
 	return 0;
 
 err_add_host:
-	clk_disable_unprepare(pltfm_host->clk);
+	sdhci_tegra_clk_disable(host);
 err_clk_get:
 err_power_req:
 err_parse_dt:
@@ -738,14 +768,13 @@ err_alloc_tegra_host:
 static int sdhci_tegra_remove(struct platform_device *pdev)
 {
 	struct sdhci_host *host = platform_get_drvdata(pdev);
-	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	int dead = (readl(host->ioaddr + SDHCI_INT_STATUS) == 0xffffffff);
 
 	pm_runtime_get_sync(&pdev->dev);
 	sdhci_remove_host(host, dead);
 	pm_runtime_disable(&pdev->dev);
 
-	clk_disable_unprepare(pltfm_host->clk);
+	sdhci_tegra_clk_disable(host);
 
 	sdhci_pltfm_free(pdev);
 
@@ -798,11 +827,10 @@ static int tegra_sdhci_resume(struct device *dev)
 static int tegra_sdhci_runtime_suspend(struct device *dev)
 {
 	struct sdhci_host *host = dev_get_drvdata(dev);
-	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	int ret;
 
 	ret = sdhci_runtime_suspend_host(host);
-	clk_disable_unprepare(pltfm_host->clk);
+	sdhci_tegra_clk_disable(host);
 
 	return ret;
 }
@@ -810,10 +838,9 @@ static int tegra_sdhci_runtime_suspend(struct device *dev)
 static int tegra_sdhci_runtime_resume(struct device *dev)
 {
 	struct sdhci_host *host = dev_get_drvdata(dev);
-	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	int ret;
 
-	clk_prepare_enable(pltfm_host->clk);
+	sdhci_tegra_clk_enable(host);
 	ret = sdhci_runtime_resume_host(host);
 
 	return ret;
