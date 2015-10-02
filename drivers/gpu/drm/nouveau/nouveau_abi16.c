@@ -21,6 +21,8 @@
  *
  */
 
+#include <linux/kthread.h>
+
 #include <nvif/client.h>
 #include <nvif/driver.h>
 #include <nvif/ioctl.h>
@@ -110,6 +112,16 @@ nouveau_abi16_chan_fini(struct nouveau_abi16 *abi16,
 			struct nouveau_abi16_chan *chan)
 {
 	struct nouveau_abi16_ntfy *ntfy, *temp;
+	struct nouveau_cli *cli = (void *)nvif_client(&abi16->device.base);
+
+	list_del(&chan->head);
+	mutex_unlock(&cli->mutex);
+	if (chan->chan->pushbuf_thread) {
+		kthread_stop(chan->chan->pushbuf_thread);
+		chan->chan->pushbuf_thread = NULL;
+		nouveau_channel_idle(chan->chan);
+	}
+	mutex_lock(&cli->mutex);
 
 	/* wait for all activity to stop before releasing notify object, which
 	 * may be still in use */
@@ -136,7 +148,6 @@ nouveau_abi16_chan_fini(struct nouveau_abi16 *abi16,
 		nouveau_channel_del(&chan->chan);
 	}
 
-	list_del(&chan->head);
 	kfree(chan);
 }
 
@@ -147,9 +158,11 @@ nouveau_abi16_fini(struct nouveau_abi16 *abi16)
 	struct nouveau_abi16_chan *chan, *temp;
 
 	/* cleanup channels */
+	mutex_lock(&cli->mutex);
 	list_for_each_entry_safe(chan, temp, &abi16->channels, head) {
 		nouveau_abi16_chan_fini(abi16, chan);
 	}
+	mutex_unlock(&cli->mutex);
 
 	/* destroy the device object */
 	nvif_device_fini(&abi16->device);
@@ -357,12 +370,6 @@ nouveau_abi16_ioctl_channel_free(ABI16_IOCTL_ARGS)
 	chan = nouveau_abi16_chan(abi16, req->channel);
 	if (!chan)
 		return nouveau_abi16_put(abi16, -ENOENT);
-	nouveau_abi16_put(abi16, 0);
-
-	if (chan->chan && chan->chan->pushbuf_wq)
-		flush_workqueue(chan->chan->pushbuf_wq);
-
-	nouveau_abi16_get(file_priv, dev);
 	nouveau_abi16_chan_fini(abi16, chan);
 	return nouveau_abi16_put(abi16, 0);
 }

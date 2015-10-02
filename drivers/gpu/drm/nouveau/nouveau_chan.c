@@ -22,6 +22,8 @@
  * Authors: Ben Skeggs
  */
 
+#include <linux/kthread.h>
+
 #include <nvif/os.h>
 #include <nvif/class.h>
 #include <nvif/event.h>
@@ -128,14 +130,18 @@ void
 nouveau_channel_del(struct nouveau_channel **pchan)
 {
 	struct nouveau_channel *chan = *pchan;
+	bool idle = false;
+
 	if (chan) {
-		if (chan->pushbuf_wq) {
-			while (!list_empty(&chan->pushbuf_queue))
-				nouveau_channel_idle(chan);
-			destroy_workqueue(chan->pushbuf_wq);
+		if (chan->pushbuf_thread) {
+			kthread_stop(chan->pushbuf_thread);
+			chan->pushbuf_thread = NULL;
+			nouveau_channel_idle(chan);
+			idle = true;
 		}
 		if (chan->fence) {
-			nouveau_channel_idle(chan);
+			if (!idle)
+				nouveau_channel_idle(chan);
 			nouveau_fence(chan->drm)->context_del(chan);
 		}
 		nvif_object_fini(&chan->nvsw);
@@ -497,6 +503,7 @@ nouveau_channel_new(struct nouveau_drm *drm, struct nvif_device *device,
 		    struct nouveau_channel **pchan)
 {
 	struct nouveau_cli *cli = (void *)nvif_client(&device->base);
+	struct nouveau_channel *chan;
 	bool super;
 	int ret;
 
@@ -521,9 +528,23 @@ nouveau_channel_new(struct nouveau_drm *drm, struct nvif_device *device,
 		goto done;
 	}
 
-	spin_lock_init(&(*pchan)->pushbuf_lock);
-	INIT_LIST_HEAD(&(*pchan)->pushbuf_queue);
-	(*pchan)->pushbuf_wq = create_singlethread_workqueue("nouveau_channel pushbuf workqueue");
+	chan = *pchan;
+	spin_lock_init(&chan->pushbuf_lock);
+	INIT_LIST_HEAD(&chan->pushbuf_queue);
+
+	init_waitqueue_head(&chan->pushbuf_waitqueue);
+	chan->pushbuf_thread = kthread_run(nouveau_gem_pushbuf_queue_kthread_fn,
+			(void *)chan, "nouveau_pushbuf");
+
+	if (IS_ERR(chan->pushbuf_thread)) {
+		NV_PRINTK(error, cli,
+			"channel %s failed to create worker thread, %d\n",
+			nvxx_client(&cli->base)->name, ret);
+
+		ret = PTR_ERR(chan->pushbuf_thread);
+		chan->pushbuf_thread = NULL;
+		nouveau_channel_del(pchan);
+	}
 
 done:
 	cli->base.super = super;
