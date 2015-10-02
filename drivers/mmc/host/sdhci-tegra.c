@@ -295,16 +295,15 @@ static int sdhci_tegra_do_calibration(struct sdhci_host *host)
 	sdhci_writel(host, val, SDHCI_AUTO_CAL_CONFIG);
 
 	/* Wait until the calibration is done */
-	timeout = jiffies + msecs_to_jiffies(10);
-	while (time_before(jiffies, timeout)) {
-		val = sdhci_readl(host, SDHCI_AUTO_CAL_STATUS);
-		if (!(val & SDHCI_AUTO_CAL_STATUS_ACTIVE))
-			break;
+	timeout = 10;
+	while (sdhci_readl(host, SDHCI_AUTO_CAL_STATUS) &
+	       SDHCI_AUTO_CAL_STATUS_ACTIVE) {
+		if (timeout == 0)
+			return -ETIMEDOUT;
 
-		udelay(10);
+		timeout--;
+		mdelay(1);
 	}
-	if (time_after_eq(jiffies, timeout))
-		return -ETIMEDOUT;
 
 	if (soc_data->nvquirks & NVQUIRK_ADD_AUTOCAL_DELAY)
 		udelay(1);
