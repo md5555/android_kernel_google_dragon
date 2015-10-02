@@ -967,6 +967,7 @@
 	nvidia,pu-1v8-offset = <0x05>;
 	nvidia,pd-1v8-offset = <0x05>;
 	nvidia,trim-delay = <8>;
+	nvidia,tap-delay = <0>;
 	status = "okay";
 	/* This wakeup event belongs in wifi_bcm4354 */
 	nvidia,pmc-wakeup = <&pmc
@@ -980,6 +981,7 @@
 	nvidia,pu-1v8-offset = <0x05>;
 	nvidia,pd-1v8-offset = <0x05>;
 	nvidia,trim-delay = <8>;
+	nvidia,tap-delay = <0>;
 	status = "okay";
 };
 
