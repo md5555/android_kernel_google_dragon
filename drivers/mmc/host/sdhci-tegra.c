@@ -35,6 +35,8 @@
 #define SDHCI_CLK_CTRL_INPUT_IO_CLK		0x2
 #define SDHCI_CLK_CTRL_SPI_MODE_CLKEN_OVERRIDE	0x4
 #define SDHCI_CLK_CTRL_PADPIPE_CLKEN_OVERRIDE	0x8
+#define SDHCI_CLK_CTRL_TAP_VAL_SHIFT		16
+#define SDHCI_CLK_CTRL_TAP_VAL_MASK		0xff
 #define SDHCI_CLK_CTRL_TRIM_VAL_SHIFT		24
 #define SDHCI_CLK_CTRL_TRIM_VAL_MASK		0x1f
 
@@ -62,6 +64,7 @@
 #define SDHCI_VNDR_TUN_CTRL0_TUN_ITERATIONS_64		1
 #define SDHCI_VNDR_TUN_CTRL0_TUN_ITERATIONS_128		2
 #define SDHCI_VNDR_TUN_CTRL0_TUN_ITERATIONS_256		4
+#define SDHCI_VNDR_TUN_CTRL0_TAP_VAL_UPDATED_BY_HW	0x20000
 
 #define SDHCI_VNDR_TUN_CTRL1			0x1c4
 #define SDHCI_VNDR_TUN_CTRL1_TUN_STEP_SIZE_MASK	0x77
@@ -98,7 +101,7 @@
 #define NVQUIRK_ENABLE_PADPIPE_CLKEN	BIT(9)
 #define NVQUIRK_DISABLE_SPI_MODE_CLKEN	BIT(10)
 #define NVQUIRK_EN_FEEDBACK_CLK		BIT(11)
-#define NVQUIRK_UPDATE_HW_TUNING_CONFIG	BIT(12)
+#define NVQUIRK_USE_HW_TUNING		BIT(12)
 #define NVQUIRK_TMCLK_WR_CRC_TIMEOUT	BIT(13)
 #define NVQUIRK_DISABLE_EXT_LOOPBACK	BIT(14)
 #define NVQUIRK_IO_SPARE_BIT		BIT(15)
@@ -120,6 +123,7 @@ struct sdhci_tegra {
 	u32 pd_3v3_offset;
 	bool use_bdsdmem_pads;
 	u32 trim_delay;
+	u32 tap_delay;
 };
 
 static u16 sdhci_tegra_readw(struct sdhci_host *host, int reg)
@@ -314,6 +318,63 @@ static int sdhci_tegra_do_calibration(struct sdhci_host *host)
 	return 0;
 }
 
+static void sdhci_tegra_set_tap_delay(struct sdhci_host *host,
+				      unsigned int uhs)
+{
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_tegra *tegra_host = pltfm_host->priv;
+	bool clk_on;
+	u32 val;
+
+	switch (uhs) {
+	case MMC_TIMING_UHS_SDR104:
+	case MMC_TIMING_MMC_HS200:
+	case MMC_TIMING_MMC_HS400:
+		/* Tap value set during tuning procedure. */
+		return;
+	case MMC_TIMING_UHS_SDR50:
+		if (host->flags & SDHCI_SDR50_NEEDS_TUNING)
+			return;
+	default:
+		break;
+	}
+
+	clk_on = !!(sdhci_readw(host, SDHCI_CLOCK_CONTROL) &
+		    SDHCI_CLOCK_CARD_EN);
+	if ((host->quirks2 & SDHCI_QUIRK2_TUNING_CLOCK_OFF) && clk_on) {
+		val = sdhci_readw(host, SDHCI_CLOCK_CONTROL);
+		val &= ~SDHCI_CLOCK_CARD_EN;
+		sdhci_writew(host, val, SDHCI_CLOCK_CONTROL);
+	}
+
+	if (tegra_host->soc_data->nvquirks & NVQUIRK_USE_HW_TUNING) {
+		val = sdhci_readl(host, SDHCI_VNDR_TUN_CTRL0);
+		val &= ~SDHCI_VNDR_TUN_CTRL0_TAP_VAL_UPDATED_BY_HW;
+		sdhci_writel(host, val, SDHCI_VNDR_TUN_CTRL0);
+	}
+
+	val = sdhci_readl(host, SDHCI_TEGRA_VENDOR_CLK_CTRL);
+	val &= ~(SDHCI_CLK_CTRL_TAP_VAL_MASK << SDHCI_CLK_CTRL_TAP_VAL_SHIFT);
+	val |= tegra_host->tap_delay << SDHCI_CLK_CTRL_TAP_VAL_SHIFT;
+	sdhci_writel(host, val, SDHCI_TEGRA_VENDOR_CLK_CTRL);
+
+	if (tegra_host->soc_data->nvquirks & NVQUIRK_USE_HW_TUNING) {
+		val = sdhci_readl(host, SDHCI_VNDR_TUN_CTRL0);
+		val |= SDHCI_VNDR_TUN_CTRL0_TAP_VAL_UPDATED_BY_HW;
+		sdhci_writel(host, val, SDHCI_VNDR_TUN_CTRL0);
+	}
+
+	if (host->quirks2 & SDHCI_QUIRK2_TUNING_CLOCK_OFF) {
+		udelay(1);
+		sdhci_reset(host, SDHCI_RESET_CMD | SDHCI_RESET_DATA);
+		if (clk_on) {
+			val = sdhci_readw(host, SDHCI_CLOCK_CONTROL);
+			val &= ~SDHCI_CLOCK_CARD_EN;
+			sdhci_writew(host, val, SDHCI_CLOCK_CONTROL);
+		}
+	}
+}
+
 static void sdhci_tegra_set_uhs_signaling(struct sdhci_host *host,
 					  unsigned int uhs)
 {
@@ -325,6 +386,7 @@ static void sdhci_tegra_set_uhs_signaling(struct sdhci_host *host,
 			ret);
 	}
 	sdhci_set_uhs_signaling(host, uhs);
+	sdhci_tegra_set_tap_delay(host, uhs);
 }
 
 static void sdhci_tegra_reset(struct sdhci_host *host, u8 mask)
@@ -376,7 +438,7 @@ static void sdhci_tegra_reset(struct sdhci_host *host, u8 mask)
 		sdhci_writel(host, misc_ctrl, SDHCI_IO_SPARE);
 	}
 
-	if (soc_data->nvquirks & NVQUIRK_UPDATE_HW_TUNING_CONFIG) {
+	if (soc_data->nvquirks & NVQUIRK_USE_HW_TUNING) {
 		vendor_ctrl = sdhci_readl(host, SDHCI_VNDR_TUN_CTRL0);
 		vendor_ctrl &= ~(SDHCI_VNDR_TUN_CTRL0_MUL_M_MASK <<
 				SDHCI_VNDR_TUN_CTRL0_MUL_M_SHIFT);
@@ -558,7 +620,7 @@ static struct sdhci_tegra_soc_data soc_data_tegra210 = {
 		    NVQUIRK_SELECT_TRIMMER |
 		    NVQUIRK_DISABLE_SPI_MODE_CLKEN |
 		    NVQUIRK_EN_FEEDBACK_CLK |
-		    NVQUIRK_UPDATE_HW_TUNING_CONFIG |
+		    NVQUIRK_USE_HW_TUNING |
 		    NVQUIRK_TMCLK_WR_CRC_TIMEOUT |
 		    NVQUIRK_DISABLE_EXT_LOOPBACK |
 		    NVQUIRK_IO_SPARE_BIT |
@@ -596,6 +658,8 @@ static int sdhci_tegra_parse_dt(struct device *dev)
 
 	of_property_read_u32(np, "nvidia,trim-delay",
 			     &tegra_host->trim_delay);
+	of_property_read_u32(np, "nvidia,tap-delay",
+			     &tegra_host->tap_delay);
 
 	return mmc_of_parse(host->mmc);
 }
