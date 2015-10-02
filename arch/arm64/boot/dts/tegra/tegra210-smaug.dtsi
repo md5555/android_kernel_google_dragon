@@ -1084,6 +1084,7 @@
 		otg {
 			nvidia,lanes = "otg-0";
 			nvidia,function = "xusb";
+			nvidia,otg-hs-curr-level-offset = <(-4)>;
 		};
 
 		usb3 {
