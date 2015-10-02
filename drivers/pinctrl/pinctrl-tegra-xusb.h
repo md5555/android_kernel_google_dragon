@@ -116,7 +116,7 @@ struct tegra_xusb_utmi_phy {
 	struct tegra_xusb_padctl *padctl;
 	unsigned int index;
 
-	u32 hs_curr_level_offset;
+	s32 hs_curr_level_offset;
 	struct regulator *supply;
 	enum usb_dr_mode dr_mode;
 };

@@ -80,7 +80,8 @@ static const struct tegra_xusb_padctl_property {
 	  TEGRA_XUSB_PADCTL_OTG_HS_CURR_LEVEL_OFFSET },
 };
 
-#define TEGRA_XUSB_PADCTL_PACK(param, value) ((param) << 16 | (value))
+#define TEGRA_XUSB_PADCTL_PACK(param, value) ((param) << 16 |		\
+						((value) & 0xffff))
 #define TEGRA_XUSB_PADCTL_UNPACK_PARAM(config) ((config) >> 16)
 #define TEGRA_XUSB_PADCTL_UNPACK_VALUE(config) ((config) & 0xffff)
 
@@ -519,7 +520,7 @@ static int tegra_xusb_padctl_pinconf_group_set(struct pinctrl_dev *pinctrl,
 				return -EINVAL;
 			}
 
-			utmi->hs_curr_level_offset = value;
+			utmi->hs_curr_level_offset = (s16)value;
 			break;
 
 		default:
