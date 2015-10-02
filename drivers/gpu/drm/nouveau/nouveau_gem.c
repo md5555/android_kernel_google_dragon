@@ -1377,6 +1377,8 @@ nouveau_gem_ioctl_pushbuf(struct drm_device *dev, void *data,
 	if (unlikely(!abi16))
 		return -ENOMEM;
 
+	nouveau_vm_map_deferred(cli->vm);
+
 	list_for_each_entry(temp, &abi16->channels, head) {
 		if (temp->chan->object->handle == (NVDRM_CHAN | req->channel)) {
 			chan = temp->chan;
