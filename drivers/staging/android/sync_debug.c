@@ -111,6 +111,14 @@ static void sync_print_pt(struct seq_file *s, struct fence *pt, bool fence)
 		}
 	}
 
+	if (pt->ops->get_driver_name)
+		seq_printf(s, " drv %s", pt->ops->get_driver_name(pt));
+
+	if (pt->ops->get_timeline_name)
+		seq_printf(s, " tl %s", pt->ops->get_timeline_name(pt));
+
+	seq_printf(s, " [%p]", pt);
+
 	seq_puts(s, "\n");
 }
 
