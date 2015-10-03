@@ -213,13 +213,13 @@ nvkm_pstate_work(struct work_struct *work)
 
 	nv_trace(clk, "P %d PWR %d Ua %d UA %d Ud %d UD %d A %d T %d D %d\n",
 		 clk->pstate, clk->pwrsrc,
-		 clk->ustate.ac.min, clk->ustate.ac.min,
+		 clk->ustate.ac.min, clk->ustate.ac.max,
 		 clk->ustate.dc.min, clk->ustate.dc.max,
 		 clk->astate, clk->tstate, clk->dstate);
 
 	ustate = clk->pwrsrc ? &clk->ustate.ac : &clk->ustate.dc;
 	if (clk->state_nr && ustate->min != -1 && ustate->max != -1) {
-		pstate = (ustate->min < 0) ? clk->astate : ustate->min;
+		pstate = max(ustate->min, clk->astate);
 		pstate = min(pstate, clk->state_nr - 1 + clk->tstate);
 		pstate = (ustate->max < 0) ? pstate
 					   : min(pstate, (int)ustate->max);
