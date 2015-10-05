@@ -115,16 +115,16 @@ nouveau_fence_context_del(struct nouveau_fence_chan *fctx)
 	synchronize_rcu();
 }
 
-static void
-nouveau_fence_context_put(struct kref *fence_ref)
-{
-	kfree(container_of(fence_ref, struct nouveau_fence_chan, fence_ref));
-}
-
 void
 nouveau_fence_context_free(struct nouveau_fence_chan *fctx)
 {
-	kref_put(&fctx->fence_ref, nouveau_fence_context_put);
+	unsigned long flags;
+
+	spin_lock_irqsave(&fctx->lock, flags);
+	WARN_ON(!list_empty(&fctx->pending));
+	spin_unlock_irqrestore(&fctx->lock, flags);
+
+	kfree(fctx);
 }
 
 static int
@@ -188,7 +188,6 @@ nouveau_fence_context_new(struct nouveau_channel *chan, struct nouveau_fence_cha
 	else
 		strcpy(fctx->name, nvxx_client(&cli->base)->name);
 
-	kref_init(&fctx->fence_ref);
 	if (!priv->uevent)
 		return;
 
@@ -274,7 +273,6 @@ nouveau_fence_init(struct nouveau_fence *fence, struct nouveau_channel *chan)
 	else
 		fence_init(&fence->base, &nouveau_fence_ops_legacy,
 			   &fctx->lock, fctx->context, ++fctx->sequence);
-	kref_get(&fctx->fence_ref);
 }
 
 int
@@ -524,9 +522,7 @@ static bool nouveau_fence_no_signaling(struct fence *f)
 static void nouveau_fence_release(struct fence *f)
 {
 	struct nouveau_fence *fence = from_fence(f);
-	struct nouveau_fence_chan *fctx = nouveau_fctx(fence);
 
-	kref_put(&fctx->fence_ref, nouveau_fence_context_put);
 	fence_free(&fence->base);
 }
 
