@@ -893,6 +893,29 @@ int mipi_dsi_dcs_set_tear_on(struct mipi_dsi_device *dsi,
 EXPORT_SYMBOL(mipi_dsi_dcs_set_tear_on);
 
 /**
+ * mipi_dsi_dcs_set_tear_scanline() - turn on the display module's Tearing
+ *    Effect output signal on the TE signal line when the display module reaches
+ *    line N.
+ * @dsi: DSI peripheral device
+ * @line: the line to trigger TE signal on
+ *
+ * Return: 0 on success or a negative error code on failure
+ */
+int mipi_dsi_dcs_set_tear_scanline(struct mipi_dsi_device *dsi, u16 line)
+{
+	u8 value[] = { (line >> 8) & 0xff, (line >> 0) & 0xff };
+	ssize_t err;
+
+	err = mipi_dsi_dcs_write(dsi, MIPI_DCS_SET_TEAR_SCANLINE, value,
+				 sizeof(value));
+	if (err < 0)
+		return err;
+
+	return 0;
+}
+EXPORT_SYMBOL(mipi_dsi_dcs_set_tear_scanline);
+
+/**
  * mipi_dsi_dcs_set_pixel_format() - sets the pixel format for the RGB image
  *    data used by the interface
  * @dsi: DSI peripheral device
