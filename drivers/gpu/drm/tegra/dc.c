@@ -1839,7 +1839,7 @@ static void tegra_crtc_atomic_flush(struct drm_crtc *crtc)
 	struct tegra_dc *dc = to_tegra_dc(crtc);
 	u32 value;
 
-	if (dc->dpms == DRM_MODE_DPMS_OFF)
+	if (!crtc->state->active)
 		return;
 
 	tegra_dc_writel(dc, state->planes << 8, DC_CMD_STATE_CONTROL);
@@ -1921,8 +1921,14 @@ static int tegra_dc_slcg_handler(struct notifier_block *nb,
 
 void tegra_dc_force_update(struct drm_crtc *crtc)
 {
+	struct tegra_dc *dc = to_tegra_dc(crtc);
+
+	if (dc->dpms == DRM_MODE_DPMS_OFF)
+		return;
+
 	WARN_ON(drm_crtc_vblank_get(crtc) != 0);
-	tegra_crtc_atomic_flush(crtc);
+	tegra_dc_writel(dc, GENERAL_ACT_REQ | NC_HOST_TRIG,
+			DC_CMD_STATE_CONTROL);
 	drm_crtc_wait_one_vblank(crtc);
 	drm_crtc_vblank_put(crtc);
 }
