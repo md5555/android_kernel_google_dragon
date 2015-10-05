@@ -223,6 +223,9 @@ static int panel_jdi_disable(struct drm_panel *panel)
 	if (!jdi->enabled)
 		goto out;
 
+	if (!panel->connector || panel->connector->dpms == DRM_MODE_DPMS_ON)
+		goto out;
+
 	ret = backlight_jdi_write_display_brightness(jdi, 0);
 	if (ret < 0)
 		DRM_ERROR("failed to set backlight on: %d\n", ret);
@@ -259,6 +262,9 @@ static int panel_jdi_unprepare(struct drm_panel *panel)
 
 	mutex_lock(&jdi->lock);
 	if (!jdi->enabled)
+		goto out;
+
+	if (!panel->connector || panel->connector->dpms == DRM_MODE_DPMS_ON)
 		goto out;
 
 	gpio_set_value(jdi->reset_gpio,
@@ -440,6 +446,9 @@ static int panel_jdi_enable(struct drm_panel *panel)
 
 	mutex_lock(&jdi->lock);
 
+	if (jdi->enabled)
+		goto out;
+
 	ret = mipi_dsi_dcs_set_display_on(jdi->dsi);
 	if (ret < 0)
 		DRM_ERROR("failed to set display on: %d\n", ret);
@@ -449,6 +458,7 @@ static int panel_jdi_enable(struct drm_panel *panel)
 		DRM_ERROR("failed to set display on: %d\n", ret);
 
 	jdi->enabled = true;
+out:
 	mutex_unlock(&jdi->lock);
 
 	ret = backlight_jdi_update_status(jdi->bl);
@@ -650,6 +660,8 @@ static int panel_jdi_setup_primary(struct mipi_dsi_device *dsi,
 	jdi->slave = slave;
 	jdi->dsi = dsi;
 	mutex_init(&jdi->lock);
+
+	jdi->enabled = of_property_read_bool(dsi->dev.of_node, "panel-boot-on");
 
 	jdi->supply = devm_regulator_get(&dsi->dev, "power");
 	if (IS_ERR(jdi->supply)) {
