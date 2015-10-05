@@ -228,6 +228,7 @@ int mipi_dsi_dcs_set_address_mode(struct mipi_dsi_device *dsi,
 int mipi_dsi_dcs_set_tear_off(struct mipi_dsi_device *dsi);
 int mipi_dsi_dcs_set_tear_on(struct mipi_dsi_device *dsi,
 			     enum mipi_dsi_dcs_tear_mode mode);
+int mipi_dsi_dcs_set_tear_scanline(struct mipi_dsi_device *dsi, u16 line);
 int mipi_dsi_dcs_set_pixel_format(struct mipi_dsi_device *dsi, u8 format);
 
 /**
