@@ -1267,8 +1267,10 @@ static int tegra_dsi_transmit(struct tegra_dsi *dsi, unsigned long timeout)
 	 */
 	if (tegra_dsi_dc_active(dsi) &&
 			output->connector.display_info.supports_psr &&
-			state->base.crtc)
+			state->base.crtc) {
 		tegra_dc_force_update(state->base.crtc);
+		return 0;
+	}
 
 	return wait_for(!(tegra_dsi_readl(dsi, DSI_TRIGGER) & DSI_TRIGGER_HOST),
 			timeout);
