@@ -32,6 +32,7 @@
 #include <linux/jiffies.h>
 #include <linux/interrupt.h>
 
+#include <linux/pm_domain.h>
 #include <linux/pm_runtime.h>
 
 #include <linux/mei.h>
@@ -439,7 +440,7 @@ static inline void mei_me_set_pm_domain(struct mei_device *dev)
 		dev->pg_domain.ops.runtime_resume = mei_me_pm_runtime_resume;
 		dev->pg_domain.ops.runtime_idle = mei_me_pm_runtime_idle;
 
-		pdev->dev.pm_domain = &dev->pg_domain;
+		dev_pm_domain_set(&pdev->dev, &dev->pg_domain);
 	}
 }
 
@@ -451,7 +452,7 @@ static inline void mei_me_set_pm_domain(struct mei_device *dev)
 static inline void mei_me_unset_pm_domain(struct mei_device *dev)
 {
 	/* stop using pm callbacks if any */
-	dev->dev->pm_domain = NULL;
+	dev_pm_domain_set(dev->dev, NULL);
 }
 #endif /* CONFIG_PM_RUNTIME */
 
