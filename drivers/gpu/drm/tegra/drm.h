@@ -186,6 +186,7 @@ struct tegra_dc {
 
 	int dpms;
 	bool vblank_enabled;
+	bool in_modeset;
 
 	struct tegra_mc *mc;
 	unsigned int *mc_win_clients;

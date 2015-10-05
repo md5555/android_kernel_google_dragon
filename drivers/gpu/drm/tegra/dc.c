@@ -1554,6 +1554,10 @@ static void tegra_crtc_mode_set_nofb(struct drm_crtc *crtc)
 	unsigned long flags;
 	u32 value;
 
+	spin_lock_irqsave(&dc->lock, flags);
+	dc->in_modeset = true;
+	spin_unlock_irqrestore(&dc->lock, flags);
+
 	tegra_crtc_get_display_info(crtc);
 
 	if (dc->dpms == DRM_MODE_DPMS_OFF && dc->soc->has_powergate)
@@ -1837,16 +1841,24 @@ static void tegra_crtc_atomic_flush(struct drm_crtc *crtc)
 {
 	struct tegra_dc_state *state = to_dc_state(crtc->state);
 	struct tegra_dc *dc = to_tegra_dc(crtc);
+	unsigned long flags;
 	u32 value;
 
+	spin_lock_irqsave(&dc->lock, flags);
+	if (crtc->state->mode_changed)
+		dc->in_modeset = false;
+
 	if (!crtc->state->active)
-		return;
+		goto out;
 
 	tegra_dc_writel(dc, state->planes << 8, DC_CMD_STATE_CONTROL);
 	value = state->planes;
 	if (state->nc_mode)
 		value |= GENERAL_ACT_REQ | NC_HOST_TRIG;
 	tegra_dc_writel(dc, value, DC_CMD_STATE_CONTROL);
+
+out:
+	spin_unlock_irqrestore(&dc->lock, flags);
 }
 
 static const struct drm_crtc_helper_funcs tegra_crtc_helper_funcs = {
@@ -1922,8 +1934,15 @@ static int tegra_dc_slcg_handler(struct notifier_block *nb,
 void tegra_dc_force_update(struct drm_crtc *crtc)
 {
 	struct tegra_dc *dc = to_tegra_dc(crtc);
+	unsigned long flags;
+	bool in_modeset;
 
-	if (dc->dpms == DRM_MODE_DPMS_OFF)
+	/* If we're currently in modeset, let atomic_flush handle updates */
+	spin_lock_irqsave(&dc->lock, flags);
+	in_modeset = dc->in_modeset;
+	spin_unlock_irqrestore(&dc->lock, flags);
+
+	if (dc->dpms == DRM_MODE_DPMS_OFF || in_modeset)
 		return;
 
 	WARN_ON(drm_crtc_vblank_get(crtc) != 0);
