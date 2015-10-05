@@ -983,6 +983,11 @@ gm20b_lsfm_free_nonpmu_ucode_img_res(struct flcn_ucode_img *p_img)
 		kfree(p_img->desc);
 		p_img->desc = NULL;
 	}
+	if (p_img->data != NULL) {
+		kfree(p_img->data);
+		p_img->data = NULL;
+		p_img->data_size = 0;
+	}
 }
 
 /*
@@ -1455,7 +1460,7 @@ gm20b_fecs_ucode_details(struct nvkm_pmu *ppmu, struct flcn_ucode_img *p_img)
 	p_img->desc = kzalloc(sizeof(struct pmu_ucode_desc), GFP_KERNEL);
 	if (p_img->desc == NULL) {
 		err = -ENOMEM;
-		goto free_lsf_desc;
+		goto free_ucode_buf;
 	}
 
 	gm20b_copy_ctxsw_ucode_segments(buf, &ucode_info->fecs,
@@ -1503,6 +1508,8 @@ gm20b_fecs_ucode_details(struct nvkm_pmu *ppmu, struct flcn_ucode_img *p_img)
 	gk20a_release_firmware(ppmu, fecs_dfw);
 
 	return 0;
+free_ucode_buf:
+	kfree(buf);
 free_lsf_desc:
 	kfree(lsf_desc);
 rel_fecs_sig:
