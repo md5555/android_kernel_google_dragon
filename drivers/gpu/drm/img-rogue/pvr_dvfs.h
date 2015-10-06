@@ -53,6 +53,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 typedef void (*PFN_SYS_DEV_DVFS_SET_FREQUENCY)(IMG_UINT32 ui64Freq);
 typedef void (*PFN_SYS_DEV_DVFS_SET_VOLTAGE)(IMG_UINT32 ui64Volt);
 
+
 typedef struct _IMG_OPP_
 {
 	IMG_UINT32			ui32Volt;
@@ -75,6 +76,11 @@ typedef struct _IMG_DVFS_DEVICE_CFG_
 
 	PFN_SYS_DEV_DVFS_SET_FREQUENCY	pfnSetFrequency;
 	PFN_SYS_DEV_DVFS_SET_VOLTAGE	pfnSetVoltage;
+
+#if defined(CONFIG_DEVFREQ_THERMAL)
+	struct devfreq_cooling_power *psPowerOps;
+#endif
+
 } IMG_DVFS_DEVICE_CFG;
 
 typedef struct _IMG_DVFS_GOVERNOR_
@@ -90,6 +96,9 @@ typedef struct _IMG_DVFS_DEVICE_
 	IMG_BOOL			bEnabled;
 	IMG_HANDLE			hGpuUtilUserDVFS;
 	struct devfreq_simple_ondemand_data data;
+#if defined(CONFIG_DEVFREQ_THERMAL)
+	struct thermal_cooling_device	*psDevfreqCoolingDevice;
+#endif
 } IMG_DVFS_DEVICE;
 
 typedef struct _IMG_POWER_AVG_

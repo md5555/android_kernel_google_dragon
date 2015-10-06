@@ -42,6 +42,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */ /**************************************************************************/
 
 #include <linux/devfreq.h>
+#if defined(CONFIG_DEVFREQ_THERMAL)
+#include <linux/devfreq_cooling.h>
+#endif
 #include <linux/version.h>
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,13,0))
@@ -297,6 +300,36 @@ exit:
 	return err;
 }
 
+#if defined(CONFIG_DEVFREQ_THERMAL)
+static int RegisterCoolingDevice(struct device *dev,
+	IMG_DVFS_DEVICE *psDVFSDevice,
+	struct devfreq_cooling_power *powerOps)
+{
+	struct device_node *of_node;
+	int err = 0;
+
+	if (!powerOps)
+	{
+		dev_info(dev, "Cooling: power ops not registered, not enabling cooling");
+		return 0;
+	}
+
+	of_node = of_node_get(dev->of_node);
+
+	psDVFSDevice->psDevfreqCoolingDevice = of_devfreq_cooling_register_power(
+		of_node, psDVFSDevice->psDevFreq, powerOps);
+
+	if (IS_ERR(psDVFSDevice->psDevfreqCoolingDevice))
+	{
+		err = PTR_ERR(psDVFSDevice->psDevfreqCoolingDevice);
+		dev_err(dev, "Failed to register as devfreq cooling device %d", err);
+	}
+
+	of_node_put(of_node);
+	return err;
+}
+#endif
+
 #define TO_IMG_ERR(err) ((err == -EPROBE_DEFER) ? PVRSRV_ERROR_PROBE_DEFER : PVRSRV_ERROR_INIT_FAILURE)
 
 PVRSRV_ERROR InitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
@@ -380,7 +413,7 @@ PVRSRV_ERROR InitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
 	if (IS_ERR(psDVFSDevice->psDevFreq))
 	{
 		PVR_DPF((PVR_DBG_ERROR, "Failed to add as devfreq device %p, %ld",
-		         psDVFSDevice->psDevFreq, PTR_ERR(psDVFSDevice->psDevFreq)));
+			psDVFSDevice->psDevFreq, PTR_ERR(psDVFSDevice->psDevFreq)));
 		eError = TO_IMG_ERR(PTR_ERR(psDVFSDevice->psDevFreq));
 		goto err_exit;
 	}
@@ -403,6 +436,15 @@ PVRSRV_ERROR InitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
 		goto err_exit;
 	}
 
+#if defined(CONFIG_DEVFREQ_THERMAL)
+	err = RegisterCoolingDevice(psDev, psDVFSDevice,
+			psDVFSDeviceCfg->psPowerOps);
+	if (err) {
+		eError = TO_IMG_ERR(err);
+		goto err_exit;
+	}
+#endif
+
 	PVR_TRACE(("PVR DVFS activated: %lu-%lu Hz, Period: %ums", min_freq,
 			max_freq, psDVFSDeviceCfg->ui32PollMs));
 
@@ -419,6 +461,17 @@ void DeinitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
 	struct DEVICE_STRUCT	*psPlatDev = (struct DEVICE_STRUCT *) hDevice;
 	struct device		*psDev = &psPlatDev->dev;
 	IMG_INT32		i32Error;
+
+	if (!psDVFSDevice)
+		return;
+
+#if defined(CONFIG_DEVFREQ_THERMAL)
+	if (!IS_ERR_OR_NULL(psDVFSDevice->psDevfreqCoolingDevice))
+	{
+		devfreq_cooling_unregister(psDVFSDevice->psDevfreqCoolingDevice);
+		psDVFSDevice->psDevfreqCoolingDevice = NULL;
+	}
+#endif
 
 	if (psDVFSDevice->psDevFreq)
 	{
