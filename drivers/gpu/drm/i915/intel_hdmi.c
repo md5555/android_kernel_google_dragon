@@ -1194,6 +1194,9 @@ intel_hdmi_mode_valid(struct drm_connector *connector,
 	enum drm_mode_status status;
 	int clock;
 
+	if (IS_CHERRYVIEW(dev) && (mode->clock > 165000))
+		return MODE_CLOCK_HIGH;
+
 	if (mode->flags & DRM_MODE_FLAG_DBLSCAN)
 		return MODE_NO_DBLESCAN;
 
