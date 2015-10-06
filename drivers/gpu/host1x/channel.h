@@ -28,6 +28,8 @@ struct host1x;
 struct host1x_channel {
 	struct list_head list;
 
+	struct host1x_client *client;
+
 	unsigned int refcount;
 	unsigned int id;
 	struct mutex reflock;

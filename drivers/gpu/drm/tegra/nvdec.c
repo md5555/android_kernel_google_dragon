@@ -198,7 +198,7 @@ static int nvdec_init(struct host1x_client *client)
 		nvdec->domain = tegra->domain;
 	}
 
-	nvdec->channel = host1x_channel_request(client->dev);
+	nvdec->channel = host1x_channel_request(client);
 	if (!nvdec->channel) {
 		err = -ENOMEM;
 		goto error_iommu_detach_device;

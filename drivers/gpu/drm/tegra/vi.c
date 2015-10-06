@@ -206,7 +206,7 @@ static int vi_init(struct host1x_client *client)
 		vi->domain = tegra->domain;
 	}
 
-	vi->channel = host1x_channel_request(client->dev);
+	vi->channel = host1x_channel_request(client);
 	if (!vi->channel) {
 		err = -ENOMEM;
 		goto error_iommu_detach_device;

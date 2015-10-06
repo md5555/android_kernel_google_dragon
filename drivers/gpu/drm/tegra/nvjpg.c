@@ -122,7 +122,7 @@ static int nvjpg_init(struct host1x_client *client)
 		nvjpg->domain = tegra->domain;
 	}
 
-	nvjpg->channel = host1x_channel_request(client->dev);
+	nvjpg->channel = host1x_channel_request(client);
 	if (!nvjpg->channel) {
 		err = -ENOMEM;
 		goto error_iommu_detach_device;

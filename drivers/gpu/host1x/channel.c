@@ -96,9 +96,9 @@ void host1x_channel_put(struct host1x_channel *channel)
 }
 EXPORT_SYMBOL(host1x_channel_put);
 
-struct host1x_channel *host1x_channel_request(struct device *dev)
+struct host1x_channel *host1x_channel_request(struct host1x_client *client)
 {
-	struct host1x *host = dev_get_drvdata(dev->parent);
+	struct host1x *host = dev_get_drvdata(client->dev->parent);
 	int max_channels = host->info->nb_channels;
 	struct host1x_channel *channel = NULL;
 	int index, err;
@@ -118,7 +118,10 @@ struct host1x_channel *host1x_channel_request(struct device *dev)
 		goto fail;
 
 	/* Link device to host1x_channel */
-	channel->dev = dev;
+	channel->dev = client->dev;
+
+	/* Link host1x_client to host1x_channel */
+	channel->client = client;
 
 	/* Add to channel list */
 	list_add_tail(&channel->list, &host->chlist.list);
@@ -129,7 +132,7 @@ struct host1x_channel *host1x_channel_request(struct device *dev)
 	return channel;
 
 fail:
-	dev_err(dev, "failed to init channel\n");
+	dev_err(client->dev, "failed to init channel\n");
 	kfree(channel);
 	mutex_unlock(&host->chlist_mutex);
 	return NULL;

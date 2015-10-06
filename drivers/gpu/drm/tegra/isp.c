@@ -115,7 +115,7 @@ static int isp_init(struct host1x_client *client)
 		isp->domain = tegra->domain;
 	}
 
-	isp->channel = host1x_channel_request(client->dev);
+	isp->channel = host1x_channel_request(client);
 	if (!isp->channel) {
 		err = -ENOMEM;
 		goto error_iommu_detach_device;

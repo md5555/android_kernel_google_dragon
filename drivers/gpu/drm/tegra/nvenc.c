@@ -146,7 +146,7 @@ static int nvenc_init(struct host1x_client *client)
 		nvenc->domain = tegra->domain;
 	}
 
-	nvenc->channel = host1x_channel_request(client->dev);
+	nvenc->channel = host1x_channel_request(client);
 	if (!nvenc->channel) {
 		err = -ENOMEM;
 		goto error_iommu_detach_device;
