@@ -143,6 +143,7 @@ struct i2c_hid {
 	unsigned long		flags;		/* device flags */
 
 	wait_queue_head_t	wait;		/* For waiting the interrupt */
+	bool			had_suspended;
 
 	struct i2c_hid_platform_data pdata;
 };
@@ -1087,48 +1088,59 @@ static int i2c_hid_suspend(struct device *dev)
 	struct i2c_client *client = to_i2c_client(dev);
 	struct i2c_hid *ihid = i2c_get_clientdata(client);
 	struct hid_device *hid = ihid->hid;
-	int ret = 0;
+	int ret;
 
-	if (!pm_runtime_suspended(dev)) {
+	if (!pm_runtime_status_suspended(dev)) {
 		/* Save some power */
 		i2c_hid_set_power(client, I2C_HID_PWR_SLEEP);
+
+		if (hid->driver && hid->driver->suspend)
+			ret = hid->driver->suspend(hid, PMSG_SUSPEND);
+		if (ret)
+			return ret;
 
 		disable_irq(client->irq);
 	}
 
-	if (hid->driver && hid->driver->suspend)
-		ret = hid->driver->suspend(hid, PMSG_SUSPEND);
-
 	if (device_may_wakeup(&client->dev))
 		enable_irq_wake(client->irq);
 
-	return ret;
+	return 0;
 }
 
 static int i2c_hid_resume(struct device *dev)
 {
-	int ret;
 	struct i2c_client *client = to_i2c_client(dev);
 	struct i2c_hid *ihid = i2c_get_clientdata(client);
 	struct hid_device *hid = ihid->hid;
+	int ret;
 
-	/* We'll resume to full power */
-	pm_runtime_disable(dev);
-	pm_runtime_set_active(dev);
-	pm_runtime_enable(dev);
+	if (!pm_runtime_status_suspended(dev)) {
+		/* We'll resume to full power */
+		pm_runtime_disable(dev);
+		pm_runtime_set_active(dev);
+		pm_runtime_enable(dev);
 
-	enable_irq(client->irq);
-	ret = i2c_hid_hwreset(client);
-	if (ret)
-		return ret;
+		enable_irq(client->irq);
+		ret = i2c_hid_hwreset(client);
+		if (ret)
+			return ret;
+
+		if (hid->driver && hid->driver->reset_resume) {
+			ret = hid->driver->reset_resume(hid);
+			if (ret)
+				return ret;
+		}
+	} else {
+		/*
+		 * We were runtime suspended before suspend/resume, so defer
+		 * hwreset until runtime resume.
+		 */
+		ihid->had_suspended = true;
+	}
 
 	if (device_may_wakeup(&client->dev))
 		disable_irq_wake(client->irq);
-
-	if (hid->driver && hid->driver->reset_resume) {
-		ret = hid->driver->reset_resume(hid);
-		return ret;
-	}
 
 	return 0;
 }
@@ -1138,18 +1150,46 @@ static int i2c_hid_resume(struct device *dev)
 static int i2c_hid_runtime_suspend(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
+	struct i2c_hid *ihid = i2c_get_clientdata(client);
 
 	i2c_hid_set_power(client, I2C_HID_PWR_SLEEP);
 	disable_irq(client->irq);
+
+	/*
+	 * Check for intervening system suspend between runtime_suspend
+	 * and runtime_resume.
+	 */
+	ihid->had_suspended = false;
 	return 0;
 }
 
 static int i2c_hid_runtime_resume(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
+	struct i2c_hid *ihid = i2c_get_clientdata(client);
+	struct hid_device *hid = ihid->hid;
+	int ret;
 
 	enable_irq(client->irq);
 	i2c_hid_set_power(client, I2C_HID_PWR_ON);
+
+	if (ihid->had_suspended) {
+		/*
+		 * System suspended in the period between
+		 * i2c_hid_runtime_suspend and i2c_hid_runtime_resume.
+		 * Issue a hwreset and a reset_resume if provided.
+		 */
+		ret = i2c_hid_hwreset(client);
+		if (ret)
+			return ret;
+
+		if (hid->driver && hid->driver->reset_resume) {
+			ret = hid->driver->reset_resume(hid);
+			if (ret)
+				return ret;
+		}
+		ihid->had_suspended = false;
+	}
 	return 0;
 }
 #endif
