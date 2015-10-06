@@ -1364,10 +1364,11 @@ static ssize_t tegra_dsi_host_config_for_dcs(struct mipi_dsi_host *host,
 		tegra_dsi_writel(dsi, 0, DSI_PKT_SEQ_0_LO + i);
 
 	value = tegra_dsi_readl(dsi, DSI_POWER_CONTROL);
-	value |= DSI_POWER_CONTROL_ENABLE;
-	tegra_dsi_writel(dsi, value, DSI_POWER_CONTROL);
-
-	usleep_range(5000, 10000);
+	if (!(value & DSI_POWER_CONTROL_ENABLE)) {
+		value |= DSI_POWER_CONTROL_ENABLE;
+		tegra_dsi_writel(dsi, value, DSI_POWER_CONTROL);
+		usleep_range(5000, 10000);
+	}
 
 	value = DSI_HOST_CONTROL_CRC_RESET | DSI_HOST_CONTROL_TX_TRIG_HOST |
 		DSI_HOST_CONTROL_CS | DSI_HOST_CONTROL_ECC;
