@@ -1975,7 +1975,7 @@ static void set_core_power_timers(void)
 {
 	unsigned long osc, pmu, off;
 
-	osc = DIV_ROUND_UP_ULL(pmc->core_osc_time * 32768, 1000000);
+	osc = DIV_ROUND_UP_ULL(pmc->core_osc_time * 8192, 1000000);
 	pmu = DIV_ROUND_UP_ULL(pmc->core_pmu_time * 32768, 1000000);
 	off = DIV_ROUND_UP_ULL(pmc->core_off_time * 32768, 1000000);
 
