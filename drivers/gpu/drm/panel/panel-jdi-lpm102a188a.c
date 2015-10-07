@@ -816,6 +816,9 @@ static int panel_jdi_dsi_remove(struct mipi_dsi_device *dsi)
 
 	atomic_notifier_chain_unregister(&panic_notifier_list, &paniced);
 
+	if (jdi->bl)
+		devm_backlight_device_unregister(&dsi->dev, jdi->bl);
+
 	panel_jdi_disable(&jdi->base);
 
 	regulator_disable(jdi->ddi_supply);
