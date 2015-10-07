@@ -431,7 +431,7 @@ static int tegra_t210ref_set_mclk(struct tegra_t210ref *machine, struct device *
 	int clk_out_rate = rate * 512; /* Codec rate */
 	int mclk = clk_out_rate; /* PLL_A rate */
 
-	pr_info("Setting pll_a = %d Hz clk_out = %d Hz\n",
+	pr_debug("Setting pll_a = %d Hz clk_out = %d Hz\n",
 			mclk, clk_out_rate);
 	err = tegra_alt_asoc_utils_set_rate(&machine->audio_clock,
 				rate, mclk, clk_out_rate);
