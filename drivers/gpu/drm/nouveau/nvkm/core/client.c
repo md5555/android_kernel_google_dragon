@@ -52,7 +52,7 @@ nvkm_client_notify(struct nvkm_notify *n)
 int
 nvkm_client_notify_put(struct nvkm_client *client, int index)
 {
-	if (index < ARRAY_SIZE(client->notify)) {
+	if (index < client->notify_size) {
 		if (client->notify[index]) {
 			nvkm_notify_put(&client->notify[index]->n);
 			return 0;
@@ -64,7 +64,7 @@ nvkm_client_notify_put(struct nvkm_client *client, int index)
 int
 nvkm_client_notify_get(struct nvkm_client *client, int index)
 {
-	if (index < ARRAY_SIZE(client->notify)) {
+	if (index < client->notify_size) {
 		if (client->notify[index]) {
 			nvkm_notify_get(&client->notify[index]->n);
 			return 0;
@@ -76,7 +76,7 @@ nvkm_client_notify_get(struct nvkm_client *client, int index)
 int
 nvkm_client_notify_del(struct nvkm_client *client, int index)
 {
-	if (index < ARRAY_SIZE(client->notify)) {
+	if (index < client->notify_size) {
 		if (client->notify[index]) {
 			nvkm_notify_fini(&client->notify[index]->n);
 			kfree(client->notify[index]);
@@ -99,13 +99,25 @@ nvkm_client_notify_new(struct nvkm_object *object,
 	u8  index, reply;
 	int ret;
 
-	for (index = 0; index < ARRAY_SIZE(client->notify); index++) {
+	for (index = 0; index < client->notify_size; index++) {
 		if (!client->notify[index])
 			break;
 	}
 
-	if (index == ARRAY_SIZE(client->notify))
-		return -ENOSPC;
+	if (index == client->notify_size) {
+		int old_size = client->notify_size;
+		int new_size = old_size ? 2 * old_size : 16;
+		struct nvkm_client_notify **new_notify = kcalloc(new_size,
+				sizeof(*new_notify), GFP_KERNEL);
+
+		if (!new_notify)
+			return -ENOMEM;
+		memcpy(new_notify, client->notify,
+				old_size * sizeof(*new_notify));
+		kfree(client->notify);
+		client->notify = new_notify;
+		client->notify_size = new_size;
+	}
 
 	notify = kzalloc(sizeof(*notify), GFP_KERNEL);
 	if (!notify)
@@ -181,8 +193,11 @@ nvkm_client_dtor(struct nvkm_object *object)
 {
 	struct nvkm_client *client = (void *)object;
 	int i;
-	for (i = 0; i < ARRAY_SIZE(client->notify); i++)
+	for (i = 0; i < client->notify_size; i++)
 		nvkm_client_notify_del(client, i);
+	kfree(client->notify);
+	client->notify = NULL;
+	client->notify_size = 0;
 	nvkm_object_ref(NULL, &client->device);
 	nvkm_handle_destroy(client->root);
 	nvkm_namedb_destroy(&client->namedb);
@@ -227,6 +242,8 @@ nvkm_client_create_(const char *name, u64 devname, const char *cfg,
 	nvkm_object_ref(device, &client->device);
 	snprintf(client->name, sizeof(client->name), "%s", name);
 	client->debug = nvkm_dbgopt(dbg, "CLIENT");
+	client->notify = NULL;
+	client->notify_size = 0;
 	return 0;
 }
 
@@ -247,7 +264,7 @@ nvkm_client_fini(struct nvkm_client *client, bool suspend)
 	int ret, i;
 	nv_debug(client, "%s running\n", name[suspend]);
 	nv_debug(client, "%s notify\n", name[suspend]);
-	for (i = 0; i < ARRAY_SIZE(client->notify); i++)
+	for (i = 0; i < client->notify_size; i++)
 		nvkm_client_notify_put(client, i);
 	nv_debug(client, "%s object\n", name[suspend]);
 	ret = nvkm_handle_fini(client->root, suspend);

@@ -13,7 +13,8 @@ struct nvkm_client {
 	void *data;
 
 	int (*ntfy)(const void *, u32, const void *, u32);
-	struct nvkm_client_notify *notify[32];
+	struct nvkm_client_notify **notify;
+	int notify_size;
 };
 
 static inline struct nvkm_client *
