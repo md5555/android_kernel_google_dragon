@@ -19,6 +19,7 @@
 #include <linux/slab.h>
 #include <linux/module.h>
 
+#include "acm.h"
 #include "channel.h"
 #include "dev.h"
 #include "job.h"
@@ -68,14 +69,23 @@ struct host1x_channel *host1x_channel_get(struct host1x_channel *channel,
 
 	mutex_lock(&channel->reflock);
 
-	if (channel->refcount == 0)
+	if (channel->refcount == 0) {
 		err = host1x_cdma_init(&channel->cdma);
+		if (err)
+			goto done;
+	}
 
-	if (!err)
-		channel->refcount++;
+	err = host1x_module_add_user(channel->client, user);
+	if (err)
+		goto err_cdma_deinit;
 
+	channel->refcount++;
+
+err_cdma_deinit:
+	if (channel->refcount == 0)
+		host1x_cdma_deinit(&channel->cdma);
+done:
 	mutex_unlock(&channel->reflock);
-
 	return err ? NULL : channel;
 }
 EXPORT_SYMBOL(host1x_channel_get);
@@ -84,6 +94,8 @@ void host1x_channel_put(struct host1x_channel *channel,
 			struct host1x_user *user)
 {
 	mutex_lock(&channel->reflock);
+
+	host1x_module_remove_user(channel->client, user);
 
 	if (channel->refcount == 1) {
 		struct host1x *host = dev_get_drvdata(channel->dev->parent);

@@ -21,6 +21,7 @@
 
 #include <linux/device.h>
 #include <linux/types.h>
+#include <uapi/linux/host1x.h>
 
 enum host1x_class {
 	HOST1X_CLASS_HOST1X = 0x1,
@@ -36,8 +37,14 @@ enum host1x_class {
 	HOST1X_CLASS_NVDEC = 0xF0,
 };
 
+struct host1x_user_constraint {
+	unsigned long rate;
+	int type;
+};
+
 struct host1x_user {
 	struct list_head node;
+	struct host1x_user_constraint constraint[HOST1X_CLOCK_INDEX_MAX];
 };
 
 struct host1x_client;
@@ -49,6 +56,18 @@ struct host1x_client_ops {
 			u32 type);
 	int (*set_clk_rate)(struct host1x_client *client, u64 data,
 			u32 type);
+};
+
+struct host1x_client_clock {
+	const char *clk_name;
+	struct clk *clk;
+	unsigned long default_rate;
+	unsigned long valid_constraint_types;
+	/*
+	 * Only valid if this clock is get/settable via
+	 * HOST1X_USER_CONSTRAINT_TYPE_PIXELRATE.
+	 */
+	int pixels_per_cycle;
 };
 
 struct host1x_client {
@@ -63,6 +82,16 @@ struct host1x_client {
 
 	struct host1x_syncpt **syncpts;
 	unsigned int num_syncpts;
+
+	/*
+	 * This client's clocks, each clock's default rate, and the type of
+	 * constraint that makes sense for this particular clock.
+	 */
+	struct host1x_client_clock clocks[HOST1X_CLOCK_INDEX_MAX];
+
+	/* List of users and rate requests */
+	struct list_head user_list;
+	struct mutex user_list_lock;
 };
 
 /*
@@ -332,8 +361,22 @@ struct tegra_mipi_device *tegra_mipi_request(struct device *device);
 void tegra_mipi_free(struct tegra_mipi_device *device);
 int tegra_mipi_calibrate(struct tegra_mipi_device *device);
 
+int host1x_module_get_clocks(struct host1x_client *client);
+void host1x_module_put_clocks(struct host1x_client *client);
+int host1x_module_enable_clocks(struct host1x_client *client);
+void host1x_module_disable_clocks(struct host1x_client *client);
 int host1x_module_busy(struct host1x_client *client);
 void host1x_module_idle(struct host1x_client *client);
 void host1x_module_idle_mult(struct host1x_client *client, int refs);
+int host1x_module_get_rate(struct host1x_client *client,
+			   struct host1x_user *user,
+			   enum host1x_clock_index index,
+			   unsigned long *rate,
+			   enum host1x_user_constraint_type type);
+int host1x_module_set_rate(struct host1x_client *client,
+			   struct host1x_user *user,
+			   enum host1x_clock_index index,
+			   unsigned long rate,
+			   enum host1x_user_constraint_type type);
 
 #endif

@@ -21,6 +21,7 @@
 
 #include "bus.h"
 #include "dev.h"
+#include "acm.h"
 
 static DEFINE_MUTEX(clients_lock);
 static LIST_HEAD(clients);
@@ -580,6 +581,13 @@ int host1x_client_register(struct host1x_client *client)
 	struct host1x *host1x;
 	int err;
 
+	err = host1x_module_get_clocks(client);
+	if (err)
+		return err;
+
+	INIT_LIST_HEAD(&client->user_list);
+	mutex_init(&client->user_list_lock);
+
 	mutex_lock(&devices_lock);
 
 	list_for_each_entry(host1x, &devices, list) {
@@ -627,6 +635,8 @@ int host1x_client_unregister(struct host1x_client *client)
 	}
 
 	mutex_unlock(&clients_lock);
+
+	host1x_module_put_clocks(client);
 
 	return 0;
 }

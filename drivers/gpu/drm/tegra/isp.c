@@ -298,16 +298,16 @@ static int isp_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, isp);
 
-	err = isp_power_on(&pdev->dev);
-	if (err) {
-		dev_err(dev, "cannot power on device\n");
-		return err;
-	}
-
 	err = host1x_client_register(&isp->client.base);
 	if (err < 0) {
 		dev_err(dev, "failed to register host1x client: %d\n", err);
-		goto error_isp_power_off;
+		return err;
+	}
+
+	err = isp_power_on(&pdev->dev);
+	if (err) {
+		dev_err(dev, "cannot power on device\n");
+		goto error_client_unregister;
 	}
 
 	pm_runtime_set_active(dev);
@@ -319,8 +319,8 @@ static int isp_probe(struct platform_device *pdev)
 
 	return 0;
 
-error_isp_power_off:
-	isp_power_off(&pdev->dev);
+error_client_unregister:
+	host1x_client_unregister(&isp->client.base);
 	return err;
 }
 
@@ -329,12 +329,12 @@ static int isp_remove(struct platform_device *pdev)
 	struct isp *isp = platform_get_drvdata(pdev);
 	int err;
 
+	isp_power_off(&pdev->dev);
+
 	err = host1x_client_unregister(&isp->client.base);
 	if (err < 0)
 		dev_err(&pdev->dev, "failed to unregister host1x client: %d\n",
 			err);
-
-	isp_power_off(&pdev->dev);
 
 	return err;
 }

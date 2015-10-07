@@ -389,16 +389,16 @@ static int vi_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, vi);
 
-	err = vi_power_on(&pdev->dev);
-	if (err) {
-		dev_err(dev, "cannot power on device\n");
-		goto error_slcg;
-	}
-
 	err = host1x_client_register(&vi->client.base);
 	if (err < 0) {
 		dev_err(dev, "failed to register host1x client: %d\n", err);
-		goto error_vi_power_off;
+		goto error_slcg;
+	}
+
+	err = vi_power_on(&pdev->dev);
+	if (err) {
+		dev_err(dev, "cannot power on device\n");
+		goto error_client_unregister;
 	}
 
 	pm_runtime_set_active(dev);
@@ -410,8 +410,8 @@ static int vi_probe(struct platform_device *pdev)
 
 	return 0;
 
-error_vi_power_off:
-	vi_power_off(&pdev->dev);
+error_client_unregister:
+	host1x_client_unregister(&vi->client.base);
 error_slcg:
 	tegra_slcg_unregister_notifier(vi->config->powergate_id,
 				       &vi->slcg_notifier);
@@ -423,12 +423,12 @@ static int vi_remove(struct platform_device *pdev)
 	struct vi *vi = platform_get_drvdata(pdev);
 	int err;
 
+	vi_power_off(&pdev->dev);
+
 	err = host1x_client_unregister(&vi->client.base);
 	if (err < 0)
 		dev_err(&pdev->dev, "failed to unregister host1x client: %d\n",
 			err);
-
-	vi_power_off(&pdev->dev);
 
 	tegra_slcg_unregister_notifier(vi->config->powergate_id,
 		&vi->slcg_notifier);

@@ -36,6 +36,7 @@ struct nvenc_config {
 	const char *ucode_name;
 	u32 class_id;
 	int powergate_id;
+	const struct host1x_client_clock *clocks;
 };
 
 struct nvenc {
@@ -75,8 +76,7 @@ static int nvenc_power_off(struct device *dev)
 		return err;
 
 	clk_disable_unprepare(nvenc->clk);
-	clk_disable_unprepare(nvenc->cbus_clk);
-	clk_disable_unprepare(nvenc->emc_clk);
+	host1x_module_disable_clocks(&nvenc->client.base);
 
 	return tegra_pmc_powergate(nvenc->config->powergate_id);
 }
@@ -90,13 +90,9 @@ static int nvenc_power_on(struct device *dev)
 	if (err)
 		return err;
 
-	err = clk_prepare_enable(nvenc->emc_clk);
+	err = host1x_module_enable_clocks(&nvenc->client.base);
 	if (err)
-		goto err_emc_clk;
-
-	err = clk_prepare_enable(nvenc->cbus_clk);
-	if (err)
-		goto err_cbus_clk;
+		goto err_host1x_clk;
 
 	err = tegra_pmc_unpowergate(nvenc->config->powergate_id);
 	if (err)
@@ -110,10 +106,8 @@ static int nvenc_power_on(struct device *dev)
 err_nvenc_clk:
 	tegra_pmc_powergate(nvenc->config->powergate_id);
 err_unpowergate:
-	clk_disable_unprepare(nvenc->cbus_clk);
-err_cbus_clk:
-	clk_disable_unprepare(nvenc->emc_clk);
-err_emc_clk:
+	host1x_module_disable_clocks(&nvenc->client.base);
+err_host1x_clk:
 	falcon_power_off(&nvenc->falcon);
 	return err;
 }
@@ -329,10 +323,26 @@ static const struct falcon_ops nvenc_falcon_ops = {
 	.free = nvenc_falcon_free,
 };
 
+static const struct host1x_client_clock nvenc_t210_clocks[] = {
+	{
+		.clk_name = "nvenc_cbus",
+		.default_rate = UINT_MAX,
+		.valid_constraint_types =
+			BIT(HOST1X_USER_CONSTRAINT_TYPE_HZ),
+	}, {
+		.clk_name = "emc",
+		.default_rate = 204000000,
+		.valid_constraint_types =
+			BIT(HOST1X_USER_CONSTRAINT_TYPE_HZ) |
+			BIT(HOST1X_USER_CONSTRAINT_TYPE_BW_KBPS),
+	},
+};
+
 static const struct nvenc_config nvenc_nvenc_t210_config = {
 	.ucode_name = "nvidia/tegra210/nvenc.bin",
 	.class_id = HOST1X_CLASS_NVENC,
 	.powergate_id = TEGRA_POWERGATE_MPE,
+	.clocks = nvenc_t210_clocks,
 };
 
 static const struct of_device_id nvenc_match[] = {
@@ -405,6 +415,8 @@ static int nvenc_probe(struct platform_device *pdev)
 	nvenc->client.base.class = nvenc_config->class_id;
 	nvenc->client.base.syncpts = syncpts;
 	nvenc->client.base.num_syncpts = 1;
+	memcpy(&nvenc->client.base.clocks, nvenc_config->clocks,
+	       sizeof(nvenc_t210_clocks));
 	nvenc->dev = dev;
 	nvenc->config = nvenc_config;
 
@@ -419,16 +431,16 @@ static int nvenc_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, nvenc);
 
-	err = nvenc_power_on(&pdev->dev);
-	if (err) {
-		dev_err(dev, "cannot turn on the device\n");
-		goto error_falcon_exit;
-	}
-
 	err = host1x_client_register(&nvenc->client.base);
 	if (err < 0) {
 		dev_err(dev, "failed to register host1x client: %d\n", err);
-		goto error_nvenc_power_off;
+		goto error_falcon_exit;
+	}
+
+	err = nvenc_power_on(&pdev->dev);
+	if (err) {
+		dev_err(dev, "cannot turn on the device\n");
+		goto error_client_unregister;
 	}
 
 	pm_runtime_set_active(dev);
@@ -436,13 +448,12 @@ static int nvenc_probe(struct platform_device *pdev)
 	pm_runtime_use_autosuspend(dev);
 	pm_runtime_set_autosuspend_delay(dev, 5000);
 
-
 	dev_info(&pdev->dev, "initialized");
 
 	return 0;
 
-error_nvenc_power_off:
-	nvenc_power_off(&pdev->dev);
+error_client_unregister:
+	host1x_client_unregister(&nvenc->client.base);
 error_falcon_exit:
 	falcon_exit(&nvenc->falcon);
 	return err;
@@ -453,12 +464,12 @@ static int nvenc_remove(struct platform_device *pdev)
 	struct nvenc *nvenc = platform_get_drvdata(pdev);
 	int err;
 
+	nvenc_power_off(&pdev->dev);
+
 	err = host1x_client_unregister(&nvenc->client.base);
 	if (err < 0)
 		dev_err(&pdev->dev, "failed to unregister host1x client: %d\n",
 			err);
-
-	nvenc_power_off(&pdev->dev);
 
 	falcon_exit(&nvenc->falcon);
 

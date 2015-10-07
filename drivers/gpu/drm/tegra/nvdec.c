@@ -50,6 +50,7 @@ struct nvdec_config {
 	const char *ucode_name_ls;
 	u32 class_id;
 	int powergate_id;
+	const struct host1x_client_clock *clocks;
 };
 
 struct nvdec {
@@ -102,12 +103,12 @@ static int nvdec_power_off(struct device *dev)
 	clk_disable_unprepare(nvdec->clk);
 	clk_disable_unprepare(nvdec->kfuse);
 	clk_disable_unprepare(nvdec->fuse);
-	clk_disable_unprepare(nvdec->cbus_clk);
 	err = tegra_pmc_powergate(nvdec->config->powergate_id);
 	if (err)
 		return err;
 
-	clk_disable_unprepare(nvdec->emc_clk);
+	host1x_module_disable_clocks(&nvdec->client.base);
+
 	return err;
 }
 
@@ -126,9 +127,9 @@ static int nvdec_power_on(struct device *dev)
 			goto err_falcon_power_on;
 	}
 
-	err = clk_prepare_enable(nvdec->emc_clk);
+	err = host1x_module_enable_clocks(&nvdec->client.base);
 	if (err)
-		goto err_emc_clk;
+		goto err_host1x_clk;
 
 	err = tegra_pmc_unpowergate(nvdec->config->powergate_id);
 	if (err)
@@ -137,10 +138,6 @@ static int nvdec_power_on(struct device *dev)
 	err = clk_prepare_enable(nvdec->clk);
 	if (err)
 		goto err_nvdec_clk;
-
-	err = clk_prepare_enable(nvdec->cbus_clk);
-	if (err)
-		goto err_nvdec_cbus_clk;
 
 	err = clk_prepare_enable(nvdec->fuse);
 	if (err)
@@ -155,14 +152,12 @@ static int nvdec_power_on(struct device *dev)
 err_nvdec_kfuse_clk:
 	clk_disable_unprepare(nvdec->fuse);
 err_nvdec_fuse_clk:
-	clk_disable_unprepare(nvdec->cbus_clk);
-err_nvdec_cbus_clk:
 	clk_disable_unprepare(nvdec->clk);
 err_nvdec_clk:
 	tegra_pmc_powergate(nvdec->config->powergate_id);
 err_unpowergate:
-	clk_disable_unprepare(nvdec->emc_clk);
-err_emc_clk:
+	host1x_module_disable_clocks(&nvdec->client.base);
+err_host1x_clk:
 	if (IS_ENABLED(CONFIG_NVDEC_BOOTLOADER))
 		falcon_power_off(&nvdec->falcon_ls);
 err_falcon_power_on:
@@ -464,12 +459,28 @@ static const struct falcon_ops nvdec_falcon_ls_ops = {
 	.free = nvdec_falcon_ls_free,
 };
 
+static const struct host1x_client_clock nvdec_t210_clocks[] = {
+	{
+		.clk_name = "nvdec_cbus",
+		.default_rate = UINT_MAX,
+		.valid_constraint_types =
+			BIT(HOST1X_USER_CONSTRAINT_TYPE_HZ),
+	}, {
+		.clk_name = "emc",
+		.default_rate = 102000000,
+		.valid_constraint_types =
+			BIT(HOST1X_USER_CONSTRAINT_TYPE_HZ) |
+			BIT(HOST1X_USER_CONSTRAINT_TYPE_BW_KBPS),
+	},
+};
+
 static const struct nvdec_config nvdec_t210_config = {
 	.ucode_name = "nvidia/tegra210/nvdec_ns.bin",
 	.ucode_name_bl = "nvidia/tegra210/nvdec_bl_prod.bin",
 	.ucode_name_ls = "nvidia/tegra210/nvdec_prod.bin",
 	.class_id = HOST1X_CLASS_NVDEC,
 	.powergate_id = TEGRA_POWERGATE_NVDEC,
+	.clocks = nvdec_t210_clocks,
 };
 
 static struct of_device_id nvdec_match[] = {
@@ -574,6 +585,8 @@ static int nvdec_probe(struct platform_device *pdev)
 	nvdec->client.base.class = nvdec_config->class_id;
 	nvdec->client.base.syncpts = syncpts;
 	nvdec->client.base.num_syncpts = 1;
+	memcpy(&nvdec->client.base.clocks, nvdec_config->clocks,
+	       sizeof(nvdec_t210_clocks));
 	nvdec->dev = dev;
 	nvdec->config = nvdec_config;
 
@@ -596,16 +609,16 @@ static int nvdec_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, nvdec);
 
-	err = nvdec_power_on(&pdev->dev);
-	if (err) {
-		dev_err(dev, "cannot turn on the device\n");
-		goto error_falcon_exit;
-	}
-
 	err = host1x_client_register(&nvdec->client.base);
 	if (err < 0) {
 		dev_err(dev, "failed to register host1x client: %d\n", err);
-		goto error_nvdec_power_off;
+		goto error_falcon_exit;
+	}
+
+	err = nvdec_power_on(&pdev->dev);
+	if (err) {
+		dev_err(dev, "cannot turn on the device\n");
+		goto error_client_unregister;
 	}
 
 	pm_runtime_set_active(dev);
@@ -617,8 +630,8 @@ static int nvdec_probe(struct platform_device *pdev)
 
 	return 0;
 
-error_nvdec_power_off:
-	nvdec_power_off(&pdev->dev);
+error_client_unregister:
+	host1x_client_unregister(&nvdec->client.base);
 error_falcon_exit:
 	if (IS_ENABLED(CONFIG_NVDEC_BOOTLOADER))
 		falcon_exit(&nvdec->falcon_ls);
@@ -633,12 +646,12 @@ static int nvdec_remove(struct platform_device *pdev)
 	struct nvdec *nvdec = platform_get_drvdata(pdev);
 	int err;
 
+	nvdec_power_off(&pdev->dev);
+
 	err = host1x_client_unregister(&nvdec->client.base);
 	if (err < 0)
 		dev_err(&pdev->dev, "failed to unregister host1x client: %d\n",
 			err);
-
-	nvdec_power_off(&pdev->dev);
 
 	if (IS_ENABLED(CONFIG_NVDEC_BOOTLOADER))
 		falcon_exit(&nvdec->falcon_ls);

@@ -33,6 +33,7 @@ struct nvjpg_config {
 	const char *ucode_name;
 	u32 class_id;
 	int powergate_id;
+	const struct host1x_client_clock *clocks;
 };
 
 struct nvjpg {
@@ -70,6 +71,7 @@ static int nvjpg_power_off(struct device *dev)
 		return err;
 
 	clk_disable_unprepare(nvjpg->clk);
+	host1x_module_disable_clocks(&nvjpg->client.base);
 
 	return tegra_pmc_powergate(nvjpg->config->powergate_id);
 }
@@ -83,14 +85,26 @@ static int nvjpg_power_on(struct device *dev)
 	if (err)
 		return err;
 
+	err = host1x_module_enable_clocks(&nvjpg->client.base);
+	if (err)
+		goto err_host1x_clk;
+
 	err = tegra_pmc_unpowergate(nvjpg->config->powergate_id);
 	if (err)
-		return err;
+		goto err_unpowergate;
 
 	err = clk_prepare_enable(nvjpg->clk);
 	if (err)
-		tegra_pmc_powergate(nvjpg->config->powergate_id);
+		goto err_nvjpg_clk;
 
+	return err;
+
+err_nvjpg_clk:
+	tegra_pmc_powergate(nvjpg->config->powergate_id);
+err_unpowergate:
+	host1x_module_disable_clocks(&nvjpg->client.base);
+err_host1x_clk:
+	falcon_power_off(&nvjpg->falcon);
 	return err;
 }
 
@@ -263,10 +277,26 @@ static const struct falcon_ops nvjpg_falcon_ops = {
 	.free = nvjpg_falcon_free,
 };
 
+static const struct host1x_client_clock nvjpg_t210_clocks[] = {
+	{
+		.clk_name = "nvjpg_cbus",
+		.default_rate = UINT_MAX,
+		.valid_constraint_types =
+			BIT(HOST1X_USER_CONSTRAINT_TYPE_HZ),
+	}, {
+		.clk_name = "emc",
+		.default_rate = 204000000,
+		.valid_constraint_types =
+			BIT(HOST1X_USER_CONSTRAINT_TYPE_HZ) |
+			BIT(HOST1X_USER_CONSTRAINT_TYPE_BW_KBPS),
+	},
+};
+
 static const struct nvjpg_config nvjpg_nvjpg_t210_config = {
 	.ucode_name = "nvidia/tegra210/nvjpg.bin",
 	.class_id = HOST1X_CLASS_NVJPG,
 	.powergate_id = TEGRA_POWERGATE_NVJPG,
+	.clocks = nvjpg_t210_clocks,
 };
 
 static const struct of_device_id nvjpg_match[] = {
@@ -329,6 +359,8 @@ static int nvjpg_probe(struct platform_device *pdev)
 	nvjpg->client.base.class = nvjpg_config->class_id;
 	nvjpg->client.base.syncpts = syncpts;
 	nvjpg->client.base.num_syncpts = 1;
+	memcpy(&nvjpg->client.base.clocks, nvjpg_config->clocks,
+	       sizeof(nvjpg_t210_clocks));
 	nvjpg->dev = dev;
 	nvjpg->config = nvjpg_config;
 
@@ -343,16 +375,16 @@ static int nvjpg_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, nvjpg);
 
-	err = nvjpg_power_on(&pdev->dev);
-	if (err) {
-		dev_err(dev, "cannot turn on the device\n");
-		goto error_falcon_exit;
-	}
-
 	err = host1x_client_register(&nvjpg->client.base);
 	if (err < 0) {
 		dev_err(dev, "failed to register host1x client: %d\n", err);
-		goto error_nvjpg_power_off;
+		goto error_falcon_exit;
+	}
+
+	err = nvjpg_power_on(&pdev->dev);
+	if (err) {
+		dev_err(dev, "cannot turn on the device\n");
+		goto error_client_unregister;
 	}
 
 	pm_runtime_set_active(dev);
@@ -364,8 +396,8 @@ static int nvjpg_probe(struct platform_device *pdev)
 
 	return 0;
 
-error_nvjpg_power_off:
-	nvjpg_power_off(&pdev->dev);
+error_client_unregister:
+	host1x_client_unregister(&nvjpg->client.base);
 error_falcon_exit:
 	falcon_exit(&nvjpg->falcon);
 	return err;
@@ -376,12 +408,12 @@ static int nvjpg_remove(struct platform_device *pdev)
 	struct nvjpg *nvjpg = platform_get_drvdata(pdev);
 	int err;
 
+	nvjpg_power_off(&pdev->dev);
+
 	err = host1x_client_unregister(&nvjpg->client.base);
 	if (err < 0)
 		dev_err(&pdev->dev, "failed to unregister host1x client: %d\n",
 			err);
-
-	nvjpg_power_off(&pdev->dev);
 
 	falcon_exit(&nvjpg->falcon);
 
