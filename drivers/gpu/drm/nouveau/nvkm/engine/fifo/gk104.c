@@ -951,6 +951,9 @@ gk104_fifo_intr_pbdma_0(struct gk104_fifo_priv *priv, int unit)
 		nv_wr32(priv, 0x0400c0 + (unit * 0x2000), 0x80600008);
 	}
 
+	if (stat & 0x00200000)
+		nv_wr32(priv, 0x0400c0 + (unit * 0x2000), 0x00000008);
+
 	if (show) {
 		nv_error(priv, "PBDMA%d:", unit);
 		nvkm_bitfield_print(gk104_fifo_pbdma_intr_0, show);
