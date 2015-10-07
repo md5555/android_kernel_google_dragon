@@ -158,6 +158,10 @@
 #define NAU8825_SAR_INPUT_JKR2	(0 << 11)
 #define NAU8825_SAR_TRACKING_GAIN_SFT	8
 #define NAU8825_SAR_TRACKING_GAIN_MASK	(0x7 << NAU8825_SAR_TRACKING_GAIN_SFT)
+#define NAU8825_SAR_COMPARE_TIME_SFT	2
+#define NAU8825_SAR_COMPARE_TIME_MASK	(3 << 2)
+#define NAU8825_SAR_SAMPLING_TIME_SFT	0
+#define NAU8825_SAR_SAMPLING_TIME_MASK	(3 << 0)
 
 /* KEYDET_CTRL (0x14) */
 #define NAU8825_KEYDET_SHORTKEY_DEBOUNCE_SFT	12
@@ -170,7 +174,7 @@
 /* GPIO12_CTRL (0x1a) */
 #define NAU8825_JKDET_PULL_UP	(1 << 11) /* 0 - pull down, 1 - pull up */
 #define NAU8825_JKDET_PULL_EN	(1 << 9) /* 0 - enable pull, 1 - disable */
-#define NAU8825_JKDET_OUTPUT_EN	(1 << 8) /* 0 - enable niput, 1 - enable output */
+#define NAU8825_JKDET_OUTPUT_EN	(1 << 8) /* 0 - enable input, 1 - enable output */
 
 /* I2S_PCM_CTRL1 (0x1c) */
 #define NAU8825_I2S_BP_SFT	7
@@ -193,7 +197,7 @@
 #define NAU8825_I2S_DF_PCM_AB	(3 << NAU8825_I2S_DF_SFT)
 
 /* I2S_PCM_CTRL2 (0x1d) */
-#define NAU8825_I2S_TRISTATE	(1 << 15) /* 0 - Normal mode, 1 - Output Hi-Z */
+#define NAU8825_I2S_TRISTATE	(1 << 15) /* 0 - normal mode, 1 - Hi-Z output */
 #define NAU8825_I2S_MS_SFT	3
 #define NAU8825_I2S_MS_MASK	(1 << NAU8825_I2S_MS_SFT)
 #define NAU8825_I2S_MS_MASTER	(1 << NAU8825_I2S_MS_SFT)
@@ -284,6 +288,32 @@
 enum {
 	NAU8825_CLK_MCLK = 0,
 	NAU8825_CLK_INTERNAL,
+};
+
+struct nau8825 {
+	struct device *dev;
+	struct regmap *regmap;
+	struct snd_soc_dapm_context *dapm;
+	struct snd_soc_jack *jack;
+	struct clk *mclk;
+	int irq;
+	int mclk_freq; /* 0 - mclk is disabled */
+	int button_pressed;
+	int micbias_voltage;
+	int vref_impedance;
+	bool jkdet_enable;
+	bool jkdet_pull_enable;
+	bool jkdet_pull_up;
+	int jkdet_polarity;
+	int sar_threshold_num;
+	int sar_threshold[8];
+	int sar_hysteresis;
+	int sar_voltage;
+	int sar_compare_time;
+	int sar_sampling_time;
+	int key_debounce;
+	int jack_insert_debounce;
+	int jack_eject_debounce;
 };
 
 int nau8825_enable_jack_detect(struct snd_soc_codec *codec,

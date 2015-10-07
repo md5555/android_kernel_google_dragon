@@ -48,15 +48,30 @@ Optional properties:
       6 - VDDA * 1.53
       7 - VDDA * 1.53
 
+  - nuvoton,sar-compare-time: SAR compare time
+      0 - 500 ns
+      1 - 1 us
+      2 - 2 us
+      3 - 4 us
+
+  - nuvoton,sar-sampling-time: SAR sampling time
+      0 - 2 us
+      1 - 4 us
+      2 - 8 us
+      3 - 16 us
+
   - nuvoton,short-key-debounce: Button short key press debounce time.
-      0 - 30ms
-      1 - 50ms
-      2 - 100ms
-      3 - 30ms
+      0 - 30 ms
+      1 - 50 ms
+      2 - 100 ms
+      3 - 30 ms
 
   - nuvoton,jack-insert-debounce: number from 0 to 7 that sets debounce time to 2^(n+2) ms
   - nuvoton,jack-eject-debounce: number from 0 to 7 that sets debounce time to 2^(n+2) ms
 
+  - clocks: list of phandle and clock specifier pairs according to common clock bindings for the
+      clocks described in clock-names
+  - clock-names: should include "mclk" for the MCLK master clock
 
 Example:
 
@@ -71,12 +86,17 @@ Example:
       nuvoton,jkdet-polarity = <GPIO_ACTIVE_LOW>;
       nuvoton,vref-impedance = <2>;
       nuvoton,micbias-voltage = <6>;
-      // Setup 4 buttons impedane according to Android specification
+      // Setup 4 buttons impedance according to Android specification
       nuvoton,sar-threshold-num = <4>;
       nuvoton,sar-threshold = <0xc 0x1e 0x38 0x60>;
       nuvoton,sar-hysteresis = <1>;
       nuvoton,sar-voltage = <0>;
+      nuvoton,sar-compare-time = <0>;
+      nuvoton,sar-sampling-time = <0>;
       nuvoton,short-key-debounce = <2>;
       nuvoton,jack-insert-debounce = <7>;
       nuvoton,jack-eject-debounce = <7>;
+
+      clock-names = "mclk";
+      clocks = <&tegra_car TEGRA210_CLK_CLK_OUT_2>;
   };

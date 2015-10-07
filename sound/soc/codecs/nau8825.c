@@ -15,38 +15,18 @@
 #include <linux/i2c.h>
 #include <linux/regmap.h>
 #include <linux/slab.h>
+#include <linux/clk.h>
+
 #include <sound/initval.h>
 #include <sound/tlv.h>
-
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
 #include <sound/jack.h>
 
-#include "nau8825.h"
 
-struct nau8825 {
-	struct device *dev;
-	struct regmap *regmap;
-	struct snd_soc_dapm_context *dapm;
-	int irq;
-	struct snd_soc_jack *jack;
-	int button_pressed;
-	int micbias_voltage;
-	int vref_impedance;
-	bool jkdet_enable;
-	bool jkdet_pull_enable;
-	bool jkdet_pull_up;
-	int jkdet_polarity;
-	int sar_threshold_num;
-	int sar_threshold[8];
-	int sar_hysteresis;
-	int sar_voltage;
-	int key_debounce;
-	int jack_insert_debounce;
-	int jack_eject_debounce;
-};
+#include "nau8825.h"
 
 static const struct reg_default nau8825_reg_defaults[] = {
 	{ NAU8825_REG_ENA_CTRL, 0x00ff },
@@ -225,16 +205,19 @@ static const DECLARE_TLV_DB_MINMAX_MUTE(adc_vol_tlv, -10300, 2400);
 static const DECLARE_TLV_DB_MINMAX_MUTE(sidetone_vol_tlv, -4200, 0);
 static const DECLARE_TLV_DB_MINMAX(dac_vol_tlv, -5400, 0);
 static const DECLARE_TLV_DB_MINMAX(fepga_gain_tlv, -100, 3600);
+static const DECLARE_TLV_DB_MINMAX_MUTE(crosstalk_vol_tlv, -9600, 2400);
 
 static const struct snd_kcontrol_new nau8825_controls[] = {
-	SOC_SINGLE_TLV("MIC Volume", NAU8825_REG_ADC_DGAIN_CTRL,
+	SOC_SINGLE_TLV("Mic Volume", NAU8825_REG_ADC_DGAIN_CTRL,
 		0, 0xff, 0, adc_vol_tlv),
-	SOC_DOUBLE_TLV("HP Sidetone Volume", NAU8825_REG_ADC_DGAIN_CTRL,
+	SOC_DOUBLE_TLV("Headphone Bypass Volume", NAU8825_REG_ADC_DGAIN_CTRL,
 		12, 8, 0x0f, 0, sidetone_vol_tlv),
-	SOC_DOUBLE_TLV("HP Volume", NAU8825_REG_HSVOL_CTRL,
+	SOC_DOUBLE_TLV("Headphone Volume", NAU8825_REG_HSVOL_CTRL,
 		6, 0, 0x3f, 1, dac_vol_tlv),
-	SOC_SINGLE_TLV("Frontend PGA Gain", NAU8825_REG_POWER_UP_CONTROL,
+	SOC_SINGLE_TLV("Frontend PGA Volume", NAU8825_REG_POWER_UP_CONTROL,
 		8, 37, 0, fepga_gain_tlv),
+	SOC_DOUBLE_TLV("Headphone Crosstalk Volume", NAU8825_REG_DAC_DGAIN_CTRL,
+		0, 8, 0xff, 0, crosstalk_vol_tlv),
 
 	SOC_ENUM("ADC Decimation Rate", nau8825_adc_decimation_enum),
 	SOC_ENUM("DAC Oversampling Rate", nau8825_dac_oversampl_enum),
@@ -298,8 +281,8 @@ static const struct snd_soc_dapm_widget nau8825_dapm_widgets[] = {
 	SND_SOC_DAPM_SUPPLY("HP amp power", NAU8825_REG_CLASSG_CTRL, 0, 0, NULL,
 		0),
 
-	SND_SOC_DAPM_SUPPLY("Charge Pump", NAU8825_REG_CHARGE_PUMP, 5, 0, nau8825_pump_event,
-		SND_SOC_DAPM_POST_PMU),
+	SND_SOC_DAPM_SUPPLY("Charge Pump", NAU8825_REG_CHARGE_PUMP, 5, 0,
+		nau8825_pump_event, SND_SOC_DAPM_POST_PMU),
 
 	SND_SOC_DAPM_PGA("Output Driver R Stage 1",
 		NAU8825_REG_POWER_UP_CONTROL, 5, 0, NULL, 0),
@@ -382,6 +365,7 @@ static int nau8825_hw_params(struct snd_pcm_substream *substream,
 	default:
 		return -EINVAL;
 	}
+
 	regmap_update_bits(nau8825->regmap, NAU8825_REG_I2S_PCM_CTRL1,
 		NAU8825_I2S_DL_MASK, val_len);
 
@@ -487,8 +471,19 @@ int nau8825_enable_jack_detect(struct snd_soc_codec *codec,
 				struct snd_soc_jack *jack)
 {
 	struct nau8825 *nau8825 = snd_soc_codec_get_drvdata(codec);
+	struct regmap *regmap = nau8825->regmap;
 
 	nau8825->jack = jack;
+
+	/* Ground HP Outputs[1:0], needed for headset auto detection
+	 * Enable Automatic Mic/Gnd switching reading on insert interrupt[6]
+	 */
+	regmap_update_bits(regmap, NAU8825_REG_HSD_CTRL,
+		NAU8825_HSD_AUTO_MODE | NAU8825_SPKR_DWN1R | NAU8825_SPKR_DWN1L,
+		NAU8825_HSD_AUTO_MODE | NAU8825_SPKR_DWN1R | NAU8825_SPKR_DWN1L);
+
+	regmap_update_bits(regmap, NAU8825_REG_INTERRUPT_MASK,
+		NAU8825_IRQ_HEADSET_COMPLETE_EN | NAU8825_IRQ_EJECT_EN, 0);
 
 	return 0;
 }
@@ -533,7 +528,7 @@ static void nau8825_eject_jack(struct nau8825 *nau8825)
 
 static int nau8825_button_decode(int value)
 {
-	int buttons;
+	int buttons = 0;
 
 	/* The chip supports up to 8 buttons, but ALSA defines only 6 buttons */
 	if (value & BIT(0))
@@ -642,7 +637,8 @@ static irqreturn_t nau8825_interrupt(int irq, void *data)
 			&key_status);
 
 		/* upper 8 bits of the register are for short pressed keys,
-		   lower 8 bits - for long pressed buttons */
+		 * lower 8 bits - for long pressed buttons
+		 */
 		nau8825->button_pressed = nau8825_button_decode(
 			key_status >> 8);
 
@@ -682,6 +678,12 @@ static void nau8825_setup_buttons(struct nau8825 *nau8825)
 	regmap_update_bits(regmap, NAU8825_REG_SAR_CTRL,
 		NAU8825_SAR_TRACKING_GAIN_MASK,
 		nau8825->sar_voltage << NAU8825_SAR_TRACKING_GAIN_SFT);
+	regmap_update_bits(regmap, NAU8825_REG_SAR_CTRL,
+		NAU8825_SAR_COMPARE_TIME_MASK,
+		nau8825->sar_compare_time << NAU8825_SAR_COMPARE_TIME_SFT);
+	regmap_update_bits(regmap, NAU8825_REG_SAR_CTRL,
+		NAU8825_SAR_SAMPLING_TIME_MASK,
+		nau8825->sar_sampling_time << NAU8825_SAR_SAMPLING_TIME_SFT);
 
 	regmap_update_bits(regmap, NAU8825_REG_KEYDET_CTRL,
 		NAU8825_KEYDET_LEVELS_NR_MASK,
@@ -712,10 +714,10 @@ static void nau8825_init_regs(struct nau8825 *nau8825)
 {
 	struct regmap *regmap = nau8825->regmap;
 
-	/* Enable Bias */
-	regmap_update_bits(regmap, NAU8825_REG_BIAS_ADJ,
+	/* Enable Bias/Vmid */
+	regmap_update_bits(nau8825->regmap, NAU8825_REG_BIAS_ADJ,
 		NAU8825_BIAS_VMID, NAU8825_BIAS_VMID);
-	regmap_update_bits(regmap, NAU8825_REG_BOOST,
+	regmap_update_bits(nau8825->regmap, NAU8825_REG_BOOST,
 		NAU8825_GLOBAL_BIAS_EN, NAU8825_GLOBAL_BIAS_EN);
 
 	/* VMID Tieoff */
@@ -728,12 +730,6 @@ static void nau8825_init_regs(struct nau8825 *nau8825)
 		NAU8825_SHORT_SHUTDOWN_EN,
 		NAU8825_PRECHARGE_DIS | NAU8825_HP_BOOST_G_DIS |
 		NAU8825_SHORT_SHUTDOWN_EN);
-
-	/* Ground HP Outputs[1:0], needed for headset auto detection
-	 * Enable Automatic Mic/Gnd switching reading on insert interrupt[6] */
-	regmap_update_bits(regmap, NAU8825_REG_HSD_CTRL,
-		NAU8825_HSD_AUTO_MODE | NAU8825_SPKR_DWN1R | NAU8825_SPKR_DWN1L,
-		NAU8825_HSD_AUTO_MODE | NAU8825_SPKR_DWN1R | NAU8825_SPKR_DWN1L);
 
 	regmap_update_bits(regmap, NAU8825_REG_GPIO12_CTRL,
 		NAU8825_JKDET_OUTPUT_EN,
@@ -756,13 +752,8 @@ static void nau8825_init_regs(struct nau8825 *nau8825)
 		NAU8825_JACK_EJECT_DEBOUNCE_MASK,
 		nau8825->jack_eject_debounce << NAU8825_JACK_EJECT_DEBOUNCE_SFT);
 
-	/* IRQ Output Enable */
-	regmap_update_bits(regmap, NAU8825_REG_INTERRUPT_MASK,
-		NAU8825_IRQ_OUTPUT_EN, NAU8825_IRQ_OUTPUT_EN);
 	/* Mask unneeded IRQs: 1 - disable, 0 - enable */
 	regmap_update_bits(regmap, NAU8825_REG_INTERRUPT_MASK, 0x7ff, 0x7ff);
-	regmap_update_bits(regmap, NAU8825_REG_INTERRUPT_MASK,
-		NAU8825_IRQ_HEADSET_COMPLETE_EN | NAU8825_IRQ_EJECT_EN, 0);
 
 	regmap_update_bits(regmap, NAU8825_REG_MIC_BIAS,
 		NAU8825_MICBIAS_VOLTAGE_MASK, nau8825->micbias_voltage);
@@ -771,7 +762,8 @@ static void nau8825_init_regs(struct nau8825 *nau8825)
 		nau8825_setup_buttons(nau8825);
 
 	/* Default oversampling/decimations settings are unusable
-	 * (audible hiss). Set it to something better. */
+	 * (audible hiss). Set it to something better.
+	 */
 	regmap_update_bits(regmap, NAU8825_REG_ADC_RATE,
 		NAU8825_ADC_SYNC_DOWN_MASK, NAU8825_ADC_SYNC_DOWN_128);
 	regmap_update_bits(regmap, NAU8825_REG_DAC_CTRL1,
@@ -795,17 +787,20 @@ static const struct regmap_config nau8825_regmap_config = {
 static int nau8825_codec_probe(struct snd_soc_codec *codec)
 {
 	struct nau8825 *nau8825 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
 
-	nau8825->dapm = &codec->dapm;
+	nau8825->dapm = dapm;
 
 	/* The interrupt clock is gated by x1[10:8],
 	 * one of them needs to be enabled all the time for
-	 * interrupts to happen. */
-	snd_soc_dapm_force_enable_pin(&codec->dapm, "DDACR");
-	snd_soc_dapm_sync(&codec->dapm);
+	 * interrupts to happen.
+	 */
+	snd_soc_dapm_force_enable_pin(dapm, "DDACR");
+	snd_soc_dapm_sync(dapm);
 
 	/* Unmask interruptions. Handler uses dapm object so we can enable
-	 * interruptions only after dapm is fully initialized. */
+	 * interruptions only after dapm is fully initialized.
+	 */
 	regmap_write(nau8825->regmap, NAU8825_REG_INTERRUPT_DIS_CTRL, 0);
 	nau8825_restart_jack_detection(nau8825->regmap);
 
@@ -816,18 +811,49 @@ static int nau8825_configure_sysclk(struct nau8825 *nau8825, int clk_id,
 	unsigned int freq)
 {
 	struct regmap *regmap = nau8825->regmap;
+	int ret;
 
 	switch (clk_id) {
 	case NAU8825_CLK_MCLK:
 		regmap_update_bits(regmap, NAU8825_REG_CLK_DIVIDER,
 			NAU8825_CLK_SRC_MASK, NAU8825_CLK_SRC_MCLK);
 		regmap_update_bits(regmap, NAU8825_REG_FLL6, NAU8825_DCO_EN, 0);
+
+		/* We selected MCLK source but the clock itself managed externally */
+		if (!nau8825->mclk)
+			break;
+
+		if (!nau8825->mclk_freq) {
+			ret = clk_prepare_enable(nau8825->mclk);
+			if (ret) {
+				dev_err(nau8825->dev, "Unable to prepare codec mclk\n");
+				return ret;
+			}
+		}
+
+		if (nau8825->mclk_freq != freq) {
+			nau8825->mclk_freq = freq;
+
+			freq = clk_round_rate(nau8825->mclk, freq);
+			ret = clk_set_rate(nau8825->mclk, freq);
+			if (ret) {
+				dev_err(nau8825->dev, "Unable to set mclk rate\n");
+				return ret;
+			}
+		}
+
 		break;
 	case NAU8825_CLK_INTERNAL:
 		regmap_update_bits(regmap, NAU8825_REG_FLL6, NAU8825_DCO_EN,
 			NAU8825_DCO_EN);
 		regmap_update_bits(regmap, NAU8825_REG_CLK_DIVIDER,
 			NAU8825_CLK_SRC_MASK, NAU8825_CLK_SRC_VCO);
+
+		if (nau8825->mclk_freq) {
+			clk_disable_unprepare(nau8825->mclk);
+			nau8825->mclk_freq = 0;
+		}
+
 		break;
 	default:
 		dev_err(nau8825->dev, "Invalid clock id (%d)\n", clk_id);
@@ -839,17 +865,62 @@ static int nau8825_configure_sysclk(struct nau8825 *nau8825, int clk_id,
 	return 0;
 }
 
-static int nau8825_set_sysclk(struct snd_soc_codec *codec, int clk_id, int source,
-	unsigned int freq, int dir)
+static int nau8825_set_sysclk(struct snd_soc_codec *codec, int clk_id,
+	int source, unsigned int freq, int dir)
 {
 	struct nau8825 *nau8825 = snd_soc_codec_get_drvdata(codec);
 
 	return nau8825_configure_sysclk(nau8825, clk_id, freq);
 }
 
+static int nau8825_set_bias_level(struct snd_soc_codec *codec,
+				   enum snd_soc_bias_level level)
+{
+	struct nau8825 *nau8825 = snd_soc_codec_get_drvdata(codec);
+	int ret;
+
+	switch (level) {
+	case SND_SOC_BIAS_ON:
+		break;
+
+	case SND_SOC_BIAS_PREPARE:
+		break;
+
+	case SND_SOC_BIAS_STANDBY:
+		if (snd_soc_codec_get_bias_level(codec) == SND_SOC_BIAS_OFF) {
+			if (nau8825->mclk_freq) {
+				ret = clk_prepare_enable(nau8825->mclk);
+				if (ret) {
+					dev_err(nau8825->dev, "Unable to prepare codec mclk\n");
+					return ret;
+				}
+			}
+
+			ret = regcache_sync(nau8825->regmap);
+			if (ret) {
+				dev_err(codec->dev,
+					"Failed to sync cache: %d\n", ret);
+				return ret;
+			}
+		}
+
+		break;
+
+	case SND_SOC_BIAS_OFF:
+		if (nau8825->mclk_freq)
+			clk_disable_unprepare(nau8825->mclk);
+
+		regcache_mark_dirty(nau8825->regmap);
+		break;
+	}
+	return 0;
+}
+
 static struct snd_soc_codec_driver nau8825_codec_driver = {
 	.probe = nau8825_codec_probe,
 	.set_sysclk = nau8825_set_sysclk,
+	.set_bias_level = nau8825_set_bias_level,
+	.suspend_bias_off = true,
 
 	.controls = nau8825_controls,
 	.num_controls = ARRAY_SIZE(nau8825_controls),
@@ -865,24 +936,8 @@ static void nau8825_reset_chip(struct regmap *regmap)
 	regmap_write(regmap, NAU8825_REG_RESET, 0x00);
 }
 
-static int nau8825_i2c_probe(struct i2c_client *i2c,
-	const struct i2c_device_id *id)
-{
-	struct device *dev = &i2c->dev;
-	struct nau8825 *nau8825;
-	int ret, value;
-
-	nau8825 = devm_kzalloc(dev, sizeof(*nau8825), GFP_KERNEL);
-	if (!nau8825)
-		return -ENOMEM;
-
-	i2c_set_clientdata(i2c, nau8825);
-
-	nau8825->regmap = devm_regmap_init_i2c(i2c, &nau8825_regmap_config);
-	if (IS_ERR(nau8825->regmap))
-		return PTR_ERR(nau8825->regmap);
-	nau8825->irq = i2c->irq;
-	nau8825->dev = dev;
+static int nau8825_read_device_properties(struct device *dev,
+	struct nau8825 *nau8825) {
 
 	nau8825->jkdet_enable = device_property_read_bool(dev,
 		"nuvoton,jkdet-enable");
@@ -904,6 +959,10 @@ static int nau8825_i2c_probe(struct i2c_client *i2c,
 		&nau8825->sar_hysteresis);
 	device_property_read_u32(dev, "nuvoton,sar-voltage",
 		&nau8825->sar_voltage);
+	device_property_read_u32(dev, "nuvoton,sar-compare-time",
+		&nau8825->sar_compare_time);
+	device_property_read_u32(dev, "nuvoton,sar-sampling-time",
+		&nau8825->sar_sampling_time);
 	device_property_read_u32(dev, "nuvoton,short-key-debounce",
 		&nau8825->key_debounce);
 	device_property_read_u32(dev, "nuvoton,jack-insert-debounce",
@@ -911,6 +970,84 @@ static int nau8825_i2c_probe(struct i2c_client *i2c,
 	device_property_read_u32(dev, "nuvoton,jack-eject-debounce",
 		&nau8825->jack_eject_debounce);
 
+	nau8825->mclk = devm_clk_get(dev, "mclk");
+	if (PTR_ERR(nau8825->mclk) == -EPROBE_DEFER) {
+		return -EPROBE_DEFER;
+	} else if (PTR_ERR(nau8825->mclk) == -ENOENT) {
+		/* The MCLK is managed externally or not used at all */
+		nau8825->mclk = NULL;
+		dev_info(dev, "No 'mclk' clock found, assume MCLK is managed externally");
+	} else if (IS_ERR(nau8825->mclk)) {
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int nau8825_setup_irq(struct nau8825 *nau8825)
+{
+	struct regmap *regmap = nau8825->regmap;
+	int ret;
+
+	/* IRQ Output Enable */
+	regmap_update_bits(regmap, NAU8825_REG_INTERRUPT_MASK,
+		NAU8825_IRQ_OUTPUT_EN, NAU8825_IRQ_OUTPUT_EN);
+
+	/* Enable internal VCO needed for interruptions */
+	nau8825_configure_sysclk(nau8825, NAU8825_CLK_INTERNAL, 0);
+
+	/* Enable DDACR needed for interrupts
+	 * It is the same as force_enable_pin("DDACR") we do later
+	 */
+	regmap_update_bits(regmap, NAU8825_REG_ENA_CTRL,
+		NAU8825_ENABLE_DACR, NAU8825_ENABLE_DACR);
+
+	/* Chip needs one FSCLK cycle in order to generate interrupts,
+	 * as we cannot guarantee one will be provided by the system. Turning
+	 * master mode on then off enables us to generate that FSCLK cycle
+	 * with a minimum of contention on the clock bus.
+	 */
+	regmap_update_bits(regmap, NAU8825_REG_I2S_PCM_CTRL2,
+		NAU8825_I2S_MS_MASK, NAU8825_I2S_MS_MASTER);
+	regmap_update_bits(regmap, NAU8825_REG_I2S_PCM_CTRL2,
+		NAU8825_I2S_MS_MASK, NAU8825_I2S_MS_SLAVE);
+
+	ret = devm_request_threaded_irq(nau8825->dev, nau8825->irq, NULL,
+		nau8825_interrupt, IRQF_TRIGGER_LOW | IRQF_ONESHOT,
+		"nau8825", nau8825);
+
+	if (ret) {
+		dev_err(nau8825->dev, "Cannot request irq %d (%d)\n",
+			nau8825->irq, ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+static int nau8825_i2c_probe(struct i2c_client *i2c,
+	const struct i2c_device_id *id)
+{
+	struct device *dev = &i2c->dev;
+	struct nau8825 *nau8825 = dev_get_platdata(&i2c->dev);
+	int ret, value;
+
+	if (!nau8825) {
+		nau8825 = devm_kzalloc(dev, sizeof(*nau8825), GFP_KERNEL);
+		if (!nau8825)
+			return -ENOMEM;
+		ret = nau8825_read_device_properties(dev, nau8825);
+		if (ret)
+			return ret;
+	}
+
+	i2c_set_clientdata(i2c, nau8825);
+
+	nau8825->regmap = devm_regmap_init_i2c(i2c, &nau8825_regmap_config);
+	if (IS_ERR(nau8825->regmap))
+		return PTR_ERR(nau8825->regmap);
+	nau8825->dev = dev;
+	nau8825->irq = i2c->irq;
 
 	nau8825_reset_chip(nau8825->regmap);
 	ret = regmap_read(nau8825->regmap, NAU8825_REG_I2C_DEVICE_ID, &value);
@@ -927,36 +1064,8 @@ static int nau8825_i2c_probe(struct i2c_client *i2c,
 
 	nau8825_init_regs(nau8825);
 
-	/* Enable internal VCO needed for interruptions */
-	nau8825_configure_sysclk(nau8825, NAU8825_CLK_INTERNAL, 0);
-
-	/* Enable DDACR needed for interrupts
-	 * It is the same as force_enable_pin("DDACR") we do later */
-	regmap_update_bits(nau8825->regmap, NAU8825_REG_ENA_CTRL,
-		NAU8825_ENABLE_DACR, NAU8825_ENABLE_DACR);
-
-	/* Chip needs one FSCLK cycle in order to generate interrupts,
-	 * as we cannot guarantee one will be provided by the system. Turning
-	 * master mode on then off enables us to generate that FSCLK cycle
-	 * with a minimum of contention on the clock bus.
-	 * Enables master mode and correctly divides BCLK and FSCLK from MCLK.
-	 */
-	regmap_update_bits(nau8825->regmap, NAU8825_REG_I2S_PCM_CTRL2,
-		NAU8825_I2S_MS_MASK, NAU8825_I2S_MS_MASTER);
-	regmap_update_bits(nau8825->regmap, NAU8825_REG_I2S_PCM_CTRL2,
-		NAU8825_I2S_MS_MASK, NAU8825_I2S_MS_SLAVE);
-
-	if (nau8825->irq) {
-		int ret = devm_request_threaded_irq(dev, nau8825->irq, NULL,
-			nau8825_interrupt, IRQF_TRIGGER_LOW | IRQF_ONESHOT,
-			"nau8825", nau8825);
-
-		if (ret) {
-			dev_err(dev, "Cannot request irq %d (%d)\n",
-				nau8825->irq, ret);
-			return ret;
-		}
-	}
+	if (i2c->irq)
+		nau8825_setup_irq(nau8825);
 
 	return snd_soc_register_codec(&i2c->dev, &nau8825_codec_driver,
 		&nau8825_dai, 1);
@@ -972,12 +1081,19 @@ static const struct i2c_device_id nau8825_i2c_ids[] = {
 	{ "nau8825", 0 },
 	{ }
 };
-MODULE_DEVICE_TABLE(i2c, nau8825_i2c_ids);
+
+#ifdef CONFIG_OF
+static const struct of_device_id nau8825_of_ids[] = {
+	{ .compatible = "nuvoton,nau8825", },
+	{}
+};
+MODULE_DEVICE_TABLE(of, nau8825_of_ids);
+#endif
 
 static struct i2c_driver nau8825_driver = {
 	.driver = {
 		.name = "nau8825",
-		.owner = THIS_MODULE,
+		.of_match_table = of_match_ptr(nau8825_of_ids),
 	},
 	.probe = nau8825_i2c_probe,
 	.remove = nau8825_i2c_remove,
