@@ -15,7 +15,7 @@
 	compatible = "google,smaug", "nvidia,tegra210";
 
         chosen {
-		bootargs = "cros_legacy console= init=/init rw ignore_loglevel=1 drm.atomic=1 firmware_class.path=/vendor/firmware kern_guid=%U no_console_suspend";
+		bootargs = "cros_legacy console= init=/init rw ignore_loglevel=1 drm.atomic=1 firmware_class.path=/vendor/firmware kern_guid=%U no_console_suspend slub_debug=fzpu";
 	};
 
 	memory {
