@@ -376,7 +376,9 @@ static int dvfs_rail_connect_to_regulator(struct device *dev,
 	int v;
 
 	if (!rail->reg) {
+		mutex_unlock(&dvfs_lock);
 		reg = regulator_get(dev, rail->reg_id);
+		mutex_lock(&dvfs_lock);
 		if (IS_ERR(reg)) {
 			pr_err("tegra_dvfs: failed to connect %s rail\n",
 			       rail->reg_id);
