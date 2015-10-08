@@ -62,6 +62,7 @@
 				backlight = <&backlight>;
 				slave = <&secondary_panel>;
 				panel-boot-on;
+				touch = <&touchscreen>;
 			};
 		};
 	};
