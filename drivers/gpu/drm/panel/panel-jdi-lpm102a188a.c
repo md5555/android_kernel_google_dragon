@@ -19,6 +19,7 @@
 #include <linux/of_gpio.h>
 #include <linux/gpio/machine.h>
 #include <linux/regulator/consumer.h>
+#include <linux/pm_runtime.h>
 
 #include <drm/drmP.h>
 #include <drm/drm_crtc.h>
@@ -61,6 +62,7 @@ struct panel_jdi {
 	struct mipi_dsi_device *slave;
 	struct backlight_device *bl;
 	struct i2c_client *client;
+	struct i2c_client *touch;
 
 	struct regulator *supply;
 	struct regulator *ddi_supply;
@@ -227,6 +229,9 @@ static int panel_jdi_disable(struct drm_panel *panel)
 
 	if (!panel->connector || panel->connector->dpms == DRM_MODE_DPMS_ON)
 		goto out;
+
+	if (jdi->touch)
+		pm_runtime_force_suspend(&jdi->touch->dev);
 
 	ret = backlight_jdi_write_display_brightness(jdi, 0);
 	if (ret < 0)
@@ -495,6 +500,9 @@ static int panel_jdi_enable(struct drm_panel *panel)
 	if (ret < 0)
 		DRM_ERROR("failed to set display on: %d\n", ret);
 
+	if (jdi->touch)
+		pm_runtime_force_resume(&jdi->touch->dev);
+
 	jdi->enabled = true;
 out:
 	mutex_unlock(&jdi->lock);
@@ -678,7 +686,7 @@ static int panel_jdi_setup_primary(struct mipi_dsi_device *dsi,
 	struct panel_jdi *jdi;
 	struct mipi_dsi_device *slave;
 	enum of_gpio_flags gpio_flags;
-	struct device_node *i2c_np;
+	struct device_node *i2c_np, *touch_np;
 	int ret;
 
 	slave = of_find_mipi_dsi_device_by_node(np);
@@ -768,7 +776,18 @@ static int panel_jdi_setup_primary(struct mipi_dsi_device *dsi,
 		jdi->client = of_find_i2c_device_by_node(i2c_np);
 		of_node_put(i2c_np);
 		if (!jdi->client) {
-			DRM_ERROR("Could not find i2c client\n");
+			DRM_ERROR("Could not find backlight i2c client\n");
+			ret = -ENODEV;
+			goto out_slave;
+		}
+	}
+
+	touch_np = of_parse_phandle(dsi->dev.of_node, "touch", 0);
+	if (touch_np) {
+		jdi->touch = of_find_i2c_device_by_node(touch_np);
+		of_node_put(touch_np);
+		if (!jdi->touch) {
+			DRM_ERROR("Could not find touch i2c client\n");
 			ret = -ENODEV;
 			goto out_slave;
 		}

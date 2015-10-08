@@ -14,6 +14,7 @@ Optional properties:
 	     backlight controller
 - panel-boot-on: Denotes whether firmware has initialized the panel
 - ts-reset-gpio: gpio controlling the tp_reset line into the panel
+- touch: phandle of the touch i2c node representing the touch controller
 
 Example:
 	panel: panel@0 {
@@ -30,5 +31,6 @@ Example:
 
 		backlight = <&backlight>;
 		panel-boot-on;
+		touch = <&touchscreen>;
 	};
 
