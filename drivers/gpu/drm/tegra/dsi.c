@@ -18,6 +18,8 @@
 
 #include <linux/regulator/consumer.h>
 
+#include <soc/tegra/pmc.h>
+
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_mipi_dsi.h>
 #include <drm/drm_panel.h>
@@ -1354,6 +1356,7 @@ static ssize_t tegra_dsi_host_config_for_dcs(struct mipi_dsi_host *host,
 	struct tegra_dsi *dsi = host_to_tegra(host);
 	u32 value;
 	int i;
+
 	/*
 	 * Clear the control and packet sequence registers. Without this code,
 	 * there are issues on boot where the transfer may fail.
@@ -1399,6 +1402,13 @@ static ssize_t tegra_dsi_host_transfer(struct mipi_dsi_host *host,
 	struct mipi_dsi_packet packet;
 	ssize_t err;
 	u32 value;
+
+	/*
+	 * Powergate code is refcounted, so it's fine to do this without
+	 * checking the current state. Further, since we only support
+	 * tegra114+ in this driver, all socs support powergate.
+	 */
+	tegra_pmc_unpowergate(TEGRA_POWERGATE_DIS);
 
 	tegra_dsi_lock(dsi);
 
@@ -1498,6 +1508,7 @@ static ssize_t tegra_dsi_host_transfer(struct mipi_dsi_host *host,
 
 out:
 	tegra_dsi_unlock(dsi);
+	tegra_pmc_powergate(TEGRA_POWERGATE_DIS);
 
 	return err;
 }
