@@ -191,7 +191,7 @@ static int nvjpg_open_channel(struct tegra_drm_client *client,
 	if (err)
 		goto done;
 
-	context->channel = host1x_channel_get(nvjpg->channel);
+	context->channel = host1x_channel_get(nvjpg->channel, &context->user);
 	if (!context->channel)
 		err = -ENOMEM;
 
@@ -206,7 +206,7 @@ static void nvjpg_close_channel(struct tegra_drm_context *context)
 	if (!context->channel)
 		return;
 
-	host1x_channel_put(context->channel);
+	host1x_channel_put(context->channel, &context->user);
 	context->channel = NULL;
 }
 

@@ -61,7 +61,8 @@ error:
 }
 EXPORT_SYMBOL(host1x_job_submit);
 
-struct host1x_channel *host1x_channel_get(struct host1x_channel *channel)
+struct host1x_channel *host1x_channel_get(struct host1x_channel *channel,
+					  struct host1x_user *user)
 {
 	int err = 0;
 
@@ -79,7 +80,8 @@ struct host1x_channel *host1x_channel_get(struct host1x_channel *channel)
 }
 EXPORT_SYMBOL(host1x_channel_get);
 
-void host1x_channel_put(struct host1x_channel *channel)
+void host1x_channel_put(struct host1x_channel *channel,
+			struct host1x_user *user)
 {
 	mutex_lock(&channel->reflock);
 

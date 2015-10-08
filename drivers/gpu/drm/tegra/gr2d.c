@@ -72,7 +72,7 @@ static int gr2d_open_channel(struct tegra_drm_client *client,
 {
 	struct gr2d *gr2d = to_gr2d(client);
 
-	context->channel = host1x_channel_get(gr2d->channel);
+	context->channel = host1x_channel_get(gr2d->channel, &context->user);
 	if (!context->channel)
 		return -ENOMEM;
 
@@ -81,7 +81,7 @@ static int gr2d_open_channel(struct tegra_drm_client *client,
 
 static void gr2d_close_channel(struct tegra_drm_context *context)
 {
-	host1x_channel_put(context->channel);
+	host1x_channel_put(context->channel, &context->user);
 }
 
 static int gr2d_is_addr_reg(struct device *dev, u32 class, u32 offset)

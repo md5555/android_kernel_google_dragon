@@ -348,7 +348,7 @@ static int vic_open_channel(struct tegra_drm_client *client,
 
 	vic_finalize_poweron(vic);
 
-	context->channel = host1x_channel_get(vic->channel);
+	context->channel = host1x_channel_get(vic->channel, &context->user);
 	if (!context->channel)
 		return -ENOMEM;
 
@@ -362,7 +362,7 @@ static void vic_close_channel(struct tegra_drm_context *context)
 	if (!context->channel)
 		return;
 
-	host1x_channel_put(context->channel);
+	host1x_channel_put(context->channel, &context->user);
 	context->channel = NULL;
 
 	pm_runtime_mark_last_busy(vic->dev);

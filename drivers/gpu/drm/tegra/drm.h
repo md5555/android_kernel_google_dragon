@@ -101,6 +101,7 @@ struct tegra_drm_context {
 	struct list_head list;
 	struct mutex lock;
 	bool keepon;
+	struct host1x_user user;
 };
 
 struct tegra_drm_client_ops {

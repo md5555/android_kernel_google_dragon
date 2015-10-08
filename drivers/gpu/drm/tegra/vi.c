@@ -277,7 +277,7 @@ static int vi_open_channel(struct tegra_drm_client *client,
 {
 	struct vi *vi = to_vi(client);
 
-	context->channel = host1x_channel_get(vi->channel);
+	context->channel = host1x_channel_get(vi->channel, &context->user);
 	if (!context->channel)
 		return -ENOMEM;
 
@@ -289,7 +289,7 @@ static void vi_close_channel(struct tegra_drm_context *context)
 	if (!context->channel)
 		return;
 
-	host1x_channel_put(context->channel);
+	host1x_channel_put(context->channel, &context->user);
 	context->channel = NULL;
 }
 

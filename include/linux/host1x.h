@@ -36,6 +36,10 @@ enum host1x_class {
 	HOST1X_CLASS_NVDEC = 0xF0,
 };
 
+struct host1x_user {
+	struct list_head node;
+};
+
 struct host1x_client;
 
 struct host1x_client_ops {
@@ -167,8 +171,10 @@ struct host1x_job;
 
 struct host1x_channel *host1x_channel_request(struct host1x_client *client);
 void host1x_channel_free(struct host1x_channel *channel);
-struct host1x_channel *host1x_channel_get(struct host1x_channel *channel);
-void host1x_channel_put(struct host1x_channel *channel);
+struct host1x_channel *host1x_channel_get(struct host1x_channel *channel,
+					  struct host1x_user *user);
+void host1x_channel_put(struct host1x_channel *channel,
+			struct host1x_user *user);
 int host1x_job_submit(struct host1x_job *job);
 
 /*
