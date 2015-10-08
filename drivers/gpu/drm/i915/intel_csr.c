@@ -349,6 +349,7 @@ static uint32_t *parse_csr_fw(struct drm_i915_private *dev_priv,
 
 static void csr_load_work_fn(struct work_struct *work)
 {
+	static const unsigned rootfs_timeout_s = 60;
 	struct drm_i915_private *dev_priv;
 	struct intel_csr *csr;
 	const struct firmware *fw;
@@ -356,6 +357,13 @@ static void csr_load_work_fn(struct work_struct *work)
 
 	dev_priv = container_of(work, typeof(*dev_priv), csr.work);
 	csr = &dev_priv->csr;
+
+	/* Wait until root filesystem is loaded in case the firmware
+	 * is not built-in but in /lib/firmware */
+	WARN(_wait_for(system_state == SYSTEM_RUNNING,
+		       rootfs_timeout_s * 1000, 100),
+	     "Timing out after waiting %ds for SYSTEM_RUNNING",
+	     rootfs_timeout_s);
 
 	ret = request_firmware(&fw, dev_priv->csr.fw_path,
 			       &dev_priv->dev->pdev->dev);
