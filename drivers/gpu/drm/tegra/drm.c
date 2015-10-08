@@ -13,6 +13,8 @@
 #include <drm/drm_atomic.h>
 #include <drm/drm_atomic_helper.h>
 
+#include <soc/tegra/tegra_emc.h>
+
 #include "drm.h"
 #include "gem.h"
 
@@ -1022,6 +1024,38 @@ done:
 	mutex_unlock(&context->lock);
 	return err;
 }
+
+static int tegra_get_clk_constraint(struct drm_device *drm, void *data,
+				    struct drm_file *file)
+{
+	struct tegra_drm_file *fpriv = file->driver_priv;
+	struct tegra_drm_context *context;
+	struct drm_tegra_constraint *args = data;
+
+	context = tegra_drm_get_context(args->context);
+	if (!tegra_drm_file_owns_context(fpriv, context))
+		return -ENODEV;
+
+	return host1x_module_get_rate(&context->client->base, &context->user,
+				      args->index, (unsigned long *)&args->rate,
+				      args->type);
+}
+
+static int tegra_set_clk_constraint(struct drm_device *drm, void *data,
+				    struct drm_file *file)
+{
+	struct tegra_drm_file *fpriv = file->driver_priv;
+	struct tegra_drm_context *context;
+	struct drm_tegra_constraint *args = data;
+
+	context = tegra_drm_get_context(args->context);
+	if (!tegra_drm_file_owns_context(fpriv, context))
+		return -ENODEV;
+
+	return host1x_module_set_rate(&context->client->base, &context->user,
+				      args->index, args->rate, args->type);
+}
+
 #endif
 
 static const struct drm_ioctl_desc tegra_drm_ioctls[] = {
@@ -1044,6 +1078,8 @@ static const struct drm_ioctl_desc tegra_drm_ioctls[] = {
 	DRM_IOCTL_DEF_DRV(TEGRA_SET_CLK_RATE, tegra_set_clk_rate, DRM_UNLOCKED|DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(TEGRA_START_KEEPON, tegra_start_keepon, DRM_UNLOCKED|DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(TEGRA_STOP_KEEPON, tegra_stop_keepon, DRM_UNLOCKED|DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(TEGRA_GET_CLK_CONSTRAINT, tegra_get_clk_constraint, DRM_UNLOCKED|DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(TEGRA_SET_CLK_CONSTRAINT, tegra_set_clk_constraint, DRM_UNLOCKED|DRM_RENDER_ALLOW),
 #endif
 };
 

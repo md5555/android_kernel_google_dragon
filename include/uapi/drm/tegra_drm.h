@@ -192,6 +192,18 @@ struct drm_tegra_set_clk_rate {
 	__u64 data;
 };
 
+struct drm_tegra_constraint {
+	/* channel context (from opening a channel) */
+	__u64 context;
+	/* index identifying the clock.  One of HOST1X_CLOCK_INDEX_* */
+	__u32 index;
+	/* constraint type.  One of HOST1X_USER_CONSTRAINT_TYPE_* */
+	__u32 type;
+	/* numeric value for type */
+	__u32 rate;
+	__u32 pad;
+};
+
 struct drm_tegra_keepon {
 	/* channel context (from opening a channel) */
 	__u64 context;
@@ -215,6 +227,8 @@ struct drm_tegra_keepon {
 #define DRM_TEGRA_SET_CLK_RATE		0x0f
 #define DRM_TEGRA_START_KEEPON		0x10
 #define DRM_TEGRA_STOP_KEEPON		0x11
+#define DRM_TEGRA_GET_CLK_CONSTRAINT	0x12
+#define DRM_TEGRA_SET_CLK_CONSTRAINT	0x13
 
 #define DRM_IOCTL_TEGRA_GEM_CREATE DRM_IOWR(DRM_COMMAND_BASE + DRM_TEGRA_GEM_CREATE, struct drm_tegra_gem_create)
 #define DRM_IOCTL_TEGRA_GEM_MMAP DRM_IOWR(DRM_COMMAND_BASE + DRM_TEGRA_GEM_MMAP, struct drm_tegra_gem_mmap)
@@ -234,5 +248,7 @@ struct drm_tegra_keepon {
 #define DRM_IOCTL_TEGRA_SET_CLK_RATE DRM_IOWR(DRM_COMMAND_BASE + DRM_TEGRA_SET_CLK_RATE, struct drm_tegra_set_clk_rate)
 #define DRM_IOCTL_TEGRA_START_KEEPON DRM_IOWR(DRM_COMMAND_BASE + DRM_TEGRA_START_KEEPON, struct drm_tegra_keepon)
 #define DRM_IOCTL_TEGRA_STOP_KEEPON DRM_IOWR(DRM_COMMAND_BASE + DRM_TEGRA_STOP_KEEPON, struct drm_tegra_keepon)
+#define DRM_IOCTL_TEGRA_GET_CLK_CONSTRAINT DRM_IOWR(DRM_COMMAND_BASE + DRM_TEGRA_GET_CLK_CONSTRAINT, struct drm_tegra_constraint)
+#define DRM_IOCTL_TEGRA_SET_CLK_CONSTRAINT DRM_IOWR(DRM_COMMAND_BASE + DRM_TEGRA_SET_CLK_CONSTRAINT, struct drm_tegra_constraint)
 
 #endif
