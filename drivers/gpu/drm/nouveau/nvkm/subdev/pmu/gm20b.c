@@ -578,15 +578,6 @@ struct gating_desc gm20b_slcg_priring[] = {
 	{.addr = 0x001200a8, .prod = 0x00000000, .disable = 0x00000001},
 };
 
-/* slcg pwr_csb */
-static const
-struct gating_desc gm20b_slcg_pwr_csb[] = {
-	{.addr = 0x0000017c, .prod = 0x00020008, .disable = 0x0003fffe},
-	{.addr = 0x00000e74, .prod = 0x00000000, .disable = 0x0000000f},
-	{.addr = 0x00000a74, .prod = 0x00000000, .disable = 0x00007ffe},
-	{.addr = 0x000016b8, .prod = 0x00000000, .disable = 0x0000000f},
-};
-
 /* slcg pmu */
 static const
 struct gating_desc gm20b_slcg_pmu[] = {
@@ -706,12 +697,6 @@ struct gating_desc gm20b_blcg_ltc[] = {
 	{.addr = 0x0017e3c8, .prod = 0x00000044, .disable = 0x00000000},
 };
 
-/* blcg pwr_csb  */
-static const
-struct gating_desc gm20b_blcg_pwr_csb[] = {
-	{.addr = 0x00000a70, .prod = 0x00000045, .disable = 0x00000000},
-};
-
 /* blcg pmu */
 static const
 struct gating_desc gm20b_blcg_pmu[] = {
@@ -759,8 +744,6 @@ gm20b_pmu_disable_clk_gating(struct nvkm_pmu *pmu)
 					ARRAY_SIZE(gm20b_slcg_perf));
 	gk20a_disable_load_gating_prod(pmu, gm20b_slcg_priring,
 					ARRAY_SIZE(gm20b_slcg_priring));
-	gk20a_disable_load_gating_prod(pmu, gm20b_slcg_pwr_csb,
-					ARRAY_SIZE(gm20b_slcg_pwr_csb));
 	gk20a_disable_load_gating_prod(pmu, gm20b_slcg_therm,
 					ARRAY_SIZE(gm20b_slcg_therm));
 	gk20a_disable_load_gating_prod(pmu, gm20b_slcg_pmu,
@@ -780,8 +763,6 @@ gm20b_pmu_disable_clk_gating(struct nvkm_pmu *pmu)
 					ARRAY_SIZE(gm20b_blcg_ltc));
 	gk20a_disable_load_gating_prod(pmu, gm20b_blcg_pmu,
 					ARRAY_SIZE(gm20b_blcg_pmu));
-	gk20a_disable_load_gating_prod(pmu, gm20b_blcg_pwr_csb,
-					ARRAY_SIZE(gm20b_blcg_pwr_csb));
 	gk20a_disable_load_gating_prod(pmu, gm20b_blcg_xbar,
 					ARRAY_SIZE(gm20b_blcg_xbar));
 
@@ -828,8 +809,6 @@ gm20b_pmu_enable_clk_gating(struct nvkm_pmu *pmu)
 						ARRAY_SIZE(gm20b_slcg_perf));
 		gk20a_enable_load_gating_prod(pmu, gm20b_slcg_priring,
 						ARRAY_SIZE(gm20b_slcg_priring));
-		gk20a_enable_load_gating_prod(pmu, gm20b_slcg_pwr_csb,
-						ARRAY_SIZE(gm20b_slcg_pwr_csb));
 		gk20a_enable_load_gating_prod(pmu, gm20b_slcg_therm,
 						ARRAY_SIZE(gm20b_slcg_therm));
 		gk20a_enable_load_gating_prod(pmu, gm20b_slcg_pmu,
@@ -851,8 +830,6 @@ gm20b_pmu_enable_clk_gating(struct nvkm_pmu *pmu)
 						ARRAY_SIZE(gm20b_blcg_ltc));
 		gk20a_enable_load_gating_prod(pmu, gm20b_blcg_pmu,
 						ARRAY_SIZE(gm20b_blcg_pmu));
-		gk20a_enable_load_gating_prod(pmu, gm20b_blcg_pwr_csb,
-						ARRAY_SIZE(gm20b_blcg_pwr_csb));
 		gk20a_enable_load_gating_prod(pmu, gm20b_blcg_xbar,
 						ARRAY_SIZE(gm20b_blcg_xbar));
 	}
