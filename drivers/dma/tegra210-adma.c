@@ -125,6 +125,7 @@ struct tegra_adma_chan {
 	/* ISR handler and tasklet for bottom half of isr handling */
 	dma_isr_handler		isr_handler;
 	struct tasklet_struct	tasklet;
+	bool			tasklet_active;
 	dma_async_tx_callback	callback;
 	void			*callback_param;
 
@@ -594,6 +595,7 @@ static void tegra_adma_tasklet(unsigned long data)
 	int cb_count;
 
 	spin_lock_irqsave(&tdc->lock, flags);
+	tdc->tasklet_active = true;
 	while (!list_empty(&tdc->cb_desc)) {
 		dma_desc  = list_first_entry(&tdc->cb_desc,
 					typeof(*dma_desc), cb_node);
@@ -607,6 +609,7 @@ static void tegra_adma_tasklet(unsigned long data)
 			callback(callback_param);
 		spin_lock_irqsave(&tdc->lock, flags);
 	}
+	tdc->tasklet_active = false;
 	spin_unlock_irqrestore(&tdc->lock, flags);
 }
 
@@ -719,7 +722,20 @@ static void tegra_adma_terminate_all(struct dma_chan *dc)
 		sgreq->dma_desc->bytes_transferred +=
 				get_current_xferred_count(tdc, sgreq, tc);
 	}
+
 	tegra_adma_resume(tdc);
+	/*
+	 * Check for any running tasklets and kill them
+	 */
+	if (tdc->tasklet_active) {
+		tdc->busy = true;
+		spin_unlock_irqrestore(&tdc->lock, flags);
+		dev_warn(tdc2dev(tdc), "Killing tasklet\n");
+		tasklet_kill(&tdc->tasklet);
+		spin_lock_irqsave(&tdc->lock, flags);
+		tdc->busy = false;
+	}
+
 skip_dma_stop:
 	tegra_adma_abort_all(tdc);
 
