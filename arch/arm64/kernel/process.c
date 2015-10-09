@@ -446,7 +446,7 @@ unsigned long arch_align_stack(unsigned long sp)
 
 static unsigned long randomize_base(unsigned long base)
 {
-	unsigned long range_end = base + (STACK_RND_MASK << PAGE_SHIFT) + 1;
+	unsigned long range_end = base +  0x02000000;
 	return randomize_range(base, range_end, 0) ? : base;
 }
 
