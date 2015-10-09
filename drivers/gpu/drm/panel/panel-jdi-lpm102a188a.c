@@ -898,16 +898,7 @@ static int panel_jdi_dsi_remove(struct mipi_dsi_device *dsi)
 		devm_backlight_device_unregister(&dsi->dev, jdi->bl);
 
 	panel_jdi_disable(&jdi->base);
-
-	regulator_disable(jdi->ddi_supply);
-
-	/* T6 = 2ms plus some time to discharge capacitors */
-	usleep_range(7000, 9000);
-
-	regulator_disable(jdi->supply);
-
-	/* Specified by JDI @ 20ms, subject to change */
-	msleep(20);
+	panel_jdi_unprepare(&jdi->base);
 
 	drm_panel_detach(&jdi->base);
 	drm_panel_remove(&jdi->base);
