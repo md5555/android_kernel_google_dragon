@@ -204,15 +204,17 @@ static void max77620_regmap_config_lock(void *lock)
 	}
 
 	mutex_lock(&chip->mutex_config);
+	chip->mutex_config_locked = true;
 }
 
 static void max77620_regmap_config_unlock(void *lock)
 {
 	struct max77620_chip *chip = lock;
 
-	if (chip->shutdown && (in_atomic() || irqs_disabled()))
+	if (!chip->mutex_config_locked)
 		return;
 
+	chip->mutex_config_locked = false;
 	mutex_unlock(&chip->mutex_config);
 }
 
@@ -530,6 +532,7 @@ static int max77620_probe(struct i2c_client *client,
 	chip->dev = &client->dev;
 	chip->irq_base = -1;
 	chip->chip_irq = client->irq;
+	chip->mutex_config_locked = false;
 
 	match = of_match_device(of_max77620_match_tbl, &client->dev);
 	if (!match)
