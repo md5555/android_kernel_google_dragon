@@ -125,9 +125,7 @@ struct tegra_adma_chan {
 	/* ISR handler and tasklet for bottom half of isr handling */
 	dma_isr_handler		isr_handler;
 	struct tasklet_struct	tasklet;
-	bool			tasklet_active;
-	dma_async_tx_callback	callback;
-	void			*callback_param;
+	int			callback_count;
 
 	/* Channel-slave specific configuration */
 	struct dma_slave_config dma_sconfig;
@@ -592,24 +590,22 @@ static void tegra_adma_tasklet(unsigned long data)
 	void *callback_param = NULL;
 	struct tegra_adma_desc *dma_desc;
 	unsigned long flags;
-	int cb_count;
 
 	spin_lock_irqsave(&tdc->lock, flags);
-	tdc->tasklet_active = true;
 	while (!list_empty(&tdc->cb_desc)) {
 		dma_desc  = list_first_entry(&tdc->cb_desc,
 					typeof(*dma_desc), cb_node);
 		list_del(&dma_desc->cb_node);
 		callback = dma_desc->txd.callback;
 		callback_param = dma_desc->txd.callback_param;
-		cb_count = dma_desc->cb_count;
+		tdc->callback_count = dma_desc->cb_count;
 		dma_desc->cb_count = 0;
-		spin_unlock_irqrestore(&tdc->lock, flags);
-		while (cb_count-- && callback)
+		while (tdc->callback_count-- && callback) {
+			spin_unlock_irqrestore(&tdc->lock, flags);
 			callback(callback_param);
-		spin_lock_irqsave(&tdc->lock, flags);
+			spin_lock_irqsave(&tdc->lock, flags);
+		}
 	}
-	tdc->tasklet_active = false;
 	spin_unlock_irqrestore(&tdc->lock, flags);
 }
 
@@ -724,21 +720,6 @@ static void tegra_adma_terminate_all(struct dma_chan *dc)
 	}
 
 	tegra_adma_resume(tdc);
-	/*
-	 * Check for any running tasklets and kill them.
-	 * But since this function can be invoked from tasklet itself,
-	 * avoid self-destruct which would cause forever loop.
-	 */
-	if (tdc->tasklet_active) {
-		tdc->busy = true;
-		spin_unlock_irqrestore(&tdc->lock, flags);
-		if (!in_interrupt()) {
-			dev_warn(tdc2dev(tdc), "Killing tasklet\n");
-			tasklet_kill(&tdc->tasklet);
-		}
-		spin_lock_irqsave(&tdc->lock, flags);
-		tdc->busy = false;
-	}
 
 skip_dma_stop:
 	tegra_adma_abort_all(tdc);
@@ -749,6 +730,13 @@ skip_dma_stop:
 		list_del(&dma_desc->cb_node);
 		dma_desc->cb_count = 0;
 	}
+
+	/*
+	 * The tasklet may be active and so set the current callback
+	 * count to zero to terminate the tasklet.
+	 */
+	tdc->callback_count = 0;
+
 	spin_unlock_irqrestore(&tdc->lock, flags);
 }
 
