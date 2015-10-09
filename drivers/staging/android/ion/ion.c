@@ -42,7 +42,7 @@
 #include "ion_priv.h"
 #include "compat_ion.h"
 
-#ifdef CONFIG_ARM64
+#if defined(CONFIG_ARM64) || defined(CONFIG_X86)
 static inline struct dma_iommu_mapping *to_dma_iommu_mapping(struct device *d)
 {
 	return NULL;
@@ -1431,6 +1431,9 @@ static int ion_sync_for_device(struct ion_client *client, int fd)
 	return 0;
 }
 
+/* This needs more work for x86 */
+#if defined(CONFIG_ARM) || defined(CONFIG_ARM64)
+
 static int ion_cachemaint(struct ion_client *client,
 			  struct ion_cachemaint_data *cachemaint)
 {
@@ -1544,6 +1547,19 @@ fail:
 	dma_buf_put(dmabuf);
 	return err;
 }
+
+#else	/* defined(CONFIG_ARM) || defined(CONFIG_ARM64) */
+
+static int ion_cachemaint(struct ion_client *client,
+			  struct ion_cachemaint_data *cachemaint)
+{
+	dev_err(client->dev->dev.this_device,
+		"drivers/staging/android/ion needs work for this arch");
+	return -ENOSYS;
+}
+
+#endif	/* defined(CONFIG_ARM) || defined(CONFIG_ARM64) */
+
 
 /* fix up the cases where the ioctl direction bits are incorrect */
 static unsigned int ion_ioctl_dir(unsigned int cmd)
