@@ -414,6 +414,7 @@ struct max77620_chip {
 	int irq_mbattlow;
 
 	struct mutex mutex_config;
+	bool mutex_config_locked;
 	bool shutdown;
 	bool sleep_enable;
 	bool enable_global_lpm;
