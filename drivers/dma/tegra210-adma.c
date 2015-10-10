@@ -725,13 +725,17 @@ static void tegra_adma_terminate_all(struct dma_chan *dc)
 
 	tegra_adma_resume(tdc);
 	/*
-	 * Check for any running tasklets and kill them
+	 * Check for any running tasklets and kill them.
+	 * But since this function can be invoked from tasklet itself,
+	 * avoid self-destruct which would cause forever loop.
 	 */
 	if (tdc->tasklet_active) {
 		tdc->busy = true;
 		spin_unlock_irqrestore(&tdc->lock, flags);
-		dev_warn(tdc2dev(tdc), "Killing tasklet\n");
-		tasklet_kill(&tdc->tasklet);
+		if (!in_interrupt()) {
+			dev_warn(tdc2dev(tdc), "Killing tasklet\n");
+			tasklet_kill(&tdc->tasklet);
+		}
 		spin_lock_irqsave(&tdc->lock, flags);
 		tdc->busy = false;
 	}
