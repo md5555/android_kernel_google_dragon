@@ -6,5 +6,5 @@ menuconfig WL_MEDIATEK
 
 
 if WL_MEDIATEK
-source "drivers/net/wireless/mediatek/mt7601u/Kconfig"
+source "drivers/net/wireless-4.2/mediatek/mt7601u/Kconfig"
 endif # WL_MEDIATEK

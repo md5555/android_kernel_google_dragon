@@ -214,7 +214,7 @@ config USB_NET_RNDIS_WLAN
 
 	  If you choose to build a module, it'll be called rndis_wlan.
 
-source "drivers/net/wireless/rtl818x/Kconfig"
+source "drivers/net/wireless-4.2/rtl818x/Kconfig"
 
 config ADM8211
 	tristate "ADMtek ADM8211 support"
@@ -265,24 +265,24 @@ config MWL8K
 	  To compile this driver as a module, choose M here: the module
 	  will be called mwl8k.  If unsure, say N.
 
-source "drivers/net/wireless/ath/Kconfig"
-source "drivers/net/wireless/b43/Kconfig"
-source "drivers/net/wireless/b43legacy/Kconfig"
-source "drivers/net/wireless/brcm80211/Kconfig"
-source "drivers/net/wireless/hostap/Kconfig"
-source "drivers/net/wireless/ipw2x00/Kconfig"
-source "drivers/net/wireless/iwlwifi/Kconfig"
-source "drivers/net/wireless/iwlegacy/Kconfig"
-source "drivers/net/wireless/libertas/Kconfig"
-source "drivers/net/wireless/orinoco/Kconfig"
-source "drivers/net/wireless/p54/Kconfig"
-source "drivers/net/wireless/rt2x00/Kconfig"
-source "drivers/net/wireless/mediatek/Kconfig"
-source "drivers/net/wireless/rtlwifi/Kconfig"
-source "drivers/net/wireless/ti/Kconfig"
-source "drivers/net/wireless/zd1211rw/Kconfig"
-source "drivers/net/wireless/mwifiex/Kconfig"
-source "drivers/net/wireless/cw1200/Kconfig"
-source "drivers/net/wireless/rsi/Kconfig"
+source "drivers/net/wireless-4.2/ath/Kconfig"
+source "drivers/net/wireless-4.2/b43/Kconfig"
+source "drivers/net/wireless-4.2/b43legacy/Kconfig"
+source "drivers/net/wireless-4.2/brcm80211/Kconfig"
+source "drivers/net/wireless-4.2/hostap/Kconfig"
+source "drivers/net/wireless-4.2/ipw2x00/Kconfig"
+source "drivers/net/wireless-4.2/iwlwifi/Kconfig"
+source "drivers/net/wireless-4.2/iwlegacy/Kconfig"
+source "drivers/net/wireless-4.2/libertas/Kconfig"
+source "drivers/net/wireless-4.2/orinoco/Kconfig"
+source "drivers/net/wireless-4.2/p54/Kconfig"
+source "drivers/net/wireless-4.2/rt2x00/Kconfig"
+source "drivers/net/wireless-4.2/mediatek/Kconfig"
+source "drivers/net/wireless-4.2/rtlwifi/Kconfig"
+source "drivers/net/wireless-4.2/ti/Kconfig"
+source "drivers/net/wireless-4.2/zd1211rw/Kconfig"
+source "drivers/net/wireless-4.2/mwifiex/Kconfig"
+source "drivers/net/wireless-4.2/cw1200/Kconfig"
+source "drivers/net/wireless-4.2/rsi/Kconfig"
 
 endif # WLAN
