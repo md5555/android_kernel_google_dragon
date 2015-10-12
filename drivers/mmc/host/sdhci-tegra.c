@@ -198,7 +198,11 @@ static unsigned int sdhci_tegra_get_ro(struct sdhci_host *host)
 static void sdhci_tegra_set_trim_sel_vreg(struct sdhci_host *host, bool enable)
 {
 	unsigned int wait_usecs;
-	u32 misc_ctrl;
+	u32 misc_ctrl, val;
+
+	val = sdhci_readl(host, SDHCI_TEGRA_VENDOR_CLK_CTRL);
+	val &= ~SDHCI_CLK_CTRL_SDMMC_CLK;
+	sdhci_writel(host, val, SDHCI_TEGRA_VENDOR_CLK_CTRL);
 
 	misc_ctrl = sdhci_readl(host, SDMMC_VNDR_IO_TRIM_CTRL);
 	if (enable) {
@@ -210,6 +214,12 @@ static void sdhci_tegra_set_trim_sel_vreg(struct sdhci_host *host, bool enable)
 	}
 	sdhci_writel(host, misc_ctrl, SDMMC_VNDR_IO_TRIM_CTRL);
 	udelay(wait_usecs);
+
+	val = sdhci_readl(host, SDHCI_TEGRA_VENDOR_CLK_CTRL);
+	val |= SDHCI_CLK_CTRL_SDMMC_CLK;
+	sdhci_writel(host, val, SDHCI_TEGRA_VENDOR_CLK_CTRL);
+
+	sdhci_reset(host, SDHCI_RESET_CMD | SDHCI_RESET_DATA);
 }
 
 static int sdhci_tegra_clk_enable(struct sdhci_host *host)
@@ -431,7 +441,7 @@ static void sdhci_tegra_reset(struct sdhci_host *host, u8 mask)
 		return;
 
 	if (soc_data->nvquirks & NVQUIRK_SELECT_TRIMMER)
-		sdhci_tegra_set_trim_sel_vreg(host, false);
+		sdhci_tegra_set_trim_sel_vreg(host, true);
 
 	misc_ctrl = sdhci_readw(host, SDHCI_TEGRA_VENDOR_MISC_CTRL);
 	/* Erratum: Enable SDHCI spec v3.00 support */
