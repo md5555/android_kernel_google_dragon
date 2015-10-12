@@ -51,7 +51,7 @@
 			#address-cells = <2>;
 			#size-cells = <2>;
 
-			panel@0 {
+			backlight_panel: panel@0 {
 				compatible = "jdi,lpm102a188a";
 				reg = <0 0 0 0>;
 				power-supply = <&pplcd_vdd>;

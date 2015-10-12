@@ -480,7 +480,7 @@
 			};
 
 			consumer-backlight {
-				nvidia,consumer = <&backlight>;
+				nvidia,consumer = <&backlight_panel>;
 					     /* 0% 10% 20% 30% 40%  50%  60%  70%  80%  90%  100% */
 				nvidia,states = <0 320 620 930 1260 1580 1900 2250 2600 2980 3360>;
 			};
