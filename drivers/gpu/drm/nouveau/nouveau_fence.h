@@ -36,6 +36,7 @@ int  nouveau_fence_install(struct fence *, const char *name, int *);
 
 struct nouveau_fence_chan {
 	spinlock_t lock;
+	struct kref fence_ref;
 
 	struct list_head pending;
 	struct list_head flip;
