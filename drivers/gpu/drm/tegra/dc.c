@@ -1967,6 +1967,11 @@ static int tegra_dc_show_regs(struct seq_file *s, void *data)
 	struct drm_info_node *node = s->private;
 	struct tegra_dc *dc = node->info_ent->data;
 
+	if (!tegra_powergate_is_powered(dc->powergate)) {
+		DRM_INFO("Can't dump registers as dc is powergated\n");
+		return -EPERM;
+	}
+
 #define DUMP_REG(name)						\
 	seq_printf(s, "%-40s %#05x %08x\n", #name, name,	\
 		   tegra_dc_readl(dc, name))
