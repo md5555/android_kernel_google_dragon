@@ -599,8 +599,10 @@ nouveau_do_suspend(struct drm_device *dev, bool runtime)
 
 			list_for_each_entry(chan, &abi16->channels, head) {
 				ret = nouveau_channel_idle(chan->chan);
-				if (ret)
+				if (ret) {
+					mutex_unlock(&cli->mutex);
 					goto fail_display;
+				}
 			}
 		}
 		mutex_unlock(&cli->mutex);
