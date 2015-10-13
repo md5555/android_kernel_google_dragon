@@ -44,6 +44,8 @@
 #include <linux/interrupt.h>
 #include <linux/gpio/consumer.h>
 
+#include "dt-bindings/regulator/max8973.h"
+
 /* Register definitions */
 #define MAX8973_VOUT					0x0
 #define MAX8973_VOUT_DVS				0x1
@@ -415,8 +417,20 @@ static int max8973_init_dcdc(struct max8973_chip *max,
 	if (pdata->control_flags & MAX8973_CONTROL_FREQ_SHIFT_9PER_ENABLE)
 		control1 |= MAX8973_FREQSHIFT_9PER;
 
+	/*
+	 * Always set BIT(7) of control2 on MAX77621
+	 */
+	if (max->id == MAX77621)
+		control2 |= BIT(7);
+
 	if (!(pdata->control_flags & MAX8973_CONTROL_PULL_DOWN_ENABLE))
 		control2 |= MAX8973_DISCH_ENBABLE;
+
+	if (pdata->control_flags & MAX8973_CONTROL_WATCHDOG_TIMER)
+		control2 |= MAX8973_WDTMR_ENABLE;
+
+	if (pdata->control_flags & MAX8973_CONTROL_JUNCTION_TEMP_DISABLE)
+		control2 |= MAX8973_FT_ENABLE;
 
 	/*  Clock advance trip configuration */
 	switch (pdata->control_flags & MAX8973_CONTROL_CLKADV_TRIP_MASK) {
@@ -648,6 +662,37 @@ static struct max8973_regulator_platform_data *max8973_parse_dt(
 	} else {
 		pdata->control_flags |= MAX8973_CONTROL_CLKADV_TRIP_DISABLED;
 	}
+
+	if (of_property_read_bool(np, "maxim,pull-down-enable"))
+		pdata->control_flags |= MAX8973_CONTROL_PULL_DOWN_ENABLE;
+
+	if (of_property_read_bool(np, "maxim,disable-junction-temp"))
+		pdata->control_flags |= MAX8973_CONTROL_JUNCTION_TEMP_DISABLE;
+
+	ret = of_property_read_u32(np, "maxim,inductor-value", &pval);
+	if (!ret) {
+		switch (pval) {
+		case MAX8973_INDUCTOR_VAL_NONIMAL:
+			pdata->control_flags |=
+				MAX8973_CONTROL_INDUCTOR_VALUE_NOMINAL;
+			break;
+		case MAX8973_INDUCTOR_VAL_MINUS_30_PER:
+			pdata->control_flags |=
+				MAX8973_CONTROL_INDUCTOR_VALUE_MINUS_30_PER;
+			break;
+		case MAX8973_INDUCTOR_VAL_PLUS_30_PER:
+			pdata->control_flags |=
+				MAX8973_CONTROL_INDUCTOR_VALUE_PLUS_30_PER;
+			break;
+		case MAX8973_INDUCTOR_VAL_PLUS_60_PER:
+			pdata->control_flags |=
+				MAX8973_CONTROL_INDUCTOR_VALUE_PLUS_60_PER;
+			break;
+		}
+	}
+
+	if (of_property_read_bool(np, "maxim,watchdog-timer-enable"))
+		pdata->control_flags |= MAX8973_CONTROL_WATCHDOG_TIMER;
 
 	return pdata;
 }
