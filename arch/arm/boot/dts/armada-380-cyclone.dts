@@ -103,9 +103,19 @@
 				 * Exported on the micro USB connector CON16
 				 * through an FTDI
 				 */
-
 				pinctrl-names = "default";
 				pinctrl-0 = <&uart0_pins>;
+				status = "okay";
+			};
+
+			sdhci@d8000 {
+                                pinctrl-names = "default";
+				pinctrl-0 = <&sdhci_pins>;
+				/*cd-gpios = <&expander0 5 GPIO_ACTIVE_LOW>;*/
+				broken-cd;
+				no-1-8-v;
+				wp-inverted;
+				bus-width = <8>;
 				status = "okay";
 			};
 
@@ -142,6 +152,7 @@
                                         marvell,chainmask = <0x2 0x2>;
                                 };
 			};
+
 			pcie@4,0 {
 				/* Port 3, Lane 0 */
 				status = "okay";
@@ -151,7 +162,6 @@
                                 };
 			};
 		};
-
 	};
 
 	reg_usb3_vbus: usb3-vbus {
@@ -183,12 +193,17 @@
 		regulator-always-on;
 		gpio = <&expander0 4 GPIO_ACTIVE_HIGH>;
 	};
-
 };
 &pinctrl {
 	pca0_pins: pca0_pins {
 	        marvell,pins = "mpp18";
 	        marvell,function = "gpio";
+	};
+
+	sdhci_pins: sdhci-pins {
+		marvell,pins = "mpp21", "mpp28","mpp37",
+				"mpp38", "mpp39","mpp40";
+		marvell,function = "sd0";
 	};
 };
 
