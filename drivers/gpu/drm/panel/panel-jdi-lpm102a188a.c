@@ -527,7 +527,7 @@ out:
 }
 
 static const struct drm_display_mode default_mode = {
-	.clock = 304416,
+	.clock = 321384,
 	.hdisplay = 2560,
 	.hsync_start = 2560 + 80,
 	.hsync_end = 2560 + 80 + 80,
