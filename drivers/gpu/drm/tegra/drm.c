@@ -120,9 +120,6 @@ static void tegra_atomic_complete(struct tegra_drm *tegra,
 				  struct drm_atomic_state *state)
 {
 	struct drm_device *drm = tegra->drm;
-	struct drm_crtc *crtc;
-	struct drm_crtc_state *crtc_state;
-	int i;
 
 	/*
 	 * Everything below can be run asynchronously without the need to grab
@@ -139,8 +136,7 @@ static void tegra_atomic_complete(struct tegra_drm *tegra,
 	 * composition of the next frame right after having submitted the
 	 * current layout.
 	 */
-	for_each_crtc_in_state(state, crtc, crtc_state, i)
-		tegra_dc_update_emc_pre_commit(crtc, crtc_state);
+	tegra_dc_update_emc_pre_commit(state);
 
 	drm_atomic_helper_commit_modeset_disables(drm, state);
 	drm_atomic_helper_commit_planes(drm, state);
@@ -148,8 +144,7 @@ static void tegra_atomic_complete(struct tegra_drm *tegra,
 
 	tegra_atomic_wait_for_flip_complete(drm, state);
 
-	for_each_crtc_in_state(state, crtc, crtc_state, i)
-		tegra_dc_update_emc_post_commit(crtc);
+	tegra_dc_update_emc_post_commit(state);
 
 	drm_atomic_helper_cleanup_planes(drm, state);
 	drm_atomic_state_free(state);
