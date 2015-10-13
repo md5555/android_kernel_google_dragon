@@ -899,7 +899,7 @@
 		interrupts = <TEGRA_GPIO(Y, 1) IRQ_TYPE_LEVEL_LOW>;
 		regulator-name = "PPVAR_CPU";
 		regulator-min-microvolt = <800000>;
-		regulator-max-microvolt = <1175000>;
+		regulator-max-microvolt = <1231250>;
 		regulator-ramp-delay = <12500>;
 		maxim,externally-enable;
 		maxim,enable-gpio = <&max77620 5 0>;
