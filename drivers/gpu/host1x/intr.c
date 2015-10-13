@@ -115,7 +115,7 @@ static void action_submit_complete(struct host1x_waitlist *waiter)
 	nr_completed = waiter->count;
 
 	host1x_cdma_update(&channel->cdma);
-	host1x_module_idle_mult(channel->dev, nr_completed);
+	host1x_module_idle_mult(channel->client, nr_completed);
 
 	/*  Add nr_completed to trace */
 	trace_host1x_channel_submit_complete(dev_name(channel->dev),

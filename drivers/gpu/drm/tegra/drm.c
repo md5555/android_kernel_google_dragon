@@ -373,7 +373,7 @@ static void tegra_drm_context_free(struct tegra_drm_context *context)
 
 	mutex_lock(&context->lock);
 	if (context->keepon) {
-		host1x_module_idle(context->client->base.dev);
+		host1x_module_idle(&context->client->base);
 		context->keepon = false;
 	}
 	mutex_unlock(&context->lock);
@@ -983,7 +983,7 @@ static int tegra_start_keepon(struct drm_device *drm, void *data,
 		goto done;
 	}
 
-	err = host1x_module_busy(context->client->base.dev);
+	err = host1x_module_busy(&context->client->base);
 	if (err < 0)
 		goto done;
 
@@ -1016,7 +1016,7 @@ static int tegra_stop_keepon(struct drm_device *drm, void *data,
 
 	context->keepon = false;
 
-	host1x_module_idle(context->client->base.dev);
+	host1x_module_idle(&context->client->base);
 
 done:
 	mutex_unlock(&context->lock);

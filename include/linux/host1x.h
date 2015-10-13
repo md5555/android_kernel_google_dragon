@@ -326,8 +326,8 @@ struct tegra_mipi_device *tegra_mipi_request(struct device *device);
 void tegra_mipi_free(struct tegra_mipi_device *device);
 int tegra_mipi_calibrate(struct tegra_mipi_device *device);
 
-int host1x_module_busy(struct device *dev);
-void host1x_module_idle(struct device *dev);
-void host1x_module_idle_mult(struct device *dev, int refs);
+int host1x_module_busy(struct host1x_client *client);
+void host1x_module_idle(struct host1x_client *client);
+void host1x_module_idle_mult(struct host1x_client *client, int refs);
 
 #endif

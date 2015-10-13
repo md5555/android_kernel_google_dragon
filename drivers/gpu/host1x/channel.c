@@ -44,7 +44,7 @@ int host1x_job_submit(struct host1x_job *job)
 	int err;
 
 	for (i = 0; i < job->num_syncpts; i++) {
-		err = host1x_module_busy(job->channel->dev);
+		err = host1x_module_busy(job->channel->client);
 		if (err < 0)
 			goto error;
 	}
@@ -56,7 +56,7 @@ int host1x_job_submit(struct host1x_job *job)
 	return 0;
 
 error:
-	host1x_module_idle_mult(job->channel->dev, i);
+	host1x_module_idle_mult(job->channel->client, i);
 	return err;
 }
 EXPORT_SYMBOL(host1x_job_submit);

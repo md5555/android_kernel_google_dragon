@@ -249,7 +249,7 @@ static int nvenc_open_channel(struct tegra_drm_client *client,
 	struct nvenc *nvenc = to_nvenc(client);
 	int err;
 
-	err = host1x_module_busy(nvenc->dev);
+	err = host1x_module_busy(&client->base);
 	if (err)
 		return err;
 
@@ -262,7 +262,7 @@ static int nvenc_open_channel(struct tegra_drm_client *client,
 		err = -ENOMEM;
 
 done:
-	host1x_module_idle(nvenc->dev);
+	host1x_module_idle(&client->base);
 
 	return err;
 }

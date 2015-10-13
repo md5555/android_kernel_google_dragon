@@ -183,7 +183,7 @@ static int nvjpg_open_channel(struct tegra_drm_client *client,
 	struct nvjpg *nvjpg = to_nvjpg(client);
 	int err;
 
-	err = host1x_module_busy(nvjpg->dev);
+	err = host1x_module_busy(&client->base);
 	if (err)
 		return err;
 
@@ -196,7 +196,7 @@ static int nvjpg_open_channel(struct tegra_drm_client *client,
 		err = -ENOMEM;
 
 done:
-	host1x_module_idle(nvjpg->dev);
+	host1x_module_idle(&client->base);
 
 	return err;
 }

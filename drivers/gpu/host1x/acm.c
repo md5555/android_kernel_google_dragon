@@ -13,27 +13,28 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <linux/host1x.h>
 #include <linux/pm_runtime.h>
 
-int host1x_module_busy(struct device *dev)
+int host1x_module_busy(struct host1x_client *client)
 {
 	int err;
 
-	err = pm_runtime_get_sync(dev);
+	err = pm_runtime_get_sync(client->dev);
 	if (err < 0)
 		return err;
 
 	return 0;
 }
 
-void host1x_module_idle(struct device *dev)
+void host1x_module_idle(struct host1x_client *client)
 {
-	pm_runtime_mark_last_busy(dev);
-	pm_runtime_put_autosuspend(dev);
+	pm_runtime_mark_last_busy(client->dev);
+	pm_runtime_put_autosuspend(client->dev);
 }
 
-void host1x_module_idle_mult(struct device *dev, int refs)
+void host1x_module_idle_mult(struct host1x_client *client, int refs)
 {
 	while (refs--)
-		host1x_module_idle(dev);
+		host1x_module_idle(client);
 }

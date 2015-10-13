@@ -351,7 +351,7 @@ static int nvdec_open_channel(struct tegra_drm_client *client,
 	struct nvdec *nvdec = to_nvdec(client);
 	int err;
 
-	err = host1x_module_busy(nvdec->dev);
+	err = host1x_module_busy(&client->base);
 	if (err)
 		return err;
 
@@ -368,7 +368,7 @@ static int nvdec_open_channel(struct tegra_drm_client *client,
 		err = -ENOMEM;
 
 done:
-	host1x_module_idle(nvdec->dev);
+	host1x_module_idle(&client->base);
 
 	return err;
 }
