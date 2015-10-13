@@ -37,6 +37,12 @@ Optional properties:
 -maxim,enable-high-etr-sensitivity: boolean, Enhanced transient response
 		circuit is enabled and set for high sensitivity. If this
 		property is available then etr will be enable default.
+-maxim,pull-down-enable: boolean, enable pull-down to disable discharge
+-maxim,disable-junction-temp: boolean, disable junction temperature interrupt
+-maxim,inductor-value: Set inductor value. Values defined in max8973.h.
+		possible options: nominal, minus_30, plus_30, plus 60
+-maxim,watchdog-timer-enable: boolean, I2C watchdog timer enable. default is
+		disabled
 
 Enhanced transient response (ETR) will affect the configuration of CKADV.
 
