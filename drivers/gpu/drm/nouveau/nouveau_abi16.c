@@ -357,6 +357,12 @@ nouveau_abi16_ioctl_channel_free(ABI16_IOCTL_ARGS)
 	chan = nouveau_abi16_chan(abi16, req->channel);
 	if (!chan)
 		return nouveau_abi16_put(abi16, -ENOENT);
+	nouveau_abi16_put(abi16, 0);
+
+	if (chan->chan && chan->chan->pushbuf_wq)
+		flush_workqueue(chan->chan->pushbuf_wq);
+
+	nouveau_abi16_get(file_priv, dev);
 	nouveau_abi16_chan_fini(abi16, chan);
 	return nouveau_abi16_put(abi16, 0);
 }

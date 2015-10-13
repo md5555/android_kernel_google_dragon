@@ -1,8 +1,6 @@
 #ifndef __NOUVEAU_CHAN_H__
 #define __NOUVEAU_CHAN_H__
 
-#include <linux/wait.h>
-
 #include <nvif/object.h>
 struct nvif_device;
 struct drm_file;
@@ -44,8 +42,8 @@ struct nouveau_channel {
 
 	spinlock_t pushbuf_lock;
 	struct list_head pushbuf_queue;
-	struct task_struct *pushbuf_thread;
-	wait_queue_head_t pushbuf_waitqueue;
+	struct workqueue_struct *pushbuf_wq;
+	struct work_struct pushbuf_work;
 
 	struct {
 		struct nouveau_bo *buffer;

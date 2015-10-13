@@ -25,8 +25,7 @@
  */
 
 #include <linux/dma-buf.h>
-#include <linux/kthread.h>
-#include <linux/wait.h>
+#include <linux/workqueue.h>
 #include <sync.h>
 
 #include "nouveau_drm.h"
@@ -1141,81 +1140,107 @@ out:
 	return nouveau_abi16_put(abi16, ret);
 }
 
-static struct nouveau_pushbuf_data *
-nouveau_gem_pushbuf_queue_head(struct nouveau_channel *chan)
+
+static void
+nouveau_gem_pushbuf_queue_on_awaken(struct sync_fence *fence,
+				    struct sync_fence_waiter *waiter);
+
+static int
+nouveau_gem_pushbuf_queue_process(struct nouveau_channel *chan)
 {
-	struct nouveau_pushbuf_data *pb_data = NULL;
-
-	spin_lock(&chan->pushbuf_lock);
-	if (!list_empty(&chan->pushbuf_queue))
-		pb_data = list_first_entry(&chan->pushbuf_queue,
-					   struct nouveau_pushbuf_data, queue);
-	spin_unlock(&chan->pushbuf_lock);
-
-	return pb_data;
-}
-
-int
-nouveau_gem_pushbuf_queue_kthread_fn(void *data)
-{
-	struct nouveau_channel *chan = (struct nouveau_channel *)data;
-	struct device *dev = chan->drm->dev->dev;
-	struct nouveau_pushbuf_data *pb_data = NULL;
-	struct sync_fence *fence;
+	struct nouveau_pushbuf_data *pb_data;
+	struct nouveau_pushbuf_data *next;
+	unsigned long flags;
 	int ret = 0;
 
-	NV_DEBUG(chan->drm, "PB thread started on channel %s [0x%08X]\n",
-		nvxx_client(chan)->name,
-		chan->object->handle);
+	if (!chan)
+		return -EINVAL;
 
-	while (1) {
-		wait_event(chan->pushbuf_waitqueue,
-			(pb_data = nouveau_gem_pushbuf_queue_head(chan))
-			|| kthread_should_stop());
+	spin_lock_irqsave(&chan->pushbuf_lock, flags);
+	pb_data = list_first_entry(&chan->pushbuf_queue,
+				   struct nouveau_pushbuf_data, queue),
+	spin_unlock_irqrestore(&chan->pushbuf_lock, flags);
 
-		/*
-		 * We can break out of the wait_event() above with !pb_data
-		 * only if kthread_should_stop() is true. Otherwise we need
-		 * to loop until there are no more pushbuffers in the queue.
-		 */
-		if (unlikely(!pb_data))
-			break;
+	if (!pb_data)
+		return -EINVAL;
 
-		fence = pb_data->input_fence;
-		if (fence) {
-			ret = sync_fence_wait(fence, 500);
+	for (;;) {
+		int fence_status = pb_data->input_fence ?
+				atomic_read(&pb_data->input_fence->status) : 0;
+		if (fence_status <= 0) {
+			if (!ret && fence_status == 0) {
+				ret = nouveau_gem_do_pushbuf(pb_data);
+			}
+
+			spin_lock_irqsave(&chan->pushbuf_lock, flags);
+			next = list_next_entry(pb_data, queue);
+			list_del(&pb_data->queue);
+			next = list_empty(&chan->pushbuf_queue) ? NULL : next;
+			spin_unlock_irqrestore(&chan->pushbuf_lock, flags);
+
+			nouveau_free_pushbuf_data(pb_data);
 			if (ret)
-				NV_ERROR(chan->drm, "fence %s [%p] timeout on channel %s [0x%08X]\n",
-						fence->name, fence,
-						nvxx_client(chan)->name,
-						chan->object->handle);
+				return ret;
+		} else {
+			struct nouveau_chan_waiter *waiter;
+
+			waiter = kzalloc(sizeof(*waiter), GFP_KERNEL);
+			if (!waiter)
+				return -ENOMEM;
+
+			waiter->chan = chan;
+			sync_fence_waiter_init(&waiter->base,
+					nouveau_gem_pushbuf_queue_on_awaken);
+			ret = sync_fence_wait_async(pb_data->input_fence,
+						    &waiter->base);
+			if (ret == 1) {
+				ret = 0;
+				kfree(waiter);
+				continue;
+			}
+			ret = 0;
+			break;
 		}
-
-		ret = pm_runtime_get_sync(dev);
-		if (unlikely(ret < 0 && ret != -EACCES)) {
-			NV_ERROR(chan->drm, "failed to get nouveau device.\n");
-			cond_resched();
-			continue;
-		}
-
-		ret = nouveau_gem_do_pushbuf(pb_data);
-		if (ret)
-			NV_ERROR(chan->drm, "do_pushbuf() err=%d\n", ret);
-
-		pm_runtime_mark_last_busy(dev);
-		pm_runtime_put_autosuspend(dev);
-
-		spin_lock(&chan->pushbuf_lock);
-		list_del(&pb_data->queue);
-		spin_unlock(&chan->pushbuf_lock);
-		nouveau_free_pushbuf_data(pb_data);
+		pb_data = next;
+		if (pb_data == NULL)
+			break;
 	}
 
-	NV_DEBUG(chan->drm, "PB thread exiting on channel %s [0x%08X]\n",
-		nvxx_client(chan)->name,
-		chan->object->handle);
+	return ret;
+}
 
-	return 0;
+static void
+nouveau_gem_pushbuf_queue_process_work(struct work_struct *work)
+{
+	struct nouveau_channel *chan = container_of(work,
+			struct nouveau_channel,  pushbuf_work);
+	struct device *dev = chan->drm->dev->dev;
+	int ret;
+
+	ret = pm_runtime_get_sync(dev);
+	if (WARN_ON(ret < 0 && ret != -EACCES))
+		return;
+
+	ret = nouveau_gem_pushbuf_queue_process(chan);
+	if (ret)
+		printk(KERN_ERR "nouveau pushbuf_2 failed: %d", ret);
+
+	pm_runtime_mark_last_busy(dev);
+	pm_runtime_put_autosuspend(dev);
+}
+
+static void
+nouveau_gem_pushbuf_queue_on_awaken(struct sync_fence *fence,
+				    struct sync_fence_waiter *waiter)
+{
+	struct nouveau_chan_waiter *chan_waiter = container_of(waiter,
+			struct nouveau_chan_waiter, base);
+	struct nouveau_channel *chan = chan_waiter->chan;
+
+	INIT_WORK(&chan->pushbuf_work, nouveau_gem_pushbuf_queue_process_work);
+	queue_work(chan->pushbuf_wq, &chan->pushbuf_work);
+
+	kfree(chan_waiter);
 }
 
 int
@@ -1233,6 +1258,8 @@ nouveau_gem_ioctl_pushbuf_2(struct drm_device *dev, void *data,
 	struct nouveau_fence *fence = NULL;
 	uint32_t *push = NULL;
 	struct nouveau_pushbuf_data *pb_data = NULL;
+	unsigned long flags;
+	int run_queue = 0;
 	int ret = 0;
 
 	if (unlikely(!abi16))
@@ -1335,11 +1362,13 @@ nouveau_gem_ioctl_pushbuf_2(struct drm_device *dev, void *data,
 	pb_data->bo = bo;
 	ret = nouveau_abi16_put(abi16, ret);
 
-	spin_lock(&chan->pushbuf_lock);
+	spin_lock_irqsave(&chan->pushbuf_lock, flags);
+	run_queue = list_empty(&chan->pushbuf_queue);
 	list_add_tail(&pb_data->queue, &chan->pushbuf_queue);
-	spin_unlock(&chan->pushbuf_lock);
+	spin_unlock_irqrestore(&chan->pushbuf_lock, flags);
 
-	wake_up(&chan->pushbuf_waitqueue);
+	if (run_queue)
+		ret = nouveau_gem_pushbuf_queue_process(chan);
 
 	return ret;
 
