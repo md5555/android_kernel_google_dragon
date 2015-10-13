@@ -475,8 +475,7 @@
 		consumers {
 			consumer-speaker {
 				nvidia,consumer = <&sound>;
-				/* it's the fake data, need to update */
-				nvidia,states = <0 1270>; /* OFF ON */
+				nvidia,states = <0 2000>; /* OFF ON */
 			};
 
 			consumer-backlight {
