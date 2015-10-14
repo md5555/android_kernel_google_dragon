@@ -670,7 +670,7 @@ gk20a_pmu_dvfs_work(struct nvkm_alarm *alarm)
 
 resched:
 	gk20a_pmu_dvfs_reset_dev_status(priv);
-	nvkm_timer_alarm(priv, 10000000, alarm);
+	nvkm_timer_alarm(priv, PMU_DVFS_INTERVAL, alarm);
 }
 
 int
@@ -3087,7 +3087,7 @@ gk20a_pmu_init(struct nvkm_object *object)
 	pmu->enable_clk_gating = gk20a_pmu_enable_clk_gating;
 	pmu->disable_clk_gating = gk20a_pmu_disable_clk_gating;
 
-	nvkm_timer_alarm(priv, 2000000000, &priv->alarm);
+	nvkm_timer_alarm(priv, PMU_DVFS_INTERVAL, &priv->alarm);
 
 	mutex_lock(&priv->elpg_mutex);
 	priv->elpg_disable_depth = 0;

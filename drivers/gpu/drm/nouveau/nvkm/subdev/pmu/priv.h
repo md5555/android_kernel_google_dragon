@@ -16,6 +16,8 @@
 	_nvkm_pmu_fini(nv_object(_pmu), (s));                              \
 })
 
+#define PMU_DVFS_INTERVAL (10 * NSEC_PER_MSEC)
+
 int nvkm_pmu_create_(struct nvkm_object *, struct nvkm_object *,
 			struct nvkm_oclass *, int, void **);
 
