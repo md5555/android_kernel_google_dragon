@@ -340,11 +340,16 @@ nvkm_vm_unmap(struct nvkm_vma *vma)
 static void
 nvkm_vm_unmap_pgt(struct nvkm_vm *vm, int big, u32 fpde, u32 lpde)
 {
+	unsigned int num_unref_pgts = 0;
+	struct nvkm_gpuobj **unref_pgts;
 	struct nvkm_mmu *mmu = vm->mmu;
 	struct nvkm_vm_pgd *vpgd;
 	struct nvkm_vm_pgt *vpgt;
 	struct nvkm_gpuobj *pgt;
 	u32 pde;
+
+	unref_pgts = kcalloc(lpde - fpde + 1, sizeof(*unref_pgts),
+				GFP_KERNEL | __GFP_NOFAIL);
 
 	for (pde = fpde; pde <= lpde; pde++) {
 		vpgt = &vm->pgt[pde - vm->fpde];
@@ -358,10 +363,23 @@ nvkm_vm_unmap_pgt(struct nvkm_vm *vm, int big, u32 fpde, u32 lpde)
 			mmu->map_pgt(vpgd->obj, pde, vpgt->obj);
 		}
 
+		unref_pgts[num_unref_pgts++] = pgt;
+	}
+
+	if (num_unref_pgts) {
+		int i;
+
 		mutex_unlock(&nv_subdev(mmu)->mutex);
-		nvkm_gpuobj_ref(NULL, &pgt);
+
+		mmu->flush(vm);
+
+		for (i = 0; i < num_unref_pgts; ++i)
+			nvkm_gpuobj_ref(NULL, &unref_pgts[i]);
+
 		mutex_lock(&nv_subdev(mmu)->mutex);
 	}
+
+	kfree(unref_pgts);
 }
 
 static int
