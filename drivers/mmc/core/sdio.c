@@ -404,38 +404,69 @@ static unsigned char host_drive_to_sdio_drive(int host_strength)
 
 static void sdio_select_driver_type(struct mmc_card *card)
 {
-	int card_drv_type, drive_strength, drv_type;
+	int host_drv_type = SD_DRIVER_TYPE_B;
+	int card_drv_type = SD_DRIVER_TYPE_B;
+	int drive_strength;
 	unsigned char card_strength;
 	int err;
 
-	card->drive_strength = 0;
+	/*
+	 * If the host doesn't support any of the Driver Types A,C or D,
+	 * or there is no board specific handler then default Driver
+	 * Type B is used.
+	 */
+	if (!(card->host->caps &
+		(MMC_CAP_DRIVER_TYPE_A |
+		 MMC_CAP_DRIVER_TYPE_C |
+		 MMC_CAP_DRIVER_TYPE_D)))
+		return;
 
-	card_drv_type = card->sw_caps.sd3_drv_type | SD_DRIVER_TYPE_B;
+	if (!card->host->ops->select_drive_strength)
+		return;
 
-	drive_strength = mmc_select_drive_strength(card,
-						   card->sw_caps.uhs_max_dtr,
-						   card_drv_type, &drv_type);
+	if (card->host->caps & MMC_CAP_DRIVER_TYPE_A)
+		host_drv_type |= SD_DRIVER_TYPE_A;
 
-	if (drive_strength) {
-		/* if error just use default for drive strength B */
-		err = mmc_io_rw_direct(card, 0, 0, SDIO_CCCR_DRIVE_STRENGTH, 0,
-				       &card_strength);
-		if (err)
-			return;
+	if (card->host->caps & MMC_CAP_DRIVER_TYPE_C)
+		host_drv_type |= SD_DRIVER_TYPE_C;
 
-		card_strength &= ~(SDIO_DRIVE_DTSx_MASK<<SDIO_DRIVE_DTSx_SHIFT);
-		card_strength |= host_drive_to_sdio_drive(drive_strength);
+	if (card->host->caps & MMC_CAP_DRIVER_TYPE_D)
+		host_drv_type |= SD_DRIVER_TYPE_D;
 
-		/* if error default to drive strength B */
-		err = mmc_io_rw_direct(card, 1, 0, SDIO_CCCR_DRIVE_STRENGTH,
-				       card_strength, NULL);
-		if (err)
-			return;
-		card->drive_strength = drive_strength;
-	}
+	if (card->sw_caps.sd3_drv_type & SD_DRIVER_TYPE_A)
+		card_drv_type |= SD_DRIVER_TYPE_A;
 
-	if (drv_type)
-		mmc_set_driver_type(card->host, drv_type);
+	if (card->sw_caps.sd3_drv_type & SD_DRIVER_TYPE_C)
+		card_drv_type |= SD_DRIVER_TYPE_C;
+
+	if (card->sw_caps.sd3_drv_type & SD_DRIVER_TYPE_D)
+		card_drv_type |= SD_DRIVER_TYPE_D;
+
+	/*
+	 * The drive strength that the hardware can support
+	 * depends on the board design.  Pass the appropriate
+	 * information and let the hardware specific code
+	 * return what is possible given the options
+	 */
+	drive_strength = card->host->ops->select_drive_strength(
+		card->sw_caps.uhs_max_dtr,
+		host_drv_type, card_drv_type);
+
+	/* if error just use default for drive strength B */
+	err = mmc_io_rw_direct(card, 0, 0, SDIO_CCCR_DRIVE_STRENGTH, 0,
+		&card_strength);
+	if (err)
+		return;
+
+	card_strength &= ~(SDIO_DRIVE_DTSx_MASK<<SDIO_DRIVE_DTSx_SHIFT);
+	card_strength |= host_drive_to_sdio_drive(drive_strength);
+
+	err = mmc_io_rw_direct(card, 1, 0, SDIO_CCCR_DRIVE_STRENGTH,
+		card_strength, NULL);
+
+	/* if error default to drive strength B */
+	if (!err)
+		mmc_set_driver_type(card->host, drive_strength);
 }
 
 
@@ -541,11 +572,17 @@ static int mmc_sdio_init_uhs_card(struct mmc_card *card)
 	 * SPI mode doesn't define CMD19 and tuning is only valid for SDR50 and
 	 * SDR104 mode SD-cards. Note that tuning is mandatory for SDR104.
 	 */
-	if (!mmc_host_is_spi(card->host) &&
-	    ((card->sw_caps.sd3_bus_mode & SD_MODE_UHS_SDR50) ||
-	     (card->sw_caps.sd3_bus_mode & SD_MODE_UHS_SDR104)))
-		err = mmc_execute_tuning(card);
+	if (!mmc_host_is_spi(card->host) && card->host->ops->execute_tuning &&
+			((card->sw_caps.sd3_bus_mode & SD_MODE_UHS_SDR50) ||
+			 (card->sw_caps.sd3_bus_mode & SD_MODE_UHS_SDR104))) {
+		mmc_host_clk_hold(card->host);
+		err = card->host->ops->execute_tuning(card->host,
+						      MMC_SEND_TUNING_BLOCK);
+		mmc_host_clk_release(card->host);
+	}
+
 out:
+
 	return err;
 }
 
@@ -934,12 +971,8 @@ static int mmc_sdio_suspend(struct mmc_host *host)
 		mmc_release_host(host);
 	}
 
-	if (!mmc_card_keep_power(host)) {
+	if (!mmc_card_keep_power(host))
 		mmc_power_off(host);
-	} else if (host->retune_period) {
-		mmc_retune_timer_stop(host);
-		mmc_retune_needed(host);
-	}
 
 	return 0;
 }
