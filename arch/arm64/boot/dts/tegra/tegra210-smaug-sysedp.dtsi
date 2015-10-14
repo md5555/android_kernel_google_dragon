@@ -1,12 +1,15 @@
 #include <dt-bindings/soc/tegra-sysedp.h>
 
 /{
-	sysedp-batmon-calc {
+	aliases {
+		bmon_calc = &bmon_calc;
+	};
+
+	bmon_calc: sysedp-batmon-calc {
 		compatible = "nvidia,tegra124-sysedp-batmon-calc";
 		power-supply = <&battery>;
 		update-interval = <30000>;
 		vsys-min = <3000000>;
-		imax-mode;
 	};
 
 	sysedp-dynamic-capping {
