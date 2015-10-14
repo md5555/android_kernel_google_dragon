@@ -977,6 +977,9 @@
 		interrupts-extended = <&gpio TEGRA_GPIO(X, 0) IRQ_TYPE_EDGE_BOTH>;
 		realtek,pow-ldo2-gpio = <&gpio TEGRA_GPIO(E, 1) GPIO_ACTIVE_HIGH>;
 
+		// Workaround for hissing problem b/24679173
+		realtek,i2s1-pulldown;
+
 		gpio-controller;
 		#gpio-cells = <2>;
 		status = "ok";
