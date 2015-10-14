@@ -1881,18 +1881,6 @@ static int sdhci_card_busy(struct mmc_host *mmc)
 	return !(present_state & SDHCI_DATA_LVL_MASK);
 }
 
-static int sdhci_prepare_hs400_tuning(struct mmc_host *mmc, struct mmc_ios *ios)
-{
-	struct sdhci_host *host = mmc_priv(mmc);
-	unsigned long flags;
-
-	spin_lock_irqsave(&host->lock, flags);
-	host->flags |= SDHCI_HS400_TUNING;
-	spin_unlock_irqrestore(&host->lock, flags);
-
-	return 0;
-}
-
 static int sdhci_execute_tuning(struct mmc_host *mmc, u32 opcode)
 {
 	struct sdhci_host *host = mmc_priv(mmc);
@@ -1900,17 +1888,9 @@ static int sdhci_execute_tuning(struct mmc_host *mmc, u32 opcode)
 	int tuning_loop_counter = MAX_TUNING_LOOP;
 	int err = 0;
 	unsigned long flags;
-	unsigned int tuning_count = 0;
-	bool hs400_tuning;
 
 	sdhci_runtime_pm_get(host);
 	spin_lock_irqsave(&host->lock, flags);
-
-	hs400_tuning = host->flags & SDHCI_HS400_TUNING;
-	host->flags &= ~SDHCI_HS400_TUNING;
-
-	if (host->tuning_mode == SDHCI_TUNING_MODE_1)
-		tuning_count = host->tuning_count;
 
 	if (host->ops->get_max_tuning_iterations)
 		tuning_loop_counter =
@@ -1924,20 +1904,8 @@ static int sdhci_execute_tuning(struct mmc_host *mmc, u32 opcode)
 	 * tuning function has to be executed.
 	 */
 	switch (host->timing) {
-	/* HS400 tuning is done in HS200 mode */
 	case MMC_TIMING_MMC_HS400:
-		err = -EINVAL;
-		goto out_unlock;
-
 	case MMC_TIMING_MMC_HS200:
-		/*
-		 * Periodic re-tuning for HS400 is not expected to be needed, so
-		 * disable it here.
-		 */
-		if (hs400_tuning)
-			tuning_count = 0;
-		break;
-
 	case MMC_TIMING_UHS_SDR104:
 		break;
 
@@ -2101,11 +2069,22 @@ static int sdhci_execute_tuning(struct mmc_host *mmc, u32 opcode)
 	}
 
 out:
-	host->flags &= ~SDHCI_NEEDS_RETUNING;
-
-	if (tuning_count) {
+	/*
+	 * If this is the very first time we are here, we start the retuning
+	 * timer. Since only during the first time, SDHCI_NEEDS_RETUNING
+	 * flag won't be set, we check this condition before actually starting
+	 * the timer.
+	 */
+	if (!(host->flags & SDHCI_NEEDS_RETUNING) && host->tuning_count &&
+	    (host->tuning_mode == SDHCI_TUNING_MODE_1)) {
 		host->flags |= SDHCI_USING_RETUNING_TIMER;
-		mod_timer(&host->tuning_timer, jiffies + tuning_count * HZ);
+		mod_timer(&host->tuning_timer, jiffies +
+			host->tuning_count * HZ);
+	} else if (host->flags & SDHCI_USING_RETUNING_TIMER) {
+		host->flags &= ~SDHCI_NEEDS_RETUNING;
+		/* Reload the new initial value for timer */
+		mod_timer(&host->tuning_timer, jiffies +
+			  host->tuning_count * HZ);
 	}
 
 	/*
@@ -2128,18 +2107,6 @@ out_unlock:
 	return err;
 }
 
-static int sdhci_select_drive_strength(struct mmc_card *card,
-				       unsigned int max_dtr, int host_drv,
-				       int card_drv, int *drv_type)
-{
-	struct sdhci_host *host = mmc_priv(card->host);
-
-	if (!host->ops->select_drive_strength)
-		return 0;
-
-	return host->ops->select_drive_strength(host, card, max_dtr, host_drv,
-						card_drv, drv_type);
-}
 
 static void sdhci_enable_preset_value(struct sdhci_host *host, bool enable)
 {
@@ -2206,9 +2173,7 @@ static const struct mmc_host_ops sdhci_ops = {
 	.hw_reset	= sdhci_hw_reset,
 	.enable_sdio_irq = sdhci_enable_sdio_irq,
 	.start_signal_voltage_switch	= sdhci_start_signal_voltage_switch,
-	.prepare_hs400_tuning		= sdhci_prepare_hs400_tuning,
 	.execute_tuning			= sdhci_execute_tuning,
-	.select_drive_strength		= sdhci_select_drive_strength,
 	.card_event			= sdhci_card_event,
 	.card_busy	= sdhci_card_busy,
 };
@@ -3382,9 +3347,9 @@ int sdhci_add_host(struct sdhci_host *host)
 
 	setup_timer(&host->timer, sdhci_timeout_timer, (unsigned long)host);
 
-	init_waitqueue_head(&host->buf_ready_int);
-
 	if (host->version >= SDHCI_SPEC_300) {
+		init_waitqueue_head(&host->buf_ready_int);
+
 		/* Initialize re-tuning timer */
 		init_timer(&host->tuning_timer);
 		host->tuning_timer.data = (unsigned long)host;
