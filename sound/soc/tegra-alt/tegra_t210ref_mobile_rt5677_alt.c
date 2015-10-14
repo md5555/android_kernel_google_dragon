@@ -341,6 +341,8 @@ static int tegra_rt5677_headset_init(struct snd_soc_pcm_runtime *runtime)
 	struct snd_soc_jack *jack;
 	int ret;
 
+	snd_soc_codec_set_sysclk(codec, NAU8825_CLK_MCLK, 0, 0, SND_SOC_CLOCK_IN);
+
 	/* Enable Headset and 4 Buttons Jack detection */
 	ret = snd_soc_card_jack_new(card, "Headset Jack",
 	                            SND_JACK_HEADPHONE | SND_JACK_MICROPHONE |
@@ -362,21 +364,6 @@ static int tegra_rt5677_headset_init(struct snd_soc_pcm_runtime *runtime)
 
 	return 0;
 }
-
-static int tegra_rt5677_headset_hw_params(struct snd_pcm_substream *substream,
-		struct snd_pcm_hw_params *params) {
-
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_codec *codec = rtd->codec;
-	int rate = params_rate(params);
-
-	snd_soc_codec_set_sysclk(codec, NAU8825_CLK_MCLK, 0, rate * 256, SND_SOC_CLOCK_IN);
-	return 0;
-}
-
-static struct snd_soc_ops tegra_rt5677_headset_ops = {
-	.hw_params = tegra_rt5677_headset_hw_params,
-};
 
 static const struct snd_kcontrol_new tegra_t210ref_controls[] = {
 	SOC_DAPM_PIN_SWITCH("Int Spk"),
@@ -419,8 +406,6 @@ static struct snd_soc_dai_link tegra_rt5677_dai[] = {
 			SND_SOC_DAIFMT_CBS_CFS,
 		.params = &tegra_rt5677_stream_params,
 		.init = tegra_rt5677_headset_init,
-		.ops = &tegra_rt5677_headset_ops,
-		.ignore_suspend = true,
 	}
 };
 
