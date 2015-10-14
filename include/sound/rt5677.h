@@ -40,6 +40,9 @@ struct rt5677_platform_data {
 
 	/* Set MICBIAS1 VDD 1v8 or 3v3 */
 	bool micbias1_vdd_3v3;
+
+	/* Pulldown I2S BCLK/FSYNC/DATA lines */
+	bool i2s1_pulldown;
 };
 
 #endif

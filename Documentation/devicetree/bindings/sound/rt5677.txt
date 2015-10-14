@@ -43,6 +43,8 @@ Optional properties:
   Configures GPIO Mic Jack detection 2 and 3.
   Select 0 ~ 3 as OFF, GPIO4, GPIO5 and GPIO6 respectively.
 
+- realtek,i2s1-pulldown: pulldown I2S1 pins
+
 Pins on the device (for linking into audio routes):
 
   * IN1P

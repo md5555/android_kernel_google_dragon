@@ -4803,6 +4803,13 @@ static int rt5677_resume(struct snd_soc_codec *codec)
 		regcache_sync(rt5677->regmap);
 	}
 
+	/* All private registers are volatile so we have to restore it
+	 * after each suspend */
+	if (rt5677->pdata.i2s1_pulldown)
+		regmap_update_bits(rt5677->regmap,
+			RT5677_PR_BASE + RT5677_DIG_IN_PIN_ST_CTRL1,
+			0x4000, 0x4000);
+
 	return 0;
 }
 #else
@@ -5043,6 +5050,9 @@ static void rt5677_read_device_properties(struct rt5677_priv *rt5677,
 			&rt5677->pdata.jd2_gpio);
 	device_property_read_u32(dev, "realtek,jd3-gpio",
 			&rt5677->pdata.jd3_gpio);
+
+	rt5677->pdata.i2s1_pulldown = device_property_read_bool(dev,
+			"realtek,i2s1-pulldown");
 }
 
 static struct regmap_irq rt5677_irqs[] = {
@@ -5219,6 +5229,11 @@ static int rt5677_i2c_probe(struct i2c_client *i2c,
 		regmap_update_bits(rt5677->regmap, RT5677_MICBIAS,
 			RT5677_MICBIAS1_CTRL_VDD_MASK,
 			RT5677_MICBIAS1_CTRL_VDD_3_3V);
+
+	if (rt5677->pdata.i2s1_pulldown)
+		regmap_update_bits(rt5677->regmap,
+			RT5677_PR_BASE + RT5677_DIG_IN_PIN_ST_CTRL1,
+			0x4000, 0x4000);
 
 	rt5677_init_gpio(i2c);
 	rt5677_init_irq(i2c);
