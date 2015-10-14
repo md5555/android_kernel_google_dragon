@@ -2721,7 +2721,7 @@ gm20b_pmu_init(struct nvkm_object *object) {
 
 	gk20a_pmu_dvfs_init(priv);
 
-	nvkm_timer_alarm(priv, 2000000000, &priv->alarm);
+	nvkm_timer_alarm(priv, PMU_DVFS_INTERVAL, &priv->alarm);
 
 	return ret;
 }
