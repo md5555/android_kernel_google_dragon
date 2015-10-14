@@ -123,8 +123,10 @@
 		clocks = <&tegra_car TEGRA210_CLK_PLL_A>,
 		         <&tegra_car TEGRA210_CLK_PLL_A_OUT0>,
 		         <&tegra_car TEGRA210_CLK_EXTERN1>,
-		         <&tegra_car TEGRA210_CLK_CLK_OUT_1>;
-		clock-names = "pll_a", "pll_a_out0", "extern1", "clk_out_1";
+		         <&tegra_car TEGRA210_CLK_CLK_OUT_1>,
+		         <&tegra_car TEGRA210_CLK_EXTERN2>,
+		         <&tegra_car TEGRA210_CLK_CLK_OUT_2>;
+		clock-names = "pll_a", "pll_a_out0", "extern1", "clk_out_1", "extern2", "clk_out_2";
 
 		nvidia,audio-routing =
 			"Headphone Jack", "HPOL",
@@ -916,9 +918,6 @@
 		nuvoton,short-key-debounce = <2>;
 		nuvoton,jack-insert-debounce = <7>;
 		nuvoton,jack-eject-debounce = <7>;
-
-		clock-names = "mclk";
-		clocks = <&tegra_car TEGRA210_CLK_CLK_OUT_2>;
 	};
 
 	backlight: jdi-lpm102a188a@2c {
