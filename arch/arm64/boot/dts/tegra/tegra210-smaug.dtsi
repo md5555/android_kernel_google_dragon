@@ -3,6 +3,7 @@
 #include <dt-bindings/pinctrl/pinctrl-tegra.h>
 #include <dt-bindings/thermal/thermal.h>
 #include <dt-bindings/input/input.h>
+#include <dt-bindings/regulator/max8973.h>
 #include <dt-bindings/soc/tegra-pmc.h>
 
 #include "tegra210.dtsi"
@@ -900,10 +901,17 @@
 		regulator-name = "PPVAR_CPU";
 		regulator-min-microvolt = <800000>;
 		regulator-max-microvolt = <1175000>;
+		regulator-ramp-delay = <12500>;
 		maxim,externally-enable;
 		maxim,enable-gpio = <&max77620 5 0>;
 		maxim,dvs-default-state = <1>;
 		regulator-always-on;
+		maxim,enable-active-discharge;
+		maxim,enable-bias-control;
+		maxim,enable-etr;
+		maxim,watchdog-timer-enable;
+		maxim,pull-down-enable;
+		maxim,inductor-value = <MAX8973_INDUCTOR_VAL_PLUS_30_PER>;
 
 		#thermal-sensor-cells = <0>;
 	};
@@ -916,9 +924,16 @@
 		regulator-name = "PPVAR_GPU";
 		regulator-min-microvolt = <840000>;
 		regulator-max-microvolt = <1150000>;
+		regulator-ramp-delay = <12500>;
 		maxim,externally-enable;
 		maxim,enable-gpio = <&max77620 6 0>;
 		maxim,dvs-default-state = <1>;
+		maxim,disable-etr;
+		maxim,enable-active-discharge;
+		maxim,enable-bias-control;
+		maxim,pull-down-enable;
+		maxim,watchdog-timer-enable;
+		maxim,inductor-value = <MAX8973_INDUCTOR_VAL_PLUS_30_PER>;
 
 		#thermal-sensor-cells = <0>;
 	};
