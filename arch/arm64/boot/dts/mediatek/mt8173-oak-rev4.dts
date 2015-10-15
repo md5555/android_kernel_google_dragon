@@ -16,17 +16,6 @@
 #include "mt8173-oak.dtsi"
 
 / {
-	model = "Mediatek Oak rev3 board";
-	compatible = "google,oak-rev3", "google,oak", "mediatek,mt8173";
-};
-
-&bl_fixed_pins {
-	pins1 {
-		pinmux = <MT8173_PIN_29_UCTS2__FUNC_GPIO29>;
-		output-low;
-	};
-};
-
-&bl_fixed_reg {
-	gpio = <&pio 29 GPIO_ACTIVE_HIGH>;
+	model = "Mediatek Oak rev4 board";
+	compatible = "google,oak-rev4", "google,oak", "mediatek,mt8173";
 };
