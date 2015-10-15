@@ -214,6 +214,7 @@
 #define UTMIP_PLL_CFG2_FORCE_PD_SAMP_C_POWERUP BIT(5)
 #define UTMIP_PLL_CFG2_FORCE_PD_SAMP_D_POWERDOWN BIT(24)
 #define UTMIP_PLL_CFG2_FORCE_PD_SAMP_D_POWERUP BIT(25)
+#define UTMIP_PLL_CFG2_PHY_XTAL_CLOCKEN	BIT(30)
 
 #define UTMIPLL_HW_PWRDN_CFG0 0x52c
 #define UTMIPLL_HW_PWRDN_CFG0_IDDQ_SWCTL BIT(0)
@@ -2701,6 +2702,7 @@ static int clk_pllu_tegra210_enable(struct clk_hw *hw)
 	val &= ~UTMIP_PLL_CFG2_ACTIVE_DLY_COUNT(~0);
 	val |= UTMIP_PLL_CFG2_ACTIVE_DLY_COUNT(
 			utmi_parameters[i].active_delay_count);
+	val |= UTMIP_PLL_CFG2_PHY_XTAL_CLOCKEN;
 	writel_relaxed(val, pll->clk_base + UTMIP_PLL_CFG2);
 
 	/* Program UTMIP PLL delay and oscillator frequency counts */
