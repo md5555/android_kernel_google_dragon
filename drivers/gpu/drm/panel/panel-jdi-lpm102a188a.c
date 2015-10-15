@@ -361,38 +361,38 @@ static int panel_jdi_prepare(struct drm_panel *panel)
 	int ret = 0;
 
 	mutex_lock(&jdi->lock);
-	if (jdi->enabled)
-		goto out;
 
-	ret = regulator_enable(jdi->supply);
-	if (ret < 0) {
-		DRM_ERROR("failed to enable supply: %d\n", ret);
-		goto out;
+	if (!jdi->enabled) {
+		ret = regulator_enable(jdi->supply);
+		if (ret < 0) {
+			DRM_ERROR("failed to enable supply: %d\n", ret);
+			goto out;
+		}
+
+		/* T1 = 2ms */
+		usleep_range(2000, 4000);
+
+		ret = regulator_enable(jdi->ddi_supply);
+		if (ret < 0) {
+			DRM_ERROR("failed to enable ddi_supply: %d\n", ret);
+			goto out;
+		}
+
+		/* T2 = 1ms */
+		usleep_range(1000, 3000);
+
+		gpio_set_value(jdi->enable_gpio,
+			(jdi->enable_gpio_flags & GPIO_ACTIVE_LOW) ? 0 : 1);
+
+		/* T3 = 10ms */
+		usleep_range(10000, 15000);
+
+		gpio_set_value(jdi->reset_gpio,
+			(jdi->reset_gpio_flags & GPIO_ACTIVE_LOW) ? 1 : 0);
+
+		/* Specified by JDI @ 3ms, subject to change */
+		usleep_range(3000, 5000);
 	}
-
-	/* T1 = 2ms */
-	usleep_range(2000, 4000);
-
-	ret = regulator_enable(jdi->ddi_supply);
-	if (ret < 0) {
-		DRM_ERROR("failed to enable ddi_supply: %d\n", ret);
-		goto out;
-	}
-
-	/* T2 = 1ms */
-	usleep_range(1000, 3000);
-
-	gpio_set_value(jdi->enable_gpio,
-		(jdi->enable_gpio_flags & GPIO_ACTIVE_LOW) ? 0 : 1);
-
-	/* T3 = 10ms */
-	usleep_range(10000, 15000);
-
-	gpio_set_value(jdi->reset_gpio,
-		(jdi->reset_gpio_flags & GPIO_ACTIVE_LOW) ? 1 : 0);
-
-	/* Specified by JDI @ 3ms, subject to change */
-	usleep_range(3000, 5000);
 
 	if (jdi->bl) {
 		ret = backlight_jdi_prepare(jdi);
@@ -468,26 +468,32 @@ static int panel_jdi_prepare(struct drm_panel *panel)
 	if (ret < 0)
 		DRM_ERROR("failed to set adaptive brightness ctrl: %d\n", ret);
 
-	ret = mipi_dsi_dcs_exit_sleep_mode(jdi->dsi);
-	if (ret < 0)
-		DRM_ERROR("failed to exit sleep mode: %d\n", ret);
+	if (!jdi->enabled) {
+		ret = mipi_dsi_dcs_exit_sleep_mode(jdi->dsi);
+		if (ret < 0)
+			DRM_ERROR("failed to exit sleep mode: %d\n", ret);
 
-	ret = mipi_dsi_dcs_exit_sleep_mode(jdi->slave);
-	if (ret < 0)
-		DRM_ERROR("failed to exit sleep mode: %d\n", ret);
+		ret = mipi_dsi_dcs_exit_sleep_mode(jdi->slave);
+		if (ret < 0)
+			DRM_ERROR("failed to exit sleep mode: %d\n", ret);
 
-	/* Spec'd by JDI @>67ms, between SleepOUT and deasserting touch reset */
-	msleep(70);
+		/*
+		 * Spec'd by JDI @>67ms, between SleepOUT and deasserting touch
+		 * reset
+		 */
+		msleep(70);
 
-	if (gpio_is_valid(jdi->ts_reset_gpio))
-		gpio_set_value(jdi->ts_reset_gpio,
-		       (jdi->ts_reset_gpio_flags & GPIO_ACTIVE_LOW) ? 1 : 0);
+		if (gpio_is_valid(jdi->ts_reset_gpio))
+			gpio_set_value(jdi->ts_reset_gpio,
+			       (jdi->ts_reset_gpio_flags & GPIO_ACTIVE_LOW) ?
+					1 : 0);
 
-	/*
-	 * We need to wait 150ms between mipi_dsi_dcs_exit_sleep_mode() and
-	 * mipi_dsi_dcs_set_display_on().
-	 */
-	msleep(80);
+		/*
+		 * We need to wait 150ms between mipi_dsi_dcs_exit_sleep_mode()
+		 * and mipi_dsi_dcs_set_display_on().
+		 */
+		msleep(80);
+	}
 
 out:
 	mutex_unlock(&jdi->lock);
@@ -501,9 +507,6 @@ static int panel_jdi_enable(struct drm_panel *panel)
 
 	mutex_lock(&jdi->lock);
 
-	if (jdi->enabled)
-		goto out;
-
 	ret = mipi_dsi_dcs_set_display_on(jdi->dsi);
 	if (ret < 0)
 		DRM_ERROR("failed to set display on: %d\n", ret);
@@ -516,7 +519,7 @@ static int panel_jdi_enable(struct drm_panel *panel)
 		pm_runtime_force_resume(&jdi->touch->dev);
 
 	jdi->enabled = true;
-out:
+
 	mutex_unlock(&jdi->lock);
 
 	ret = backlight_jdi_update_status(jdi->bl);
