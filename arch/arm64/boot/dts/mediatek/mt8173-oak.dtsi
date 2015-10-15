@@ -51,7 +51,7 @@
 		regulator-max-microvolt = <1800000>;
 		startup-delay-us = <1000>;
 		enable-active-high;
-		gpio = <&pio 29 0>;
+		gpio = <&pio 29 GPIO_ACTIVE_HIGH>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&bl_fixed_pins>;
 	};
@@ -94,7 +94,7 @@
 		regulator-name = "3V3";
 		regulator-min-microvolt = <3300000>;
 		regulator-max-microvolt = <3300000>;
-		gpio = <&pio 100 0>;
+		gpio = <&pio 100 GPIO_ACTIVE_HIGH>;
 		enable-active-high;
 	};
 
