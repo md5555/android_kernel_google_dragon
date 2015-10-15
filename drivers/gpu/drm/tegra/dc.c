@@ -523,7 +523,8 @@ static void tegra_dc_setup_window(struct tegra_dc *dc, unsigned int index,
 		case WIN_COLOR_DEPTH_B8G8R8A8:
 		case WIN_COLOR_DEPTH_R8G8B8A8:
 			/* Pre-mult alpha blending */
-			tegra_dc_writel(dc, 0xff00, DC_WIN_BLEND_LAYER_CONTROL);
+			tegra_dc_writel(dc, K1_VALUE(window->alpha),
+					DC_WIN_BLEND_LAYER_CONTROL);
 			tegra_dc_writel(dc, 0x3262, DC_WIN_BLEND_MATCH_SELECT);
 			tegra_dc_writel(dc, 0x3222, DC_WIN_BLEND_NOMATCH_SELECT);
 			break;
@@ -592,6 +593,7 @@ static void tegra_plane_reset(struct drm_plane *plane)
 
 	state = kzalloc(sizeof(*state), GFP_KERNEL);
 	if (state) {
+		state->base.alpha = 0xFF; /* Default plane alpha to opaque */
 		plane->state = &state->base;
 		plane->state->plane = plane;
 	}
@@ -736,6 +738,7 @@ static void tegra_plane_atomic_update(struct drm_plane *plane,
 	window.dst.w = plane->state->crtc_w;
 	window.dst.h = plane->state->crtc_h;
 	window.bits_per_pixel = fb->bits_per_pixel;
+	window.alpha = plane->state->alpha;
 	if (dc->soc->supports_scan_column &&
 			((BIT(DRM_ROTATE_90) | BIT(DRM_ROTATE_270)) &
 			 plane->state->rotation))
@@ -807,7 +810,7 @@ static const struct drm_plane_helper_funcs tegra_primary_plane_helper_funcs = {
 	.atomic_disable = tegra_plane_atomic_disable,
 };
 
-static void tegra_plane_add_rotation_property(struct drm_device *drm,
+static void tegra_plane_add_optional_properties(struct drm_device *drm,
 		struct tegra_dc *dc, struct tegra_plane *plane)
 {
 	unsigned int supported_rotations;
@@ -826,10 +829,22 @@ static void tegra_plane_add_rotation_property(struct drm_device *drm,
 			dev_warn(drm->dev,
 					"failed to create rotation property\n");
 	}
-
 	if (drm->mode_config.rotation_property)
 		drm_object_attach_property(&plane->base.base,
 				drm->mode_config.rotation_property, 0);
+
+	if (!dc->soc->supports_v2_blend)
+		return;
+
+	if (!drm->mode_config.alpha_property) {
+		drm->mode_config.alpha_property =
+			drm_mode_create_alpha_property(drm);
+		if (!drm->mode_config.alpha_property)
+			dev_warn(drm->dev, "Failed to create alpha property\n");
+	}
+	if (drm->mode_config.alpha_property)
+		drm_object_attach_property(&plane->base.base,
+				drm->mode_config.alpha_property, 0xFF);
 }
 
 static struct drm_plane *tegra_dc_primary_plane_create(struct drm_device *drm,
@@ -867,7 +882,7 @@ static struct drm_plane *tegra_dc_primary_plane_create(struct drm_device *drm,
 
 	drm_plane_helper_add(&plane->base, &tegra_primary_plane_helper_funcs);
 
-	tegra_plane_add_rotation_property(drm, dc, plane);
+	tegra_plane_add_optional_properties(drm, dc, plane);
 
 	return &plane->base;
 }
@@ -1088,7 +1103,7 @@ static struct drm_plane *tegra_dc_overlay_plane_create(struct drm_device *drm,
 
 	drm_plane_helper_add(&plane->base, &tegra_overlay_plane_helper_funcs);
 
-	tegra_plane_add_rotation_property(drm, dc, plane);
+	tegra_plane_add_optional_properties(drm, dc, plane);
 
 	return &plane->base;
 }
