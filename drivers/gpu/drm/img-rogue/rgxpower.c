@@ -43,6 +43,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include <stddef.h>
 #include "rgxpower.h"
+#include "rgxinit.h"
 #include "rgx_fwif_km.h"
 #include "rgxfwutils.h"
 #include "pdump_km.h"
@@ -173,40 +174,40 @@ PVRSRV_ERROR RGXPrePowerState (IMG_HANDLE				hDevHandle,
 				eError = PVRSRVPollForValueKM(&g_ui32HostSampleIRQCount,
 									          psDevInfo->psRGXFWIfTraceBuf->ui32InterruptCount,
 									          0xffffffff);
-#endif /* NO_HARDWARE */
 
 				if (eError != PVRSRV_OK)
 				{
 					PVR_DPF((PVR_DBG_ERROR,"RGXPrePowerState: Wait for pending interrupts failed. Host:%d, FW: %d",
 					g_ui32HostSampleIRQCount,
 					psDevInfo->psRGXFWIfTraceBuf->ui32InterruptCount));
-				}
-				else
-				{
-					/* Update GPU frequency and timer correlation related data */
-					RGXGPUFreqCalibratePrePowerState(psDeviceNode);
 
-					/* Update GPU state counters */
-					_RGXUpdateGPUUtilStats(psDevInfo);
+					RGX_WaitForInterruptsTimeout(psDevInfo);
+				}
+#endif /* NO_HARDWARE */
+
+				/* Update GPU frequency and timer correlation related data */
+				RGXGPUFreqCalibratePrePowerState(psDeviceNode);
+
+				/* Update GPU state counters */
+				_RGXUpdateGPUUtilStats(psDevInfo);
 
 #if defined(PVR_DVFS)
-					eError = SuspendDVFS();
-					if (eError != PVRSRV_OK)
-					{
-						PVR_DPF((PVR_DBG_ERROR,"RGXPostPowerState: Failed to suspend DVFS"));
-						return eError;
-					}
+				eError = SuspendDVFS();
+				if (eError != PVRSRV_OK)
+				{
+					PVR_DPF((PVR_DBG_ERROR,"RGXPostPowerState: Failed to suspend DVFS"));
+					return eError;
+				}
 #endif
 
-					psDevInfo->bRGXPowered = IMG_FALSE;
+				psDevInfo->bRGXPowered = IMG_FALSE;
 
-					eError = RGXDoStop(psDeviceNode);
-					if (eError != PVRSRV_OK)
-					{
-						PVR_DPF((PVR_DBG_ERROR, "RGXPrePowerState: RGXDoStop failed (%s)",
-						         PVRSRVGetErrorStringKM(eError)));
-						eError = PVRSRV_ERROR_DEVICE_POWER_CHANGE_FAILURE;
-					}
+				eError = RGXDoStop(psDeviceNode);
+				if (eError != PVRSRV_OK)
+				{
+					PVR_DPF((PVR_DBG_ERROR, "RGXPrePowerState: RGXDoStop failed (%s)",
+					         PVRSRVGetErrorStringKM(eError)));
+					eError = PVRSRV_ERROR_DEVICE_POWER_CHANGE_FAILURE;
 				}
 			}
 			else

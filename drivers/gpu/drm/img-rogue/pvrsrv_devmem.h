@@ -58,7 +58,6 @@ extern "C" {
 #include "sync_external.h"
 #include "services_km.h" /* for PVRSRV_DEV_CONNECTION */
 
-struct _PVRSRV_DEVMEMCTX_;
 
 /*
   Device memory contexts, heaps and memory descriptors are passed
@@ -70,6 +69,8 @@ typedef DEVMEM_HEAP *PVRSRV_HEAP;               /*!< Device-Mem Client-Side Inte
 typedef DEVMEM_MEMDESC *PVRSRV_MEMDESC;         /*!< Device-Mem Client-Side Interface: Typedef for Memory Descriptor Ptr */
 typedef DEVMEM_EXPORTCOOKIE PVRSRV_DEVMEM_EXPORTCOOKIE;     /*!< Device-Mem Client-Side Interface: Typedef for Export Cookie */
 typedef DEVMEM_FLAGS_T PVRSRV_MEMMAP_FLAGS_T;               /*!< Device-Mem Client-Side Interface: Typedef for Memory-Mapping Flags Enum */
+typedef IMG_HANDLE PVRSRV_REMOTE_DEVMEMCTX;                 /*!< Type to use with context export import */
+typedef struct _PVRSRV_EXPORT_DEVMEMCTX_ *PVRSRV_EXPORT_DEVMEMCTX;
 
 /* N.B.  Flags are now defined in pvrsrv_memallocflags.h as they need
          to be omnipresent. */
@@ -278,6 +279,30 @@ PVRSRVMapToDevice(PVRSRV_MEMDESC hMemDesc,
 				  IMG_DEV_VIRTADDR *psDevVirtAddrOut);
 
 /**************************************************************************/ /*!
+@Function       PVRSRVMapToDeviceAddress
+@Description    Same as PVRSRVMapToDevice but caller chooses the address to
+                map into.
+
+                The caller is able to overwrite existing mappings so never use
+                this function on a heap where PVRSRVMapToDevice() has been
+                used before or will be used in the future.
+
+				In general the caller has to know which regions of the heap have
+				been mapped already and should avoid overlapping mappings.
+
+@Input          hMemDesc            Handle of the memory descriptor
+@Input          hHeap               Device heap to map the allocation into
+@Output         sDevVirtAddr        Device virtual address to map to
+@Return         PVRSRV_ERROR:       PVRSRV_OK on success. Otherwise, a PVRSRV_
+                                    error code
+*/ /***************************************************************************/
+extern IMG_IMPORT PVRSRV_ERROR
+PVRSRVMapToDeviceAddress(DEVMEM_MEMDESC *psMemDesc,
+                         DEVMEM_HEAP *psHeap,
+                         IMG_DEV_VIRTADDR sDevVirtAddr);
+
+
+/**************************************************************************/ /*!
 @Function       PVRSRVAcquireDeviceMapping
 @Description    Acquire a reference on the device mapping the allocation.
                 If the allocation wasn't mapped into the device then 
@@ -412,7 +437,7 @@ PVRSRVChangeSparseDevMem(PVRSRV_MEMDESC psMemDesc,
 @Description    Allocate sparse memory without mapping into device memory context.
 				Sparse memory is used where you have an allocation that has a
 				logical size (i.e. the amount of VM space it will need when
-				mapping it into a device) that is larger then the amount of
+				mapping it into a device) that is larger than the amount of
 				physical memory that allocation will use. An example of this
 				is a NPOT texture where the twiddling algorithm requires you
 				to round the width and height to next POT and so you know there
@@ -451,7 +476,7 @@ PVRSRVAllocSparseDevMem2(const PVRSRV_DEVMEMCTX psDevMemCtx,
 @Description    Allocate sparse memory without mapping into device memory context.
 				Sparse memory is used where you have an allocation that has a
 				logical size (i.e. the amount of VM space it will need when
-				mapping it into a device) that is larger then the amount of
+				mapping it into a device) that is larger than the amount of
 				physical memory that allocation will use. An example of this
 				is a NPOT texture where the twiddling algorithm requires you
 				to round the width and height to next POT and so you know there
@@ -622,12 +647,20 @@ PVRSRV_ERROR PVRSRVImportDevMem(const PVRSRV_DEV_CONNECTION *psConnection,
 @Function       PVRSRVIsDeviceMemAddrValid
 @Description    Checks if given device virtual memory address is valid
                 from the GPU's point of view.
+
+                This method is intended to be called by a process that imported
+                another process' memory context, hence the expected
+                PVRSRV_REMOTE_DEVMEMCTX parameter.
+
+                See PVRSRVAcquireRemoteDevMemContext for details about
+                importing memory contexts.
+
 @Input          hContext handle to memory context
 @Input          sDevVAddr device 40bit virtual memory address
 @Return         PVRSRV_OK if address is valid or
                 PVRSRV_ERROR_INVALID_GPU_ADDR when address is invalid
 */ /***************************************************************************/
-PVRSRV_ERROR PVRSRVIsDeviceMemAddrValid(PVRSRV_DEVMEMCTX hContext,
+PVRSRV_ERROR PVRSRVIsDeviceMemAddrValid(PVRSRV_REMOTE_DEVMEMCTX hContext,
                                         IMG_DEV_VIRTADDR sDevVAddr);
 
 
@@ -695,7 +728,7 @@ PVRSRVDevmemPin(PVRSRV_MEMDESC hMemDesc);
                 forbidden.
 
                 - When using PVRSRVAllocDeviceMem() the caller must allocate
-                whole pages from the choosen heap to avoid suballocations.
+                whole pages from the chosen heap to avoid suballocations.
 
 @Input          hMemDesc       The MemDesc that is going to be unpinned.
 
@@ -720,55 +753,80 @@ PVRSRVDevmemPin(PVRSRV_MEMDESC hMemDesc);
 extern PVRSRV_ERROR
 PVRSRVDevmemUnpin(PVRSRV_MEMDESC hMemDesc);
 
-#if defined (SUPPORT_EXPORTING_MEMORY_CONTEXT)
-/**************************************************************************/ /*!
-@Function       PVRSRVExportDevmemContext
-@Description    Export a device memory context to another process
-
-@Input          hCtx            Memory context to export                        
-@Output         phExport        On Success, a export handle that can be passed
-                                to another process and used with 
-                                PVRSRVImportDeviceMemContext to import the
-                                memory context                            
-@Return         PVRSRV_ERROR:   PVRSRV_OK on success. Otherwise, a PVRSRV_
-                                error code
-*/ /***************************************************************************/
-PVRSRV_ERROR
-PVRSRVExportDevmemContext(PVRSRV_DEVMEMCTX hCtx,
-						  IMG_HANDLE *phExport);
 
 /**************************************************************************/ /*!
-@Function       PVRSRVUnexportDevmemContext
-@Description    Unexport an exported device memory context
+@Function       PVRSRVExportDevMemContext
+@Description    Makes the given memory context available to other processes that
+                can get a handle to it via PVRSRVAcquireRemoteDevmemContext.
+                This handle can be used for e.g. the breakpoint functions.
 
-@Input          psConnection    Services connection
-@Input          hExport         Export handle created to be unexported
+                The context will be only available to other processes that are able
+                to pass in a memory descriptor that is shared between this and the
+                importing process. We use the memory descriptor to identify the
+                correct context and verify that the caller is allowed to request
+                the context.
 
-@Return         None
+                The whole mechanism is intended to be used with the debugger that
+                for example can load USC breakpoint handlers into the shared allocation
+                and then use the acquired remote context (that is exported here)
+                to set/clear breakpoints in USC code.
+
+@Input          hLocalDevmemCtx    Context to export
+@Input          hSharedAllocation  A memory descriptor that points to a shared allocation
+                                   between the two processes. Must be in the given context.
+@Output         phExportCtx        A handle to the exported context that is needed for
+                                   the destruction with PVRSRVUnexportDevMemContext().
+@Return         PVRSRV_ERROR:      PVRSRV_OK on success. Otherwise, a PVRSRV_
+                                   error code
 */ /***************************************************************************/
-void
-PVRSRVUnexportDevmemContext(PVRSRV_DEV_CONNECTION *psConnection,
-							IMG_HANDLE hExport);
+extern PVRSRV_ERROR
+PVRSRVExportDevMemContext(PVRSRV_DEVMEMCTX hLocalDevmemCtx,
+                          PVRSRV_MEMDESC hSharedAllocation,
+                          PVRSRV_EXPORT_DEVMEMCTX *phExportCtx);
 
 /**************************************************************************/ /*!
-@Function       PVRSRVImportDeviceMemContext
-@Description    Import an exported device memory context
+@Function       PVRSRVUnexportDevMemContext
+@Description    Removes the context from the list of sharable contexts that
+                that can be imported via PVRSRVReleaseRemoteDevmemContext.
 
-                Note: The memory context created with this function is not
-                complete and can only be used with debugger related functions
-
-@Input          psConnection    Services connection
-@Input          hExport         Export handle to import
-@Output         phCtxOut        Device memory context
-
-@Return         None
+@Input          psExportCtx     An export context retrieved from
+                                PVRSRVExportDevmemContext.
 */ /***************************************************************************/
-PVRSRV_ERROR
-PVRSRVImportDeviceMemContext(PVRSRV_DEV_CONNECTION *psConnection,
-							 IMG_HANDLE hExport,
-							 PVRSRV_DEVMEMCTX *phCtxOut);
+extern void
+PVRSRVUnexportDevMemContext(PVRSRV_EXPORT_DEVMEMCTX hExportCtx);
 
-#endif /* SUPPORT_EXPORTING_MEMORY_CONTEXT */
+/**************************************************************************/ /*!
+@Function       PVRSRVAcquireRemoteDevMemContext
+@Description    Retrieves an exported context that has been made available with
+                PVRSRVExportDevmemContext in the remote process.
+
+                hSharedMemDesc must be a memory descriptor pointing to the same
+                physical resource as the one passed to PVRSRVExportDevmemContext
+                in the remote process.
+                The memory descriptor has to be retrieved from the remote process
+                via a secure buffer export/import mechanism like DMABuf.
+
+@Input          hDevmemCtx         Memory context of the calling process.
+@Input          hSharedAllocation  The memory descriptor used to export the context
+@Output         phRemoteCtx        Handle to the remote context.
+@Return         PVRSRV_ERROR:      PVRSRV_OK on success. Otherwise, a PVRSRV_
+                                   error code
+*/ /***************************************************************************/
+extern PVRSRV_ERROR
+PVRSRVAcquireRemoteDevMemContext(PVRSRV_DEVMEMCTX hDevmemCtx,
+                                 PVRSRV_MEMDESC hSharedAllocation,
+                                 PVRSRV_REMOTE_DEVMEMCTX *phRemoteCtx);
+
+/**************************************************************************/ /*!
+@Function       PVRSRVReleaseRemoteDevMemContext
+@Description    Releases the remote context and destroys it if this is the last
+                reference.
+
+@Input          hRemoteCtx      Handle to the remote context that will be removed.
+*/ /***************************************************************************/
+extern void
+PVRSRVReleaseRemoteDevMemContext(PVRSRV_REMOTE_DEVMEMCTX hRemoteCtx);
+
 #if defined __cplusplus
 };
 #endif

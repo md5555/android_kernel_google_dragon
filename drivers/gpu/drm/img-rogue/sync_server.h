@@ -233,6 +233,10 @@ IMG_UINT32 ServerSyncGetValue(SERVER_SYNC_PRIMITIVE *psSync);
 
 IMG_UINT32 ServerSyncGetNextValue(SERVER_SYNC_PRIMITIVE *psSync);
 
+#if defined(PVRSRV_ENABLE_FULL_SYNC_TRACKING)
+void SyncRecordLookup(IMG_UINT32 ui32FwAddr, IMG_CHAR * pszSyncInfo, size_t len);
+#endif
+
 void ServerSyncDumpPending(void);
 
 PVRSRV_ERROR SyncRegisterConnection(SYNC_CONNECTION_DATA **ppsSyncConnectionData);

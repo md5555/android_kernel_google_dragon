@@ -173,6 +173,8 @@ typedef enum _IMG_ROTATION_ PVRSRV_ROTATION;
 #define PVRSRV_ROTATE_270 IMG_ROTATION_270DEG
 #define PVRSRV_FLIP_Y IMG_ROTATION_FLIP_Y
 
+#define PVRSRV_ROTATE_BAD IMG_ROTATION_BAD
+
 
 /*!
  *****************************************************************************

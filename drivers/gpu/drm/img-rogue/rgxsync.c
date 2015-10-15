@@ -73,7 +73,7 @@ PVRSRV_ERROR RGXKickSyncKM(PVRSRV_DEVICE_NODE        *psDeviceNode,
                            SERVER_SYNC_PRIMITIVE     **pasServerSyncs,
                            IMG_BOOL                  bPDumpContinuous,
                            IMG_UINT32                ui32ExtJobRef,
-                           IMG_UINT32                ui32IntJobRef)
+                           IMG_UINT32                ui32JobId)
 {
 	RGXFWIF_KCCB_CMD		sCmpKCCBCmd;
 	RGX_CCB_CMD_HELPER_DATA	asCmdHelperData[1];
@@ -108,7 +108,7 @@ PVRSRV_ERROR RGXKickSyncKM(PVRSRV_DEVICE_NODE        *psDeviceNode,
 									  NULL,  /* ppRMWUFOAddr */
 									  RGXFWIF_CCB_CMD_TYPE_NULL,
 									  ui32ExtJobRef,
-									  ui32IntJobRef,
+									  ui32JobId,
 									  bPDumpContinuous,
 									  pszCommandName,
 									  asCmdHelperData);

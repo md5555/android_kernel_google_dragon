@@ -64,16 +64,16 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 TRACE_EVENT(rogue_fence_update,
 
-	TP_PROTO(const char *comm, const char *cmd, const char *dm, u32 fw_ctx, u32 offset,
+	TP_PROTO(const char *comm, const char *cmd, const char *dm, u32 ctx_id, u32 offset,
 		u32 sync_fwaddr, u32 sync_value),
 
-	TP_ARGS(comm, cmd, dm, fw_ctx, offset, sync_fwaddr, sync_value),
+	TP_ARGS(comm, cmd, dm, ctx_id, offset, sync_fwaddr, sync_value),
 
 	TP_STRUCT__entry(
 		__string(       comm,           comm            )
 		__string(       cmd,            cmd             )
 		__string(       dm,             dm              )
-		__field(        u32,            fw_ctx          )
+		__field(        u32,            ctx_id          )
 		__field(        u32,            offset          )
 		__field(        u32,            sync_fwaddr     )
 		__field(        u32,            sync_value      )
@@ -83,17 +83,17 @@ TRACE_EVENT(rogue_fence_update,
 		__assign_str(comm, comm);
 		__assign_str(cmd, cmd);
 		__assign_str(dm, dm);
-		__entry->fw_ctx = fw_ctx;
+		__entry->ctx_id = ctx_id;
 		__entry->offset = offset;
 		__entry->sync_fwaddr = sync_fwaddr;
 		__entry->sync_value = sync_value;
 	),
 
-	TP_printk("comm=%s cmd=%s dm=%s fw_ctx=%lx offset=%lu sync_fwaddr=%lx sync_value=%lx",
+	TP_printk("comm=%s cmd=%s dm=%s ctx_id=%lu offset=%lu sync_fwaddr=%#lx sync_value=%#lx",
 		__get_str(comm),
 		__get_str(cmd),
 		__get_str(dm),
-		(unsigned long)__entry->fw_ctx,
+		(unsigned long)__entry->ctx_id,
 		(unsigned long)__entry->offset,
 		(unsigned long)__entry->sync_fwaddr,
 		(unsigned long)__entry->sync_value)
@@ -101,16 +101,16 @@ TRACE_EVENT(rogue_fence_update,
 
 TRACE_EVENT(rogue_fence_check,
 
-	TP_PROTO(const char *comm, const char *cmd, const char *dm, u32 fw_ctx, u32 offset,
+	TP_PROTO(const char *comm, const char *cmd, const char *dm, u32 ctx_id, u32 offset,
 		u32 sync_fwaddr, u32 sync_value),
 
-	TP_ARGS(comm, cmd, dm, fw_ctx, offset, sync_fwaddr, sync_value),
+	TP_ARGS(comm, cmd, dm, ctx_id, offset, sync_fwaddr, sync_value),
 
 	TP_STRUCT__entry(
 		__string(       comm,           comm            )
 		__string(       cmd,            cmd             )
 		__string(       dm,             dm              )
-		__field(        u32,            fw_ctx          )
+		__field(        u32,            ctx_id          )
 		__field(        u32,            offset          )
 		__field(        u32,            sync_fwaddr     )
 		__field(        u32,            sync_value      )
@@ -120,17 +120,17 @@ TRACE_EVENT(rogue_fence_check,
 		__assign_str(comm, comm);
 		__assign_str(cmd, cmd);
 		__assign_str(dm, dm);
-		__entry->fw_ctx = fw_ctx;
+		__entry->ctx_id = ctx_id;
 		__entry->offset = offset;
 		__entry->sync_fwaddr = sync_fwaddr;
 		__entry->sync_value = sync_value;
 	),
 
-	TP_printk("comm=%s cmd=%s dm=%s fw_ctx=%lx offset=%lu sync_fwaddr=%lx sync_value=%lx",
+	TP_printk("comm=%s cmd=%s dm=%s ctx_id=%lu offset=%lu sync_fwaddr=%#lx sync_value=%#lx",
 		__get_str(comm),
 		__get_str(cmd),
 		__get_str(dm),
-		(unsigned long)__entry->fw_ctx,
+		(unsigned long)__entry->ctx_id,
 		(unsigned long)__entry->offset,
 		(unsigned long)__entry->sync_fwaddr,
 		(unsigned long)__entry->sync_value)
@@ -138,39 +138,44 @@ TRACE_EVENT(rogue_fence_check,
 
 TRACE_EVENT(rogue_create_fw_context,
 
-	TP_PROTO(const char *comm, const char *dm, u32 fw_ctx),
+	TP_PROTO(const char *comm, const char *dm, u32 ctx_id),
 
-	TP_ARGS(comm, dm, fw_ctx),
+	TP_ARGS(comm, dm, ctx_id),
 
 	TP_STRUCT__entry(
 		__string(       comm,           comm            )
 		__string(       dm,             dm              )
-		__field(        u32,            fw_ctx          )
+		__field(        u32,            ctx_id          )
 	),
 
 	TP_fast_assign(
 		__assign_str(comm, comm);
 		__assign_str(dm, dm);
-		__entry->fw_ctx = fw_ctx;
+		__entry->ctx_id = ctx_id;
 	),
 
-	TP_printk("comm=%s dm=%s fw_ctx=%lx",
+	TP_printk("comm=%s dm=%s ctx_id=%lu",
 		__get_str(comm),
 		__get_str(dm),
-		(unsigned long)__entry->fw_ctx)
+		(unsigned long)__entry->ctx_id)
 );
 
-TRACE_EVENT(rogue_ufo_update,
+#if defined(SUPPORT_GPUTRACE_EVENTS)
 
-	TP_PROTO(u64 timestamp, u32 fw_ctx, u32 job_id, u32 fwaddr,
+void PVRGpuTraceEnableUfoCallback(void);
+void PVRGpuTraceDisableUfoCallback(void);
+
+TRACE_EVENT_FN(rogue_ufo_update,
+
+	TP_PROTO(u64 timestamp, u32 ctx_id, u32 job_id, u32 fwaddr,
 		u32 old_value, u32 new_value),
 
-	TP_ARGS(timestamp, fw_ctx, job_id, fwaddr, old_value, new_value),
+	TP_ARGS(timestamp, ctx_id, job_id, fwaddr, old_value, new_value),
 
 	TP_STRUCT__entry(
 		__field(        u64,            timestamp   )
-		__field(        u32,            fw_ctx      )
-		__field(        u32,            job_id )
+		__field(        u32,            ctx_id      )
+		__field(        u32,            job_id      )
 		__field(        u32,            fwaddr      )
 		__field(        u32,            old_value   )
 		__field(        u32,            new_value   )
@@ -178,35 +183,37 @@ TRACE_EVENT(rogue_ufo_update,
 
 	TP_fast_assign(
 		__entry->timestamp = timestamp;
-		__entry->fw_ctx = fw_ctx;
+		__entry->ctx_id = ctx_id;
 		__entry->job_id = job_id;
 		__entry->fwaddr = fwaddr;
 		__entry->old_value = old_value;
 		__entry->new_value = new_value;
 	),
 
-	TP_printk("ts=%llu.%06lu fw_ctx=%lx job_id=%lu fwaddr=%lx "
-		"old_value=%lx new_value=%lx",
+	TP_printk("ts=%llu.%06lu ctx_id=%lu job_id=%lu fwaddr=%#lx "
+		"old_value=%#lx new_value=%#lx",
 		(unsigned long long)show_secs_from_ns(__entry->timestamp),
 		(unsigned long)show_usecs_from_ns(__entry->timestamp),
-		(unsigned long)__entry->fw_ctx,
+		(unsigned long)__entry->ctx_id,
 		(unsigned long)__entry->job_id,
 		(unsigned long)__entry->fwaddr,
 		(unsigned long)__entry->old_value,
-		(unsigned long)__entry->new_value)
+		(unsigned long)__entry->new_value),
+	PVRGpuTraceEnableUfoCallback,
+	PVRGpuTraceDisableUfoCallback
 );
 
-DECLARE_EVENT_CLASS(rogue_ufo_check_fail_class,
+TRACE_EVENT_FN(rogue_ufo_check_fail,
 
-	TP_PROTO(u64 timestamp, u32 fw_ctx, u32 job_id, u32 fwaddr,
+	TP_PROTO(u64 timestamp, u32 ctx_id, u32 job_id, u32 fwaddr,
 		u32 value, u32 required),
 
-	TP_ARGS(timestamp, fw_ctx, job_id, fwaddr, value, required),
+	TP_ARGS(timestamp, ctx_id, job_id, fwaddr, value, required),
 
 	TP_STRUCT__entry(
 		__field(        u64,            timestamp   )
-		__field(        u32,            fw_ctx      )
-		__field(        u32,            job_id )
+		__field(        u32,            ctx_id      )
+		__field(        u32,            job_id      )
 		__field(        u32,            fwaddr      )
 		__field(        u32,            value       )
 		__field(        u32,            required    )
@@ -214,76 +221,155 @@ DECLARE_EVENT_CLASS(rogue_ufo_check_fail_class,
 
 	TP_fast_assign(
 		__entry->timestamp = timestamp;
-		__entry->fw_ctx = fw_ctx;
+		__entry->ctx_id = ctx_id;
 		__entry->job_id = job_id;
 		__entry->fwaddr = fwaddr;
 		__entry->value = value;
 		__entry->required = required;
 	),
 
-	TP_printk("ts=%llu.%06lu fw_ctx=%lx job_id=%lu fwaddr=%lx "
-		"value=%lx required=%lx",
+	TP_printk("ts=%llu.%06lu ctx_id=%lu job_id=%lu fwaddr=%#lx "
+		"value=%#lx required=%#lx",
 		(unsigned long long)show_secs_from_ns(__entry->timestamp),
 		(unsigned long)show_usecs_from_ns(__entry->timestamp),
-		(unsigned long)__entry->fw_ctx,
+		(unsigned long)__entry->ctx_id,
 		(unsigned long)__entry->job_id,
 		(unsigned long)__entry->fwaddr,
 		(unsigned long)__entry->value,
-		(unsigned long)__entry->required)
+		(unsigned long)__entry->required),
+	PVRGpuTraceEnableUfoCallback,
+	PVRGpuTraceDisableUfoCallback
 );
 
-DEFINE_EVENT(rogue_ufo_check_fail_class, rogue_ufo_check_fail,
-	TP_PROTO(u64 timestamp, u32 fw_ctx, u32 job_id, u32 fwaddr,
+TRACE_EVENT_FN(rogue_ufo_pr_check_fail,
+
+	TP_PROTO(u64 timestamp, u32 ctx_id, u32 job_id, u32 fwaddr,
 		u32 value, u32 required),
-	TP_ARGS(timestamp, fw_ctx, job_id, fwaddr, value, required)
-);
 
-DEFINE_EVENT(rogue_ufo_check_fail_class, rogue_ufo_pr_check_fail,
-	TP_PROTO(u64 timestamp, u32 fw_ctx, u32 job_id, u32 fwaddr,
-		u32 value, u32 required),
-	TP_ARGS(timestamp, fw_ctx, job_id, fwaddr, value, required)
-);
-
-DECLARE_EVENT_CLASS(rogue_ufo_check_success_class,
-
-	TP_PROTO(u64 timestamp, u32 fw_ctx, u32 job_id, u32 fwaddr, u32 value),
-
-	TP_ARGS(timestamp, fw_ctx, job_id, fwaddr, value),
+	TP_ARGS(timestamp, ctx_id, job_id, fwaddr, value, required),
 
 	TP_STRUCT__entry(
 		__field(        u64,            timestamp   )
-		__field(        u32,            fw_ctx      )
-		__field(        u32,            job_id )
+		__field(        u32,            ctx_id      )
+		__field(        u32,            job_id      )
+		__field(        u32,            fwaddr      )
+		__field(        u32,            value       )
+		__field(        u32,            required    )
+	),
+
+	TP_fast_assign(
+		__entry->timestamp = timestamp;
+		__entry->ctx_id = ctx_id;
+		__entry->job_id = job_id;
+		__entry->fwaddr = fwaddr;
+		__entry->value = value;
+		__entry->required = required;
+	),
+
+	TP_printk("ts=%llu.%06lu ctx_id=%lu job_id=%lu fwaddr=%#lx "
+		"value=%#lx required=%#lx",
+		(unsigned long long)show_secs_from_ns(__entry->timestamp),
+		(unsigned long)show_usecs_from_ns(__entry->timestamp),
+		(unsigned long)__entry->ctx_id,
+		(unsigned long)__entry->job_id,
+		(unsigned long)__entry->fwaddr,
+		(unsigned long)__entry->value,
+		(unsigned long)__entry->required),
+	PVRGpuTraceEnableUfoCallback,
+	PVRGpuTraceDisableUfoCallback
+);
+
+TRACE_EVENT_FN(rogue_ufo_check_success,
+
+	TP_PROTO(u64 timestamp, u32 ctx_id, u32 job_id, u32 fwaddr, u32 value),
+
+	TP_ARGS(timestamp, ctx_id, job_id, fwaddr, value),
+
+	TP_STRUCT__entry(
+		__field(        u64,            timestamp   )
+		__field(        u32,            ctx_id      )
+		__field(        u32,            job_id      )
 		__field(        u32,            fwaddr      )
 		__field(        u32,            value       )
 	),
 
 	TP_fast_assign(
 		__entry->timestamp = timestamp;
-		__entry->fw_ctx = fw_ctx;
+		__entry->ctx_id = ctx_id;
 		__entry->job_id = job_id;
 		__entry->fwaddr = fwaddr;
 		__entry->value = value;
 	),
 
-	TP_printk("ts=%llu.%06lu fw_ctx=%lx job_id=%lu fwaddr=%lx value=%lx",
+	TP_printk("ts=%llu.%06lu ctx_id=%lu job_id=%lu fwaddr=%#lx value=%#lx",
 		(unsigned long long)show_secs_from_ns(__entry->timestamp),
 		(unsigned long)show_usecs_from_ns(__entry->timestamp),
-		(unsigned long)__entry->fw_ctx,
+		(unsigned long)__entry->ctx_id,
 		(unsigned long)__entry->job_id,
 		(unsigned long)__entry->fwaddr,
-		(unsigned long)__entry->value)
+		(unsigned long)__entry->value),
+	PVRGpuTraceEnableUfoCallback,
+	PVRGpuTraceDisableUfoCallback
 );
 
-DEFINE_EVENT(rogue_ufo_check_success_class, rogue_ufo_check_success,
-	TP_PROTO(u64 timestamp, u32 fw_ctx, u32 job_id, u32 fwaddr, u32 value),
-	TP_ARGS(timestamp, fw_ctx, job_id, fwaddr, value)
+TRACE_EVENT_FN(rogue_ufo_pr_check_success,
+
+	TP_PROTO(u64 timestamp, u32 ctx_id, u32 job_id, u32 fwaddr, u32 value),
+
+	TP_ARGS(timestamp, ctx_id, job_id, fwaddr, value),
+
+	TP_STRUCT__entry(
+		__field(        u64,            timestamp   )
+		__field(        u32,            ctx_id      )
+		__field(        u32,            job_id      )
+		__field(        u32,            fwaddr      )
+		__field(        u32,            value       )
+	),
+
+	TP_fast_assign(
+		__entry->timestamp = timestamp;
+		__entry->ctx_id = ctx_id;
+		__entry->job_id = job_id;
+		__entry->fwaddr = fwaddr;
+		__entry->value = value;
+	),
+
+	TP_printk("ts=%llu.%06lu ctx_id=%lu job_id=%lu fwaddr=%#lx value=%#lx",
+		(unsigned long long)show_secs_from_ns(__entry->timestamp),
+		(unsigned long)show_usecs_from_ns(__entry->timestamp),
+		(unsigned long)__entry->ctx_id,
+		(unsigned long)__entry->job_id,
+		(unsigned long)__entry->fwaddr,
+		(unsigned long)__entry->value),
+	PVRGpuTraceEnableUfoCallback,
+	PVRGpuTraceDisableUfoCallback
 );
 
-DEFINE_EVENT(rogue_ufo_check_success_class, rogue_ufo_pr_check_success,
-	TP_PROTO(u64 timestamp, u32 fw_ctx, u32 job_id, u32 fwaddr, u32 value),
-	TP_ARGS(timestamp, fw_ctx, job_id, fwaddr, value)
+TRACE_EVENT(rogue_events_lost,
+
+	TP_PROTO(u32 event_source, u32 last_ordinal, u32 curr_ordinal),
+
+	TP_ARGS(event_source, last_ordinal, curr_ordinal),
+
+	TP_STRUCT__entry(
+		__field(        u32,            event_source     )
+		__field(        u32,            last_ordinal     )
+		__field(        u32,            curr_ordinal     )
+	),
+
+	TP_fast_assign(
+		__entry->event_source = event_source;
+		__entry->last_ordinal = last_ordinal;
+		__entry->curr_ordinal = curr_ordinal;
+	),
+
+	TP_printk("event_source=%s last_ordinal=%u curr_ordinal=%u",
+		__print_symbolic(__entry->event_source, {0, "GPU"}, {1, "Host"}),
+		__entry->last_ordinal,
+		__entry->curr_ordinal)
 );
+
+#endif /* defined(SUPPORT_GPUTRACE_EVENTS) */
 
 #undef show_secs_from_ns
 #undef show_usecs_from_ns

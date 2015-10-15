@@ -670,6 +670,12 @@ PVRSRV_ERROR PVRSRVSetDevicePowerStateKM(IMG_UINT32				ui32DeviceIndex,
 	PVRSRV_DATA*    psPVRSRVData = PVRSRVGetPVRSRVData();
 	PVRSRV_DEV_POWER_STATE eOldPowerState;
 
+	if (PVRSRV_SYS_POWER_STATE_ON != psPVRSRVData->eCurrentPowerState)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "PVRSRVSetDevicePowerStateKM: System power state is not ON"));
+		return PVRSRV_ERROR_DEVICE_POWER_CHANGE_DENIED;
+	}
+
 	eError = PVRSRVGetDevicePowerState(ui32DeviceIndex, &eOldPowerState);
 	if (eError != PVRSRV_OK)
 	{
@@ -745,6 +751,14 @@ PVRSRV_ERROR PVRSRVSetPowerStateKM(PVRSRV_SYS_POWER_STATE eNewSysPowerState, IMG
 		return PVRSRV_ERROR_INVALID_PARAMS;
 	}
 
+#if defined(PDUMP)
+	/* required because sending the idle command to the RGX FW includes
+	* pdumping a SyncPrimSet value and pdumping a CCB command.
+	* The PMR lock must be taken before the power lock, otherwise
+	* lockdep detects a AB-BA style locking scenario
+	*/
+	PMRLock();
+#endif
 	/* Prevent simultaneous SetPowerStateKM calls */
 	PVRSRVForcedPowerLock();
 
@@ -752,6 +766,9 @@ PVRSRV_ERROR PVRSRVSetPowerStateKM(PVRSRV_SYS_POWER_STATE eNewSysPowerState, IMG
 	if (eNewSysPowerState == psPVRSRVData->eCurrentPowerState)
 	{
 		PVRSRVPowerUnlock();
+#if defined(PDUMP)
+		PMRUnlock();
+#endif
 		return PVRSRV_OK;
 	}
 
@@ -816,6 +833,9 @@ PVRSRV_ERROR PVRSRVSetPowerStateKM(PVRSRV_SYS_POWER_STATE eNewSysPowerState, IMG
 	psPVRSRVData->eFailedPowerState = PVRSRV_SYS_POWER_STATE_Unspecified;
 
 	PVRSRVPowerUnlock();
+#if defined(PDUMP)
+		PMRUnlock();
+#endif
 
 	/*
 		Reprocess the devices' queues in case commands were blocked during
@@ -834,6 +854,9 @@ ErrorExit:
 	psPVRSRVData->eFailedPowerState = eNewSysPowerState;
 
 	PVRSRVPowerUnlock();
+#if defined(PDUMP)
+	PMRUnlock();
+#endif
 
 	PVR_DPF((PVR_DBG_ERROR,
 			"PVRSRVSetPowerStateKM: Transition from %d to %d FAILED (%s) at stage %d, forced: %d. Dumping debug info.",

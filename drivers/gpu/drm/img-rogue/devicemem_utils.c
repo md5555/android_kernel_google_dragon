@@ -379,7 +379,8 @@ void _DevmemImportStructInit(DEVMEM_IMPORT *psImport,
 IMG_INTERNAL
 PVRSRV_ERROR _DevmemImportStructDevMap(DEVMEM_HEAP *psHeap,
 									   IMG_BOOL bMap,
-									   DEVMEM_IMPORT *psImport)
+									   DEVMEM_IMPORT *psImport,
+									   IMG_UINT64 uiOptionalMapAddress)
 {
 	DEVMEM_DEVICE_IMPORT *psDeviceImport;
 	IMG_BOOL bStatus;
@@ -409,26 +410,77 @@ PVRSRV_ERROR _DevmemImportStructDevMap(DEVMEM_HEAP *psHeap,
 
 		OSAtomicIncrement(&psHeap->hImportCount);
 
-		/* Allocate space in the VM */
-	    bStatus = RA_Alloc(psHeap->psQuantizedVMRA,
-	                       psImport->uiSize,
-	                       0, /* flags: this RA doesn't use flags*/
-	                       uiAlign,
-	                       &uiAllocatedAddr,
-	                       &uiAllocatedSize,
-	                       NULL /* don't care about per-import priv data */
-	                       );
-	    if (!bStatus)
-	    {
-	        eError = PVRSRV_ERROR_DEVICEMEM_OUT_OF_DEVICE_VM;
-	        goto failVMRAAlloc;
-	    }
-	
-	    /* No reason for the allocated virtual size to be different from
-	       the PMR's size */
-	    PVR_ASSERT(uiAllocatedSize == psImport->uiSize);
-	
-	    sBase.uiAddr = uiAllocatedAddr;
+		if (uiOptionalMapAddress == 0)
+		{
+			if (psHeap->eHeapType == DEVMEM_HEAP_TYPE_USER_MANAGED)
+			{
+				PVR_DPF((PVR_DBG_ERROR,
+						"%s: This heap is managed by the user application itself, "
+						"please continue to use PVRSRVMapToDeviceAddress()."
+						, __func__));
+				eError = PVRSRV_ERROR_INVALID_PARAMS;
+				goto failVMRAAlloc;
+			}
+			psHeap->eHeapType = DEVMEM_HEAP_TYPE_RA_MANAGED;
+
+			/* Allocate space in the VM */
+			bStatus = RA_Alloc(psHeap->psQuantizedVMRA,
+							   psImport->uiSize,
+							   0, /* flags: this RA doesn't use flags*/
+							   uiAlign,
+							   &uiAllocatedAddr,
+							   &uiAllocatedSize,
+							   NULL /* don't care about per-import priv data */
+							   );
+			if (!bStatus)
+			{
+				eError = PVRSRV_ERROR_DEVICEMEM_OUT_OF_DEVICE_VM;
+				goto failVMRAAlloc;
+			}
+
+			/* No reason for the allocated virtual size to be different from
+			   the PMR's size */
+			PVR_ASSERT(uiAllocatedSize == psImport->uiSize);
+
+			sBase.uiAddr = uiAllocatedAddr;
+
+		}
+		else
+		{
+			if (psHeap->eHeapType == DEVMEM_HEAP_TYPE_RA_MANAGED)
+			{
+				PVR_DPF((PVR_DBG_ERROR,
+						"%s: This heap is managed by an RA, please use PVRSRVMapToDevice()."
+						, __func__));
+				eError = PVRSRV_ERROR_INVALID_PARAMS;
+				goto failVMRAAlloc;
+			}
+			psHeap->eHeapType = DEVMEM_HEAP_TYPE_USER_MANAGED;
+
+
+			if (uiOptionalMapAddress & ((1 << psHeap->uiLog2Quantum) - 1))
+			{
+				PVR_DPF((PVR_DBG_ERROR,
+						"%s: Invalid address to map to. Please prove an address aligned to"
+						"a page multiple of the heap."
+						, __func__));
+				eError = PVRSRV_ERROR_INVALID_PARAMS;
+				goto failVMRAAlloc;
+			}
+			uiAllocatedAddr = uiOptionalMapAddress;
+
+			if (psImport->uiSize & ((1 << psHeap->uiLog2Quantum) - 1))
+			{
+				PVR_DPF((PVR_DBG_ERROR,
+						"%s: Invalid heap to map to. "
+						"Please choose a heap that can handle smaller page sizes."
+						, __func__));
+				eError = PVRSRV_ERROR_INVALID_PARAMS;
+				goto failVMRAAlloc;
+			}
+			uiAllocatedSize = psImport->uiSize;
+			sBase.uiAddr = uiAllocatedAddr;
+		}
 	
 		/* Setup page tables for the allocated VM space */
 	    eError = BridgeDevmemIntReserveRange(psHeap->psCtx->hDevConnection,
@@ -486,12 +538,16 @@ failMap:
 	BridgeDevmemIntUnreserveRange(psHeap->psCtx->hDevConnection,
 								  hReservation);
 failReserve:
-	RA_Free(psHeap->psQuantizedVMRA,
-            uiAllocatedAddr);
+	if (uiOptionalMapAddress == 0)
+	{
+		RA_Free(psHeap->psQuantizedVMRA,
+				uiAllocatedAddr);
+	}
 failVMRAAlloc:
 	_DevmemImportStructRelease(psImport);
 	OSAtomicDecrement(&psHeap->hImportCount);
 failParams:
+	psDeviceImport->ui32RefCount--;
 	OSLockRelease(psDeviceImport->hLock);
 	PVR_ASSERT(eError != PVRSRV_OK);
 	return eError;

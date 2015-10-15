@@ -2,8 +2,6 @@
 @File           pvr_dvfs.h
 @Title          System level interface for DVFS
 @Copyright      Copyright (c) Imagination Technologies Ltd. All Rights Reserved
-@Description    This file defined the API between services and system layer
-                required for Ion integration.
 @License        Dual MIT/GPLv2
 
 The contents of this file are subject to the MIT license as set out below.
@@ -50,13 +48,15 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "pvrsrv_error.h"
 #include "img_types.h"
 
-typedef void (*PFN_SYS_DEV_DVFS_SET_FREQUENCY)(IMG_UINT32 ui64Freq);
-typedef void (*PFN_SYS_DEV_DVFS_SET_VOLTAGE)(IMG_UINT32 ui64Volt);
-
+typedef void (*PFN_SYS_DEV_DVFS_SET_FREQUENCY)(IMG_UINT32 ui32Freq);
+typedef void (*PFN_SYS_DEV_DVFS_SET_VOLTAGE)(IMG_UINT32 ui32Volt);
 
 typedef struct _IMG_OPP_
 {
 	IMG_UINT32			ui32Volt;
+	/*
+	 * Unit of frequency in Hz.
+	 */
 	IMG_UINT32			ui32Freq;
 } IMG_OPP;
 
@@ -68,14 +68,13 @@ typedef struct _IMG_DVFS_GOVERNOR_CFG_
 
 typedef struct _IMG_DVFS_DEVICE_CFG_
 {
-	const IMG_OPP			*pasOPPTable;
-	IMG_UINT32			ui32OPPTableSize;
+	const IMG_OPP  *pasOPPTable;
+	IMG_UINT32      ui32OPPTableSize;
+	IMG_UINT32      ui32PollMs;
+	IMG_BOOL        bIdleReq;
 
-	IMG_UINT32			ui32PollMs;
-	IMG_BOOL			bIdleReq;
-
-	PFN_SYS_DEV_DVFS_SET_FREQUENCY	pfnSetFrequency;
-	PFN_SYS_DEV_DVFS_SET_VOLTAGE	pfnSetVoltage;
+	PFN_SYS_DEV_DVFS_SET_FREQUENCY  pfnSetFrequency;
+	PFN_SYS_DEV_DVFS_SET_VOLTAGE    pfnSetVoltage;
 
 #if defined(CONFIG_DEVFREQ_THERMAL)
 	struct devfreq_cooling_power *psPowerOps;

@@ -143,12 +143,12 @@ static IMG_INT32 devfreq_target(struct device *dev, long unsigned *requested_fre
 
 static int devfreq_get_dev_status(struct device *dev, struct devfreq_dev_status *stat)
 {
-	PVRSRV_RGXDEV_INFO*	psDevInfo = gpsDeviceNode->pvDevice;
-	IMG_DVFS_DEVICE		*psDVFSDevice = &gpsDeviceNode->psDevConfig->sDVFS.sDVFSDevice;
-	RGX_DATA		*psRGXData = (RGX_DATA*) gpsDeviceNode->psDevConfig->hDevData;
-	RGX_TIMING_INFORMATION	*psRGXTimingInfo = psRGXData->psRGXTimingInfo;
-	RGXFWIF_GPU_UTIL_STATS	sGpuUtilStats;
-	PVRSRV_ERROR eError = PVRSRV_OK;
+	PVRSRV_RGXDEV_INFO      *psDevInfo = gpsDeviceNode->pvDevice;
+	IMG_DVFS_DEVICE         *psDVFSDevice = &gpsDeviceNode->psDevConfig->sDVFS.sDVFSDevice;
+	RGX_DATA                *psRGXData = (RGX_DATA*) gpsDeviceNode->psDevConfig->hDevData;
+	RGX_TIMING_INFORMATION  *psRGXTimingInfo = psRGXData->psRGXTimingInfo;
+	RGXFWIF_GPU_UTIL_STATS   sGpuUtilStats;
+	PVRSRV_ERROR             eError = PVRSRV_OK;
 
 	stat->current_frequency = psRGXTimingInfo->ui32CoreClockSpeed;
 
@@ -187,10 +187,10 @@ static IMG_INT32 devfreq_cur_freq(struct device *dev, unsigned long *freq)
 #endif
 
 static struct devfreq_dev_profile img_devfreq_dev_profile = {
-	.target			= devfreq_target,
-	.get_dev_status		= devfreq_get_dev_status,
+	.target             = devfreq_target,
+	.get_dev_status     = devfreq_get_dev_status,
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0))
-	.get_cur_freq		= devfreq_cur_freq,
+	.get_cur_freq       = devfreq_cur_freq,
 #endif
 };
 
@@ -261,7 +261,7 @@ static int GetOPPValues(struct device *dev,
 	*min_freq = freq;
 	*min_volt = OPP_GET_VOLTAGE(opp);
 	dev_info(dev, "opp[%d/%d]: (%lu Hz, %lu uV)\n", 1, count,
-	         freq, *min_volt);
+		freq, *min_volt);
 
 	/*
 	 * Iteration i > 0 finds "opp w/ freq >= (opp[i-1].freq + 1)".
@@ -278,7 +278,7 @@ static int GetOPPValues(struct device *dev,
 		freq_table[i] = freq;
 		*max_freq = freq;
 		dev_info(dev, "opp[%d/%d]: (%lu Hz, %lu uV)\n", i + 1, count,
-		         freq, OPP_GET_VOLTAGE(opp));
+			freq, OPP_GET_VOLTAGE(opp));
 	}
 
 exit:
@@ -334,21 +334,23 @@ static int RegisterCoolingDevice(struct device *dev,
 
 PVRSRV_ERROR InitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
 {
-	RGX_TIMING_INFORMATION	*psRGXTimingInfo = NULL;
-	IMG_DVFS_DEVICE		*psDVFSDevice = NULL;
-	IMG_DVFS_DEVICE_CFG	*psDVFSDeviceCfg = NULL;
-	IMG_DVFS_GOVERNOR_CFG	*psDVFSGovernorCfg = NULL;
-	PVRSRV_ERROR		eError;
-	struct DEVICE_STRUCT	*psLDMDev = (struct DEVICE_STRUCT *) hDevice;
-	struct device		*psDev = &psLDMDev->dev;
-	unsigned long		min_freq, max_freq, min_volt;
-	int			i, err;
+	IMG_DVFS_DEVICE        *psDVFSDevice = NULL;
+	IMG_DVFS_DEVICE_CFG    *psDVFSDeviceCfg = NULL;
+	IMG_DVFS_GOVERNOR_CFG  *psDVFSGovernorCfg = NULL;
+	RGX_TIMING_INFORMATION *psRGXTimingInfo = NULL;
+	struct DEVICE_STRUCT   *psLDMDev = (struct DEVICE_STRUCT *) hDevice;
+	struct device          *psDev = &psLDMDev->dev;
+	unsigned long           min_freq, max_freq, min_volt;
+	PVRSRV_ERROR            eError;
+	int                     i, err;
 
 	for (i = 0; i < psPVRSRVData->ui32RegisteredDevices; i++)
 	{
 		PVRSRV_DEVICE_NODE* psDeviceNode = psPVRSRVData->apsRegisteredDevNodes[i];
-		if (psDeviceNode && psDeviceNode->psDevConfig &&
-				psDeviceNode->psDevConfig->eDeviceType == PVRSRV_DEVICE_TYPE_RGX)
+
+		if (psDeviceNode && 
+			psDeviceNode->psDevConfig &&
+			psDeviceNode->psDevConfig->eDeviceType == PVRSRV_DEVICE_TYPE_RGX)
 		{
 			RGX_DATA *psRGXData = (RGX_DATA*) psDeviceNode->psDevConfig->hDevData;
 
@@ -406,9 +408,19 @@ PVRSRV_ERROR InitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
 	psDVFSDevice->data.upthreshold = psDVFSGovernorCfg->ui32UpThreshold;
 	psDVFSDevice->data.downdifferential = psDVFSGovernorCfg->ui32DownDifferential;
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0))
 	psDVFSDevice->psDevFreq = devm_devfreq_add_device(psDev,
 			&img_devfreq_dev_profile, "simple_ondemand",
 			&psDVFSDevice->data);
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3,8,0))
+	psDVFSDevice->psDevFreq = devfreq_add_device(psDev,
+			&img_devfreq_dev_profile, "simple_ondemand",
+			&psDVFSDevice->data);
+#else
+	psDVFSDevice->psDevFreq = devfreq_add_device(psDev,
+			&img_devfreq_dev_profile, &devfreq_simple_ondemand,
+			&psDVFSDevice->data);
+#endif
 
 	if (IS_ERR(psDVFSDevice->psDevFreq))
 	{
@@ -457,10 +469,10 @@ err_exit:
 
 void DeinitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
 {
-	IMG_DVFS_DEVICE		*psDVFSDevice = &gpsDeviceNode->psDevConfig->sDVFS.sDVFSDevice;
-	struct DEVICE_STRUCT	*psPlatDev = (struct DEVICE_STRUCT *) hDevice;
-	struct device		*psDev = &psPlatDev->dev;
-	IMG_INT32		i32Error;
+	IMG_DVFS_DEVICE      *psDVFSDevice = &gpsDeviceNode->psDevConfig->sDVFS.sDVFSDevice;
+	struct DEVICE_STRUCT *psPlatDev = (struct DEVICE_STRUCT *) hDevice;
+	struct device        *psDev = &psPlatDev->dev;
+	IMG_INT32            i32Error;
 
 	if (!psDVFSDevice)
 		return;
@@ -480,6 +492,10 @@ void DeinitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
 		{
 			PVR_DPF((PVR_DBG_ERROR, "Failed to unregister OPP notifier"));
 		}
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0))
+		devfreq_remove_device(psDVFSDevice->psDevFreq);
+#endif
 
 		psDVFSDevice->psDevFreq = NULL;
 	}

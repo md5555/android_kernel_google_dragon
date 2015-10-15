@@ -104,6 +104,7 @@ typedef struct _RA_SEGMENT_DETAILS_ RA_SEGMENT_DETAILS;
  *  @Input alloc - a resource allocation callback or 0.
  *  @Input free - a resource de-allocation callback or 0.
  *  @Input per_arena_handle - user private handle passed to alloc and free or 0.
+ *  @Input bNoSplit - Disable splitting up imports.
  *  @Return pointer to arena, or NULL.
  */
 RA_ARENA *
@@ -120,7 +121,8 @@ RA_Create (IMG_CHAR *name,
            void (*imp_free) (RA_PERARENA_HANDLE,
                                  RA_BASE_T,
                                  RA_PERISPAN_HANDLE),
-           RA_PERARENA_HANDLE per_arena_handle);
+           RA_PERARENA_HANDLE per_arena_handle,
+		   IMG_BOOL bNoSplit);
 
 /**
  *  @Function   RA_Delete

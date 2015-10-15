@@ -64,7 +64,6 @@ PVRSRV_ERROR RGXHWPerfInit(PVRSRV_DEVICE_NODE *psRgxDevInfo);
 PVRSRV_ERROR RGXHWPerfInitOnDemandResources(void);
 void RGXHWPerfDeinit(void);
 
-
 /******************************************************************************
  * RGX HW Performance Profiling API(s)
  *****************************************************************************/
@@ -104,10 +103,12 @@ PVRSRV_ERROR PVRSRVRGXConfigCustomCountersKM(
 PVRSRV_ERROR RGXHWPerfHostInit(void);
 PVRSRV_ERROR RGXHWPerfHostInitOnDemandResources(void);
 void RGXHWPerfHostDeInit(void);
+
 void RGXHWPerfHostSetEventFilter(IMG_UINT32 ui32Filter);
 
-void RGXHWPerfHostPostEnqEvent(const RGX_HWPERF_HOST_ENQ_KICK_TYPE ui32EnqType,
+void RGXHWPerfHostPostEnqEvent(const RGX_HWPERF_KICK_TYPE ui32EnqType,
                                const IMG_UINT32 ui32Pid,
+                               const IMG_UINT32 ui32FWCtx,
                                const IMG_UINT32 ui32ExtJobRef,
                                const IMG_UINT32 ui32IntJobRef);
 
@@ -123,15 +124,16 @@ void RGXHWPerfHostPostEnqEvent(const RGX_HWPERF_HOST_ENQ_KICK_TYPE ui32EnqType,
  *
  * @param C context
  * @param P process id (PID)
+ * @param X firmware context
  * @param E ExtJobRef
  * @param I IntJobRef
  * @param K kick type
  */
-#define RGX_HWPERF_HOST_ENQ(C, P, E, I, K) \
+#define RGX_HWPERF_HOST_ENQ(C, P, X, E, I, K) \
 		do { \
 			if (__RGX_HWPERF_HOST_EN(C) && __RGX_HWPERF_HOST_FILTER(C, RGX_HWPERF_HOST_ENQ)) \
 			{ \
-				RGXHWPerfHostPostEnqEvent((K), (P), (E), (I)); \
+				RGXHWPerfHostPostEnqEvent((K), (P), (X), (E), (I)); \
 			} \
 		} while (0)
 
@@ -146,7 +148,7 @@ void RGXHWPerfFTraceGPUDeInit(PVRSRV_RGXDEV_INFO *psDevInfo);
 
 void RGXHWPerfFTraceGPUEnqueueEvent(PVRSRV_RGXDEV_INFO *psDevInfo,
 		IMG_UINT32 ui32ExternalJobRef, IMG_UINT32 ui32InternalJobRef,
-		const IMG_CHAR* pszJobType);
+		RGX_HWPERF_KICK_TYPE eKickType);
 
 PVRSRV_ERROR RGXHWPerfFTraceGPUEventsEnabledSet(IMG_BOOL bNewValue);
 IMG_BOOL RGXHWPerfFTraceGPUEventsEnabled(void);
@@ -155,5 +157,10 @@ void RGXHWPerfFTraceGPUThread(void *pvData);
 
 #endif
 
+/******************************************************************************
+ * RGX HW utils functions
+ *****************************************************************************/
+
+const IMG_CHAR *RGXHWPerfKickTypeToStr(RGX_HWPERF_KICK_TYPE eKickType);
 
 #endif /* RGXHWPERF_H_ */

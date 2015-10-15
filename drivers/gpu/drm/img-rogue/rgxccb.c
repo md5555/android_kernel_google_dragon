@@ -111,6 +111,26 @@ IMG_PCHAR aszCCBRequestors[][3] =
 static_assert((sizeof(aszCCBRequestors)/(3*sizeof(aszCCBRequestors[0][0]))) == (REQ_TYPE_FIXED_COUNT + DPX_MAX_RAY_CONTEXTS + 1),
 			  "Mismatch between aszCCBRequestors table and DPX_MAX_RAY_CONTEXTS");
 
+IMG_EXPORT PVRSRV_ERROR RGXCCBPDumpDrainCCB(RGX_CLIENT_CCB *psClientCCB,
+						IMG_BOOL bPDumpContinuous)
+{
+	IMG_UINT32 ui32PDumpFlags;
+
+	ui32PDumpFlags = bPDumpContinuous ? PDUMP_FLAGS_CONTINUOUS : 0;
+
+	PDUMPCOMMENTWITHFLAGS(ui32PDumpFlags,
+						  "cCCB(%s@%p): Draining CCB rgxfw_roff == woff (%d)",
+						  psClientCCB->szName,
+						  psClientCCB,
+						  psClientCCB->ui32LastPDumpWriteOffset);
+
+	return DevmemPDumpDevmemPol32(psClientCCB->psClientCCBCtrlMemDesc,
+									offsetof(RGXFWIF_CCCB_CTL, ui32ReadOffset),
+									psClientCCB->ui32LastPDumpWriteOffset,
+									0xffffffff,
+									PDUMP_POLL_OPERATOR_EQUAL,
+									ui32PDumpFlags);
+}
 
 static PVRSRV_ERROR _RGXCCBPDumpTransition(void **pvData, IMG_BOOL bInto, IMG_BOOL bContinuous)
 {
@@ -151,18 +171,9 @@ static PVRSRV_ERROR _RGXCCBPDumpTransition(void **pvData, IMG_BOOL bInto, IMG_BO
 			thus we have no way of knowing if we can skip drain and the sync
 			prim dump or not.
 		*/
-		PDUMPCOMMENTWITHFLAGS(ui32PDumpFlags,
-							  "cCCB(%s@%p): Draining rgxfw_roff == woff (%d)",
-							  psClientCCB->szName,
-							  psClientCCB,
-							  psClientCCB->ui32LastPDumpWriteOffset);
 
-		eError = DevmemPDumpDevmemPol32(psClientCCB->psClientCCBCtrlMemDesc,
-										offsetof(RGXFWIF_CCCB_CTL, ui32ReadOffset),
-										psClientCCB->ui32LastPDumpWriteOffset,
-										0xffffffff,
-										PDUMP_POLL_OPERATOR_EQUAL,
-										ui32PDumpFlags);
+		eError = RGXCCBPDumpDrainCCB(psClientCCB, bContinuous);
+
 		if (eError != PVRSRV_OK)
 		{
 			PVR_DPF((PVR_DBG_WARNING, "_RGXCCBPDumpTransition: problem pdumping POL for cCCBCtl (%d)", eError));
@@ -1555,6 +1566,106 @@ PVRSRV_ERROR CheckForStalledCCB(RGX_CLIENT_CCB  *psCurrentClientCCB)
 
 	return eError;
 }
+
+#if defined(PVRSRV_ENABLE_FULL_SYNC_TRACKING) || defined(PVRSRV_ENABLE_FULL_CCB_DUMP)
+void DumpCCB(
+	PRGXFWIF_FWCOMMONCONTEXT sFWCommonContext,
+	RGX_CLIENT_CCB  *psCurrentClientCCB,
+	DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf
+)
+{
+	volatile RGXFWIF_CCCB_CTL *psClientCCBCtrl = psCurrentClientCCB->psClientCCBCtrl;
+	IMG_UINT8 *pui8ClientCCBBuff = psCurrentClientCCB->pui8ClientCCB;
+	IMG_UINT32 ui32Offset = psClientCCBCtrl->ui32ReadOffset;
+	IMG_UINT32 ui32DepOffset = psClientCCBCtrl->ui32DepOffset;
+	IMG_UINT32 ui32EndOffset = psCurrentClientCCB->ui32HostWriteOffset;
+	IMG_UINT32 ui32WrapMask = psClientCCBCtrl->ui32WrapMask;
+	IMG_CHAR * pszState = "Ready";
+
+	PVR_DUMPDEBUG_LOG(("FWCtx 0x%08X (%s)", sFWCommonContext.ui32Addr,
+		(IMG_PCHAR)&psCurrentClientCCB->szName));
+	if (ui32Offset == ui32EndOffset)
+	{
+		PVR_DUMPDEBUG_LOG(("  `--<Empty>"));
+	}
+
+	while (ui32Offset != ui32EndOffset)
+	{
+		RGXFWIF_CCB_CMD_HEADER *psCmdHeader = (RGXFWIF_CCB_CMD_HEADER*)(pui8ClientCCBBuff + ui32Offset);
+		IMG_UINT32 ui32NextOffset = (ui32Offset + psCmdHeader->ui32CmdSize + sizeof(RGXFWIF_CCB_CMD_HEADER)) & ui32WrapMask;
+		IMG_BOOL bLastCommand = (ui32NextOffset == ui32EndOffset)? IMG_TRUE: IMG_FALSE;
+		IMG_BOOL bLastUFO;
+		#define CCB_SYNC_INFO_LEN 80
+		IMG_CHAR pszSyncInfo[CCB_SYNC_INFO_LEN];
+		IMG_UINT32 ui32NoOfUpdates, i;
+		RGXFWIF_UFO *psUFOPtr;
+
+		ui32NoOfUpdates = psCmdHeader->ui32CmdSize / sizeof(RGXFWIF_UFO);
+		psUFOPtr = (RGXFWIF_UFO*)(pui8ClientCCBBuff + ui32Offset + sizeof(RGXFWIF_CCB_CMD_HEADER));
+		pszSyncInfo[0] = '\0';
+
+		if (ui32Offset == ui32DepOffset)
+		{
+			pszState = "Waiting";
+		}
+
+		PVR_DUMPDEBUG_LOG(("  %s--%s %s @ %u Int=%u Ext=%u",
+			bLastCommand? "`": "|",
+			pszState, _CCBCmdTypename(psCmdHeader->eCmdType),
+			ui32Offset, psCmdHeader->ui32IntJobRef, psCmdHeader->ui32ExtJobRef
+			));
+
+		/* switch on type and write checks and updates */
+		switch (psCmdHeader->eCmdType)
+		{
+			case RGXFWIF_CCB_CMD_TYPE_UPDATE:
+			case RGXFWIF_CCB_CMD_TYPE_UNFENCED_UPDATE:
+			case RGXFWIF_CCB_CMD_TYPE_FENCE:
+			case RGXFWIF_CCB_CMD_TYPE_FENCE_PR:
+			{
+				for (i = 0; i < ui32NoOfUpdates; i++, psUFOPtr++)
+				{
+					bLastUFO = (ui32NoOfUpdates-1 == i)? IMG_TRUE: IMG_FALSE;
+#if defined(PVRSRV_ENABLE_FULL_SYNC_TRACKING)
+					SyncRecordLookup(psUFOPtr->puiAddrUFO.ui32Addr, pszSyncInfo, CCB_SYNC_INFO_LEN);
+#endif
+					PVR_DUMPDEBUG_LOG(("  %s  %s--Addr:0x%08x Val=0x%08x %s",
+						bLastCommand? " ": "|",
+						bLastUFO? "`": "|",
+						psUFOPtr->puiAddrUFO.ui32Addr, psUFOPtr->ui32Value,
+						pszSyncInfo
+						));
+				}
+				break;
+			}
+
+			case RGXFWIF_CCB_CMD_TYPE_RMW_UPDATE:
+			case RGXFWIF_CCB_CMD_TYPE_UNFENCED_RMW_UPDATE:
+			{
+				for (i = 0; i < ui32NoOfUpdates; i++, psUFOPtr++)
+				{
+					bLastUFO = (ui32NoOfUpdates-1 == i)? IMG_TRUE: IMG_FALSE;
+#if defined(PVRSRV_ENABLE_FULL_SYNC_TRACKING)
+					SyncRecordLookup(psUFOPtr->puiAddrUFO.ui32Addr, pszSyncInfo, CCB_SYNC_INFO_LEN);
+#endif
+					PVR_DUMPDEBUG_LOG(("  %s  %s--Addr:0x%08x Val++ %s",
+						bLastCommand? " ": "|",
+						bLastUFO? "`": "|",
+						psUFOPtr->puiAddrUFO.ui32Addr,
+						pszSyncInfo
+						));
+				}
+				break;
+			}
+
+			default:
+				break;
+		}
+		ui32Offset = ui32NextOffset;
+	}
+
+}
+#endif /* defined(PVRSRV_ENABLE_FULL_SYNC_TRACKING) || defined(PVRSRV_ENABLE_FULL_CCB_DUMP) */
 
 void DumpStalledCCBCommand(PRGXFWIF_FWCOMMONCONTEXT sFWCommonContext,
 						   RGX_CLIENT_CCB  *psCurrentClientCCB,

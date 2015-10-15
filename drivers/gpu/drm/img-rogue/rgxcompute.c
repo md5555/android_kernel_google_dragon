@@ -71,6 +71,7 @@ struct _RGX_SERVER_COMPUTE_CONTEXT_ {
 	DLLIST_NODE					sListNode;
 	SYNC_ADDR_LIST				sSyncAddrListFence;
 	SYNC_ADDR_LIST				sSyncAddrListUpdate;
+	ATOMIC_T					hJobId;
 };
 
 IMG_EXPORT
@@ -209,7 +210,7 @@ PVRSRV_ERROR PVRSRVRGXDestroyComputeContextKM(RGX_SERVER_COMPUTE_CONTEXT *psComp
 
 	/* Check if the FW has finished with this resource ... */
 	eError = RGXFWRequestCommonContextCleanUp(psComputeContext->psDeviceNode,
-											  FWCommonContextGetFWAddress(psComputeContext->psServerCommonContext),
+											  psComputeContext->psServerCommonContext,
 											  psComputeContext->psSync,
 											  RGXFWIF_DM_CDM);
 
@@ -266,10 +267,14 @@ PVRSRV_ERROR PVRSRVRGXKickCDMKM(RGX_SERVER_COMPUTE_CONTEXT	*psComputeContext,
 	PVRSRV_ERROR			eError2;
 	IMG_UINT32				i;
 	IMG_UINT32				ui32CDMCmdOffset = 0;
+	IMG_UINT32				ui32JobId;
 
 	PRGXFWIF_TIMESTAMP_ADDR pPreAddr;
 	PRGXFWIF_TIMESTAMP_ADDR pPostAddr;
 	PRGXFWIF_UFO_ADDR       pRMWUFOAddr;
+	PVR_UNREFERENCED_PARAMETER(ui32IntJobRef);
+
+	ui32JobId = OSAtomicIncrement(&psComputeContext->hJobId);
 
 	eError = SyncAddrListPopulate(&psComputeContext->sSyncAddrListFence,
 									ui32ClientFenceCount,
@@ -322,7 +327,7 @@ PVRSRV_ERROR PVRSRVRGXKickCDMKM(RGX_SERVER_COMPUTE_CONTEXT	*psComputeContext,
 	                                & pRMWUFOAddr,
 	                                RGXFWIF_CCB_CMD_TYPE_CDM,
 	                                ui32ExtJobRef,
-	                                ui32IntJobRef,
+	                                ui32JobId,
 	                                bPDumpContinuous,
 	                                "Compute",
 	                                asCmdHelperData);
@@ -396,12 +401,13 @@ PVRSRV_ERROR PVRSRVRGXKickCDMKM(RGX_SERVER_COMPUTE_CONTEXT	*psComputeContext,
 	}
 	else
 	{
+		IMG_UINT32 ui32FWCtx = FWCommonContextGetFWAddress(psComputeContext->psServerCommonContext).ui32Addr;
 #if defined(SUPPORT_GPUTRACE_EVENTS)
 		RGXHWPerfFTraceGPUEnqueueEvent(psComputeContext->psDeviceNode->pvDevice,
-				ui32ExtJobRef, ui32IntJobRef, "CDM");
+				ui32FWCtx, ui32JobId, RGX_HWPERF_KICK_TYPE_CDM);
 #endif
 		RGX_HWPERF_HOST_ENQ(psComputeContext, OSGetCurrentClientProcessIDKM(),
-				ui32ExtJobRef, ui32IntJobRef, RGX_HWPERF_HOST_ENQ_KICK_TYPE_CDM);
+				ui32FWCtx, ui32ExtJobRef, ui32JobId, RGX_HWPERF_KICK_TYPE_CDM);
 	}
 	/*
 	 * Now check eError (which may have returned an error from our earlier call

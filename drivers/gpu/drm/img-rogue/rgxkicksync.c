@@ -60,6 +60,7 @@ struct _RGX_SERVER_KICKSYNC_CONTEXT_
 	DLLIST_NODE                 sListNode;
 	SYNC_ADDR_LIST              sSyncAddrListFence;
 	SYNC_ADDR_LIST              sSyncAddrListUpdate;
+	ATOMIC_T                    hJobId;
 };
 
 
@@ -144,7 +145,7 @@ PVRSRV_ERROR PVRSRVRGXDestroyKickSyncContextKM(RGX_SERVER_KICKSYNC_CONTEXT * psK
 
 	/* Check if the FW has finished with this resource ... */
 	eError = RGXFWRequestCommonContextCleanUp(psKickSyncContext->psDeviceNode,
-	                                          FWCommonContextGetFWAddress(psKickSyncContext->psServerCommonContext),
+	                                          psKickSyncContext->psServerCommonContext,
 	                                          psKickSyncContext->psSync,
 	                                          RGXFWIF_DM_3D);
 
@@ -200,8 +201,8 @@ PVRSRV_ERROR PVRSRVRGXKickSyncKM(RGX_SERVER_KICKSYNC_CONTEXT * psKickSyncContext
                                  IMG_INT32                   * pi32UpdateFenceFD,
                                  IMG_CHAR                      szFenceName[32],
 
-                                 IMG_UINT32                    ui32ExternalJobReference,
-                                 IMG_UINT32                    ui32InternalJobReference)
+                                 IMG_UINT32                    ui32ExtJobRef,
+                                 IMG_UINT32                    ui32IntJobRef)
 {
 	RGXFWIF_KCCB_CMD         sKickSyncKCCBCmd;
 	RGX_CCB_CMD_HELPER_DATA  asCmdHelperData[1];
@@ -211,11 +212,15 @@ PVRSRV_ERROR PVRSRVRGXKickSyncKM(RGX_SERVER_KICKSYNC_CONTEXT * psKickSyncContext
 	PRGXFWIF_UFO_ADDR        *pauiClientFenceUFOAddress;
 	PRGXFWIF_UFO_ADDR        *pauiClientUpdateUFOAddress;
 	IMG_INT32                i32UpdateFenceFD = -1;
+	IMG_UINT32               ui32JobId;
 
 #if defined(SUPPORT_NATIVE_FENCE_SYNC)
 	/* Android fd sync update info */
 	struct pvr_sync_append_data *psFDFenceData = NULL;
 #endif
+	PVR_UNREFERENCED_PARAMETER(ui32IntJobRef);
+	
+	ui32JobId = OSAtomicIncrement(&psKickSyncContext->hJobId);
 
 	eError = SyncAddrListPopulate(&psKickSyncContext->sSyncAddrListFence,
 							ui32ClientFenceCount,
@@ -301,8 +306,8 @@ PVRSRV_ERROR PVRSRVRGXKickSyncKM(RGX_SERVER_KICKSYNC_CONTEXT * psKickSyncContext
 	                                NULL,
 	                                NULL,
 	                                RGXFWIF_CCB_CMD_TYPE_3D,
-	                                ui32ExternalJobReference,
-	                                ui32InternalJobReference,
+	                                ui32ExtJobRef,
+	                                ui32JobId,
 	                                IMG_FALSE,
 	                                "KickSync",
 	                                asCmdHelperData);

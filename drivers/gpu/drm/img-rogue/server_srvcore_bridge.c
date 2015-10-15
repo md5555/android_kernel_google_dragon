@@ -135,12 +135,14 @@ PVRSRVBridgeInitSrvDisconnect(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
+	PMRLock();
 
 
 	psInitSrvDisconnectOUT->eError =
 		PVRSRVInitSrvDisconnectKM(psConnection, OSGetDevData(psConnection),
 					psInitSrvDisconnectIN->bInitSuccesful,
 					psInitSrvDisconnectIN->ui32ClientBuildOptions);
+	PMRUnlock();
 
 
 

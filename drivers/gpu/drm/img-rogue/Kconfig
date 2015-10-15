@@ -26,3 +26,10 @@ config DRM_POWERVR_ROGUE_KERNEL_SRVINIT
 	default n
 	help
 	  Enable in-kernel firmware load.
+
+config DRM_POWERVR_ROGUE_PDUMP
+	bool "Enable PowerVR Rogue PDUMP tracing."
+	depends on DRM_POWERVR_ROGUE
+	default n
+	help
+	  Enable PDUMP.

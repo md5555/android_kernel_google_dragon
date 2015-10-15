@@ -1862,10 +1862,12 @@ static PVRSRV_ERROR FreeHandleDataWrapper(IMG_HANDLE hHandle, void *pvData)
 		PVR_DPF((PVR_DBG_MESSAGE, "FreeResourceByCriteria: Lock timeout (timeout: %llu)",
 								            psData->ui64MaxBridgeTime));
 		UnlockHandle();
+		PMRUnlock();
 		OSReleaseBridgeLock();
 		/* Invoke the scheduler to check if other processes are waiting for the lock */
 		OSReleaseThreadQuanta();
 		OSAcquireBridgeLock();
+		PMRLock();
 		LockHandle();
 		/* Set again lock timeout and reset the counter */
 		psData->ui64TimeStart = OSClockns64();

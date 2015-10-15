@@ -699,6 +699,34 @@ typedef struct _RGXFWIF_RUNTIME_CFG_
 
 #define RGXFWIF_HWR_DEBUG_DUMP_ALL (99999)
 
+#if defined(PDUMP)
+
+#define RGXFWIF_PID_FILTER_MAX_NUM_PIDS 32
+
+typedef enum _RGXFWIF_PID_FILTER_MODE_
+{
+	RGXFW_PID_FILTER_INCLUDE_ALL_EXCEPT,
+	RGXFW_PID_FILTER_EXCLUDE_ALL_EXCEPT
+} RGXFWIF_PID_FILTER_MODE;
+
+typedef struct _RGXFWIF_PID_FILTER_ITEM_
+{
+	IMG_PID uiPID;
+	IMG_UINT32 ui32OSID;
+} RGXFW_ALIGN RGXFWIF_PID_FILTER_ITEM;
+
+typedef struct _RGXFWIF_PID_FILTER_
+{
+	RGXFWIF_PID_FILTER_MODE eMode;
+	/* each process in the filter list is specified by a PID and OS ID pair.
+	 * each PID and OS pair is an item in the items array (asItems).
+	 * if the array contains less than RGXFWIF_PID_FILTER_MAX_NUM_PIDS entries
+	 * then it must be terminated by an item with pid of zero.
+	 */
+	RGXFWIF_PID_FILTER_ITEM asItems[RGXFWIF_PID_FILTER_MAX_NUM_PIDS];
+} RGXFW_ALIGN RGXFWIF_PID_FILTER;
+#endif
+
 typedef struct _RGXFWIF_INIT_
 {
 	IMG_DEV_PHYADDR 		RGXFW_ALIGN sFaultPhysAddr;
@@ -781,6 +809,10 @@ typedef struct _RGXFWIF_INIT_
 	IMG_BYTE                *pbT1Stack;
 #else
 	RGXFWIF_DEV_VIRTADDR    pbT1Stack;
+#endif
+
+#if defined(PDUMP)
+	RGXFWIF_PID_FILTER sPIDFilter;
 #endif
 
 } UNCACHED_ALIGN RGXFWIF_INIT;

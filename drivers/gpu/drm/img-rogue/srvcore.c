@@ -539,7 +539,7 @@ PVRSRVHWOpTimeoutKM(void)
 	OSPanic();
 #endif
 	PVR_LOG(("HW operation timeout, dump server info"));
-	PVRSRVDebugRequest(DEBUG_REQUEST_VERBOSITY_LOW,NULL);
+	PVRSRVDebugRequest(DEBUG_REQUEST_VERBOSITY_MEDIUM, NULL);
 	return PVRSRV_OK;
 }
 

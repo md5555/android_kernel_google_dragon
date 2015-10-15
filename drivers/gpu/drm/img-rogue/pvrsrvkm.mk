@@ -85,10 +85,13 @@ pvrsrvkm-y += \
  pvr_debugfs.o \
  pvr_drm.o \
  pvr_dvfs_device.o \
+ pvr_gputrace.o \
+ pvr_hwperf.o \
  devicemem.o \
  devicemem_utils.o \
  hash.o \
  htbuffer.o \
+ mem_utils.o \
  ra.o \
  sync.o \
  tlclient.o \
@@ -97,7 +100,10 @@ pvrsrvkm-y += \
 pvrsrvkm-$(CONFIG_DRM_POWERVR_ROGUE_DEBUG) += \
  client_devicememhistory_bridge.o \
  server_devicememhistory_bridge.o \
- devicemem_history_server.o
+ client_ri_bridge.o \
+ server_ri_bridge.o \
+ devicemem_history_server.o \
+ ri_server.o
 pvrsrvkm-$(CONFIG_DRM_POWERVR_ROGUE_KERNEL_SRVINIT) += \
  client_rgxinit_bridge.o \
  rgx_hwperf_table.o \
@@ -110,6 +116,18 @@ pvrsrvkm-$(CONFIG_DRM_POWERVR_ROGUE_KERNEL_SRVINIT) += \
  rgxsrvinit_script.o \
  os_srvinit_param.o \
  srvinit_km.o
+pvrsrvkm-$(CONFIG_DRM_POWERVR_ROGUE_PDUMP) += \
+ client_pdumpmm_bridge.o \
+ server_pdump_bridge.o \
+ server_pdumpctrl_bridge.o \
+ server_pdumpmm_bridge.o \
+ server_rgxpdump_bridge.o \
+ pdump_common.o \
+ pdump_mmu.o \
+ pdump_physmem.o \
+ rgxpdump.o \
+ devicemem_pdump.o \
+ devicememx_pdump.o
 pvrsrvkm-$(CONFIG_X86) += osfunc_x86.o
 pvrsrvkm-$(CONFIG_ARM64) += osfunc_arm64.o
 pvrsrvkm-$(CONFIG_EVENT_TRACING) += trace_events.o

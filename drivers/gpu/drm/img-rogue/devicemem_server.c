@@ -86,6 +86,9 @@ struct _DEVMEMINT_CTX_
 struct _DEVMEMINT_CTX_EXPORT_ 
 {
 	DEVMEMINT_CTX *psDevmemCtx;
+	PMR *psPMR;
+	ATOMIC_T hRefCount;
+	DLLIST_NODE sNode;
 };
 
 struct _DEVMEMINT_HEAP_
@@ -1073,62 +1076,99 @@ DevmemIntCtxDestroy(
 	return PVRSRV_OK;
 }
 
-/*************************************************************************/ /*!
-@Function       DevmemIntCtxExport
-@Description    Exports a device memory context.
-@Return         valid Device Memory context handle - Success
-                PVRSRV_ERROR failure code
-*/ /**************************************************************************/
-PVRSRV_ERROR
-DevmemIntCtxExport(DEVMEMINT_CTX *psDevmemCtx,
-                   DEVMEMINT_CTX_EXPORT **ppsExport)
+PVRSRV_ERROR DevmemIntIsVDevAddrValid(DEVMEMINT_CTX *psDevMemContext,
+                                      IMG_DEV_VIRTADDR sDevAddr)
 {
-	DEVMEMINT_CTX_EXPORT *psExport;
+    return MMU_IsVDevAddrValid(psDevMemContext->psMMUContext,
+                               GET_LOG2_PAGESIZE(),
+                               sDevAddr) ? PVRSRV_OK : PVRSRV_ERROR_INVALID_GPU_ADDR;
+}
 
-	psExport = OSAllocMem(sizeof(*psExport));
-	if (psExport == NULL)
+
+static void _DevmemIntExportCtxGetList(PDLLIST_NODE *ppsListHead)
+{
+	static DECLARE_DLLIST(sListHead);
+
+	*ppsListHead = &sListHead;
+}
+
+PVRSRV_ERROR
+DevmemIntExportCtx(DEVMEMINT_CTX *psContext,
+                   PMR *psPMR,
+                   DEVMEMINT_CTX_EXPORT **ppsContextExport)
+{
+	PDLLIST_NODE psListHead;
+	DEVMEMINT_CTX_EXPORT *psCtxExport;
+
+	_DevmemIntCtxAcquire(psContext);
+	PMRRefPMR(psPMR);
+
+	_DevmemIntExportCtxGetList(&psListHead);
+
+	psCtxExport = OSAllocMem(sizeof(DEVMEMINT_CTX_EXPORT));
+	if (psCtxExport == NULL)
 	{
+		PVR_DPF((PVR_DBG_ERROR,
+				"%s: Failed to export context. System currently out of memory",
+				__func__));
 		return PVRSRV_ERROR_OUT_OF_MEMORY;
 	}
-	_DevmemIntCtxAcquire(psDevmemCtx);
-	psExport->psDevmemCtx = psDevmemCtx;
-	
-	*ppsExport = psExport;
+
+	psCtxExport->psDevmemCtx = psContext;
+	psCtxExport->psPMR = psPMR;
+	dllist_add_to_tail(psListHead, &psCtxExport->sNode);
+
+	*ppsContextExport = psCtxExport;
+
 	return PVRSRV_OK;
 }
 
-/*************************************************************************/ /*!
-@Function       DevmemIntCtxUnexport
-@Description    Unexport an exported a device memory context.
-@Return         None
-*/ /**************************************************************************/
 PVRSRV_ERROR
-DevmemIntCtxUnexport(DEVMEMINT_CTX_EXPORT *psExport)
+DevmemIntUnexportCtx(DEVMEMINT_CTX_EXPORT *psContextExport)
 {
-	_DevmemIntCtxRelease(psExport->psDevmemCtx);
-	OSFreeMem(psExport);
+	PDLLIST_NODE psListHead;
+
+	_DevmemIntExportCtxGetList(&psListHead);
+
+	PMRUnrefPMR(psContextExport->psPMR);
+	_DevmemIntCtxRelease(psContextExport->psDevmemCtx);
+	dllist_remove_node(&psContextExport->sNode);
+	OSFreeMem(psContextExport);
+
+	/* Unable to find exported context, return error */
 	return PVRSRV_OK;
 }
 
-/*************************************************************************/ /*!
-@Function       DevmemIntCtxImport
-@Description    Import an exported a device memory context.
-@Return         valid Device Memory context handle - Success
-                PVRSRV_ERROR failure code
-*/ /**************************************************************************/
 PVRSRV_ERROR
-DevmemIntCtxImport(DEVMEMINT_CTX_EXPORT *psExport,
-				   DEVMEMINT_CTX **ppsDevmemCtxPtr,
-				   IMG_HANDLE *hPrivData)
+DevmemIntAcquireRemoteCtx(PMR *psPMR,
+                          DEVMEMINT_CTX **ppsContext,
+                          IMG_HANDLE *phPrivData)
 {
-	DEVMEMINT_CTX *psDevmemCtx = psExport->psDevmemCtx;
 
-	_DevmemIntCtxAcquire(psDevmemCtx);
+	PDLLIST_NODE psListHead;
+	PDLLIST_NODE psListNode, psListNodeNext;
+	DEVMEMINT_CTX_EXPORT *psCtxExport;
 
-	*ppsDevmemCtxPtr = psDevmemCtx;
-	*hPrivData = psDevmemCtx->hPrivData;
+	_DevmemIntExportCtxGetList(&psListHead);
 
-	return PVRSRV_OK;
+	/* Find context from list using PMR as key */
+	dllist_foreach_node(psListHead, psListNode, psListNodeNext)
+	{
+		psCtxExport = IMG_CONTAINER_OF(psListNode, DEVMEMINT_CTX_EXPORT, sNode);
+		if (psCtxExport->psPMR == psPMR)
+		{
+			_DevmemIntCtxAcquire(psCtxExport->psDevmemCtx);
+			*ppsContext = psCtxExport->psDevmemCtx;
+			*phPrivData = psCtxExport->psDevmemCtx->hPrivData;
+			return PVRSRV_OK;
+		}
+	}
+
+	/* Unable to find exported context, return error */
+	PVR_DPF((PVR_DBG_ERROR,
+			"%s: Failed to acquire remote context. Could not retrieve context with given PMR",
+			__func__));
+	return PVRSRV_ERROR_INVALID_PARAMS;
 }
 
 /*************************************************************************/ /*!
@@ -1147,14 +1187,6 @@ DevmemSLCFlushInvalRequest(PVRSRV_DEVICE_NODE *psDeviceNode,
 	psDeviceNode->pfnSLCCacheInvalidateRequest(psDeviceNode, psPmr);
 
 	return PVRSRV_OK;
-}
-
-PVRSRV_ERROR DevmemIntIsVDevAddrValid(DEVMEMINT_CTX *psDevMemContext,
-                                      IMG_DEV_VIRTADDR sDevAddr)
-{
-    return MMU_IsVDevAddrValid(psDevMemContext->psMMUContext,
-                               GET_LOG2_PAGESIZE(),
-                               sDevAddr) ? PVRSRV_OK : PVRSRV_ERROR_INVALID_GPU_ADDR;
 }
 
 #if defined (PDUMP)
@@ -1252,4 +1284,6 @@ DevmemIntPDumpBitmap(CONNECTION_DATA * psConnection,
 
 	return eError;
 }
+
+
 #endif
