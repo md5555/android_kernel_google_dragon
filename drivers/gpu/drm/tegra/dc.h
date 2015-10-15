@@ -433,6 +433,7 @@
 
 /* V2 Blending registers */
 #define DC_WIN_BLEND_LAYER_CONTROL		0x716
+#define K1_VALUE(x)	(((x) & 0xff) << 8)
 #define DC_WIN_BLEND_MATCH_SELECT		0x717
 #define DC_WIN_BLEND_NOMATCH_SELECT		0x718
 #define DC_WIN_BLEND_ALPHA_1BIT			0x719

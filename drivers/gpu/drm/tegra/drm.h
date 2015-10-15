@@ -239,6 +239,7 @@ struct tegra_dc_window {
 	struct tegra_bo_tiling tiling;
 	u32 format;
 	u32 swap;
+	u8 alpha;
 };
 
 /* from dc.c */
