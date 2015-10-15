@@ -233,24 +233,28 @@ int net_eq(const struct net *net1, const struct net *net2)
 #define net_drop_ns NULL
 #endif
 
+static inline struct net *hold_net(struct net *net)
+{
+	return net;
+}
 
-typedef struct {
-#ifdef CONFIG_NET_NS
-	struct net *net;
-#endif
-} possible_net_t;
+static inline void release_net(struct net *net)
+{
+}
+
+typedef struct net *possible_net_t;
 
 static inline void write_pnet(possible_net_t *pnet, struct net *net)
 {
 #ifdef CONFIG_NET_NS
-	pnet->net = net;
+	*pnet = net;
 #endif
 }
 
 static inline struct net *read_pnet(const possible_net_t *pnet)
 {
 #ifdef CONFIG_NET_NS
-	return pnet->net;
+	return *pnet;
 #else
 	return &init_net;
 #endif
