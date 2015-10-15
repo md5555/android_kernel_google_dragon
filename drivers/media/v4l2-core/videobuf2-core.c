@@ -868,6 +868,7 @@ static int __reqbufs(struct vb2_queue *q, struct v4l2_requestbuffers *req)
 	}
 
 	if (req->count == 0 || q->num_buffers != 0 || q->memory != req->memory) {
+		mutex_lock(&q->mmap_lock);
 		/*
 		 * Call queue_cancel to clean up any buffers in the PREPARED or
 		 * QUEUED state which is possible if buffers were prepared or
