@@ -1397,7 +1397,7 @@ static unsigned int __fraction2dda_fp(unsigned int fraction_fpa,
 				      unsigned int div,
 				      unsigned int mask)
 {
-	unsigned int dda, r;
+	unsigned int dda = 0, r;
 	int i;
 
 	fraction_fpa /= div;
