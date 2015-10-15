@@ -1522,16 +1522,6 @@ static void tegra_dc_init_hw(struct tegra_dc *dc)
 		 WIN_A_OF_INT | WIN_B_OF_INT | WIN_C_OF_INT;
 	tegra_dc_writel(dc, value, DC_CMD_INT_MASK);
 
-	tegra_dc_writel(dc, INSTANTANEOUS_PORTION(0xff),
-				DC_DISP_SD_BL_PARAMETERS);
-
-	tegra_dc_writel(dc, MEMFETCH_RESET_ENABLE,
-				DC_A_WINBUF_AD_MEMFETCH_CONTROL);
-	tegra_dc_writel(dc, MEMFETCH_RESET_ENABLE,
-				DC_B_WINBUF_BD_MEMFETCH_CONTROL);
-	tegra_dc_writel(dc, MEMFETCH_RESET_ENABLE,
-				DC_C_WINBUF_CD_MEMFETCH_CONTROL);
-
 	if (dc->soc->supports_border_color)
 		tegra_dc_writel(dc, 0, DC_DISP_BORDER_COLOR);
 
@@ -2190,10 +2180,7 @@ static int tegra_dc_show_regs(struct seq_file *s, void *data)
 	DUMP_REG(DC_WINBUF_AD_UFLOW_STATUS);
 	DUMP_REG(DC_WINBUF_BD_UFLOW_STATUS);
 	DUMP_REG(DC_WINBUF_CD_UFLOW_STATUS);
-	DUMP_REG(DC_DISP_SD_BL_PARAMETERS);
-	DUMP_REG(DC_A_WINBUF_AD_MEMFETCH_CONTROL);
-	DUMP_REG(DC_B_WINBUF_BD_MEMFETCH_CONTROL);
-	DUMP_REG(DC_C_WINBUF_CD_MEMFETCH_CONTROL);
+
 #undef DUMP_REG
 
 	return 0;
