@@ -5730,3 +5730,9 @@ struct drm_property *drm_mode_create_rotation_property(struct drm_device *dev,
 					   supported_rotations);
 }
 EXPORT_SYMBOL(drm_mode_create_rotation_property);
+
+struct drm_property *drm_mode_create_alpha_property(struct drm_device *dev)
+{
+	return drm_property_create_range(dev, 0, "alpha", 0, 255);
+}
+EXPORT_SYMBOL(drm_mode_create_alpha_property);

@@ -756,6 +756,8 @@ struct drm_plane_state {
 	/* Plane rotation */
 	unsigned int rotation;
 
+	uint8_t alpha;
+
 	struct drm_atomic_state *state;
 };
 
@@ -1105,6 +1107,7 @@ struct drm_mode_config {
 	struct drm_property *path_property;
 	struct drm_property *plane_type_property;
 	struct drm_property *rotation_property;
+	struct drm_property *alpha_property;
 	struct drm_property *prop_src_x;
 	struct drm_property *prop_src_y;
 	struct drm_property *prop_src_w;
@@ -1489,6 +1492,9 @@ extern struct drm_property *drm_mode_create_rotation_property(struct drm_device 
 							      unsigned int supported_rotations);
 extern unsigned int drm_rotation_simplify(unsigned int rotation,
 					  unsigned int supported_rotations);
+
+extern struct drm_property *drm_mode_create_alpha_property(
+			struct drm_device *dev);
 
 /* Helpers */
 
