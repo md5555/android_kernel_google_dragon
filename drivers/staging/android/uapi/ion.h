@@ -148,6 +148,27 @@ struct ion_cachemaint_data {
 	unsigned int flags;
 };
 
+struct ion_debugfs_handle_header {
+	unsigned int version;
+};
+
+/**
+ * struct ion_debugfs_handle_entry - process's handle metadata passed to
+ * userspace for Android memtrack HAL
+ * @heap_id:      id of heap
+ * @size:         size of handle
+ * @flags:        flags passed from userspace during handle allocation
+ * @handle_count: count of handles referencing underlying ion buffer
+ * @mapped_size:  part of handle that is currently mapped to the process
+ */
+struct ion_debugfs_handle_entry {
+	unsigned int heap_id;
+	size_t size;
+	unsigned int flags;
+	unsigned int handle_count;
+	size_t mapped_size;
+};
+
 /**
  * ION_DUMMY_CUSTOM_CMD_CACHEMAINT - cache maintenance
  */

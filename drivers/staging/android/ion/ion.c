@@ -56,7 +56,9 @@ static inline struct dma_iommu_mapping *to_dma_iommu_mapping(struct device *d)
  * @buffer_lock:	lock protecting the tree of buffers
  * @lock:		rwsem protecting the tree of heaps and clients
  * @heaps:		list of all the heaps in the system
- * @user_clients:	list of all the clients created from userspace
+ * @clients:	list of all the clients created from userspace
+ * @pids:	list of all the clients' pids created from userspace,
+ *			same process can create multiple clients (1:N relationship)
  */
 struct ion_device {
 	struct miscdevice dev;
@@ -64,12 +66,14 @@ struct ion_device {
 	struct mutex buffer_lock;
 	struct rw_semaphore lock;
 	struct plist_head heaps;
+	struct rb_root clients;
+	struct rb_root pids;
 	long (*custom_ioctl)(struct ion_client *client, unsigned int cmd,
 			     unsigned long arg);
-	struct rb_root clients;
 	struct dentry *debug_root;
 	struct dentry *heaps_debug_root;
 	struct dentry *clients_debug_root;
+	struct dentry *pids_debug_root;
 };
 
 /**
@@ -121,6 +125,23 @@ struct ion_handle {
 	struct rb_node node;
 	unsigned int kmap_cnt;
 	int id;
+};
+
+/**
+ * struct ion_pid_data - a process that opens ion device
+ * @node:		node in the tree of all clients's pids
+ * @dev:		backpointer to ion device
+ * @pid:		pid (task's group leader id)
+ * @ref:		ref count (number of clients from the same pid)
+ * @debug_root:	used for displaying all handles of a process in binary
+ *				(to be used for android memtrack HAL)
+ */
+struct ion_pid_data {
+	struct rb_node node;
+	struct ion_device *dev;
+	pid_t pid;
+	struct kref ref;
+	struct dentry *debug_root;
 };
 
 bool ion_buffer_fault_user_mappings(struct ion_buffer *buffer)
@@ -736,6 +757,58 @@ static const struct file_operations debug_client_fops = {
 	.release = single_release,
 };
 
+static int ion_debug_pid_show(struct seq_file *s, void *unused)
+{
+	struct ion_pid_data *p = s->private;
+	struct ion_device *dev = p->dev;
+	struct rb_node *n;
+	struct ion_debugfs_handle_header header;
+
+	header.version = 1;
+	/*
+	 * seq_write fails if underlying buffer has reached overflow state.
+	 * When this happens, a larger buffer is reallocated and all the data
+	 * will be printed again. However, if we return failure here,
+	 * seq_file api won't attempt reallocation considering fatal error
+	 * and nothing will be printed.
+	 */
+	if (seq_write(s, &header, sizeof(header)))
+		return 0;
+
+	down_read(&dev->lock);
+	for (n = rb_first(&dev->buffers); n; n = rb_next(n)) {
+		struct ion_buffer *buffer = rb_entry(n, struct ion_buffer,
+				node);
+		struct ion_debugfs_handle_entry entry;
+
+		if (buffer->pid != p->pid)
+			continue;
+
+		entry.heap_id = buffer->heap->id;
+		entry.size = buffer->size;
+		entry.flags = buffer->flags;
+		entry.handle_count = atomic_read(&buffer->ref.refcount);
+		entry.mapped_size = 0;
+		if (seq_write(s, &entry, sizeof(entry)))
+			break;
+	}
+	up_read(&dev->lock);
+
+	return 0;
+}
+
+static int ion_debug_pid_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, ion_debug_pid_show, inode->i_private);
+}
+
+static const struct file_operations debug_pid_fops = {
+	.open = ion_debug_pid_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
 static int ion_get_client_serial(const struct rb_root *root,
 					const unsigned char *name)
 {
@@ -751,6 +824,80 @@ static int ion_get_client_serial(const struct rb_root *root,
 		serial = max(serial, client->display_serial);
 	}
 	return serial + 1;
+}
+
+static void ion_pid_get_locked(struct ion_device *dev, pid_t pid)
+{
+	struct rb_root *root = &dev->pids;
+	struct rb_node **new = &(root->rb_node), *parent = NULL;
+	struct ion_pid_data *p;
+	char name[16];
+
+	while (*new) {
+		p = container_of(*new, struct ion_pid_data, node);
+		parent = *new;
+
+		if (p->pid > pid) {
+			new = &((*new)->rb_left);
+		} else if (p->pid < pid) {
+			new = &((*new)->rb_right);
+		} else {
+			kref_get(&p->ref);
+			return;
+		}
+	}
+
+	p = kzalloc(sizeof(*p), GFP_KERNEL);
+	if (!p)
+		return;
+
+	snprintf(name, sizeof(name), "%d", pid);
+	p->dev = dev;
+	p->pid = pid;
+	kref_init(&p->ref);
+	p->debug_root = debugfs_create_file(name, S_IRUGO,
+			dev->pids_debug_root, p, &debug_pid_fops);
+
+	if (IS_ERR_OR_NULL(p->debug_root)) {
+		kfree(p);
+	} else {
+		rb_link_node(&p->node, parent, new);
+		rb_insert_color(&p->node, root);
+	}
+}
+
+static void ion_pid_release_locked(struct kref *kref)
+{
+	struct ion_pid_data *p = container_of(kref, struct ion_pid_data, ref);
+	debugfs_remove(p->debug_root);
+	rb_erase(&p->node, &p->dev->pids);
+	kfree(p);
+}
+
+static struct ion_pid_data *ion_pid_find_locked(struct ion_device *dev,
+		pid_t pid)
+{
+	struct rb_node *node = dev->pids.rb_node;
+
+	while (node) {
+		struct ion_pid_data *p = container_of(node,
+				struct ion_pid_data, node);
+
+		if (p->pid > pid)
+			node = node->rb_left;
+		else if (p->pid < pid)
+			node = node->rb_right;
+		else
+			return p;
+	}
+	return NULL;
+}
+
+static void ion_pid_put_locked(struct ion_device *dev, pid_t pid)
+{
+	struct ion_pid_data *p = ion_pid_find_locked(dev, pid);
+	if (p)
+		kref_put(&p->ref, ion_pid_release_locked);
 }
 
 struct ion_client *ion_client_create(struct ion_device *dev,
@@ -827,6 +974,9 @@ struct ion_client *ion_client_create(struct ion_device *dev,
 			path, client->display_name);
 	}
 
+	if (!IS_ERR_OR_NULL(dev->pids_debug_root))
+		ion_pid_get_locked(dev, pid);
+
 	up_write(&dev->lock);
 
 	return client;
@@ -859,6 +1009,8 @@ void ion_client_destroy(struct ion_client *client)
 	down_write(&dev->lock);
 	if (client->task)
 		put_task_struct(client->task);
+	if (!IS_ERR_OR_NULL(dev->pids_debug_root))
+		ion_pid_put_locked(dev, client->pid);
 	rb_erase(&client->node, &dev->clients);
 	debugfs_remove_recursive(client->debug_root);
 	up_write(&dev->lock);
@@ -1924,19 +2076,25 @@ struct ion_device *ion_device_create(long (*custom_ioctl)
 	}
 
 	idev->debug_root = debugfs_create_dir("ion", NULL);
-	if (!idev->debug_root) {
+	if (IS_ERR_OR_NULL(idev->debug_root)) {
 		pr_err("ion: failed to create debugfs root directory.\n");
 		goto debugfs_done;
 	}
 	idev->heaps_debug_root = debugfs_create_dir("heaps", idev->debug_root);
-	if (!idev->heaps_debug_root) {
+	if (IS_ERR_OR_NULL(idev->heaps_debug_root)) {
 		pr_err("ion: failed to create debugfs heaps directory.\n");
 		goto debugfs_done;
 	}
 	idev->clients_debug_root = debugfs_create_dir("clients",
 						idev->debug_root);
-	if (!idev->clients_debug_root)
+	if (IS_ERR_OR_NULL(idev->clients_debug_root)) {
 		pr_err("ion: failed to create debugfs clients directory.\n");
+		goto debugfs_done;
+	}
+	idev->pids_debug_root = debugfs_create_dir("pids",
+						idev->clients_debug_root);
+	if (IS_ERR_OR_NULL(idev->pids_debug_root))
+		pr_err("ion: failed to create debugfs pids directory.\n");
 
 debugfs_done:
 
