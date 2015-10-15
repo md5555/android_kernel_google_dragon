@@ -421,12 +421,12 @@ static int panel_jdi_prepare(struct drm_panel *panel)
 		DRM_ERROR("failed to set page address: %d\n", ret);
 
 	ret = mipi_dsi_dcs_set_tear_scanline(jdi->dsi,
-					     jdi->mode->vdisplay - 24);
+					     jdi->mode->vdisplay - 16);
 	if (ret < 0)
 		DRM_ERROR("failed to set tear scanline: %d\n", ret);
 
 	ret = mipi_dsi_dcs_set_tear_scanline(jdi->slave,
-					     jdi->mode->vdisplay - 24);
+					     jdi->mode->vdisplay - 16);
 	if (ret < 0)
 		DRM_ERROR("failed to set tear scanline: %d\n", ret);
 
