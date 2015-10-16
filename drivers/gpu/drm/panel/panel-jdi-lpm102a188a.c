@@ -289,13 +289,6 @@ static int panel_jdi_unprepare(struct drm_panel *panel)
 	/* T5 = 2ms */
 	usleep_range(2000, 4000);
 
-	regulator_disable(jdi->ddi_supply);
-
-	/* T6 = 10us, but sleep 5ms due to highly capacitive supplies */
-	usleep_range(5000, 6000);
-
-	regulator_disable(jdi->supply);
-
 	jdi->enabled = false;
 
 out:
@@ -808,26 +801,23 @@ static int panel_jdi_setup_primary(struct mipi_dsi_device *dsi,
 		}
 	}
 
-	/* If already enabled, fixup regulator use_count:
-	 * The regulator framework gives us use_count 0
-	 * (even though it knows they are enabled) on both supplies
-	 * We need these counts to both be 1, so enable them here.
-	 *
-	 * If not enabled, the rails were disabled, so use_counts
-	 * are both correctly 0.
-	 */
-	if (jdi->enabled) {
-		ret = regulator_enable(jdi->supply);
-		if (ret < 0) {
-			DRM_ERROR("failed to enable supply: %d\n", ret);
-			goto out_client;
-		}
-		ret = regulator_enable(jdi->ddi_supply);
-		if (ret < 0) {
-			DRM_ERROR("failed to enable ddi_supply: %d\n", ret);
-			goto out_supply;
-		}
+	ret = regulator_enable(jdi->supply);
+	if (ret < 0) {
+		DRM_ERROR("failed to enable supply: %d\n", ret);
+		goto out_client;
 	}
+
+	/* T1 = 2ms */
+	usleep_range(2000, 4000);
+
+	ret = regulator_enable(jdi->ddi_supply);
+	if (ret < 0) {
+		DRM_ERROR("failed to enable ddi_supply: %d\n", ret);
+		goto out_supply;
+	}
+
+	/* T2 = 1ms */
+	usleep_range(1000, 3000);
 
 	drm_panel_init(&jdi->base);
 	jdi->base.dev = &dsi->dev;
@@ -860,11 +850,9 @@ static int panel_jdi_setup_primary(struct mipi_dsi_device *dsi,
 out_panel:
 	drm_panel_detach(&jdi->base);
 out_ddi_supply:
-	if (jdi->enabled)
-		regulator_disable(jdi->ddi_supply);
+	regulator_disable(jdi->ddi_supply);
 out_supply:
-	if (jdi->enabled)
-		regulator_disable(jdi->supply);
+	regulator_disable(jdi->supply);
 out_client:
 	if (jdi->client)
 		put_device(&jdi->client->dev);
