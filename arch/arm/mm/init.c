@@ -467,7 +467,7 @@ static inline void free_area_high(unsigned long pfn, unsigned long end)
 {
 	while (pfn < end) {
 		struct page *page = pfn_to_page(pfn);
-		unsigned long order = min(__ffs(pfn), MAX_ORDER - 1);
+		unsigned int order = min_t(int, __ffs(pfn), MAX_ORDER - 1);
 		unsigned long nr_pages = 1 << order;
 		unsigned long rem = end - pfn;
 
