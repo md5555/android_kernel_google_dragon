@@ -515,7 +515,7 @@ static int panel_jdi_enable(struct drm_panel *panel)
 	if (ret < 0)
 		DRM_ERROR("failed to set display on: %d\n", ret);
 
-	if (jdi->touch)
+	if (!jdi->enabled && jdi->touch)
 		pm_runtime_force_resume(&jdi->touch->dev);
 
 	jdi->enabled = true;
