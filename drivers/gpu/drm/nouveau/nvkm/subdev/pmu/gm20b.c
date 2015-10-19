@@ -586,12 +586,6 @@ struct gating_desc gm20b_slcg_pmu[] = {
 	{.addr = 0x0010ae74, .prod = 0x00000000, .disable = 0x0000000f},
 };
 
-/* therm gr */
-static const
-struct gating_desc gm20b_slcg_therm[] = {
-	{.addr = 0x000206b8, .prod = 0x00000000, .disable = 0x0000000f},
-};
-
 /* slcg Xbar */
 static const
 struct gating_desc gm20b_slcg_xbar[] = {
@@ -703,13 +697,6 @@ struct gating_desc gm20b_blcg_pmu[] = {
 	{.addr = 0x0010aa70, .prod = 0x00000045, .disable = 0x00000000},
 };
 
-/* blcg Xbar */
-static const
-struct gating_desc gm20b_blcg_xbar[] = {
-	{.addr = 0x0013cbe0, .prod = 0x00000042, .disable = 0x00000000},
-	{.addr = 0x0013cc00, .prod = 0x00000042, .disable = 0x00000000},
-};
-
 static int
 gm20b_pmu_disable_clk_gating(struct nvkm_pmu *pmu)
 {
@@ -744,8 +731,6 @@ gm20b_pmu_disable_clk_gating(struct nvkm_pmu *pmu)
 					ARRAY_SIZE(gm20b_slcg_perf));
 	gk20a_disable_load_gating_prod(pmu, gm20b_slcg_priring,
 					ARRAY_SIZE(gm20b_slcg_priring));
-	gk20a_disable_load_gating_prod(pmu, gm20b_slcg_therm,
-					ARRAY_SIZE(gm20b_slcg_therm));
 	gk20a_disable_load_gating_prod(pmu, gm20b_slcg_pmu,
 					ARRAY_SIZE(gm20b_slcg_pmu));
 	gk20a_disable_load_gating_prod(pmu, gm20b_slcg_xbar,
@@ -763,8 +748,6 @@ gm20b_pmu_disable_clk_gating(struct nvkm_pmu *pmu)
 					ARRAY_SIZE(gm20b_blcg_ltc));
 	gk20a_disable_load_gating_prod(pmu, gm20b_blcg_pmu,
 					ARRAY_SIZE(gm20b_blcg_pmu));
-	gk20a_disable_load_gating_prod(pmu, gm20b_blcg_xbar,
-					ARRAY_SIZE(gm20b_blcg_xbar));
 
 do_nothing:
 	mutex_unlock(&priv->clk_gating_mutex);
@@ -809,8 +792,6 @@ gm20b_pmu_enable_clk_gating(struct nvkm_pmu *pmu)
 						ARRAY_SIZE(gm20b_slcg_perf));
 		gk20a_enable_load_gating_prod(pmu, gm20b_slcg_priring,
 						ARRAY_SIZE(gm20b_slcg_priring));
-		gk20a_enable_load_gating_prod(pmu, gm20b_slcg_therm,
-						ARRAY_SIZE(gm20b_slcg_therm));
 		gk20a_enable_load_gating_prod(pmu, gm20b_slcg_pmu,
 						ARRAY_SIZE(gm20b_slcg_pmu));
 		gk20a_enable_load_gating_prod(pmu, gm20b_slcg_xbar,
@@ -830,8 +811,6 @@ gm20b_pmu_enable_clk_gating(struct nvkm_pmu *pmu)
 						ARRAY_SIZE(gm20b_blcg_ltc));
 		gk20a_enable_load_gating_prod(pmu, gm20b_blcg_pmu,
 						ARRAY_SIZE(gm20b_blcg_pmu));
-		gk20a_enable_load_gating_prod(pmu, gm20b_blcg_xbar,
-						ARRAY_SIZE(gm20b_blcg_xbar));
 	}
 
 do_nothing:
