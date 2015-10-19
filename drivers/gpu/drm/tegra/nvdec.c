@@ -21,6 +21,7 @@
 #include <linux/clk.h>
 #include <linux/host1x.h>
 #include <linux/module.h>
+#include <linux/ote_protocol.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
 #include <linux/reset.h>
@@ -146,6 +147,9 @@ static int nvdec_power_on(struct device *dev)
 	err = clk_prepare_enable(nvdec->kfuse);
 	if (err)
 		goto err_nvdec_kfuse_clk;
+
+	if (IS_ENABLED(CONFIG_TRUSTED_LITTLE_KERNEL))
+		te_restore_keyslots();
 
 	return 0;
 
