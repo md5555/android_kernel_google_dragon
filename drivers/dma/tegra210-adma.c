@@ -737,6 +737,15 @@ skip_dma_stop:
 	 */
 	tdc->callback_count = 0;
 
+	/* Make sure the tasklet has stopped running before we return. */
+	if (!in_interrupt()) {
+		tdc->busy = true;
+		spin_unlock_irqrestore(&tdc->lock, flags);
+		tasklet_kill(&tdc->tasklet);
+		spin_lock_irqsave(&tdc->lock, flags);
+		tdc->busy = false;
+	}
+
 	spin_unlock_irqrestore(&tdc->lock, flags);
 }
 
