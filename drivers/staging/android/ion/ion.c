@@ -775,7 +775,7 @@ static int ion_debug_pid_show(struct seq_file *s, void *unused)
 	if (seq_write(s, &header, sizeof(header)))
 		return 0;
 
-	down_read(&dev->lock);
+	mutex_lock(&dev->buffer_lock);
 	for (n = rb_first(&dev->buffers); n; n = rb_next(n)) {
 		struct ion_buffer *buffer = rb_entry(n, struct ion_buffer,
 				node);
@@ -792,7 +792,7 @@ static int ion_debug_pid_show(struct seq_file *s, void *unused)
 		if (seq_write(s, &entry, sizeof(entry)))
 			break;
 	}
-	up_read(&dev->lock);
+	mutex_unlock(&dev->buffer_lock);
 
 	return 0;
 }
