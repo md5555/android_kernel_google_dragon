@@ -170,22 +170,22 @@ static const struct stepping_info skl_stepping_info[] = {
 		{'G', '0'}, {'H', '0'}, {'I', '0'}
 };
 
-static char intel_get_stepping(struct drm_device *dev)
+static const struct stepping_info *intel_get_stepping_info(struct drm_device *dev)
 {
-	if (IS_SKYLAKE(dev) && (dev->pdev->revision <
-			ARRAY_SIZE(skl_stepping_info)))
-		return skl_stepping_info[dev->pdev->revision].stepping;
-	else
-		return -ENODATA;
-}
+	const struct stepping_info *si;
+	unsigned int size;
 
-static char intel_get_substepping(struct drm_device *dev)
-{
-	if (IS_SKYLAKE(dev) && (dev->pdev->revision <
-			ARRAY_SIZE(skl_stepping_info)))
-		return skl_stepping_info[dev->pdev->revision].substepping;
-	else
-		return -ENODATA;
+	if (IS_SKYLAKE(dev)) {
+		size = ARRAY_SIZE(skl_stepping_info);
+		si = skl_stepping_info;
+	} else {
+		return NULL;
+	}
+
+	if (INTEL_REVID(dev) < size)
+		return si + INTEL_REVID(dev);
+
+	return NULL;
 }
 
 /**
@@ -272,8 +272,8 @@ static void finish_csr_load(const struct firmware *fw, void *context)
 	struct intel_package_header *package_header;
 	struct intel_dmc_header *dmc_header;
 	struct intel_csr *csr = &dev_priv->csr;
-	char stepping = intel_get_stepping(dev);
-	char substepping = intel_get_substepping(dev);
+	const struct stepping_info *stepping_info = intel_get_stepping_info(dev);
+	char stepping, substepping;
 	uint32_t dmc_offset = CSR_DEFAULT_FW_OFFSET, readcount = 0, nbytes;
 	uint32_t i;
 	uint32_t *dmc_payload;
@@ -282,10 +282,13 @@ static void finish_csr_load(const struct firmware *fw, void *context)
 	if (!fw)
 		goto out;
 
-	if ((stepping == -ENODATA) || (substepping == -ENODATA)) {
+	if (!stepping_info) {
 		DRM_ERROR("Unknown stepping info, firmware loading failed\n");
 		goto out;
 	}
+
+	stepping = stepping_info->stepping;
+	substepping = stepping_info->substepping;
 
 	/* Extract CSS Header information*/
 	css_header = (struct intel_css_header *)fw->data;
