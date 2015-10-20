@@ -90,7 +90,13 @@ nvif_notify_get(struct nvif_notify *notify)
 static inline int
 nvif_notify_func(struct nvif_notify *notify, bool keep)
 {
-	int ret = notify->func(notify);
+	int ret;
+	unsigned long flags;
+
+	if (notify->plock)
+		spin_lock_irqsave(notify->plock, flags);
+
+	ret = notify->func(notify);
 	if (ret == NVIF_NOTIFY_KEEP ||
 	    !test_and_clear_bit(NVIF_NOTIFY_USER, &notify->flags)) {
 		if (!keep)
@@ -98,6 +104,10 @@ nvif_notify_func(struct nvif_notify *notify, bool keep)
 		else
 			nvif_notify_get_(notify);
 	}
+
+	if (notify->plock)
+		spin_unlock_irqrestore(notify->plock, flags);
+
 	return ret;
 }
 
@@ -178,6 +188,7 @@ nvif_notify_init(struct nvif_object *object, void (*dtor)(struct nvif_notify *),
 	notify->object = NULL;
 	nvif_object_ref(object, &notify->object);
 	notify->flags = 0;
+	notify->plock = NULL;
 	atomic_set(&notify->putcnt, 1);
 	notify->dtor = dtor;
 	notify->func = func;

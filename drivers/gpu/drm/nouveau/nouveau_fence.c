@@ -159,10 +159,8 @@ nouveau_fence_wait_uevent_handler(struct nvif_notify *notify)
 {
 	struct nouveau_fence_chan *fctx =
 		container_of(notify, typeof(*fctx), notify);
-	unsigned long flags;
 	int ret = NVIF_NOTIFY_KEEP;
 
-	spin_lock_irqsave(&fctx->lock, flags);
 	if (!list_empty(&fctx->pending)) {
 		struct nouveau_fence *fence;
 		struct nouveau_channel *chan;
@@ -172,7 +170,6 @@ nouveau_fence_wait_uevent_handler(struct nvif_notify *notify)
 		if (nouveau_fence_update(fence->channel, fctx))
 			ret = NVIF_NOTIFY_DROP;
 	}
-	spin_unlock_irqrestore(&fctx->lock, flags);
 
 	return ret;
 }
@@ -207,6 +204,7 @@ nouveau_fence_context_new(struct nouveau_channel *chan, struct nouveau_fence_cha
 			 sizeof(struct nvif_notify_uevent_req),
 			 sizeof(struct nvif_notify_uevent_rep),
 			 &fctx->notify);
+	fctx->notify.plock = &fctx->lock;
 
 	WARN_ON(ret);
 }
