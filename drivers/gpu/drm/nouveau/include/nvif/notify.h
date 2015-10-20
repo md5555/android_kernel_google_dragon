@@ -9,6 +9,7 @@ struct nvif_notify {
 #define NVIF_NOTIFY_WORK 1
 	unsigned long flags;
 	atomic_t putcnt;
+	spinlock_t *plock;
 	void (*dtor)(struct nvif_notify *);
 #define NVIF_NOTIFY_DROP 0
 #define NVIF_NOTIFY_KEEP 1
