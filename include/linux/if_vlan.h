@@ -82,6 +82,10 @@ static inline bool is_vlan_dev(struct net_device *dev)
 #define vlan_tx_tag_get(__skb)		((__skb)->vlan_tci & ~VLAN_TAG_PRESENT)
 #define vlan_tx_tag_get_id(__skb)	((__skb)->vlan_tci & VLAN_VID_MASK)
 
+#define skb_vlan_tag_present	vlan_tx_tag_present
+#define skb_vlan_tag_get	vlan_tx_tag_get
+#define skb_vlan_tag_get_id	vlan_tx_tag_get_id
+
 /**
  *	struct vlan_pcpu_stats - VLAN percpu rx/tx stats
  *	@rx_packets: number of received packets
