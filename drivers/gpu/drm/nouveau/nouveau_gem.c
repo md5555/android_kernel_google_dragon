@@ -1168,9 +1168,15 @@ nouveau_gem_pushbuf_queue_kthread_fn(void *data)
 		nvxx_client(chan)->name);
 
 	while (1) {
-		wait_event(chan->pushbuf_waitqueue,
+		ret = wait_event_interruptible(chan->pushbuf_waitqueue,
 			(pb_data = nouveau_gem_pushbuf_queue_head(chan))
 			|| kthread_should_stop());
+		if (ret) {
+			NV_ERROR(chan->drm,
+				 "PB thread interrupted on channel %s\n",
+				 nvxx_client(chan)->name);
+			break;
+		}
 
 		/*
 		 * We can break out of the wait_event() above with !pb_data
