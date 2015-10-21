@@ -32,6 +32,7 @@
 #include "rl6231.h"
 #include "rt5677.h"
 #include "rt5677-spi.h"
+#include "rt5677-hotword.h"
 
 #define RT5677_DEVICE_ID 0x6327
 
@@ -296,6 +297,7 @@ static bool rt5677_volatile_register(struct device *dev, unsigned int reg)
 	case RT5677_I2C_MASTER_CTRL7:
 	case RT5677_I2C_MASTER_CTRL8:
 	case RT5677_HAP_GENE_CTRL2:
+	case RT5677_PWR_ANLG2: /* Modified by DSP firmware */
 	case RT5677_PWR_DSP_ST:
 	case RT5677_PRIV_DATA:
 	case RT5677_PLL1_CTRL2:
@@ -3013,6 +3015,7 @@ static const struct snd_soc_dapm_widget rt5677_dapm_widgets[] = {
 	SND_SOC_DAPM_AIF_OUT("AIF4TX", "AIF4 Capture", 0, SND_SOC_NOPM, 0, 0),
 	SND_SOC_DAPM_AIF_IN("SLBRX", "SLIMBus Playback", 0, SND_SOC_NOPM, 0, 0),
 	SND_SOC_DAPM_AIF_OUT("SLBTX", "SLIMBus Capture", 0, SND_SOC_NOPM, 0, 0),
+	SND_SOC_DAPM_AIF_OUT("DSPTX", "DSP Buffer", 0, SND_SOC_NOPM, 0, 0),
 
 	/* Sidetone Mux */
 	SND_SOC_DAPM_MUX("Sidetone Mux", SND_SOC_NOPM, 0, 0,
@@ -3540,11 +3543,13 @@ static const struct snd_soc_dapm_route rt5677_dapm_routes[] = {
 	{ "SLBTX", NULL, "SLB ADC3 Mux" },
 	{ "SLBTX", NULL, "SLB ADC4 Mux" },
 
+	{ "DSPTX", NULL, "IB01 Bypass Mux" },
+
 	{ "IB01 Mux", "IF1 DAC 01", "IF1 DAC01" },
 	{ "IB01 Mux", "IF2 DAC 01", "IF2 DAC01" },
 	{ "IB01 Mux", "SLB DAC 01", "SLB DAC01" },
 	{ "IB01 Mux", "STO1 ADC MIX", "Stereo1 ADC MIX" },
-	{ "IB01 Mux", "VAD ADC/DAC1 FS", "DAC1 FS" },
+	{ "IB01 Mux", "VAD ADC/DAC1 FS", "VAD ADC Mux" },
 
 	{ "IB01 Bypass Mux", "Bypass", "IB01 Mux" },
 	{ "IB01 Bypass Mux", "Pass SRC", "IB01 Mux" },
@@ -4629,6 +4634,12 @@ static int rt5677_to_irq(struct gpio_chip *chip, unsigned offset)
 	struct regmap_irq_chip_data *data = rt5677->irq_data;
 	int irq;
 
+	/* When hotwording is enabled, GPIO1/IRQ1 pin signals hotword
+	 * detection, so jack detect irqs are not supported.
+	 */
+	if (IS_ENABLED(CONFIG_SND_SOC_RT5677_HOTWORD))
+		return -EBUSY;
+
 	if (offset >= RT5677_GPIO1 && offset <= RT5677_GPIO3) {
 		if ((rt5677->pdata.jd1_gpio == 1 && offset == RT5677_GPIO1) ||
 			(rt5677->pdata.jd1_gpio == 2 &&
@@ -4974,6 +4985,17 @@ static struct snd_soc_dai_driver rt5677_dai[] = {
 		},
 		.ops = &rt5677_aif_dai_ops,
 	},
+	{
+		.name = "rt5677-dspbuffer",
+		.id = RT5677_DSPBUFF,
+		.capture = {
+			.stream_name = "DSP Buffer",
+			.channels_min = 1,
+			.channels_max = 1,
+			.rates = SNDRV_PCM_RATE_16000,
+			.formats = SNDRV_PCM_FMTBIT_S16_LE,
+		},
+	},
 };
 
 static struct snd_soc_codec_driver soc_codec_dev_rt5677 = {
@@ -5091,6 +5113,11 @@ static int rt5677_init_irq(struct i2c_client *i2c)
 {
 	int ret;
 	struct rt5677_priv *rt5677 = i2c_get_clientdata(i2c);
+
+	if (IS_ENABLED(CONFIG_SND_SOC_RT5677_HOTWORD)) {
+		dev_info(&i2c->dev, "Hotwording enabled. No jack detect.\n");
+		return 0;
+	}
 
 	if (!rt5677->pdata.jd1_gpio &&
 		!rt5677->pdata.jd2_gpio &&

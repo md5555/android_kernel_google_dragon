@@ -30,6 +30,7 @@
 #include <linux/firmware.h>
 
 #include "rt5677-spi.h"
+#include "rt5677-hotword.h"
 
 #define RT5677_SPI_BURST_LEN	240
 #define RT5677_SPI_HEADER	5
@@ -226,15 +227,31 @@ EXPORT_SYMBOL_GPL(rt5677_spi_write_firmware);
 static int rt5677_spi_probe(struct spi_device *spi)
 {
 	g_spi = spi;
-	return 0;
+	return rt5677_hotword_init(&spi->dev);
 }
+
+static int rt5677_spi_remove(struct spi_device *spi)
+{
+	return rt5677_hotword_free(&spi->dev);
+}
+
+#ifdef CONFIG_OF
+static const struct of_device_id rt5677_spi_of_match[] = {
+	{ .compatible = "realtek,rt5676-spi", },
+	{ .compatible = "realtek,rt5677-spi", },
+	{ }
+};
+MODULE_DEVICE_TABLE(of, rt5677_spi_of_match);
+#endif
 
 static struct spi_driver rt5677_spi_driver = {
 	.driver = {
 		.name = "rt5677",
 		.owner = THIS_MODULE,
+		.of_match_table = of_match_ptr(rt5677_spi_of_match),
 	},
 	.probe = rt5677_spi_probe,
+	.remove = rt5677_spi_remove,
 };
 module_spi_driver(rt5677_spi_driver);
 

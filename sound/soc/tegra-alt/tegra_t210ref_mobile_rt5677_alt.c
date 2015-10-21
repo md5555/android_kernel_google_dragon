@@ -406,7 +406,19 @@ static struct snd_soc_dai_link tegra_rt5677_dai[] = {
 			SND_SOC_DAIFMT_CBS_CFS,
 		.params = &tegra_rt5677_stream_params,
 		.init = tegra_rt5677_headset_init,
-	}
+	},
+
+	/* Hotwording PCM */
+	{
+		.name = "Codec DSP",
+		.stream_name = "Wake on Voice",
+		.cpu_name = "spi32766.0",
+		.cpu_dai_name = "spi32766.0",
+		.codec_name = "rt5677.5-002d",
+		.codec_dai_name = "rt5677-dspbuffer",
+		.platform_name = "spi32766.0",
+		.ignore_suspend = 1,
+	},
 };
 
 static int tegra_t210ref_set_mclk(struct tegra_t210ref *machine, struct device *dev)
