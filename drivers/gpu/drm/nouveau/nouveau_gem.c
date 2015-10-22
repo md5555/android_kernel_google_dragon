@@ -1108,7 +1108,6 @@ nouveau_vm_map_deferred(struct nvkm_vm *vm)
 static int
 nouveau_gem_do_pushbuf(struct nouveau_pushbuf_data *pb_data)
 {
-	struct nouveau_abi16 *abi16;
 	struct nouveau_cli *cli = nouveau_cli(pb_data->file_priv);
 	struct nouveau_channel *chan = pb_data->chan;
 	uint32_t *push = pb_data->push;
@@ -1116,11 +1115,7 @@ nouveau_gem_do_pushbuf(struct nouveau_pushbuf_data *pb_data)
 
 	nouveau_vm_map_deferred(cli->vm);
 
-	abi16 = nouveau_abi16_get(pb_data->file_priv, pb_data->dev);
-	if (unlikely(!abi16)) {
-		return -ENOMEM;
-	}
-
+	mutex_lock(&chan->fifo_lock);
 	ret = nouveau_dma_wait(chan, pb_data->nr_push + 1, 16);
 	if (ret) {
 		NV_PRINTK(error, cli, "nv50cal_space: %d\n", ret);
@@ -1134,11 +1129,11 @@ nouveau_gem_do_pushbuf(struct nouveau_pushbuf_data *pb_data)
 	if (ret) {
 		NV_PRINTK(error, cli, "error fencing pushbuf: %d\n", ret);
 		WIND_RING(chan);
-		goto out;
 	}
 
 out:
-	return nouveau_abi16_put(abi16, ret);
+	mutex_unlock(&chan->fifo_lock);
+	return ret;
 }
 
 static struct nouveau_pushbuf_data *
@@ -1322,7 +1317,6 @@ nouveau_gem_ioctl_pushbuf_2(struct drm_device *dev, void *data,
 
 		if (ret) {
 			NV_PRINTK(error, cli, "fence install: %d\n", ret);
-			WIND_RING(chan);
 			goto out_fence;
 		}
 	}
@@ -1449,10 +1443,11 @@ nouveau_gem_ioctl_pushbuf(struct drm_device *dev, void *data,
 		ret = nouveau_gem_pushbuf_reloc_apply(cli, req, bo);
 		if (ret) {
 			NV_PRINTK(error, cli, "reloc apply: %d\n", ret);
-			goto out;
+			goto out_no_lock;
 		}
 	}
 
+	mutex_lock(&chan->fifo_lock);
 	if (chan->dma.ib_max) {
 		ret = nouveau_dma_wait(chan, req->nr_push + 1, 16);
 		if (ret) {
@@ -1525,10 +1520,12 @@ nouveau_gem_ioctl_pushbuf(struct drm_device *dev, void *data,
 	if (ret) {
 		NV_PRINTK(error, cli, "error fencing pushbuf: %d\n", ret);
 		WIND_RING(chan);
-		goto out;
 	}
 
 out:
+	mutex_unlock(&chan->fifo_lock);
+
+out_no_lock:
 	validate_fini(&op, fence, bo);
 	nouveau_fence_unref(&fence);
 

@@ -563,10 +563,13 @@ nv50_display_flip_next(struct drm_crtc *crtc, struct drm_framebuffer *fb,
 	if (unlikely(push == NULL))
 		return -EBUSY;
 
+	if (chan)
+		mutex_lock(&chan->fifo_lock);
+
 	if (chan && chan->object->oclass < G82_CHANNEL_GPFIFO) {
 		ret = RING_SPACE(chan, 8);
 		if (ret)
-			return ret;
+			goto unlock_fifo;
 
 		BEGIN_NV04(chan, 0, NV11_SUBCHAN_DMA_SEMAPHORE, 2);
 		OUT_RING  (chan, NvEvoSema0 + nv_crtc->index);
@@ -581,7 +584,7 @@ nv50_display_flip_next(struct drm_crtc *crtc, struct drm_framebuffer *fb,
 		u64 addr = nv84_fence_crtc(chan, nv_crtc->index) + sync->addr;
 		ret = RING_SPACE(chan, 12);
 		if (ret)
-			return ret;
+			goto unlock_fifo;
 
 		BEGIN_NV04(chan, 0, NV11_SUBCHAN_DMA_SEMAPHORE, 1);
 		OUT_RING  (chan, chan->vram.handle);
@@ -600,7 +603,7 @@ nv50_display_flip_next(struct drm_crtc *crtc, struct drm_framebuffer *fb,
 		u64 addr = nv84_fence_crtc(chan, nv_crtc->index) + sync->addr;
 		ret = RING_SPACE(chan, 10);
 		if (ret)
-			return ret;
+			goto unlock_fifo;
 
 		BEGIN_NVC0(chan, 0, NV84_SUBCHAN_SEMAPHORE_ADDRESS_HIGH, 4);
 		OUT_RING  (chan, upper_32_bits(addr ^ 0x10));
@@ -620,6 +623,7 @@ nv50_display_flip_next(struct drm_crtc *crtc, struct drm_framebuffer *fb,
 		sync->addr ^= 0x10;
 		sync->data++;
 		FIRE_RING (chan);
+		mutex_unlock(&chan->fifo_lock);
 	}
 
 	/* queue the flip */
@@ -665,6 +669,10 @@ nv50_display_flip_next(struct drm_crtc *crtc, struct drm_framebuffer *fb,
 
 	nouveau_bo_ref(nv_fb->nvbo, &head->image);
 	return 0;
+
+unlock_fifo:
+	mutex_unlock(&chan->fifo_lock);
+	return ret;
 }
 
 /******************************************************************************
