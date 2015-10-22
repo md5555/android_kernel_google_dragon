@@ -2535,7 +2535,8 @@ static __init void tegra210_periph_clk_init(void __iomem *clk_base,
 					      1, 17, 207);
 	clks[TEGRA210_CLK_DPAUX1] = clk;
 
-	clk = tegra_clk_register_periph_fixed("sor_safe", "pll_p", 0, clk_base,
+	clk = tegra_clk_register_periph_fixed("sor_safe", "pll_p",
+					      CLK_IGNORE_UNUSED, clk_base,
 					      1, 17, 222);
 	clks[TEGRA210_CLK_SOR_SAFE] = clk;
 
