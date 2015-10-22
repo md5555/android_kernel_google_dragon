@@ -572,19 +572,24 @@ gk20a_pmu_dvfs_get_cur_state(struct gk20a_pmu_priv *priv, int *state)
 
 static int
 gk20a_pmu_dvfs_get_target_state(struct gk20a_pmu_priv *priv,
-				int *state, int load)
+				int *state, int avg_load, int load)
 {
 	struct gk20a_pmu_dvfs_data *data = priv->data;
 	struct nvkm_clk *clk = nvkm_clk(priv);
 	int cur_level, level;
+	static int inhibit = 0;
 
 	/* For GK20A, the performance level is directly mapped to pstate */
 	level = cur_level = clk->pstate;
 
+	if (inhibit > 0)
+		inhibit --;
+
 	if (load > data->p_load_max) {
 		level = min(clk->state_nr - 1, level + (clk->state_nr / 3));
-	} else {
-		level += ((load - data->p_load_target) * 10 /
+		inhibit = data->p_smooth;
+	} else if (inhibit <= 0) {
+		level += ((avg_load - data->p_load_target) * 10 /
 				data->p_load_target) / 2;
 		level = max(0, level);
 		level = min(clk->state_nr - 1, level);
@@ -663,7 +668,7 @@ gk20a_pmu_dvfs_work(struct nvkm_alarm *alarm)
 		goto resched;
 	}
 
-	if (gk20a_pmu_dvfs_get_target_state(priv, &state, data->avg_load)) {
+	if (gk20a_pmu_dvfs_get_target_state(priv, &state, data->avg_load, utilization)) {
 		nv_trace(priv, "set new state to %d\n", state);
 		gk20a_pmu_dvfs_target(priv, &state);
 	}
@@ -3244,9 +3249,9 @@ gk20a_pmu_dtor(struct nvkm_object *object)
 }
 
 struct gk20a_pmu_dvfs_data gk20a_dvfs_data = {
-	.p_load_target = 70,
+	.p_load_target = 40,
 	.p_load_max = 78,
-	.p_smooth = 0,
+	.p_smooth = 5,
 };
 
 static int
