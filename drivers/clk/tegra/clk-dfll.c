@@ -2128,7 +2128,7 @@ static int dfll_build_i2c_lut(struct tegra_dfll *td)
 
 		for (;;) {
 			v += max(1, (v_max - v) / (MAX_DFLL_VOLTAGES - j));
-			if (v >= v_opp)
+			if ((v >= v_opp) || (j == MAX_DFLL_VOLTAGES - 2))
 				break;
 
 			selector = find_vdd_map_entry_min(td, v);
