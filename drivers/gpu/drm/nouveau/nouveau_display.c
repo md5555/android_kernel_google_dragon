@@ -670,9 +670,12 @@ nouveau_page_flip_emit(struct nouveau_channel *chan,
 		goto fail;
 
 	/* Emit the pageflip */
+	mutex_lock(&chan->fifo_lock);
 	ret = RING_SPACE(chan, 2);
-	if (ret)
+	if (ret) {
+		mutex_unlock(&chan->fifo_lock);
 		goto fail;
+	}
 
 	if (drm->device.info.family < NV_DEVICE_INFO_V0_FERMI)
 		BEGIN_NV04(chan, NvSubSw, NV_SW_PAGE_FLIP, 1);
@@ -682,6 +685,7 @@ nouveau_page_flip_emit(struct nouveau_channel *chan,
 	FIRE_RING (chan);
 
 	ret = nouveau_fence_new(chan, false, pfence);
+	mutex_unlock(&chan->fifo_lock);
 	if (ret)
 		goto fail;
 
@@ -762,9 +766,12 @@ nouveau_crtc_page_flip(struct drm_crtc *crtc, struct drm_framebuffer *fb,
 		int head = nouveau_crtc(crtc)->index;
 
 		if (swap_interval) {
+			mutex_lock(&chan->fifo_lock);
 			ret = RING_SPACE(chan, 8);
-			if (ret)
+			if (ret) {
+				mutex_unlock(&chan->fifo_lock);
 				goto fail_unreserve;
+			}
 
 			BEGIN_NV04(chan, NvSubImageBlit, 0x012c, 1);
 			OUT_RING  (chan, 0);
@@ -774,6 +781,7 @@ nouveau_crtc_page_flip(struct drm_crtc *crtc, struct drm_framebuffer *fb,
 			OUT_RING  (chan, 0);
 			BEGIN_NV04(chan, NvSubImageBlit, 0x0130, 1);
 			OUT_RING  (chan, 0);
+			mutex_unlock(&chan->fifo_lock);
 		}
 
 		nouveau_bo_ref(new_bo, &dispnv04->image[head]);
