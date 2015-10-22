@@ -631,18 +631,13 @@
 				function = "gpio";
 			};
 
-			/*
-			 * GPIO3 is used to en_pp3300, and it is part of power
-			 * sequence, So it must be sequenced up (automatically
-			 * set by OTP) and down properly.
-			 */
+			// Not sure why this is needed, but if gpio3 is left as
+			// a gpio then it won't boot.
 			pin_gpio3 {
 				pins = "gpio3";
 				function = "fps-out";
 				drive-open-drain = <1>;
 				maxim,fps-source = <FPS_SRC_0>;
-				maxim,fps-power-up-period = <4>;
-				maxim,fps-power-down-period = <2>;
 			};
 
 			pin_gpio5_6_7 {
@@ -669,13 +664,13 @@
 			#size-cells = <0>;
 			fps@0 {
 				reg = <0>;
-				maxim,fps-time-period = <5120>;
+				maxim,fps-time-period = <2560>;
 				maxim,fps-enable-input = <FPS_EN_SRC_EN0>;
 			};
 
 			fps@1 {
 				reg = <1>;
-				maxim,fps-time-period = <5120>;
+				maxim,fps-time-period = <2560>;
 				maxim,fps-enable-input = <FPS_EN_SRC_EN1>;
 				maxim,enable-sleep;
 			};
@@ -715,8 +710,6 @@
 				regulator-always-on;
 				regulator-boot-on;
 				maxim,fps-source = <FPS_SRC_1>;
-				maxim,fps-power-up-period = <1>;
-				maxim,fps-power-down-period = <7>;
 			};
 
 			pp1100_sd1: sd1 {
@@ -729,9 +722,7 @@
 				regulator-ramp-delay-scale = <300>;
 				regulator-always-on;
 				regulator-boot-on;
-				maxim,fps-source = <FPS_SRC_0>;
-				maxim,fps-power-up-period = <5>;
-				maxim,fps-power-down-period = <1>;
+				maxim,fps-source = <FPS_SRC_NONE>;
 			};
 
 			pp1350: sd2 {
@@ -745,8 +736,6 @@
 				regulator-always-on;
 				regulator-boot-on;
 				maxim,fps-source = <FPS_SRC_NONE>;
-				maxim,fps-power-up-period = <2>;
-				maxim,fps-power-down-period = <5>;
 			};
 
 			pp1800: sd3 {
@@ -759,9 +748,7 @@
 				regulator-ramp-delay-scale = <360>;
 				regulator-always-on;
 				regulator-boot-on;
-				maxim,fps-source = <FPS_SRC_0>;
-				maxim,fps-power-up-period = <3>;
-				maxim,fps-power-down-period = <3>;
+				maxim,fps-source = <FPS_SRC_NONE>;
 			};
 
 			pp1200_avdd: ldo0 {
@@ -774,8 +761,6 @@
 				regulator-ramp-delay-scale = <200>;
 				regulator-boot-on;
 				maxim,fps-source = <FPS_SRC_NONE>;
-				maxim,fps-power-up-period = <0>;
-				maxim,fps-power-down-period = <7>;
 			};
 
 			pp1200_rcam: ldo1 {
@@ -787,8 +772,6 @@
 				regulator-ramp-delay = <100000>;
 				regulator-ramp-delay-scale = <200>;
 				maxim,fps-source = <FPS_SRC_NONE>;
-				maxim,fps-power-up-period = <0>;
-				maxim,fps-power-down-period = <7>;
 			};
 
 			pp_ldo2: ldo2 {
@@ -802,8 +785,6 @@
 				regulator-always-on;
 				regulator-boot-on;
 				maxim,fps-source = <FPS_SRC_NONE>;
-				maxim,fps-power-up-period = <0>;
-				maxim,fps-power-down-period = <7>;
 			};
 
 			pp2800l_rcam: ldo3 {
@@ -815,8 +796,6 @@
 				regulator-ramp-delay = <100000>;
 				regulator-ramp-delay-scale = <200>;
 				maxim,fps-source = <FPS_SRC_NONE>;
-				maxim,fps-power-up-period = <0>;
-				maxim,fps-power-down-period = <7>;
 			};
 
 			pp100_soc_rtc: ldo4 {
@@ -829,9 +808,7 @@
 				regulator-ramp-delay-scale = <200>;
 				regulator-always-on; /* Check this */
 				regulator-boot-on;
-				maxim,fps-source = <FPS_SRC_0>;
-				maxim,fps-power-up-period = <1>;
-				maxim,fps-power-down-period = <7>;
+				maxim,fps-source = <FPS_SRC_NONE>;
 			};
 
 			pp2800l_fcam: ldo5 {
@@ -843,8 +820,6 @@
 				regulator-ramp-delay = <100000>;
 				regulator-ramp-delay-scale = <200>;
 				maxim,fps-source = <FPS_SRC_NONE>;
-				maxim,fps-power-up-period = <0>;
-				maxim,fps-power-down-period = <7>;
 			};
 
 			ldo6 {
@@ -857,8 +832,6 @@
 				regulator-ramp-delay = <100000>;
 				regulator-ramp-delay-scale = <200>;
 				maxim,fps-source = <FPS_SRC_NONE>;
-				maxim,fps-power-up-period = <0>;
-				maxim,fps-power-down-period = <7>;
 			};
 
 			pp1050_avdd: ldo7 {
@@ -871,9 +844,7 @@
 				regulator-ramp-delay-scale = <200>;
 				regulator-always-on;
 				regulator-boot-on;
-				maxim,fps-source = <FPS_SRC_1>;
-				maxim,fps-power-up-period = <3>;
-				maxim,fps-power-down-period = <4>;
+				maxim,fps-source = <FPS_SRC_NONE>;
 			};
 
 			avddio_1v05: ldo8 {
@@ -886,8 +857,6 @@
 				regulator-ramp-delay-scale = <200>;
 				regulator-boot-on;
 				maxim,fps-source = <FPS_SRC_NONE>;
-				maxim,fps-power-up-period = <0>;
-				maxim,fps-power-down-period = <7>;
 			};
 		};
 	};
@@ -1060,7 +1029,7 @@
 	nvidia,cpu-pwr-good-time = <0>;
 	nvidia,cpu-pwr-off-time = <0>;
 	nvidia,core-pwr-good-time = <3052 3846>;
-	nvidia,core-pwr-off-time = <39053>;
+	nvidia,core-pwr-off-time = <19532>;
 	nvidia,core-power-req-active-high;
 	nvidia,sys-clock-req-active-high;
 	#nvidia,wake-cells = <3>;
