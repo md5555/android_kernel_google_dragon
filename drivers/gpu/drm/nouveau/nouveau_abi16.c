@@ -112,21 +112,14 @@ nouveau_abi16_chan_fini(struct nouveau_abi16 *abi16,
 			struct nouveau_abi16_chan *chan)
 {
 	struct nouveau_abi16_ntfy *ntfy, *temp;
-	struct nouveau_cli *cli = (void *)nvif_client(&abi16->device.base);
 
 	list_del(&chan->head);
-	mutex_unlock(&cli->mutex);
-	if (chan->chan->pushbuf_thread) {
-		kthread_stop(chan->chan->pushbuf_thread);
-		chan->chan->pushbuf_thread = NULL;
-		nouveau_channel_idle(chan->chan);
-	}
-	mutex_lock(&cli->mutex);
 
-	/* wait for all activity to stop before releasing notify object, which
-	 * may be still in use */
-	if (chan->chan && chan->ntfy)
-		nouveau_channel_idle(chan->chan);
+	/* destroy channel object, all children will be killed too */
+	if (chan->chan) {
+		abi16->handles &= ~(1ULL << (chan->chan->object->handle & 0xffff));
+		nouveau_channel_del(&chan->chan);
+	}
 
 	/* cleanup notifier state */
 	list_for_each_entry_safe(ntfy, temp, &chan->notifiers, head) {
@@ -141,12 +134,6 @@ nouveau_abi16_chan_fini(struct nouveau_abi16 *abi16,
 
 	if (chan->heap.block_size)
 		nvkm_mm_fini(&chan->heap);
-
-	/* destroy channel object, all children will be killed too */
-	if (chan->chan) {
-		abi16->handles &= ~(1ULL << (chan->chan->object->handle & 0xffff));
-		nouveau_channel_del(&chan->chan);
-	}
 
 	kfree(chan);
 }
@@ -530,6 +517,7 @@ nouveau_abi16_ioctl_gpuobj_free(ABI16_IOCTL_ARGS)
 		return nouveau_abi16_put(abi16, -ENOENT);
 	client = nvif_client(nvif_object(&abi16->device));
 
+	/* TODO: fix synchronization */
 	/* synchronize with the user channel and destroy the gpu object */
 	nouveau_channel_idle(chan->chan);
 

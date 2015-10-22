@@ -1147,9 +1147,11 @@ nouveau_bo_move_m2mf(struct ttm_buffer_object *bo, int evict, bool intr,
 	mutex_lock_nested(&cli->mutex, SINGLE_DEPTH_NESTING);
 	ret = nouveau_bo_sync(nouveau_bo(bo), chan, true, intr);
 	if (ret == 0) {
+		mutex_lock(&chan->fifo_lock);
 		ret = drm->ttm.move(chan, bo, &bo->mem, new_mem);
 		if (ret == 0) {
 			ret = nouveau_fence_new(chan, false, &fence);
+			mutex_unlock(&chan->fifo_lock);
 			if (ret == 0) {
 				ret = ttm_bo_move_accel_cleanup(bo,
 								&fence->base,
@@ -1158,7 +1160,8 @@ nouveau_bo_move_m2mf(struct ttm_buffer_object *bo, int evict, bool intr,
 								new_mem);
 				nouveau_fence_unref(&fence);
 			}
-		}
+		} else
+			mutex_unlock(&chan->fifo_lock);
 	}
 	mutex_unlock(&cli->mutex);
 	return ret;

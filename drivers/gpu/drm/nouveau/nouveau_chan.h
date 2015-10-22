@@ -42,6 +42,7 @@ struct nouveau_channel {
 
 	struct nvif_object *object;
 
+	struct mutex fifo_lock;
 	spinlock_t pushbuf_lock;
 	struct list_head pushbuf_queue;
 	struct task_struct *pushbuf_thread;
