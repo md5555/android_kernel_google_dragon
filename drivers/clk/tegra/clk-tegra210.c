@@ -2777,11 +2777,16 @@ static void __init tegra210_pll_init(void __iomem *clk_base,
 	clks[TEGRA210_CLK_PLL_P_OUT2] = clk;
 }
 
-static const char *cbus_parents[] = { "c2bus", "c3bus" };
+static const char *cbus_parents[] = { "cbus", "c2bus", "c3bus" };
 
 static __init void tegra210_shared_clk_init(void)
 {
 	struct clk *clk;
+
+	clk = tegra_clk_register_cbus("cbus", "pll_c", 0, "pll_p", 0,
+					1000000000);
+	clk_register_clkdev(clk, "cbus", NULL);
+	clks[TEGRA210_CLK_CBUS] = clk;
 
 	clk = tegra_clk_register_cbus("c2bus", "pll_c2", 0, "pll_p", 0,
 					1000000000);
@@ -2793,31 +2798,31 @@ static __init void tegra210_shared_clk_init(void)
 	clk_register_clkdev(clk, "c3bus", NULL);
 	clks[TEGRA210_CLK_C3BUS] = clk;
 
-	clk = tegra_clk_register_shared("vic03.cbus", &cbus_parents[0], 1, 0, 0,
+	clk = tegra_clk_register_shared("vic03.cbus", &cbus_parents[1], 1, 0, 0,
 					0, "vic03");
 	clks[TEGRA210_CLK_VIC03_CBUS] = clk;
 
-	clk = tegra_clk_register_shared("nvjpg.cbus", &cbus_parents[0], 1, 0, 0,
+	clk = tegra_clk_register_shared("nvjpg.cbus", &cbus_parents[1], 1, 0, 0,
 					0, "nvjpg");
 	clks[TEGRA210_CLK_NVJPG_CBUS] = clk;
 
-	clk = tegra_clk_register_shared("se.cbus", &cbus_parents[0], 1, 0, 0,
+	clk = tegra_clk_register_shared("se.cbus", &cbus_parents[1], 1, 0, 0,
 					0, "se");
 	clks[TEGRA210_CLK_SE_CBUS] = clk;
 
-	clk = tegra_clk_register_shared("tsecb.cbus", &cbus_parents[0], 1, 0, 0,
+	clk = tegra_clk_register_shared("tsecb.cbus", &cbus_parents[1], 1, 0, 0,
 					0, "tsecb");
 	clks[TEGRA210_CLK_TSECB_CBUS] = clk;
 
-	clk = tegra_clk_register_shared("vic.floor.cbus", &cbus_parents[0], 1, 0, 0,
+	clk = tegra_clk_register_shared("vic.floor.cbus", &cbus_parents[1], 1, 0, 0,
 					0, "vic03");
 	clks[TEGRA210_CLK_VIC_FLOOR_CBUS] = clk;
 
-	clk = tegra_clk_register_shared("nvenc.cbus", &cbus_parents[1], 1, 0, 0,
+	clk = tegra_clk_register_shared("nvenc.cbus", &cbus_parents[2], 1, 0, 0,
 					0, "nvenc");
 	clks[TEGRA210_CLK_NVENC_CBUS] = clk;
 
-	clk = tegra_clk_register_shared("nvdec.cbus", &cbus_parents[1], 1, 0, 0,
+	clk = tegra_clk_register_shared("nvdec.cbus", &cbus_parents[2], 1, 0, 0,
 					0, "nvdec");
 	clks[TEGRA210_CLK_NVDEC_CBUS] = clk;
 
