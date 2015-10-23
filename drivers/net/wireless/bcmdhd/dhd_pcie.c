@@ -3016,7 +3016,6 @@ dhdpcie_bus_suspend(struct  dhd_bus *bus, bool state)
 {
 
 	int timeleft;
-	bool pending;
 	unsigned long flags;
 	int rc = 0;
 	int idle_retry = 0;
