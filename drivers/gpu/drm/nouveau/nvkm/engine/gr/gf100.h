@@ -149,6 +149,7 @@ int  gk20a_gr_ctor(struct nvkm_object *, struct nvkm_object *,
 		     struct nvkm_object **);
 void gk20a_gr_dtor(struct nvkm_object *);
 int  gk20a_gr_init(struct nvkm_object *);
+int  gk20a_gr_fini(struct nvkm_object *, bool suspend);
 
 int  gm204_gr_init(struct nvkm_object *);
 

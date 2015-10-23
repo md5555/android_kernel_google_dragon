@@ -69,7 +69,7 @@ gm20b_gr_oclass = &(struct gk20a_gr_oclass) {
 			.ctor = gk20a_gr_ctor,
 			.dtor = gf100_gr_dtor,
 			.init = gk20a_gr_init,
-			.fini = _nvkm_gr_fini,
+			.fini = gk20a_gr_fini,
 		},
 		.cclass = &gm20b_grctx_oclass,
 		.sclass = gm20b_gr_sclass,

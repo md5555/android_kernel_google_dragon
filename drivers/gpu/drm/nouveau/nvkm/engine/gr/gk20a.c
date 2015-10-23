@@ -613,6 +613,22 @@ gk20a_gr_init(struct nvkm_object *object)
 	return ret;
 }
 
+int
+gk20a_gr_fini(struct nvkm_object *object, bool suspend)
+{
+	struct nvkm_pmu *pmu = nvkm_pmu(object);
+
+	if (suspend) {
+		if (pmu->disable_elpg)
+			pmu->disable_elpg(pmu);
+
+		if (pmu->disable_clk_gating)
+			pmu->disable_clk_gating(pmu);
+	}
+
+	return _nvkm_gr_fini(object, suspend);
+}
+
 struct nvkm_oclass *
 gk20a_gr_oclass = &(struct gk20a_gr_oclass) {
 	.gf100 = {
@@ -621,7 +637,7 @@ gk20a_gr_oclass = &(struct gk20a_gr_oclass) {
 			.ctor = gk20a_gr_ctor,
 			.dtor = gk20a_gr_dtor,
 			.init = gk20a_gr_init,
-			.fini = _nvkm_gr_fini,
+			.fini = gk20a_gr_fini,
 		},
 		.cclass = &gk20a_grctx_oclass,
 		.sclass = gk20a_gr_sclass,
