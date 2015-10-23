@@ -2858,6 +2858,23 @@ static int tegra_pmc_probe(struct platform_device *pdev)
 	return 0;
 }
 
+static int __maybe_unused tegra_pmc_pm_suspend(struct device *dev)
+{
+	/*
+	 * HACK: This works around a hang at resume time on certain boards
+	 * for some unknown reason.
+	 */
+	return tegra_pmc_unpowergate(TEGRA_POWERGATE_DFD);
+}
+
+static int __maybe_unused tegra_pmc_pm_resume(struct device *dev)
+{
+	return tegra_pmc_powergate(TEGRA_POWERGATE_DFD);
+}
+
+static SIMPLE_DEV_PM_OPS(tegra_pmc_pm_ops, tegra_pmc_pm_suspend,
+			 tegra_pmc_pm_resume);
+
 static const char * const tegra20_powergates[] = {
 	[TEGRA_POWERGATE_CPU] = "cpu",
 	[TEGRA_POWERGATE_3D] = "3d",
@@ -3061,6 +3078,7 @@ static struct platform_driver tegra_pmc_driver = {
 		.name = "tegra-pmc",
 		.suppress_bind_attrs = true,
 		.of_match_table = tegra_pmc_match,
+		.pm = &tegra_pmc_pm_ops,
 	},
 	.probe = tegra_pmc_probe,
 };
