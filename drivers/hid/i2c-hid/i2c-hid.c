@@ -143,7 +143,6 @@ struct i2c_hid {
 	unsigned long		flags;		/* device flags */
 
 	wait_queue_head_t	wait;		/* For waiting the interrupt */
-	bool			had_suspended;
 
 	struct i2c_hid_platform_data pdata;
 };
@@ -1121,6 +1120,9 @@ static int i2c_hid_resume(struct device *dev)
 		pm_runtime_set_active(dev);
 		pm_runtime_enable(dev);
 
+		/* Handle all pending reports */
+		i2c_hid_get_input(ihid);
+
 		enable_irq(client->irq);
 		ret = i2c_hid_hwreset(client);
 		if (ret)
@@ -1131,12 +1133,6 @@ static int i2c_hid_resume(struct device *dev)
 			if (ret)
 				return ret;
 		}
-	} else {
-		/*
-		 * We were runtime suspended before suspend/resume, so defer
-		 * hwreset until runtime resume.
-		 */
-		ihid->had_suspended = true;
 	}
 
 	if (device_may_wakeup(&client->dev))
@@ -1150,16 +1146,10 @@ static int i2c_hid_resume(struct device *dev)
 static int i2c_hid_runtime_suspend(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
-	struct i2c_hid *ihid = i2c_get_clientdata(client);
 
 	i2c_hid_set_power(client, I2C_HID_PWR_SLEEP);
 	disable_irq(client->irq);
 
-	/*
-	 * Check for intervening system suspend between runtime_suspend
-	 * and runtime_resume.
-	 */
-	ihid->had_suspended = false;
 	return 0;
 }
 
@@ -1170,26 +1160,21 @@ static int i2c_hid_runtime_resume(struct device *dev)
 	struct hid_device *hid = ihid->hid;
 	int ret;
 
+	/* Handle all pending reports */
+	i2c_hid_get_input(ihid);
+
 	enable_irq(client->irq);
 	i2c_hid_set_power(client, I2C_HID_PWR_ON);
+	ret = i2c_hid_hwreset(client);
+	if (ret)
+		return ret;
 
-	if (ihid->had_suspended) {
-		/*
-		 * System suspended in the period between
-		 * i2c_hid_runtime_suspend and i2c_hid_runtime_resume.
-		 * Issue a hwreset and a reset_resume if provided.
-		 */
-		ret = i2c_hid_hwreset(client);
+	if (hid->driver && hid->driver->reset_resume) {
+		ret = hid->driver->reset_resume(hid);
 		if (ret)
 			return ret;
-
-		if (hid->driver && hid->driver->reset_resume) {
-			ret = hid->driver->reset_resume(hid);
-			if (ret)
-				return ret;
-		}
-		ihid->had_suspended = false;
 	}
+
 	return 0;
 }
 #endif
