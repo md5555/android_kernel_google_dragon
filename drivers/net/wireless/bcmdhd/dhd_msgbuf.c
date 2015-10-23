@@ -1456,6 +1456,13 @@ dhd_prot_rxbufpost_ctrl(dhd_pub_t *dhd, bool event_buf)
 	p = PKTGET(dhd->osh, pktsz, FALSE);
 #endif /* DHD_USE_STATIC_CTRLBUF */
 
+	if (p == NULL) {
+		DHD_ERROR(("%s:%d: PKTGET for %s rxbuf failed\n",
+			__FUNCTION__, __LINE__, event_buf ? "event" :
+				"ioctl"));
+		return -1;
+	}
+
 	pktlen = PKTLEN(dhd->osh, p);
 	physaddr = DMA_MAP(dhd->osh, PKTDATA(dhd->osh, p), pktlen, DMA_RX, p, 0);
 	if (PHYSADDRISZERO(physaddr)) {
