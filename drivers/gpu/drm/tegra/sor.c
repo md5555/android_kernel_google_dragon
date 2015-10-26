@@ -157,6 +157,8 @@ struct tegra_sor {
 
 	struct tegra_kfuse *kfuse;
 	struct drm_hdcp hdcp;
+
+	int powergate;
 };
 
 struct tegra_sor_state {
@@ -3011,6 +3013,7 @@ static int tegra_sor_probe(struct platform_device *pdev)
 	struct tegra_sor *sor;
 	struct resource *regs;
 	int err;
+	u32 head;
 
 	match = of_match_device(tegra_sor_of_match, &pdev->dev);
 
@@ -3049,6 +3052,19 @@ static int tegra_sor_probe(struct platform_device *pdev)
 		if (!sor->kfuse)
 			return -EPROBE_DEFER;
 	}
+
+	err = of_property_read_u32(pdev->dev.of_node, "nvidia,head", &head);
+	if (err < 0) {
+		dev_info(&pdev->dev, "nvidia,head not found in dt\n");
+		head = 0;
+	}
+	if (head == 0)
+		sor->powergate = TEGRA_POWERGATE_DIS;
+	else
+		sor->powergate = TEGRA_POWERGATE_DISB;
+
+	tegra_pmc_unpowergate(sor->powergate);
+
 
 	if (!sor->aux) {
 		if (sor->soc->supports_hdmi) {
@@ -3202,6 +3218,8 @@ static int tegra_sor_remove(struct platform_device *pdev)
 	}
 
 	tegra_output_remove(&sor->output);
+
+	tegra_pmc_powergate(sor->powergate);
 
 	return 0;
 }
