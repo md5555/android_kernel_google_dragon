@@ -3133,11 +3133,13 @@ printbuf:
 	if (sdpcm_shared.flags & (SDPCM_SHARED_ASSERT | SDPCM_SHARED_TRAP)) {
 		DHD_ERROR(("%s: %s\n", __FUNCTION__, strbuf.origbuf));
 	}
+#if 0 /* broken due to crosbug.com/p/46070 */
 	/* save core dump or write to a file */
 	if (bus->dhd->memdump_enabled) {
 		dhdsdio_mem_dump(bus);
 		dhd_dbg_send_urgent_evt(bus->dhd, NULL, 0);
 	}
+#endif
 
 done:
 	if (mbuffer)
