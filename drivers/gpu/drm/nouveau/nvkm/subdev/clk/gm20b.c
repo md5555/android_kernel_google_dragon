@@ -1176,42 +1176,42 @@ gm20b_pstates[] = {
 	{
 		.base = {
 			.domain[nv_clk_src_gpc] = 76800,
-			.domain[nv_clk_src_emc] = 204000,
+			.domain[nv_clk_src_emc] = 408000,
 			.voltage = 0,
 		},
 	},
 	{
 		.base = {
 			.domain[nv_clk_src_gpc] = 153600,
-			.domain[nv_clk_src_emc] = 408000,
+			.domain[nv_clk_src_emc] = 665600,
 			.voltage = 1,
 		},
 	},
 	{
 		.base = {
 			.domain[nv_clk_src_gpc] = 230400,
-			.domain[nv_clk_src_emc] = 665600,
+			.domain[nv_clk_src_emc] = 800000,
 			.voltage = 2,
 		},
 	},
 	{
 		.base = {
 			.domain[nv_clk_src_gpc] = 307200,
-			.domain[nv_clk_src_emc] = 800000,
+			.domain[nv_clk_src_emc] = 1065600,
 			.voltage = 3,
 		},
 	},
 	{
 		.base = {
 			.domain[nv_clk_src_gpc] = 384000,
-			.domain[nv_clk_src_emc] = 1065600,
+			.domain[nv_clk_src_emc] = 1331200,
 			.voltage = 4,
 		},
 	},
 	{
 		.base = {
 			.domain[nv_clk_src_gpc] = 460800,
-			.domain[nv_clk_src_emc] = 1331200,
+			.domain[nv_clk_src_emc] = 1600000,
 			.voltage = 5,
 		},
 	},
