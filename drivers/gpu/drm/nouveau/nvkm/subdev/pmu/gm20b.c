@@ -2682,9 +2682,9 @@ gm20b_pmu_init(struct nvkm_object *object) {
 	ppmu->disable_clk_gating = gm20b_pmu_disable_clk_gating;
 	ppmu->fecs_secure_boot = true;
 	ppmu->gpccs_secure_boot = false;
-	ppmu->elcg_enabled = false;
-	ppmu->slcg_enabled = false;
-	ppmu->blcg_enabled = false;
+	ppmu->elcg_enabled = true;
+	ppmu->slcg_enabled = true;
+	ppmu->blcg_enabled = true;
 
 	priv->pmu_setup_elpg = gm20b_pmu_setup_elpg;
 
