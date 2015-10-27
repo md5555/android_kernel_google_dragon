@@ -558,6 +558,27 @@ static int max77620_rtc_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static void max77620_rtc_shutdown(struct platform_device *pdev)
+{
+	struct max77620_rtc *rtc = dev_get_drvdata(&pdev->dev);
+	u8 buf[RTC_NR];
+	int ret;
+
+	/* Clear anything left in ALARM1 */
+	memset(buf, 0, sizeof(buf));
+	ret = max77620_rtc_write(rtc, MAX77620_REG_RTCSECA1, buf,
+				 sizeof(buf), 1);
+	if (ret < 0)
+		dev_err(rtc->dev, "Failed to clear rtc alarm: %d\n", ret);
+
+	/* Mask all interrupts */
+	rtc->irq_mask = 0xff;
+	ret = max77620_rtc_write(rtc, MAX77620_REG_RTCINTM,
+				 &rtc->irq_mask, 1, 1);
+	if (ret < 0)
+		dev_err(rtc->dev, "Failed to set rtc irq mask: %d\n", ret);
+}
+
 #ifdef CONFIG_PM_SLEEP
 static int max77620_rtc_suspend(struct device *dev)
 {
@@ -607,6 +628,7 @@ static const struct dev_pm_ops max77620_rtc_pm_ops = {
 static struct platform_driver max77620_rtc_driver = {
 	.probe = max77620_rtc_probe,
 	.remove = max77620_rtc_remove,
+	.shutdown = max77620_rtc_shutdown,
 	.driver = {
 			.name = "max77620-rtc",
 			.owner = THIS_MODULE,
