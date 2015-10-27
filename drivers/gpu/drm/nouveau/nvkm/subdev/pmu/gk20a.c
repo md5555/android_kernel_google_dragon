@@ -3159,9 +3159,9 @@ gk20a_pmu_init(struct nvkm_object *object)
 
 	gk20a_pmu_dvfs_init(priv);
 	pmu->fecs_secure_boot = false;
-	pmu->elcg_enabled = false;
-	pmu->slcg_enabled = false;
-	pmu->blcg_enabled = false;
+	pmu->elcg_enabled = true;
+	pmu->slcg_enabled = true;
+	pmu->blcg_enabled = true;
 
 	priv->pmu_setup_elpg = NULL;
 
