@@ -126,6 +126,57 @@ static void tegra_dc_stats_reset(struct tegra_dc_stats *stats)
 	stats->overflow = 0;
 }
 
+static int tegra_dc_clk_enable(struct tegra_dc *dc)
+{
+	int err;
+
+	err = clk_prepare_enable(dc->clk);
+	if (err < 0) {
+		dev_err(dc->dev,
+			"failed to enable dc clock: %d\n", err);
+		return err;
+	}
+
+	if (dc->emc_clk) {
+		err = clk_prepare_enable(dc->emc_clk);
+		if (err < 0) {
+			dev_err(dc->dev,
+				"failed to enable emc clock: %d\n",
+				err);
+			goto err_emc_clk;
+		}
+	}
+
+
+	if (dc->emc_la_clk) {
+		err = clk_prepare_enable(dc->emc_la_clk);
+		if (err < 0) {
+			dev_err(dc->dev,
+				"failed to enable emc la clock: %d\n",
+				err);
+			goto err_emc_la_clk;
+		}
+	}
+
+	return 0;
+
+err_emc_la_clk:
+	clk_disable_unprepare(dc->emc_clk);
+err_emc_clk:
+	clk_disable_unprepare(dc->clk);
+
+	return err;
+}
+
+static void tegra_dc_clk_disable(struct tegra_dc *dc)
+{
+	clk_disable_unprepare(dc->clk);
+	if (dc->emc_clk)
+		clk_disable_unprepare(dc->emc_clk);
+	if (dc->emc_la_clk)
+		clk_disable_unprepare(dc->emc_la_clk);
+}
+
 /*
  * Reads the active copy of a register. This takes the dc->lock spinlock to
  * prevent races with the VBLANK processing which also needs access to the
@@ -1545,6 +1596,8 @@ static void tegra_crtc_disable(struct drm_crtc *crtc)
 
 	drm_crtc_vblank_off(crtc);
 
+	tegra_dc_clk_disable(dc);
+
 	if (dc->soc->has_powergate)
 		tegra_pmc_powergate(dc->powergate);
 }
@@ -1743,8 +1796,11 @@ static void tegra_crtc_mode_set_nofb(struct drm_crtc *crtc)
 
 	tegra_crtc_get_display_info(crtc);
 
-	if (dc->dpms == DRM_MODE_DPMS_OFF && dc->soc->has_powergate)
-		tegra_pmc_unpowergate(dc->powergate);
+	if (dc->dpms == DRM_MODE_DPMS_OFF) {
+		if (dc->soc->has_powergate)
+			tegra_pmc_unpowergate(dc->powergate);
+		tegra_dc_clk_enable(dc);
+	}
 
 	/*
 	 * If we're already initialized (ie: DPMS_ON || DPMS_STANDBY), don't re-
@@ -2963,6 +3019,25 @@ static int tegra_dc_debugfs_exit(struct tegra_dc *dc)
 	return 0;
 }
 
+static void tegra_dc_clk_dvfs_init(struct tegra_dc *dc)
+{
+	unsigned long *freqs;
+	int num_freqs;
+	unsigned long rate;
+	int ret;
+
+	/*
+	 * Set the dc->clk's rate to the maximum rate of the dvfs
+	 * table if its default rate is larger than it.
+	 */
+	ret = tegra_dvfs_get_freqs(dc->clk, &freqs, &num_freqs);
+	if (!ret && num_freqs > 0) {
+		rate = clk_get_rate(dc->clk);
+		if (rate > freqs[num_freqs - 1])
+			clk_set_rate(dc->clk, freqs[num_freqs - 1]);
+	}
+}
+
 static int tegra_dc_init(struct host1x_client *client)
 {
 	struct drm_device *drm = dev_get_drvdata(client->parent);
@@ -3036,6 +3111,16 @@ static int tegra_dc_init(struct host1x_client *client)
 		goto cleanup;
 	}
 
+	/*
+	 * Make sure that the default rate of dc->clk is in
+	 * the range of the dvfs table. Otherwise, it will cause
+	 * fault if any function of setting rate is directly or
+	 * indirectly called.
+	 */
+	tegra_dc_clk_dvfs_init(dc);
+
+	tegra_dc_clk_disable(dc);
+
 	/* Matches the ungate in probe() */
 	if (dc->soc->has_powergate)
 		tegra_pmc_powergate(dc->powergate);
@@ -3054,6 +3139,9 @@ cleanup:
 		dc->domain = NULL;
 	}
 
+	tegra_dc_clk_dvfs_init(dc);
+	tegra_dc_clk_disable(dc);
+
 	/* Matches the ungate in probe() */
 	if (dc->soc->has_powergate)
 		tegra_pmc_powergate(dc->powergate);
@@ -3068,6 +3156,8 @@ static int tegra_dc_exit(struct host1x_client *client)
 
 	if (dc->soc->has_powergate)
 		tegra_pmc_unpowergate(dc->powergate);
+
+	tegra_dc_clk_enable(dc);
 
 	devm_free_irq(dc->dev, dc->irq, dc);
 
@@ -3087,6 +3177,8 @@ static int tegra_dc_exit(struct host1x_client *client)
 		iommu_detach_device(dc->domain, dc->dev);
 		dc->domain = NULL;
 	}
+
+	tegra_dc_clk_disable(dc);
 
 	if (dc->soc->has_powergate)
 		tegra_pmc_powergate(dc->powergate);
@@ -3613,12 +3705,10 @@ static int tegra_dc_remove(struct platform_device *pdev)
 	tegra_slcg_unregister_notifier(dc->powergate,
 		&dc->slcg_notifier);
 
+	tegra_dc_clk_disable(dc);
+
 	if (dc->soc->has_powergate)
 		tegra_pmc_powergate(dc->powergate);
-
-	clk_disable_unprepare(dc->clk);
-	clk_disable_unprepare(dc->emc_clk);
-	clk_disable_unprepare(dc->emc_la_clk);
 
 	return 0;
 }
