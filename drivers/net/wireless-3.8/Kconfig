@@ -16,6 +16,4 @@ menuconfig WLAN
 
 if WLAN
 
-source "drivers/net/wireless-3.8/iwl7000/Kconfig"
-
 endif # WLAN
