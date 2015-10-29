@@ -250,6 +250,7 @@ static struct regmap_config max77620_regmap_config[] = {
 		.reg_bits = 8,
 		.val_bits = 8,
 		.max_register = MAX77620_REG_DVSSD4 + 1,
+		.num_reg_defaults_raw = MAX77620_REG_DVSSD4 + 1,
 		.lock = max77620_regmap_config_lock,
 		.unlock = max77620_regmap_config_unlock,
 		.cache_type = REGCACHE_FLAT,
