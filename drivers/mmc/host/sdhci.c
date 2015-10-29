@@ -2309,8 +2309,11 @@ static void sdhci_cmd_irq(struct sdhci_host *host, u32 intmask, u32 *mask)
 	if (intmask & SDHCI_INT_TIMEOUT)
 		host->cmd->error = -ETIMEDOUT;
 	else if (intmask & (SDHCI_INT_CRC | SDHCI_INT_END_BIT |
-			SDHCI_INT_INDEX))
+			SDHCI_INT_INDEX)) {
 		host->cmd->error = -EILSEQ;
+		pr_err("%s: cmd error, mask %08x\n",
+		       mmc_hostname(host->mmc), intmask);
+	}
 
 	if (host->cmd->error) {
 		tasklet_schedule(&host->finish_tasklet);
@@ -2448,6 +2451,10 @@ static void sdhci_data_irq(struct sdhci_host *host, u32 intmask)
 		if (host->ops->adma_workaround)
 			host->ops->adma_workaround(host, intmask);
 	}
+
+	if (intmask & SDHCI_INT_ERROR_MASK)
+		pr_err("%s: data error, mask %08x\n",
+		       mmc_hostname(host->mmc), intmask);
 
 	if (host->data->error)
 		sdhci_finish_data(host);
