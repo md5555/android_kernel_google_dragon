@@ -187,6 +187,8 @@ int falcon_init(struct falcon *falcon)
 	if (!falcon->ops->alloc || !falcon->ops->free)
 		return -EINVAL;
 
+	mutex_init(&falcon->lock);
+
 	return 0;
 }
 
@@ -200,18 +202,20 @@ int falcon_boot(struct falcon *falcon, const char *ucode_name)
 	u32 offset;
 	int err = 0;
 
+	mutex_lock(&falcon->lock);
+
 	if (falcon->booted)
-		return 0;
+		goto done;
 
 	if (!falcon->ucode_valid) {
 		err = falcon_read_ucode(falcon, ucode_name);
 		if (err)
-			return err;
+			goto done;
 	}
 
 	err = falcon_wait_mem_scrubbing(falcon);
 	if (err)
-		return err;
+		goto done;
 
 	falcon_writel(falcon, 0, FALCON_DMACTL);
 
@@ -255,14 +259,17 @@ int falcon_boot(struct falcon *falcon, const char *ucode_name)
 	err = falcon_wait_idle(falcon);
 	if (err) {
 		dev_err(falcon->dev, "boot failed due to timeout");
-		return err;
+		goto done;
 	}
 
 	falcon->booted = true;
 
 	dev_info(falcon->dev, "booted");
 
-	return 0;
+done:
+	mutex_unlock(&falcon->lock);
+
+	return err;
 }
 
 int falcon_power_on(struct falcon *falcon)
@@ -272,7 +279,9 @@ int falcon_power_on(struct falcon *falcon)
 
 int falcon_power_off(struct falcon *falcon)
 {
+	mutex_lock(&falcon->lock);
 	falcon->booted = false;
+	mutex_unlock(&falcon->lock);
 
 	return 0;
 }
