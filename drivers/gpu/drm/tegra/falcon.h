@@ -120,6 +120,7 @@ struct falcon {
 	bool ucode_valid;
 	size_t ucode_size;
 	bool booted;
+	struct mutex lock;
 };
 
 int falcon_init(struct falcon *falcon);
