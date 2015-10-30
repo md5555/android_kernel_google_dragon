@@ -461,6 +461,8 @@ static struct pmc_lp0_wakeup tegra_lp0_wakeup;
 static u32 io_dpd_reg, io_dpd2_reg;
 #endif
 
+static u32 bootrom_i2c_header;
+
 static struct tegra_pmc *pmc = &(struct tegra_pmc) {
 	.base = NULL,
 	.suspend_mode = TEGRA_SUSPEND_NONE,
@@ -1969,6 +1971,12 @@ static void tegra_pmc_resume(void)
 	}
 
 	tegra_pmc_writel(0x0, PMC_SCRATCH41);
+
+	/*
+	 * SCRATCH250 (containing the BootROM I2C header) gets cleared
+	 * in LP0.  Restore it here.
+	 */
+	tegra_pmc_writel(bootrom_i2c_header, PMC_SCRATCH250);
 }
 
 static void set_core_power_timers(void)
@@ -2510,6 +2518,7 @@ static void tegra_pmc_init_bootrom_i2c(struct tegra_pmc *pmc)
 		(order_base_2(clear_delay) <<
 		 PMC_SCRATCH250_BUS_CLEAR_DELAY_SHIFT);
 	tegra_pmc_writel(value, PMC_SCRATCH250);
+	bootrom_i2c_header = value;
 
 	dev_info(pmc->dev, "bootrom i2c command blocks initialized\n");
 
