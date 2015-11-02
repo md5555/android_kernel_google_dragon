@@ -358,8 +358,10 @@ static int mmc_ffu_install(struct mmc_card *card, u8 *ext_csd)
 		}
 	}
 
+	/* Free ext_csd allocation from previous mmc_get_ext_csd() call */
+	kfree(ext_csd);
 	/* read ext_csd */
-	err = mmc_send_ext_csd(card, ext_csd);
+	err = mmc_get_ext_csd(card, &ext_csd);
 	if (err) {
 		pr_err("FFU: %s: error %d sending ext_csd\n",
 		       mmc_hostname(card->host), err);
@@ -379,7 +381,7 @@ static int mmc_ffu_install(struct mmc_card *card, u8 *ext_csd)
 
 int mmc_ffu_invoke(struct mmc_card *card, const struct mmc_ffu_args *args)
 {
-	u8 ext_csd[512];
+	u8 *ext_csd = NULL;
 	int err;
 	u32 arg;
 	u32 fw_prog_bytes;
@@ -425,7 +427,7 @@ int mmc_ffu_invoke(struct mmc_card *card, const struct mmc_ffu_args *args)
 	}
 
 	/* Read the EXT_CSD */
-	err = mmc_send_ext_csd(card, ext_csd);
+	err = mmc_get_ext_csd(card, &ext_csd);
 	if (err) {
 		pr_err("FFU: %s: error %d sending ext_csd\n",
 		       mmc_hostname(card->host), err);
@@ -459,8 +461,10 @@ int mmc_ffu_invoke(struct mmc_card *card, const struct mmc_ffu_args *args)
 	}
 	/* payload  will be checked only in op_mode supported */
 	if (card->ext_csd.ffu_mode_op) {
+		/* Free ext_csd allocation from previous mmc_get_ext_csd() call */
+		kfree(ext_csd);
 		/* Read the EXT_CSD */
-		err = mmc_send_ext_csd(card, ext_csd);
+		err = mmc_get_ext_csd(card, &ext_csd);
 		if (err) {
 			pr_err("FFU: %s: error %d sending ext_csd\n",
 			       mmc_hostname(card->host), err);
@@ -499,6 +503,7 @@ exit:
 	}
 	release_firmware(fw);
 	mmc_put_card(card);
+	kfree(ext_csd);
 	return err;
 }
 EXPORT_SYMBOL(mmc_ffu_invoke);
