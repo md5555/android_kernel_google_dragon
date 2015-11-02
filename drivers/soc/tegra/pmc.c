@@ -43,6 +43,7 @@
 #include <linux/spinlock.h>
 #include <linux/suspend.h>
 #include <linux/syscore_ops.h>
+#include <linux/wakeup_reason.h>
 #include <dt-bindings/soc/tegra-pmc.h>
 
 #include <soc/tegra/common.h>
@@ -1892,6 +1893,7 @@ static void tegra_pmc_wake_syscore_resume(void)
 		if (!desc || !desc->action || !desc->action->name) {
 			pr_info("Resume caused by PMC WAKE%d, irq %d\n",
 				wake->wake_mask_offset, wake->irq_num);
+			log_wakeup_reason(wake->irq_num);
 			continue;
 		}
 
