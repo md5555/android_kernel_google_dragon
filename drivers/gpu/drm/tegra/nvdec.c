@@ -75,6 +75,9 @@ struct nvdec {
 
 	/* Platform configuration */
 	struct nvdec_config *config;
+	struct mutex lock;
+	/* Flag to indicate both the ucodes are setup correctly */
+	bool ucode_setup;
 };
 
 static inline struct nvdec *to_nvdec(struct tegra_drm_client *client)
@@ -213,6 +216,9 @@ static int nvdec_init(struct host1x_client *client)
 	if (err)
 		goto error_host1x_syncpt_free;
 
+	mutex_init(&nvdec->lock);
+	nvdec->ucode_setup = false;
+
 	return 0;
 
 error_host1x_syncpt_free:
@@ -320,28 +326,35 @@ static void nvdec_wpr_setup(struct nvdec *nvdec)
 
 static int nvdec_read_ucode(struct nvdec *nvdec)
 {
-	int err;
+	int err = 0;
+
+	mutex_lock(&nvdec->lock);
+	if (nvdec->ucode_setup)
+		goto done;
 
 	if (IS_ENABLED(CONFIG_NVDEC_BOOTLOADER)) {
 		err = falcon_read_ucode(&nvdec->falcon_bl,
 					nvdec->config->ucode_name_bl);
 		if (err)
-			return err;
+			goto done;
 
 		err = falcon_read_ucode(&nvdec->falcon_ls,
 					nvdec->config->ucode_name_ls);
 		if (err)
-			return err;
+			goto done;
 
 		nvdec_wpr_setup(nvdec);
 	} else {
 		err = falcon_read_ucode(&nvdec->falcon_bl,
 					nvdec->config->ucode_name);
 		if (err)
-			return err;
+			goto done;
 	}
+	nvdec->ucode_setup = true;
 
-	return 0;
+done:
+	mutex_unlock(&nvdec->lock);
+	return err;
 }
 
 static int nvdec_open_channel(struct tegra_drm_client *client,
@@ -661,6 +674,8 @@ static int nvdec_remove(struct platform_device *pdev)
 		falcon_exit(&nvdec->falcon_ls);
 
 	falcon_exit(&nvdec->falcon_bl);
+
+	nvdec->ucode_setup = false;
 
 	return err;
 }
