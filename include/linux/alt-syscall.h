@@ -8,10 +8,7 @@
 
 #define ALT_SYS_CALL_NAME_MAX	32
 
-#ifndef CONFIG_ARCH_HAS_ALT_SYSCALL
-/* Allow this header to be included when ALT_SYSCALL is not available. */
 typedef void (*sys_call_ptr_t)(void);
-#endif
 
 struct alt_sys_call_table {
 	char name[ALT_SYS_CALL_NAME_MAX + 1];
