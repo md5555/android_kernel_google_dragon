@@ -32,6 +32,12 @@ enum la_ptsa_update {
 	LA_PTSA_POST_UPDATE,
 };
 
+enum tegra_dc_clk_status {
+	TEGRA_DC_CLK_ON,
+	TEGRA_DC_CLK_STANDBY,
+	TEGRA_DC_CLK_OFF,
+};
+
 struct tegra_dc_window_soc_info {
 	bool supports_h_filter;
 	bool supports_v_filter;
@@ -126,33 +132,36 @@ static void tegra_dc_stats_reset(struct tegra_dc_stats *stats)
 	stats->overflow = 0;
 }
 
-static int tegra_dc_clk_enable(struct tegra_dc *dc)
+static void tegra_dc_clk_enter_standby(struct tegra_dc *dc)
+{
+	if (dc->clk_dvfs_min > 0)
+		tegra_dvfs_set_rate(dc->clk, dc->clk_dvfs_min);
+	if (dc->emc_clk)
+		clk_disable_unprepare(dc->emc_clk);
+	if (dc->emc_la_clk)
+		clk_disable_unprepare(dc->emc_la_clk);
+}
+
+static int tegra_dc_clk_exit_standby(struct tegra_dc *dc)
 {
 	int err;
 
-	err = clk_prepare_enable(dc->clk);
-	if (err < 0) {
-		dev_err(dc->dev,
-			"failed to enable dc clock: %d\n", err);
-		return err;
-	}
+	if (dc->clk_save > 0)
+		tegra_dvfs_set_rate(dc->clk, dc->clk_save);
 
 	if (dc->emc_clk) {
 		err = clk_prepare_enable(dc->emc_clk);
 		if (err < 0) {
-			dev_err(dc->dev,
-				"failed to enable emc clock: %d\n",
+			dev_err(dc->dev, "failed to enable emc clock: %d\n",
 				err);
-			goto err_emc_clk;
+			return err;
 		}
 	}
-
 
 	if (dc->emc_la_clk) {
 		err = clk_prepare_enable(dc->emc_la_clk);
 		if (err < 0) {
-			dev_err(dc->dev,
-				"failed to enable emc la clock: %d\n",
+			dev_err(dc->dev, "failed to enable emc la clock: %d\n",
 				err);
 			goto err_emc_la_clk;
 		}
@@ -162,19 +171,74 @@ static int tegra_dc_clk_enable(struct tegra_dc *dc)
 
 err_emc_la_clk:
 	clk_disable_unprepare(dc->emc_clk);
-err_emc_clk:
-	clk_disable_unprepare(dc->clk);
 
 	return err;
 }
 
-static void tegra_dc_clk_disable(struct tegra_dc *dc)
+static int tegra_dc_clk_ungate(struct tegra_dc *dc)
+{
+	int err = 0;
+
+	err = clk_prepare_enable(dc->clk);
+	if (err < 0)
+		dev_err(dc->dev, "failed to enable dc clock: %d\n", err);
+
+	return err;
+}
+
+static void tegra_dc_clk_gate(struct tegra_dc *dc)
 {
 	clk_disable_unprepare(dc->clk);
-	if (dc->emc_clk)
-		clk_disable_unprepare(dc->emc_clk);
-	if (dc->emc_la_clk)
-		clk_disable_unprepare(dc->emc_la_clk);
+}
+
+static void tegra_dc_clk_update_status(struct tegra_dc *dc,
+					enum tegra_dc_clk_status status)
+{
+	mutex_lock(&dc->clk_lock);
+
+	if (dc->clk_status == status)
+		goto clk_unlock;
+
+	switch (status) {
+	case TEGRA_DC_CLK_ON:
+		if (dc->clk_status == TEGRA_DC_CLK_OFF)
+			tegra_dc_clk_ungate(dc);
+		tegra_dc_clk_exit_standby(dc);
+		break;
+	case TEGRA_DC_CLK_STANDBY:
+		tegra_dc_clk_enter_standby(dc);
+		break;
+	case TEGRA_DC_CLK_OFF:
+		if (dc->clk_status == TEGRA_DC_CLK_ON)
+			tegra_dc_clk_enter_standby(dc);
+		tegra_dc_clk_gate(dc);
+		break;
+	}
+	dc->clk_status = status;
+
+clk_unlock:
+	mutex_unlock(&dc->clk_lock);
+}
+
+void tegra_dc_exit_standby(struct drm_atomic_state *state)
+{
+	struct drm_crtc *crtc;
+	struct drm_crtc_state *crtc_state;
+	struct tegra_dc *dc;
+	int i;
+	struct tegra_dc_state *dc_state;
+
+	for_each_crtc_in_state(state, crtc, crtc_state, i) {
+		dc = to_tegra_dc(crtc);
+		dc_state = to_dc_state(dc->base.state);
+		if (!dc_state->nc_mode)
+			continue;
+
+		if (dc->dpms == DRM_MODE_DPMS_STANDBY) {
+			tegra_dc_clk_update_status(dc, TEGRA_DC_CLK_ON);
+			tegra_dc_enable_vblank(dc);
+		}
+	}
 }
 
 /*
@@ -976,7 +1040,7 @@ static void tegra_plane_atomic_update(struct drm_plane *plane,
 		window.base[i] = bo->paddr + fb->offsets[i];
 		if (i < 2)
 			window.stride[i] = fb->pitches[i];
-		
+
 	}
 
 	/* for semiplanar modes both U and V planes should point to the same
@@ -1426,8 +1490,10 @@ void tegra_dc_disable_vblank(struct tegra_dc *dc)
 	tegra_dc_writel(dc, value, DC_CMD_INT_MASK);
 
 #if TEGRA_DC_ENABLE_STANDBY
-	if (state->nc_mode && dc->dpms == DRM_MODE_DPMS_ON)
+	if (state->nc_mode && dc->dpms == DRM_MODE_DPMS_ON) {
 		tegra_dc_dpms(dc, DRM_MODE_DPMS_STANDBY);
+		schedule_work(&dc->standby_work);
+	}
 #endif
 
 	spin_unlock_irqrestore(&dc->lock, flags);
@@ -1596,7 +1662,7 @@ static void tegra_crtc_disable(struct drm_crtc *crtc)
 
 	drm_crtc_vblank_off(crtc);
 
-	tegra_dc_clk_disable(dc);
+	tegra_dc_clk_update_status(dc, TEGRA_DC_CLK_OFF);
 
 	if (dc->soc->has_powergate)
 		tegra_pmc_powergate(dc->powergate);
@@ -1710,6 +1776,8 @@ static void tegra_dc_commit_state(struct tegra_dc *dc,
 		 */
 		tegra_dvfs_set_rate(dc->clk, crtc_state->adjusted_mode.clock * 1000);
 	}
+
+	dc->clk_save = tegra_dvfs_get_rate(dc->clk);
 }
 
 static void tegra_dc_init_hw(struct tegra_dc *dc)
@@ -1799,7 +1867,7 @@ static void tegra_crtc_mode_set_nofb(struct drm_crtc *crtc)
 	if (dc->dpms == DRM_MODE_DPMS_OFF) {
 		if (dc->soc->has_powergate)
 			tegra_pmc_unpowergate(dc->powergate);
-		tegra_dc_clk_enable(dc);
+		tegra_dc_clk_update_status(dc, TEGRA_DC_CLK_ON);
 	}
 
 	/*
@@ -2672,11 +2740,31 @@ void tegra_dc_force_update(struct drm_crtc *crtc)
 	if (dc->dpms == DRM_MODE_DPMS_OFF || in_modeset)
 		return;
 
+	/* Turn on all clocks here in case that it is in STANDBY mode */
+	tegra_dc_clk_update_status(dc, TEGRA_DC_CLK_ON);
+
 	WARN_ON(drm_crtc_vblank_get(crtc) != 0);
 	tegra_dc_writel(dc, GENERAL_ACT_REQ | NC_HOST_TRIG,
 			DC_CMD_STATE_CONTROL);
 	drm_crtc_wait_one_vblank(crtc);
 	drm_crtc_vblank_put(crtc);
+}
+
+static void tegra_dc_standby_work(struct work_struct *work)
+{
+	struct tegra_dc *dc =
+		container_of(work, struct tegra_dc, standby_work);
+	struct drm_device *drm = dc->base.dev;
+	struct tegra_drm *tegra = drm->dev_private;
+
+
+	if (dc->dpms == DRM_MODE_DPMS_OFF)
+		return;
+
+	mutex_lock(&tegra->commit.lock);
+	if (dc->dpms == DRM_MODE_DPMS_STANDBY)
+		tegra_dc_clk_update_status(dc, TEGRA_DC_CLK_STANDBY);
+	mutex_unlock(&tegra->commit.lock);
 }
 
 static int tegra_dc_show_regs(struct seq_file *s, void *data)
@@ -3035,6 +3123,11 @@ static void tegra_dc_clk_dvfs_init(struct tegra_dc *dc)
 		rate = clk_get_rate(dc->clk);
 		if (rate > freqs[num_freqs - 1])
 			clk_set_rate(dc->clk, freqs[num_freqs - 1]);
+
+		 /* Store the minimum rate for standby mode */
+		dc->clk_dvfs_min = freqs[0];
+	} else {
+		dc->clk_dvfs_min = 0;
 	}
 }
 
@@ -3119,7 +3212,7 @@ static int tegra_dc_init(struct host1x_client *client)
 	 */
 	tegra_dc_clk_dvfs_init(dc);
 
-	tegra_dc_clk_disable(dc);
+	tegra_dc_clk_update_status(dc, TEGRA_DC_CLK_OFF);
 
 	/* Matches the ungate in probe() */
 	if (dc->soc->has_powergate)
@@ -3140,7 +3233,7 @@ cleanup:
 	}
 
 	tegra_dc_clk_dvfs_init(dc);
-	tegra_dc_clk_disable(dc);
+	tegra_dc_clk_update_status(dc, TEGRA_DC_CLK_OFF);
 
 	/* Matches the ungate in probe() */
 	if (dc->soc->has_powergate)
@@ -3157,7 +3250,7 @@ static int tegra_dc_exit(struct host1x_client *client)
 	if (dc->soc->has_powergate)
 		tegra_pmc_unpowergate(dc->powergate);
 
-	tegra_dc_clk_enable(dc);
+	tegra_dc_clk_update_status(dc, TEGRA_DC_CLK_ON);
 
 	devm_free_irq(dc->dev, dc->irq, dc);
 
@@ -3178,7 +3271,7 @@ static int tegra_dc_exit(struct host1x_client *client)
 		dc->domain = NULL;
 	}
 
-	tegra_dc_clk_disable(dc);
+	tegra_dc_clk_update_status(dc, TEGRA_DC_CLK_OFF);
 
 	if (dc->soc->has_powergate)
 		tegra_pmc_powergate(dc->powergate);
@@ -3675,6 +3768,10 @@ static int tegra_dc_probe(struct platform_device *pdev)
 	if (!dc->syncpt)
 		dev_warn(&pdev->dev, "failed to allocate syncpoint\n");
 
+	dc->clk_status = TEGRA_DC_CLK_ON;
+	mutex_init(&dc->clk_lock);
+	INIT_WORK(&dc->standby_work, tegra_dc_standby_work);
+
 	platform_set_drvdata(pdev, dc);
 
 	return 0;
@@ -3705,10 +3802,12 @@ static int tegra_dc_remove(struct platform_device *pdev)
 	tegra_slcg_unregister_notifier(dc->powergate,
 		&dc->slcg_notifier);
 
-	tegra_dc_clk_disable(dc);
+	tegra_dc_clk_update_status(dc, TEGRA_DC_CLK_OFF);
 
 	if (dc->soc->has_powergate)
 		tegra_pmc_powergate(dc->powergate);
+
+	mutex_destroy(&dc->clk_lock);
 
 	return 0;
 }

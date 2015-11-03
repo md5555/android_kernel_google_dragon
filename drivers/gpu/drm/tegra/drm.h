@@ -189,6 +189,13 @@ struct tegra_dc {
 	bool vblank_enabled;
 	bool in_modeset;
 
+	int clk_status;
+	unsigned long clk_save;
+	unsigned long clk_dvfs_min;
+	struct mutex clk_lock;
+
+	struct work_struct standby_work;
+
 	struct tegra_mc *mc;
 	unsigned int *mc_win_clients;
 };
@@ -256,6 +263,7 @@ void tegra_dc_update_emc_pre_commit(struct drm_atomic_state *old_state);
 void tegra_dc_update_emc_post_commit(struct drm_atomic_state *old_state);
 int tegra_dc_evaluate_bandwidth(struct drm_atomic_state *state);
 void tegra_dc_force_update(struct drm_crtc *crtc);
+void tegra_dc_exit_standby(struct drm_atomic_state *state);
 
 struct tegra_output {
 	struct device_node *of_node;

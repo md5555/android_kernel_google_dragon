@@ -137,6 +137,8 @@ static void tegra_atomic_complete(struct tegra_drm *tegra,
 	 * composition of the next frame right after having submitted the
 	 * current layout.
 	 */
+
+	tegra_dc_exit_standby(state);
 	tegra_dc_update_emc_pre_commit(state);
 
 	drm_atomic_helper_commit_modeset_disables(drm, state);
