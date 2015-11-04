@@ -45,17 +45,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "syscommon.h"
 #include "mt8173_sysconfig.h"
 #include "physheap.h"
-#if defined(SUPPORT_ION)
-#include "ion_support.h"
-#endif
 #include "mt8173_mfgsys.h"
-#if defined (LINUX)
 #include <linux/interrupt.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 #include <linux/platform_device.h>
-#endif
 
 #define RGX_CR_ISP_GRIDOFFSET                             (0x0FA0U)
 
@@ -354,10 +349,6 @@ add for new DDK 1.1.2550513
 	gsSysConfig.uiSysFlags = 0;
 
 	/* Setup other system specific stuff */
-#if defined(SUPPORT_ION)
-	IonInit(NULL);
-#endif
-
 	*ppsSysConfig = &gsSysConfig;
 
 	return PVRSRV_OK;
@@ -370,10 +361,6 @@ add for new DDK 1.1.2550513
 void SysDestroyConfigData(PVRSRV_SYSTEM_CONFIG *psSysConfig)
 {
 	PVR_UNREFERENCED_PARAMETER(psSysConfig);
-
-#if defined(SUPPORT_ION)
-	IonDeinit();
-#endif
 }
 
 PVRSRV_ERROR SysDebugInfo(PVRSRV_SYSTEM_CONFIG *psSysConfig,
