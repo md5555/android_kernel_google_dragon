@@ -113,7 +113,6 @@ void UMAPhysHeapDevPAddrToCpuPAddr(IMG_HANDLE hPrivData,
 	}
 }
 
-#if defined(PVR_DVFS)
 void SetFrequency(IMG_UINT32 ui64Freq)
 {
 	if (gsDevices[0].hSysData)
@@ -169,7 +168,6 @@ void SetupDVFSInfo(void *hDevice, PVRSRV_DVFS *hDVFS)
 	hDVFS->sDVFSGovernorCfg.ui32DownDifferential = 10;
 	gsDevices[0].hSysData = mfg_base;
 }
-#endif
 
 #if defined(MTK_POWER_ACTOR)
 IMG_UINT32 GetStaticPower(IMG_UINT32 voltage, IMG_INT32 temperature)
@@ -301,9 +299,7 @@ add for new DDK 1.1.2550513
 		return PVRSRV_ERROR_INIT_FAILURE;
 	}
 
-#if defined(PVR_DVFS)
 	SetupDVFSInfo(hDevice , (PVRSRV_DVFS *)(&gsDevices[0].sDVFS));
-#endif
 
 #if defined(PVR_POWER_ACTOR)
 	/* I=0.000497135 J=-0.048369531 K=2.65455599 L=-22.33068359 *10000 */

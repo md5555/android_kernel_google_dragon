@@ -31,15 +31,6 @@
 /*  unit ms, timeout interval for DVFS detection */
 #define MTK_DVFS_SWITCH_INTERVAL  300
 
-/*  need idle device before switching DVFS  */
-#define MTK_DVFS_IDLE_DEVICE  0
-
-/* used created thread to handle DVFS switch or not */
-#define MTK_DVFS_CREATE_THREAD  0
-
-
-#define MTK_MFG_DEBUG_SYS 1
-
 #define ENABLE_MTK_MFG_DEBUG 0
 
 #if ENABLE_MTK_MFG_DEBUG
@@ -66,7 +57,6 @@ struct mtk_mfg_base {
 	bool power_on;
 
 	/* for gpu device freq/volt update */
-	struct mutex set_freq_lock;
 	struct regulator *vgpu;
 	struct clk *mmpll;
 	struct mfgsys_fv_table *fv_table;
@@ -74,13 +64,6 @@ struct mtk_mfg_base {
 
 	u32 curr_freq; /* kHz */
 	u32 curr_volt; /* uV  */
-#if !defined(PVR_DVFS)
-	/* for dvfs control*/
-	bool dvfs_enable;
-	int  max_level;
-	int  current_level;
-#endif
-
 };
 
 

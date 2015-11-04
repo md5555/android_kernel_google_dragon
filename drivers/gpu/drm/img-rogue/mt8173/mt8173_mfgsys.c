@@ -215,14 +215,12 @@ int mtk_mfg_bind_device_resource(struct platform_device *pdev,
 		return -ENOMEM;
 	}
 
-#ifndef MTK_MFG_DVFS
 	mfg_base->mmpll = devm_clk_get(&pdev->dev, "mmpll_clk");
 	if (IS_ERR(mfg_base->mmpll)) {
 		err = PTR_ERR(mfg_base->mmpll);
 		dev_err(&pdev->dev, "devm_clk_get mmpll_clk failed !!!\n");
 		goto err_iounmap_reg_base;
 	}
-#endif
 
 	for (i = 0; i < MAX_TOP_MFG_CLK; i++) {
 		mfg_base->top_clk[i] = devm_clk_get(&pdev->dev,
@@ -235,7 +233,6 @@ int mtk_mfg_bind_device_resource(struct platform_device *pdev,
 		}
 	}
 
-#ifndef MTK_MFG_DVFS
 	mfg_base->vgpu = devm_regulator_get(&pdev->dev, "mfgsys-power");
 	if (IS_ERR(mfg_base->vgpu)) {
 		err = PTR_ERR(mfg_base->vgpu);
@@ -248,7 +245,6 @@ int mtk_mfg_bind_device_resource(struct platform_device *pdev,
 		goto err_iounmap_reg_base;
 	}
 	mtk_mfg_get_opp_table(pdev, mfg_base);
-#endif
 
 	pm_runtime_enable(&pdev->dev);
 	mfg_base->pdev = pdev;
@@ -266,9 +262,7 @@ int mtk_mfg_unbind_device_resource(struct platform_device *pdev,
 	pr_info("mtk_mfg_unbind_device_resource start\n");
 
 	iounmap(mfg_base->reg_base);
-#ifndef MTK_MFG_DVFS
 	regulator_disable(mfg_base->vgpu);
-#endif
 	pm_runtime_disable(&pdev->dev);
 	mfg_base->pdev = NULL;
 
@@ -342,7 +336,6 @@ PVRSRV_ERROR MTKSystemPrePowerState(PVRSRV_SYS_POWER_STATE eNewPowerState)
 
 	pr_err("MTKSystemPrePowerState(%d) eNewPowerState %d\n",
 		      mfg_base->power_on, eNewPowerState);
-#ifndef MTK_MFG_DVFS
 	/* turn off regulator for power saving ~30mw */
 	if (eNewPowerState == PVRSRV_SYS_POWER_STATE_OFF)
 		err = regulator_disable(mfg_base->vgpu);
@@ -355,7 +348,7 @@ PVRSRV_ERROR MTKSystemPrePowerState(PVRSRV_SYS_POWER_STATE eNewPowerState)
 		       ? "disable" : "enable"));
 		return PVRSRV_ERROR_INVALID_PARAMS;
 	}
-#endif
+
 	return PVRSRV_OK;
 }
 
@@ -385,9 +378,6 @@ int MTKMFGBaseInit(struct platform_device *pdev)
 	mutex_init(&mfg_base->set_power_state);
 
 	mtk_mfg_prepare_clock(mfg_base);
-#if !defined(PVR_DVFS) && !defined(MTK_MFG_DVFS)
-	mtk_mfg_gpu_dvfs_init(mfg_base);
-#endif
 
 	/* attach mfg_base to pdev->dev.platform_data */
 	pdev->dev.platform_data = mfg_base;
@@ -407,9 +397,6 @@ int MTKMFGBaseDeInit(struct platform_device *pdev)
 	}
 
 	mtk_mfg_unprepare_clock(mfg_base);
-#if !defined(PVR_DVFS) && !defined(MTK_MFG_DVFS)
-	mtk_mfg_gpu_dvfs_deinit(mfg_base);
-#endif
 
 	mtk_mfg_unbind_device_resource(pdev, mfg_base);
 	return 0;
