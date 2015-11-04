@@ -49,10 +49,13 @@ static int dram_cdev_cur_state(struct thermal_cooling_device *tcd,
 static int dram_cdev_set_state(struct thermal_cooling_device *tcd,
 				   unsigned long state)
 {
-	if (state > TEGRA_DRAM_OVER_TEMP_MAX)
+	if (state >= TEGRA_DRAM_OVER_TEMP_MAX)
 		return -1;
 
-	tegra_emc_set_over_temp_state(state);
+	if (tegra_emc_set_over_temp_state(state))
+		return -1;
+
+	thermal_state = state;
 	return 0;
 }
 
