@@ -406,7 +406,11 @@ ENTRY(vector_swi)
  USER(	ldr	scno, [lr, #-4]		)	@ get SWI instruction
 #endif
 
+#ifdef CONFIG_ALT_SYSCALL
+	ldr	tbl, [tsk, #TI_SYS_CALL_TABLE]	@ load per-thread syscall table pointer
+#else
 	adr	tbl, sys_call_table		@ load syscall table pointer
+#endif
 
 #if defined(CONFIG_OABI_COMPAT)
 	/*
@@ -430,7 +434,12 @@ local_restart:
 	tst	r10, #_TIF_SYSCALL_WORK		@ are we tracing syscalls?
 	bne	__sys_trace
 
+#ifdef CONFIG_ALT_SYSCALL
+	ldr	r10, [tsk, #TI_NR_SYSCALLS]
+	cmp	scno, r10			@ check per-thread upper syscall limit
+#else
 	cmp	scno, #NR_syscalls		@ check upper syscall limit
+#endif
 	adr	lr, BSYM(ret_fast_syscall)	@ return address
 	ldrcc	pc, [tbl, scno, lsl #2]		@ call sys_* routine
 
@@ -469,7 +478,12 @@ __sys_trace:
 	adr	lr, BSYM(__sys_trace_return)	@ return address
 	mov	scno, r0			@ syscall number (possibly new)
 	add	r1, sp, #S_R0 + S_OFF		@ pointer to regs
+#ifdef CONFIG_ALT_SYSCALL
+	ldr	r10, [tsk, #TI_NR_SYSCALLS]
+	cmp	scno, r10			@ check per-thread upper syscall limit
+#else
 	cmp	scno, #NR_syscalls		@ check upper syscall limit
+#endif
 	ldmccia	r1, {r0 - r6}			@ have to reload r0 - r6
 	stmccia	sp, {r4, r5}			@ and update the stack args
 	ldrcc	pc, [tbl, scno, lsl #2]		@ call sys_* routine
@@ -517,7 +531,12 @@ ENTRY(sys_call_table)
 sys_syscall:
 		bic	scno, r0, #__NR_OABI_SYSCALL_BASE
 		cmp	scno, #__NR_syscall - __NR_SYSCALL_BASE
+#ifdef CONFIG_ALT_SYSCALL
+		ldrne	r10, [tsk, #TI_NR_SYSCALLS]
+		cmpne	scno, r10		@ check per-thread range
+#else
 		cmpne	scno, #NR_syscalls	@ check range
+#endif
 		stmloia	sp, {r5, r6}		@ shuffle args
 		movlo	r0, r1
 		movlo	r1, r2
