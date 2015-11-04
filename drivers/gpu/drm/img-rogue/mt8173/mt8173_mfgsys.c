@@ -68,14 +68,12 @@ static int mtk_mfg_prepare_clock(struct mtk_mfg_base *mfg_base)
 	return PVRSRV_OK;
 }
 
-static int mtk_mfg_unprepare_clock(struct mtk_mfg_base *mfg_base)
+static void mtk_mfg_unprepare_clock(struct mtk_mfg_base *mfg_base)
 {
 	int i;
 
 	for (i = MAX_TOP_MFG_CLK - 1; i >= 0; i--)
 		clk_unprepare(mfg_base->top_clk[i]);
-
-	return PVRSRV_OK;
 }
 
 static int mtk_mfg_enable_clock(struct mtk_mfg_base *mfg_base)
@@ -232,18 +230,17 @@ err_iounmap_reg_base:
 	return err;
 }
 
-static int mtk_mfg_unbind_device_resource(struct platform_device *pdev,
-				   struct mtk_mfg_base *mfg_base)
+static void mtk_mfg_unbind_device_resource(struct platform_device *pdev,
+				    struct mtk_mfg_base *mfg_base)
 {
 	pr_info("mtk_mfg_unbind_device_resource start\n");
 
-	iounmap(mfg_base->reg_base);
-	regulator_disable(mfg_base->vgpu);
-	pm_runtime_disable(&pdev->dev);
 	mfg_base->pdev = NULL;
+	pm_runtime_disable(&pdev->dev);
+	regulator_disable(mfg_base->vgpu);
+	iounmap(mfg_base->reg_base);
 
 	pr_info("mtk_mfg_unbind_device_resource end\n");
-	return 0;
 }
 
 PVRSRV_ERROR MTKSysDevPrePowerState(PVRSRV_DEV_POWER_STATE eNewPowerState,
@@ -346,12 +343,11 @@ int MTKMFGBaseInit(struct platform_device *pdev)
 	return 0;
 }
 
-int MTKMFGBaseDeInit(struct platform_device *pdev)
+void MTKMFGBaseDeInit(struct platform_device *pdev)
 {
 	struct mtk_mfg_base *mfg_base = GET_MTK_MFG_BASE(sPVRLDMDev);
 
 	mtk_mfg_unprepare_clock(mfg_base);
 
 	mtk_mfg_unbind_device_resource(pdev, mfg_base);
-	return 0;
 }

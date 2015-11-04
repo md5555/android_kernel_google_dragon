@@ -60,7 +60,7 @@ struct mtk_mfg_base {
 
 /* used in mtk_module.c  */
 int MTKMFGBaseInit(struct platform_device *pdev);
-int MTKMFGBaseDeInit(struct platform_device *pdev);
+void MTKMFGBaseDeInit(struct platform_device *pdev);
 
 /* below register interface in RGX sysconfig.c */
 PVRSRV_ERROR MTKSysDevPrePowerState(PVRSRV_DEV_POWER_STATE eNew,
