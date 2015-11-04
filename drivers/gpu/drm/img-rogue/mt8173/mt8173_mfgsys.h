@@ -46,7 +46,6 @@ struct mtk_mfg_base {
 
 	/* mutex protect for set power state */
 	struct mutex set_power_state;
-	bool power_on;
 
 	/* for gpu device freq/volt update */
 	struct regulator *vgpu;

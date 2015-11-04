@@ -261,7 +261,6 @@ PVRSRV_ERROR MTKSysDevPrePowerState(PVRSRV_DEV_POWER_STATE eNewPowerState,
 	    (PVRSRV_DEV_POWER_STATE_ON == eCurrentPowerState)) {
 		mtk_mfg_disable_hw_apm(mfg_base);
 		mtk_mfg_disable_clock(mfg_base);
-		mfg_base->power_on = false;
 	}
 
 	mutex_unlock(&mfg_base->set_power_state);
@@ -283,7 +282,6 @@ PVRSRV_ERROR MTKSysDevPostPowerState(PVRSRV_DEV_POWER_STATE eNewPowerState,
 	    (PVRSRV_DEV_POWER_STATE_OFF == eCurrentPowerState)) {
 		mtk_mfg_enable_clock(mfg_base);
 		mtk_mfg_enable_hw_apm(mfg_base);
-		mfg_base->power_on = true;
 	}
 
 	mutex_unlock(&mfg_base->set_power_state);
@@ -296,8 +294,7 @@ PVRSRV_ERROR MTKSystemPrePowerState(PVRSRV_SYS_POWER_STATE eNewPowerState)
 	int err;
 	struct mtk_mfg_base *mfg_base = GET_MTK_MFG_BASE(sPVRLDMDev);
 
-	pr_err("MTKSystemPrePowerState(%d) eNewPowerState %d\n",
-		      mfg_base->power_on, eNewPowerState);
+	pr_err("MTKSystemPrePowerState() eNewPowerState %d\n", eNewPowerState);
 	/* turn off regulator for power saving ~30mw */
 	if (eNewPowerState == PVRSRV_SYS_POWER_STATE_OFF)
 		err = regulator_disable(mfg_base->vgpu);
