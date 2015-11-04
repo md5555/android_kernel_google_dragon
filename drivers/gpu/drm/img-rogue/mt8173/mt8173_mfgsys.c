@@ -20,34 +20,23 @@
 #include <linux/of_irq.h>
 #include <linux/of_address.h>
 #include <linux/regulator/consumer.h>
-#include <linux/version.h>
 #include <linux/pm_runtime.h>
 
 #include "mt8173_mfgsys.h"
 #include "mt8173_mfgdvfs.h"
 
 static char *top_mfg_clk_name[] = {
-#if (LINUX_VERSION_CODE > KERNEL_VERSION(3, 11, 0))
 	"mfg_mem_in_sel",
 	"mfg_axi_in_sel",
 	"top_axi",
 	"top_mem",
 	"top_mfg",
-#else
-	"MT_CG_MFG_POWER",
-	"MT_CG_MFG_AXI",
-	"MT_CG_MFG_MEM",
-	"MT_CG_MFG_G3D",
-	"MT_CG_MFG_26M",
-#endif
 };
 
 #define MAX_TOP_MFG_CLK ARRAY_SIZE(top_mfg_clk_name)
 
 static struct platform_device *sPVRLDMDev;
 #define GET_MTK_MFG_BASE(x) (struct mtk_mfg_base *)(x->dev.platform_data)
-
-#if (LINUX_VERSION_CODE > KERNEL_VERSION(3, 11, 0))
 
 #define REG_MFG_AXI BIT(0)
 #define REG_MFG_MEM BIT(1)
@@ -68,17 +57,6 @@ static void mtk_mfg_clr_clock_gating(void __iomem *reg)
 {
 	writel(REG_MFG_ALL, reg + REG_MFG_CG_CLR);
 }
-#else
-static void mtk_mfg_set_clock_gating(void __iomem *reg)
-{
-
-}
-
-static void mtk_mfg_clr_clock_gating(void __iomem *reg)
-{
-
-}
-#endif
 
 static int mtk_mfg_prepare_clock(struct mtk_mfg_base *mfg_base)
 {
