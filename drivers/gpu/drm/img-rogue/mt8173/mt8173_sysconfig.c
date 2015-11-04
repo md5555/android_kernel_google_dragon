@@ -43,7 +43,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "pvrsrv_device.h"
 #include "syscommon.h"
-#include "mt8173_sysconfig.h"
 #include "physheap.h"
 #include "mt8173_mfgsys.h"
 #include <linux/interrupt.h>
@@ -52,7 +51,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <linux/of_irq.h>
 #include <linux/platform_device.h>
 
-#define RGX_CR_ISP_GRIDOFFSET                             (0x0FA0U)
+#define SYS_RGX_ACTIVE_POWER_LATENCY_MS 100
+#define RGX_HW_SYSTEM_NAME "RGX HW"
+#define RGX_HW_CORE_CLOCK_SPEED 395000000
 
 static RGX_TIMING_INFORMATION	gsRGXTimingInfo;
 static RGX_DATA					gsRGXData;
@@ -61,6 +62,13 @@ static PVRSRV_SYSTEM_CONFIG 	gsSysConfig;
 
 static PHYS_HEAP_FUNCTIONS	gsPhysHeapFuncs;
 static PHYS_HEAP_CONFIG		gsPhysHeapConfig;
+
+static IMG_UINT32 gauiBIFTilingHeapXStrides[RGXFWIF_NUM_BIF_TILING_CONFIGS] = {
+	0, /* BIF tiling heap 1 x-stride */
+	1, /* BIF tiling heap 2 x-stride */
+	2, /* BIF tiling heap 3 x-stride */
+	3  /* BIF tiling heap 4 x-stride */
+};
 
 /*
 	CPU to Device physcial address translation
