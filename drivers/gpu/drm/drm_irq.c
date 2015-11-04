@@ -298,6 +298,9 @@ void drm_vblank_cleanup(struct drm_device *dev)
 
 		del_timer_sync(&vblank->disable_timer);
 
+		if (!dev->driver->disable_vblank)
+			continue;
+
 		spin_lock_irqsave(&dev->vbl_lock, irqflags);
 		vblank_disable_and_save(dev, crtc);
 		spin_unlock_irqrestore(&dev->vbl_lock, irqflags);
