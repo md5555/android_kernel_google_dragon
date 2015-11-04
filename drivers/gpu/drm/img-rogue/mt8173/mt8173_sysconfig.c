@@ -122,7 +122,7 @@ static void SetVoltage(IMG_UINT32 ui64Volt)
 	MTKSysSetVolt((struct mtk_mfg_base *)gsDevice.hSysData, ui64Volt);
 }
 
-static void SetupDVFSInfo(void *hDevice, PVRSRV_DVFS *hDVFS)
+static int SetupDVFSInfo(void *hDevice, PVRSRV_DVFS *hDVFS)
 {
 	struct platform_device *pDevice = hDevice;
 	struct mtk_mfg_base *mfg_base;
@@ -137,7 +137,7 @@ static void SetupDVFSInfo(void *hDevice, PVRSRV_DVFS *hDVFS)
 				 sizeof(*opp_table),
 				 GFP_KERNEL);
 	if (!opp_table)
-		return;
+		return -ENOMEM;
 
 	img_dvfs_cfg = &hDVFS->sDVFSDeviceCfg;
 
@@ -158,6 +158,8 @@ static void SetupDVFSInfo(void *hDevice, PVRSRV_DVFS *hDVFS)
 	hDVFS->sDVFSGovernorCfg.ui32UpThreshold = 90;
 	hDVFS->sDVFSGovernorCfg.ui32DownDifferential = 10;
 	gsDevice.hSysData = mfg_base;
+
+	return 0;
 }
 
 PVRSRV_ERROR SysCreateConfigData(PVRSRV_SYSTEM_CONFIG **ppsSysConfig, void *hDevice)
@@ -165,6 +167,7 @@ PVRSRV_ERROR SysCreateConfigData(PVRSRV_SYSTEM_CONFIG **ppsSysConfig, void *hDev
 	struct platform_device *pDevice = hDevice;
 	struct resource *irq_res;
 	struct resource *reg_res;
+	int ret;
 
 	if (!pDevice) {
 		PVR_DPF((PVR_DBG_ERROR, "pDevice = NULL!"));
@@ -223,7 +226,9 @@ PVRSRV_ERROR SysCreateConfigData(PVRSRV_SYSTEM_CONFIG **ppsSysConfig, void *hDev
 		return PVRSRV_ERROR_INIT_FAILURE;
 	}
 
-	SetupDVFSInfo(hDevice, &gsDevice.sDVFS);
+	ret = SetupDVFSInfo(hDevice, &gsDevice.sDVFS);
+	if (ret)
+		return PVRSRV_ERROR_INIT_FAILURE;
 
 	/* Device's physical heap IDs */
 	gsDevice.aui32PhysHeapID[PVRSRV_DEVICE_PHYS_HEAP_GPU_LOCAL] = 0;
