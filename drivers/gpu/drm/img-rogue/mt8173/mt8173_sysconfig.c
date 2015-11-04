@@ -119,26 +119,24 @@ void UMAPhysHeapDevPAddrToCpuPAddr(IMG_HANDLE hPrivData,
 void SetFrequency(IMG_UINT32 ui64Freq)
 {
 	if (gsDevices[0].hSysData)
-		MTKSysSetFreq((struct mtk_mfg_base *)gsDevices[0].hSysData,
-			      ui64Freq);
+		MTKSysSetFreq(gsDevices[0].hSysData, ui64Freq);
 }
 
 void SetVoltage(IMG_UINT32 ui64Volt)
 {
 	if (gsDevices[0].hSysData)
-		MTKSysSetVolt((struct mtk_mfg_base *)gsDevices[0].hSysData,
-			      ui64Volt);
+		MTKSysSetVolt(gsDevices[0].hSysData, ui64Volt);
 }
 
 void SetupDVFSInfo(void *hDevice, PVRSRV_DVFS *hDVFS)
 {
-	struct platform_device *pDevice = (struct platform_device *)hDevice;
+	struct platform_device *pDevice = hDevice;
 	struct mtk_mfg_base *mfg_base;
 	IMG_OPP *opp_table;
 	IMG_DVFS_DEVICE_CFG *img_dvfs_cfg;
 	int i;
 
-	mfg_base = (struct mtk_mfg_base *)pDevice->dev.platform_data;
+	mfg_base = pDevice->dev.platform_data;
 
 	if (!mfg_base || !mfg_base->fv_table)
 		return;
@@ -159,7 +157,7 @@ void SetupDVFSInfo(void *hDevice, PVRSRV_DVFS *hDVFS)
 	}
 
 	img_dvfs_cfg->bIdleReq = IMG_FALSE;
-	img_dvfs_cfg->pasOPPTable = (IMG_OPP_TABLE)opp_table;
+	img_dvfs_cfg->pasOPPTable = opp_table;
 	img_dvfs_cfg->ui32OPPTableSize = mfg_base->fv_table_length;
 	img_dvfs_cfg->ui32FreqMin = opp_table[0].ui32Freq;
 	img_dvfs_cfg->ui32FreqMax = opp_table[mfg_base->fv_table_length - 1].ui32Freq;
@@ -219,7 +217,7 @@ IMG_UINT32 GetStaticPower(IMG_UINT32 voltage, IMG_INT32 temperature)
 */
 PVRSRV_ERROR SysCreateConfigData(PVRSRV_SYSTEM_CONFIG **ppsSysConfig, void *hDevice)
 {
-	struct platform_device *pDevice = (struct platform_device *)hDevice;
+	struct platform_device *pDevice = hDevice;
 	struct resource *irq_res;
 	struct resource *reg_res;
 
@@ -238,7 +236,7 @@ PVRSRV_ERROR SysCreateConfigData(PVRSRV_SYSTEM_CONFIG **ppsSysConfig, void *hDev
 	gsPhysHeapConfig.pszPDumpMemspaceName = "SYSMEM";
 	gsPhysHeapConfig.eType = PHYS_HEAP_TYPE_UMA;
 	gsPhysHeapConfig.psMemFuncs = &gsPhysHeapFuncs;
-	gsPhysHeapConfig.hPrivData = (IMG_HANDLE)&gsSysConfig;
+	gsPhysHeapConfig.hPrivData = &gsSysConfig;
 	gsPhysHeapConfig.sStartAddr.uiAddr = 0;
 	gsPhysHeapConfig.uiSize = 0;
 
@@ -300,7 +298,7 @@ add for new DDK 1.1.2550513
 		return PVRSRV_ERROR_INIT_FAILURE;
 	}
 
-	SetupDVFSInfo(hDevice , (PVRSRV_DVFS *)(&gsDevices[0].sDVFS));
+	SetupDVFSInfo(hDevice, &gsDevices[0].sDVFS);
 
 #if defined(PVR_POWER_ACTOR)
 	/* I=0.000497135 J=-0.048369531 K=2.65455599 L=-22.33068359 *10000 */
