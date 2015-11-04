@@ -165,48 +165,6 @@ static void SetupDVFSInfo(void *hDevice, PVRSRV_DVFS *hDVFS)
 	gsDevice.hSysData = mfg_base;
 }
 
-#if defined(MTK_POWER_ACTOR)
-IMG_UINT32 GetStaticPower(IMG_UINT32 voltage, IMG_INT32 temperature)
-{
-	#define	NUM_RANGE 5
-	int t_range[NUM_RANGE] = {25, 45, 65, 85, 105};
-	IMG_UINT32 lookup_table_0p_9v[NUM_RANGE] = {14540, 35490, 60420, 120690, 230000};
-	IMG_UINT32 lookup_table_1p_0v[NUM_RANGE] = {21570, 41910, 82380, 159140, 298620};
-	IMG_UINT32 lookup_table_1p_1v[NUM_RANGE] = {32320, 72950,111320, 209290, 382700};
-	IMG_UINT32 *lookup = &lookup_table_1p_0v[0];
-	IMG_UINT32 power;
-	int low_idx = 0, high_idx = NUM_RANGE - 1;
-	int i;
-
-	if (voltage < 1000000)
-		lookup = &lookup_table_0p_9v[0];
-	else if (voltage > 1100000)
-		lookup = &lookup_table_1p_1v[0];
-
-	for (i = 0; i < NUM_RANGE; i++)	{
-		if (temperature <= t_range[NUM_RANGE - 1 - i])
-			high_idx = NUM_RANGE - 1 - i;
-
-		if (temperature >= t_range[i])
-			low_idx = i;
-	}
-
-	if (low_idx == high_idx) {
-		power = lookup[low_idx];
-	} else {
-		IMG_UINT32 t_interval = t_range[high_idx] - t_range[low_idx];
-		IMG_UINT32 p_interval = lookup[high_idx] - lookup[low_idx];
-
-		power = p_interval * (temperature - t_range[low_idx]) / t_interval;
-		power += lookup[low_idx];
-	}
-
-	PVR_TRACE(("voltage = %d, T = %d, power = %d [%d, %d]\n",
-		  voltage, temperature, power, low_idx, high_idx));
-	return power;
-}
-#endif
-
 PVRSRV_ERROR SysCreateConfigData(PVRSRV_SYSTEM_CONFIG **ppsSysConfig, void *hDevice)
 {
 	struct platform_device *pDevice = hDevice;
@@ -271,16 +229,6 @@ PVRSRV_ERROR SysCreateConfigData(PVRSRV_SYSTEM_CONFIG **ppsSysConfig, void *hDev
 	}
 
 	SetupDVFSInfo(hDevice, &gsDevice.sDVFS);
-
-#if defined(PVR_POWER_ACTOR)
-	/* I=0.000497135 J=-0.048369531 K=2.65455599 L=-22.33068359 *10000 */
-	gsDevice.sDVFS.sDVFSPACfg.i32Ta = 49;
-	gsDevice.sDVFS.sDVFSPACfg.i32Tb = -4836;
-	gsDevice.sDVFS.sDVFSPACfg.i32Tc = 265455;
-	gsDevice.sDVFS.sDVFSPACfg.i32Td = -2233068;
-	gsDevice.sDVFS.sDVFSPACfg.ui32Other = 0;
-	gsDevice.sDVFS.sDVFSPACfg.ui32Weight = 0;
-#endif
 
 	/* Device's physical heap IDs */
 	gsDevice.aui32PhysHeapID[PVRSRV_DEVICE_PHYS_HEAP_GPU_LOCAL] = 0;
