@@ -350,11 +350,6 @@ int MTKMFGBaseDeInit(struct platform_device *pdev)
 {
 	struct mtk_mfg_base *mfg_base = GET_MTK_MFG_BASE(sPVRLDMDev);
 
-	if (pdev != sPVRLDMDev) {
-		dev_err(&pdev->dev, "release %p != %p\n", pdev, sPVRLDMDev);
-		return 0;
-	}
-
 	mtk_mfg_unprepare_clock(mfg_base);
 
 	mtk_mfg_unbind_device_resource(pdev, mfg_base);

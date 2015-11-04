@@ -114,14 +114,12 @@ void UMAPhysHeapDevPAddrToCpuPAddr(IMG_HANDLE hPrivData,
 
 static void SetFrequency(IMG_UINT32 ui64Freq)
 {
-	if (gsDevice.hSysData)
-		MTKSysSetFreq(gsDevice.hSysData, ui64Freq);
+	MTKSysSetFreq((struct mtk_mfg_base *)gsDevice.hSysData, ui64Freq);
 }
 
 static void SetVoltage(IMG_UINT32 ui64Volt)
 {
-	if (gsDevice.hSysData)
-		MTKSysSetVolt(gsDevice.hSysData, ui64Volt);
+	MTKSysSetVolt((struct mtk_mfg_base *)gsDevice.hSysData, ui64Volt);
 }
 
 static void SetupDVFSInfo(void *hDevice, PVRSRV_DVFS *hDVFS)
@@ -133,9 +131,6 @@ static void SetupDVFSInfo(void *hDevice, PVRSRV_DVFS *hDVFS)
 	int i;
 
 	mfg_base = pDevice->dev.platform_data;
-
-	if (!mfg_base || !mfg_base->fv_table)
-		return;
 
 	opp_table = devm_kcalloc(&pDevice->dev,
 				 mfg_base->fv_table_length,
