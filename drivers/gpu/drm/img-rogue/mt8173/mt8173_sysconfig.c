@@ -57,7 +57,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 static RGX_TIMING_INFORMATION	gsRGXTimingInfo;
 static RGX_DATA					gsRGXData;
-static PVRSRV_DEVICE_CONFIG 	gsDevices[1];
+static PVRSRV_DEVICE_CONFIG	gsDevice;
 static PVRSRV_SYSTEM_CONFIG 	gsSysConfig;
 
 static PHYS_HEAP_FUNCTIONS	gsPhysHeapFuncs;
@@ -118,14 +118,14 @@ void UMAPhysHeapDevPAddrToCpuPAddr(IMG_HANDLE hPrivData,
 
 void SetFrequency(IMG_UINT32 ui64Freq)
 {
-	if (gsDevices[0].hSysData)
-		MTKSysSetFreq(gsDevices[0].hSysData, ui64Freq);
+	if (gsDevice.hSysData)
+		MTKSysSetFreq(gsDevice.hSysData, ui64Freq);
 }
 
 void SetVoltage(IMG_UINT32 ui64Volt)
 {
-	if (gsDevices[0].hSysData)
-		MTKSysSetVolt(gsDevices[0].hSysData, ui64Volt);
+	if (gsDevice.hSysData)
+		MTKSysSetVolt(gsDevice.hSysData, ui64Volt);
 }
 
 void SetupDVFSInfo(void *hDevice, PVRSRV_DVFS *hDVFS)
@@ -167,7 +167,7 @@ void SetupDVFSInfo(void *hDevice, PVRSRV_DVFS *hDVFS)
 
 	hDVFS->sDVFSGovernorCfg.ui32UpThreshold = 90;
 	hDVFS->sDVFSGovernorCfg.ui32DownDifferential = 10;
-	gsDevices[0].hSysData = mfg_base;
+	gsDevice.hSysData = mfg_base;
 }
 
 #if defined(MTK_POWER_ACTOR)
@@ -241,7 +241,7 @@ PVRSRV_ERROR SysCreateConfigData(PVRSRV_SYSTEM_CONFIG **ppsSysConfig, void *hDev
 	gsPhysHeapConfig.uiSize = 0;
 
 	gsSysConfig.pasPhysHeaps = &gsPhysHeapConfig;
-	gsSysConfig.ui32PhysHeapCount = sizeof(gsPhysHeapConfig) / sizeof(PHYS_HEAP_CONFIG);
+	gsSysConfig.ui32PhysHeapCount = 1;
 /*
 add for new DDK 1.1.2550513
 */
@@ -276,14 +276,14 @@ add for new DDK 1.1.2550513
 	/*
 	 * Setup RGX device
 	 */
-	gsDevices[0].eDeviceType            = PVRSRV_DEVICE_TYPE_RGX;
-	gsDevices[0].pszName                = "RGX";
+	gsDevice.eDeviceType = PVRSRV_DEVICE_TYPE_RGX;
+	gsDevice.pszName = "RGX";
 
 	irq_res = platform_get_resource(pDevice, IORESOURCE_IRQ, 0);
 	if (irq_res) {
-		gsDevices[0].ui32IRQ = irq_res->start;
-		gsDevices[0].bIRQIsShared    = IMG_FALSE;
-		gsDevices[0].eIRQActiveLevel = PVRSRV_DEVICE_IRQ_ACTIVE_LOW;
+		gsDevice.ui32IRQ = irq_res->start;
+		gsDevice.bIRQIsShared  = IMG_FALSE;
+		gsDevice.eIRQActiveLevel = PVRSRV_DEVICE_IRQ_ACTIVE_LOW;
 	} else {
 		PVR_DPF((PVR_DBG_ERROR, "irq_res = NULL!"));
 		return PVRSRV_ERROR_INIT_FAILURE;
@@ -291,53 +291,53 @@ add for new DDK 1.1.2550513
 
 	reg_res = platform_get_resource(pDevice, IORESOURCE_MEM, 0);
 	if (reg_res) {
-		gsDevices[0].sRegsCpuPBase.uiAddr = reg_res->start;
-		gsDevices[0].ui32RegsSize	  = resource_size(reg_res);
+		gsDevice.sRegsCpuPBase.uiAddr = reg_res->start;
+		gsDevice.ui32RegsSize = resource_size(reg_res);
 	} else {
 		PVR_DPF((PVR_DBG_ERROR, "reg_res = NULL!"));
 		return PVRSRV_ERROR_INIT_FAILURE;
 	}
 
-	SetupDVFSInfo(hDevice, &gsDevices[0].sDVFS);
+	SetupDVFSInfo(hDevice, &gsDevice.sDVFS);
 
 #if defined(PVR_POWER_ACTOR)
 	/* I=0.000497135 J=-0.048369531 K=2.65455599 L=-22.33068359 *10000 */
-	gsDevices[0].sDVFS.sDVFSPACfg.i32Ta = 49;
-	gsDevices[0].sDVFS.sDVFSPACfg.i32Tb = -4836;
-	gsDevices[0].sDVFS.sDVFSPACfg.i32Tc = 265455;
-	gsDevices[0].sDVFS.sDVFSPACfg.i32Td = -2233068;
-	gsDevices[0].sDVFS.sDVFSPACfg.ui32Other = 0;
-	gsDevices[0].sDVFS.sDVFSPACfg.ui32Weight = 0;
+	gsDevice.sDVFS.sDVFSPACfg.i32Ta = 49;
+	gsDevice.sDVFS.sDVFSPACfg.i32Tb = -4836;
+	gsDevice.sDVFS.sDVFSPACfg.i32Tc = 265455;
+	gsDevice.sDVFS.sDVFSPACfg.i32Td = -2233068;
+	gsDevice.sDVFS.sDVFSPACfg.ui32Other = 0;
+	gsDevice.sDVFS.sDVFSPACfg.ui32Weight = 0;
 #endif
 
 	/* Device's physical heap IDs */
-	gsDevices[0].aui32PhysHeapID[PVRSRV_DEVICE_PHYS_HEAP_GPU_LOCAL] = 0;
-	gsDevices[0].aui32PhysHeapID[PVRSRV_DEVICE_PHYS_HEAP_CPU_LOCAL] = 0;
-	gsDevices[0].aui32PhysHeapID[PVRSRV_DEVICE_PHYS_HEAP_FW_LOCAL] = 0;
+	gsDevice.aui32PhysHeapID[PVRSRV_DEVICE_PHYS_HEAP_GPU_LOCAL] = 0;
+	gsDevice.aui32PhysHeapID[PVRSRV_DEVICE_PHYS_HEAP_CPU_LOCAL] = 0;
+	gsDevice.aui32PhysHeapID[PVRSRV_DEVICE_PHYS_HEAP_FW_LOCAL] = 0;
 
 	/*  power management on  HW system */
 	#if MTK_PM_SUPPORT
-	gsDevices[0].pfnPrePowerState       = MTKSysDevPrePowerState;
-	gsDevices[0].pfnPostPowerState      = MTKSysDevPostPowerState;
+	gsDevice.pfnPrePowerState = MTKSysDevPrePowerState;
+	gsDevice.pfnPostPowerState = MTKSysDevPostPowerState;
 	#else
-	gsDevices[0].pfnPrePowerState       = NULL;
-	gsDevices[0].pfnPostPowerState      = NULL;
+	gsDevice.pfnPrePowerState = NULL;
+	gsDevice.pfnPostPowerState = NULL;
 	#endif
 
 	/*  clock frequency  */
-	gsDevices[0].pfnClockFreqGet        = NULL;
+	gsDevice.pfnClockFreqGet = NULL;
 
 	/*  interrupt handled  */
-	gsDevices[0].pfnInterruptHandled    = NULL;
+	gsDevice.pfnInterruptHandled = NULL;
 
-	gsDevices[0].hDevData               = &gsRGXData;
+	gsDevice.hDevData = &gsRGXData;
 
 	/*
 	 * Setup system config
 	 */
 	gsSysConfig.pszSystemName = RGX_HW_SYSTEM_NAME;
-	gsSysConfig.uiDeviceCount = sizeof(gsDevices)/sizeof(gsDevices[0]);
-	gsSysConfig.pasDevices = &gsDevices[0];
+	gsSysConfig.uiDeviceCount = 1;
+	gsSysConfig.pasDevices = &gsDevice;
 
 	/*  power management on  HW system */
 	#if MTK_PM_SUPPORT
@@ -350,7 +350,7 @@ add for new DDK 1.1.2550513
 
 	/*  cache snooping */
 	//gsSysConfig.bHasCacheSnooping = IMG_FALSE; // new DDK has new variable
-    gsSysConfig.eCacheSnoopingMode = 0;
+	gsSysConfig.eCacheSnoopingMode = 0;
 
 	gsSysConfig.uiSysFlags = 0;
 
