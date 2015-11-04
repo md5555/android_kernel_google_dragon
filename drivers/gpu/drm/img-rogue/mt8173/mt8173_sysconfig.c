@@ -252,22 +252,13 @@ add for new DDK 1.1.2550513
 	 * Setup RGX specific timing data
 	 */
 	gsRGXTimingInfo.ui32CoreClockSpeed        = RGX_HW_CORE_CLOCK_SPEED;
-	
-	#if MTK_PM_SUPPORT
+
 	gsRGXTimingInfo.bEnableActivePM           = IMG_TRUE;
 	gsRGXTimingInfo.ui32ActivePMLatencyms       = SYS_RGX_ACTIVE_POWER_LATENCY_MS;
-	#else
-	gsRGXTimingInfo.bEnableActivePM           = IMG_FALSE;
-	#endif
-	
-	gsRGXTimingInfo.bEnableRDPowIsland        = IMG_FALSE;
 
 	/* for HWAPM enable */
-	#if MTK_ENABLE_HWAPM
 	gsRGXTimingInfo.bEnableRDPowIsland    = IMG_TRUE;
-	#else
-	gsRGXTimingInfo.bEnableRDPowIsland    = IMG_FALSE;
-	#endif
+
 	/*
 	 *Setup RGX specific data
 	 */
@@ -316,13 +307,8 @@ add for new DDK 1.1.2550513
 	gsDevice.aui32PhysHeapID[PVRSRV_DEVICE_PHYS_HEAP_FW_LOCAL] = 0;
 
 	/*  power management on  HW system */
-	#if MTK_PM_SUPPORT
 	gsDevice.pfnPrePowerState = MTKSysDevPrePowerState;
 	gsDevice.pfnPostPowerState = MTKSysDevPostPowerState;
-	#else
-	gsDevice.pfnPrePowerState = NULL;
-	gsDevice.pfnPostPowerState = NULL;
-	#endif
 
 	/*  clock frequency  */
 	gsDevice.pfnClockFreqGet = NULL;
@@ -340,13 +326,8 @@ add for new DDK 1.1.2550513
 	gsSysConfig.pasDevices = &gsDevice;
 
 	/*  power management on  HW system */
-	#if MTK_PM_SUPPORT
 	gsSysConfig.pfnSysPrePowerState = MTKSystemPrePowerState;
 	gsSysConfig.pfnSysPostPowerState = MTKSystemPostPowerState;
-	#else
-	gsSysConfig.pfnSysPrePowerState = NULL;
-	gsSysConfig.pfnSysPostPowerState =NULL;
-	#endif
 
 	/*  cache snooping */
 	//gsSysConfig.bHasCacheSnooping = IMG_FALSE; // new DDK has new variable

@@ -102,7 +102,6 @@ static int mtk_mfg_disable_clock(struct mtk_mfg_base *mfg_base)
 	return PVRSRV_OK;
 }
 
-#if defined(MTK_ENABLE_HWAPM)
 static void mtk_mfg_enable_hw_apm(struct mtk_mfg_base *mfg_base)
 {
 	writel(0x003c3d4d, mfg_base->reg_base + 0x24);
@@ -124,7 +123,6 @@ static void mtk_mfg_disable_hw_apm(struct mtk_mfg_base *mfg_base)
 	writel(0x00, mfg_base->reg_base + 0xec);
 	writel(0x00, mfg_base->reg_base + 0xa0);
 }
-#endif
 
 static int mtk_mfg_get_opp_table(struct platform_device *pdev,
 				 struct mtk_mfg_base *mfg_base)
@@ -261,9 +259,7 @@ PVRSRV_ERROR MTKSysDevPrePowerState(PVRSRV_DEV_POWER_STATE eNewPowerState,
 
 	if ((PVRSRV_DEV_POWER_STATE_OFF == eNewPowerState) &&
 	    (PVRSRV_DEV_POWER_STATE_ON == eCurrentPowerState)) {
-#if defined(MTK_ENABLE_HWAPM)
 		mtk_mfg_disable_hw_apm(mfg_base);
-#endif
 		mtk_mfg_disable_clock(mfg_base);
 		mfg_base->power_on = false;
 	}
@@ -286,9 +282,7 @@ PVRSRV_ERROR MTKSysDevPostPowerState(PVRSRV_DEV_POWER_STATE eNewPowerState,
 	if ((PVRSRV_DEV_POWER_STATE_ON == eNewPowerState) &&
 	    (PVRSRV_DEV_POWER_STATE_OFF == eCurrentPowerState)) {
 		mtk_mfg_enable_clock(mfg_base);
-#if defined(MTK_ENABLE_HWAPM)
 		mtk_mfg_enable_hw_apm(mfg_base);
-#endif
 		mfg_base->power_on = true;
 	}
 

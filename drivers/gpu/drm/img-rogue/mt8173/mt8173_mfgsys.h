@@ -20,10 +20,6 @@
 
 #include <linux/platform_device.h>
 
-/* control APM is enabled or not  */
-#define MTK_PM_SUPPORT 1
-#define MTK_ENABLE_HWAPM 1
-
 /*  unit ms, timeout interval for DVFS detection */
 #define MTK_DVFS_SWITCH_INTERVAL  300
 
