@@ -2261,8 +2261,8 @@ SYSCALL_DEFINE5(prctl, int, option, unsigned long, arg2, unsigned long, arg3,
 	case PR_SET_SECCOMP:
 		error = prctl_set_seccomp(arg2, (char __user *)arg3);
 		break;
-	case PR_BRILLO:
-		if (arg2 == PR_BRILLO_SET_SYSCALL_TABLE)
+	case PR_ALT_SYSCALL:
+		if (arg2 == PR_ALT_SYSCALL_SET_SYSCALL_TABLE)
 			error = set_alt_sys_call_table((char __user *)arg3);
 		else
 			error = -EINVAL;
