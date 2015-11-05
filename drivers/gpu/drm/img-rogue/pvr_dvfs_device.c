@@ -331,7 +331,7 @@ PVRSRV_ERROR InitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
 	return PVRSRV_OK;
 }
 
-PVRSRV_ERROR DeinitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
+void DeinitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
 {
 	IMG_DVFS_DEVICE		*psDVFSDevice = &gpsDeviceNode->psDevConfig->sDVFS.sDVFSDevice;
 	struct DEVICE_STRUCT	*psPlatDev = (struct DEVICE_STRUCT *) hDevice;
@@ -344,7 +344,6 @@ PVRSRV_ERROR DeinitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
 		if (i32Error < 0)
 		{
 			PVR_DPF((PVR_DBG_ERROR, "Failed to unregister OPP notifier"));
-			return PVRSRV_ERROR_INVALID_PARAMS;
 		}
 
 		devfreq_remove_device(psDVFSDevice->psDevFreq);
@@ -364,8 +363,6 @@ PVRSRV_ERROR DeinitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
 	gpsDeviceNode = NULL;
 
 	DeinitGovernor();
-
-	return PVRSRV_OK;
 }
 
 PVRSRV_ERROR SuspendDVFS(void)

@@ -1106,11 +1106,7 @@ void IMG_CALLCONV PVRSRVDeInit(void *hDevice)
 	SysDestroyConfigData(gpsSysConfig);
 
 #if defined(PVR_DVFS)
-	eError = DeinitDVFS(gpsPVRSRVData, hDevice);
-	if (eError != PVRSRV_OK)
-	{
-		PVR_DPF((PVR_DBG_ERROR,"PVRSRVInit: Failed to suspend DVFS"));
-	}
+	DeinitDVFS(gpsPVRSRVData, hDevice);
 #endif
 
 	/* Clean up Transport Layer resources that remain. 
