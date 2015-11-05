@@ -172,15 +172,6 @@ err_falcon_power_on:
 	return err;
 }
 
-static void nvdec_reset(struct device *dev)
-{
-	struct nvdec *nvdec = dev_get_drvdata(dev);
-
-	nvdec_power_off(dev);
-	nvdec_power_on(dev);
-	falcon_boot(&nvdec->falcon_bl, NULL);
-}
-
 static int nvdec_init(struct host1x_client *client)
 {
 	struct tegra_drm_client *drm = host1x_to_drm_client(client);
@@ -402,6 +393,32 @@ static int nvdec_is_addr_reg(struct device *dev, u32 class, u32 offset)
 	 */
 
 	return 0;
+}
+
+static void nvdec_reset(struct device *dev)
+{
+	int err;
+	struct nvdec *nvdec = dev_get_drvdata(dev);
+
+	err = nvdec_power_off(dev);
+	if (err) {
+		dev_err(dev, "failed to power off during reset\n");
+		return;
+	}
+
+	err = nvdec_power_on(dev);
+	if (err) {
+		dev_err(dev, "failed to power on during reset\n");
+		return;
+	}
+
+	err = nvdec_read_ucode(nvdec);
+	if (err) {
+		dev_err(dev, "failed to read ucode during reset\n");
+		return;
+	}
+
+	falcon_boot(&nvdec->falcon_bl, NULL);
 }
 
 static const struct tegra_drm_client_ops nvdec_ops = {
