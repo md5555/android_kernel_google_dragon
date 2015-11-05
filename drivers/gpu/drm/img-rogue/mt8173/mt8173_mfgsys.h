@@ -24,10 +24,6 @@
 #define MTK_PM_SUPPORT 1
 #define MTK_ENABLE_HWAPM 1
 
-/* control RD is enabled or not */
-/* RD_POWER_ISLAND only enable with E2 IC, disalbe in E1 IC @2013/9/17 */
-/* #define RD_POWER_ISLAND 1 */
-
 /*  unit ms, timeout interval for DVFS detection */
 #define MTK_DVFS_SWITCH_INTERVAL  300
 
@@ -70,11 +66,6 @@ struct mtk_mfg_base {
 /*used in mtk_module.c  */
 int MTKMFGBaseInit(struct platform_device *pdev);
 int MTKMFGBaseDeInit(struct platform_device *pdev);
-int MTKMFGSystemInit(void);
-int MTKMFGSystemDeInit(void);
-
-void MTKSysSetInitialPowerState(void);
-void MTKSysRestoreInitialPowerState(void);
 
 /* below register interface in RGX sysconfig.c */
 PVRSRV_ERROR MTKSysDevPrePowerState(PVRSRV_DEV_POWER_STATE eNew,

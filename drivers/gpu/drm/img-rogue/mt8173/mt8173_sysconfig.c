@@ -236,10 +236,8 @@ PVRSRV_ERROR SysCreateConfigData(PVRSRV_SYSTEM_CONFIG **ppsSysConfig, void *hDev
 	gsPhysHeapConfig.eType = PHYS_HEAP_TYPE_UMA;
 	gsPhysHeapConfig.psMemFuncs = &gsPhysHeapFuncs;
 	gsPhysHeapConfig.hPrivData = (IMG_HANDLE)&gsSysConfig;
-	#if 1
 	gsPhysHeapConfig.sStartAddr.uiAddr = 0;
 	gsPhysHeapConfig.uiSize = 0;
-	#endif
 
 	gsSysConfig.pasPhysHeaps = &gsPhysHeapConfig;
 	gsSysConfig.ui32PhysHeapCount = sizeof(gsPhysHeapConfig) / sizeof(PHYS_HEAP_CONFIG);
@@ -333,16 +331,6 @@ add for new DDK 1.1.2550513
 
 	gsDevices[0].hDevData               = &gsRGXData;
 
-	#if 0
-	gsDevices[0].bBPSet = IMG_FALSE;
-	gsDevices[0].eBPDM = RGXFWIF_DM_TA; //need to check
-	gsDevices[0].hSysData = NULL;
-	gsDevices[0].ui32PhysHeapID = 0;
-	gsDevices[0].uiFlags = 0; // currently unused
-	#endif
-
-	
-
 	/*
 	 * Setup system config
 	 */
@@ -363,9 +351,7 @@ add for new DDK 1.1.2550513
 	//gsSysConfig.bHasCacheSnooping = IMG_FALSE; // new DDK has new variable
     gsSysConfig.eCacheSnoopingMode = 0;
 
-	#if 1 //chenzhu add 
 	gsSysConfig.uiSysFlags = 0;
-	#endif
 
 	/* Setup other system specific stuff */
 #if defined(SUPPORT_ION)
@@ -373,31 +359,6 @@ add for new DDK 1.1.2550513
 #endif
 
 	*ppsSysConfig = &gsSysConfig;
-
-#if 0
-	PVR_TRACE(("SysCreateConfigData: start to OSMapPhysToLin "));
-	
-	void *pvRegsBaseKM = OSMapPhysToLin(gsDevices[0].sRegsCpuPBase, gsDevices[0].ui32RegsSize , 0);
-	IMG_UINT32 ui32Value;
-		
-    PVR_TRACE(("PVRCore_Init:pvRegsBaseKM = %p ",pvRegsBaseKM));
-		
-
-	ui32Value = OSReadHWReg32(pvRegsBaseKM, 0x20);
-	PVR_TRACE(("PVRCore_Init:ui32Value = 0x%X ",ui32Value));
-	ui32Value = OSReadHWReg32(pvRegsBaseKM, 0x28);
-	PVR_TRACE(("PVRCore_Init:ui32Value = 0x%X ",ui32Value));
-
-	OSWriteHWReg32(pvRegsBaseKM, RGX_CR_ISP_GRIDOFFSET, 0x55555555);
-	ui32Value = OSReadHWReg32(pvRegsBaseKM, RGX_CR_ISP_GRIDOFFSET);
-	PVR_TRACE(("PVRCore_Init:ui32Value = 0x%X ",ui32Value));
-
-	OSWriteHWReg32(pvRegsBaseKM, RGX_CR_ISP_GRIDOFFSET, 0xAAAAAAAA);
-	ui32Value = OSReadHWReg32(pvRegsBaseKM, RGX_CR_ISP_GRIDOFFSET);
-	PVR_TRACE(("PVRCore_Init:ui32Value = 0x%X ",ui32Value));
-#endif		
-
-	MTKSysSetInitialPowerState();
 
 	return PVRSRV_OK;
 }
@@ -413,8 +374,6 @@ void SysDestroyConfigData(PVRSRV_SYSTEM_CONFIG *psSysConfig)
 #if defined(SUPPORT_ION)
 	IonDeinit();
 #endif
-
-	MTKSysRestoreInitialPowerState();
 }
 
 PVRSRV_ERROR SysDebugInfo(PVRSRV_SYSTEM_CONFIG *psSysConfig,

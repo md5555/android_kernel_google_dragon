@@ -248,16 +248,6 @@ int mtk_mfg_unbind_device_resource(struct platform_device *pdev,
 	return 0;
 }
 
-void MTKSysSetInitialPowerState(void)
-{
-	mtk_mfg_debug("MTKSysSetInitialPowerState ---\n");
-}
-
-void MTKSysRestoreInitialPowerState(void)
-{
-	mtk_mfg_debug("MTKSysRestoreInitialPowerState ---\n");
-}
-
 PVRSRV_ERROR MTKSysDevPrePowerState(PVRSRV_DEV_POWER_STATE eNewPowerState,
 				    PVRSRV_DEV_POWER_STATE eCurrentPowerState,
 				    IMG_BOOL bForced)
@@ -379,17 +369,3 @@ int MTKMFGBaseDeInit(struct platform_device *pdev)
 	mtk_mfg_unbind_device_resource(pdev, mfg_base);
 	return 0;
 }
-
-
-int MTKMFGSystemInit(void)
-{
-	mtk_mfg_debug("MTKMFGSystemInit\n");
-	return PVRSRV_OK;
-}
-
-int MTKMFGSystemDeInit(void)
-{
-	mtk_mfg_debug("MTKMFGSystemDeInit\n");
-	return PVRSRV_OK;
-}
-

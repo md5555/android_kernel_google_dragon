@@ -69,23 +69,16 @@ void MTKSysSetFreq(struct mtk_mfg_base *base, u32 freq)
 {
 	/* freq : khz */
 	mtk_gpu_clock_switch(base->mmpll, base->curr_freq, freq);
-	base->curr_freq = freq;
-
-	if (1) {
-		base->curr_freq = HZ_TO_KHZ(clk_get_rate(base->mmpll));
-		pr_info("MTKSysSetFreq: freq = %d  %d\n",
-			freq, base->curr_freq);
-	}
+	base->curr_freq = HZ_TO_KHZ(clk_get_rate(base->mmpll));
+	pr_info("MTKSysSetFreq: freq = %d  %d\n",
+		freq, base->curr_freq);
 }
 
 void MTKSysSetVolt(struct mtk_mfg_base *base, u32 volt)
 {
 	/* volt : uV */
 	mtk_gpu_volt_switch(base->vgpu, base->curr_volt, volt);
-	base->curr_volt = volt;
-	if (1) {
-		base->curr_volt = regulator_get_voltage(base->vgpu);
-		pr_info("MTKSysSetVolt: volt = %d  %d\n",
-			volt, base->curr_volt);
-	}
+	base->curr_volt = regulator_get_voltage(base->vgpu);
+	pr_info("MTKSysSetVolt: volt = %d  %d\n",
+		volt, base->curr_volt);
 }
