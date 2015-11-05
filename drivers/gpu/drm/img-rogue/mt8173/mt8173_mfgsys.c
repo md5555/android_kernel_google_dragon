@@ -146,45 +146,41 @@ static int mtk_mfg_bind_device_resource(struct platform_device *pdev,
 {
 	int i, err;
 	int len = sizeof(struct clk *) * MAX_TOP_MFG_CLK;
+	struct resource *res;
 
 	mfg_base->top_clk = devm_kzalloc(&pdev->dev, len, GFP_KERNEL);
 	if (!mfg_base->top_clk)
 		return -ENOMEM;
 
-	mfg_base->reg_base = of_iomap(pdev->dev.of_node, 1);
-	if (!mfg_base->reg_base) {
-		mtk_mfg_debug("Unable to ioremap registers pdev %p\n", pdev);
-		return -ENOMEM;
-	}
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	mfg_base->reg_base = devm_ioremap_resource(&pdev->dev, res);
+	if (IS_ERR(mfg_base->reg_base))
+		return PTR_ERR(mfg_base->reg_base);
 
 	mfg_base->mmpll = devm_clk_get(&pdev->dev, "mmpll_clk");
 	if (IS_ERR(mfg_base->mmpll)) {
-		err = PTR_ERR(mfg_base->mmpll);
 		dev_err(&pdev->dev, "devm_clk_get mmpll_clk failed !!!\n");
-		goto err_iounmap_reg_base;
+		return PTR_ERR(mfg_base->mmpll);
 	}
 
 	for (i = 0; i < MAX_TOP_MFG_CLK; i++) {
 		mfg_base->top_clk[i] = devm_clk_get(&pdev->dev,
 						    top_mfg_clk_name[i]);
 		if (IS_ERR(mfg_base->top_clk[i])) {
-			err = PTR_ERR(mfg_base->top_clk[i]);
 			dev_err(&pdev->dev, "devm_clk_get %s failed !!!\n",
 				top_mfg_clk_name[i]);
-			goto err_iounmap_reg_base;
+			return PTR_ERR(mfg_base->top_clk[i]);
 		}
 	}
 
 	mfg_base->vgpu = devm_regulator_get(&pdev->dev, "mfgsys-power");
-	if (IS_ERR(mfg_base->vgpu)) {
-		err = PTR_ERR(mfg_base->vgpu);
-		goto err_iounmap_reg_base;
-	}
+	if (IS_ERR(mfg_base->vgpu))
+		return PTR_ERR(mfg_base->vgpu);
 
 	err = regulator_enable(mfg_base->vgpu);
 	if (err != 0) {
 		dev_err(&pdev->dev, "failed to enable regulator vgpu\n");
-		goto err_iounmap_reg_base;
+		return err;
 	}
 
 	err = of_init_opp_table(&pdev->dev);
@@ -200,8 +196,6 @@ static int mtk_mfg_bind_device_resource(struct platform_device *pdev,
 
 err_regulator_disable:
 	regulator_disable(mfg_base->vgpu);
-err_iounmap_reg_base:
-	iounmap(mfg_base->reg_base);
 
 	return err;
 }
@@ -215,7 +209,6 @@ static void mtk_mfg_unbind_device_resource(struct platform_device *pdev,
 	pm_runtime_disable(&pdev->dev);
 	of_free_opp_table(&pdev->dev);
 	regulator_disable(mfg_base->vgpu);
-	iounmap(mfg_base->reg_base);
 
 	pr_info("mtk_mfg_unbind_device_resource end\n");
 }
