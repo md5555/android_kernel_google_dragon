@@ -125,14 +125,11 @@ static void SetVoltage(IMG_UINT32 ui64Volt)
 
 static int SetupDVFSInfo(struct device *dev, PVRSRV_DVFS *hDVFS)
 {
-	struct mtk_mfg_base *mfg_base;
 	IMG_OPP *opp_table;
 	IMG_DVFS_DEVICE_CFG *img_dvfs_cfg;
 	int i;
 	int count;
 	unsigned long freq;
-
-	mfg_base = dev->platform_data;
 
 	/* Start RCU read-side critical section to access device opp_list. */
 	rcu_read_lock();
@@ -178,7 +175,6 @@ static int SetupDVFSInfo(struct device *dev, PVRSRV_DVFS *hDVFS)
 
 	hDVFS->sDVFSGovernorCfg.ui32UpThreshold = 90;
 	hDVFS->sDVFSGovernorCfg.ui32DownDifferential = 10;
-	gsDevice.hSysData = mfg_base;
 
 	return 0;
 }
@@ -186,6 +182,8 @@ static int SetupDVFSInfo(struct device *dev, PVRSRV_DVFS *hDVFS)
 PVRSRV_ERROR SysCreateConfigData(PVRSRV_SYSTEM_CONFIG **ppsSysConfig, void *hDevice)
 {
 	struct platform_device *pDevice = hDevice;
+	struct device *dev = &pDevice->dev;
+	struct mtk_mfg_base *mfg_base = dev->platform_data;
 	struct resource *irq_res;
 	struct resource *reg_res;
 	int ret;
@@ -247,7 +245,7 @@ PVRSRV_ERROR SysCreateConfigData(PVRSRV_SYSTEM_CONFIG **ppsSysConfig, void *hDev
 		return PVRSRV_ERROR_INIT_FAILURE;
 	}
 
-	ret = SetupDVFSInfo(&pDevice->dev, &gsDevice.sDVFS);
+	ret = SetupDVFSInfo(dev, &gsDevice.sDVFS);
 	if (ret)
 		return PVRSRV_ERROR_INIT_FAILURE;
 
@@ -267,6 +265,7 @@ PVRSRV_ERROR SysCreateConfigData(PVRSRV_SYSTEM_CONFIG **ppsSysConfig, void *hDev
 	gsDevice.pfnInterruptHandled = NULL;
 
 	gsDevice.hDevData = &gsRGXData;
+	gsDevice.hSysData = mfg_base;
 
 	/* Setup system config */
 	gsSysConfig.pszSystemName = RGX_HW_SYSTEM_NAME;
