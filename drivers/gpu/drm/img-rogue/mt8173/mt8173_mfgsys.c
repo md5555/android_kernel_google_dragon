@@ -175,8 +175,8 @@ static int mtk_mfg_get_opp_table(struct platform_device *pdev,
 	return 0;
 }
 
-int mtk_mfg_bind_device_resource(struct platform_device *pdev,
-				 struct mtk_mfg_base *mfg_base)
+static int mtk_mfg_bind_device_resource(struct platform_device *pdev,
+					struct mtk_mfg_base *mfg_base)
 {
 	int i, err;
 	int len = sizeof(struct clk *) * MAX_TOP_MFG_CLK;
@@ -232,7 +232,7 @@ err_iounmap_reg_base:
 	return err;
 }
 
-int mtk_mfg_unbind_device_resource(struct platform_device *pdev,
+static int mtk_mfg_unbind_device_resource(struct platform_device *pdev,
 				   struct mtk_mfg_base *mfg_base)
 {
 	pr_info("mtk_mfg_unbind_device_resource start\n");
