@@ -184,8 +184,6 @@ PVRSRV_ERROR SysCreateConfigData(PVRSRV_SYSTEM_CONFIG **ppsSysConfig, void *hDev
 	struct platform_device *pDevice = hDevice;
 	struct device *dev = &pDevice->dev;
 	struct mtk_mfg_base *mfg_base = dev->platform_data;
-	struct resource *irq_res;
-	struct resource *reg_res;
 	int ret;
 
 	if (!pDevice) {
@@ -226,24 +224,12 @@ PVRSRV_ERROR SysCreateConfigData(PVRSRV_SYSTEM_CONFIG **ppsSysConfig, void *hDev
 	gsDevice.eDeviceType = PVRSRV_DEVICE_TYPE_RGX;
 	gsDevice.pszName = "RGX";
 
-	irq_res = platform_get_resource(pDevice, IORESOURCE_IRQ, 0);
-	if (irq_res) {
-		gsDevice.ui32IRQ = irq_res->start;
-		gsDevice.bIRQIsShared = IMG_FALSE;
-		gsDevice.eIRQActiveLevel = PVRSRV_DEVICE_IRQ_ACTIVE_LOW;
-	} else {
-		PVR_DPF((PVR_DBG_ERROR, "irq_res = NULL!"));
-		return PVRSRV_ERROR_INIT_FAILURE;
-	}
+	gsDevice.ui32IRQ = mfg_base->rgx_irq;
+	gsDevice.bIRQIsShared = IMG_FALSE;
+	gsDevice.eIRQActiveLevel = PVRSRV_DEVICE_IRQ_ACTIVE_LOW;
 
-	reg_res = platform_get_resource(pDevice, IORESOURCE_MEM, 0);
-	if (reg_res) {
-		gsDevice.sRegsCpuPBase.uiAddr = reg_res->start;
-		gsDevice.ui32RegsSize = resource_size(reg_res);
-	} else {
-		PVR_DPF((PVR_DBG_ERROR, "reg_res = NULL!"));
-		return PVRSRV_ERROR_INIT_FAILURE;
-	}
+	gsDevice.sRegsCpuPBase.uiAddr = mfg_base->rgx_start;
+	gsDevice.ui32RegsSize = mfg_base->rgx_size;
 
 	ret = SetupDVFSInfo(dev, &gsDevice.sDVFS);
 	if (ret)

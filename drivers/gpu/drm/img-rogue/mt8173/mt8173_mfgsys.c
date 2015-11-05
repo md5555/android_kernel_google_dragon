@@ -152,6 +152,16 @@ static int mtk_mfg_bind_device_resource(struct platform_device *pdev,
 	if (!mfg_base->top_clk)
 		return -ENOMEM;
 
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!res)
+		return -ENODEV;
+	mfg_base->rgx_start = res->start;
+	mfg_base->rgx_size = resource_size(res);
+
+	mfg_base->rgx_irq = platform_get_irq_byname(pdev, "RGX");
+	if (mfg_base->rgx_irq < 0)
+		return mfg_base->rgx_irq;
+
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
 	mfg_base->reg_base = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(mfg_base->reg_base))

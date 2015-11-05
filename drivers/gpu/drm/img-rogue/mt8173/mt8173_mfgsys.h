@@ -37,6 +37,10 @@ struct mtk_mfg_base {
 	struct clk **top_clk;
 	void __iomem *reg_base;
 
+	resource_size_t rgx_start;
+	resource_size_t rgx_size;
+	int rgx_irq;
+
 	/* mutex protect for set power state */
 	struct mutex set_power_state;
 
