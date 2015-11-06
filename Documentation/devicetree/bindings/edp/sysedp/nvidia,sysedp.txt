@@ -29,6 +29,8 @@ Required properties of each consumerX node:
   in milliwatts. For example, if "nvidia,states" is set to "<0 300>", then
   that consumer will consume either 0mW or 300mW depending on the state set
   by that consumer.
+- nvidia,consumer-always-on: If exist, this consumer will be created by sysedp
+  framework ,and always be turned on in maximum power state.
 
 Example:
 	sysedp {
