@@ -55,6 +55,7 @@ struct sysedp_consumer_data {
 	struct device_node *dn;
 	unsigned int *states;
 	unsigned int num_states;
+	bool always_on;
 };
 
 struct sysedp_platform_data {
