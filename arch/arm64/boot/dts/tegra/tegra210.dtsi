@@ -1156,6 +1156,17 @@
 				swgroups = <&mc TEGRA_SWGROUP_ISP2B>;
 				swgroup-names = "isp2b";
 			};
+
+			dfd {
+				clocks = <&tegra_car TEGRA210_CLK_CSITE>,
+					 <&tegra_car TEGRA210_CLK_LA>;
+				clock-names = "csite", "la";
+				resets = <&tegra_car 73>, <&tegra_car 76>;
+				reset-names = "csite", "la";
+				swgroups = <&mc TEGRA_SWGROUP_ETR>,
+					   <&mc TEGRA_SWGROUP_AXIAP>;
+				swgroup-names = "etr", "axiap";
+			};
 		};
 	};
 
