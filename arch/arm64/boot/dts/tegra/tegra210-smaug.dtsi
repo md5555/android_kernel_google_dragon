@@ -167,7 +167,7 @@
 		vdd-core-supply = <&ppvar_soc>;
 	};
 
-	wifi_bcm4354 {
+	wifi: wifi_bcm4354 {
 		compatible = "bcm,bcm4354";
 		wl_reg_on = <&gpio TEGRA_GPIO(H, 1) GPIO_ACTIVE_HIGH>;
 		wl_host_wake = <&gpio TEGRA_GPIO(H, 2) IRQ_TYPE_LEVEL_HIGH>;

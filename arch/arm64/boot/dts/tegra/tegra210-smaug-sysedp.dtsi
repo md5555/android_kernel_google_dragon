@@ -437,6 +437,12 @@
 				nvidia,consumer = <&imx208>;
 				nvidia,states = <0 90>; /* OFF ON */
 			};
+
+			consumer-wifi {
+				nvidia,consumer = <&wifi>;
+				nvidia,states = <0 2050>; /* OFF ON */
+				nvidia,consumer-always-on;
+			};
 		};
 	};
 };
