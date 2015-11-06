@@ -35,7 +35,7 @@ static unsigned long thermal_state;
 static int dram_cdev_max_state(struct thermal_cooling_device *tcd,
 				   unsigned long *state)
 {
-	*state = TEGRA_DRAM_OVER_TEMP_MAX;
+	*state = TEGRA_DRAM_OVER_TEMP_MAX - 1;
 	return 0;
 }
 
