@@ -294,9 +294,9 @@ static int tegra_bpmp_connect(void)
 	int retry = BPMP_CONNECT_RETRY_MAX;
 
 	while (retry--) {
+		msleep(100);
 		if (!__tegra_bpmp_connect())
 			return 0;
-		msleep(100);
 	}
 
 	return -ETIMEDOUT;
