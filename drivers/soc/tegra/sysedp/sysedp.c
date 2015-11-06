@@ -344,6 +344,11 @@ static int of_sysedp_get_pdata(struct platform_device *pdev,
 		obj_ptr->consumer_data[idx].num_states = n;
 		kfree(u32_ptr);
 
+		if (of_find_property(child, "nvidia,consumer-always-on", NULL))
+			obj_ptr->consumer_data[idx].always_on = true;
+		else
+			obj_ptr->consumer_data[idx].always_on = false;
+
 		++idx;
 	}
 
@@ -370,6 +375,8 @@ no_consumer:
 
 static int sysedp_probe(struct platform_device *pdev)
 {
+	int i;
+
 	if (pdev->dev.of_node) {
 		int ret = of_sysedp_get_pdata(pdev, &pdata);
 		if (ret)
@@ -384,6 +391,19 @@ static int sysedp_probe(struct platform_device *pdev)
 	avail_budget = pdata->avail_budget;
 	sysedp_init_sysfs();
 	sysedp_init_debugfs();
+
+	for (i = 0; i < pdata->consumer_data_size; i++) {
+		if (pdata->consumer_data[i].always_on) {
+			struct sysedp_consumer *sysedpc;
+			struct device_node *dn = pdata->consumer_data[i].dn;
+
+			sysedpc = sysedp_create_consumer(dn, dn->name);
+			if (sysedpc)
+				sysedpc->state =
+					pdata->consumer_data[i].num_states - 1;
+		}
+	}
+
 	return 0;
 }
 
