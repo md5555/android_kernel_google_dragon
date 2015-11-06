@@ -73,7 +73,6 @@ pvrsrvkm-y += \
  handle_idr.o \
  mm.o \
  module_common.o \
- mtk_module.o \
  osconnection_server.o \
  osfunc.o \
  ossecure_export.o \
@@ -95,10 +94,7 @@ pvrsrvkm-y += \
  sync.o \
  tlclient.o \
  uniq_key_splay_tree.o \
- rgx_compat_bvnc.o \
- mt8173/mt8173_mfgdvfs.o \
- mt8173/mt8173_mfgsys.o \
- mt8173/mt8173_sysconfig.o
+ rgx_compat_bvnc.o
 pvrsrvkm-$(CONFIG_DRM_POWERVR_ROGUE_DEBUG) += \
  client_devicememhistory_bridge.o \
  server_devicememhistory_bridge.o \
