@@ -2101,6 +2101,8 @@ static const struct tegra_mc_flush tegra210_mc_flush[] = {
 	{TEGRA_SWGROUP_APE,        0x970, 0x974,  6},
 	{TEGRA_SWGROUP_SE,         0x970, 0x974,  7},
 	{TEGRA_SWGROUP_NVJPG,      0x970, 0x974,  8},
+	{TEGRA_SWGROUP_AXIAP,      0x970, 0x974, 11},
+	{TEGRA_SWGROUP_ETR,        0x970, 0x974, 12},
 	{TEGRA_SWGROUP_TSECB,      0x970, 0x974, 13},
 };
 
