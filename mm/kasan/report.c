@@ -212,6 +212,7 @@ void kasan_report_user_access(struct kasan_access_info *info)
 	dump_stack();
 	pr_err("================================="
 		"=================================\n");
+	add_taint(TAINT_BAD_PAGE, LOCKDEP_NOW_UNRELIABLE);
 	spin_unlock_irqrestore(&report_lock, flags);
 }
 
