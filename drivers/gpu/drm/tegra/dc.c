@@ -1918,7 +1918,7 @@ static void calc_disp_params(struct drm_crtc *crtc,
 
 	if (tegra_dc_format_is_yuv(tps->format, &planar)) {
 		yuv = true;
-		bytes_per_pixel = 2;
+		bytes_per_pixel = 2 * tp->base.fb->bits_per_pixel / 8;
 	} else {
 		yuv = false;
 		bytes_per_pixel = tps->base.fb->bits_per_pixel / 8;
@@ -1932,12 +1932,14 @@ static void calc_disp_params(struct drm_crtc *crtc,
 		win_rotated = true;
 		surface_width = tps->base.src_h >> 16;
 		vertical_scaling_enabled =
-			(tps->base.src_w == tps->base.crtc_w) ? false : true;
+			((tps->base.src_w >> 16) == tps->base.crtc_w) ?
+				false : true;
 	} else {
 		win_rotated = false;
 		surface_width = tps->base.src_w >> 16;
 		vertical_scaling_enabled =
-			(tps->base.src_h == tps->base.crtc_h) ? false : true;
+			((tps->base.src_h >> 16) == tps->base.crtc_h) ?
+				false : true;
 	}
 
 	if ((dci->line_buf_sz_bytes == 0) || (pitch == true)) {
@@ -1977,7 +1979,9 @@ static void calc_disp_params(struct drm_crtc *crtc,
 	}
 
 	if ((((tps->format == WIN_COLOR_DEPTH_YCbCr420P) ||
-	      (tps->format == WIN_COLOR_DEPTH_YUV420P)) &&
+	      (tps->format == WIN_COLOR_DEPTH_YUV420P) ||
+	      (tps->format == WIN_COLOR_DEPTH_YCrCb420SP) ||
+	      (tps->format == WIN_COLOR_DEPTH_YCbCr420SP)) &&
 	    !win_rotated) || (yuv && win_rotated)) {
 		c2 = 3;
 	} else {
@@ -1993,6 +1997,8 @@ static void calc_disp_params(struct drm_crtc *crtc,
 	/* YUV 420 case*/
 	case WIN_COLOR_DEPTH_YCbCr420P:
 	case WIN_COLOR_DEPTH_YUV420P:
+	case WIN_COLOR_DEPTH_YCrCb420SP:
+	case WIN_COLOR_DEPTH_YCbCr420SP:
 		c1_fp = (win_rotated) ?  LA_REAL_TO_FP(2) : LA_REAL_TO_FP(3);
 		break;
 
@@ -2045,8 +2051,8 @@ static void calc_disp_params(struct drm_crtc *crtc,
 	bw_other_wins = total_active_space_bw - bw_mbps;
 
 	if (num_wins > 0) {
-		fill_rate_other_wins_fp = bw_display_fp -
-					  LA_REAL_TO_FP(bw_other_wins);
+		fill_rate_other_wins_fp = bw_display_fp * (num_wins - 1) /
+			       num_wins - LA_REAL_TO_FP(bw_other_wins);
 	} else {
 		fill_rate_other_wins_fp = 0;
 	}
@@ -2093,7 +2099,8 @@ static int tegra_dc_set_latency_allowance(struct drm_crtc *crtc,
 
 		tps = to_tegra_plane_state(plane->state);
 		num_wins++;
-		total_active_space_bw += tps->plane_emc_bw;
+		total_active_space_bw +=
+			DIV_ROUND_UP(tps->plane_emc_bw, 1000);
 	}
 
 	for_each_plane_in_state(old_state, plane, unused, i) {
@@ -2106,6 +2113,9 @@ static int tegra_dc_set_latency_allowance(struct drm_crtc *crtc,
 
 		emc_freq_hz = tegra_emc_bw_to_freq_req(tps->plane_emc_bw) *
 			      1000;
+		if (!emc_freq_hz)
+			continue;
+
 		/*
 		 * use clk_round_rate on root emc clock instead to
 		 * get correct rate.
@@ -2132,8 +2142,11 @@ static int tegra_dc_set_latency_allowance(struct drm_crtc *crtc,
 						  tps->plane_emc_bw,
 						  disp_params);
 			if (!err) {
-				if (emc_freq_hz > emc_la_freq_hz)
+				if (emc_freq_hz > emc_la_freq_hz) {
 					emc_la_freq_hz = emc_freq_hz;
+					clk_set_rate(dc->emc_la_clk,
+						emc_la_freq_hz);
+				}
 				break;
 			}
 
@@ -2146,8 +2159,6 @@ static int tegra_dc_set_latency_allowance(struct drm_crtc *crtc,
 		}
 	}
 
-	emc_la_freq_hz = clk_round_rate(emc, emc_la_freq_hz);
-	clk_set_rate(dc->emc_la_clk, emc_la_freq_hz);
 	return 0;
 }
 
