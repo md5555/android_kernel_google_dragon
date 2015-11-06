@@ -46,6 +46,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 #include <linux/platform_device.h>
+#include <linux/pm_opp.h>
 
 #include "physheap.h"
 #include "pvrsrv_device.h"
@@ -122,35 +123,55 @@ static void SetVoltage(IMG_UINT32 ui64Volt)
 	MTKSysSetVolt((struct mtk_mfg_base *)gsDevice.hSysData, ui64Volt);
 }
 
-static int SetupDVFSInfo(void *hDevice, PVRSRV_DVFS *hDVFS)
+static int SetupDVFSInfo(struct device *dev, PVRSRV_DVFS *hDVFS)
 {
-	struct platform_device *pDevice = hDevice;
 	struct mtk_mfg_base *mfg_base;
 	IMG_OPP *opp_table;
 	IMG_DVFS_DEVICE_CFG *img_dvfs_cfg;
 	int i;
+	int count;
+	unsigned long freq;
 
-	mfg_base = pDevice->dev.platform_data;
+	mfg_base = dev->platform_data;
 
-	opp_table = devm_kcalloc(&pDevice->dev,
-				 mfg_base->fv_table_length,
-				 sizeof(*opp_table),
-				 GFP_KERNEL);
-	if (!opp_table)
+	/* Start RCU read-side critical section to access device opp_list. */
+	rcu_read_lock();
+	count = dev_pm_opp_get_opp_count(dev);
+	if (count < 0) {
+		dev_err(dev, "Could not fetch OPP count, %d\n", count);
+		rcu_read_unlock();
+		return count;
+	}
+
+	opp_table = devm_kcalloc(dev, count, sizeof(*opp_table), GFP_KERNEL);
+	if (!opp_table) {
+		rcu_read_unlock();
 		return -ENOMEM;
+	}
 
 	img_dvfs_cfg = &hDVFS->sDVFSDeviceCfg;
 
-	for (i = 0; i < mfg_base->fv_table_length; ++i) {
-		opp_table[i].ui32Freq = mfg_base->fv_table[i].freq;
-		opp_table[i].ui32Volt = mfg_base->fv_table[i].volt;
+	/*
+	 * Iterate over OPP table.
+	 * Iteration 0 finds "opp w/ freq >= 0 Hz".
+	 * Iteration n > 0 finds "opp w/ freq >= (opp[n-1].freq + 1)".
+	 */
+	for (i = 0, freq = 0; i < count; i++, freq++) {
+		struct dev_pm_opp *opp = dev_pm_opp_find_freq_ceil(dev, &freq);
+
+		opp_table[i].ui32Freq = freq / 1000;
+		opp_table[i].ui32Volt = dev_pm_opp_get_voltage(opp);
+
+		dev_info(dev, "opp[%d/%d]: (%u kHz, %u uV)\n", i + 1, count,
+			 opp_table[i].ui32Freq, opp_table[i].ui32Volt);
 	}
+	rcu_read_unlock();
 
 	img_dvfs_cfg->bIdleReq = IMG_FALSE;
 	img_dvfs_cfg->pasOPPTable = opp_table;
-	img_dvfs_cfg->ui32OPPTableSize = mfg_base->fv_table_length;
+	img_dvfs_cfg->ui32OPPTableSize = count;
 	img_dvfs_cfg->ui32FreqMin = opp_table[0].ui32Freq;
-	img_dvfs_cfg->ui32FreqMax = opp_table[mfg_base->fv_table_length - 1].ui32Freq;
+	img_dvfs_cfg->ui32FreqMax = opp_table[count - 1].ui32Freq;
 	img_dvfs_cfg->pfnSetFrequency = SetFrequency;
 	img_dvfs_cfg->pfnSetVoltage = SetVoltage;
 	img_dvfs_cfg->ui32PollMs = MTK_DVFS_SWITCH_INTERVAL;
@@ -226,7 +247,7 @@ PVRSRV_ERROR SysCreateConfigData(PVRSRV_SYSTEM_CONFIG **ppsSysConfig, void *hDev
 		return PVRSRV_ERROR_INIT_FAILURE;
 	}
 
-	ret = SetupDVFSInfo(hDevice, &gsDevice.sDVFS);
+	ret = SetupDVFSInfo(&pDevice->dev, &gsDevice.sDVFS);
 	if (ret)
 		return PVRSRV_ERROR_INIT_FAILURE;
 

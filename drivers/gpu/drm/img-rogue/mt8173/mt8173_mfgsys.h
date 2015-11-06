@@ -30,13 +30,6 @@
 #else
 #define mtk_mfg_debug(fmt, args...) do { } while (0)
 #endif
-/*
- * freq : khz, volt : uV
- */
-struct mfgsys_fv_table {
-	u32 freq;
-	u32 volt;
-};
 
 struct mtk_mfg_base {
 	struct platform_device *pdev;
@@ -50,8 +43,6 @@ struct mtk_mfg_base {
 	/* for gpu device freq/volt update */
 	struct regulator *vgpu;
 	struct clk *mmpll;
-	struct mfgsys_fv_table *fv_table;
-	u32  fv_table_length;
 
 	u32 curr_freq; /* kHz */
 	u32 curr_volt; /* uV  */

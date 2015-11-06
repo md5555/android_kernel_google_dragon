@@ -19,6 +19,7 @@
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 #include <linux/platform_device.h>
+#include <linux/pm_opp.h>
 #include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
 
@@ -140,57 +141,6 @@ static void mtk_mfg_disable_hw_apm(struct mtk_mfg_base *mfg_base)
 	writel(0x00, mfg_base->reg_base + 0xa0);
 }
 
-static int mtk_mfg_get_opp_table(struct platform_device *pdev,
-				 struct mtk_mfg_base *mfg_base)
-{
-	const struct property *prop;
-	int i, nr;
-	const __be32 *val;
-
-	prop = of_find_property(pdev->dev.of_node, "operating-points", NULL);
-	if (!prop) {
-		dev_err(&pdev->dev, "failed to fail operating-points\n");
-		return -ENODEV;
-	}
-
-	if (!prop->value) {
-		dev_err(&pdev->dev, "failed to get fv array data\n");
-		return -ENODATA;
-	}
-
-	/*
-	 * Each OPP is a set of tuples consisting of frequency and
-	 * voltage like <freq-kHz vol-uV>.
-	 */
-	nr = prop->length / sizeof(u32);
-	if (nr % 2) {
-		dev_err(&pdev->dev, "Invalid OPP list\n");
-		return -EINVAL;
-	}
-
-	mfg_base->fv_table_length = nr / 2;
-	mfg_base->fv_table = devm_kcalloc(&pdev->dev,
-					  mfg_base->fv_table_length,
-					  sizeof(*mfg_base->fv_table),
-					  GFP_KERNEL);
-	if (!mfg_base->fv_table)
-		return -ENOMEM;
-
-	val = prop->value;
-
-	for (i = 0; i < mfg_base->fv_table_length; ++i) {
-		u32 freq = be32_to_cpup(val++);
-		u32 volt = be32_to_cpup(val++);
-
-		mfg_base->fv_table[i].freq = freq;
-		mfg_base->fv_table[i].volt = volt;
-
-		dev_info(&pdev->dev, "freq:%d kHz volt:%d uV\n", freq, volt);
-	}
-
-	return 0;
-}
-
 static int mtk_mfg_bind_device_resource(struct platform_device *pdev,
 					struct mtk_mfg_base *mfg_base)
 {
@@ -237,14 +187,17 @@ static int mtk_mfg_bind_device_resource(struct platform_device *pdev,
 		goto err_iounmap_reg_base;
 	}
 
-	err = mtk_mfg_get_opp_table(pdev, mfg_base);
-	if (err)
+	err = of_init_opp_table(&pdev->dev);
+	if (err) {
+		dev_err(&pdev->dev, "failed to init opp table, %d\n", err);
 		goto err_regulator_disable;
+	}
 
 	pm_runtime_enable(&pdev->dev);
 	mfg_base->pdev = pdev;
 
 	return 0;
+
 err_regulator_disable:
 	regulator_disable(mfg_base->vgpu);
 err_iounmap_reg_base:
@@ -260,6 +213,7 @@ static void mtk_mfg_unbind_device_resource(struct platform_device *pdev,
 
 	mfg_base->pdev = NULL;
 	pm_runtime_disable(&pdev->dev);
+	of_free_opp_table(&pdev->dev);
 	regulator_disable(mfg_base->vgpu);
 	iounmap(mfg_base->reg_base);
 
