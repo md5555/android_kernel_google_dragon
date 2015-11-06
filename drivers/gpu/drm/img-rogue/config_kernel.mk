@@ -1,6 +1,7 @@
 override CACHEFLUSH_TYPE := CACHEFLUSH_GENERIC
 override PVRSRV_MODNAME := pvrsrvkm
 override PVR_BUILD_DIR := mt8173_linux
+override PVR_DVFS := 1
 override PVR_HANDLE_BACKEND := idr
 override PVR_SYSTEM := mt8173
 override SUPPORT_BUFFER_SYNC := 1
@@ -22,7 +23,4 @@ endif
 ifeq ($(CONFIG_DRM_POWERVR_ROGUE_KERNEL_SRVINIT),y)
 override RGX_FW_FILENAME := rgx.fw
 override SUPPORT_KERNEL_SRVINIT := 1
-endif
-ifeq ($(CONFIG_DRM_POWERVR_ROGUE_DVFS),y)
-override PVR_DVFS := 1
 endif

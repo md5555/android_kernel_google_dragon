@@ -85,6 +85,8 @@ pvrsrvkm-y += \
  pvr_debug.o \
  pvr_debugfs.o \
  pvr_drm.o \
+ pvr_dvfs_device.o \
+ pvr_dvfs_governor.o \
  devicemem.o \
  devicemem_utils.o \
  hash.o \
@@ -113,9 +115,6 @@ pvrsrvkm-$(CONFIG_DRM_POWERVR_ROGUE_KERNEL_SRVINIT) += \
  rgxsrvinit_script.o \
  os_srvinit_param.o \
  srvinit_km.o
-pvrsrvkm-$(CONFIG_DRM_POWERVR_ROGUE_DVFS) += \
- pvr_dvfs_device.o \
- pvr_dvfs_governor.o
 pvrsrvkm-$(CONFIG_X86) += osfunc_x86.o
 pvrsrvkm-$(CONFIG_ARM64) += osfunc_arm64.o
 pvrsrvkm-$(CONFIG_EVENT_TRACING) += trace_events.o

@@ -3,6 +3,8 @@ config DRM_POWERVR_ROGUE
 	depends on HAS_IOMEM
 	depends on DRM
 	select DRM_KMS_HELPER
+	select PM_DEVFREQ
+	select PM_OPP
 	help
 	  Driver for PowerVR Rogue graphics hardware.
 
@@ -15,15 +17,6 @@ config DRM_POWERVR_ROGUE_DEBUG
 	default n
 	help
 	  Add additional debug features to the PowerVR Rogue driver.
-
-config DRM_POWERVR_ROGUE_DVFS
-	bool "Enable DVFS in the Rogue debug driver"
-	depends on DRM_POWERVR_ROGUE
-	depends on PM_DEVFREQ
-	select PM_OPP
-	default n
-	help
-	  Include DVFS support in the PowerVR Rogue driver.
 
 config DRM_POWERVR_ROGUE_KERNEL_SRVINIT
 	bool "Enable PowerVR Rogue in-kernel firmware load."
