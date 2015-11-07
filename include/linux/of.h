@@ -106,6 +106,8 @@ static inline struct device_node *of_node_get(struct device_node *node)
 static inline void of_node_put(struct device_node *node) { }
 #endif /* !CONFIG_OF_DYNAMIC */
 
+#define OF_BAD_ADDR	((u64)-1)
+
 #ifdef CONFIG_OF
 
 /* Pointer for first entry in chain of all nodes. */
@@ -208,8 +210,6 @@ static inline unsigned long of_read_ulong(const __be32 *cell, int size)
 
 #define OF_IS_DYNAMIC(x) test_bit(OF_DYNAMIC, &x->_flags)
 #define OF_MARK_DYNAMIC(x) set_bit(OF_DYNAMIC, &x->_flags)
-
-#define OF_BAD_ADDR	((u64)-1)
 
 static inline const char *of_node_full_name(const struct device_node *np)
 {
