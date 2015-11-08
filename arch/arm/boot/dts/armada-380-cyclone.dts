@@ -136,6 +136,12 @@
 				vcc-supply = <&reg_usb3_vbus>;
 				status = "okay";
 			};
+
+			sdhci@d8000 {
+				no-1-8-v;
+				bus-width = <4>;
+				status = "okay";
+			};
 		};
 
 		pcie-controller {
