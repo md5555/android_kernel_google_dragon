@@ -141,6 +141,25 @@ static void mtk_mfg_disable_hw_apm(struct mtk_mfg *mfg)
 	writel(0x00, mfg->reg_base + 0xa0);
 }
 
+static int mtk_mfg_enable(struct mtk_mfg *mfg)
+{
+	int ret;
+
+	ret = mtk_mfg_enable_clock(mfg);
+	if (ret)
+		return ret;
+
+	mtk_mfg_enable_hw_apm(mfg);
+
+	return 0;
+}
+
+static void mtk_mfg_disable(struct mtk_mfg *mfg)
+{
+	mtk_mfg_disable_hw_apm(mfg);
+	mtk_mfg_disable_clock(mfg);
+}
+
 static int mtk_mfg_bind_device_resource(struct platform_device *pdev,
 					struct mtk_mfg *mfg)
 {
@@ -235,10 +254,8 @@ PVRSRV_ERROR MTKSysDevPrePowerState(PVRSRV_DEV_POWER_STATE eNewPowerState,
 	mutex_lock(&mfg->set_power_state);
 
 	if ((PVRSRV_DEV_POWER_STATE_OFF == eNewPowerState) &&
-	    (PVRSRV_DEV_POWER_STATE_ON == eCurrentPowerState)) {
-		mtk_mfg_disable_hw_apm(mfg);
-		mtk_mfg_disable_clock(mfg);
-	}
+	    (PVRSRV_DEV_POWER_STATE_ON == eCurrentPowerState))
+		mtk_mfg_disable(mfg);
 
 	mutex_unlock(&mfg->set_power_state);
 	return PVRSRV_OK;
@@ -258,11 +275,10 @@ PVRSRV_ERROR MTKSysDevPostPowerState(PVRSRV_DEV_POWER_STATE eNewPowerState,
 
 	if ((PVRSRV_DEV_POWER_STATE_ON == eNewPowerState) &&
 	    (PVRSRV_DEV_POWER_STATE_OFF == eCurrentPowerState)) {
-		if (mtk_mfg_enable_clock(mfg)) {
+		if (mtk_mfg_enable(mfg)) {
 			ret = PVRSRV_ERROR_DEVICE_POWER_CHANGE_FAILURE;
 			goto done;
 		}
-		mtk_mfg_enable_hw_apm(mfg);
 	}
 
 	ret = PVRSRV_OK;
