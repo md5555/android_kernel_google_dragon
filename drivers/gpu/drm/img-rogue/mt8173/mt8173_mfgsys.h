@@ -15,7 +15,7 @@
 #ifndef MT8173_MFGSYS_H
 #define MT8173_MFGSYS_H
 
-#include <linux/platform_device.h>
+#include <linux/device.h>
 
 /* unit ms, timeout interval for DVFS detection */
 #define MTK_DVFS_SWITCH_INTERVAL  300
@@ -44,9 +44,6 @@ struct mtk_mfg {
 	/* for gpu device freq/volt update */
 	struct regulator *vgpu;
 	struct clk *mmpll;
-
-	u32 curr_freq; /* kHz */
-	u32 curr_volt; /* uV  */
 };
 
 
@@ -57,7 +54,7 @@ void MTKMFGBaseDeInit(struct device *dev);
 int mtk_mfg_enable(struct mtk_mfg *mfg);
 void mtk_mfg_disable(struct mtk_mfg *mfg);
 
-void MTKSysSetFreq(struct mtk_mfg *mfg, u32 freq);
-void MTKSysSetVolt(struct mtk_mfg *mfg, u32 volt);
+int mtk_mfg_freq_set(struct mtk_mfg *mfg, unsigned long freq);
+int mtk_mfg_volt_set(struct mtk_mfg *mfg, int volt);
 
 #endif /* MT8173_MFGSYS_H*/

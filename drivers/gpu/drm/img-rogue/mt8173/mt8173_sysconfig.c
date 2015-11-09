@@ -164,14 +164,19 @@ done:
 	return ret;
 }
 
-static void SetFrequency(IMG_UINT32 ui64Freq)
+static void SetFrequency(IMG_UINT32 freq)
 {
-	MTKSysSetFreq(gsDevice.hSysData, ui64Freq);
+	struct mtk_mfg *mfg = gsDevice.hSysData;
+
+	/* freq is in kHz */
+	mtk_mfg_freq_set(mfg, freq * 1000);
 }
 
-static void SetVoltage(IMG_UINT32 ui64Volt)
+static void SetVoltage(IMG_UINT32 volt)
 {
-	MTKSysSetVolt(gsDevice.hSysData, ui64Volt);
+	struct mtk_mfg *mfg = gsDevice.hSysData;
+
+	mtk_mfg_volt_set(mfg, volt);
 }
 
 static int SetupDVFSInfo(struct device *dev, PVRSRV_DVFS *hDVFS)

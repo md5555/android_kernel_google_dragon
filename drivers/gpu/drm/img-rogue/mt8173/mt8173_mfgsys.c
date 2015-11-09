@@ -11,8 +11,8 @@
 * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 * GNU General Public License for more details.
 */
+
 #include <linux/clk.h>
-#include <linux/delay.h>
 #include <linux/io.h>
 #include <linux/mutex.h>
 #include <linux/of.h>
@@ -23,7 +23,6 @@
 #include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
 
-#include "mt8173_mfgdvfs.h"
 #include "mt8173_mfgsys.h"
 
 static const char * const top_mfg_clk_name[] = {
@@ -153,6 +152,38 @@ void mtk_mfg_disable(struct mtk_mfg *mfg)
 {
 	mtk_mfg_disable_hw_apm(mfg);
 	mtk_mfg_disable_clock(mfg);
+}
+
+int mtk_mfg_freq_set(struct mtk_mfg *mfg, unsigned long freq)
+{
+	int ret;
+
+	ret = clk_set_rate(mfg->mmpll, freq);
+	if (ret) {
+		dev_err(mfg->dev, "Set freq to %lu Hz failed, %d\n",
+			freq, ret);
+		return ret;
+	}
+
+	dev_dbg(mfg->dev, "Freq set to %lu Hz\n", freq);
+
+	return 0;
+}
+
+int mtk_mfg_volt_set(struct mtk_mfg *mfg, int volt)
+{
+	int ret;
+
+	ret = regulator_set_voltage(mfg->vgpu, volt, volt);
+	if (ret != 0) {
+		dev_err(mfg->dev, "Set voltage to %u uV failed, %d\n",
+			volt, ret);
+		return ret;
+	}
+
+	dev_dbg(mfg->dev, "Voltage set to %d uV\n", volt);
+
+	return 0;
 }
 
 static int mtk_mfg_bind_device_resource(struct mtk_mfg *mfg)
