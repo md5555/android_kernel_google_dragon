@@ -2613,6 +2613,9 @@ gm20b_pmu_fini(struct nvkm_object *object, bool suspend)
 		gk20a_pmu_enable(priv, pmc, false);
 		priv->isr_enabled = false;
 		mutex_unlock(&priv->isr_mutex);
+		mutex_lock(&priv->elpg_mutex);
+		priv->elpg_disable_depth = 0;
+		mutex_unlock(&priv->elpg_mutex);
 		priv->pmu_state = PMU_STATE_OFF;
 		mutex_lock(&priv->clk_gating_mutex);
 		priv->clk_gating_disable_depth = 0;
@@ -2691,11 +2694,7 @@ gm20b_pmu_init(struct nvkm_object *object) {
 	priv->pmu_setup_elpg = gm20b_pmu_setup_elpg;
 
 	mutex_lock(&priv->elpg_mutex);
-	/*
-	 * ELPG will be enabled when PMU finishes booting, so setting the
-	 * counter to 1 initialy.
-	 */
-	priv->elpg_disable_depth = 1;
+	priv->elpg_disable_depth = 0;
 	mutex_unlock(&priv->elpg_mutex);
 
 	mutex_lock(&priv->clk_gating_mutex);

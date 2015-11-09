@@ -3182,11 +3182,7 @@ gk20a_pmu_init(struct nvkm_object *object)
 	nvkm_timer_alarm(priv, PMU_DVFS_INTERVAL, &priv->alarm);
 
 	mutex_lock(&priv->elpg_mutex);
-	/*
-	 * ELPG will be enabled when PMU finishes booting, so setting the
-	 * counter to 1 initialy.
-	 */
-	priv->elpg_disable_depth = 1;
+	priv->elpg_disable_depth = 0;
 	mutex_unlock(&priv->elpg_mutex);
 
 	mutex_lock(&priv->clk_gating_mutex);
@@ -3207,6 +3203,10 @@ gk20a_pmu_fini(struct nvkm_object *object, bool suspend)
 
 	cancel_work_sync(&priv->base.recv.work);
 	cancel_work_sync(&priv->pg_init);
+
+	mutex_lock(&priv->elpg_mutex);
+	priv->elpg_disable_depth = 0;
+	mutex_unlock(&priv->elpg_mutex);
 
 	mutex_lock(&priv->clk_gating_mutex);
 	priv->clk_gating_disable_depth = 0;
