@@ -145,10 +145,11 @@ static int mtk_mfg_bind_device_resource(struct platform_device *pdev,
 					struct mtk_mfg_base *mfg_base)
 {
 	int i, err;
-	int len = sizeof(struct clk *) * MAX_TOP_MFG_CLK;
 	struct resource *res;
 
-	mfg_base->top_clk = devm_kzalloc(&pdev->dev, len, GFP_KERNEL);
+	mfg_base->top_clk = devm_kcalloc(&pdev->dev, MAX_TOP_MFG_CLK,
+					 sizeof(*mfg_base->top_clk),
+					 GFP_KERNEL);
 	if (!mfg_base->top_clk)
 		return -ENOMEM;
 
