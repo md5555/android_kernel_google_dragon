@@ -15,12 +15,12 @@
 #ifndef MT8173_MFGSYS_H
 #define MT8173_MFGSYS_H
 
-#include "servicesext.h"
-#include "rgxdevice.h"
-
 #include <linux/platform_device.h>
 
-/*  unit ms, timeout interval for DVFS detection */
+#include "rgxdevice.h"
+#include "servicesext.h"
+
+/* unit ms, timeout interval for DVFS detection */
 #define MTK_DVFS_SWITCH_INTERVAL  300
 
 #define ENABLE_MTK_MFG_DEBUG 0
@@ -59,7 +59,7 @@ struct mtk_mfg_base {
 };
 
 
-/*used in mtk_module.c  */
+/* used in mtk_module.c  */
 int MTKMFGBaseInit(struct platform_device *pdev);
 int MTKMFGBaseDeInit(struct platform_device *pdev);
 

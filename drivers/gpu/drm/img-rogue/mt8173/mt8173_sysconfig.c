@@ -41,24 +41,26 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */ /**************************************************************************/
 
-#include "pvrsrv_device.h"
-#include "syscommon.h"
-#include "physheap.h"
-#include "mt8173_mfgsys.h"
 #include <linux/interrupt.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 #include <linux/platform_device.h>
 
+#include "physheap.h"
+#include "pvrsrv_device.h"
+#include "syscommon.h"
+
+#include "mt8173_mfgsys.h"
+
 #define SYS_RGX_ACTIVE_POWER_LATENCY_MS 100
 #define RGX_HW_SYSTEM_NAME "RGX HW"
 #define RGX_HW_CORE_CLOCK_SPEED 395000000
 
 static RGX_TIMING_INFORMATION	gsRGXTimingInfo;
-static RGX_DATA					gsRGXData;
+static RGX_DATA			gsRGXData;
 static PVRSRV_DEVICE_CONFIG	gsDevice;
-static PVRSRV_SYSTEM_CONFIG 	gsSysConfig;
+static PVRSRV_SYSTEM_CONFIG	gsSysConfig;
 
 static PHYS_HEAP_FUNCTIONS	gsPhysHeapFuncs;
 static PHYS_HEAP_CONFIG		gsPhysHeapConfig;
@@ -71,48 +73,42 @@ static IMG_UINT32 gauiBIFTilingHeapXStrides[RGXFWIF_NUM_BIF_TILING_CONFIGS] = {
 };
 
 /*
-	CPU to Device physcial address translation
-*/
+ * CPU to Device physical address translation
+ */
 static
 void UMAPhysHeapCpuPAddrToDevPAddr(IMG_HANDLE hPrivData,
-								   IMG_UINT32 ui32NumOfAddr,
-								   IMG_DEV_PHYADDR *psDevPAddr,
-								   IMG_CPU_PHYADDR *psCpuPAddr)
+				   IMG_UINT32 ui32NumOfAddr,
+				   IMG_DEV_PHYADDR *psDevPAddr,
+				   IMG_CPU_PHYADDR *psCpuPAddr)
 {
 	PVR_UNREFERENCED_PARAMETER(hPrivData);
-	
+
 	/* Optimise common case */
 	psDevPAddr[0].uiAddr = psCpuPAddr[0].uiAddr;
-	if (ui32NumOfAddr > 1)
-	{
+	if (ui32NumOfAddr > 1) {
 		IMG_UINT32 ui32Idx;
 		for (ui32Idx = 1; ui32Idx < ui32NumOfAddr; ++ui32Idx)
-		{
 			psDevPAddr[ui32Idx].uiAddr = psCpuPAddr[ui32Idx].uiAddr;
-		}
 	}
 }
 
 /*
-	Device to CPU physcial address translation
-*/
+ * Device to CPU physical address translation
+ */
 static
 void UMAPhysHeapDevPAddrToCpuPAddr(IMG_HANDLE hPrivData,
-								   IMG_UINT32 ui32NumOfAddr,
-								   IMG_CPU_PHYADDR *psCpuPAddr,
-								   IMG_DEV_PHYADDR *psDevPAddr)
+				   IMG_UINT32 ui32NumOfAddr,
+				   IMG_CPU_PHYADDR *psCpuPAddr,
+				   IMG_DEV_PHYADDR *psDevPAddr)
 {
 	PVR_UNREFERENCED_PARAMETER(hPrivData);
 
 	/* Optimise common case */
 	psCpuPAddr[0].uiAddr = psDevPAddr[0].uiAddr;
-	if (ui32NumOfAddr > 1)
-	{
+	if (ui32NumOfAddr > 1) {
 		IMG_UINT32 ui32Idx;
 		for (ui32Idx = 1; ui32Idx < ui32NumOfAddr; ++ui32Idx)
-		{
 			psCpuPAddr[ui32Idx].uiAddr = psDevPAddr[ui32Idx].uiAddr;
-		}
 	}
 }
 
@@ -145,7 +141,6 @@ void SetupDVFSInfo(void *hDevice, PVRSRV_DVFS *hDVFS)
 				 mfg_base->fv_table_length,
 				 sizeof(*opp_table),
 				 GFP_KERNEL);
-
 	if (!opp_table)
 		return;
 
@@ -212,9 +207,6 @@ IMG_UINT32 GetStaticPower(IMG_UINT32 voltage, IMG_INT32 temperature)
 }
 #endif
 
-/*
-	SysCreateConfigData
-*/
 PVRSRV_ERROR SysCreateConfigData(PVRSRV_SYSTEM_CONFIG **ppsSysConfig, void *hDevice)
 {
 	struct platform_device *pDevice = hDevice;
@@ -226,9 +218,7 @@ PVRSRV_ERROR SysCreateConfigData(PVRSRV_SYSTEM_CONFIG **ppsSysConfig, void *hDev
 		return PVRSRV_ERROR_INIT_FAILURE;
 	}
 
-	/*
-	 * Setup information about physaical memory heap(s) we have
-	 */
+	/* Setup information about physical memory heap(s) we have */
 	gsPhysHeapFuncs.pfnCpuPAddrToDevPAddr = UMAPhysHeapCpuPAddrToDevPAddr;
 	gsPhysHeapFuncs.pfnDevPAddrToCpuPAddr = UMAPhysHeapDevPAddrToCpuPAddr;
 
@@ -242,38 +232,29 @@ PVRSRV_ERROR SysCreateConfigData(PVRSRV_SYSTEM_CONFIG **ppsSysConfig, void *hDev
 
 	gsSysConfig.pasPhysHeaps = &gsPhysHeapConfig;
 	gsSysConfig.ui32PhysHeapCount = 1;
-/*
-add for new DDK 1.1.2550513
-*/
 	gsSysConfig.pui32BIFTilingHeapConfigs = gauiBIFTilingHeapXStrides;
 	gsSysConfig.ui32BIFTilingHeapCount = IMG_ARR_NUM_ELEMS(gauiBIFTilingHeapXStrides);
 
-	/*
-	 * Setup RGX specific timing data
-	 */
-	gsRGXTimingInfo.ui32CoreClockSpeed        = RGX_HW_CORE_CLOCK_SPEED;
+	/* Setup RGX specific timing data */
+	gsRGXTimingInfo.ui32CoreClockSpeed = RGX_HW_CORE_CLOCK_SPEED;
 
-	gsRGXTimingInfo.bEnableActivePM           = IMG_TRUE;
-	gsRGXTimingInfo.ui32ActivePMLatencyms       = SYS_RGX_ACTIVE_POWER_LATENCY_MS;
+	gsRGXTimingInfo.bEnableActivePM = IMG_TRUE;
+	gsRGXTimingInfo.ui32ActivePMLatencyms = SYS_RGX_ACTIVE_POWER_LATENCY_MS;
 
 	/* for HWAPM enable */
-	gsRGXTimingInfo.bEnableRDPowIsland    = IMG_TRUE;
+	gsRGXTimingInfo.bEnableRDPowIsland = IMG_TRUE;
 
-	/*
-	 *Setup RGX specific data
-	 */
+	/* Setup RGX specific data */
 	gsRGXData.psRGXTimingInfo = &gsRGXTimingInfo;
 
-	/*
-	 * Setup RGX device
-	 */
+	/* Setup RGX device */
 	gsDevice.eDeviceType = PVRSRV_DEVICE_TYPE_RGX;
 	gsDevice.pszName = "RGX";
 
 	irq_res = platform_get_resource(pDevice, IORESOURCE_IRQ, 0);
 	if (irq_res) {
 		gsDevice.ui32IRQ = irq_res->start;
-		gsDevice.bIRQIsShared  = IMG_FALSE;
+		gsDevice.bIRQIsShared = IMG_FALSE;
 		gsDevice.eIRQActiveLevel = PVRSRV_DEVICE_IRQ_ACTIVE_LOW;
 	} else {
 		PVR_DPF((PVR_DBG_ERROR, "irq_res = NULL!"));
@@ -306,31 +287,28 @@ add for new DDK 1.1.2550513
 	gsDevice.aui32PhysHeapID[PVRSRV_DEVICE_PHYS_HEAP_CPU_LOCAL] = 0;
 	gsDevice.aui32PhysHeapID[PVRSRV_DEVICE_PHYS_HEAP_FW_LOCAL] = 0;
 
-	/*  power management on  HW system */
+	/* power management on  HW system */
 	gsDevice.pfnPrePowerState = MTKSysDevPrePowerState;
 	gsDevice.pfnPostPowerState = MTKSysDevPostPowerState;
 
-	/*  clock frequency  */
+	/* clock frequency */
 	gsDevice.pfnClockFreqGet = NULL;
 
-	/*  interrupt handled  */
+	/* interrupt handled */
 	gsDevice.pfnInterruptHandled = NULL;
 
 	gsDevice.hDevData = &gsRGXData;
 
-	/*
-	 * Setup system config
-	 */
+	/* Setup system config */
 	gsSysConfig.pszSystemName = RGX_HW_SYSTEM_NAME;
 	gsSysConfig.uiDeviceCount = 1;
 	gsSysConfig.pasDevices = &gsDevice;
 
-	/*  power management on  HW system */
+	/* power management on HW system */
 	gsSysConfig.pfnSysPrePowerState = MTKSystemPrePowerState;
 	gsSysConfig.pfnSysPostPowerState = MTKSystemPostPowerState;
 
-	/*  cache snooping */
-	//gsSysConfig.bHasCacheSnooping = IMG_FALSE; // new DDK has new variable
+	/* cache snooping */
 	gsSysConfig.eCacheSnoopingMode = 0;
 
 	gsSysConfig.uiSysFlags = 0;
@@ -341,17 +319,13 @@ add for new DDK 1.1.2550513
 	return PVRSRV_OK;
 }
 
-
-/*
-	SysDestroyConfigData
-*/
 void SysDestroyConfigData(PVRSRV_SYSTEM_CONFIG *psSysConfig)
 {
 	PVR_UNREFERENCED_PARAMETER(psSysConfig);
 }
 
 PVRSRV_ERROR SysDebugInfo(PVRSRV_SYSTEM_CONFIG *psSysConfig,
-						  DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf)
+			  DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf)
 {
 	PVR_UNREFERENCED_PARAMETER(psSysConfig);
 	PVR_UNREFERENCED_PARAMETER(pfnDumpDebugPrintf);
@@ -363,7 +337,3 @@ SYS_PHYS_ADDRESS_MASK SysDevicePhysAddressMask(void)
 {
 	return SYS_PHYS_ADDRESS_64_BIT;
 }
-
-/******************************************************************************
- End of file (sysconfig.c)
-******************************************************************************/

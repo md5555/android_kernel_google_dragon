@@ -40,19 +40,20 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */ /**************************************************************************/
 
-#include <linux/version.h>
-#include <linux/module.h>
-#include <linux/device.h>
-#include <linux/dma-mapping.h>
 #include <drm/drmP.h>
+#include <linux/dma-mapping.h>
+#include <linux/device.h>
+#include <linux/module.h>
+#include <linux/version.h>
+
+#include "module_common.h"
 #include "pvr_debug.h"
-#include "srvkm.h"
+#include "pvr_drm.h"
 #include "pvrmodule.h"
 #include "linkage.h"
-#include "sysinfo.h"
-#include "module_common.h"
+#include "srvkm.h"
 #include "syscommon.h"
-#include "pvr_drm.h"
+#include "sysinfo.h"
 #include "mt8173/mt8173_mfgsys.h"
 
 #if defined(SUPPORT_SHARED_SLC)
@@ -89,7 +90,7 @@ static const struct of_device_id mt_powervr_of_match[] = {
 	{},
 };
 
-MODULE_DEVICE_TABLE(of,mt_powervr_of_match);
+MODULE_DEVICE_TABLE(of, mt_powervr_of_match);
 
 static struct platform_driver powervr_driver = {
 	.driver = {
@@ -125,15 +126,12 @@ int PVRSRVSystemInit(struct drm_device *pDrmDevice)
 	PVR_TRACE(("PVRSRVSystemInit (pDevice=%p)", pDevice));
 
 	/* PVRSRVInit is only designed to be called once */
-	if (bCalledSysInit == IMG_FALSE)
-	{
+	if (bCalledSysInit == IMG_FALSE) {
 		gpsPVRLDMDev = pDevice;
 		bCalledSysInit = IMG_TRUE;
 
 		if (PVRSRVInit(pDevice) != PVRSRV_OK)
-		{
 			return -ENODEV;
-		}
 	}
 
 	return 0;
@@ -175,10 +173,10 @@ void PVRSRVSystemDeInit(struct platform_device *pDevice)
 static int PVRSRVDriverProbe(struct platform_device *pDevice)
 {
 	int result = 0;
+
 	PVR_TRACE(("PVRSRVDriverProbe (pDevice=%p)", pDevice));
 
-	if (OSStringCompare(pDevice->name,DEVNAME) != 0)
-	{
+	if (OSStringCompare(pDevice->name, DEVNAME) != 0) {
 		result = MTKMFGBaseInit(pDevice);
 		if (result != 0)
 			return result;
@@ -187,9 +185,7 @@ static int PVRSRVDriverProbe(struct platform_device *pDevice)
 	result = drm_platform_init(&sPVRDRMDriver, pDevice);
 
 	if (result == 0)
-	{
 		PVRSRVDeviceInit();
-	}
 
 	return result;
 }
@@ -217,6 +213,7 @@ static int PVRSRVDriverRemove(struct platform_device *pDevice)
 	PVRSRVDeviceDeinit();
 	MTKMFGBaseDeInit(pDevice);
 	drm_put_dev(platform_get_drvdata(pDevice));
+
 	return 0;
 }
 
@@ -229,7 +226,7 @@ static int PVRSRVDriverRemove(struct platform_device *pDevice)
 
  Open the PVR services node.
 
- @input pInode - the inode for the file being openeded.
+ @input pInode - the inode for the file being opened.
  @input dev    - the DRM device corresponding to this driver.
 
  @input pFile - the file handle data for the actual file being opened
@@ -243,16 +240,14 @@ int PVRSRVOpen(struct drm_device unref__ *dev, struct drm_file *pDRMFile)
 
 	struct file *pFile = PVR_FILE_FROM_DRM_FILE(pDRMFile);
 
-	if (!try_module_get(THIS_MODULE))
-	{
+	if (!try_module_get(THIS_MODULE)) {
 		PVR_DPF((PVR_DBG_ERROR, "Failed to get module"));
 		return -ENOENT;
 	}
 
-	if ((err = PVRSRVCommonOpen(pFile)) != 0)
-	{
+	err = PVRSRVCommonOpen(pFile);
+	if (err != 0)
 		module_put(THIS_MODULE);
-	}
 
 	return err;
 }
@@ -314,33 +309,29 @@ static int __init PVRCore_Init(void)
 #if defined(PDUMP)
 	error = dbgdrv_init();
 	if (error != 0)
-	{
 		return error;
-	}
 #endif
 
-	if ((error = PVRSRVDriverInit()) != 0)
-	{
+	error = PVRSRVDriverInit();
+	if (error != 0)
 		return error;
-	}
 
 	error = platform_driver_register(&powervr_driver);
-	if (error != 0)
-	{
-		PVR_DPF((PVR_DBG_ERROR, "PVRCore_Init: unable to register platform driver (%d)", error));
+	if (error != 0) {
+		PVR_DPF((PVR_DBG_ERROR, "PVRCore_Init: unable to register platform driver (%d)",
+				error));
 		return error;
 	}
 
 	return 0;
 }
 
-
 /*!
 *****************************************************************************
 
  @Function		PVRCore_Cleanup
 
- @Description	
+ @Description
 
  Remove the driver from the kernel.
 
@@ -374,6 +365,6 @@ static void __exit PVRCore_Cleanup(void)
  * driver.  Although they are prefixed `module_', they apply when compiling
  * statically as well; in both cases they define the function the kernel will
  * run to start/stop the driver.
-*/
+ */
 module_init(PVRCore_Init);
 module_exit(PVRCore_Cleanup);

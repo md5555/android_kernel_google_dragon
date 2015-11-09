@@ -15,8 +15,8 @@
 #include <linux/delay.h>
 #include <linux/regulator/consumer.h>
 
-#include "mt8173_mfgsys.h"
 #include "mt8173_mfgdvfs.h"
+#include "mt8173_mfgsys.h"
 
 #define HZ_TO_KHZ(x) (x / 1000)
 

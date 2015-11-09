@@ -11,19 +11,19 @@
 * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 * GNU General Public License for more details.
 */
-#include <linux/delay.h>
-#include <linux/mutex.h>
 #include <linux/clk.h>
+#include <linux/delay.h>
 #include <linux/io.h>
-#include <linux/platform_device.h>
+#include <linux/mutex.h>
 #include <linux/of.h>
-#include <linux/of_irq.h>
 #include <linux/of_address.h>
-#include <linux/regulator/consumer.h>
+#include <linux/of_irq.h>
+#include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
+#include <linux/regulator/consumer.h>
 
-#include "mt8173_mfgsys.h"
 #include "mt8173_mfgdvfs.h"
+#include "mt8173_mfgsys.h"
 
 static char *top_mfg_clk_name[] = {
 	"mfg_mem_in_sel",

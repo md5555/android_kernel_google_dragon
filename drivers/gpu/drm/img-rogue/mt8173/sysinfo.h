@@ -29,8 +29,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #if !defined(__SYSINFO_H__)
 #define __SYSINFO_H__
 
-
-
 /*!< System specific poll/timeout details */
 #if defined(PVR_LINUX_USING_WORKQUEUES)
 #define MAX_HW_TIME_US                           (1000000)
