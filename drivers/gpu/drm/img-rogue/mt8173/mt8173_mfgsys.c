@@ -37,7 +37,7 @@ static const char * const top_mfg_clk_name[] = {
 #define MAX_TOP_MFG_CLK ARRAY_SIZE(top_mfg_clk_name)
 
 static struct platform_device *sPVRLDMDev;
-#define GET_MTK_MFG_BASE(x) (struct mtk_mfg_base *)(x->dev.platform_data)
+#define GET_MTK_MFG_BASE(x) (struct mtk_mfg *)(x->dev.platform_data)
 
 #define REG_MFG_AXI BIT(0)
 #define REG_MFG_MEM BIT(1)
@@ -59,13 +59,13 @@ static void mtk_mfg_clr_clock_gating(void __iomem *reg)
 	writel(REG_MFG_ALL, reg + REG_MFG_CG_CLR);
 }
 
-static int mtk_mfg_prepare_clock(struct mtk_mfg_base *mfg_base)
+static int mtk_mfg_prepare_clock(struct mtk_mfg *mfg)
 {
 	int i;
 	int ret;
 
 	for (i = 0; i < MAX_TOP_MFG_CLK; i++) {
-		ret = clk_prepare(mfg_base->top_clk[i]);
+		ret = clk_prepare(mfg->top_clk[i]);
 		if (ret)
 			goto unwind;
 	}
@@ -73,122 +73,121 @@ static int mtk_mfg_prepare_clock(struct mtk_mfg_base *mfg_base)
 	return 0;
 unwind:
 	while (i--)
-		clk_unprepare(mfg_base->top_clk[i]);
+		clk_unprepare(mfg->top_clk[i]);
 
 	return ret;
 }
 
-static void mtk_mfg_unprepare_clock(struct mtk_mfg_base *mfg_base)
+static void mtk_mfg_unprepare_clock(struct mtk_mfg *mfg)
 {
 	int i;
 
 	for (i = MAX_TOP_MFG_CLK - 1; i >= 0; i--)
-		clk_unprepare(mfg_base->top_clk[i]);
+		clk_unprepare(mfg->top_clk[i]);
 }
 
-static int mtk_mfg_enable_clock(struct mtk_mfg_base *mfg_base)
+static int mtk_mfg_enable_clock(struct mtk_mfg *mfg)
 {
 	int i;
 	int ret;
 
-	pm_runtime_get_sync(&mfg_base->pdev->dev);
+	pm_runtime_get_sync(&mfg->pdev->dev);
 	for (i = 0; i < MAX_TOP_MFG_CLK; i++) {
-		ret = clk_enable(mfg_base->top_clk[i]);
+		ret = clk_enable(mfg->top_clk[i]);
 		if (ret)
 			goto unwind;
 	}
-	mtk_mfg_clr_clock_gating(mfg_base->reg_base);
+	mtk_mfg_clr_clock_gating(mfg->reg_base);
 
 	return 0;
 unwind:
 	while (i--)
-		clk_disable(mfg_base->top_clk[i]);
+		clk_disable(mfg->top_clk[i]);
 
 	return ret;
 }
 
-static int mtk_mfg_disable_clock(struct mtk_mfg_base *mfg_base)
+static int mtk_mfg_disable_clock(struct mtk_mfg *mfg)
 {
 	int i;
 
-	mtk_mfg_set_clock_gating(mfg_base->reg_base);
+	mtk_mfg_set_clock_gating(mfg->reg_base);
 	for (i = MAX_TOP_MFG_CLK - 1; i >= 0; i--)
-		clk_disable(mfg_base->top_clk[i]);
-	pm_runtime_put_sync(&mfg_base->pdev->dev);
+		clk_disable(mfg->top_clk[i]);
+	pm_runtime_put_sync(&mfg->pdev->dev);
 
 	return PVRSRV_OK;
 }
 
-static void mtk_mfg_enable_hw_apm(struct mtk_mfg_base *mfg_base)
+static void mtk_mfg_enable_hw_apm(struct mtk_mfg *mfg)
 {
-	writel(0x003c3d4d, mfg_base->reg_base + 0x24);
-	writel(0x4d45440b, mfg_base->reg_base + 0x28);
-	writel(0x7a710184, mfg_base->reg_base + 0xe0);
-	writel(0x835f6856, mfg_base->reg_base + 0xe4);
-	writel(0x002b0234, mfg_base->reg_base + 0xe8);
-	writel(0x80000000, mfg_base->reg_base + 0xec);
-	writel(0x08000000, mfg_base->reg_base + 0xa0);
+	writel(0x003c3d4d, mfg->reg_base + 0x24);
+	writel(0x4d45440b, mfg->reg_base + 0x28);
+	writel(0x7a710184, mfg->reg_base + 0xe0);
+	writel(0x835f6856, mfg->reg_base + 0xe4);
+	writel(0x002b0234, mfg->reg_base + 0xe8);
+	writel(0x80000000, mfg->reg_base + 0xec);
+	writel(0x08000000, mfg->reg_base + 0xa0);
 }
 
-static void mtk_mfg_disable_hw_apm(struct mtk_mfg_base *mfg_base)
+static void mtk_mfg_disable_hw_apm(struct mtk_mfg *mfg)
 {
-	writel(0x00, mfg_base->reg_base + 0x24);
-	writel(0x00, mfg_base->reg_base + 0x28);
-	writel(0x00, mfg_base->reg_base + 0xe0);
-	writel(0x00, mfg_base->reg_base + 0xe4);
-	writel(0x00, mfg_base->reg_base + 0xe8);
-	writel(0x00, mfg_base->reg_base + 0xec);
-	writel(0x00, mfg_base->reg_base + 0xa0);
+	writel(0x00, mfg->reg_base + 0x24);
+	writel(0x00, mfg->reg_base + 0x28);
+	writel(0x00, mfg->reg_base + 0xe0);
+	writel(0x00, mfg->reg_base + 0xe4);
+	writel(0x00, mfg->reg_base + 0xe8);
+	writel(0x00, mfg->reg_base + 0xec);
+	writel(0x00, mfg->reg_base + 0xa0);
 }
 
 static int mtk_mfg_bind_device_resource(struct platform_device *pdev,
-					struct mtk_mfg_base *mfg_base)
+					struct mtk_mfg *mfg)
 {
 	int i, err;
 	struct resource *res;
 
-	mfg_base->top_clk = devm_kcalloc(&pdev->dev, MAX_TOP_MFG_CLK,
-					 sizeof(*mfg_base->top_clk),
-					 GFP_KERNEL);
-	if (!mfg_base->top_clk)
+	mfg->top_clk = devm_kcalloc(&pdev->dev, MAX_TOP_MFG_CLK,
+				    sizeof(*mfg->top_clk), GFP_KERNEL);
+	if (!mfg->top_clk)
 		return -ENOMEM;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res)
 		return -ENODEV;
-	mfg_base->rgx_start = res->start;
-	mfg_base->rgx_size = resource_size(res);
+	mfg->rgx_start = res->start;
+	mfg->rgx_size = resource_size(res);
 
-	mfg_base->rgx_irq = platform_get_irq_byname(pdev, "RGX");
-	if (mfg_base->rgx_irq < 0)
-		return mfg_base->rgx_irq;
+	mfg->rgx_irq = platform_get_irq_byname(pdev, "RGX");
+	if (mfg->rgx_irq < 0)
+		return mfg->rgx_irq;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
-	mfg_base->reg_base = devm_ioremap_resource(&pdev->dev, res);
-	if (IS_ERR(mfg_base->reg_base))
-		return PTR_ERR(mfg_base->reg_base);
+	mfg->reg_base = devm_ioremap_resource(&pdev->dev, res);
+	if (IS_ERR(mfg->reg_base))
+		return PTR_ERR(mfg->reg_base);
 
-	mfg_base->mmpll = devm_clk_get(&pdev->dev, "mmpll_clk");
-	if (IS_ERR(mfg_base->mmpll)) {
+	mfg->mmpll = devm_clk_get(&pdev->dev, "mmpll_clk");
+	if (IS_ERR(mfg->mmpll)) {
 		dev_err(&pdev->dev, "devm_clk_get mmpll_clk failed !!!\n");
-		return PTR_ERR(mfg_base->mmpll);
+		return PTR_ERR(mfg->mmpll);
 	}
 
 	for (i = 0; i < MAX_TOP_MFG_CLK; i++) {
-		mfg_base->top_clk[i] = devm_clk_get(&pdev->dev,
+		mfg->top_clk[i] = devm_clk_get(&pdev->dev,
 						    top_mfg_clk_name[i]);
-		if (IS_ERR(mfg_base->top_clk[i])) {
+		if (IS_ERR(mfg->top_clk[i])) {
 			dev_err(&pdev->dev, "devm_clk_get %s failed !!!\n",
 				top_mfg_clk_name[i]);
-			return PTR_ERR(mfg_base->top_clk[i]);
+			return PTR_ERR(mfg->top_clk[i]);
 		}
 	}
 
-	mfg_base->vgpu = devm_regulator_get(&pdev->dev, "mfgsys-power");
-	if (IS_ERR(mfg_base->vgpu))
-		return PTR_ERR(mfg_base->vgpu);
+	mfg->vgpu = devm_regulator_get(&pdev->dev, "mfgsys-power");
+	if (IS_ERR(mfg->vgpu))
+		return PTR_ERR(mfg->vgpu);
 
-	err = regulator_enable(mfg_base->vgpu);
+	err = regulator_enable(mfg->vgpu);
 	if (err != 0) {
 		dev_err(&pdev->dev, "failed to enable regulator vgpu\n");
 		return err;
@@ -201,25 +200,25 @@ static int mtk_mfg_bind_device_resource(struct platform_device *pdev,
 	}
 
 	pm_runtime_enable(&pdev->dev);
-	mfg_base->pdev = pdev;
+	mfg->pdev = pdev;
 
 	return 0;
 
 err_regulator_disable:
-	regulator_disable(mfg_base->vgpu);
+	regulator_disable(mfg->vgpu);
 
 	return err;
 }
 
 static void mtk_mfg_unbind_device_resource(struct platform_device *pdev,
-				    struct mtk_mfg_base *mfg_base)
+				    struct mtk_mfg *mfg)
 {
 	pr_info("mtk_mfg_unbind_device_resource start\n");
 
-	mfg_base->pdev = NULL;
+	mfg->pdev = NULL;
 	pm_runtime_disable(&pdev->dev);
 	of_free_opp_table(&pdev->dev);
-	regulator_disable(mfg_base->vgpu);
+	regulator_disable(mfg->vgpu);
 
 	pr_info("mtk_mfg_unbind_device_resource end\n");
 }
@@ -228,20 +227,20 @@ PVRSRV_ERROR MTKSysDevPrePowerState(PVRSRV_DEV_POWER_STATE eNewPowerState,
 				    PVRSRV_DEV_POWER_STATE eCurrentPowerState,
 				    IMG_BOOL bForced)
 {
-	struct mtk_mfg_base *mfg_base = GET_MTK_MFG_BASE(sPVRLDMDev);
+	struct mtk_mfg *mfg = GET_MTK_MFG_BASE(sPVRLDMDev);
 
 	mtk_mfg_debug("MTKSysDevPrePowerState (%d->%d), bForced = %d\n",
 		      eCurrentPowerState, eNewPowerState, bForced);
 
-	mutex_lock(&mfg_base->set_power_state);
+	mutex_lock(&mfg->set_power_state);
 
 	if ((PVRSRV_DEV_POWER_STATE_OFF == eNewPowerState) &&
 	    (PVRSRV_DEV_POWER_STATE_ON == eCurrentPowerState)) {
-		mtk_mfg_disable_hw_apm(mfg_base);
-		mtk_mfg_disable_clock(mfg_base);
+		mtk_mfg_disable_hw_apm(mfg);
+		mtk_mfg_disable_clock(mfg);
 	}
 
-	mutex_unlock(&mfg_base->set_power_state);
+	mutex_unlock(&mfg->set_power_state);
 	return PVRSRV_OK;
 }
 
@@ -249,26 +248,26 @@ PVRSRV_ERROR MTKSysDevPostPowerState(PVRSRV_DEV_POWER_STATE eNewPowerState,
 				     PVRSRV_DEV_POWER_STATE eCurrentPowerState,
 				     IMG_BOOL bForced)
 {
-	struct mtk_mfg_base *mfg_base = GET_MTK_MFG_BASE(sPVRLDMDev);
+	struct mtk_mfg *mfg = GET_MTK_MFG_BASE(sPVRLDMDev);
 	PVRSRV_ERROR ret;
 
 	mtk_mfg_debug("MTKSysDevPostPowerState (%d->%d)\n",
 		      eCurrentPowerState, eNewPowerState);
 
-	mutex_lock(&mfg_base->set_power_state);
+	mutex_lock(&mfg->set_power_state);
 
 	if ((PVRSRV_DEV_POWER_STATE_ON == eNewPowerState) &&
 	    (PVRSRV_DEV_POWER_STATE_OFF == eCurrentPowerState)) {
-		if (mtk_mfg_enable_clock(mfg_base)) {
+		if (mtk_mfg_enable_clock(mfg)) {
 			ret = PVRSRV_ERROR_DEVICE_POWER_CHANGE_FAILURE;
 			goto done;
 		}
-		mtk_mfg_enable_hw_apm(mfg_base);
+		mtk_mfg_enable_hw_apm(mfg);
 	}
 
 	ret = PVRSRV_OK;
 done:
-	mutex_unlock(&mfg_base->set_power_state);
+	mutex_unlock(&mfg->set_power_state);
 
 	return ret;
 }
@@ -276,14 +275,14 @@ done:
 PVRSRV_ERROR MTKSystemPrePowerState(PVRSRV_SYS_POWER_STATE eNewPowerState)
 {
 	int err;
-	struct mtk_mfg_base *mfg_base = GET_MTK_MFG_BASE(sPVRLDMDev);
+	struct mtk_mfg *mfg = GET_MTK_MFG_BASE(sPVRLDMDev);
 
 	pr_err("MTKSystemPrePowerState() eNewPowerState %d\n", eNewPowerState);
 	/* turn off regulator for power saving ~30mw */
 	if (eNewPowerState == PVRSRV_SYS_POWER_STATE_OFF)
-		err = regulator_disable(mfg_base->vgpu);
+		err = regulator_disable(mfg->vgpu);
 	else if (eNewPowerState == PVRSRV_SYS_POWER_STATE_ON)
-		err = regulator_enable(mfg_base->vgpu);
+		err = regulator_enable(mfg->vgpu);
 
 	if (err != 0) {
 		pr_err("failed to %s regulator vgpu\n",
@@ -306,42 +305,42 @@ PVRSRV_ERROR MTKSystemPostPowerState(PVRSRV_SYS_POWER_STATE eNewPowerState)
 int MTKMFGBaseInit(struct platform_device *pdev)
 {
 	int err;
-	struct mtk_mfg_base *mfg_base;
+	struct mtk_mfg *mfg;
 
 	mtk_mfg_debug("MTKMFGBaseInit Begin\n");
 
-	mfg_base = devm_kzalloc(&pdev->dev, sizeof(*mfg_base), GFP_KERNEL);
-	if (!mfg_base)
+	mfg = devm_kzalloc(&pdev->dev, sizeof(*mfg), GFP_KERNEL);
+	if (!mfg)
 		return -ENOMEM;
 
-	err = mtk_mfg_bind_device_resource(pdev, mfg_base);
+	err = mtk_mfg_bind_device_resource(pdev, mfg);
 	if (err != 0)
 		return err;
 
-	mutex_init(&mfg_base->set_power_state);
+	mutex_init(&mfg->set_power_state);
 
-	err = mtk_mfg_prepare_clock(mfg_base);
+	err = mtk_mfg_prepare_clock(mfg);
 	if (err)
 		goto err_unbind_resource;
 
-	/* attach mfg_base to pdev->dev.platform_data */
-	pdev->dev.platform_data = mfg_base;
+	/* attach mfg to pdev->dev.platform_data */
+	pdev->dev.platform_data = mfg;
 	sPVRLDMDev = pdev;
 
 	mtk_mfg_debug("MTKMFGBaseInit End\n");
 
 	return 0;
 err_unbind_resource:
-	mtk_mfg_unbind_device_resource(pdev, mfg_base);
+	mtk_mfg_unbind_device_resource(pdev, mfg);
 
 	return err;
 }
 
 void MTKMFGBaseDeInit(struct platform_device *pdev)
 {
-	struct mtk_mfg_base *mfg_base = GET_MTK_MFG_BASE(sPVRLDMDev);
+	struct mtk_mfg *mfg = GET_MTK_MFG_BASE(sPVRLDMDev);
 
-	mtk_mfg_unprepare_clock(mfg_base);
+	mtk_mfg_unprepare_clock(mfg);
 
-	mtk_mfg_unbind_device_resource(pdev, mfg_base);
+	mtk_mfg_unbind_device_resource(pdev, mfg);
 }

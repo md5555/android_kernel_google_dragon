@@ -115,12 +115,12 @@ void UMAPhysHeapDevPAddrToCpuPAddr(IMG_HANDLE hPrivData,
 
 static void SetFrequency(IMG_UINT32 ui64Freq)
 {
-	MTKSysSetFreq((struct mtk_mfg_base *)gsDevice.hSysData, ui64Freq);
+	MTKSysSetFreq(gsDevice.hSysData, ui64Freq);
 }
 
 static void SetVoltage(IMG_UINT32 ui64Volt)
 {
-	MTKSysSetVolt((struct mtk_mfg_base *)gsDevice.hSysData, ui64Volt);
+	MTKSysSetVolt(gsDevice.hSysData, ui64Volt);
 }
 
 static int SetupDVFSInfo(struct device *dev, PVRSRV_DVFS *hDVFS)
@@ -183,7 +183,7 @@ PVRSRV_ERROR SysCreateConfigData(PVRSRV_SYSTEM_CONFIG **ppsSysConfig, void *hDev
 {
 	struct platform_device *pDevice = hDevice;
 	struct device *dev = &pDevice->dev;
-	struct mtk_mfg_base *mfg_base = dev->platform_data;
+	struct mtk_mfg *mfg = dev->platform_data;
 	int ret;
 
 	if (!pDevice) {
@@ -224,12 +224,12 @@ PVRSRV_ERROR SysCreateConfigData(PVRSRV_SYSTEM_CONFIG **ppsSysConfig, void *hDev
 	gsDevice.eDeviceType = PVRSRV_DEVICE_TYPE_RGX;
 	gsDevice.pszName = "RGX";
 
-	gsDevice.ui32IRQ = mfg_base->rgx_irq;
+	gsDevice.ui32IRQ = mfg->rgx_irq;
 	gsDevice.bIRQIsShared = IMG_FALSE;
 	gsDevice.eIRQActiveLevel = PVRSRV_DEVICE_IRQ_ACTIVE_LOW;
 
-	gsDevice.sRegsCpuPBase.uiAddr = mfg_base->rgx_start;
-	gsDevice.ui32RegsSize = mfg_base->rgx_size;
+	gsDevice.sRegsCpuPBase.uiAddr = mfg->rgx_start;
+	gsDevice.ui32RegsSize = mfg->rgx_size;
 
 	ret = SetupDVFSInfo(dev, &gsDevice.sDVFS);
 	if (ret)
@@ -251,7 +251,7 @@ PVRSRV_ERROR SysCreateConfigData(PVRSRV_SYSTEM_CONFIG **ppsSysConfig, void *hDev
 	gsDevice.pfnInterruptHandled = NULL;
 
 	gsDevice.hDevData = &gsRGXData;
-	gsDevice.hSysData = mfg_base;
+	gsDevice.hSysData = mfg;
 
 	/* Setup system config */
 	gsSysConfig.pszSystemName = RGX_HW_SYSTEM_NAME;

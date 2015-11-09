@@ -31,7 +31,7 @@
 #define mtk_mfg_debug(fmt, args...) do { } while (0)
 #endif
 
-struct mtk_mfg_base {
+struct mtk_mfg {
 	struct platform_device *pdev;
 
 	struct clk **top_clk;
@@ -67,7 +67,7 @@ PVRSRV_ERROR MTKSysDevPostPowerState(PVRSRV_DEV_POWER_STATE eNew,
 PVRSRV_ERROR MTKSystemPrePowerState(PVRSRV_SYS_POWER_STATE eNew);
 PVRSRV_ERROR MTKSystemPostPowerState(PVRSRV_SYS_POWER_STATE eNew);
 
-void MTKSysSetFreq(struct mtk_mfg_base *base, u32 freq);
-void MTKSysSetVolt(struct mtk_mfg_base *base, u32 volt);
+void MTKSysSetFreq(struct mtk_mfg *mfg, u32 freq);
+void MTKSysSetVolt(struct mtk_mfg *mfg, u32 volt);
 
 #endif /* MT8173_MFGSYS_H*/
