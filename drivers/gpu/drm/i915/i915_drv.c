@@ -555,7 +555,6 @@ static void intel_suspend_encoders(struct drm_i915_private *dev_priv)
 static int intel_suspend_complete(struct drm_i915_private *dev_priv);
 static int vlv_resume_prepare(struct drm_i915_private *dev_priv,
 			      bool rpm_resume);
-static int skl_resume_prepare(struct drm_i915_private *dev_priv);
 static int bxt_resume_prepare(struct drm_i915_private *dev_priv);
 
 
@@ -784,8 +783,6 @@ static int i915_drm_resume_early(struct drm_device *dev)
 
 	if (IS_BROXTON(dev))
 		ret = bxt_resume_prepare(dev_priv);
-	else if (IS_SKYLAKE(dev_priv))
-		ret = skl_resume_prepare(dev_priv);
 	else if (IS_HASWELL(dev_priv) || IS_BROADWELL(dev_priv))
 		hsw_disable_pc8(dev_priv);
 
@@ -999,11 +996,6 @@ static int i915_pm_resume(struct device *dev)
 	return i915_drm_resume(drm_dev);
 }
 
-static int skl_suspend_complete(struct drm_i915_private *dev_priv)
-{
-	return 0;
-}
-
 static int hsw_suspend_complete(struct drm_i915_private *dev_priv)
 {
 	hsw_enable_pc8(dev_priv);
@@ -1040,11 +1032,6 @@ static int bxt_resume_prepare(struct drm_i915_private *dev_priv)
 	broxton_ddi_phy_init(dev);
 	intel_prepare_ddi(dev);
 
-	return 0;
-}
-
-static int skl_resume_prepare(struct drm_i915_private *dev_priv)
-{
 	return 0;
 }
 
@@ -1507,8 +1494,6 @@ static int intel_runtime_resume(struct device *device)
 
 	if (IS_BROXTON(dev))
 		ret = bxt_resume_prepare(dev_priv);
-	else if (IS_SKYLAKE(dev))
-		ret = skl_resume_prepare(dev_priv);
 	else if (IS_HASWELL(dev_priv) || IS_BROADWELL(dev_priv))
 		hsw_disable_pc8(dev_priv);
 	else if (IS_VALLEYVIEW(dev_priv))
@@ -1542,8 +1527,6 @@ static int intel_suspend_complete(struct drm_i915_private *dev_priv)
 
 	if (IS_BROXTON(dev_priv))
 		ret = bxt_suspend_complete(dev_priv);
-	else if (IS_SKYLAKE(dev_priv))
-		ret = skl_suspend_complete(dev_priv);
 	else if (IS_HASWELL(dev_priv) || IS_BROADWELL(dev_priv))
 		ret = hsw_suspend_complete(dev_priv);
 	else if (IS_VALLEYVIEW(dev_priv))
