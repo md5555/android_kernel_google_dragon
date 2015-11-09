@@ -274,12 +274,16 @@ static int devfreq_watermark_start(struct devfreq *df)
 
 	devfreq_watermark_debug_start(df);
 
+	devfreq_monitor_start(df);
+
 	return 0;
 }
 
 static int devfreq_watermark_stop(struct devfreq *df)
 {
 	struct wmark_gov_info *wmarkinfo = df->data;
+
+	devfreq_monitor_stop(df);
 
 	devfreq_watermark_debug_stop(df);
 
