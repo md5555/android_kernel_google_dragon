@@ -145,7 +145,7 @@ static int channel_submit(struct host1x_job *job)
 		goto error;
 
 	for (i = 0; i < job->num_syncpts; i++) {
-		completed_waiter[i] = kzalloc(sizeof(*completed_waiter),
+		completed_waiter[i] = kzalloc(sizeof(*completed_waiter[i]),
 					      GFP_KERNEL);
 		if (!completed_waiter[i]) {
 			mutex_unlock(&ch->submitlock);
