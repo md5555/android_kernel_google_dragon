@@ -56,10 +56,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "sysinfo.h"
 #include "mt8173/mt8173_mfgsys.h"
 
-#if defined(SUPPORT_SHARED_SLC)
-#include "rgxapi_km.h"
-#endif
-
 /*
  * DRVNAME is the name we use to register our driver.
  * DEVNAME is the name we use to register actual device nodes.
@@ -71,10 +67,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * This is all module configuration stuff required by the linux kernel.
  */
 MODULE_SUPPORTED_DEVICE(DEVNAME);
-
-#if defined(SUPPORT_SHARED_SLC)
-EXPORT_SYMBOL(RGXInitSLC);
-#endif
 
 static int PVRSRVDriverRemove(struct platform_device *device);
 static int PVRSRVDriverProbe(struct platform_device *device);
