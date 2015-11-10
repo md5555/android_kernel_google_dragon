@@ -17,9 +17,6 @@
 
 #include <linux/platform_device.h>
 
-#include "rgxdevice.h"
-#include "servicesext.h"
-
 /* unit ms, timeout interval for DVFS detection */
 #define MTK_DVFS_SWITCH_INTERVAL  300
 
@@ -57,13 +54,8 @@ struct mtk_mfg {
 int MTKMFGBaseInit(struct platform_device *pdev);
 void MTKMFGBaseDeInit(struct platform_device *pdev);
 
-/* below register interface in RGX sysconfig.c */
-PVRSRV_ERROR MTKSysDevPrePowerState(PVRSRV_DEV_POWER_STATE eNew,
-					   PVRSRV_DEV_POWER_STATE eCurrent,
-					   IMG_BOOL bForced);
-PVRSRV_ERROR MTKSysDevPostPowerState(PVRSRV_DEV_POWER_STATE eNew,
-					    PVRSRV_DEV_POWER_STATE eCurrent,
-					    IMG_BOOL bForced);
+int mtk_mfg_enable(struct mtk_mfg *mfg);
+void mtk_mfg_disable(struct mtk_mfg *mfg);
 
 void MTKSysSetFreq(struct mtk_mfg *mfg, u32 freq);
 void MTKSysSetVolt(struct mtk_mfg *mfg, u32 volt);

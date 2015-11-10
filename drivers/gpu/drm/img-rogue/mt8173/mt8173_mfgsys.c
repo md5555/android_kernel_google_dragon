@@ -36,9 +36,6 @@ static const char * const top_mfg_clk_name[] = {
 
 #define MAX_TOP_MFG_CLK ARRAY_SIZE(top_mfg_clk_name)
 
-static struct platform_device *sPVRLDMDev;
-#define GET_MTK_MFG_BASE(x) (struct mtk_mfg *)(x->dev.platform_data)
-
 #define REG_MFG_AXI BIT(0)
 #define REG_MFG_MEM BIT(1)
 #define REG_MFG_G3D BIT(2)
@@ -107,7 +104,7 @@ unwind:
 	return ret;
 }
 
-static int mtk_mfg_disable_clock(struct mtk_mfg *mfg)
+static void mtk_mfg_disable_clock(struct mtk_mfg *mfg)
 {
 	int i;
 
@@ -115,8 +112,6 @@ static int mtk_mfg_disable_clock(struct mtk_mfg *mfg)
 	for (i = MAX_TOP_MFG_CLK - 1; i >= 0; i--)
 		clk_disable(mfg->top_clk[i]);
 	pm_runtime_put_sync(&mfg->pdev->dev);
-
-	return PVRSRV_OK;
 }
 
 static void mtk_mfg_enable_hw_apm(struct mtk_mfg *mfg)
@@ -141,7 +136,7 @@ static void mtk_mfg_disable_hw_apm(struct mtk_mfg *mfg)
 	writel(0x00, mfg->reg_base + 0xa0);
 }
 
-static int mtk_mfg_enable(struct mtk_mfg *mfg)
+int mtk_mfg_enable(struct mtk_mfg *mfg)
 {
 	int ret;
 
@@ -154,7 +149,7 @@ static int mtk_mfg_enable(struct mtk_mfg *mfg)
 	return 0;
 }
 
-static void mtk_mfg_disable(struct mtk_mfg *mfg)
+void mtk_mfg_disable(struct mtk_mfg *mfg)
 {
 	mtk_mfg_disable_hw_apm(mfg);
 	mtk_mfg_disable_clock(mfg);
@@ -242,52 +237,6 @@ static void mtk_mfg_unbind_device_resource(struct platform_device *pdev,
 	pr_info("mtk_mfg_unbind_device_resource end\n");
 }
 
-PVRSRV_ERROR MTKSysDevPrePowerState(PVRSRV_DEV_POWER_STATE eNewPowerState,
-				    PVRSRV_DEV_POWER_STATE eCurrentPowerState,
-				    IMG_BOOL bForced)
-{
-	struct mtk_mfg *mfg = GET_MTK_MFG_BASE(sPVRLDMDev);
-
-	mtk_mfg_debug("MTKSysDevPrePowerState (%d->%d), bForced = %d\n",
-		      eCurrentPowerState, eNewPowerState, bForced);
-
-	mutex_lock(&mfg->set_power_state);
-
-	if ((PVRSRV_DEV_POWER_STATE_OFF == eNewPowerState) &&
-	    (PVRSRV_DEV_POWER_STATE_ON == eCurrentPowerState))
-		mtk_mfg_disable(mfg);
-
-	mutex_unlock(&mfg->set_power_state);
-	return PVRSRV_OK;
-}
-
-PVRSRV_ERROR MTKSysDevPostPowerState(PVRSRV_DEV_POWER_STATE eNewPowerState,
-				     PVRSRV_DEV_POWER_STATE eCurrentPowerState,
-				     IMG_BOOL bForced)
-{
-	struct mtk_mfg *mfg = GET_MTK_MFG_BASE(sPVRLDMDev);
-	PVRSRV_ERROR ret;
-
-	mtk_mfg_debug("MTKSysDevPostPowerState (%d->%d)\n",
-		      eCurrentPowerState, eNewPowerState);
-
-	mutex_lock(&mfg->set_power_state);
-
-	if ((PVRSRV_DEV_POWER_STATE_ON == eNewPowerState) &&
-	    (PVRSRV_DEV_POWER_STATE_OFF == eCurrentPowerState)) {
-		if (mtk_mfg_enable(mfg)) {
-			ret = PVRSRV_ERROR_DEVICE_POWER_CHANGE_FAILURE;
-			goto done;
-		}
-	}
-
-	ret = PVRSRV_OK;
-done:
-	mutex_unlock(&mfg->set_power_state);
-
-	return ret;
-}
-
 int MTKMFGBaseInit(struct platform_device *pdev)
 {
 	int err;
@@ -311,7 +260,6 @@ int MTKMFGBaseInit(struct platform_device *pdev)
 
 	/* attach mfg to pdev->dev.platform_data */
 	pdev->dev.platform_data = mfg;
-	sPVRLDMDev = pdev;
 
 	mtk_mfg_debug("MTKMFGBaseInit End\n");
 
@@ -324,7 +272,7 @@ err_unbind_resource:
 
 void MTKMFGBaseDeInit(struct platform_device *pdev)
 {
-	struct mtk_mfg *mfg = GET_MTK_MFG_BASE(sPVRLDMDev);
+	struct mtk_mfg *mfg = dev_get_platdata(&pdev->dev);
 
 	mtk_mfg_unprepare_clock(mfg);
 

@@ -50,6 +50,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "physheap.h"
 #include "pvrsrv_device.h"
+#include "rgxdevice.h"
 #include "syscommon.h"
 
 #include "mt8173_mfgsys.h"
@@ -111,6 +112,56 @@ void UMAPhysHeapDevPAddrToCpuPAddr(IMG_HANDLE hPrivData,
 		for (ui32Idx = 1; ui32Idx < ui32NumOfAddr; ++ui32Idx)
 			psCpuPAddr[ui32Idx].uiAddr = psDevPAddr[ui32Idx].uiAddr;
 	}
+}
+
+static PVRSRV_ERROR MTKSysDevPrePowerState(
+		PVRSRV_DEV_POWER_STATE eNewPowerState,
+		PVRSRV_DEV_POWER_STATE eCurrentPowerState,
+		IMG_BOOL bForced)
+{
+	/* HACK: IMG should pass context; for now access global. */
+	struct mtk_mfg *mfg = gsDevice.hSysData;
+
+	mtk_mfg_debug("MTKSysDevPrePowerState (%d->%d), bForced = %d\n",
+		      eCurrentPowerState, eNewPowerState, bForced);
+
+	mutex_lock(&mfg->set_power_state);
+
+	if ((PVRSRV_DEV_POWER_STATE_OFF == eNewPowerState) &&
+	    (PVRSRV_DEV_POWER_STATE_ON == eCurrentPowerState))
+		mtk_mfg_disable(mfg);
+
+	mutex_unlock(&mfg->set_power_state);
+	return PVRSRV_OK;
+}
+
+static PVRSRV_ERROR MTKSysDevPostPowerState(
+		PVRSRV_DEV_POWER_STATE eNewPowerState,
+		PVRSRV_DEV_POWER_STATE eCurrentPowerState,
+		IMG_BOOL bForced)
+{
+	/* HACK: IMG should pass context; for now access global. */
+	struct mtk_mfg *mfg = gsDevice.hSysData;
+	PVRSRV_ERROR ret;
+
+	mtk_mfg_debug("MTKSysDevPostPowerState (%d->%d)\n",
+		      eCurrentPowerState, eNewPowerState);
+
+	mutex_lock(&mfg->set_power_state);
+
+	if ((PVRSRV_DEV_POWER_STATE_ON == eNewPowerState) &&
+	    (PVRSRV_DEV_POWER_STATE_OFF == eCurrentPowerState)) {
+		if (mtk_mfg_enable(mfg)) {
+			ret = PVRSRV_ERROR_DEVICE_POWER_CHANGE_FAILURE;
+			goto done;
+		}
+	}
+
+	ret = PVRSRV_OK;
+done:
+	mutex_unlock(&mfg->set_power_state);
+
+	return ret;
 }
 
 static void SetFrequency(IMG_UINT32 ui64Freq)
