@@ -884,4 +884,10 @@ void
 gk20a_pmu_debugfs_unregister(struct gk20a_pmu_priv *priv);
 #define to_gk20a_priv(ptr) container_of(ptr, struct gk20a_pmu_priv, base)
 
+int
+gk20a_pmu_mutex_acquire(struct nvkm_pmu *pmu, u32 id, u32 *token);
+
+int
+gk20a_pmu_mutex_release(struct nvkm_pmu *pmu, u32 id, u32 *token);
+
 #endif

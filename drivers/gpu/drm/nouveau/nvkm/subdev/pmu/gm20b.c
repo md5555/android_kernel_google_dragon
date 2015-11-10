@@ -2695,4 +2695,6 @@ gm20b_pmu_oclass = &(struct nvkm_pmu_impl) {
 		.fini = gm20b_pmu_fini,
 	},
 	.base.handle = NV_SUBDEV(PMU, 0x12b),
+	.acquire_mutex = gk20a_pmu_mutex_acquire,
+	.release_mutex = gk20a_pmu_mutex_release,
 } .base;
