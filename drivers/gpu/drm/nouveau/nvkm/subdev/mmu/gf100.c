@@ -83,6 +83,9 @@ gf100_vm_map_pgt(struct nvkm_gpuobj *pgd, u32 index, struct nvkm_gpuobj *pgt[2])
 
 	nv_wo32(pgd, (index * 8) + 0, pde[0]);
 	nv_wo32(pgd, (index * 8) + 4, pde[1]);
+
+	/* Flush posted PRAMIN writes. */
+	nv_ro32(pgd, (index * 8) + 0);
 }
 
 void
