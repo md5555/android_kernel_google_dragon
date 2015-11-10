@@ -261,7 +261,10 @@ static int panel_jdi_write_dcdc_registers(struct panel_jdi *jdi)
 		return ret;
 	}
 
-	return ret;
+	if (ret < 0)
+		return ret;
+	else
+		return 0;
 }
 
 static int panel_jdi_disable(struct drm_panel *panel)
