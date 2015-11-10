@@ -25,7 +25,7 @@
 #include "mt8173_mfgdvfs.h"
 #include "mt8173_mfgsys.h"
 
-static char *top_mfg_clk_name[] = {
+static const char * const top_mfg_clk_name[] = {
 	"mfg_mem_in_sel",
 	"mfg_axi_in_sel",
 	"top_axi",

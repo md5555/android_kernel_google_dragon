@@ -79,7 +79,7 @@ EXPORT_SYMBOL(RGXInitSLC);
 static int PVRSRVDriverRemove(struct platform_device *device);
 static int PVRSRVDriverProbe(struct platform_device *device);
 
-static struct dev_pm_ops powervr_dev_pm_ops = {
+static const struct dev_pm_ops powervr_dev_pm_ops = {
 	.suspend	= PVRSRVDriverSuspend,
 	.resume		= PVRSRVDriverResume,
 };
