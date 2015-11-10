@@ -1024,7 +1024,7 @@ gk20a_pmu_queue_write(struct gk20a_pmu_priv *priv,
 	gk20a_pmu_copy_to_dmem(priv, offset, src, size, 0);
 }
 
-static int
+int
 gk20a_pmu_mutex_acquire(struct nvkm_pmu *pmu, u32 id, u32 *token)
 {
 	struct gk20a_pmu_priv *priv = to_gk20a_priv(pmu);
@@ -1097,7 +1097,7 @@ gk20a_pmu_mutex_acquire(struct nvkm_pmu *pmu, u32 id, u32 *token)
 	return -EBUSY;
 }
 
-static int
+int
 gk20a_pmu_mutex_release(struct nvkm_pmu *pmu, u32 id, u32 *token)
 {
 	struct gk20a_pmu_priv *priv = to_gk20a_priv(pmu);
@@ -3344,5 +3344,7 @@ gk20a_pmu_oclass = &(struct nvkm_pmu_impl) {
 		.fini = gk20a_pmu_fini,
 	},
 	.pgob = gk20a_pmu_pgob,
+	.acquire_mutex = gk20a_pmu_mutex_acquire,
+	.release_mutex = gk20a_pmu_mutex_release,
 }.base;
 
