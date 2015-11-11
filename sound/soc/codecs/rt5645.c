@@ -3379,6 +3379,13 @@ static struct dmi_system_id dmi_platform_intel_braswell[] = {
 			DMI_MATCH(DMI_PRODUCT_NAME, "Reks"),
 		},
 	},
+	{
+		.ident = "Google Edgar",
+		.callback = strago_quirk_cb,
+		.matches = {
+			DMI_MATCH(DMI_PRODUCT_NAME, "Edgar"),
+		},
+	},
 	{ }
 };
 
