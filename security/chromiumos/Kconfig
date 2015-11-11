@@ -8,3 +8,11 @@ config SECURITY_CHROMIUMOS
 	  restricted by requiring a mount point path without symbolic links,
 	  and loading modules is limited to only the root filesystem. This
 	  LSM is stacked ahead of any primary "full" LSM.
+
+config ALT_SYSCALL_CHROMIUMOS
+	tristate "Chromium OS Alt-Syscall Tables"
+	depends on ALT_SYSCALL
+	help
+	  Register restricted, alternate syscall tables used by Chromium OS
+	  using the alt-syscall infrastructure.  Alternate syscall tables
+	  can be selected with prctl(PR_ALT_SYSCALL).
