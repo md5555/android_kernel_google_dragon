@@ -162,6 +162,7 @@
 				regulator-min-microvolt = < 600000>;
 				regulator-max-microvolt = <1400000>;
 				regulator-ramp-delay = <10000>;
+				regulator-always-on;
 			};
 			mt6311_ldo_reg: VBIASN {
 				regulator-name = "VBIASN";
