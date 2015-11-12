@@ -177,7 +177,7 @@ static int PVRSRVDriverProbe(struct platform_device *pDevice)
 	PVR_TRACE(("PVRSRVDriverProbe (pDevice=%p)", pDevice));
 
 	if (OSStringCompare(pDevice->name, DEVNAME) != 0) {
-		result = MTKMFGBaseInit(pDevice);
+		result = MTKMFGBaseInit(&pDevice->dev);
 		if (result != 0)
 			return result;
 	}
@@ -211,7 +211,7 @@ static int PVRSRVDriverRemove(struct platform_device *pDevice)
 	PVR_TRACE(("PVRSRVDriverRemove (pDevice=%p)", pDevice));
 
 	PVRSRVDeviceDeinit();
-	MTKMFGBaseDeInit(pDevice);
+	MTKMFGBaseDeInit(&pDevice->dev);
 	drm_put_dev(platform_get_drvdata(pDevice));
 
 	return 0;

@@ -29,7 +29,7 @@
 #endif
 
 struct mtk_mfg {
-	struct platform_device *pdev;
+	struct device *dev;
 
 	struct clk **top_clk;
 	void __iomem *reg_base;
@@ -51,8 +51,8 @@ struct mtk_mfg {
 
 
 /* used in mtk_module.c  */
-int MTKMFGBaseInit(struct platform_device *pdev);
-void MTKMFGBaseDeInit(struct platform_device *pdev);
+int MTKMFGBaseInit(struct device *dev);
+void MTKMFGBaseDeInit(struct device *dev);
 
 int mtk_mfg_enable(struct mtk_mfg *mfg);
 void mtk_mfg_disable(struct mtk_mfg *mfg);

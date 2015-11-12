@@ -88,7 +88,7 @@ static int mtk_mfg_enable_clock(struct mtk_mfg *mfg)
 	int i;
 	int ret;
 
-	pm_runtime_get_sync(&mfg->pdev->dev);
+	pm_runtime_get_sync(mfg->dev);
 	for (i = 0; i < MAX_TOP_MFG_CLK; i++) {
 		ret = clk_enable(mfg->top_clk[i]);
 		if (ret)
@@ -111,7 +111,7 @@ static void mtk_mfg_disable_clock(struct mtk_mfg *mfg)
 	mtk_mfg_set_clock_gating(mfg->reg_base);
 	for (i = MAX_TOP_MFG_CLK - 1; i >= 0; i--)
 		clk_disable(mfg->top_clk[i]);
-	pm_runtime_put_sync(&mfg->pdev->dev);
+	pm_runtime_put_sync(mfg->dev);
 }
 
 static void mtk_mfg_enable_hw_apm(struct mtk_mfg *mfg)
@@ -155,13 +155,14 @@ void mtk_mfg_disable(struct mtk_mfg *mfg)
 	mtk_mfg_disable_clock(mfg);
 }
 
-static int mtk_mfg_bind_device_resource(struct platform_device *pdev,
-					struct mtk_mfg *mfg)
+static int mtk_mfg_bind_device_resource(struct mtk_mfg *mfg)
 {
+	struct device *dev = mfg->dev;
+	struct platform_device *pdev = to_platform_device(dev);
 	int i, err;
 	struct resource *res;
 
-	mfg->top_clk = devm_kcalloc(&pdev->dev, MAX_TOP_MFG_CLK,
+	mfg->top_clk = devm_kcalloc(dev, MAX_TOP_MFG_CLK,
 				    sizeof(*mfg->top_clk), GFP_KERNEL);
 	if (!mfg->top_clk)
 		return -ENOMEM;
@@ -177,44 +178,42 @@ static int mtk_mfg_bind_device_resource(struct platform_device *pdev,
 		return mfg->rgx_irq;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
-	mfg->reg_base = devm_ioremap_resource(&pdev->dev, res);
+	mfg->reg_base = devm_ioremap_resource(dev, res);
 	if (IS_ERR(mfg->reg_base))
 		return PTR_ERR(mfg->reg_base);
 
-	mfg->mmpll = devm_clk_get(&pdev->dev, "mmpll_clk");
+	mfg->mmpll = devm_clk_get(dev, "mmpll_clk");
 	if (IS_ERR(mfg->mmpll)) {
-		dev_err(&pdev->dev, "devm_clk_get mmpll_clk failed !!!\n");
+		dev_err(dev, "devm_clk_get mmpll_clk failed !!!\n");
 		return PTR_ERR(mfg->mmpll);
 	}
 
 	for (i = 0; i < MAX_TOP_MFG_CLK; i++) {
-		mfg->top_clk[i] = devm_clk_get(&pdev->dev,
-						    top_mfg_clk_name[i]);
+		mfg->top_clk[i] = devm_clk_get(dev, top_mfg_clk_name[i]);
 		if (IS_ERR(mfg->top_clk[i])) {
-			dev_err(&pdev->dev, "devm_clk_get %s failed !!!\n",
+			dev_err(dev, "devm_clk_get %s failed !!!\n",
 				top_mfg_clk_name[i]);
 			return PTR_ERR(mfg->top_clk[i]);
 		}
 	}
 
-	mfg->vgpu = devm_regulator_get(&pdev->dev, "mfgsys-power");
+	mfg->vgpu = devm_regulator_get(dev, "mfgsys-power");
 	if (IS_ERR(mfg->vgpu))
 		return PTR_ERR(mfg->vgpu);
 
 	err = regulator_enable(mfg->vgpu);
 	if (err != 0) {
-		dev_err(&pdev->dev, "failed to enable regulator vgpu\n");
+		dev_err(dev, "failed to enable regulator vgpu\n");
 		return err;
 	}
 
-	err = of_init_opp_table(&pdev->dev);
+	err = of_init_opp_table(dev);
 	if (err) {
-		dev_err(&pdev->dev, "failed to init opp table, %d\n", err);
+		dev_err(dev, "failed to init opp table, %d\n", err);
 		goto err_regulator_disable;
 	}
 
-	pm_runtime_enable(&pdev->dev);
-	mfg->pdev = pdev;
+	pm_runtime_enable(dev);
 
 	return 0;
 
@@ -224,31 +223,28 @@ err_regulator_disable:
 	return err;
 }
 
-static void mtk_mfg_unbind_device_resource(struct platform_device *pdev,
-				    struct mtk_mfg *mfg)
+static void mtk_mfg_unbind_device_resource(struct mtk_mfg *mfg)
 {
-	pr_info("mtk_mfg_unbind_device_resource start\n");
+	struct device *dev = mfg->dev;
 
-	mfg->pdev = NULL;
-	pm_runtime_disable(&pdev->dev);
-	of_free_opp_table(&pdev->dev);
+	pm_runtime_disable(dev);
+	of_free_opp_table(dev);
 	regulator_disable(mfg->vgpu);
-
-	pr_info("mtk_mfg_unbind_device_resource end\n");
 }
 
-int MTKMFGBaseInit(struct platform_device *pdev)
+int MTKMFGBaseInit(struct device *dev)
 {
 	int err;
 	struct mtk_mfg *mfg;
 
 	mtk_mfg_debug("MTKMFGBaseInit Begin\n");
 
-	mfg = devm_kzalloc(&pdev->dev, sizeof(*mfg), GFP_KERNEL);
+	mfg = devm_kzalloc(dev, sizeof(*mfg), GFP_KERNEL);
 	if (!mfg)
 		return -ENOMEM;
+	mfg->dev = dev;
 
-	err = mtk_mfg_bind_device_resource(pdev, mfg);
+	err = mtk_mfg_bind_device_resource(mfg);
 	if (err != 0)
 		return err;
 
@@ -258,23 +254,22 @@ int MTKMFGBaseInit(struct platform_device *pdev)
 	if (err)
 		goto err_unbind_resource;
 
-	/* attach mfg to pdev->dev.platform_data */
-	pdev->dev.platform_data = mfg;
+	dev->platform_data = mfg;
 
 	mtk_mfg_debug("MTKMFGBaseInit End\n");
 
 	return 0;
 err_unbind_resource:
-	mtk_mfg_unbind_device_resource(pdev, mfg);
+	mtk_mfg_unbind_device_resource(mfg);
 
 	return err;
 }
 
-void MTKMFGBaseDeInit(struct platform_device *pdev)
+void MTKMFGBaseDeInit(struct device *dev)
 {
-	struct mtk_mfg *mfg = dev_get_platdata(&pdev->dev);
+	struct mtk_mfg *mfg = dev_get_platdata(dev);
 
 	mtk_mfg_unprepare_clock(mfg);
 
-	mtk_mfg_unbind_device_resource(pdev, mfg);
+	mtk_mfg_unbind_device_resource(mfg);
 }

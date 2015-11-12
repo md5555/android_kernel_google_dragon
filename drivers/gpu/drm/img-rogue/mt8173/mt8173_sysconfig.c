@@ -234,7 +234,7 @@ PVRSRV_ERROR SysCreateConfigData(PVRSRV_SYSTEM_CONFIG **ppsSysConfig, void *hDev
 {
 	struct platform_device *pDevice = hDevice;
 	struct device *dev = &pDevice->dev;
-	struct mtk_mfg *mfg = dev->platform_data;
+	struct mtk_mfg *mfg = dev_get_platdata(dev);
 	int ret;
 
 	if (!pDevice) {
