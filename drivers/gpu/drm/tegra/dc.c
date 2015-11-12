@@ -27,6 +27,11 @@
 
 #define TEGRA_DC_ENABLE_STANDBY 0
 
+enum la_ptsa_update {
+	LA_PTSA_PRE_UPDATE,
+	LA_PTSA_POST_UPDATE,
+};
+
 struct tegra_dc_window_soc_info {
 	bool supports_h_filter;
 	bool supports_v_filter;
@@ -81,6 +86,7 @@ struct tegra_dc_state {
 	u32 planes;
 	unsigned long emc_bandwidth; /* kbps */
 	bool update_emc; /* set to false when the emc has been updated */
+	bool update_la_ptsa; /* set to true if plane's emc need to updated */
 };
 
 static inline struct tegra_dc_state *to_dc_state(struct drm_crtc_state *state)
@@ -99,6 +105,7 @@ struct tegra_plane_state {
 	u32 swap;
 
 	u64 plane_emc_bw;
+	enum la_ptsa_update plane_update_la_ptsa;
 };
 
 static inline struct tegra_plane_state *
@@ -623,6 +630,7 @@ static struct drm_plane_state *tegra_plane_atomic_duplicate_state(struct drm_pla
 	copy->tiling = state->tiling;
 	copy->format = state->format;
 	copy->swap = state->swap;
+	copy->plane_emc_bw = state->plane_emc_bw;
 
 	return &copy->base;
 }
@@ -1447,8 +1455,9 @@ tegra_crtc_atomic_duplicate_state(struct drm_crtc *crtc)
 	copy->planes = state->planes;
 	copy->nc_mode = state->nc_mode;
 	copy->tearing_effect = state->tearing_effect;
-	copy->emc_bandwidth = 0;
+	copy->emc_bandwidth = state->emc_bandwidth;
 	copy->update_emc = true;
+	copy->update_la_ptsa = true;
 
 	return &copy->base;
 }
@@ -2072,15 +2081,44 @@ static void calc_disp_params(struct drm_crtc *crtc,
 						spool_up_buffering_adj_bytes;
 }
 
+/*
+ * This function helps to select the correct plane emc bandwidth based on
+ * the following rule:
+ * 1. Use the new emc bandwidth in the following 3 cases
+ *    a. If plane's emc bw is increasing, and it is called from the
+ *    "tegra_dc_update_emc_pre_commit" function
+ *    b. If plane's emc bw is decreasing, and it is called from the
+ *    "tegra_dc_update_emc_post_commit" function
+ *    c. If plane's emc bw is increasing, and it is called from the
+ *    "tegra_dc_update_emc_post_commit" function
+ *
+ * 2. Use the old emc bandwidth in the following 2 case
+ *    a. If plane's emc bw is decreasing, and it is called from the
+ *    "tegra_dc_update_emc_pre_commit" function
+ */
+static u64 tegra_dc_get_plane_emc_bw(struct tegra_plane_state *tps,
+					struct tegra_plane_state *old_tps,
+					enum la_ptsa_update update)
+{
+	if (tps->plane_update_la_ptsa == update)
+		return tps->plane_emc_bw;
+
+	if (tps->plane_update_la_ptsa == LA_PTSA_PRE_UPDATE)
+		return tps->plane_emc_bw;
+	else
+		return old_tps->plane_emc_bw;
+}
+
 static int tegra_dc_set_latency_allowance(struct drm_crtc *crtc,
 					  unsigned long emc_freq,
-					  struct drm_atomic_state *old_state)
+					  struct drm_atomic_state *old_state,
+					  enum la_ptsa_update update)
 {
 	struct tegra_dc *dc = to_tegra_dc(crtc);
 	struct tegra_dc_state *dcs = to_dc_state(crtc->state);
 	struct drm_plane *plane;
 	struct tegra_plane *tp;
-	struct drm_plane_state *unused;
+	struct drm_plane_state *old_plane_state;
 	struct tegra_plane_state *tps;
 	struct clk *emc = clk_get_parent(dc->emc_clk);
 	struct tegra_dc_to_la_params disp_params = {0};
@@ -2088,34 +2126,45 @@ static int tegra_dc_set_latency_allowance(struct drm_crtc *crtc,
 	unsigned int emc_la_freq_hz = 0;
 	int i, num_wins = 0;
 	unsigned int total_active_space_bw = 0;
+	u64 plane_emc_bw;
+	struct tegra_dc_state *old_dcs;
+	struct tegra_plane_state *old_tps;
 
 	if (!dc->emc_la_clk)
 		return 0;
 
-	for_each_plane_in_state(old_state, plane, unused, i) {
+	old_dcs = to_dc_state(old_state->crtc_states[drm_crtc_index(crtc)]);
+
+	for_each_plane_in_state(old_state, plane, old_plane_state, i) {
 		if (!plane->state->crtc || plane->state->crtc != crtc ||
 		    !plane->state->fb)
 			continue;
 
+		old_tps = to_tegra_plane_state(old_plane_state);
 		tps = to_tegra_plane_state(plane->state);
 		num_wins++;
+
+		plane_emc_bw = tegra_dc_get_plane_emc_bw(tps, old_tps, update);
+
 		total_active_space_bw +=
-			DIV_ROUND_UP(tps->plane_emc_bw, 1000);
+			DIV_ROUND_UP(plane_emc_bw, 1000);
 	}
 
-	for_each_plane_in_state(old_state, plane, unused, i) {
+	for_each_plane_in_state(old_state, plane, old_plane_state, i) {
 		if (!plane->state->crtc || plane->state->crtc != crtc ||
 		    !plane->state->fb)
 			continue;
 
+		old_tps = to_tegra_plane_state(old_plane_state);
 		tp = to_tegra_plane(plane);
 		tps = to_tegra_plane_state(plane->state);
 
-		emc_freq_hz = tegra_emc_bw_to_freq_req(tps->plane_emc_bw) *
-			      1000;
+		plane_emc_bw = tegra_dc_get_plane_emc_bw(tps, old_tps, update);
+
+		emc_freq_hz = tegra_emc_bw_to_freq_req(plane_emc_bw) * 1000;
+
 		if (!emc_freq_hz)
 			continue;
-
 		/*
 		 * use clk_round_rate on root emc clock instead to
 		 * get correct rate.
@@ -2125,21 +2174,34 @@ static int tegra_dc_set_latency_allowance(struct drm_crtc *crtc,
 		while (1) {
 			int err;
 			unsigned long next_freq = 0;
+			unsigned long emc_bandwidth;
 
 			calc_disp_params(crtc, tp, tps, num_wins,
 					 dc->mc_win_clients[tp->index],
 					 emc_freq_hz, total_active_space_bw,
-					 tps->plane_emc_bw, &disp_params);
+					 plane_emc_bw, &disp_params);
+
+			/*
+			 * If called from pre commit, we should use the larger
+			 * emc_bandwidth to avoid the early emc rate drop.
+			 * If called from post commit, use the new one
+			 */
+			if (update == LA_PTSA_PRE_UPDATE)
+				emc_bandwidth = max(old_dcs->emc_bandwidth,
+						    dcs->emc_bandwidth);
+			else
+				emc_bandwidth = dcs->emc_bandwidth;
+
 
 			if (dc->pipe)
-				disp_params.total_dc1_bw = dcs->emc_bandwidth;
+				disp_params.total_dc1_bw = emc_bandwidth;
 			else
-				disp_params.total_dc0_bw = dcs->emc_bandwidth;
+				disp_params.total_dc0_bw = emc_bandwidth;
 
 			err = tegra_la_set_disp_la(dc->mc,
 						  dc->mc_win_clients[tp->index],
 						  emc_freq_hz,
-						  tps->plane_emc_bw,
+						  plane_emc_bw,
 						  disp_params);
 			if (!err) {
 				if (emc_freq_hz > emc_la_freq_hz) {
@@ -2151,7 +2213,6 @@ static int tegra_dc_set_latency_allowance(struct drm_crtc *crtc,
 			}
 
 			next_freq = clk_round_rate(emc, emc_freq_hz + 1000000);
-
 			if (emc_freq_hz != next_freq)
 				emc_freq_hz = next_freq;
 			else
@@ -2181,13 +2242,6 @@ static int tegra_dc_program_bandwidth(struct drm_crtc *crtc,
 	if (err) {
 		dev_err(dc->dev, "Set DC emc clock to %lu failed: %d\n",
 			freq, err);
-		return err;
-	}
-
-	/* Program MC LA/PTSA registers */
-	err = tegra_dc_set_latency_allowance(crtc, freq, old_state);
-	if (err) {
-		dev_err(dc->dev, "Set DC latency allowance failed: %d\n", err);
 		return err;
 	}
 
@@ -2283,6 +2337,8 @@ int tegra_dc_evaluate_bandwidth(struct drm_atomic_state *state)
 	struct drm_crtc *crtc;
 	struct drm_crtc_state *crtc_state;
 	int i, j;
+	u64 new_plane_emc_bw;
+	bool update_la_ptsa = false;
 
 	for_each_plane_in_state(state, plane, plane_state, i) {
 		/* Ignore planes which not updating */
@@ -2298,17 +2354,34 @@ int tegra_dc_evaluate_bandwidth(struct drm_atomic_state *state)
 		tp_state = to_tegra_plane_state(plane_state);
 
 		if (crtc_state->active)
-			tp_state->plane_emc_bw = tegra_dc_calculate_bandwidth(
+			new_plane_emc_bw = tegra_dc_calculate_bandwidth(
 						crtc_state->adjusted_mode.clock,
 						plane_state);
 		else
-			tp_state->plane_emc_bw = 0;
+			new_plane_emc_bw = 0;
+
+		if (tp_state->plane_emc_bw != new_plane_emc_bw) {
+			tp_state->plane_update_la_ptsa =
+				(tp_state->plane_emc_bw > new_plane_emc_bw) ?
+					LA_PTSA_POST_UPDATE :
+						LA_PTSA_PRE_UPDATE;
+			tp_state->plane_emc_bw = new_plane_emc_bw;
+
+			/*
+			 * Need to update la/ptsa registers if any
+			 * plane's emc bandwidth is changed.
+			 */
+			update_la_ptsa = true;
+		} else {
+			tp_state->plane_update_la_ptsa = LA_PTSA_PRE_UPDATE;
+		}
 	}
 
 	for_each_crtc_in_state(state, crtc, crtc_state, i) {
 		dc_state = to_dc_state(crtc_state);
 		dc_state->emc_bandwidth = tegra_dc_calculate_overlap(crtc,
 								state);
+		dc_state->update_la_ptsa = update_la_ptsa;
 	}
 
 	/* TODO: call MC function to see whether this bandwidth is sane. */
@@ -2324,6 +2397,8 @@ void tegra_dc_update_emc_pre_commit(struct drm_atomic_state *old_state)
 	struct tegra_dc_state *old_dc_state;
 	struct tegra_dc_state *new_dc_state;
 	int i, ret;
+	bool update_emc;
+	unsigned long freq;
 
 	for_each_crtc_in_state(old_state, crtc, old_crtc_state, i) {
 		dc = to_tegra_dc(crtc);
@@ -2331,21 +2406,38 @@ void tegra_dc_update_emc_pre_commit(struct drm_atomic_state *old_state)
 		new_dc_state = to_dc_state(crtc->state);
 
 		/* Don't drop the emc clock early if it's decreasing */
-		if (new_dc_state->emc_bandwidth < old_dc_state->emc_bandwidth) {
-			continue;
-		/* If we're not changing the clock, mark it updated */
-		} else if (new_dc_state->emc_bandwidth ==
-				old_dc_state->emc_bandwidth) {
+		update_emc = new_dc_state->emc_bandwidth >
+			     old_dc_state->emc_bandwidth;
+
+		if (new_dc_state->emc_bandwidth == old_dc_state->emc_bandwidth)
 			new_dc_state->update_emc = false;
-			continue;
-		}
 
 		/* Program the emc early if the bandwidth is increasing */
-		ret = tegra_dc_program_bandwidth(crtc, old_state);
-		if (ret)
-			DRM_ERROR("Failed to program emc bandwidth %d\n", ret);
-		else
-			new_dc_state->update_emc = false;
+		if (update_emc) {
+			ret = tegra_dc_program_bandwidth(crtc, old_state);
+			if (ret)
+				DRM_ERROR("Program emc bandwidth failed %d\n",
+					  ret);
+			else
+				new_dc_state->update_emc = false;
+			/*
+			 * Forcely update la/ptsa registers as long as the
+			 * dc's emc bandwidth is changed, regardless whether
+			 * any plane's emc bandwidth is changed
+			 */
+			new_dc_state->update_la_ptsa = true;
+		}
+
+		if (new_dc_state->update_la_ptsa) {
+			freq = tegra_emc_bw_to_freq_req(
+				new_dc_state->emc_bandwidth) * 1000;
+
+			/* Program MC LA/PTSA registers */
+			ret = tegra_dc_set_latency_allowance(
+				crtc, freq, old_state, LA_PTSA_PRE_UPDATE);
+			if (ret)
+				DRM_ERROR("Set DC LA failed: %d\n", ret);
+		}
 	}
 }
 
@@ -2356,19 +2448,42 @@ void tegra_dc_update_emc_post_commit(struct drm_atomic_state *old_state)
 	struct tegra_dc *dc;
 	struct tegra_dc_state *new_dc_state;
 	int i, ret;
+	unsigned long freq;
 
 	for_each_crtc_in_state(old_state, crtc, old_crtc_state, i) {
 		dc = to_tegra_dc(crtc);
 		new_dc_state = to_dc_state(crtc->state);
 
-		if (!new_dc_state || !new_dc_state->update_emc)
+		if (!new_dc_state)
 			continue;
 
-		ret = tegra_dc_program_bandwidth(crtc, old_state);
-		if (ret)
-			DRM_ERROR("Failed to program emc bandwidth %d\n", ret);
-		else
-			new_dc_state->update_emc = false;
+		if (new_dc_state->update_emc) {
+			ret = tegra_dc_program_bandwidth(crtc, old_state);
+			if (ret)
+				DRM_ERROR(
+				"Failed to program emc bandwidth %d\n", ret);
+			else
+				new_dc_state->update_emc = false;
+
+			/*
+			 * Forcely update la/ptsa registers as long as the
+			 * dc's emc bandwidth is changed, regardless whether
+			 * any plane's emc bandwidth is changed
+			 */
+			new_dc_state->update_la_ptsa = true;
+		}
+
+		if (new_dc_state->update_la_ptsa) {
+			freq = tegra_emc_bw_to_freq_req(
+				new_dc_state->emc_bandwidth) * 1000;
+
+			/* Program MC LA/PTSA registers */
+			ret = tegra_dc_set_latency_allowance(
+				crtc, freq, old_state, LA_PTSA_POST_UPDATE);
+			if (ret)
+				DRM_ERROR(
+				"Set DC latency allowance failed: %d\n", ret);
+		}
 	}
 }
 
