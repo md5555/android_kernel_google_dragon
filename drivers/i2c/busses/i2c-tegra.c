@@ -738,8 +738,9 @@ err:
 static int tegra_i2c_xfer_msg(struct tegra_i2c_dev *i2c_dev,
 	struct i2c_msg *msg, enum msg_end_type end_state)
 {
-	u32 packet_header;
+	u32 packet_header[3];
 	u32 int_mask;
+	unsigned long flags;
 	int ret;
 
 	tegra_i2c_flush_fifos(i2c_dev);
@@ -753,31 +754,33 @@ static int tegra_i2c_xfer_msg(struct tegra_i2c_dev *i2c_dev,
 	i2c_dev->msg_read = (msg->flags & I2C_M_RD);
 	reinit_completion(&i2c_dev->msg_complete);
 
-	packet_header = (0 << PACKET_HEADER0_HEADER_SIZE_SHIFT) |
+	packet_header[0] = (0 << PACKET_HEADER0_HEADER_SIZE_SHIFT) |
 			PACKET_HEADER0_PROTOCOL_I2C |
 			(i2c_dev->cont_id << PACKET_HEADER0_CONT_ID_SHIFT) |
 			(1 << PACKET_HEADER0_PACKET_ID_SHIFT);
-	i2c_writel(i2c_dev, packet_header, I2C_TX_FIFO);
 
-	packet_header = msg->len - 1;
-	i2c_writel(i2c_dev, packet_header, I2C_TX_FIFO);
+	packet_header[1] = msg->len - 1;
 
-	packet_header = I2C_HEADER_IE_ENABLE;
+	packet_header[2] = I2C_HEADER_IE_ENABLE;
 	if (end_state == MSG_END_CONTINUE)
-		packet_header |= I2C_HEADER_CONTINUE_XFER;
+		packet_header[2] |= I2C_HEADER_CONTINUE_XFER;
 	else if (end_state == MSG_END_REPEAT_START)
-		packet_header |= I2C_HEADER_REPEAT_START;
+		packet_header[2] |= I2C_HEADER_REPEAT_START;
 	if (msg->flags & I2C_M_TEN) {
-		packet_header |= msg->addr;
-		packet_header |= I2C_HEADER_10BIT_ADDR;
+		packet_header[2] |= msg->addr;
+		packet_header[2] |= I2C_HEADER_10BIT_ADDR;
 	} else {
-		packet_header |= msg->addr << I2C_HEADER_SLAVE_ADDR_SHIFT;
+		packet_header[2] |= msg->addr << I2C_HEADER_SLAVE_ADDR_SHIFT;
 	}
 	if (msg->flags & I2C_M_IGNORE_NAK)
-		packet_header |= I2C_HEADER_CONT_ON_NAK;
+		packet_header[2] |= I2C_HEADER_CONT_ON_NAK;
 	if (msg->flags & I2C_M_RD)
-		packet_header |= I2C_HEADER_READ;
-	i2c_writel(i2c_dev, packet_header, I2C_TX_FIFO);
+		packet_header[2] |= I2C_HEADER_READ;
+
+	local_irq_save(flags);
+	i2c_writel(i2c_dev, packet_header[0], I2C_TX_FIFO);
+	i2c_writel(i2c_dev, packet_header[1], I2C_TX_FIFO);
+	i2c_writel(i2c_dev, packet_header[2], I2C_TX_FIFO);
 
 	if (!(msg->flags & I2C_M_RD))
 		tegra_i2c_fill_tx_fifo(i2c_dev);
@@ -790,6 +793,9 @@ static int tegra_i2c_xfer_msg(struct tegra_i2c_dev *i2c_dev,
 	else if (i2c_dev->msg_buf_remaining)
 		int_mask |= I2C_INT_TX_FIFO_DATA_REQ;
 	tegra_i2c_unmask_irq(i2c_dev, int_mask);
+
+	local_irq_restore(flags);
+
 	dev_dbg(i2c_dev->dev, "unmasked irq: %02x\n",
 		i2c_readl(i2c_dev, I2C_INT_MASK));
 
