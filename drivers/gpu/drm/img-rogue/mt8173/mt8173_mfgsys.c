@@ -87,7 +87,6 @@ static int mtk_mfg_enable_clock(struct mtk_mfg *mfg)
 	int i;
 	int ret;
 
-	pm_runtime_get_sync(mfg->dev);
 	for (i = 0; i < MAX_TOP_MFG_CLK; i++) {
 		ret = clk_enable(mfg->top_clk[i]);
 		if (ret)
@@ -110,7 +109,6 @@ static void mtk_mfg_disable_clock(struct mtk_mfg *mfg)
 	mtk_mfg_set_clock_gating(mfg->reg_base);
 	for (i = MAX_TOP_MFG_CLK - 1; i >= 0; i--)
 		clk_disable(mfg->top_clk[i]);
-	pm_runtime_put_sync(mfg->dev);
 }
 
 static void mtk_mfg_enable_hw_apm(struct mtk_mfg *mfg)
@@ -139,19 +137,39 @@ int mtk_mfg_enable(struct mtk_mfg *mfg)
 {
 	int ret;
 
-	ret = mtk_mfg_enable_clock(mfg);
+	ret = regulator_enable(mfg->vgpu);
 	if (ret)
 		return ret;
 
+	ret = pm_runtime_get_sync(mfg->dev);
+	if (ret)
+		goto err_regulator_disable;
+
+	ret = mtk_mfg_enable_clock(mfg);
+	if (ret)
+		goto err_pm_runtime_put;
+
 	mtk_mfg_enable_hw_apm(mfg);
 
+	dev_dbg(mfg->dev, "Enabled\n");
+
 	return 0;
+
+err_pm_runtime_put:
+	pm_runtime_put_sync(mfg->dev);
+err_regulator_disable:
+	regulator_disable(mfg->vgpu);
+	return ret;
 }
 
 void mtk_mfg_disable(struct mtk_mfg *mfg)
 {
 	mtk_mfg_disable_hw_apm(mfg);
 	mtk_mfg_disable_clock(mfg);
+	pm_runtime_put_sync(mfg->dev);
+	regulator_disable(mfg->vgpu);
+
+	dev_dbg(mfg->dev, "Disabled\n");
 }
 
 int mtk_mfg_freq_set(struct mtk_mfg *mfg, unsigned long freq)
@@ -232,26 +250,15 @@ static int mtk_mfg_bind_device_resource(struct mtk_mfg *mfg)
 	if (IS_ERR(mfg->vgpu))
 		return PTR_ERR(mfg->vgpu);
 
-	err = regulator_enable(mfg->vgpu);
-	if (err != 0) {
-		dev_err(dev, "failed to enable regulator vgpu\n");
-		return err;
-	}
-
 	err = of_init_opp_table(dev);
 	if (err) {
 		dev_err(dev, "failed to init opp table, %d\n", err);
-		goto err_regulator_disable;
+		return err;
 	}
 
 	pm_runtime_enable(dev);
 
 	return 0;
-
-err_regulator_disable:
-	regulator_disable(mfg->vgpu);
-
-	return err;
 }
 
 static void mtk_mfg_unbind_device_resource(struct mtk_mfg *mfg)
@@ -260,7 +267,6 @@ static void mtk_mfg_unbind_device_resource(struct mtk_mfg *mfg)
 
 	pm_runtime_disable(dev);
 	of_free_opp_table(dev);
-	regulator_disable(mfg->vgpu);
 }
 
 int MTKMFGBaseInit(struct device *dev)
