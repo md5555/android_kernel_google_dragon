@@ -258,10 +258,6 @@ PVRSRV_ERROR SysCreateConfigData(PVRSRV_SYSTEM_CONFIG **ppsSysConfig, void *hDev
 	gsSysConfig.uiDeviceCount = 1;
 	gsSysConfig.pasDevices = &gsDevice;
 
-	/* power management on HW system */
-	gsSysConfig.pfnSysPrePowerState = MTKSystemPrePowerState;
-	gsSysConfig.pfnSysPostPowerState = MTKSystemPostPowerState;
-
 	/* cache snooping */
 	gsSysConfig.eCacheSnoopingMode = 0;
 

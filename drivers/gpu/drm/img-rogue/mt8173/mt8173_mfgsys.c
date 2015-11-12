@@ -288,36 +288,6 @@ done:
 	return ret;
 }
 
-PVRSRV_ERROR MTKSystemPrePowerState(PVRSRV_SYS_POWER_STATE eNewPowerState)
-{
-	int err;
-	struct mtk_mfg *mfg = GET_MTK_MFG_BASE(sPVRLDMDev);
-
-	pr_err("MTKSystemPrePowerState() eNewPowerState %d\n", eNewPowerState);
-	/* turn off regulator for power saving ~30mw */
-	if (eNewPowerState == PVRSRV_SYS_POWER_STATE_OFF)
-		err = regulator_disable(mfg->vgpu);
-	else if (eNewPowerState == PVRSRV_SYS_POWER_STATE_ON)
-		err = regulator_enable(mfg->vgpu);
-
-	if (err != 0) {
-		pr_err("failed to %s regulator vgpu\n",
-		       ((eNewPowerState == PVRSRV_SYS_POWER_STATE_OFF)
-		       ? "disable" : "enable"));
-		return PVRSRV_ERROR_INVALID_PARAMS;
-	}
-
-	return PVRSRV_OK;
-}
-
-PVRSRV_ERROR MTKSystemPostPowerState(PVRSRV_SYS_POWER_STATE eNewPowerState)
-{
-	mtk_mfg_debug("MTKSystemPostPowerState eNewPowerState %d\n",
-		      eNewPowerState);
-
-	return PVRSRV_OK;
-}
-
 int MTKMFGBaseInit(struct platform_device *pdev)
 {
 	int err;

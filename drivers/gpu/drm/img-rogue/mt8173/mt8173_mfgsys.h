@@ -64,8 +64,6 @@ PVRSRV_ERROR MTKSysDevPrePowerState(PVRSRV_DEV_POWER_STATE eNew,
 PVRSRV_ERROR MTKSysDevPostPowerState(PVRSRV_DEV_POWER_STATE eNew,
 					    PVRSRV_DEV_POWER_STATE eCurrent,
 					    IMG_BOOL bForced);
-PVRSRV_ERROR MTKSystemPrePowerState(PVRSRV_SYS_POWER_STATE eNew);
-PVRSRV_ERROR MTKSystemPostPowerState(PVRSRV_SYS_POWER_STATE eNew);
 
 void MTKSysSetFreq(struct mtk_mfg *mfg, u32 freq);
 void MTKSysSetVolt(struct mtk_mfg *mfg, u32 volt);
