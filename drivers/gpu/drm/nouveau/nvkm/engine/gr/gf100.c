@@ -149,10 +149,15 @@ static int
 gf100_fermi_mthd_zbc_color(struct nvkm_object *object, void *data, u32 size)
 {
 	struct gf100_gr_priv *priv = (void *)object->engine;
+	struct nvkm_pmu *pmu = nvkm_pmu(priv);
+	struct nvkm_ltc *ltc = nvkm_ltc(priv);
 	union {
 		struct fermi_a_zbc_color_v0 v0;
 	} *args = data;
-	int ret;
+	int ret = -EINVAL;
+
+	if (pmu->disable_elpg)
+		pmu->disable_elpg(pmu);
 
 	if (nvif_unpack(args->v0, 0, 0, false)) {
 		switch (args->v0.format) {
@@ -180,15 +185,21 @@ gf100_fermi_mthd_zbc_color(struct nvkm_object *object, void *data, u32 size)
 							   args->v0.l2);
 			if (ret >= 0) {
 				args->v0.index = ret;
-				return 0;
+				ret = 0;
 			}
 			break;
 		default:
 			nv_error(priv, "invalid zbc color %d\n", args->v0.format);
-			return -EINVAL;
+			ret = -EINVAL;
+			break;
 		}
 	}
 
+	if (!ret)
+		pmu->save_zbc(pmu, ltc->zbc_max);
+
+	if (pmu->enable_elpg)
+		pmu->enable_elpg(pmu);
 	return ret;
 }
 
@@ -196,10 +207,15 @@ static int
 gf100_fermi_mthd_zbc_depth(struct nvkm_object *object, void *data, u32 size)
 {
 	struct gf100_gr_priv *priv = (void *)object->engine;
+	struct nvkm_pmu *pmu = nvkm_pmu(priv);
+	struct nvkm_ltc *ltc = nvkm_ltc(priv);
 	union {
 		struct fermi_a_zbc_depth_v0 v0;
 	} *args = data;
-	int ret;
+	int ret = -EINVAL;
+
+	if (pmu->disable_elpg)
+		pmu->disable_elpg(pmu);
 
 	if (nvif_unpack(args->v0, 0, 0, false)) {
 		switch (args->v0.format) {
@@ -207,13 +223,20 @@ gf100_fermi_mthd_zbc_depth(struct nvkm_object *object, void *data, u32 size)
 			ret = gf100_gr_zbc_depth_get(priv, args->v0.format,
 							   args->v0.ds,
 							   args->v0.l2);
-			return (ret >= 0) ? 0 : -ENOSPC;
+			ret = (ret >= 0) ? 0 : -ENOSPC;
+			break;
 		default:
 			nv_error(priv, "invalid zbc depth %d\n", args->v0.format);
-			return -EINVAL;
+			ret = -EINVAL;
+			break;
 		}
 	}
 
+	if (!ret)
+		pmu->save_zbc(pmu, ltc->zbc_max);
+
+	if (pmu->enable_elpg)
+		pmu->enable_elpg(pmu);
 	return ret;
 }
 
