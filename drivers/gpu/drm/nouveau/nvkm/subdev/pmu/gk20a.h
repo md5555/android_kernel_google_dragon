@@ -890,4 +890,7 @@ gk20a_pmu_mutex_acquire(struct nvkm_pmu *pmu, u32 id, u32 *token);
 int
 gk20a_pmu_mutex_release(struct nvkm_pmu *pmu, u32 id, u32 *token);
 
+void
+gk20a_pmu_save_zbc(struct nvkm_pmu *pmu, u32 entries);
+
 #endif

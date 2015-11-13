@@ -190,6 +190,14 @@ nvkm_pmu_release_mutex(struct nvkm_pmu *pmu, u32 id, u32 *token)
 	return 0;
 }
 
+static void
+nvkm_pmu_save_zbc(struct nvkm_pmu *pmu, u32 entries)
+{
+	const struct nvkm_pmu_impl *impl = (void *)nv_oclass(pmu);
+	if (impl->save_zbc)
+		return impl->save_zbc(pmu, entries);
+}
+
 int
 _nvkm_pmu_fini(struct nvkm_object *object, bool suspend)
 {
@@ -275,6 +283,7 @@ nvkm_pmu_create_(struct nvkm_object *parent, struct nvkm_object *engine,
 	init_waitqueue_head(&pmu->recv.wait);
 	pmu->acquire_mutex = nvkm_pmu_acquire_mutex;
 	pmu->release_mutex = nvkm_pmu_release_mutex;
+	pmu->save_zbc = nvkm_pmu_save_zbc;
 	return 0;
 }
 

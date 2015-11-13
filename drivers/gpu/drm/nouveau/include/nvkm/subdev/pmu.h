@@ -72,6 +72,7 @@ struct nvkm_pmu {
 	void (*pgob)(struct nvkm_pmu *, bool);
 	int (*acquire_mutex)(struct nvkm_pmu *, u32, u32 *);
 	int (*release_mutex)(struct nvkm_pmu *, u32, u32 *);
+	void (*save_zbc)(struct nvkm_pmu *, u32);
 };
 
 static inline struct nvkm_pmu *

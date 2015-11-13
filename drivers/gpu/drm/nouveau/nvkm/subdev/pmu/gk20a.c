@@ -1961,7 +1961,7 @@ gk20a_pmu_handle_zbc_msg(struct nvkm_pmu *pmu, struct pmu_msg *msg,
 	schedule_work(&priv->pg_init);
 }
 
-static void
+void
 gk20a_pmu_save_zbc(struct nvkm_pmu *pmu, u32 entries)
 {
 	struct gk20a_pmu_priv *priv = to_gk20a_priv(pmu);
@@ -3346,5 +3346,6 @@ gk20a_pmu_oclass = &(struct nvkm_pmu_impl) {
 	.pgob = gk20a_pmu_pgob,
 	.acquire_mutex = gk20a_pmu_mutex_acquire,
 	.release_mutex = gk20a_pmu_mutex_release,
+	.save_zbc = gk20a_pmu_save_zbc,
 }.base;
 
