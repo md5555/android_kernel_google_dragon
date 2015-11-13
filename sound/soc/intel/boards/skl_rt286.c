@@ -306,6 +306,7 @@ static struct platform_driver skylake_audio = {
 	.remove = skylake_audio_remove,
 	.driver = {
 		.name = "skl_alc286s_i2s",
+		.pm = &snd_soc_pm_ops,
 	},
 };
 
