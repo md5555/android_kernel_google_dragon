@@ -12,6 +12,7 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/prctl.h>
 #include <linux/slab.h>
 #include <linux/syscalls.h>
 
@@ -32,6 +33,21 @@ struct syscall_whitelist {
 #endif
 };
 
+/*
+ * If an alt_syscall table allows prctl(), override it to prevent a process
+ * from changing its syscall table.
+ */
+static asmlinkage long alt_sys_prctl(int option, unsigned long arg2,
+				     unsigned long arg3, unsigned long arg4,
+				     unsigned long arg5)
+{
+	if (option == PR_ALT_SYSCALL &&
+	    arg2 == PR_ALT_SYSCALL_SET_SYSCALL_TABLE)
+		return -EPERM;
+
+	return sys_prctl(option, arg2, arg3, arg4, arg5);
+}
+
 #ifdef CONFIG_COMPAT
 #define SYSCALL_WHITELIST_COMPAT(x)					\
 	.compat_whitelist = x ## _compat_whitelist,			\
@@ -48,7 +64,39 @@ struct syscall_whitelist {
 		SYSCALL_WHITELIST_COMPAT(x)				\
 	}
 
+#ifdef CONFIG_COMPAT
+#ifdef CONFIG_X86
+#define __NR_compat_exit	__NR_ia32_exit
+#define __NR_compat_open	__NR_ia32_open
+#define __NR_compat_close	__NR_ia32_close
+#define __NR_compat_read	__NR_ia32_read
+#define __NR_compat_write	__NR_ia32_write
+#define __NR_compat_prctl	__NR_ia32_prctl
+#endif
+#endif
+
+static struct syscall_whitelist_entry read_write_test_whitelist[] = {
+	{ __NR_exit, },
+	{ __NR_open, },
+	{ __NR_close, },
+	{ __NR_read, },
+	{ __NR_write, },
+	{ __NR_prctl, (sys_call_ptr_t)alt_sys_prctl },
+};
+
+#ifdef CONFIG_COMPAT
+static struct syscall_whitelist_entry read_write_test_compat_whitelist[] = {
+	{ __NR_compat_exit, },
+	{ __NR_compat_open, },
+	{ __NR_compat_close, },
+	{ __NR_compat_read, },
+	{ __NR_compat_write, },
+	{ __NR_compat_prctl, (sys_call_ptr_t)alt_sys_prctl },
+};
+#endif
+
 static struct syscall_whitelist whitelists[] = {
+	SYSCALL_WHITELIST(read_write_test),
 };
 
 static int alt_syscall_apply_whitelist(const struct syscall_whitelist *wl,
