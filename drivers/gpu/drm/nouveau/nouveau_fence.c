@@ -431,8 +431,10 @@ nouveau_fence_sync(struct fence *fence, struct nouveau_channel *chan, bool intr)
 		mutex_unlock(&chan->fifo_lock);
 	}
 
-	if (must_wait)
-		ret = fence_wait(fence, intr);
+	if (must_wait) {
+		ret = fence_wait_timeout(fence, intr, msecs_to_jiffies(500));
+		return ret < 0 ? ret : 0;
+	}
 
 	return ret;
 }
