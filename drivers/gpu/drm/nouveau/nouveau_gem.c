@@ -1187,12 +1187,16 @@ nouveau_gem_pushbuf_queue_kthread_fn(void *data)
 
 		fence = pb_data->input_fence;
 		if (fence) {
-			ret = sync_fence_wait(fence, 500);
-			if (ret)
-				NV_ERROR(chan->drm,
-					"fence %s [%p] timeout on channel %s\n",
-					fence->name, fence,
-					nvxx_client(chan)->name);
+			int i;
+			for (i = 0; i < fence->num_fences; ++i) {
+				struct fence *pt = fence->cbs[i].sync_pt;
+				ret = nouveau_fence_sync(pt, chan, true);
+				if (ret)
+					NV_ERROR(chan->drm,
+						 "fence %s [%p] timeout on channel %s\n",
+						 fence->name, fence,
+						 nvxx_client(chan)->name);
+			}
 		}
 
 		ret = pm_runtime_get_sync(dev);
