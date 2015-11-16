@@ -277,6 +277,7 @@ static struct cpufreq_driver tegra210_cpufreq_driver = {
 	.exit = tegra210_cpufreq_exit,
 	.name = "cpufreq-tegra210",
 	.attr = cpufreq_generic_attr,
+	.boost_supported = true,
 };
 
 static int tegra210_cpufreq_probe(struct platform_device *pdev)
