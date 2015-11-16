@@ -647,7 +647,7 @@ gk104_fifo_intr_sched_ctxsw(struct gk104_fifo_priv *priv)
 	u32 engn;
 
 	for (engn = 0; engn < ARRAY_SIZE(fifo_engine); engn++) {
-		u32 stat = nv_rd32(priv, 0x002640 + (engn * 0x04));
+		u32 stat = nv_rd32(priv, 0x002640 + (engn * 0x08));
 		u32 busy = (stat & 0x80000000);
 		u32 next = (stat & 0x07ff0000) >> 16;
 		u32 ctxstat = (stat & 0x0000e000) >> 13;
