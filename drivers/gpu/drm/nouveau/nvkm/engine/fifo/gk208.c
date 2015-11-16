@@ -33,4 +33,6 @@ gk208_fifo_oclass = &(struct gk104_fifo_impl) {
 		.fini = _nvkm_fifo_fini,
 	},
 	.channels = 1024,
+	.engine = gk104_fifo_engines,
+	.num_engine = ARRAY_SIZE(gk104_fifo_engines),
 }.base;

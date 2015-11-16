@@ -3,11 +3,13 @@
 #include <engine/fifo.h>
 #include <subdev/fb.h>
 
-#define _(a,b) { (a), ((1ULL << (a)) | (b)) }
-static const struct {
+struct fifo_engine {
 	u64 subdev;
 	u64 mask;
-} fifo_engine[] = {
+};
+
+#define _(a,b) { (a), ((1ULL << (a)) | (b)) }
+static const struct fifo_engine gk104_fifo_engines[] = {
 	_(NVDEV_ENGINE_GR      , (1ULL << NVDEV_ENGINE_SW) |
 				 (1ULL << NVDEV_ENGINE_CE2)),
 	_(NVDEV_ENGINE_MSPDEC  , 0),
@@ -17,9 +19,13 @@ static const struct {
 	_(NVDEV_ENGINE_CE1     , 0),
 	_(NVDEV_ENGINE_MSENC   , 0),
 };
-#undef _
 
-#define FIFO_ENGINE_NR ARRAY_SIZE(fifo_engine)
+static const struct fifo_engine gk20a_fifo_engines[] = {
+	_(NVDEV_ENGINE_GR      , (1ULL << NVDEV_ENGINE_SW) |
+				 (1ULL << NVDEV_ENGINE_CE2)),
+	_(NVDEV_ENGINE_CE2  , 0),
+};
+#undef _
 
 struct gk104_fifo_engn {
 	struct nvkm_gpuobj *runlist[2];
@@ -33,7 +39,7 @@ struct gk104_fifo_priv {
 	struct work_struct fault;
 	u64 mask;
 
-	struct gk104_fifo_engn engine[FIFO_ENGINE_NR];
+	struct gk104_fifo_engn *engine;
 	struct {
 		struct nvkm_gpuobj *mem;
 		struct nvkm_vma bar;
@@ -51,6 +57,8 @@ int  gk104_fifo_fini(struct nvkm_object *, bool);
 struct gk104_fifo_impl {
 	struct nvkm_oclass base;
 	u32 channels;
+	const struct fifo_engine *engine;
+	u32 num_engine;
 };
 
 extern struct nvkm_ofuncs gk104_fifo_chan_ofuncs;

@@ -51,4 +51,6 @@ gm20b_fifo_oclass = &(struct gk104_fifo_impl) {
 		.fini = gk104_fifo_fini,
 	},
 	.channels = 512,
+	.engine = gk20a_fifo_engines,
+	.num_engine = ARRAY_SIZE(gk20a_fifo_engines),
 }.base;

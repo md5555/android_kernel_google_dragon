@@ -206,6 +206,7 @@ gk104_fifo_chan_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	struct nvkm_bar *bar = nvkm_bar(parent);
 	struct gk104_fifo_priv *priv = (void *)engine;
 	struct gk104_fifo_base *base = (void *)parent;
+	struct gk104_fifo_impl *impl = (void *)nv_oclass(priv);
 	struct gk104_fifo_chan *chan;
 	u64 usermem, ioffset, ilength;
 	int ret, i;
@@ -219,16 +220,16 @@ gk104_fifo_chan_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	} else
 		return ret;
 
-	for (i = 0; i < FIFO_ENGINE_NR; i++) {
+	for (i = 0; i < impl->num_engine; i++) {
 		if (args->v0.engine & (1 << i)) {
-			if (nvkm_engine(parent, fifo_engine[i].subdev)) {
+			if (nvkm_engine(parent, impl->engine[i].subdev)) {
 				args->v0.engine = (1 << i);
 				break;
 			}
 		}
 	}
 
-	if (i == FIFO_ENGINE_NR) {
+	if (i == impl->num_engine) {
 		nv_error(priv, "unsupported engines 0x%08x\n", args->v0.engine);
 		return -ENODEV;
 	}
@@ -236,7 +237,7 @@ gk104_fifo_chan_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	ret = nvkm_fifo_channel_create(parent, engine, oclass, 1,
 				       priv->user.bar.offset, 0x200,
 				       args->v0.pushbuf,
-				       fifo_engine[i].mask, &chan);
+				       impl->engine[i].mask, &chan);
 	*pobject = nv_object(chan);
 	if (ret)
 		return ret;
@@ -511,9 +512,10 @@ gk104_fifo_engidx(struct gk104_fifo_priv *priv, u32 engn)
 static inline struct nvkm_engine *
 gk104_fifo_engine(struct gk104_fifo_priv *priv, u32 engn)
 {
-	if (engn >= ARRAY_SIZE(fifo_engine))
+	struct gk104_fifo_impl *impl = (void *)nv_oclass(priv);
+	if (engn >= impl->num_engine)
 		return NULL;
-	return nvkm_engine(priv, fifo_engine[engn].subdev);
+	return nvkm_engine(priv, impl->engine[engn].subdev);
 }
 
 static void
@@ -644,9 +646,10 @@ gk104_fifo_intr_sched_ctxsw(struct gk104_fifo_priv *priv)
 {
 	struct nvkm_engine *engine;
 	struct gk104_fifo_chan *chan;
+	struct gk104_fifo_impl *impl = (void *)nv_oclass(priv);
 	u32 engn;
 
-	for (engn = 0; engn < ARRAY_SIZE(fifo_engine); engn++) {
+	for (engn = 0; engn < impl->num_engine; engn++) {
 		u32 stat = nv_rd32(priv, 0x002640 + (engn * 0x08));
 		u32 busy = (stat & 0x80000000);
 		u32 next = (stat & 0x07ff0000) >> 16;
@@ -1187,15 +1190,18 @@ void
 gk104_fifo_dtor(struct nvkm_object *object)
 {
 	struct gk104_fifo_priv *priv = (void *)object;
+	struct gk104_fifo_impl *impl = (void *)nv_oclass(priv);
 	int i;
 
 	nvkm_gpuobj_unmap(&priv->user.bar);
 	nvkm_gpuobj_ref(NULL, &priv->user.mem);
 
-	for (i = 0; i < FIFO_ENGINE_NR; i++) {
+	for (i = 0; i < impl->num_engine; i++) {
 		nvkm_gpuobj_ref(NULL, &priv->engine[i].runlist[1]);
 		nvkm_gpuobj_ref(NULL, &priv->engine[i].runlist[0]);
 	}
+
+	kfree(priv->engine);
 
 	nvkm_fifo_destroy(&priv->base);
 }
@@ -1217,7 +1223,12 @@ gk104_fifo_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 
 	INIT_WORK(&priv->fault, gk104_fifo_recover_work);
 
-	for (i = 0; i < FIFO_ENGINE_NR; i++) {
+	priv->engine = kzalloc(impl->num_engine * sizeof(priv->engine[0]),
+			GFP_KERNEL);
+	if (!priv->engine)
+		return -ENOMEM;
+
+	for (i = 0; i < impl->num_engine; i++) {
 		ret = nvkm_gpuobj_new(nv_object(priv), NULL, 0x8000, 0x1000,
 				      0, &priv->engine[i].runlist[0]);
 		if (ret)
@@ -1262,4 +1273,6 @@ gk104_fifo_oclass = &(struct gk104_fifo_impl) {
 		.fini = gk104_fifo_fini,
 	},
 	.channels = 4096,
+	.engine = gk104_fifo_engines,
+	.num_engine = ARRAY_SIZE(gk104_fifo_engines),
 }.base;
