@@ -25,6 +25,8 @@
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_plane_helper.h>
 
+#define TEGRA_DC_ENABLE_STANDBY 0
+
 struct tegra_dc_window_soc_info {
 	bool supports_h_filter;
 	bool supports_v_filter;
@@ -1167,8 +1169,10 @@ static void tegra_dc_enable_vblank_impl(struct tegra_dc *dc)
 	struct tegra_dc_state *state = to_dc_state(dc->base.state);
 
 	WARN_ON(!spin_is_locked(&dc->lock));
+#if TEGRA_DC_ENABLE_STANDBY
 	if (state->nc_mode && dc->dpms == DRM_MODE_DPMS_STANDBY)
 		tegra_dc_dpms(dc, DRM_MODE_DPMS_ON);
+#endif
 
 	value = tegra_dc_readl(dc, DC_CMD_INT_MASK);
 	if (state->nc_mode) {
@@ -1209,8 +1213,10 @@ void tegra_dc_disable_vblank(struct tegra_dc *dc)
 		value &= ~VBLANK_INT;
 	tegra_dc_writel(dc, value, DC_CMD_INT_MASK);
 
+#if TEGRA_DC_ENABLE_STANDBY
 	if (state->nc_mode && dc->dpms == DRM_MODE_DPMS_ON)
 		tegra_dc_dpms(dc, DRM_MODE_DPMS_STANDBY);
+#endif
 
 	spin_unlock_irqrestore(&dc->lock, flags);
 }
