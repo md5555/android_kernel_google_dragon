@@ -51,12 +51,6 @@ PVRSRV_ERROR InitGovernor(PVRSRV_DATA *psPVRSRVData);
 
 PVRSRV_ERROR DeinitGovernor(void);
 
-#if defined(PVR_POWER_ACTOR)
-PVRSRV_ERROR InitPowerActor(void);
-
-PVRSRV_ERROR DeinitPowerActor(void);
-#endif
-
 /* Devfreq events */
 #define DEVFREQ_GOV_START			0x1
 #define DEVFREQ_GOV_STOP			0x2

@@ -175,9 +175,6 @@ static IMG_INT32 devfreq_get_dev_status(struct device *dev, struct devfreq_dev_s
 
 	stat->busy_time = sGpuUtilStats.ui64GpuStatActiveHigh;
 	stat->total_time = sGpuUtilStats.ui64GpuStatCumulative;
-#if defined(PVR_POWER_ACTOR)
-	*(IMG_UINT32*)stat->private_data = sGpuUtilStats.ui32GpuEnergy;
-#endif
 
 	return 0;
 }
@@ -328,14 +325,6 @@ PVRSRV_ERROR InitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
 		return PVRSRV_ERROR_INIT_FAILURE;
 	}
 
-#if defined(PVR_POWER_ACTOR)
-	eError = InitPowerActor();
-	if (eError != PVRSRV_OK)
-	{
-		PVR_DPF((PVR_DBG_ERROR,"PVRSRVInit: Failed to init power actor"));
-		return eError;
-	}
-#endif
 	PVR_TRACE(("PVR DVFS activated: %u-%uMhz, Period: %ums", psDVFSDeviceCfg->ui32FreqMin, \
 			psDVFSDeviceCfg->ui32FreqMax, psDVFSDeviceCfg->ui32PollMs));
 
@@ -348,15 +337,6 @@ PVRSRV_ERROR DeinitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
 	struct DEVICE_STRUCT	*psPlatDev = (struct DEVICE_STRUCT *) hDevice;
 	struct device		*psDev = &psPlatDev->dev;
 	IMG_INT32		i32Error;
-
-#if defined(PVR_POWER_ACTOR)
-	PVRSRV_ERROR		eError = DeinitPowerActor();
-	if (eError != PVRSRV_OK)
-	{
-		PVR_DPF((PVR_DBG_ERROR,"PVRSRVInit: Failed to deinit power actor"));
-		return PVRSRV_ERROR_INVALID_PARAMS;
-	}
-#endif /* PVR_POWER_ACTOR */
 
 	if (psDVFSDevice->psDevFreq)
 	{

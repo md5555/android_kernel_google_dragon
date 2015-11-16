@@ -302,11 +302,6 @@ static PVRSRV_ERROR RGXGetGpuUtilStats(PVRSRV_DEVICE_NODE *psDeviceNode,
 		i++;
 	}
 
-#if defined(PVR_POWER_ACTOR) && defined(PVR_DVFS)
-	/* Power actor enabled */
-	psReturnStats->ui32GpuEnergy = psDevInfo->psRGXFWIfTraceBuf->ui32PowMonEnergy;
-#endif
-
 	OSLockRelease(psDevInfo->hGPUUtilLock);
 
 	if (i == MAX_ITERATIONS)

@@ -128,10 +128,6 @@ typedef struct _IMG_DVFS_
 	IMG_DVFS_GOVERNOR		sDVFSGovernor;
 	IMG_DVFS_DEVICE_CFG		sDVFSDeviceCfg;
 	IMG_DVFS_GOVERNOR_CFG		sDVFSGovernorCfg;
-#if defined(PVR_POWER_ACTOR)
-	IMG_DVFS_PA			sDVFSPA;
-	IMG_DVFS_PA_CFG			sDVFSPACfg;
-#endif
 } PVRSRV_DVFS;
 #endif/* (__linux__) */
 

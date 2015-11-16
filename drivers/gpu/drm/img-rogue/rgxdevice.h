@@ -113,10 +113,6 @@ typedef struct _RGXFWIF_GPU_UTIL_STATS_
 	IMG_UINT64 ui64GpuStatBlocked;    /* GPU blocked statistic */
 	IMG_UINT64 ui64GpuStatIdle;       /* GPU idle statistic */
 	IMG_UINT64 ui64GpuStatCumulative; /* Sum of active/blocked/idle stats */
-
-#if defined(PVR_POWER_ACTOR) && defined (PVR_DVFS)
-	IMG_UINT32 ui32GpuEnergy;         /* GPU dynamic energy */
-#endif
 } RGXFWIF_GPU_UTIL_STATS;
 
 
