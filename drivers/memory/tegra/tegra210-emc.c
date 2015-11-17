@@ -90,6 +90,7 @@ static void __iomem *emc1_base;
 static void __iomem *mc_base;
 void __iomem *clk_base;
 static unsigned long emc_max_rate;
+static unsigned long emc_override_rate;
 unsigned long dram_over_temp_state = TEGRA_DRAM_OVER_TEMP_NONE;
 static struct emc_stats tegra_emc_stats;
 struct emc_table *tegra_emc_table;
@@ -1502,6 +1503,7 @@ static int tegra210_emc_probe(struct platform_device *pdev)
 static int tegra210_emc_suspend(struct device *dev)
 {
 	if (!IS_ERR(emc_override_clk)) {
+		emc_override_rate = clk_get_rate(emc_override_clk);
 		clk_set_rate(emc_override_clk, 204000000);
 		clk_prepare_enable(emc_override_clk);
 	}
@@ -1511,9 +1513,10 @@ static int tegra210_emc_suspend(struct device *dev)
 
 static int tegra210_emc_resume(struct device *dev)
 {
-	if (!IS_ERR(emc_override_clk))
+	if (!IS_ERR(emc_override_clk)) {
+		clk_set_rate(emc_override_clk, emc_override_rate);
 		clk_disable_unprepare(emc_override_clk);
-
+	}
 	return 0;
 }
 #endif
