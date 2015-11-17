@@ -32,6 +32,11 @@ struct tegra_dc_window_soc_info {
 	bool supports_v_filter;
 };
 
+struct tegra_dc_scale_limit {
+	unsigned int bpp;
+	unsigned int limit;
+};
+
 struct tegra_dc_soc_info {
 	bool supports_border_color;
 	bool supports_interlacing;
@@ -47,6 +52,10 @@ struct tegra_dc_soc_info {
 	const u32 *primary_plane_formats;
 	unsigned int num_overlay_plane_formats;
 	const u32 *overlay_plane_formats;
+	unsigned int num_h_scale_down_limits;
+	const struct tegra_dc_scale_limit *h_scale_down_limits;
+	unsigned int num_v_scale_down_limits;
+	const struct tegra_dc_scale_limit *v_scale_down_limits;
 };
 
 struct tegra_plane {
@@ -668,6 +677,27 @@ static int tegra_plane_state_add(struct tegra_plane *plane,
 	return 0;
 }
 
+static unsigned int tegra_find_scale_limit(struct drm_plane_state *state,
+					   unsigned int num_scale_limits,
+				const struct tegra_dc_scale_limit *scale_limit)
+{
+	struct tegra_plane_state *tps = to_tegra_plane_state(state);
+	unsigned int bpp;
+	int i;
+
+	if (tegra_dc_format_is_yuv(tps->format, NULL))
+		bpp = 2;
+	else
+		bpp = state->fb->bits_per_pixel / 8;
+
+	for (i = 0; i < num_scale_limits; i++) {
+		if (!scale_limit[i].bpp || bpp == scale_limit[i].bpp)
+			return scale_limit[i].limit;
+	}
+
+	return UINT_MAX;
+}
+
 static int tegra_plane_atomic_check(struct drm_plane *plane,
 				    struct drm_plane_state *state)
 {
@@ -685,6 +715,22 @@ static int tegra_plane_atomic_check(struct drm_plane *plane,
 			      &plane_state->swap);
 	if (err < 0)
 		return err;
+
+	if (dc->soc->num_h_scale_down_limits) {
+		if ((state->src_w >> 16) / state->crtc_w >
+		    tegra_find_scale_limit(state,
+					   dc->soc->num_h_scale_down_limits,
+					   dc->soc->h_scale_down_limits))
+			return -EINVAL;
+	}
+
+	if (dc->soc->num_v_scale_down_limits) {
+		if ((state->src_h >> 16) / state->crtc_h >
+		    tegra_find_scale_limit(state,
+					   dc->soc->num_v_scale_down_limits,
+					   dc->soc->v_scale_down_limits))
+			return -EINVAL;
+	}
 
 	err = tegra_fb_get_tiling(state->fb, tiling);
 	if (err < 0)
@@ -2957,6 +3003,16 @@ static const u32 tegra124_plane_formats[] = {
 	DRM_FORMAT_NV21,
 };
 
+static const struct tegra_dc_scale_limit tegra114_h_scale_down_limits[] = {
+	{ 0, 4 },
+};
+
+static const struct tegra_dc_scale_limit tegra114_v_scale_down_limits[] = {
+	{ 2, 4 },
+	{ 4, 2 },
+	{ 0, 2 },
+};
+
 static const struct tegra_dc_window_soc_info tegra20_dc_window_soc_info[] = {
 	[0] = {
 		.supports_v_filter = false,
@@ -3051,6 +3107,10 @@ static const struct tegra_dc_soc_info tegra114_dc_soc_info = {
 	.primary_plane_formats = tegra20_primary_plane_formats,
 	.num_overlay_plane_formats = ARRAY_SIZE(tegra114_overlay_plane_formats),
 	.overlay_plane_formats = tegra114_overlay_plane_formats,
+	.num_h_scale_down_limits = ARRAY_SIZE(tegra114_h_scale_down_limits),
+	.h_scale_down_limits = tegra114_h_scale_down_limits,
+	.num_v_scale_down_limits = ARRAY_SIZE(tegra114_v_scale_down_limits),
+	.v_scale_down_limits = tegra114_v_scale_down_limits,
 };
 
 static const struct tegra_dc_window_soc_info tegra124_dc_window_soc_info[] = {
@@ -3083,6 +3143,10 @@ static const struct tegra_dc_soc_info tegra124_dc_soc_info = {
 	.primary_plane_formats = tegra124_plane_formats,
 	.num_overlay_plane_formats = ARRAY_SIZE(tegra124_plane_formats),
 	.overlay_plane_formats = tegra124_plane_formats,
+	.num_h_scale_down_limits = ARRAY_SIZE(tegra114_h_scale_down_limits),
+	.h_scale_down_limits = tegra114_h_scale_down_limits,
+	.num_v_scale_down_limits = ARRAY_SIZE(tegra114_v_scale_down_limits),
+	.v_scale_down_limits = tegra114_v_scale_down_limits,
 };
 
 static const struct tegra_dc_window_soc_info tegra210_dc_window_soc_info[] = {
@@ -3115,6 +3179,10 @@ static const struct tegra_dc_soc_info tegra210_dc_soc_info = {
 	.primary_plane_formats = tegra124_plane_formats,
 	.num_overlay_plane_formats = ARRAY_SIZE(tegra124_plane_formats),
 	.overlay_plane_formats = tegra124_plane_formats,
+	.num_h_scale_down_limits = ARRAY_SIZE(tegra114_h_scale_down_limits),
+	.h_scale_down_limits = tegra114_h_scale_down_limits,
+	.num_v_scale_down_limits = ARRAY_SIZE(tegra114_v_scale_down_limits),
+	.v_scale_down_limits = tegra114_v_scale_down_limits,
 };
 
 static const struct of_device_id tegra_dc_of_match[] = {
