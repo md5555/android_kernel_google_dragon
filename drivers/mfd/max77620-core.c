@@ -24,6 +24,7 @@
 #include <linux/delay.h>
 #include <linux/uaccess.h>
 #include <linux/module.h>
+#include <linux/reboot.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/of_platform.h>
@@ -551,6 +552,8 @@ static irqreturn_t max77620_mbattlow_irq(int irq, void *data)
 	struct max77620_chip *max77620 = data;
 
 	dev_info(max77620->dev, "MBATTLOW interrupt occurred\n");
+
+	kernel_power_off();
 
 	return IRQ_HANDLED;
 }
