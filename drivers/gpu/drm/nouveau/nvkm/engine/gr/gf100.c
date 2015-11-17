@@ -828,7 +828,8 @@ gf100_gr_zbc_init(struct gf100_gr_priv *priv)
 	struct nvkm_ltc *ltc = nvkm_ltc(priv);
 	int index;
 
-	if (!priv->zbc_color[0].format) {
+	/* index 0 is reserverd, see ltc/base.c */
+	if (!priv->zbc_color[1].format) {
 		gf100_gr_zbc_color_get(priv, 1,  & zero[0],   &zero[4]);
 		gf100_gr_zbc_color_get(priv, 2,  &  one[0],    &one[4]);
 		gf100_gr_zbc_color_get(priv, 4,  &f32_0[0],  &f32_0[4]);
