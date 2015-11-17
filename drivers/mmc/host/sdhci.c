@@ -2082,11 +2082,11 @@ out:
 		mod_timer(&host->tuning_timer, jiffies +
 			host->tuning_count * HZ);
 	} else if (host->flags & SDHCI_USING_RETUNING_TIMER) {
-		host->flags &= ~SDHCI_NEEDS_RETUNING;
 		/* Reload the new initial value for timer */
 		mod_timer(&host->tuning_timer, jiffies +
 			  host->tuning_count * HZ);
 	}
+	host->flags &= ~SDHCI_NEEDS_RETUNING;
 
 	/*
 	 * In case tuning fails, host controllers which support re-tuning can
@@ -2729,6 +2729,13 @@ int sdhci_resume_host(struct sdhci_host *host)
 
 	/* Set the re-tuning expiration flag */
 	if (host->flags & SDHCI_USING_RETUNING_TIMER)
+		host->flags |= SDHCI_NEEDS_RETUNING;
+
+	/*
+	 * HACK: Force non-removable cards which are powered in suspend to be
+	 * retuned when they otherwise would not be.
+	 */
+	if (!mmc_card_is_removable(host->mmc) && mmc_card_keep_power(host->mmc))
 		host->flags |= SDHCI_NEEDS_RETUNING;
 
 	return ret;
