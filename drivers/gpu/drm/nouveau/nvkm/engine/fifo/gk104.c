@@ -30,6 +30,7 @@
 #include <subdev/bar.h>
 #include <subdev/fb.h>
 #include <subdev/mmu.h>
+#include <subdev/pmu.h>
 #include <subdev/timer.h>
 
 #include <nvif/class.h>
@@ -74,9 +75,16 @@ static void
 gk104_fifo_runlist_update(struct gk104_fifo_priv *priv, u32 engine)
 {
 	struct nvkm_bar *bar = nvkm_bar(priv);
+	struct nvkm_pmu *pmu = nvkm_pmu(priv);
 	struct gk104_fifo_engn *engn = &priv->engine[engine];
 	struct nvkm_gpuobj *cur;
 	int i, p;
+	u32 token = 0;
+	int mutex_ret;
+
+	mutex_ret = pmu->acquire_mutex(pmu, PMU_MUTEX_ID_FIFO, &token);
+	if (mutex_ret)
+		nv_warn(priv, "failed to acquire PMU FIFO mutex\n");
 
 	mutex_lock(&nv_subdev(priv)->mutex);
 	cur = engn->runlist[engn->cur_runlist];
@@ -100,6 +108,9 @@ gk104_fifo_runlist_update(struct gk104_fifo_priv *priv, u32 engine)
 				msecs_to_jiffies(2000)) == 0)
 		nv_error(priv, "runlist %d update timeout\n", engine);
 	mutex_unlock(&nv_subdev(priv)->mutex);
+
+	if (!mutex_ret)
+		pmu->release_mutex(pmu, PMU_MUTEX_ID_FIFO, &token);
 }
 
 static int
@@ -148,15 +159,25 @@ gk104_fifo_chan_kick(struct gk104_fifo_chan *chan)
 {
 	struct nvkm_object *obj = (void *)chan;
 	struct gk104_fifo_priv *priv = (void *)obj->engine;
+	struct nvkm_pmu *pmu = nvkm_pmu(priv);
+	u32 token = 0;
+	int ret = 0, mutex_ret;
+
+	mutex_ret = pmu->acquire_mutex(pmu, PMU_MUTEX_ID_FIFO, &token);
+	if (mutex_ret)
+		nv_warn(priv, "failed to acquire PMU FIFO mutex\n");
 
 	nv_wr32(priv, 0x002634, chan->base.chid);
 	if (!nv_wait(priv, 0x002634, 0x100000, 0x000000)) {
 		nv_error(priv, "channel %d [%s] kick timeout\n",
 			 chan->base.chid, nvkm_client_name(chan));
-		return -EBUSY;
+		ret = -EBUSY;
 	}
 
-	return 0;
+	if (!mutex_ret)
+		pmu->release_mutex(pmu, PMU_MUTEX_ID_FIFO, &token);
+
+	return ret;
 }
 
 static int
