@@ -61,10 +61,6 @@ static struct resource thermal_resources[] = {
 };
 
 static const struct regmap_irq max77620_top_lbt_irqs[] = {
-	[MAX77620_IRQ_TOP_GLBL] = {
-		.mask = MAX77620_IRQ_TOP_GLBL_MASK,
-		.reg_offset = 0,
-	},
 	[MAX77620_IRQ_TOP_SD] = {
 		.mask = MAX77620_IRQ_TOP_SD_MASK,
 		.reg_offset = 0,
@@ -162,6 +158,12 @@ int max77620_top_lbt_irq_chip_pre_irq(void *data)
 	int ret = 0;
 
 	ret = max77620_reg_update(chip->dev, MAX77620_PWR_SLAVE,
+		MAX77620_REG_IRQTOPM, MAX77620_IRQ_TOP_GLBL_MASK,
+		MAX77620_IRQ_TOP_GLBL_MASK);
+	if (ret < 0)
+		dev_err(chip->dev, "IRQ_GLBLM masking failed: %d\n", ret);
+
+	ret = max77620_reg_update(chip->dev, MAX77620_PWR_SLAVE,
 		MAX77620_REG_INTENLBT, MAX77620_GLBLM_MASK,
 		MAX77620_GLBLM_MASK);
 	if (ret < 0)
@@ -174,6 +176,11 @@ int max77620_top_lbt_irq_chip_post_irq(void *data)
 {
 	struct max77620_chip *chip = data;
 	int ret = 0;
+
+	ret = max77620_reg_update(chip->dev, MAX77620_PWR_SLAVE,
+		MAX77620_REG_IRQTOPM, MAX77620_IRQ_TOP_GLBL_MASK, 0);
+	if (ret < 0)
+		dev_err(chip->dev, "IRQ_GLBLM unmasking failed: %d\n", ret);
 
 	ret = max77620_reg_update(chip->dev, MAX77620_PWR_SLAVE,
 		MAX77620_REG_INTENLBT, MAX77620_GLBLM_MASK, 0);

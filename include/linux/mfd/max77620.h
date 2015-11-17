@@ -307,7 +307,6 @@ enum {
  */
 
 enum {
-	MAX77620_IRQ_TOP_GLBL,		/* Low-Battery */
 	MAX77620_IRQ_TOP_SD,		/* SD power fail */
 	MAX77620_IRQ_TOP_LDO,		/* LDO power fail */
 	MAX77620_IRQ_TOP_GPIO,		/* TOP GPIO internal int to MAX77620 */
@@ -315,7 +314,7 @@ enum {
 	MAX77620_IRQ_TOP_32K,		/* 32kHz oscillator */
 	MAX77620_IRQ_TOP_ONOFF,		/* ON/OFF oscillator */
 
-	MAX77620_IRQ_LBT_MBATLOW,	/* Thermal alarm status, > 120C */
+	MAX77620_IRQ_LBT_MBATLOW,	/* Low-Battery */
 	MAX77620_IRQ_LBT_TJALRM1,	/* Thermal alarm status, > 120C */
 	MAX77620_IRQ_LBT_TJALRM2,	/* Thermal alarm status, > 140C */
 
