@@ -13,6 +13,7 @@ config SND_HDA_I915
 	bool
 	default y
 	depends on DRM_I915
+	depends on DRM_I915_PRELIMINARY_HW_SUPPORT
 	depends on SND_HDA_CORE
 
 config SND_HDA_PREALLOC_SIZE
