@@ -340,8 +340,7 @@ imx219_get_af_data(struct imx219_info *info)
 	imx219_write_reg(info->i2c_client, 0x0100, 0); /* SW-Stanby */
 	usleep_range(1000 * 33, 1000 * 33 + 500); /* wait one frame */
 
-	for (i = 0; i < ARRAY_SIZE(imx219_read_prep); i++)
-		imx219_write_table(info->i2c_client, imx219_read_prep, NULL, 0);
+	imx219_write_table(info->i2c_client, imx219_read_prep, NULL, 0);
 
 	for (i = 0; i < ARRAY_SIZE(info->afdat); i++)
 		ret |= imx219_read_reg(info->i2c_client, 0x3204 + i,
