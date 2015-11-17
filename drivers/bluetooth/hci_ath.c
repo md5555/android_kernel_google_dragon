@@ -52,33 +52,22 @@ struct ath_struct {
 
 static int ath_wakeup_ar3k(struct tty_struct *tty)
 {
-	struct ktermios ktermios;
 	int status = tty->driver->ops->tiocmget(tty);
 
 	if (status & TIOCM_CTS)
 		return status;
 
-	/* Disable Automatic RTSCTS */
-	ktermios = tty->termios;
-	ktermios.c_cflag &= ~CRTSCTS;
-	tty_set_termios(tty, &ktermios);
-
 	/* Clear RTS first */
-	status = tty->driver->ops->tiocmget(tty);
+	tty->driver->ops->tiocmget(tty);
 	tty->driver->ops->tiocmset(tty, 0x00, TIOCM_RTS);
 	mdelay(20);
 
 	/* Set RTS, wake up board */
-	status = tty->driver->ops->tiocmget(tty);
+	tty->driver->ops->tiocmget(tty);
 	tty->driver->ops->tiocmset(tty, TIOCM_RTS, 0x00);
 	mdelay(20);
 
 	status = tty->driver->ops->tiocmget(tty);
-
-	/* Enable Automatic RTSCTS */
-	ktermios.c_cflag |= CRTSCTS;
-	status = tty_set_termios(tty, &ktermios);
-
 	return status;
 }
 
@@ -203,6 +192,7 @@ static int ath_recv(struct hci_uart *hu, const void *data, int count)
 	if (IS_ERR(ath->rx_skb)) {
 		int err = PTR_ERR(ath->rx_skb);
 		BT_ERR("%s: Frame reassembly failed (%d)", hu->hdev->name, err);
+		ath->rx_skb = NULL;
 		return err;
 	}
 
@@ -215,7 +205,7 @@ static int ath_enqueue(struct hci_uart *hu, struct sk_buff *skb)
 {
 	struct ath_struct *ath = hu->priv;
 
-	if (bt_cb(skb)->pkt_type == HCI_SCODATA_PKT) {
+	if (hci_skb_pkt_type(skb) == HCI_SCODATA_PKT) {
 		kfree_skb(skb);
 		return 0;
 	}
@@ -223,7 +213,7 @@ static int ath_enqueue(struct hci_uart *hu, struct sk_buff *skb)
 	/* Update power management enable flag with parameters of
 	 * HCI sleep enable vendor specific HCI command.
 	 */
-	if (bt_cb(skb)->pkt_type == HCI_COMMAND_PKT) {
+	if (hci_skb_pkt_type(skb) == HCI_COMMAND_PKT) {
 		struct hci_command_hdr *hdr = (void *)skb->data;
 
 		if (__le16_to_cpu(hdr->opcode) == HCI_OP_ATH_SLEEP)
@@ -233,7 +223,7 @@ static int ath_enqueue(struct hci_uart *hu, struct sk_buff *skb)
 	BT_DBG("hu %p skb %p", hu, skb);
 
 	/* Prepend skb with frame type */
-	memcpy(skb_push(skb, 1), &bt_cb(skb)->pkt_type, 1);
+	memcpy(skb_push(skb, 1), &hci_skb_pkt_type(skb), 1);
 
 	skb_queue_tail(&ath->txq, skb);
 	set_bit(HCI_UART_SENDING, &hu->tx_state);
@@ -253,6 +243,7 @@ static struct sk_buff *ath_dequeue(struct hci_uart *hu)
 static const struct hci_uart_proto athp = {
 	.id		= HCI_UART_ATH3K,
 	.name		= "ATH3K",
+	.manufacturer	= 69,
 	.open		= ath_open,
 	.close		= ath_close,
 	.flush		= ath_flush,
