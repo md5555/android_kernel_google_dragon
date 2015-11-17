@@ -2066,16 +2066,23 @@ static int sdhci_execute_tuning(struct mmc_host *mmc, u32 opcode)
 	}
 
 out:
-	if (tuning_count) {
-		/*
-		 * In case tuning fails, host controllers which support
-		 * re-tuning can try tuning again at a later time, when the
-		 * re-tuning timer expires.  So for these controllers, we
-		 * return 0. Since there might be other controllers who do not
-		 * have this capability, we return error for them.
-		 */
-		err = 0;
+	/*
+	 * If this is the very first time we are here, we start the retuning
+	 * timer. Since only during the first time, SDHCI_NEEDS_RETUNING
+	 * flag won't be set, we check this condition before actually starting
+	 * the timer.
+	 */
+	if (!(host->flags & SDHCI_NEEDS_RETUNING) && host->tuning_count &&
+	    (host->tuning_mode == SDHCI_TUNING_MODE_1)) {
+		host->flags |= SDHCI_USING_RETUNING_TIMER;
+		mod_timer(&host->tuning_timer, jiffies +
+			host->tuning_count * HZ);
+	} else if (host->flags & SDHCI_USING_RETUNING_TIMER) {
+		/* Reload the new initial value for timer */
+		mod_timer(&host->tuning_timer, jiffies +
+			  host->tuning_count * HZ);
 	}
+	host->flags &= ~SDHCI_NEEDS_RETUNING;
 
 	host->mmc->retune_period = err ? 0 : tuning_count;
 
@@ -2712,6 +2719,17 @@ int sdhci_resume_host(struct sdhci_host *host)
 	}
 
 	sdhci_enable_card_detection(host);
+
+	/* Set the re-tuning expiration flag */
+	if (host->flags & SDHCI_USING_RETUNING_TIMER)
+		host->flags |= SDHCI_NEEDS_RETUNING;
+
+	/*
+	 * HACK: Force non-removable cards which are powered in suspend to be
+	 * retuned when they otherwise would not be.
+	 */
+	if (!mmc_card_is_removable(host->mmc) && mmc_card_keep_power(host->mmc))
+		host->flags |= SDHCI_NEEDS_RETUNING;
 
 	return ret;
 }
