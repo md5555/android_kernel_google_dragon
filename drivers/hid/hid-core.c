@@ -1221,18 +1221,56 @@ static void hid_input_field(struct hid_device *hid, struct hid_field *field,
 
 		if (HID_MAIN_ITEM_VARIABLE & field->flags) {
 			hid_process_event(hid, field, &field->usage[n], value[n], interrupt);
+
+			if ((hid->claimed & HID_CLAIMED_INPUT) &&
+			    (field->usage[n].hid & HID_USAGE_PAGE) == HID_UP_KEYBOARD &&
+			    field->value[n] != value[n]) {
+				/*
+				 * This is a gross hack, but should work for standard
+				 * keyboards that are supposed to describe modifiers
+				 * (Shift, Alt, etc.) as Dynamic Flags. We assume that
+				 * we do not need to autorepeat any of them, so we stop
+				 * autorepeat once state of any of them changes.
+				 */
+				field->hidinput->repeat_field = NULL;
+				field->hidinput->repeat_usage = NULL;
+				field->hidinput->send_repeat = false;
+			}
+
 			continue;
 		}
 
-		if (field->value[n] >= min && field->value[n] <= max
-			&& field->usage[field->value[n] - min].hid
-			&& search(value, field->value[n], count))
-				hid_process_event(hid, field, &field->usage[field->value[n] - min], 0, interrupt);
+		if (field->value[n] >= min && field->value[n] <= max &&
+		    field->usage[field->value[n] - min].hid &&
+		    search(value, field->value[n], count)) {
+			hid_process_event(hid, field, &field->usage[field->value[n] - min], 0, interrupt);
+			if (hid->claimed & HID_CLAIMED_INPUT) {
+				/* When releasing any key reset autorepeat state */
+				field->hidinput->repeat_field = NULL;
+				field->hidinput->repeat_usage = NULL;
+				field->hidinput->send_repeat = false;
+			}
+		}
 
-		if (value[n] >= min && value[n] <= max
-			&& field->usage[value[n] - min].hid
-			&& search(field->value, value[n], count))
-				hid_process_event(hid, field, &field->usage[value[n] - min], 1, interrupt);
+		if (value[n] >= min && value[n] <= max &&
+		    field->usage[value[n] - min].hid &&
+		    search(field->value, value[n], count)) {
+			hid_process_event(hid, field, &field->usage[value[n] - min], 1, interrupt);
+			if ((hid->claimed & HID_CLAIMED_INPUT) &&
+			    (field->usage[value[n] - min].hid & HID_USAGE_PAGE) == HID_UP_KEYBOARD) {
+				/*
+				 * New key is pressed so store it so we can issue
+				 * autorepeat events later.
+				 */
+				field->hidinput->repeat_field = field;
+				field->hidinput->repeat_usage = &field->usage[value[n] - min];
+				/*
+				 * We will not be sending autorepeat event in this
+				 * event frame, but in next.
+				 */
+				field->hidinput->send_repeat = false;
+			}
+		}
 	}
 
 	memcpy(field->value, value, count * sizeof(__s32));
