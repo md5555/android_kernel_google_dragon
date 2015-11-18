@@ -1229,10 +1229,13 @@ static void hid_input_field(struct hid_device *hid, struct hid_field *field,
 			&& search(value, field->value[n], count))
 				hid_process_event(hid, field, &field->usage[field->value[n] - min], 0, interrupt);
 
-		if (value[n] >= min && value[n] <= max
-			&& field->usage[value[n] - min].hid
-			&& search(field->value, value[n], count))
+		if (value[n] >= min && value[n] <= max &&
+		    field->usage[value[n] - min].hid) {
+			if (search(field->value, value[n], count))
 				hid_process_event(hid, field, &field->usage[value[n] - min], 1, interrupt);
+			else if ((field->usage[value[n] - min].hid & HID_USAGE_PAGE) == HID_UP_KEYBOARD)
+				hid_process_event(hid, field, &field->usage[value[n] - min], 2, interrupt);
+		}
 	}
 
 	memcpy(field->value, value, count * sizeof(__s32));
