@@ -454,6 +454,9 @@ struct hid_input {
 	struct list_head list;
 	struct hid_report *report;
 	struct input_dev *input;
+	struct hid_field *repeat_field;
+	struct hid_usage *repeat_usage;
+	bool send_repeat;
 };
 
 enum hid_type {
