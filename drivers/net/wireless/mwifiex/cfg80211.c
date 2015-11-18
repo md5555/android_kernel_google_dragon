@@ -2340,6 +2340,7 @@ struct wireless_dev *mwifiex_add_virtual_intf(struct wiphy *wiphy,
 
 	mdev_priv = netdev_priv(dev);
 	*((unsigned long *) mdev_priv) = (unsigned long) priv;
+	dev->ml_priv = priv;
 
 	SET_NETDEV_DEV(dev, adapter->dev);
 
