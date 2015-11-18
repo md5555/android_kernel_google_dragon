@@ -71,6 +71,9 @@ static struct dvfs_rail tegra210_dvfs_rail_vdd_core = {
 	.alignment = {
 		.step_uv = 12500, /* 12.5mV */
 	},
+	.stats = {
+		.bin_uv = 12500, /* 12.5mV */
+	},
 	.therm_floors = tegra210_core_therm_floors,
 	.therm_caps = tegra210_core_therm_caps,
 	.is_ready = false,
