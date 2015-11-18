@@ -1694,7 +1694,8 @@ nouveau_gem_ioctl_as_alloc(struct drm_device *dev, void *data,
 		return nouveau_abi16_put(abi16, -EINVAL);
 
 	ret = nvkm_vm_as_alloc(cli->vm, align, req->pages * req->page_size,
-			       page_shift, &req->address);
+			       page_shift, &req->address,
+			       req->flags & NOUVEAU_GEM_AS_SPARSE);
 
 	return nouveau_abi16_put(abi16, ret);
 }

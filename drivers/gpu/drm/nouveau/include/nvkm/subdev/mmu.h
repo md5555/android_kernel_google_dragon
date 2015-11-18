@@ -37,6 +37,7 @@ struct nvkm_as {
 	u64 offset;
 	u64 length;
 	u32 align_shift;
+	bool sparse;
 
 	struct nvkm_mm_node *node;
 };
@@ -117,6 +118,7 @@ struct nvkm_mmu {
 			u64 *iova);
 	void (*unmap)(struct nvkm_gpuobj *pgt, u32 pte, u32 cnt);
 	void (*unmap_iommu)(struct nvkm_vma *, void *);
+	void (*sparse)(struct nvkm_gpuobj *, u32 pte, u32 cnt);
 	void (*flush)(struct nvkm_vm *);
 	u32 (*uc_type)(struct nvkm_mmu *, u32);
 
@@ -169,7 +171,7 @@ void nvkm_vm_unmap(struct nvkm_vma *);
 int nvkm_vm_fence(struct nvkm_vm *, struct fence *);
 int nvkm_vm_wait(struct nvkm_vm *);
 int nvkm_vm_as_alloc(struct nvkm_vm *, u64 align, u64 length, u32 page_shift,
-		     u64 *address);
+		     u64 *address, bool sparse);
 int nvkm_vm_as_alloc_at_offset(struct nvkm_vm *, u64 offset, u64 length,
 			       u32 page_shift);
 int nvkm_vm_as_free(struct nvkm_vm *, u64 offset);

@@ -207,6 +207,19 @@ gk20a_instobj_unmap_sg(struct nvkm_object *object, u32 pte, u32 cnt)
 	}
 }
 
+void
+gk20a_instobj_set_sparse(struct nvkm_object *object, u32 pte, u32 cnt)
+{
+	u32 *ramin_ptr = gk20a_instobj_get_cpu_ptr(object);
+
+	pte <<= 1;
+	while (cnt--) {
+		ramin_ptr[pte] = 0x0;		/* invalid  bit at bit 0  */
+		ramin_ptr[pte + 1] = 0x1;	/* volatile bit at bit 32 */
+		pte += 2;
+	}
+}
+
 static void
 gk20a_instobj_wr32(struct nvkm_object *object, u64 offset, u32 data)
 {

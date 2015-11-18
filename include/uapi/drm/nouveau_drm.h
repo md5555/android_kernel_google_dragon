@@ -151,7 +151,8 @@ struct drm_nouveau_gem_cpu_fini {
 struct drm_nouveau_gem_as_alloc {
 	uint64_t pages;     /* in, page length */
 	uint32_t page_size; /* in, byte page size */
-	uint32_t pad;
+#define NOUVEAU_GEM_AS_SPARSE 0x1
+	uint32_t flags;
 	uint64_t align; /* in, requested alignment in bytes */
 	uint64_t address; /* in/out, non-zero for fixed address allocation */
 };

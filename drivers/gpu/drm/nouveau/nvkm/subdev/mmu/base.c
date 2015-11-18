@@ -318,7 +318,10 @@ nvkm_vm_unmap_at(struct nvkm_vma *vma, u64 length)
 			end = max;
 		len = end - pte;
 
-		mmu->unmap(pgt, pte, len);
+		if (unlikely(vma->as && vma->as->sparse))
+			mmu->sparse(pgt, pte, len);
+		else
+			mmu->unmap(pgt, pte, len);
 
 		num -= len;
 		pte += len;
@@ -768,7 +771,7 @@ int nvkm_vm_wait(struct nvkm_vm *vm)
 }
 
 int nvkm_vm_as_alloc(struct nvkm_vm *vm, u64 align, u64 length, u32 page_shift,
-		     u64 *address)
+		     u64 *address, bool sparse)
 {
 	struct nvkm_mmu *mmu = vm->mmu;
 	struct nvkm_as *as;
@@ -777,9 +780,14 @@ int nvkm_vm_as_alloc(struct nvkm_vm *vm, u64 align, u64 length, u32 page_shift,
 	u64 moffset = *address >> 12;
 	int ret;
 
+	if (sparse && !mmu->sparse)
+		return -ENOSYS;
+
 	as = kzalloc(sizeof(*as), GFP_KERNEL);
 	if (!as)
 		return -ENOMEM;
+
+	as->sparse = sparse;
 
 	/*
 	 * Figure out the requested alignment for mappings done in this address
@@ -807,12 +815,76 @@ int nvkm_vm_as_alloc(struct nvkm_vm *vm, u64 align, u64 length, u32 page_shift,
 	if (ret != 0)
 		goto error_mm_free;
 
-	list_add(&as->head, &vm->as_list);
-
-	mutex_unlock(&nv_subdev(mmu)->mutex);
-
 	as->offset = as->node->offset << 12;
 	as->length = as->node->length << 12;
+
+	list_add(&as->head, &vm->as_list);
+
+	/*
+	 * PDE/PTEs for sparse address space must be initialized immediately.
+	 *
+	 * This mimic the primitive implementation of downstream driver where
+	 * PTEs are always allocated for sparse page even if the whole PDE is
+	 * sparse.  Progressive approach should be considerred for replacement
+	 * in the future.
+	 */
+	if (sparse) {
+		struct nvkm_ltc *ltc = nvkm_ltc(mmu);
+		u32 fpde, lpde, pde, pte, num, max, bits, end, cnt;
+		int pgsz;
+
+		/* fill PDEs */
+		fpde = as->node->offset >> mmu->pgt_bits;
+		lpde = (as->node->offset + as->node->length - 1)
+			>> mmu->pgt_bits;
+		pgsz = as->align_shift == mmu->lpg_shift ?
+			BIG_PAGE_INDEX : SMALL_PAGE_INDEX;
+
+		for (pde = fpde; pde <= lpde; pde++) {
+			struct nvkm_vm_pgt *vpgt = &vm->pgt[pde - vm->fpde];
+
+			if (likely(vpgt->refcount[pgsz])) {
+				vpgt->refcount[pgsz]++;
+				continue;
+			}
+
+			ret = nvkm_vm_map_pgt(vm, pde, as->node->type);
+			if (ret) {
+				if (pde != fpde)
+					nvkm_vm_unmap_pgt(vm, pgsz, fpde, pde - 1);
+				goto error_mm_free;
+			}
+		}
+		mutex_unlock(&nv_subdev(mmu)->mutex);
+
+		bits = as->node->type - 12;
+		num = as->node->length >> bits;	/* total num of PTEs to fill */
+		max  = 1 << (mmu->pgt_bits - bits);	/* PTEs per table */
+		pte  = (as->node->offset & ((1 << mmu->pgt_bits) - 1)) >> bits;
+		pde = fpde;
+
+		while (num) {
+			struct nvkm_gpuobj *pgt = vm->pgt[pde].obj[pgsz];
+
+			end = (pte + num);
+			if (unlikely(end >= max))
+				end = max;
+			cnt = end - pte;
+
+			mmu->sparse(pgt, pte, cnt);
+
+			num -= cnt;
+			pte += cnt;
+			if (unlikely(end >= max)) {
+				pde += 1;
+				pte = 0;
+			}
+		}
+
+		ltc->invalidate(ltc);
+		mmu->flush(vm);
+	} else
+		mutex_unlock(&nv_subdev(mmu)->mutex);
 
 	*address = as->offset;
 
@@ -848,6 +920,20 @@ int nvkm_vm_as_free(struct nvkm_vm *vm, u64 offset)
 		mutex_unlock(&nv_subdev(mmu)->mutex);
 		return ret;
 	}
+	if (as->sparse) {
+		u32 fpde, lpde;
+		int pgsz;
+
+		/* release PDEs */
+		fpde = as->node->offset >> mmu->pgt_bits;
+		lpde = (as->node->offset + as->node->length - 1)
+			>> mmu->pgt_bits;
+		pgsz = as->align_shift == mmu->lpg_shift ?
+			BIG_PAGE_INDEX : SMALL_PAGE_INDEX;
+
+		nvkm_vm_unmap_pgt(vm, pgsz, fpde, lpde);
+	}
+
 	nvkm_mm_free(&vm->mm, &as->node);
 
 	list_del(&as->head);

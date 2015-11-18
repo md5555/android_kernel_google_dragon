@@ -140,6 +140,12 @@ gk20a_mapping_insert(struct nvkm_mmu *mmu, struct gk20a_mapping *mapping,
 }
 
 static void
+gk20a_vm_sparse(struct nvkm_gpuobj *pgt, u32 pte, u32 cnt)
+{
+	gk20a_instobj_set_sparse(pgt->parent, pte, cnt);
+}
+
+static void
 gk20a_vm_map(struct nvkm_vma *vma, struct nvkm_gpuobj *pgt,
 	     struct nvkm_mem *mem, u32 pte, u32 cnt, u64 phys, u64 delta)
 {
@@ -313,6 +319,7 @@ gk20a_mmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	priv->base.map_sg_iommu = gk20a_vm_map_sg_iommu;
 	priv->base.unmap = gk20a_vm_unmap;
 	priv->base.unmap_iommu = gk20a_vm_unmap_iommu;
+	priv->base.sparse = gk20a_vm_sparse;
 	priv->base.flush = gf100_vm_flush;
 	priv->base.uc_type = gk20a_vm_uc_type;
 	priv->base.storage_type_map = gf100_pte_storage_type_map;
