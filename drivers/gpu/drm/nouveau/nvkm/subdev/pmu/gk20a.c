@@ -1958,7 +1958,7 @@ gk20a_pmu_handle_zbc_msg(struct nvkm_pmu *pmu, struct pmu_msg *msg,
 	struct gk20a_pmu_priv *priv = param;
 
 	nv_debug(pmu, "reply ZBC_TABLE_UPDATE\n");
-	schedule_work(&priv->pg_init);
+	complete(&priv->zbc_save_done);
 }
 
 void
@@ -1980,6 +1980,10 @@ gk20a_pmu_save_zbc(struct nvkm_pmu *pmu, u32 entries)
 	nv_debug(pmu, "cmd post ZBC_TABLE_UPDATE enteries = %d\n", entries);
 	gk20a_pmu_cmd_post(pmu, &cmd, NULL, NULL, PMU_COMMAND_QUEUE_HPQ,
 			   gk20a_pmu_handle_zbc_msg, priv, &seq, ~0);
+
+	if (!wait_for_completion_timeout(&priv->zbc_save_done,
+			msecs_to_jiffies(5000)))
+		nv_error(pmu, "save zbc timeout\n");
 }
 
 static int
@@ -2213,6 +2217,8 @@ gk20a_pmu_setup_hw_enable_elpg(struct nvkm_pmu *pmu)
 
 	/* Save zbc table after PMU is initialized */
 	gk20a_pmu_save_zbc(pmu, ltc->zbc_max);
+
+	schedule_work(&priv->pg_init);
 }
 
 static int
@@ -3158,6 +3164,7 @@ gk20a_pmu_init(struct nvkm_object *object)
 		return ret;
 
 	reinit_completion(&pmu->gr_init);
+	reinit_completion(&priv->zbc_save_done);
 	priv->pmu_state = PMU_STATE_STARTING;
 	ret = gk20a_init_pmu_setup_hw1(priv, pmc);
 	if (ret)
@@ -3286,6 +3293,7 @@ gk20a_pmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	priv->allow_elpg = true;
 	init_completion(&priv->elpg_off_completion);
 	init_completion(&priv->elpg_on_completion);
+	init_completion(&priv->zbc_save_done);
 
 	priv->pmu_chip_data = kzalloc(sizeof(struct pmu_gk20a_data),
 			GFP_KERNEL);

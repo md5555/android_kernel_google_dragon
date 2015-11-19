@@ -2566,6 +2566,7 @@ gm20b_pmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	init_completion(&priv->elpg_off_completion);
 	init_completion(&priv->elpg_on_completion);
 	init_completion(&ppmu->gr_init);
+	init_completion(&priv->zbc_save_done);
 
 	ret = gm20b_prepare_ucode_blob(ppmu);
 	if (ret)
@@ -2656,6 +2657,7 @@ gm20b_pmu_init(struct nvkm_object *object) {
 	mutex_init(&priv->pmu_seq_lock);
 	mutex_init(&priv->elpg_mutex);
 	mutex_init(&priv->clk_gating_mutex);
+	reinit_completion(&priv->zbc_save_done);
 	ppmu->secure_bootstrap = gm20b_boot_secure;
 	ppmu->boot_fecs = gm20b_boot_fecs;
 	ppmu->enable_elpg = gk20a_pmu_enable_elpg;

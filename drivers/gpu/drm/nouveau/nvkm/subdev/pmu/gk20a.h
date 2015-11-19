@@ -750,6 +750,7 @@ struct gk20a_pmu_priv {
 	struct completion lspmu_completion;
 	struct completion elpg_off_completion;
 	struct completion elpg_on_completion;
+	struct completion zbc_save_done;
 	int pmu_state;
 	int elpg_disable_depth;
 	int clk_gating_disable_depth;
