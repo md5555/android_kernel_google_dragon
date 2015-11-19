@@ -18,7 +18,7 @@
 
 / {
 	compatible = "nvidia,tegra210";
-	interrupt-parent = <&gic>;
+	interrupt-parent = <&lic>;
 	#address-cells = <2>;
 	#size-cells = <2>;
 
@@ -267,6 +267,7 @@
 		compatible = "arm,gic-400";
 		#interrupt-cells = <3>;
 		interrupt-controller;
+		interrupt-parent = <&gic>;
 		reg = <0x0 0x50041000 0x0 0x1000>,
 		      <0x0 0x50042000 0x0 0x2000>,
 		      <0x0 0x50044000 0x0 0x1000>,
@@ -291,7 +292,9 @@
 
 	lic: interrupt-controller@60004000 {
 		compatible = "nvidia,tegra210-ictlr", "nvidia,tegra30-ictlr";
+		#interrupt-cells = <3>;
 		interrupt-controller;
+		interrupt-parent = <&gic>;
 		reg = <0x0 0x60004000 0x0 0x40>, /* primary controller */
 		      <0x0 0x60004100 0x0 0x40>, /* secondary controller */
 		      <0x0 0x60004200 0x0 0x40>, /* tertiary controller */
@@ -1723,6 +1726,7 @@
 				(GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>,
 			     <GIC_PPI 10
 				(GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>;
+		interrupt-parent = <&gic>;
 		status = "okay";
 	};
 
