@@ -2050,7 +2050,7 @@ static int tegra_dc_program_bandwidth(struct drm_crtc *crtc,
 
 static u64 tegra_dc_calculate_bandwidth(int pclk, struct drm_plane_state *state)
 {
-	struct tegra_dc *dc = to_tegra_dc(state->plane->crtc);
+	struct tegra_dc *dc = to_tegra_dc(state->crtc);
 	struct tegra_plane_state *tps = to_tegra_plane_state(state);
 	u64 ret;
 	unsigned long bpp;
@@ -2139,13 +2139,15 @@ int tegra_dc_evaluate_bandwidth(struct drm_atomic_state *state)
 	int i, j;
 
 	for_each_plane_in_state(state, plane, plane_state, i) {
+		/* Ignore planes which not updating */
+		if (!plane_state->crtc)
+			continue;
+
 		for_each_crtc_in_state(state, crtc, crtc_state, j) {
-			if (crtc != plane->crtc)
+			if (crtc != plane_state->crtc)
 				continue;
 			break;
 		}
-		if (!crtc_state)
-			break;
 
 		tp_state = to_tegra_plane_state(plane_state);
 
