@@ -1317,6 +1317,7 @@ nouveau_gem_ioctl_pushbuf_2(struct drm_device *dev, void *data,
 
 		if (ret) {
 			NV_PRINTK(error, cli, "fence install: %d\n", ret);
+			fence_put(f);
 			goto out_fence;
 		}
 	}
