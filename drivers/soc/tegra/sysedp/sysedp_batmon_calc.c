@@ -301,12 +301,19 @@ static unsigned int calc_avail_budget(void)
 	return pbat;
 }
 
-static void batmon_update(struct work_struct *work)
+void batmon_update_budget(void)
 {
 	unsigned int budget;
-	unsigned int update_interval;
+
 	budget = calc_avail_budget();
 	sysedp_set_avail_budget(budget);
+}
+
+static void batmon_update(struct work_struct *work)
+{
+	unsigned int update_interval;
+
+	batmon_update_budget();
 
 	update_interval = pdata->update_interval ?: UPDATE_INTERVAL;
 

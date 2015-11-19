@@ -762,6 +762,10 @@ static int sysedp_dynamic_capping_probe(struct platform_device *pdev)
 	init_debugfs();
 
 	init_done = 1;
+
+	/* update battery power in time */
+	batmon_update_budget();
+
 	return 0;
 
 err:
