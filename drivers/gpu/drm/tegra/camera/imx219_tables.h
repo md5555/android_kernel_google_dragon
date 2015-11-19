@@ -419,6 +419,7 @@ static struct imx219_reg imx219_read_prep[] = {
 	{0x3300, 0},		/* ECC ON */
 	{0x3200, 1},		/* set 'Read' */
 	{0x3202, 1},		/* page 1 */
+	{IMX219_TABLE_END, 0x00}
 };
 
 static struct imx219_table_entry mode_list[] = {
