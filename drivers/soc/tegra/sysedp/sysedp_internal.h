@@ -38,6 +38,7 @@ static inline unsigned int _cur_oclevel(struct sysedp_consumer *c)
 	return c->ocpeaks ? c->ocpeaks[c->state] : c->states[c->state];
 }
 
+void batmon_update_budget(void);
 void sysedp_set_avail_budget(unsigned int);
 void sysedp_set_dynamic_cap(unsigned int, unsigned int);
 int sysedp_dynamic_cap_ready(void);
