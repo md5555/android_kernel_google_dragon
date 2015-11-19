@@ -348,6 +348,40 @@ done:
 	return err;
 }
 
+static int nvdec_boot(struct nvdec *nvdec)
+{
+	int err;
+	int retry_count = 3;
+
+	err = falcon_boot(&nvdec->falcon_bl, NULL);
+	if (!err)
+		return err;
+
+	/* Something wrong, attempt a poweroff-poweron cycle */
+	dev_info(nvdec->dev, "falcon_boot failed, retrying ");
+	while (retry_count--) {
+		err = nvdec_power_off(nvdec->dev);
+		if (err) {
+			dev_err(nvdec->dev, "failed to power off during nvdec_boot");
+			continue;
+		}
+		err = nvdec_power_on(nvdec->dev);
+		if (err) {
+			dev_err(nvdec->dev, "failed to power on during nvdec_boot");
+			continue;
+		}
+		err = nvdec_read_ucode(nvdec);
+		if (err) {
+			dev_err(nvdec->dev, "failed to read ucode during nvdec_boot");
+			continue;
+		}
+		err = falcon_boot(&nvdec->falcon_bl, NULL);
+		if (!err)
+			return err;
+	}
+	return err;
+}
+
 static int nvdec_open_channel(struct tegra_drm_client *client,
 			      struct tegra_drm_context *context)
 {
@@ -362,7 +396,7 @@ static int nvdec_open_channel(struct tegra_drm_client *client,
 	if (err)
 		goto done;
 
-	err = falcon_boot(&nvdec->falcon_bl, NULL);
+	err = nvdec_boot(nvdec);
 	if (err)
 		goto done;
 
@@ -418,7 +452,7 @@ static void nvdec_reset(struct device *dev)
 		return;
 	}
 
-	falcon_boot(&nvdec->falcon_bl, NULL);
+	nvdec_boot(nvdec);
 }
 
 static const struct tegra_drm_client_ops nvdec_ops = {
@@ -718,7 +752,7 @@ static int __maybe_unused nvdec_runtime_resume(struct device *dev)
 	if (err)
 		return err;
 
-	return falcon_boot(&nvdec->falcon_bl, NULL);
+	return nvdec_boot(nvdec);
 }
 
 static int __maybe_unused nvdec_suspend(struct device *dev)
@@ -751,7 +785,7 @@ static int __maybe_unused nvdec_resume(struct device *dev)
 	if (err)
 		return err;
 
-	return falcon_boot(&nvdec->falcon_bl, NULL);
+	return nvdec_boot(nvdec);
 }
 
 static const struct dev_pm_ops nvdec_pm_ops = {
