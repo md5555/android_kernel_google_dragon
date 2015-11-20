@@ -715,6 +715,67 @@ static int tegra_plane_atomic_check(struct drm_plane *plane,
 	return 0;
 }
 
+/*
+ * In order to map rotations to the 3 parameters needed from the dc hardware
+ * (scan_column, right_left, bottom_up), it's necessary to reduce the rotation
+ * request as much as possible to one of the following:
+ * - Plain ole' 90/180/270 rotate
+ * - Horizontal or vertical reflection
+ * - Some combination of 90 rotate plus one reflection
+ *
+ * All other combinations can be reduced to one of the aforementioned
+ * transforms. That is what this function does.
+ */
+static unsigned int tegra_plane_simplify_rotation(unsigned int r)
+{
+	unsigned int rotations = 0;
+
+	/*
+	 * If we have more than one rotation, behavior is unspecified. However,
+	 * let's just add up the total rotation.
+	 */
+	if (r & BIT(DRM_ROTATE_90))
+		rotations += 1;
+	if (r & BIT(DRM_ROTATE_180))
+		rotations += 2;
+	if (r & BIT(DRM_ROTATE_270))
+		rotations += 3;
+	rotations %= 4; /* Since DRM_ROTATE_* is 0,1,2,3 */
+
+	/*
+	 * Clear out all previous rotations in favor of our new, singular
+	 * rotation.
+	 */
+	r &= ~(BIT(DRM_ROTATE_0) | BIT(DRM_ROTATE_90) | BIT(DRM_ROTATE_180) |
+	       BIT(DRM_ROTATE_270));
+	if (rotations)
+		r |= BIT(rotations);
+
+	/* Handle double reflections */
+	if (r & BIT(DRM_REFLECT_X) && r & BIT(DRM_REFLECT_Y)) {
+		if (r & BIT(DRM_ROTATE_90))
+			return BIT(DRM_ROTATE_270);
+		else if (r & BIT(DRM_ROTATE_180))
+			return BIT(DRM_ROTATE_0);
+		else if (r & BIT(DRM_ROTATE_270))
+			return BIT(DRM_ROTATE_90);
+		else
+			return BIT(DRM_ROTATE_180);
+	}
+
+	/* Any reflection with rotation >90 can be simplified */
+	if (r == (BIT(DRM_REFLECT_X) | BIT(DRM_ROTATE_180)))
+		return BIT(DRM_REFLECT_Y);
+	else if (r == (BIT(DRM_REFLECT_Y) | BIT(DRM_ROTATE_180)))
+		return BIT(DRM_REFLECT_X);
+	else if (r == (BIT(DRM_REFLECT_X) | BIT(DRM_ROTATE_270)))
+		return BIT(DRM_REFLECT_Y) | BIT(DRM_ROTATE_90);
+	else if (r == (BIT(DRM_REFLECT_Y) | BIT(DRM_ROTATE_270)))
+		return BIT(DRM_REFLECT_X) | BIT(DRM_ROTATE_90);
+
+	return r;
+}
+
 static void tegra_plane_atomic_update(struct drm_plane *plane,
 				      struct drm_plane_state *old_state)
 {
@@ -724,7 +785,7 @@ static void tegra_plane_atomic_update(struct drm_plane *plane,
 	struct drm_framebuffer *fb = plane->state->fb;
 	struct tegra_plane *p = to_tegra_plane(plane);
 	struct tegra_dc_window window;
-	unsigned int i;
+	unsigned int i, rotation;
 
 	/* rien ne va plus */
 	if (!crtc || !fb || !crtc->state->active)
@@ -741,17 +802,43 @@ static void tegra_plane_atomic_update(struct drm_plane *plane,
 	window.dst.h = plane->state->crtc_h;
 	window.bits_per_pixel = fb->bits_per_pixel;
 	window.alpha = plane->state->alpha;
-	if (dc->soc->supports_scan_column &&
-			((BIT(DRM_ROTATE_90) | BIT(DRM_ROTATE_270)) &
-			 plane->state->rotation))
-		window.scan_column = true;
-	if ((BIT(DRM_REFLECT_X) | BIT(DRM_ROTATE_180) | BIT(DRM_ROTATE_270)) &
-			plane->state->rotation)
+
+	/*
+	 * Based on the simplified rotation, calculate the scanning parameters
+	 * according to the following table (taken from the TRM):
+	 * +---------------------------------------------------------+
+	 * | REFLECT | ROTATE | SCAN_COLUMN | RIGHT_LEFT | BOTTOM_UP |
+	 * +---------------------------------------------------------+
+	 * |    -    |    0   |     0       |     0      |     0     |
+	 * |    Y    |    0   |     0       |     0      |     1     |
+	 * |    X    |    0   |     0       |     1      |     0     |
+	 * |    -    |   180  |     0       |     1      |     1     |
+	 * |    Y    |   90   |     1       |     0      |     0     |
+	 * |    -    |   90   |     1       |     0      |     1     |
+	 * |    -    |   270  |     1       |     1      |     0     |
+	 * |    X    |   90   |     1       |     1      |     1     |
+	 * +---------------------------------------------------------+
+	 */
+	rotation = tegra_plane_simplify_rotation(plane->state->rotation);
+	if (rotation == BIT(DRM_ROTATE_180)) {
+		window.scan_column = false;
 		window.right_left = true;
-	if (((BIT(DRM_REFLECT_Y) | BIT(DRM_ROTATE_90) | BIT(DRM_ROTATE_180)) &
-				plane->state->rotation) ||
-			tegra_fb_is_bottom_up(fb))
 		window.bottom_up = true;
+	} else if (rotation == BIT(DRM_ROTATE_270)) {
+		window.scan_column = dc->soc->supports_scan_column;
+		window.right_left = true;
+		window.bottom_up = false;
+	} else {
+		window.scan_column = dc->soc->supports_scan_column &&
+				     (rotation & BIT(DRM_ROTATE_90));
+		window.right_left = !!(rotation & BIT(DRM_REFLECT_X));
+		window.bottom_up = rotation == BIT(DRM_REFLECT_Y) ||
+				   rotation == BIT(DRM_ROTATE_90) ||
+				   rotation == (BIT(DRM_REFLECT_X) |
+						BIT(DRM_ROTATE_90));
+	}
+	if (tegra_fb_is_bottom_up(fb))
+		window.bottom_up = !window.bottom_up;
 
 	/* copy from state */
 	window.tiling = state->tiling;
