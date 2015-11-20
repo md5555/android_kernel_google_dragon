@@ -3217,6 +3217,7 @@ gk20a_pmu_fini(struct nvkm_object *object, bool suspend)
 
 	priv->pmu_state = PMU_STATE_OFF;
 	priv->pmu_ready = false;
+	priv->initialized = false;
 
 	pmu->elcg_enabled = false;
 	pmu->slcg_enabled = false;

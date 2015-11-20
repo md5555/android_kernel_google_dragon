@@ -2603,6 +2603,7 @@ gm20b_pmu_fini(struct nvkm_object *object, bool suspend)
 		pmu->slcg_enabled = false;
 		pmu->blcg_enabled = false;
 		priv->pmu_ready = false;
+		priv->initialized = false;
 		pmu->cold_boot = true;
 		priv->lspmu_wpr_init_done = false;
 		nv_wr32(priv, 0x10a014, 0x00000060);
