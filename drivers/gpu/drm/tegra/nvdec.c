@@ -496,7 +496,7 @@ static const struct falcon_ops nvdec_falcon_ls_ops = {
 static const struct host1x_client_clock nvdec_t210_clocks[] = {
 	{
 		.clk_name = "nvdec_cbus",
-		.default_rate = UINT_MAX,
+		.default_rate = 192000000,
 		.valid_constraint_types =
 			BIT(HOST1X_USER_CONSTRAINT_TYPE_HZ),
 	}, {
