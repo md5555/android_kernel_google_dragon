@@ -36,6 +36,18 @@
 			pinctrl@18000 {
 		                compatible = "marvell,mv88f6810-pinctrl";
 			};
+			spi@10600 {
+				pinctrl-names = "default";
+				pinctrl-0 = <&spi0_pins>;
+				status = "okay";
+
+				spidev@0 {
+					compatible = "spidev";
+					reg = <0>;
+					spi-max-frequency = <25000000>;
+				};
+			};
+
 			spi@10680 {
 				pinctrl-names = "default";
 				pinctrl-0 = <&spi1_pins>;
