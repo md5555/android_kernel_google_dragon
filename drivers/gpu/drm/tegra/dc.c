@@ -1921,7 +1921,7 @@ static void calc_disp_params(struct drm_crtc *crtc,
 		bytes_per_pixel = 2;
 	} else {
 		yuv = false;
-		bytes_per_pixel = tp->base.fb->bits_per_pixel / 8;
+		bytes_per_pixel = tps->base.fb->bits_per_pixel / 8;
 	}
 
 	disp_params->drain_time_usec_fp = drain_time_usec_fp;
@@ -2087,7 +2087,8 @@ static int tegra_dc_set_latency_allowance(struct drm_crtc *crtc,
 		return 0;
 
 	for_each_plane_in_state(old_state, plane, unused, i) {
-		if (plane->crtc != crtc)
+		if (!plane->state->crtc || plane->state->crtc != crtc ||
+		    !plane->state->fb)
 			continue;
 
 		tps = to_tegra_plane_state(plane->state);
@@ -2096,7 +2097,8 @@ static int tegra_dc_set_latency_allowance(struct drm_crtc *crtc,
 	}
 
 	for_each_plane_in_state(old_state, plane, unused, i) {
-		if (plane->crtc != crtc)
+		if (!plane->state->crtc || plane->state->crtc != crtc ||
+		    !plane->state->fb)
 			continue;
 
 		tp = to_tegra_plane(plane);
