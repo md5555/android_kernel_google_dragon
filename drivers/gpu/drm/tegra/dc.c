@@ -2240,12 +2240,12 @@ static unsigned long tegra_dc_calculate_overlap(struct drm_crtc *crtc,
 	unsigned long result = 0, bw;
 
 	for_each_plane_in_state(state, pa, pa_state, i) {
-		if (pa->crtc != crtc)
+		if (pa_state->crtc != crtc)
 			continue;
 
 		bw = 0;
 		for_each_plane_in_state(state, pb, pb_state, j) {
-			if (pb->crtc != crtc)
+			if (pb_state->crtc != crtc)
 				continue;
 
 			if ((pa_state->crtc_y >= pb_state->crtc_y) &&
