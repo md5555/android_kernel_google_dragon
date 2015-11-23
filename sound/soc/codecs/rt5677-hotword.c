@@ -15,6 +15,7 @@
 #include <linux/i2c.h>
 #include <sound/soc.h>
 
+#include "rl6231.h"
 #include "rt5677.h"
 #include "rt5677-spi.h"
 #include "rt5677-hotword.h"
@@ -136,6 +137,8 @@ static int rt5677_hotword_load_fw_from_file(struct rt5677_dsp *dsp)
 
 static void rt5677_hotword_setup_audio_path(struct rt5677_priv *rt5677)
 {
+	int pre_div;
+	struct device *dev = rt5677->codec->dev;
 	/* The hotword audio path should be controlled by the ucm config.
 	 *
 	 * For example, to use a DMIC for hotwording, ucm config should setup:
@@ -154,9 +157,25 @@ static void rt5677_hotword_setup_audio_path(struct rt5677_priv *rt5677)
 	 * "DSP Capture" is the rt5677-hotword-cpu-dai with a PCM interface.
 	 */
 
-	/* I2S pre divide 2 = /6 (clk_sys2) */
-	regmap_update_bits(rt5677->regmap, RT5677_CLK_TREE_CTRL1,
-		RT5677_I2S_PD2_MASK, RT5677_I2S_PD2_6);
+	/* Calculate sel_i2s_pre_div5 for clk_sys5, based on MCLK input.
+	 * The DSP is expecting 16KHz sample rate.
+	 */
+	pre_div = rl6231_get_clk_info(rt5677->sysclk, 16000);
+	if (pre_div < 0) {
+		/* If the MCLK frequency is not known at this time, we use
+		 * a pre_div of 6 by default, assuming MCLK is 24567000Hz:
+		 * 16000 * 256 * 6 = 24576000
+		 */
+		dev_info(dev, "Unknown sysclk(%dHz), using default pre_div=6\n",
+			rt5677->sysclk);
+		pre_div = 4;
+	}
+	regmap_update_bits(rt5677->regmap, RT5677_CLK_TREE_CTRL2,
+		RT5677_I2S_PD5_MASK, pre_div << RT5677_I2S_PD5_SFT);
+
+	/* Clock source for Mono L ADC = clk_sys5 */
+	rt5677_sel_asrc_clk_src(rt5677->codec, RT5677_AD_MONO_L_FILTER,
+		RT5677_CLK_SEL_SYS5);
 
 	/* System Clock = MCLK1
 	 * Stereo ADC/DAC over sample rate = 128Fs (default)
@@ -165,9 +184,6 @@ static void rt5677_hotword_setup_audio_path(struct rt5677_priv *rt5677)
 
 	/* DSP Clock = MCLK1 (bypassed PLL2) */
 	regmap_write(rt5677->regmap, RT5677_GLB_CLK2, 0x0080);
-
-	/* Clock source for Mono L ADC = clk_sys2 */
-	regmap_update_bits(rt5677->regmap, RT5677_ASRC_6, 0xf000, 0x7000);
 
 	/* Enable Gating Mode with MCLK = enable */
 	regmap_update_bits(rt5677->regmap, RT5677_DIG_MISC, 0x1, 0x1);
