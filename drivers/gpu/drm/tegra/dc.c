@@ -1927,7 +1927,7 @@ static void calc_disp_params(struct drm_crtc *crtc,
 
 	if (tegra_dc_format_is_yuv(tps->format, &planar)) {
 		yuv = true;
-		bytes_per_pixel = 2 * tps->base.fb->bits_per_pixel / 8;
+		bytes_per_pixel = 2;
 	} else {
 		yuv = false;
 		bytes_per_pixel = tps->base.fb->bits_per_pixel / 8;
