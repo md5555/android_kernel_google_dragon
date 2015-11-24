@@ -691,9 +691,9 @@ gk104_fifo_intr_sched_ctxsw(struct gk104_fifo_priv *priv)
 	for (engn = 0; engn < impl->num_engine; engn++) {
 		u32 stat = nv_rd32(priv, 0x002640 + (engn * 0x08));
 		u32 busy = (stat & 0x80000000);
-		u32 next = (stat & 0x07ff0000) >> 16;
+		u32 next = (stat & 0x0fff0000) >> 16;
 		u32 ctxstat = (stat & 0x0000e000) >> 13;
-		u32 prev = (stat & 0x000007ff);
+		u32 prev = (stat & 0x00000fff);
 
 		u32 chid = (ctxstat == CTXSW_STATUS_LOAD) ? next : prev;
 		u32 ctxsw_active = ctxstat == CTXSW_STATUS_LOAD ||
