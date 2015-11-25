@@ -2930,6 +2930,19 @@ gk20a_init_pmu_setup_hw1(struct gk20a_pmu_priv *priv, struct nvkm_mc *pmc)
 	return 0;
 }
 
+static void gk20a_pmu_intr_exterr(struct gk20a_pmu_priv *priv)
+{
+	u32 addr = nv_rd32(priv, 0x10a168);
+	u32 stat = nv_rd32(priv, 0x10a16c);
+	u32 err = nv_rd32(priv, 0x10a698);
+	u32 fecserr = nv_rd32(priv, 0x10a988);
+
+	nv_error(priv, "falcon exterraddr: 0x%08x, exterrstat: 0x%08x\n",
+			addr, stat);
+	nv_error(priv, "intr err: 0x%08x, fecs err: 0x%08x\n", err, fecserr);
+	nv_mask(priv, 0x0010a16c, 0x80000000, 0x00000000);
+}
+
 void
 gk20a_pmu_intr(struct nvkm_subdev *subdev)
 {
@@ -2957,8 +2970,8 @@ gk20a_pmu_intr(struct nvkm_subdev *subdev)
 		nv_error(priv, "pmu halt intr not implemented\n");
 
 	if (intr & 0x20) {
-		nv_error(priv, "exterr interrupt  not impl..Clear interrupt\n");
-		nv_mask(priv, 0x0010a16c, (0x1 << 31), 0x00000000);
+		nv_error(priv, "exterr intr not implemented\n");
+		gk20a_pmu_intr_exterr(priv);
 	}
 
 	if (intr & 0x40) {
