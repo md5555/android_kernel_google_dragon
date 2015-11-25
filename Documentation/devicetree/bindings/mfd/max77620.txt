@@ -171,6 +171,13 @@ controls:
 		reset and power.  Same as setting maxim,system-pmic-power-off
 		and maxim,sytstem-pmic-power-reset
 
+Low-Battery:
+==============
+The following optional property pertains to max77620's Low-Battery threshold:
+	-maxim,lb-threshold-vol: Low-Battery DAC falling threshold in mV. Must be one
+			of: 2700, 2800, 2900, 3000, 3100, 3200, 3300, 3400. If not set,
+			the default threshold is OTP setting.
+
 Example:
 --------
 #include <dt-bindings/mfd/max77620.h>
