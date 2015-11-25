@@ -623,6 +623,8 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&max77620_default>;
 
+		maxim,lb-threshold-vol = <3000>;
+
 		max77620_default: pinmux@0 {
 			// TODO: Verify
 			pin_gpio {
