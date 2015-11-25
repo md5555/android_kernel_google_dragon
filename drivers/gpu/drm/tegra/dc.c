@@ -693,6 +693,9 @@ static unsigned int tegra_find_scale_limit(struct drm_plane_state *state,
 	unsigned int bpp;
 	int i;
 
+	if (!num_scale_limits)
+		return UINT_MAX;
+
 	if (tegra_dc_format_is_yuv(tps->format, NULL))
 		bpp = 2;
 	else
@@ -704,69 +707,6 @@ static unsigned int tegra_find_scale_limit(struct drm_plane_state *state,
 	}
 
 	return UINT_MAX;
-}
-
-static int tegra_plane_atomic_check(struct drm_plane *plane,
-				    struct drm_plane_state *state)
-{
-	struct tegra_plane_state *plane_state = to_tegra_plane_state(state);
-	struct tegra_bo_tiling *tiling = &plane_state->tiling;
-	struct tegra_plane *tegra = to_tegra_plane(plane);
-	struct tegra_dc *dc = to_tegra_dc(state->crtc);
-	int err;
-
-	/* no need for further checks if the plane is being disabled */
-	if (!state->crtc)
-		return 0;
-
-	err = tegra_dc_format(state->fb->pixel_format, &plane_state->format,
-			      &plane_state->swap);
-	if (err < 0)
-		return err;
-
-	if (dc->soc->num_h_scale_down_limits) {
-		if ((state->src_w >> 16) / state->crtc_w >
-		    tegra_find_scale_limit(state,
-					   dc->soc->num_h_scale_down_limits,
-					   dc->soc->h_scale_down_limits))
-			return -EINVAL;
-	}
-
-	if (dc->soc->num_v_scale_down_limits) {
-		if ((state->src_h >> 16) / state->crtc_h >
-		    tegra_find_scale_limit(state,
-					   dc->soc->num_v_scale_down_limits,
-					   dc->soc->v_scale_down_limits))
-			return -EINVAL;
-	}
-
-	err = tegra_fb_get_tiling(state->fb, tiling);
-	if (err < 0)
-		return err;
-
-	if (tiling->mode == TEGRA_BO_TILING_MODE_BLOCK &&
-	    !dc->soc->supports_block_linear) {
-		DRM_ERROR("hardware doesn't support block linear mode\n");
-		return -EINVAL;
-	}
-
-	/*
-	 * Tegra doesn't support different strides for U and V planes so we
-	 * error out if the user tries to display a framebuffer with such a
-	 * configuration.
-	 */
-	if (drm_format_num_planes(state->fb->pixel_format) > 2) {
-		if (state->fb->pitches[2] != state->fb->pitches[1]) {
-			DRM_ERROR("unsupported UV-plane configuration\n");
-			return -EINVAL;
-		}
-	}
-
-	err = tegra_plane_state_add(tegra, state);
-	if (err < 0)
-		return err;
-
-	return 0;
 }
 
 /*
@@ -828,6 +768,72 @@ static unsigned int tegra_plane_simplify_rotation(unsigned int r)
 		return BIT(DRM_REFLECT_X) | BIT(DRM_ROTATE_90);
 
 	return r;
+}
+
+static int tegra_plane_atomic_check(struct drm_plane *plane,
+				    struct drm_plane_state *state)
+{
+	struct tegra_plane_state *plane_state = to_tegra_plane_state(state);
+	struct tegra_bo_tiling *tiling = &plane_state->tiling;
+	struct tegra_plane *tegra = to_tegra_plane(plane);
+	struct tegra_dc *dc = to_tegra_dc(state->crtc);
+	int err;
+	unsigned int limit;
+	unsigned int rotation = tegra_plane_simplify_rotation(state->rotation);
+	uint32_t crtc_w = state->crtc_w, crtc_h = state->crtc_h;
+
+	/* no need for further checks if the plane is being disabled */
+	if (!state->crtc)
+		return 0;
+
+	err = tegra_dc_format(state->fb->pixel_format, &plane_state->format,
+			      &plane_state->swap);
+	if (err < 0)
+		return err;
+
+	if (rotation & (BIT(DRM_ROTATE_270) | BIT(DRM_ROTATE_90))) {
+		crtc_w = state->crtc_h;
+		crtc_h = state->crtc_w;
+	}
+
+	limit = tegra_find_scale_limit(state, dc->soc->num_h_scale_down_limits,
+				       dc->soc->h_scale_down_limits);
+	if ((state->src_w >> 16) / crtc_w > limit)
+		return -EINVAL;
+
+	limit = tegra_find_scale_limit(state, dc->soc->num_v_scale_down_limits,
+				       dc->soc->v_scale_down_limits);
+	if ((state->src_h >> 16) / crtc_h > limit)
+		return -EINVAL;
+
+	err = tegra_fb_get_tiling(state->fb, tiling);
+	if (err < 0)
+		return err;
+
+	if (tiling->mode == TEGRA_BO_TILING_MODE_BLOCK &&
+	    !dc->soc->supports_block_linear) {
+		DRM_ERROR("hardware doesn't support block linear mode\n");
+		return -EINVAL;
+	}
+
+	/*
+	 * Tegra doesn't support different strides for U and V planes so we
+	 * error out if the user tries to display a framebuffer with such a
+	 * configuration.
+	 */
+	if (drm_format_num_planes(state->fb->pixel_format) > 2) {
+		if (state->fb->pitches[2] != state->fb->pitches[1]) {
+			DRM_ERROR("unsupported UV-plane configuration\n");
+			return -EINVAL;
+		}
+	}
+
+	err = tegra_plane_state_add(tegra, state);
+	if (err < 0) {
+		return err;
+	}
+
+	return 0;
 }
 
 static void tegra_plane_atomic_update(struct drm_plane *plane,
