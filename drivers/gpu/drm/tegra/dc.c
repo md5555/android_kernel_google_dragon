@@ -35,6 +35,7 @@ enum la_ptsa_update {
 struct tegra_dc_window_soc_info {
 	bool supports_h_filter;
 	bool supports_v_filter;
+	bool supports_planar_rotation;
 };
 
 struct tegra_dc_scale_limit {
@@ -781,6 +782,7 @@ static int tegra_plane_atomic_check(struct drm_plane *plane,
 	unsigned int limit;
 	unsigned int rotation = tegra_plane_simplify_rotation(state->rotation);
 	uint32_t crtc_w = state->crtc_w, crtc_h = state->crtc_h;
+	bool planar, supports_planar_rotation;
 
 	/* no need for further checks if the plane is being disabled */
 	if (!state->crtc)
@@ -790,6 +792,13 @@ static int tegra_plane_atomic_check(struct drm_plane *plane,
 			      &plane_state->swap);
 	if (err < 0)
 		return err;
+
+	if (tegra_dc_format_is_yuv(plane_state->format, &planar)) {
+		supports_planar_rotation =
+			dc->soc->windows[tegra->index].supports_planar_rotation;
+		if ((planar && rotation) && !supports_planar_rotation)
+			return -EINVAL;
+	}
 
 	if (rotation & (BIT(DRM_ROTATE_270) | BIT(DRM_ROTATE_90))) {
 		crtc_w = state->crtc_h;
@@ -3150,15 +3159,18 @@ static const struct tegra_dc_scale_limit tegra114_v_scale_down_limits[] = {
 static const struct tegra_dc_window_soc_info tegra20_dc_window_soc_info[] = {
 	[0] = {
 		.supports_v_filter = false,
-		.supports_h_filter = false
+		.supports_h_filter = false,
+		.supports_planar_rotation = false
 	},
 	[1] = {
 		.supports_v_filter = true,
-		.supports_h_filter = true
+		.supports_h_filter = true,
+		.supports_planar_rotation = false
 	},
 	[2] = {
 		.supports_v_filter = false,
-		.supports_h_filter = true
+		.supports_h_filter = true,
+		.supports_planar_rotation = false
 	},
 };
 
@@ -3182,15 +3194,18 @@ static const struct tegra_dc_soc_info tegra20_dc_soc_info = {
 static const struct tegra_dc_window_soc_info tegra30_dc_window_soc_info[] = {
 	[0] = {
 		.supports_v_filter = false,
-		.supports_h_filter = false
+		.supports_h_filter = false,
+		.supports_planar_rotation = false
 	},
 	[1] = {
 		.supports_v_filter = true,
-		.supports_h_filter = true
+		.supports_h_filter = true,
+		.supports_planar_rotation = false
 	},
 	[2] = {
 		.supports_v_filter = false,
-		.supports_h_filter = true
+		.supports_h_filter = true,
+		.supports_planar_rotation = false
 	},
 };
 
@@ -3214,15 +3229,18 @@ static const struct tegra_dc_soc_info tegra30_dc_soc_info = {
 static const struct tegra_dc_window_soc_info tegra114_dc_window_soc_info[] = {
 	[0] = {
 		.supports_v_filter = true,
-		.supports_h_filter = true
+		.supports_h_filter = true,
+		.supports_planar_rotation = false
 	},
 	[1] = {
 		.supports_v_filter = true,
-		.supports_h_filter = true
+		.supports_h_filter = true,
+		.supports_planar_rotation = false
 	},
 	[2] = {
 		.supports_v_filter = true,
-		.supports_h_filter = true
+		.supports_h_filter = true,
+		.supports_planar_rotation = false
 	},
 };
 
@@ -3250,15 +3268,18 @@ static const struct tegra_dc_soc_info tegra114_dc_soc_info = {
 static const struct tegra_dc_window_soc_info tegra124_dc_window_soc_info[] = {
 	[0] = {
 		.supports_v_filter = true,
-		.supports_h_filter = true
+		.supports_h_filter = true,
+		.supports_planar_rotation = true
 	},
 	[1] = {
 		.supports_v_filter = true,
-		.supports_h_filter = true
+		.supports_h_filter = true,
+		.supports_planar_rotation = false
 	},
 	[2] = {
 		.supports_v_filter = true,
-		.supports_h_filter = true
+		.supports_h_filter = true,
+		.supports_planar_rotation = false
 	},
 };
 
@@ -3286,15 +3307,18 @@ static const struct tegra_dc_soc_info tegra124_dc_soc_info = {
 static const struct tegra_dc_window_soc_info tegra210_dc_window_soc_info[] = {
 	[0] = {
 		.supports_v_filter = true,
-		.supports_h_filter = true
+		.supports_h_filter = true,
+		.supports_planar_rotation = true
 	},
 	[1] = {
 		.supports_v_filter = true,
-		.supports_h_filter = true
+		.supports_h_filter = true,
+		.supports_planar_rotation = false
 	},
 	[2] = {
 		.supports_v_filter = true,
-		.supports_h_filter = true
+		.supports_h_filter = true,
+		.supports_planar_rotation = false
 	},
 };
 
