@@ -26,4 +26,8 @@
 #define PMC_TRIGGER_TYPE_HIGH		4
 #define PMC_TRIGGER_TYPE_LOW		8
 
+#define	PMC_CLK_OUT_SRC_OSC		1
+#define	PMC_CLK_OUT_SRC_OSC_DIV_2	2
+#define	PMC_CLK_OUT_SRC_OSC_DIV_4	4
+
 #endif

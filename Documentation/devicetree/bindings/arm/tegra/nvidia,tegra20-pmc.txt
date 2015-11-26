@@ -30,6 +30,12 @@ Optional properties:
 - nvidia,combined-power-req : Boolean, combined power request for CPU & Core
 - nvidia,cpu-pwr-good-en : Boolean, CPU power good signal (from PMIC to PMC)
 			   is enabled.
+- nvidia,pmc-clk1-out-en : Boolean, keep the PMC clk1 output still avaiable
+			   during suspend phase.
+- nvidia,pmc-clk1-out-src : It should be the value below to indicate the clock
+			    source.
+			    PMC_CLK_OUT_SRC_OSC, PMC_CLK_OUT_SRC_OSC_DIV_2,
+			    PMC_CLK_OUT_SRC_OSC_DIV_4
 
 Required properties when nvidia,suspend-mode is specified:
 - nvidia,cpu-pwr-good-time : CPU power good time in uS.
@@ -81,6 +87,8 @@ pmc@7000f400 {
 	nvidia,core-power-req-active-high;
 	nvidia,sys-clock-req-active-high;
 	nvidia,lp0-vec = <0xbdffd000 0x2000>;
+	nvidia,pmc-clk1-out-en;
+	nvidia,pmc-clk1-out-src = <PMC_CLK_OUT_SRC_OSC_DIV_2>;
 };
 
 / Tegra board dts file

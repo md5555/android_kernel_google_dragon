@@ -123,6 +123,22 @@
 #define PMC_WAKE2_STATUS		0x168
 #define PMC_SW_WAKE2_STATUS		0x16c
 
+#define PMC_OSC_EDPD_OVER		0x1a4
+#define  OSC_EDPD_CLK_OK		(0x1 << 23)
+#define  OSC_EDPD_OSC_CTRL_SELECT_PMC	(0x1 << 22)
+#define  OSC_EDPD_XO_LP0_MODE_MASK	(0x3 << 20)
+#define  OSC_EDPD_XO_LP0_MODE_ON	(0x2 << 20)
+
+#define PMC_CLK_OUT_CNTRL		0x1a8
+#define  PMC_CLK_OUT_CLK1_SRC_SEL_MASK	(0x3 << 6)
+#define  PMC_CLK_OUT_CLK1_SRC_SEL_DIV1	(0x0 << 6)
+#define  PMC_CLK_OUT_CLK1_SRC_SEL_DIV2	(0x1 << 6)
+#define  PMC_CLK_OUT_CLK1_SRC_SEL_DIV4	(0x1 << 6)
+#define  PMC_CLK_OUT_CLK1_SRC_SEL_CAR	(0x3 << 6)
+#define  PMC_CLK_OUT_CLK1_FORCE_EN	(0x1 << 2)
+#define  PMC_CLK_OUT_CLK1_ACCEPT_REQ	(0x1)
+#define  PMC_CLK_OUT_CLK1_IDLE_STATE_MASK	(0x3 << 4)
+
 #define PMC_SENSOR_CTRL			0x1b0
 #define PMC_SENSOR_CTRL_SCRATCH_WRITE	(1 << 2)
 #define PMC_SENSOR_CTRL_ENABLE_RST	(1 << 1)
@@ -404,6 +420,8 @@ struct tegra_powergate {
  * @sysclkreq_high: system clock request is active-high
  * @combined_req: combined power request for CPU & core
  * @cpu_pwr_good_en: CPU power good signal is enabled
+ * @pmc_clk1_out_en: keep the PMC CLK1 output available in suspend
+ * @pmc_clk1_out_src: the source of the PMC CLK1
  * @lp0_vec_phys: physical base address of the LP0 warm boot code
  * @lp0_vec_size: size of the LP0 warm boot code
  * @powergates_lock: mutex for power gate register access
@@ -429,8 +447,10 @@ struct tegra_pmc {
 	bool sysclkreq_high;
 	bool combined_req;
 	bool cpu_pwr_good_en;
+	bool pmc_clk1_out_en;
 	u32 lp0_vec_phys;
 	u32 lp0_vec_size;
+	u32 pmc_clk1_out_src;
 
 	struct mutex powergates_lock;
 	unsigned int *powergate_count;
@@ -1953,13 +1973,69 @@ static int tegra_pmc_suspend(void)
 #else /* CONFIG_ARM64 */
 	enum tegra_suspend_mode mode = tegra_pmc_get_suspend_mode();
 	tegra_pmc_enter_suspend_mode(mode);
-#endif
 
+	if (pmc->pmc_clk1_out_en) {
+		u32 val;
+
+		val = tegra_pmc_readl(PMC_CLK_OUT_CNTRL);
+		val &= ~(PMC_CLK_OUT_CLK1_SRC_SEL_MASK);
+		switch (pmc->pmc_clk1_out_src) {
+		case PMC_CLK_OUT_SRC_OSC:
+			val |= PMC_CLK_OUT_CLK1_SRC_SEL_DIV1;
+			break;
+		case PMC_CLK_OUT_SRC_OSC_DIV_2:
+			val |= PMC_CLK_OUT_CLK1_SRC_SEL_DIV2;
+			break;
+		case PMC_CLK_OUT_SRC_OSC_DIV_4:
+			val |= PMC_CLK_OUT_CLK1_SRC_SEL_DIV4;
+			break;
+		default:
+			break;
+		}
+		tegra_pmc_writel(val, PMC_CLK_OUT_CNTRL);
+
+		val = tegra_pmc_readl(PMC_CLK_OUT_CNTRL);
+		val &= ~(PMC_CLK_OUT_CLK1_IDLE_STATE_MASK);
+		tegra_pmc_writel(val, PMC_CLK_OUT_CNTRL);
+
+		val = tegra_pmc_readl(PMC_CLK_OUT_CNTRL);
+		val |= PMC_CLK_OUT_CLK1_ACCEPT_REQ;
+		tegra_pmc_writel(val, PMC_CLK_OUT_CNTRL);
+
+		val = tegra_pmc_readl(PMC_CLK_OUT_CNTRL);
+		val |= PMC_CLK_OUT_CLK1_FORCE_EN;
+		tegra_pmc_writel(val, PMC_CLK_OUT_CNTRL);
+
+		val = tegra_pmc_readl(PMC_OSC_EDPD_OVER);
+		val &= ~(OSC_EDPD_XO_LP0_MODE_MASK);
+		val |= OSC_EDPD_OSC_CTRL_SELECT_PMC |
+		       OSC_EDPD_XO_LP0_MODE_ON;
+		tegra_pmc_writel(val, PMC_OSC_EDPD_OVER);
+	}
+#endif
 	return 0;
 }
 
 static void tegra_pmc_resume(void)
 {
+	u32 val;
+
+	if (pmc->pmc_clk1_out_en) {
+		val = tegra_pmc_readl(PMC_CLK_OUT_CNTRL);
+		val &= ~PMC_CLK_OUT_CLK1_SRC_SEL_MASK;
+		val |= PMC_CLK_OUT_CLK1_SRC_SEL_CAR;
+		tegra_pmc_writel(val, PMC_CLK_OUT_CNTRL);
+
+		val = tegra_pmc_readl(PMC_CLK_OUT_CNTRL);
+		val &= ~PMC_CLK_OUT_CLK1_ACCEPT_REQ;
+		tegra_pmc_writel(val, PMC_CLK_OUT_CNTRL);
+
+		val = tegra_pmc_readl(PMC_OSC_EDPD_OVER);
+		val &= ~(OSC_EDPD_XO_LP0_MODE_MASK);
+		val &= ~OSC_EDPD_OSC_CTRL_SELECT_PMC;
+		tegra_pmc_writel(val, PMC_OSC_EDPD_OVER);
+	}
+
 	tegra_pmc_clear_dpd_sample();
 	/* Clear DPD Enable */
 	switch (tegra_get_chip_id()) {
@@ -2255,6 +2331,11 @@ static int tegra_pmc_parse_dt(struct tegra_pmc *pmc, struct device_node *np)
 
 	pmc->lp0_vec_phys = values[0];
 	pmc->lp0_vec_size = values[1];
+
+	pmc->pmc_clk1_out_en = of_property_read_bool(np,
+			"nvidia,pmc-clk1-out-en");
+	if (of_property_read_u32(np, "nvidia,pmc-clk1-out-src", &value) == 0)
+		pmc->pmc_clk1_out_src = value;
 
 	return 0;
 }
