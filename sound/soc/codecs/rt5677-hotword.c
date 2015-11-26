@@ -543,6 +543,40 @@ done:
 	return 0;
 }
 
+static int rt5677_hotword_dai_trigger(struct snd_pcm_substream *substream,
+				      int cmd,
+				      struct snd_soc_dai *dai)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct rt5677_dsp *dsp = snd_soc_platform_get_drvdata(rtd->platform);
+
+	/* This is a temporary solution to stop hotwording stream before
+	 * suspend. */
+	switch (cmd) {
+	case SNDRV_PCM_TRIGGER_START:
+	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
+	case SNDRV_PCM_TRIGGER_RESUME:
+		if (dsp->state == RT5677_HOTWORD_IDLE) {
+			dsp->state = RT5677_HOTWORD_START;
+			schedule_delayed_work(&dsp->work, 0);
+		}
+		break;
+	case SNDRV_PCM_TRIGGER_STOP:
+	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
+	case SNDRV_PCM_TRIGGER_SUSPEND:
+		if (dsp->state < RT5677_HOTWORD_ARMED) {
+			dsp->state = RT5677_HOTWORD_IDLE;
+			break;
+		}
+		dsp->state = RT5677_HOTWORD_STOP;
+		schedule_delayed_work(&dsp->work, 0);
+		break;
+	default:
+		break;
+	}
+	return 0;
+}
+
 static int rt5677_hotword_hw_params(struct snd_pcm_substream *substream,
 			       struct snd_pcm_hw_params *hw_params)
 {
@@ -640,6 +674,7 @@ static int rt5677_hotword_dai_hw_params(struct snd_pcm_substream *substream,
 
 static struct snd_soc_dai_ops rt5677_hotword_dai_ops = {
 	.hw_params = rt5677_hotword_dai_hw_params,
+	.trigger = rt5677_hotword_dai_trigger,
 };
 
 static struct snd_soc_dai_driver rt5677_hotword_dai = {

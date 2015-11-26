@@ -417,7 +417,6 @@ static struct snd_soc_dai_link tegra_rt5677_dai[] = {
 		.codec_name = "rt5677.5-002d",
 		.codec_dai_name = "rt5677-dspbuffer",
 		.platform_name = "spi32766.0",
-		.ignore_suspend = 1,
 	},
 };
 
