@@ -218,7 +218,7 @@ static int SetupDVFSInfo(struct device *dev, PVRSRV_DVFS *hDVFS)
 		return count;
 	}
 
-	opp_table = devm_kcalloc(dev, count, sizeof(*opp_table), GFP_KERNEL);
+	opp_table = devm_kcalloc(dev, count, sizeof(*opp_table), GFP_ATOMIC);
 	if (!opp_table) {
 		rcu_read_unlock();
 		return -ENOMEM;
