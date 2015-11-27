@@ -82,11 +82,12 @@ gk104_fifo_runlist_update(struct gk104_fifo_priv *priv, u32 engine)
 	u32 token = 0;
 	int mutex_ret;
 
+	mutex_lock(&nv_subdev(priv)->mutex);
+
 	mutex_ret = pmu->acquire_mutex(pmu, PMU_MUTEX_ID_FIFO, &token);
 	if (mutex_ret)
 		nv_warn(priv, "failed to acquire PMU FIFO mutex\n");
 
-	mutex_lock(&nv_subdev(priv)->mutex);
 	cur = engn->runlist[engn->cur_runlist];
 	engn->cur_runlist = !engn->cur_runlist;
 
@@ -107,10 +108,11 @@ gk104_fifo_runlist_update(struct gk104_fifo_priv *priv, u32 engine)
 			       (engine * 0x08)) & 0x00100000),
 				msecs_to_jiffies(2000)) == 0)
 		nv_error(priv, "runlist %d update timeout\n", engine);
-	mutex_unlock(&nv_subdev(priv)->mutex);
 
 	if (!mutex_ret)
 		pmu->release_mutex(pmu, PMU_MUTEX_ID_FIFO, &token);
+
+	mutex_unlock(&nv_subdev(priv)->mutex);
 }
 
 static int
@@ -155,13 +157,14 @@ gk104_fifo_context_attach(struct nvkm_object *parent,
 }
 
 static int
-gk104_fifo_chan_kick(struct gk104_fifo_chan *chan)
+gk104_fifo_chan_kick_locked(struct gk104_fifo_chan *chan)
 {
 	struct nvkm_object *obj = (void *)chan;
 	struct gk104_fifo_priv *priv = (void *)obj->engine;
 	struct nvkm_pmu *pmu = nvkm_pmu(priv);
 	u32 token = 0;
-	int ret = 0, mutex_ret;
+	int mutex_ret;
+	int ret = 0;
 
 	mutex_ret = pmu->acquire_mutex(pmu, PMU_MUTEX_ID_FIFO, &token);
 	if (mutex_ret)
@@ -176,6 +179,19 @@ gk104_fifo_chan_kick(struct gk104_fifo_chan *chan)
 
 	if (!mutex_ret)
 		pmu->release_mutex(pmu, PMU_MUTEX_ID_FIFO, &token);
+	return ret;
+}
+
+static int
+gk104_fifo_chan_kick(struct gk104_fifo_chan *chan)
+{
+	struct nvkm_object *obj = (void *)chan;
+	struct gk104_fifo_priv *priv = (void *)obj->engine;
+	int ret;
+
+	mutex_lock(&nv_subdev(priv)->mutex);
+	ret = gk104_fifo_chan_kick_locked(chan);
+	mutex_unlock(&nv_subdev(priv)->mutex);
 
 	return ret;
 }
@@ -203,7 +219,7 @@ gk104_fifo_context_detach(struct nvkm_object *parent, bool suspend,
 		return -EINVAL;
 	}
 
-	err = gk104_fifo_chan_kick(chan);
+	err = gk104_fifo_chan_kick_locked(chan);
 	if (err && suspend)
 		return err;
 
