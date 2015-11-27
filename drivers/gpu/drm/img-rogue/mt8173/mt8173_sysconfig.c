@@ -59,13 +59,20 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define RGX_HW_SYSTEM_NAME "RGX HW"
 #define RGX_HW_CORE_CLOCK_SPEED 395000000
 
-static RGX_TIMING_INFORMATION	gsRGXTimingInfo;
-static RGX_DATA			gsRGXData;
+/* Setup RGX specific timing data */
+static RGX_TIMING_INFORMATION gsRGXTimingInfo = {
+	.ui32CoreClockSpeed = RGX_HW_CORE_CLOCK_SPEED,
+	.bEnableActivePM = IMG_TRUE,
+	.ui32ActivePMLatencyms = SYS_RGX_ACTIVE_POWER_LATENCY_MS,
+	.bEnableRDPowIsland = IMG_TRUE,
+};
+
+static RGX_DATA gsRGXData = {
+	.psRGXTimingInfo = &gsRGXTimingInfo,
+};
+
 static PVRSRV_DEVICE_CONFIG	gsDevice;
 static PVRSRV_SYSTEM_CONFIG	gsSysConfig;
-
-static PHYS_HEAP_FUNCTIONS	gsPhysHeapFuncs;
-static PHYS_HEAP_CONFIG		gsPhysHeapConfig;
 
 static IMG_UINT32 gauiBIFTilingHeapXStrides[RGXFWIF_NUM_BIF_TILING_CONFIGS] = {
 	0, /* BIF tiling heap 1 x-stride */
@@ -113,6 +120,21 @@ void UMAPhysHeapDevPAddrToCpuPAddr(IMG_HANDLE hPrivData,
 			psCpuPAddr[ui32Idx].uiAddr = psDevPAddr[ui32Idx].uiAddr;
 	}
 }
+
+static PHYS_HEAP_FUNCTIONS gsPhysHeapFuncs = {
+	.pfnCpuPAddrToDevPAddr = UMAPhysHeapCpuPAddrToDevPAddr,
+	.pfnDevPAddrToCpuPAddr = UMAPhysHeapDevPAddrToCpuPAddr,
+};
+
+static PHYS_HEAP_CONFIG gsPhysHeapConfig = {
+	.ui32PhysHeapID = 0,
+	.pszPDumpMemspaceName = "SYSMEM",
+	.eType = PHYS_HEAP_TYPE_UMA,
+	.psMemFuncs = &gsPhysHeapFuncs,
+	.sStartAddr.uiAddr = 0,
+	.uiSize = 0,
+	.hPrivData = &gsSysConfig,
+};
 
 static PVRSRV_ERROR MTKSysDevPrePowerState(
 		PVRSRV_DEV_POWER_STATE eNewPowerState,
@@ -247,34 +269,11 @@ PVRSRV_ERROR SysCreateConfigData(PVRSRV_SYSTEM_CONFIG **ppsSysConfig, void *hDev
 		return PVRSRV_ERROR_INIT_FAILURE;
 	}
 
-	/* Setup information about physical memory heap(s) we have */
-	gsPhysHeapFuncs.pfnCpuPAddrToDevPAddr = UMAPhysHeapCpuPAddrToDevPAddr;
-	gsPhysHeapFuncs.pfnDevPAddrToCpuPAddr = UMAPhysHeapDevPAddrToCpuPAddr;
-
-	gsPhysHeapConfig.ui32PhysHeapID = 0;
-	gsPhysHeapConfig.pszPDumpMemspaceName = "SYSMEM";
-	gsPhysHeapConfig.eType = PHYS_HEAP_TYPE_UMA;
-	gsPhysHeapConfig.psMemFuncs = &gsPhysHeapFuncs;
-	gsPhysHeapConfig.hPrivData = &gsSysConfig;
-	gsPhysHeapConfig.sStartAddr.uiAddr = 0;
-	gsPhysHeapConfig.uiSize = 0;
-
 	gsSysConfig.pasPhysHeaps = &gsPhysHeapConfig;
 	gsSysConfig.ui32PhysHeapCount = 1;
+
 	gsSysConfig.pui32BIFTilingHeapConfigs = gauiBIFTilingHeapXStrides;
 	gsSysConfig.ui32BIFTilingHeapCount = IMG_ARR_NUM_ELEMS(gauiBIFTilingHeapXStrides);
-
-	/* Setup RGX specific timing data */
-	gsRGXTimingInfo.ui32CoreClockSpeed = RGX_HW_CORE_CLOCK_SPEED;
-
-	gsRGXTimingInfo.bEnableActivePM = IMG_TRUE;
-	gsRGXTimingInfo.ui32ActivePMLatencyms = SYS_RGX_ACTIVE_POWER_LATENCY_MS;
-
-	/* for HWAPM enable */
-	gsRGXTimingInfo.bEnableRDPowIsland = IMG_TRUE;
-
-	/* Setup RGX specific data */
-	gsRGXData.psRGXTimingInfo = &gsRGXTimingInfo;
 
 	/* Setup RGX device */
 	gsDevice.eDeviceType = PVRSRV_DEVICE_TYPE_RGX;
