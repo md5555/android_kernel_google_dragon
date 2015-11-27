@@ -240,10 +240,8 @@
 	pinctrl-0 = <&mmc3_pins_default>;
 	pinctrl-1 = <&mmc3_pins_uhs>;
 	bus-width = <4>;
-	max-frequency = <25000000>;
+	max-frequency = <200000000>;
 	cap-sd-highspeed;
-	sd-uhs-sdr12;
-	sd-uhs-sdr25;
 	sd-uhs-sdr50;
 	sd-uhs-sdr104;
 	keep-power-in-suspend;
@@ -350,21 +348,27 @@
 	};
 
 	mmc3_pins_default: mmc3default {
-		pins_cmd_dat {
+		pins_dat {
 			pinmux = <MT8173_PIN_22_MSDC3_DAT0__FUNC_MSDC3_DAT0>,
 				 <MT8173_PIN_23_MSDC3_DAT1__FUNC_MSDC3_DAT1>,
 				 <MT8173_PIN_24_MSDC3_DAT2__FUNC_MSDC3_DAT2>,
-				 <MT8173_PIN_25_MSDC3_DAT3__FUNC_MSDC3_DAT3>,
-				 <MT8173_PIN_27_MSDC3_CMD__FUNC_MSDC3_CMD>;
+				 <MT8173_PIN_25_MSDC3_DAT3__FUNC_MSDC3_DAT3>;
 			input-enable;
-			drive-strength = <MTK_DRIVE_4mA>;
+			drive-strength = <MTK_DRIVE_10mA>;
+			bias-pull-up = <MTK_PUPD_SET_R1R0_10>;
+		};
+
+		pins_cmd {
+			pinmux = <MT8173_PIN_27_MSDC3_CMD__FUNC_MSDC3_CMD>;
+			input-enable;
+			drive-strength = <MTK_DRIVE_12mA>;
 			bias-pull-up = <MTK_PUPD_SET_R1R0_10>;
 		};
 
 		pins_clk {
 			pinmux = <MT8173_PIN_26_MSDC3_CLK__FUNC_MSDC3_CLK>;
 			bias-pull-down;
-			drive-strength = <MTK_DRIVE_4mA>;
+			drive-strength = <MTK_DRIVE_10mA>;
 		};
 
 		pins_pdn {
@@ -428,20 +432,26 @@
 	};
 
 	mmc3_pins_uhs: mmc3 {
-		pins_cmd_dat {
+		pins_dat {
 			pinmux = <MT8173_PIN_22_MSDC3_DAT0__FUNC_MSDC3_DAT0>,
 				 <MT8173_PIN_23_MSDC3_DAT1__FUNC_MSDC3_DAT1>,
 				 <MT8173_PIN_24_MSDC3_DAT2__FUNC_MSDC3_DAT2>,
-				 <MT8173_PIN_25_MSDC3_DAT3__FUNC_MSDC3_DAT3>,
-				 <MT8173_PIN_27_MSDC3_CMD__FUNC_MSDC3_CMD>;
+				 <MT8173_PIN_25_MSDC3_DAT3__FUNC_MSDC3_DAT3>;
 			input-enable;
-			drive-strength = <MTK_DRIVE_4mA>;
+			drive-strength = <MTK_DRIVE_10mA>;
+			bias-pull-up = <MTK_PUPD_SET_R1R0_10>;
+		};
+
+		pins_cmd {
+			pinmux = <MT8173_PIN_27_MSDC3_CMD__FUNC_MSDC3_CMD>;
+			input-enable;
+			drive-strength = <MTK_DRIVE_12mA>;
 			bias-pull-up = <MTK_PUPD_SET_R1R0_10>;
 		};
 
 		pins_clk {
 			pinmux = <MT8173_PIN_26_MSDC3_CLK__FUNC_MSDC3_CLK>;
-			drive-strength = <MTK_DRIVE_4mA>;
+			drive-strength = <MTK_DRIVE_10mA>;
 			bias-pull-down = <MTK_PUPD_SET_R1R0_10>;
 		};
 	};
