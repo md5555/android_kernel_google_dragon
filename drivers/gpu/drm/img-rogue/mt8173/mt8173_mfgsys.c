@@ -208,7 +208,7 @@ static int mtk_mfg_bind_device_resource(struct mtk_mfg *mfg)
 {
 	struct device *dev = mfg->dev;
 	struct platform_device *pdev = to_platform_device(dev);
-	int i, err;
+	int i;
 	struct resource *res;
 
 	mfg->top_clk = devm_kcalloc(dev, MAX_TOP_MFG_CLK,
@@ -250,12 +250,6 @@ static int mtk_mfg_bind_device_resource(struct mtk_mfg *mfg)
 	if (IS_ERR(mfg->vgpu))
 		return PTR_ERR(mfg->vgpu);
 
-	err = of_init_opp_table(dev);
-	if (err) {
-		dev_err(dev, "failed to init opp table, %d\n", err);
-		return err;
-	}
-
 	pm_runtime_enable(dev);
 
 	return 0;
@@ -266,7 +260,6 @@ static void mtk_mfg_unbind_device_resource(struct mtk_mfg *mfg)
 	struct device *dev = mfg->dev;
 
 	pm_runtime_disable(dev);
-	of_free_opp_table(dev);
 }
 
 int MTKMFGBaseInit(struct device *dev)

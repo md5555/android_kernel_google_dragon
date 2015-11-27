@@ -201,60 +201,6 @@ static void SetVoltage(IMG_UINT32 volt)
 
 	mtk_mfg_volt_set(mfg, volt);
 }
-
-static int SetupDVFSInfo(struct device *dev, PVRSRV_DVFS *hDVFS)
-{
-	IMG_OPP *opp_table;
-	IMG_DVFS_DEVICE_CFG *img_dvfs_cfg;
-	int i;
-	int count;
-	unsigned long freq;
-
-	/* Start RCU read-side critical section to access device opp_list. */
-	rcu_read_lock();
-	count = dev_pm_opp_get_opp_count(dev);
-	if (count < 0) {
-		dev_err(dev, "Could not fetch OPP count, %d\n", count);
-		rcu_read_unlock();
-		return count;
-	}
-
-	opp_table = devm_kcalloc(dev, count, sizeof(*opp_table), GFP_ATOMIC);
-	if (!opp_table) {
-		rcu_read_unlock();
-		return -ENOMEM;
-	}
-
-	img_dvfs_cfg = &hDVFS->sDVFSDeviceCfg;
-
-	/*
-	 * Iterate over OPP table.
-	 * Iteration 0 finds "opp w/ freq >= 0 Hz".
-	 * Iteration n > 0 finds "opp w/ freq >= (opp[n-1].freq + 1)".
-	 */
-	for (i = 0, freq = 0; i < count; i++, freq++) {
-		struct dev_pm_opp *opp = dev_pm_opp_find_freq_ceil(dev, &freq);
-
-		opp_table[i].ui32Freq = freq;
-		opp_table[i].ui32Volt = dev_pm_opp_get_voltage(opp);
-
-		dev_info(dev, "opp[%d/%d]: (%u Hz, %u uV)\n", i + 1, count,
-			 opp_table[i].ui32Freq, opp_table[i].ui32Volt);
-	}
-	rcu_read_unlock();
-
-	img_dvfs_cfg->bIdleReq = IMG_FALSE;
-	img_dvfs_cfg->pasOPPTable = opp_table;
-	img_dvfs_cfg->ui32OPPTableSize = count;
-	img_dvfs_cfg->pfnSetFrequency = SetFrequency;
-	img_dvfs_cfg->pfnSetVoltage = SetVoltage;
-	img_dvfs_cfg->ui32PollMs = MTK_DVFS_SWITCH_INTERVAL;
-
-	hDVFS->sDVFSGovernorCfg.ui32UpThreshold = 90;
-	hDVFS->sDVFSGovernorCfg.ui32DownDifferential = 10;
-
-	return 0;
-}
 #endif
 
 static
@@ -281,8 +227,13 @@ PVRSRV_ERROR SysDevInit(void *pvOSDevice, PVRSRV_DEVICE_CONFIG **ppsDevConfig)
 	gsDevice.ui32RegsSize = mfg->rgx_size;
 
 #ifdef PVR_DVFS
-	if (SetupDVFSInfo(dev, &gsDevice.sDVFS))
-		return PVRSRV_ERROR_INIT_FAILURE;
+	gsDevice.sDVFS.sDVFSDeviceCfg.bIdleReq = IMG_FALSE;
+	gsDevice.sDVFS.sDVFSDeviceCfg.pfnSetFrequency = SetFrequency;
+	gsDevice.sDVFS.sDVFSDeviceCfg.pfnSetVoltage = SetVoltage;
+	gsDevice.sDVFS.sDVFSDeviceCfg.ui32PollMs = MTK_DVFS_SWITCH_INTERVAL;
+
+	gsDevice.sDVFS.sDVFSGovernorCfg.ui32UpThreshold = 90;
+	gsDevice.sDVFS.sDVFSGovernorCfg.ui32DownDifferential = 10;
 #endif
 
 	/* Device's physical heap IDs */
