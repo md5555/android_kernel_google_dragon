@@ -190,8 +190,8 @@ static void SetFrequency(IMG_UINT32 freq)
 {
 	struct mtk_mfg *mfg = gsDevice.hSysData;
 
-	/* freq is in kHz */
-	mtk_mfg_freq_set(mfg, freq * 1000);
+	/* freq is in Hz */
+	mtk_mfg_freq_set(mfg, freq);
 }
 
 static void SetVoltage(IMG_UINT32 volt)
@@ -234,10 +234,10 @@ static int SetupDVFSInfo(struct device *dev, PVRSRV_DVFS *hDVFS)
 	for (i = 0, freq = 0; i < count; i++, freq++) {
 		struct dev_pm_opp *opp = dev_pm_opp_find_freq_ceil(dev, &freq);
 
-		opp_table[i].ui32Freq = freq / 1000;
+		opp_table[i].ui32Freq = freq;
 		opp_table[i].ui32Volt = dev_pm_opp_get_voltage(opp);
 
-		dev_info(dev, "opp[%d/%d]: (%u kHz, %u uV)\n", i + 1, count,
+		dev_info(dev, "opp[%d/%d]: (%u Hz, %u uV)\n", i + 1, count,
 			 opp_table[i].ui32Freq, opp_table[i].ui32Volt);
 	}
 	rcu_read_unlock();

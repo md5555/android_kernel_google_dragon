@@ -84,9 +84,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <linux/pci.h>
 #endif
 
-#define DVFS_KHZ_TO_HZ(FREQ) ((FREQ) * (1000))
-#define DVFS_HZ_TO_KHZ(FREQ) ((FREQ) / (1000))
-
 static PVRSRV_DEVICE_NODE* gpsDeviceNode = NULL;
 
 static IMG_INT32 devfreq_target(struct device *dev, long unsigned *requested_freq, IMG_UINT32 flags)
@@ -113,7 +110,7 @@ static IMG_INT32 devfreq_target(struct device *dev, long unsigned *requested_fre
 	ui32Volt = OPP_GET_VOLTAGE(opp);
 	rcu_read_unlock();
 
-	ui32CurFreq = DVFS_HZ_TO_KHZ(psRGXTimingInfo->ui32CoreClockSpeed);
+	ui32CurFreq = psRGXTimingInfo->ui32CoreClockSpeed;
 
 	if (ui32CurFreq == ui32Freq)
 	{
@@ -141,7 +138,7 @@ static IMG_INT32 devfreq_target(struct device *dev, long unsigned *requested_fre
 		psDVFSDeviceCfg->pfnSetVoltage(ui32Volt);
 	}
 
-	psRGXTimingInfo->ui32CoreClockSpeed = DVFS_KHZ_TO_HZ(ui32Freq);
+	psRGXTimingInfo->ui32CoreClockSpeed = ui32Freq;
 
 	PVRSRVDevicePostClockSpeedChange(0, psDVFSDeviceCfg->bIdleReq, NULL);
 
@@ -157,7 +154,7 @@ static IMG_INT32 devfreq_get_dev_status(struct device *dev, struct devfreq_dev_s
 	RGXFWIF_GPU_UTIL_STATS	sGpuUtilStats;
 	PVRSRV_ERROR eError = PVRSRV_OK;
 
-	stat->current_frequency = DVFS_HZ_TO_KHZ(psRGXTimingInfo->ui32CoreClockSpeed);
+	stat->current_frequency = psRGXTimingInfo->ui32CoreClockSpeed;
 
 	if (psDevInfo->pfnGetGpuUtilStats == NULL)
 	{
@@ -182,10 +179,9 @@ static IMG_INT32 devfreq_get_dev_status(struct device *dev, struct devfreq_dev_s
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0))
 static IMG_INT32 devfreq_cur_freq(struct device *dev, unsigned long *freq)
 {
-	RGX_DATA		*psRGXData = (RGX_DATA*) gpsDeviceNode->psDevConfig->hDevData;
-	RGX_TIMING_INFORMATION	*psRGXTimingInfo = psRGXData->psRGXTimingInfo;
+	RGX_DATA *psRGXData = (RGX_DATA*) gpsDeviceNode->psDevConfig->hDevData;
 
-	*freq = DVFS_HZ_TO_KHZ(psRGXTimingInfo->ui32CoreClockSpeed);
+	*freq = psRGXData->psRGXTimingInfo->ui32CoreClockSpeed;
 
 	return 0;
 }
@@ -296,7 +292,7 @@ PVRSRV_ERROR InitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
 
 	psDVFSDeviceCfg->pfnSetFrequency(ui32InitialFreq);
 
-	psRGXTimingInfo->ui32CoreClockSpeed = DVFS_KHZ_TO_HZ(ui32InitialFreq);
+	psRGXTimingInfo->ui32CoreClockSpeed = ui32InitialFreq;
 
 	psDVFSDeviceCfg->pfnSetVoltage(ui32InitialVolt);
 
