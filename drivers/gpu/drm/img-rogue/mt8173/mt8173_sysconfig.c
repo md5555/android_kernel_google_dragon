@@ -259,9 +259,10 @@ static int SetupDVFSInfo(struct device *dev, PVRSRV_DVFS *hDVFS)
 }
 #endif
 
-PVRSRV_ERROR SysCreateConfigData(PVRSRV_SYSTEM_CONFIG **ppsSysConfig, void *hDevice)
+static
+PVRSRV_ERROR SysDevInit(void *pvOSDevice, PVRSRV_DEVICE_CONFIG **ppsDevConfig)
 {
-	struct platform_device *pDevice = hDevice;
+	struct platform_device *pDevice = pvOSDevice;
 	struct device *dev = &pDevice->dev;
 	struct mtk_mfg *mfg = dev_get_platdata(dev);
 
@@ -269,12 +270,6 @@ PVRSRV_ERROR SysCreateConfigData(PVRSRV_SYSTEM_CONFIG **ppsSysConfig, void *hDev
 		PVR_DPF((PVR_DBG_ERROR, "pDevice = NULL!"));
 		return PVRSRV_ERROR_INIT_FAILURE;
 	}
-
-	gsSysConfig.pasPhysHeaps = &gsPhysHeapConfig;
-	gsSysConfig.ui32PhysHeapCount = 1;
-
-	gsSysConfig.pui32BIFTilingHeapConfigs = gauiBIFTilingHeapXStrides;
-	gsSysConfig.ui32BIFTilingHeapCount = IMG_ARR_NUM_ELEMS(gauiBIFTilingHeapXStrides);
 
 	/* Setup RGX device */
 	gsDevice.eDeviceType = PVRSRV_DEVICE_TYPE_RGX;
@@ -310,17 +305,29 @@ PVRSRV_ERROR SysCreateConfigData(PVRSRV_SYSTEM_CONFIG **ppsSysConfig, void *hDev
 	gsDevice.hDevData = &gsRGXData;
 	gsDevice.hSysData = mfg;
 
-	/* Setup system config */
+	*ppsDevConfig = &gsDevice;
+
+	return PVRSRV_OK;
+}
+
+PVRSRV_ERROR SysCreateConfigData(PVRSRV_SYSTEM_CONFIG **ppsSysConfig,
+				 void *hDevice)
+{
+	PVRSRV_ERROR ret;
+
+	gsSysConfig.pasPhysHeaps = &gsPhysHeapConfig;
+	gsSysConfig.ui32PhysHeapCount = 1;
+
+	gsSysConfig.pui32BIFTilingHeapConfigs = gauiBIFTilingHeapXStrides;
+	gsSysConfig.ui32BIFTilingHeapCount =
+			IMG_ARR_NUM_ELEMS(gauiBIFTilingHeapXStrides);
+
 	gsSysConfig.pszSystemName = RGX_HW_SYSTEM_NAME;
 	gsSysConfig.uiDeviceCount = 1;
-	gsSysConfig.pasDevices = &gsDevice;
+	ret = SysDevInit(hDevice, &gsSysConfig.pasDevices);
+	if (ret != PVRSRV_OK)
+		return ret;
 
-	/* cache snooping */
-	gsSysConfig.eCacheSnoopingMode = 0;
-
-	gsSysConfig.uiSysFlags = 0;
-
-	/* Setup other system specific stuff */
 	*ppsSysConfig = &gsSysConfig;
 
 	return PVRSRV_OK;
