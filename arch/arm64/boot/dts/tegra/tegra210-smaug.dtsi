@@ -977,6 +977,8 @@
 		reg = <0x2d>;
 		interrupts-extended = <&gpio TEGRA_GPIO(X, 0) IRQ_TYPE_EDGE_BOTH>;
 		realtek,reset-gpio = <&gpio TEGRA_GPIO(BB, 3) GPIO_ACTIVE_LOW>;
+		nvidia,pmc-wakeup = <&pmc PMC_WAKE_TYPE_EVENT 61
+				     PMC_TRIGGER_TYPE_HIGH>;
 
 		// Workaround for hissing problem b/24679173
 		realtek,i2s1-pulldown;
