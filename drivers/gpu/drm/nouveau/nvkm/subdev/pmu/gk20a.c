@@ -1065,7 +1065,8 @@ gk20a_pmu_mutex_acquire(struct nvkm_pmu *pmu, u32 id, u32 *token)
 			nv_warn(pmu,
 				"fail to generate mutex token: val 0x%08x\n",
 				owner);
-			break; /* Break and returns -EBUSY */
+			usleep_range(20, 40);
+			continue;
 		}
 
 		owner = data;
