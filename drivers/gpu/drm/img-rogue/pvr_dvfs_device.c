@@ -60,14 +60,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define OPP_STRUCT opp
 #endif
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,8,0))
-#define DEVFREQ_GOVERNOR "img_governor"
-#else
-#define DEVFREQ_GOVERNOR &devfreq_img_governor
-#endif
-
-#include "pvr_dvfs_governor.h"
-
 #include "pvrsrv_device.h"
 #include "syscommon.h"
 #include "rgxdevice.h"
@@ -142,7 +134,7 @@ static IMG_INT32 devfreq_target(struct device *dev, long unsigned *requested_fre
 	return 0;
 }
 
-static IMG_INT32 devfreq_get_dev_status(struct device *dev, struct devfreq_dev_status *stat)
+static int devfreq_get_dev_status(struct device *dev, struct devfreq_dev_status *stat)
 {
 	PVRSRV_RGXDEV_INFO*	psDevInfo = gpsDeviceNode->pvDevice;
 	IMG_DVFS_DEVICE		*psDVFSDevice = &gpsDeviceNode->psDevConfig->sDVFS.sDVFSDevice;
@@ -155,7 +147,10 @@ static IMG_INT32 devfreq_get_dev_status(struct device *dev, struct devfreq_dev_s
 
 	if (psDevInfo->pfnGetGpuUtilStats == NULL)
 	{
-		return PVRSRV_ERROR_INIT_FAILURE;
+		/* Not yet ready.  So set times to something sensible. */
+		stat->busy_time = 0;
+		stat->total_time = 0;
+		return 0;
 	}
 
 	eError = psDevInfo->pfnGetGpuUtilStats(psDevInfo->psDeviceNode,
@@ -164,7 +159,7 @@ static IMG_INT32 devfreq_get_dev_status(struct device *dev, struct devfreq_dev_s
 
 	if (eError != PVRSRV_OK)
 	{
-		return eError;
+		return -EAGAIN;
 	}
 
 	stat->busy_time = sGpuUtilStats.ui64GpuStatActiveHigh;
@@ -228,6 +223,7 @@ PVRSRV_ERROR InitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
 	RGX_TIMING_INFORMATION	*psRGXTimingInfo = NULL;
 	IMG_DVFS_DEVICE		*psDVFSDevice = NULL;
 	IMG_DVFS_DEVICE_CFG	*psDVFSDeviceCfg = NULL;
+	IMG_DVFS_GOVERNOR_CFG	*psDVFSGovernorCfg = NULL;
 	IMG_UINT32		ui32InitialFreq, ui32InitialVolt, ui32Error, i;
 	PVRSRV_ERROR		eError;
 	struct OPP_STRUCT	*opp;
@@ -246,6 +242,7 @@ PVRSRV_ERROR InitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
 			gpsDeviceNode = psDeviceNode;
 			psDVFSDevice = &gpsDeviceNode->psDevConfig->sDVFS.sDVFSDevice;
 			psDVFSDeviceCfg = &gpsDeviceNode->psDevConfig->sDVFS.sDVFSDeviceCfg;
+			psDVFSGovernorCfg = &psDeviceNode->psDevConfig->sDVFS.sDVFSGovernorCfg;
 			psRGXTimingInfo = psRGXData->psRGXTimingInfo;
 			freq = psDVFSDeviceCfg->ui32FreqMin;
 		}
@@ -293,10 +290,11 @@ PVRSRV_ERROR InitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
 
 	psDVFSDeviceCfg->pfnSetVoltage(ui32InitialVolt);
 
-	InitGovernor(psPVRSRVData);
-
+	psDVFSDevice->data.upthreshold = psDVFSGovernorCfg->ui32UpThreshold;
+	psDVFSDevice->data.downdifferential = psDVFSGovernorCfg->ui32DownDifferential;
 	psDVFSDevice->psDevFreq = devm_devfreq_add_device(psDev,
-			&img_devfreq_dev_profile, DEVFREQ_GOVERNOR, NULL);
+			&img_devfreq_dev_profile, "simple_ondemand",
+			&psDVFSDevice->data);
 	if (IS_ERR(psDVFSDevice->psDevFreq))
 	{
 		PVR_DPF((PVR_DBG_ERROR, "Failed to add as devfreq device %p", psDVFSDevice->psDevFreq));
@@ -353,8 +351,6 @@ void DeinitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
 	RGXUnregisterGpuUtilStats(psDVFSDevice->hGpuUtilUserDVFS);
 
 	gpsDeviceNode = NULL;
-
-	DeinitGovernor();
 }
 
 PVRSRV_ERROR SuspendDVFS(void)

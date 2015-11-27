@@ -85,7 +85,6 @@ pvrsrvkm-y += \
  pvr_debugfs.o \
  pvr_drm.o \
  pvr_dvfs_device.o \
- pvr_dvfs_governor.o \
  devicemem.o \
  devicemem_utils.o \
  hash.o \

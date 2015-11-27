@@ -45,6 +45,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef _PVR_DVFS_H_
 #define _PVR_DVFS_H_
 
+#include <linux/devfreq.h>
+
 #include "pvrsrv_error.h"
 #include "img_types.h"
 
@@ -89,6 +91,7 @@ typedef struct _IMG_DVFS_DEVICE_
 	struct devfreq			*psDevFreq;
 	IMG_BOOL			bEnabled;
 	IMG_HANDLE			hGpuUtilUserDVFS;
+	struct devfreq_simple_ondemand_data data;
 } IMG_DVFS_DEVICE;
 
 typedef struct _IMG_POWER_AVG_

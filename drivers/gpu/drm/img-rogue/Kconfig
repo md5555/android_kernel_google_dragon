@@ -4,6 +4,7 @@ config DRM_POWERVR_ROGUE
 	depends on DRM
 	select DRM_KMS_HELPER
 	select PM_DEVFREQ
+	select DEVFREQ_GOV_SIMPLE_ONDEMAND
 	select PM_OPP
 	help
 	  Driver for PowerVR Rogue graphics hardware.
