@@ -295,7 +295,8 @@ PVRSRV_ERROR InitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
 
 	InitGovernor(psPVRSRVData);
 
-	psDVFSDevice->psDevFreq = devfreq_add_device(psDev, &img_devfreq_dev_profile, DEVFREQ_GOVERNOR, NULL);
+	psDVFSDevice->psDevFreq = devm_devfreq_add_device(psDev,
+			&img_devfreq_dev_profile, DEVFREQ_GOVERNOR, NULL);
 	if (IS_ERR(psDVFSDevice->psDevFreq))
 	{
 		PVR_DPF((PVR_DBG_ERROR, "Failed to add as devfreq device %p", psDVFSDevice->psDevFreq));
@@ -338,8 +339,6 @@ void DeinitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
 		{
 			PVR_DPF((PVR_DBG_ERROR, "Failed to unregister OPP notifier"));
 		}
-
-		devfreq_remove_device(psDVFSDevice->psDevFreq);
 
 		psDVFSDevice->psDevFreq = NULL;
 	}
