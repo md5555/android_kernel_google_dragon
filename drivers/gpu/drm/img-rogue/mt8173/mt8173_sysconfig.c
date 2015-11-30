@@ -186,6 +186,7 @@ done:
 	return ret;
 }
 
+#ifdef PVR_DVFS
 static void SetFrequency(IMG_UINT32 freq)
 {
 	struct mtk_mfg *mfg = gsDevice.hSysData;
@@ -256,13 +257,13 @@ static int SetupDVFSInfo(struct device *dev, PVRSRV_DVFS *hDVFS)
 
 	return 0;
 }
+#endif
 
 PVRSRV_ERROR SysCreateConfigData(PVRSRV_SYSTEM_CONFIG **ppsSysConfig, void *hDevice)
 {
 	struct platform_device *pDevice = hDevice;
 	struct device *dev = &pDevice->dev;
 	struct mtk_mfg *mfg = dev_get_platdata(dev);
-	int ret;
 
 	if (!pDevice) {
 		PVR_DPF((PVR_DBG_ERROR, "pDevice = NULL!"));
@@ -286,9 +287,10 @@ PVRSRV_ERROR SysCreateConfigData(PVRSRV_SYSTEM_CONFIG **ppsSysConfig, void *hDev
 	gsDevice.sRegsCpuPBase.uiAddr = mfg->rgx_start;
 	gsDevice.ui32RegsSize = mfg->rgx_size;
 
-	ret = SetupDVFSInfo(dev, &gsDevice.sDVFS);
-	if (ret)
+#ifdef PVR_DVFS
+	if (SetupDVFSInfo(dev, &gsDevice.sDVFS))
 		return PVRSRV_ERROR_INIT_FAILURE;
+#endif
 
 	/* Device's physical heap IDs */
 	gsDevice.aui32PhysHeapID[PVRSRV_DEVICE_PHYS_HEAP_GPU_LOCAL] = 0;
