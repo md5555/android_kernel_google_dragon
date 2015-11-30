@@ -387,6 +387,46 @@ out:
 	return ret;
 }
 
+static int scpsys_mfg_power_on(struct generic_pm_domain *genpd)
+{
+	struct scp_domain *scpd = container_of(genpd, struct scp_domain, genpd);
+	struct scp *scp = scpd->scp;
+	int ret;
+
+	ret = scpsys_power_on(&scp->domains[MT8173_POWER_DOMAIN_MFG_ASYNC].genpd);
+	if (ret)
+		return ret;
+
+	ret = scpsys_power_on(&scp->domains[MT8173_POWER_DOMAIN_MFG_2D].genpd);
+	if (ret)
+		goto failed_mfg_2d;
+
+	ret = scpsys_power_on(&scp->domains[MT8173_POWER_DOMAIN_MFG].genpd);
+	if (ret)
+		goto failed_mfg;
+
+	return 0;
+
+failed_mfg_2d:
+	scpsys_power_off(&scp->domains[MT8173_POWER_DOMAIN_MFG_ASYNC].genpd);
+failed_mfg:
+	scpsys_power_off(&scp->domains[MT8173_POWER_DOMAIN_MFG_2D].genpd);
+
+	return ret;
+}
+
+static int scpsys_mfg_power_off(struct generic_pm_domain *genpd)
+{
+	struct scp_domain *scpd = container_of(genpd, struct scp_domain, genpd);
+	struct scp *scp = scpd->scp;
+
+	scpsys_power_off(&scp->domains[MT8173_POWER_DOMAIN_MFG].genpd);
+	scpsys_power_off(&scp->domains[MT8173_POWER_DOMAIN_MFG_2D].genpd);
+	scpsys_power_off(&scp->domains[MT8173_POWER_DOMAIN_MFG_ASYNC].genpd);
+
+	return 0;
+}
+
 static bool scpsys_active_wakeup(struct device *dev)
 {
 	struct generic_pm_domain *genpd;
@@ -468,8 +508,14 @@ static int __init scpsys_probe(struct platform_device *pdev)
 			scpd->clk[j] = clk[data->clk_id[j]];
 
 		genpd->name = data->name;
-		genpd->power_off = scpsys_power_off;
-		genpd->power_on = scpsys_power_on;
+		if (i == MT8173_POWER_DOMAIN_MFG) {
+			genpd->power_off = scpsys_mfg_power_off;
+			genpd->power_on = scpsys_mfg_power_on;
+		} else {
+			genpd->power_off = scpsys_power_off;
+			genpd->power_on = scpsys_power_on;
+		}
+
 		genpd->dev_ops.active_wakeup = scpsys_active_wakeup;
 
 		/*
@@ -480,6 +526,10 @@ static int __init scpsys_probe(struct platform_device *pdev)
 		 */
 		genpd->power_on(genpd);
 
+		if (i == MT8173_POWER_DOMAIN_MFG_2D ||
+		    i == MT8173_POWER_DOMAIN_MFG_ASYNC)
+			continue;
+
 		pm_genpd_init(genpd, NULL, false);
 	}
 
@@ -488,16 +538,6 @@ static int __init scpsys_probe(struct platform_device *pdev)
 	 * a power domain. Once registered above we have to keep the domains
 	 * valid.
 	 */
-
-	ret = pm_genpd_add_subdomain(pd_data->domains[MT8173_POWER_DOMAIN_MFG_ASYNC],
-		pd_data->domains[MT8173_POWER_DOMAIN_MFG_2D]);
-	if (ret && IS_ENABLED(CONFIG_PM))
-		dev_err(&pdev->dev, "Failed to add subdomain: %d\n", ret);
-
-	ret = pm_genpd_add_subdomain(pd_data->domains[MT8173_POWER_DOMAIN_MFG_2D],
-		pd_data->domains[MT8173_POWER_DOMAIN_MFG]);
-	if (ret && IS_ENABLED(CONFIG_PM))
-		dev_err(&pdev->dev, "Failed to add subdomain: %d\n", ret);
 
 	ret = of_genpd_add_provider_onecell(pdev->dev.of_node, pd_data);
 	if (ret)
