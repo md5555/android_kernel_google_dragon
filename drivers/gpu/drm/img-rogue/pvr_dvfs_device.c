@@ -95,9 +95,6 @@ static IMG_INT32 devfreq_target(struct device *dev, long unsigned *requested_fre
 	IMG_UINT32		ui32Freq, ui32CurFreq, ui32Volt;
 	struct OPP_STRUCT	*opp;
 
-	psDVFSDevice->psDevFreq->min_freq = psDVFSDeviceCfg->ui32FreqMin;
-	psDVFSDevice->psDevFreq->max_freq = psDVFSDeviceCfg->ui32FreqMax;
-
 	rcu_read_lock();
 	opp = devfreq_recommended_opp(dev, requested_freq, flags);
 	if (IS_ERR(opp)) {
