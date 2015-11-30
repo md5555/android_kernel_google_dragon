@@ -365,6 +365,16 @@ static int tegra_rt5677_headset_init(struct snd_soc_pcm_runtime *runtime)
 	return 0;
 }
 
+static int tegra_rt5677_hotword_init(struct snd_soc_pcm_runtime *runtime)
+{
+	struct snd_soc_card *card = runtime->card;
+	struct snd_soc_codec *codec = runtime->codec;
+
+	snd_soc_dapm_ignore_suspend(&card->dapm, "Int Mic");
+	snd_soc_dapm_ignore_suspend(&codec->dapm, "DSP Buffer");
+	return 0;
+}
+
 static const struct snd_kcontrol_new tegra_t210ref_controls[] = {
 	SOC_DAPM_PIN_SWITCH("Int Spk"),
 	SOC_DAPM_PIN_SWITCH("Headphone Jack"),
@@ -418,6 +428,7 @@ static struct snd_soc_dai_link tegra_rt5677_dai[] = {
 		.codec_dai_name = "rt5677-dspbuffer",
 		.platform_name = "spi32766.0",
 		.ignore_suspend = 1,
+		.init = tegra_rt5677_hotword_init,
 	},
 };
 
