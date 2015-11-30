@@ -2005,6 +2005,7 @@ void composite_dev_cleanup(struct usb_composite_dev *cdev)
 
 		kfree(cdev->os_desc_req->buf);
 		usb_ep_free_request(cdev->gadget->ep0, cdev->os_desc_req);
+		cdev->os_desc_req = NULL;
 	}
 	if (cdev->req) {
 		if (cdev->setup_pending)
@@ -2012,6 +2013,7 @@ void composite_dev_cleanup(struct usb_composite_dev *cdev)
 
 		kfree(cdev->req->buf);
 		usb_ep_free_request(cdev->gadget->ep0, cdev->req);
+		cdev->req = NULL;
 	}
 	cdev->next_string_id = 0;
 	device_remove_file(&cdev->gadget->dev, &dev_attr_suspended);
