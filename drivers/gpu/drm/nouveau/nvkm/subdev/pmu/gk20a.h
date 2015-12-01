@@ -774,7 +774,7 @@ struct gk20a_pmu_priv {
 	bool perfmon_sampling_enabled;
 	bool sw_ready;
 	bool perfmon_ready;
-	bool initialized;
+	bool out_of_reset;
 	u32 sample_buffer;
 	bool buf_loaded;
 	void *pmu_chip_data;
