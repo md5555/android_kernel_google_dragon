@@ -1065,6 +1065,8 @@
 	nvidia,core-pwr-off-time = <39053>;
 	nvidia,core-power-req-active-high;
 	nvidia,sys-clock-req-active-high;
+	nvidia,pmc-clk1-out-en;
+	nvidia,pmc-clk1-out-src = <PMC_CLK_OUT_SRC_OSC_DIV_2>;
 	#nvidia,wake-cells = <3>;
 
 	bootrom-i2c {
