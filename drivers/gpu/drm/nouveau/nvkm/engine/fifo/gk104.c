@@ -86,7 +86,8 @@ gk104_fifo_runlist_update(struct gk104_fifo_priv *priv, u32 engine)
 
 	mutex_ret = pmu->acquire_mutex(pmu, PMU_MUTEX_ID_FIFO, &token);
 	if (mutex_ret)
-		nv_warn(priv, "failed to acquire PMU FIFO mutex\n");
+		nv_error(priv, "runlist update acquire mutex failed: %d\n",
+				mutex_ret);
 
 	cur = engn->runlist[engn->cur_runlist];
 	engn->cur_runlist = !engn->cur_runlist;
@@ -168,7 +169,8 @@ gk104_fifo_chan_kick_locked(struct gk104_fifo_chan *chan)
 
 	mutex_ret = pmu->acquire_mutex(pmu, PMU_MUTEX_ID_FIFO, &token);
 	if (mutex_ret)
-		nv_warn(priv, "failed to acquire PMU FIFO mutex\n");
+		nv_error(priv, "channel kick acquire mutex failed: %d\n",
+				mutex_ret);
 
 	nv_wr32(priv, 0x002634, chan->base.chid);
 	if (!nv_wait(priv, 0x002634, 0x100000, 0x000000)) {

@@ -1031,7 +1031,7 @@ gk20a_pmu_mutex_acquire(struct nvkm_pmu *pmu, u32 id, u32 *token)
 	struct pmu_mutex *mutex;
 	u32 data, owner, max_retry;
 
-	if (!priv->initialized)
+	if (WARN_ON(!priv->out_of_reset))
 		return -EINVAL;
 
 	if (WARN_ON(!token))
@@ -1105,7 +1105,7 @@ gk20a_pmu_mutex_release(struct nvkm_pmu *pmu, u32 id, u32 *token)
 	struct pmu_mutex *mutex;
 	u32 owner;
 
-	if (!priv->initialized)
+	if (WARN_ON(!priv->out_of_reset))
 		return -EINVAL;
 
 	if (WARN_ON(!token))
@@ -2216,7 +2216,6 @@ gk20a_pmu_setup_hw_enable_elpg(struct nvkm_pmu *pmu)
 	struct nvkm_ltc *ltc = nvkm_ltc(priv);
 	int ret;
 
-	priv->initialized = true;
 	priv->pmu_state = PMU_STATE_STARTED;
 
 	if (gr->wait_idle) {
@@ -3167,6 +3166,8 @@ gk20a_pmu_init(struct nvkm_object *object)
 	if (ret)
 		return ret;
 
+	priv->out_of_reset = true;
+
 	gk20a_pmu_dvfs_init(priv);
 	pmu->fecs_secure_boot = false;
 	pmu->elcg_enabled = true;
@@ -3218,7 +3219,7 @@ gk20a_pmu_fini(struct nvkm_object *object, bool suspend)
 
 	priv->pmu_state = PMU_STATE_OFF;
 	priv->pmu_ready = false;
-	priv->initialized = false;
+	priv->out_of_reset = false;
 
 	pmu->elcg_enabled = false;
 	pmu->slcg_enabled = false;

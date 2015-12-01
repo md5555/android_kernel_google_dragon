@@ -2603,7 +2603,7 @@ gm20b_pmu_fini(struct nvkm_object *object, bool suspend)
 		pmu->slcg_enabled = false;
 		pmu->blcg_enabled = false;
 		priv->pmu_ready = false;
-		priv->initialized = false;
+		priv->out_of_reset = false;
 		pmu->cold_boot = true;
 		priv->lspmu_wpr_init_done = false;
 		nv_wr32(priv, 0x10a014, 0x00000060);
@@ -2668,6 +2668,7 @@ gm20b_pmu_init(struct nvkm_object *object) {
 	ppmu->elcg_enabled = true;
 	ppmu->slcg_enabled = true;
 	ppmu->blcg_enabled = true;
+	priv->out_of_reset = true;
 
 	priv->pmu_setup_elpg = gm20b_pmu_setup_elpg;
 
