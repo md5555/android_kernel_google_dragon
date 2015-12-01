@@ -502,10 +502,14 @@ static int nouveau_gem_remap(struct nouveau_drm *drm, struct nvkm_vm *vm,
 	 * the address space allocation's alignment request (as->align_shift).
 	 * This may result in changing the nvbo to map with small page size
 	 * when previously it was mapped with large page size.
+	 *
+	 * Note that if the nvbo was originally mapped with small page size
+	 * (if, for example, its size was not a multiple of large page size),
+	 * we cannot just promote to large page size.
 	 */
 	as = nvkm_vm_find_as(vm, offset);
 	if (as)
-		nvbo->page_shift = as->align_shift;
+		nvbo->page_shift = min(nvbo->page_shift, as->align_shift);
 
 	*new_vma = kzalloc(sizeof(*vma), GFP_KERNEL);
 	if (!*new_vma) {
