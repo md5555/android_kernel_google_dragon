@@ -2964,7 +2964,7 @@ static void tegra_xudc_device_params_init(struct tegra_xudc *xudc)
 	val |= CFG_DEV_FE_PORTREGSEL_HSFS_PI << CFG_DEV_FE_PORTREGSEL_SHIFT;
 	xudc_writel(xudc, val, CFG_DEV_FE);
 
-	xudc_readl(xudc, PORTSC);
+	val = xudc_readl(xudc, PORTSC);
 	val &= ~(PORTSC_CHANGE_MASK | (PORTSC_PLS_MASK << PORTSC_PLS_SHIFT));
 	val |= PORTSC_LWS | (PORTSC_PLS_RXDETECT << PORTSC_PLS_SHIFT);
 	xudc_writel(xudc, val, PORTSC);
