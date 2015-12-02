@@ -331,12 +331,15 @@ void __init tegra_init_from_table(struct tegra_clk_init_table *tbl,
 				WARN_ON(1);
 			}
 
-		if (tbl->state)
+		if (CLK_INIT_STATE(tbl->state)) {
 			if (clk_prepare_enable(clk)) {
 				pr_err("%s: Failed to enable %s\n", __func__,
 				       __clk_get_name(clk));
 				WARN_ON(1);
 			}
+			if (CLK_INIT_STATE_DISABLE(tbl->state))
+				clk_disable_unprepare(clk);
+		}
 	}
 }
 
