@@ -79,6 +79,8 @@ static const struct tis_vendor_timeout_override vendor_timeout_overrides[] = {
 	/* Atmel 3204 */
 	{ 0x32041114, { (TIS_SHORT_TIMEOUT * 1000), (TIS_LONG_TIMEOUT * 1000),
 			(TIS_SHORT_TIMEOUT * 1000), (TIS_SHORT_TIMEOUT * 1000) } },
+	/* STMicro */
+	{ 0x53544d20, { 4000000, 4000000, 4000000, 4000000 } },
 };
 
 u8 tpm_tis_status(struct tpm_chip *chip);
