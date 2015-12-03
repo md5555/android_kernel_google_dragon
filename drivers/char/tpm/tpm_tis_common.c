@@ -136,7 +136,7 @@ static int recv_data(struct tpm_chip *chip, u8 *buf, size_t count)
 	       == 0) {
 		burstcnt = get_burstcount(chip);
 		transfer_size = min_t (size_t, (count - size), burstcnt);
-		pr_err("size %d count %d bct %d tsize %d\n", size, count, burstcnt, transfer_size);
+		pr_err("size %lu count %lu bct %lu tsize %lu\n", size, count, burstcnt, transfer_size);
 		read_tpm_bytes(chip, TPM_DATA_FIFO(chip->vendor.locality), transfer_size, &buf[size]);
 		size += transfer_size;
 	}
