@@ -131,7 +131,6 @@ struct imx208_info {
 static const struct regmap_config sensor_regmap_config = {
 	.reg_bits = 16,
 	.val_bits = 8,
-	.cache_type = REGCACHE_RBTREE,
 };
 
 /* Return number of regs */
