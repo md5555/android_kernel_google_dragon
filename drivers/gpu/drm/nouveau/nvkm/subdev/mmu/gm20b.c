@@ -76,6 +76,8 @@ gm20b_mmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 		return ret;
 
 	priv = (void *)*pobject;
+	priv->base.pgt_bits  = 26 - 12;
+	priv->base.lpg_shift = 16;
 	priv->base.storage_type_map = gm20b_pte_storage_type_map;
 
 	return 0;

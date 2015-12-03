@@ -34,6 +34,7 @@ gm20b_fb_init(struct nvkm_object *object)
 		return ret;
 
 	nv_wr32(priv, 0x100800, nv_rd32(priv, 0x12006c));
+	nv_mask(priv, 0x100c80, 0x00000001, 0x00000001);
 	return 0;
 }
 
