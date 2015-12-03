@@ -2011,14 +2011,11 @@ static int gm20b_init_pmu_setup_hw1(struct nvkm_pmu *ppmu,
 	struct nvkm_mc *pmc = nvkm_mc(ppmu);
 	struct gk20a_pmu_priv *pmu = to_gk20a_priv(ppmu);
 	struct gm20b_acr *acr = &pmu->acr;
-	int err, i;
+	int err;
 	struct pmu_cmdline_args_v1 args;
 
 	/* TODO remove this when perfmon is used for pstate/dvfs scaling */
 	pmu->perfmon_sampling_enabled = false;
-
-	for (i = 0; i < pmu->mutex_cnt; i++)
-		pmu->mutex[i].index = i;
 
 	if (!pmu->trace_buf.size) {
 		err = nvkm_gpuobj_new(nv_object(ppmu), NULL,
@@ -2518,7 +2515,7 @@ gm20b_pmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	       struct nvkm_object **pobject)
 {
 	struct gk20a_pmu_priv *priv;
-	int ret;
+	int ret, i;
 	struct nvkm_pmu *ppmu;
 
 	ret = nvkm_pmu_create(parent, engine, oclass, &priv);
@@ -2540,6 +2537,9 @@ gm20b_pmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 		nv_error(ppmu, "alloc for pmu_mutexes failed\n");
 		return -ENOMEM;
 	}
+
+	for (i = 0; i < priv->mutex_cnt; i++)
+		priv->mutex[i].index = i;
 
 	priv->seq = kzalloc(PMU_MAX_NUM_SEQUENCES *
 		sizeof(struct pmu_sequence), GFP_KERNEL);
