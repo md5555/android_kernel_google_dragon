@@ -535,7 +535,7 @@ int tpm_tis_init_generic(struct device *dev, struct tpm_chip *chip, unsigned int
 	chip->vendor.manufacturer_id = vendor;
 	read_tpm_byte(chip, TPM_RID(0), &rid);
 
-	dev_info(dev, "%s TPM (device-id 0x%X, rev-id %d)\n",
+	dev_info(dev, "%s TPM (device-id 0x%X, rev-id %d) [gentle shutdown]\n",
 		 (chip->flags & TPM_CHIP_FLAG_TPM2) ? "2.0" : "1.2",
 		 vendor >> 16, rid);
 	if (!itpm) {

@@ -182,6 +182,7 @@ struct tpm_chip {
 #endif /* CONFIG_ACPI */
 
 	struct list_head list;
+	struct notifier_block shutdown_nb;
 };
 
 #define to_tpm_chip(n) container_of(n, struct tpm_chip, vendor)
