@@ -789,6 +789,10 @@ static int tegra_plane_atomic_check(struct drm_plane *plane,
 	if (!state->crtc)
 		return 0;
 
+	if ((state->src_w >> 16) == 0 || (state->src_h >> 16) == 0 ||
+	    state->crtc_w == 0 || state->crtc_h == 0)
+		return -EINVAL;
+
 	err = tegra_dc_format(state->fb->pixel_format, &plane_state->format,
 			      &plane_state->swap);
 	if (err < 0)
