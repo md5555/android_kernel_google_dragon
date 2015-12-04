@@ -352,6 +352,8 @@ int mmc_add_card(struct mmc_card *card)
 #endif
 	mmc_init_context_info(card->host);
 
+	device_enable_async_suspend(&card->dev);
+
 	ret = device_add(&card->dev);
 	if (ret)
 		return ret;

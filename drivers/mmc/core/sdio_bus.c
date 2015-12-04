@@ -324,6 +324,7 @@ int sdio_add_func(struct sdio_func *func)
 	dev_set_name(&func->dev, "%s:%d", mmc_card_id(func->card), func->num);
 
 	sdio_acpi_set_handle(func);
+	device_enable_async_suspend(&func->dev);
 	ret = device_add(&func->dev);
 	if (ret == 0) {
 		sdio_func_set_present(func);
