@@ -176,17 +176,6 @@ static void rt5677_hotword_setup_audio_path(struct rt5677_priv *rt5677)
 	/* Clock source for Mono L ADC = clk_sys5 */
 	rt5677_sel_asrc_clk_src(rt5677->codec, RT5677_AD_MONO_L_FILTER,
 		RT5677_CLK_SEL_SYS5);
-
-	/* System Clock = MCLK1
-	 * Stereo ADC/DAC over sample rate = 128Fs (default)
-	 */
-	regmap_write(rt5677->regmap, RT5677_GLB_CLK1, 0x0000);
-
-	/* DSP Clock = MCLK1 (bypassed PLL2) */
-	regmap_write(rt5677->regmap, RT5677_GLB_CLK2, 0x0080);
-
-	/* Enable Gating Mode with MCLK = enable */
-	regmap_update_bits(rt5677->regmap, RT5677_DIG_MISC, 0x1, 0x1);
 }
 
 static void rt5677_hotword_start(struct rt5677_dsp *dsp)
@@ -195,6 +184,24 @@ static void rt5677_hotword_start(struct rt5677_dsp *dsp)
 	u32 boot_vector[2] = {0x00000009, 0x00000019};
 
 	rt5677_hotword_setup_audio_path(rt5677);
+
+	/* Clear DSP bus clock setting to default to ensure DSP bus clock >=
+	 * SPI clock during fw load. The DSP fw modifies these bus clock
+	 * settings to save power in SysInit.
+	 * DSP BCLK Auto Mode = disable
+	 * DSP BCLK pre div in auto mode = /2
+	 * DSP BCLK pre div = /2
+	 */
+	regmap_update_bits(rt5677->regmap, RT5677_GEN_CTRL2,
+		RT5677_DSP_BCLK_AUTO_MODE_MASK |
+		RT5677_DSP_BUS_PRE_DIV_AUTO_MASK |
+		RT5677_DSP_BUS_PRE_DIV_MASK, 0);
+
+	/* DSP Clock = MCLK1 (bypassed PLL2) */
+	regmap_write(rt5677->regmap, RT5677_GLB_CLK2, 0x0080);
+
+	/* Enable Gating Mode with MCLK = enable */
+	regmap_update_bits(rt5677->regmap, RT5677_DIG_MISC, 0x1, 0x1);
 
 	regmap_update_bits(rt5677->regmap, RT5677_PR_BASE + RT5677_BIAS_CUR4,
 		0x0f00, 0x0100);
