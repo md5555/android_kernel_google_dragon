@@ -277,7 +277,6 @@ static const struct reg_default rt5677_reg[] = {
 static bool rt5677_volatile_register(struct device *dev, unsigned int reg)
 {
 	int i;
-	struct rt5677_priv *rt5677 = dev_get_drvdata(dev);
 
 	for (i = 0; i < ARRAY_SIZE(rt5677_ranges); i++) {
 		if (reg >= rt5677_ranges[i].range_min &&
@@ -319,9 +318,6 @@ static bool rt5677_volatile_register(struct device *dev, unsigned int reg)
 	case RT5677_VENDOR_ID1:
 	case RT5677_VENDOR_ID2:
 		return true;
-	case RT5677_GPIO_CTRL1:
-	case RT5677_GPIO_CTRL2:
-		return rt5677->pdata.gpio_ctl_volatile;
 	default:
 		return false;
 	}
@@ -5079,8 +5075,6 @@ static void rt5677_read_device_properties(struct rt5677_priv *rt5677,
 
 	rt5677->pdata.i2s1_pulldown = device_property_read_bool(dev,
 			"realtek,i2s1-pulldown");
-	rt5677->pdata.gpio_ctl_volatile = device_property_read_bool(dev,
-			"realtek,gpio_ctl_volatile");
 }
 
 static struct regmap_irq rt5677_irqs[] = {
