@@ -1787,6 +1787,7 @@ struct rt5677_priv {
 	struct regmap_irq_chip_data *irq_data;
 	bool is_dsp_mode;
 	bool is_vref_slow;
+	unsigned int *regcache;
 };
 
 int rt5677_sel_asrc_clk_src(struct snd_soc_codec *codec,
