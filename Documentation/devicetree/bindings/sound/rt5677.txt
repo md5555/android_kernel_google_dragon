@@ -45,8 +45,6 @@ Optional properties:
 
 - realtek,i2s1-pulldown: pulldown I2S1 pins
 
-- realtek,gpio_ctl_volatile: indicate gpio settings might be changed by DSP
-
 Pins on the device (for linking into audio routes):
 
   * IN1P

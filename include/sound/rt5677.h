@@ -43,9 +43,6 @@ struct rt5677_platform_data {
 
 	/* Pulldown I2S BCLK/FSYNC/DATA lines */
 	bool i2s1_pulldown;
-
-	/* Indicate GPIO pin control registers are volatile or not */
-	bool gpio_ctl_volatile;
 };
 
 #endif
