@@ -566,11 +566,11 @@ static int skl_first_init(struct hdac_ext_bus *ebus)
 	/* initialize chip */
 	skl_init_pci(skl);
 
-	skl_init_chip(bus, true);
-
 	err = skl_i915_init(bus);
 	if (err < 0)
 		return err;
+
+	skl_init_chip(bus, true);
 
 	snd_hdac_set_codec_wakeup(bus, false);
 
