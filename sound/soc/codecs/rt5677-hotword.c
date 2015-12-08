@@ -391,7 +391,13 @@ static void rt5677_hotword_stream(struct rt5677_dsp *dsp)
 	runtime = dsp->substream->runtime;
 
 	if (rt5677_hotword_mic_write_offset(&mic_write_offset)) {
-		dev_err(dsp->spi, "No mic_write_offset\n");
+		/* Sometimes the SPI read for mic_write_offset fails because
+		 * it's too early during resume. Schedule the work item again
+		 * to retry.
+		 * TODO benzh: Figure out how to wait for the SPI device to
+		 * complete its resume, then remove this retry loop.
+		 */
+		dev_err(dsp->spi, "No mic_write_offset, retrying...\n");
 		goto done;
 	}
 
@@ -436,10 +442,10 @@ static void rt5677_hotword_stream(struct rt5677_dsp *dsp)
 		new_bytes -= copy_bytes;
 	}
 
+done:
 	/* TODO benzh: use better delay time based on period_bytes */
 	schedule_delayed_work(&dsp->work,
 			msecs_to_jiffies(RT5677_HOTWORD_STREAM_DELAY_MS));
-done:	;
 }
 
 /*
