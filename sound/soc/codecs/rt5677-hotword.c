@@ -267,6 +267,7 @@ static int rt5677_hotword_mic_write_offset(u32 *mic_write_offset)
 	 * dsp, and check to make sure that it points somewhere inside the
 	 * buffer.
 	 */
+	*mic_write_offset = 0;
 	ret = rt5677_spi_read(RT5677_MIC_BUF_ADDR, mic_write_offset,
 			sizeof(u32));
 	if (ret)
@@ -477,14 +478,37 @@ static void rt5677_hotword_work(struct work_struct *work)
 static irqreturn_t rt5677_hotword_irq(int unused, void *data)
 {
 	struct rt5677_dsp *dsp = data;
+	struct rt5677_priv *rt5677 = dsp->priv;
+	unsigned int val;
+	int ret, irq_status = IRQ_NONE;
 	mutex_lock(&dsp->lock);
 	dev_info(dsp->spi, "Hotword irq: %d\n", dsp->state);
 	if (dsp->state == RT5677_HOTWORD_ARMED) {
+		ret = regmap_read(rt5677->regmap, RT5677_GPIO_CTRL2, &val);
+		if (ret) {
+			dev_err(dsp->spi, "Failed to read GPIO1 %d", ret);
+			goto done;
+		}
+		if ((val & RT5677_GPIO1_OUT_MASK) != RT5677_GPIO1_OUT_HI) {
+			dev_err(dsp->spi, "Not hotword irq %u", val);
+			goto done;
+		}
+		irq_status = IRQ_HANDLED;
+		/* DSP fw drove GPIO1 high to signal hotword fired.
+		 * ACK the irq by driving GPIO1 low.
+		 */
+		ret = regmap_update_bits(rt5677->regmap, RT5677_GPIO_CTRL2,
+			RT5677_GPIO1_OUT_MASK, RT5677_GPIO1_OUT_LO);
+		if (ret) {
+			dev_err(dsp->spi, "Failed to set GPIO1 low %d", ret);
+			goto done;
+		}
 		dsp->state = RT5677_HOTWORD_FIRED;
 		schedule_delayed_work(&dsp->work, 0);
 	}
+done:
 	mutex_unlock(&dsp->lock);
-	return IRQ_HANDLED;
+	return irq_status;
 }
 
 static int rt5677_hotword_init_irq(struct snd_soc_pcm_runtime *rtd)
@@ -503,6 +527,14 @@ static int rt5677_hotword_init_irq(struct snd_soc_pcm_runtime *rtd)
 		ret = -ENODEV;
 		goto done;
 	}
+
+	/* Drive GPIO1 low so we don't get spurious irqs before hotword fires */
+	regmap_update_bits(priv->regmap, RT5677_GPIO_CTRL2,
+		RT5677_GPIO1_DIR_MASK | RT5677_GPIO1_OUT_MASK,
+		RT5677_GPIO1_DIR_OUT | RT5677_GPIO1_OUT_LO);
+	regmap_update_bits(priv->regmap, RT5677_GPIO_CTRL1,
+		RT5677_GPIO1_PIN_MASK, RT5677_GPIO1_PIN_GPIO1);
+
 	ret = devm_request_threaded_irq(&i2c->dev, i2c->irq, NULL,
 			rt5677_hotword_irq, IRQF_TRIGGER_RISING | IRQF_ONESHOT,
 			"rt5677", dsp);
