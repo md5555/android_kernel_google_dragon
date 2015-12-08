@@ -25,7 +25,7 @@
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_plane_helper.h>
 
-#define TEGRA_DC_ENABLE_STANDBY 0
+#define TEGRA_DC_ENABLE_STANDBY 1
 
 enum la_ptsa_update {
 	LA_PTSA_PRE_UPDATE,
