@@ -536,7 +536,7 @@ static int rt5677_hotword_init_irq(struct snd_soc_pcm_runtime *rtd)
 		RT5677_GPIO1_PIN_MASK, RT5677_GPIO1_PIN_GPIO1);
 
 	ret = devm_request_threaded_irq(&i2c->dev, i2c->irq, NULL,
-			rt5677_hotword_irq, IRQF_TRIGGER_RISING | IRQF_ONESHOT,
+			rt5677_hotword_irq, IRQF_TRIGGER_HIGH | IRQF_ONESHOT,
 			"rt5677", dsp);
 	if (!ret)
 		dsp->priv = priv;

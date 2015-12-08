@@ -975,7 +975,7 @@
 	rt5677: audio-codec@2d {
 		compatible = "realtek,rt5677";
 		reg = <0x2d>;
-		interrupts-extended = <&gpio TEGRA_GPIO(X, 0) IRQ_TYPE_EDGE_BOTH>;
+		interrupts-extended = <&gpio TEGRA_GPIO(X, 0) IRQ_TYPE_LEVEL_HIGH>;
 		realtek,reset-gpio = <&gpio TEGRA_GPIO(BB, 3) GPIO_ACTIVE_LOW>;
 		nvidia,pmc-wakeup = <&pmc PMC_WAKE_TYPE_EVENT 61
 				     PMC_TRIGGER_TYPE_HIGH>;
