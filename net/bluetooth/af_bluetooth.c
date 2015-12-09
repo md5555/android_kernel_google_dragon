@@ -33,6 +33,8 @@
 
 #include "selftest.h"
 
+#define VERSION "2.20"
+
 /* Bluetooth sockets */
 #define BT_MAX_PROTO	8
 static const struct net_proto_family *bt_proto[BT_MAX_PROTO];
@@ -104,10 +106,39 @@ void bt_sock_unregister(int proto)
 }
 EXPORT_SYMBOL(bt_sock_unregister);
 
+#ifdef CONFIG_PARANOID_NETWORK
+static inline int current_has_bt_admin(void)
+{
+	return !current_euid();
+}
+
+static inline int current_has_bt(void)
+{
+	return current_has_bt_admin();
+}
+# else
+static inline int current_has_bt_admin(void)
+{
+	return 1;
+}
+
+static inline int current_has_bt(void)
+{
+	return 1;
+}
+#endif
+
 static int bt_sock_create(struct net *net, struct socket *sock, int proto,
 			  int kern)
 {
 	int err;
+
+	if (proto == BTPROTO_RFCOMM || proto == BTPROTO_SCO ||
+			proto == BTPROTO_L2CAP) {
+		if (!current_has_bt())
+			return -EPERM;
+	} else if (!current_has_bt_admin())
+		return -EPERM;
 
 	if (net != &init_net)
 		return -EAFNOSUPPORT;
@@ -219,7 +250,7 @@ int bt_sock_recvmsg(struct kiocb *iocb, struct socket *sock,
 
 	BT_DBG("sock %p sk %p len %zu", sock, sk, len);
 
-	if (flags & MSG_OOB)
+	if (flags & (MSG_OOB))
 		return -EOPNOTSUPP;
 
 	skb = skb_recv_datagram(sk, flags, noblock, &err);
@@ -713,7 +744,7 @@ static int __init bt_init(void)
 
 	sock_skb_cb_check_size(sizeof(struct bt_skb_cb));
 
-	BT_INFO("Core ver %s", BT_SUBSYS_VERSION);
+	BT_INFO("Core ver %s", VERSION);
 
 	err = bt_selftest();
 	if (err < 0)
@@ -787,7 +818,7 @@ subsys_initcall(bt_init);
 module_exit(bt_exit);
 
 MODULE_AUTHOR("Marcel Holtmann <marcel@holtmann.org>");
-MODULE_DESCRIPTION("Bluetooth Core ver " BT_SUBSYS_VERSION);
-MODULE_VERSION(BT_SUBSYS_VERSION);
+MODULE_DESCRIPTION("Bluetooth Core ver " VERSION);
+MODULE_VERSION(VERSION);
 MODULE_LICENSE("GPL");
 MODULE_ALIAS_NETPROTO(PF_BLUETOOTH);
