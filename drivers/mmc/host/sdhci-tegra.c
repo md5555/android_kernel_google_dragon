@@ -18,8 +18,6 @@
 #include <linux/init.h>
 #include <linux/platform_device.h>
 #include <linux/clk.h>
-#include <linux/clk-provider.h>
-#include <linux/bug.h>
 #include <linux/delay.h>
 #include <linux/io.h>
 #include <linux/of.h>
@@ -135,8 +133,6 @@ static u16 sdhci_tegra_readw(struct sdhci_host *host, int reg)
 	struct sdhci_tegra *tegra_host = pltfm_host->priv;
 	const struct sdhci_tegra_soc_data *soc_data = tegra_host->soc_data;
 
-	BUG_ON(!__clk_is_enabled(pltfm_host->clk));
-
 	if (unlikely((soc_data->nvquirks & NVQUIRK_FORCE_SDHCI_SPEC_200) &&
 			(reg == SDHCI_HOST_VERSION))) {
 		/* Erratum: Version register is invalid in HW. */
@@ -146,7 +142,7 @@ static u16 sdhci_tegra_readw(struct sdhci_host *host, int reg)
 	return readw(host->ioaddr + reg);
 }
 
-static void sdhci_tegra_writew_war(struct sdhci_host *host, u16 val, int reg)
+static void sdhci_tegra_writew(struct sdhci_host *host, u16 val, int reg)
 {
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 
@@ -173,8 +169,6 @@ static void sdhci_tegra_writel(struct sdhci_host *host, u32 val, int reg)
 	struct sdhci_tegra *tegra_host = pltfm_host->priv;
 	const struct sdhci_tegra_soc_data *soc_data = tegra_host->soc_data;
 
-	BUG_ON(!__clk_is_enabled(pltfm_host->clk));
-
 	/* Seems like we're getting spurious timeout and crc errors, so
 	 * disable signalling of them. In case of real errors software
 	 * timers should take care of eventually detecting them.
@@ -194,38 +188,6 @@ static void sdhci_tegra_writel(struct sdhci_host *host, u32 val, int reg)
 			gap_ctrl &= ~0x8;
 		writeb(gap_ctrl, host->ioaddr + SDHCI_BLOCK_GAP_CONTROL);
 	}
-}
-
-static u32 sdhci_tegra_readl(struct sdhci_host *host, int reg)
-{
-	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
-
-	BUG_ON(!__clk_is_enabled(pltfm_host->clk));
-	return readl(host->ioaddr + reg);
-}
-
-static u8 sdhci_tegra_readb(struct sdhci_host *host, int reg)
-{
-	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
-
-	BUG_ON(!__clk_is_enabled(pltfm_host->clk));
-	return readb(host->ioaddr + reg);
-}
-
-static void sdhci_tegra_writew(struct sdhci_host *host, u16 val, int reg)
-{
-	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
-
-	BUG_ON(!__clk_is_enabled(pltfm_host->clk));
-	writew(val, host->ioaddr + reg);
-}
-
-static void sdhci_tegra_writeb(struct sdhci_host *host, u8 val, int reg)
-{
-	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
-
-	BUG_ON(!__clk_is_enabled(pltfm_host->clk));
-	writeb(val, host->ioaddr + reg);
 }
 
 static unsigned int sdhci_tegra_get_ro(struct sdhci_host *host)
@@ -583,12 +545,8 @@ static int sdhci_tegra_enable_dma(struct sdhci_host *host)
 
 static const struct sdhci_ops sdhci_tegra_ops = {
 	.get_ro     = sdhci_tegra_get_ro,
-	.read_l     = sdhci_tegra_readl,
 	.read_w     = sdhci_tegra_readw,
-	.read_b     = sdhci_tegra_readb,
 	.write_l    = sdhci_tegra_writel,
-	.write_w    = sdhci_tegra_writew,
-	.write_b    = sdhci_tegra_writeb,
 	.set_clock  = sdhci_set_clock,
 	.set_bus_width = sdhci_tegra_set_bus_width,
 	.reset      = sdhci_tegra_reset,
@@ -635,7 +593,7 @@ static struct sdhci_tegra_soc_data soc_data_tegra30 = {
 static const struct sdhci_ops sdhci_tegra114_ops = {
 	.get_ro     = sdhci_tegra_get_ro,
 	.read_w     = sdhci_tegra_readw,
-	.write_w    = sdhci_tegra_writew_war,
+	.write_w    = sdhci_tegra_writew,
 	.write_l    = sdhci_tegra_writel,
 	.set_clock  = sdhci_set_clock,
 	.set_bus_width = sdhci_tegra_set_bus_width,
