@@ -1322,8 +1322,8 @@
 		dmas = <&apbdma 24>, <&apbdma 24>;
 		dma-names = "rx", "tx";
 		nvidia,controller-id = <4>;
-		scl-gpio = <&gpio 195 0>;
-		sda-gpio = <&gpio 196 0>;
+		nvidia,scl-gpio = <&gpio 195 0>;
+		nvidia,sda-gpio = <&gpio 196 0>;
 		nvidia,require-cldvfs-clock;
 		status = "disabled";
 		clock-frequency = <400000>;
