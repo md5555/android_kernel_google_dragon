@@ -14,6 +14,7 @@
 #include <linux/regmap.h>
 #include <linux/i2c.h>
 #include <sound/soc.h>
+#include <linux/wakelock.h>
 
 #include "rl6231.h"
 #include "rt5677.h"
@@ -51,6 +52,7 @@ struct rt5677_dsp {
 	size_t avail_bytes;	/* number of new bytes since last period */
 	u32 mic_read_offset;	/* zero-based offset into DSP's mic buffer */
 	enum rt5677_hotword_state state;
+	struct wake_lock wake_lock;
 };
 
 static const struct snd_pcm_hardware rt5677_hotword_pcm_hardware = {
@@ -246,6 +248,7 @@ static void rt5677_hotword_start(struct rt5677_dsp *dsp)
 	/* Set DSP CPU to Run */
 	regmap_update_bits(rt5677->regmap, RT5677_PWR_DSP1, 0x1, 0x0);
 	dsp->state = RT5677_HOTWORD_ARMED;
+	wake_unlock(&dsp->wake_lock);
 }
 
 static void rt5677_hotword_stop(struct rt5677_dsp *dsp)
@@ -510,6 +513,12 @@ static irqreturn_t rt5677_hotword_irq(int unused, void *data)
 			goto done;
 		}
 		dsp->state = RT5677_HOTWORD_FIRED;
+
+		/* Grab the wake lock to prevent suspend while streaming audio
+		 * samples from the DSP mic buffer. The lock is released when
+		 * the pcm device is closed.
+		 */
+		wake_lock(&dsp->wake_lock);
 		schedule_delayed_work(&dsp->work, 0);
 	}
 done:
@@ -562,6 +571,12 @@ static int rt5677_hotword_pcm_open(struct snd_pcm_substream *substream)
 	if (ret)
 		return ret;
 
+	/* Grab the wake lock to prevent suspend during DSP fw load. The lock
+	 * is released after the DSP is armed or if the pcm device is closed
+	 * before the DSP is armed.
+	 */
+	wake_lock(&dsp->wake_lock);
+
 	dsp->state = RT5677_HOTWORD_START;
 	schedule_delayed_work(&dsp->work,
 			msecs_to_jiffies(RT5677_HOTWORD_START_DELAY_MS));
@@ -585,6 +600,10 @@ static int rt5677_hotword_pcm_close(struct snd_pcm_substream *substream)
 done:
 	mutex_unlock(&dsp->lock);
 	flush_delayed_work(&dsp->work);
+	/* If the pcm device is closed after the DSP is armed but before a
+	 * hotword is detected, we unlock twice which is still fine.
+	 */
+	wake_unlock(&dsp->wake_lock);
 	return 0;
 }
 
@@ -663,13 +682,23 @@ static int rt5677_hotword_pcm_probe(struct snd_soc_platform *platform)
 	dsp->spi = platform->dev;
 	mutex_init(&dsp->lock);
 	INIT_DELAYED_WORK(&dsp->work, rt5677_hotword_work);
+	wake_lock_init(&dsp->wake_lock, WAKE_LOCK_SUSPEND, "rt5677_hotword");
 
 	snd_soc_platform_set_drvdata(platform, dsp);
 	return 0;
 }
 
+static int rt5677_hotword_pcm_remove(struct snd_soc_platform *platform)
+{
+	struct rt5677_dsp *dsp = snd_soc_platform_get_drvdata(platform);
+
+	wake_lock_destroy(&dsp->wake_lock);
+	return 0;
+}
+
 static struct snd_soc_platform_driver rt5677_hotword_platform = {
 	.probe		= rt5677_hotword_pcm_probe,
+	.remove		= rt5677_hotword_pcm_remove,
 	.ops		= &rt5677_hotword_pcm_ops,
 };
 
