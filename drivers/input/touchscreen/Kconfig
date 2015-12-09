@@ -974,4 +974,7 @@ config TOUCHSCREEN_ZFORCE
 	  To compile this driver as a module, choose M here: the
 	  module will be called zforce_ts.
 
+config WAKE_GESTURES
+        bool "Wake Gestures"
+
 endif
