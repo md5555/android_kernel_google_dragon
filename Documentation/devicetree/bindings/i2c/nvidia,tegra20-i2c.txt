@@ -81,6 +81,8 @@ Required properties:
 Optional properties:
 - nvidia,controller-id: ID of controller when referred to in
                         hardware registers.
+- nvidia,scl-gpio: GPIO for SCL line used for bus clear.
+- nvidia,sda-gpio: GPIO for SDA line used for bus clear.
 
 Example:
 

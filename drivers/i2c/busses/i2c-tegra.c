@@ -17,15 +17,18 @@
 
 #include <linux/kernel.h>
 #include <linux/init.h>
+#include <linux/completion.h>
 #include <linux/platform_device.h>
 #include <linux/clk.h>
 #include <linux/err.h>
 #include <linux/i2c.h>
 #include <linux/io.h>
 #include <linux/interrupt.h>
+#include <linux/gpio.h>
 #include <linux/delay.h>
 #include <linux/slab.h>
 #include <linux/of_device.h>
+#include <linux/of_gpio.h>
 #include <linux/module.h>
 #include <linux/regulator/consumer.h>
 #include <linux/reset.h>
@@ -66,6 +69,7 @@
 #define I2C_FIFO_STATUS_RX_SHIFT		0
 #define I2C_INT_MASK				0x064
 #define I2C_INT_STATUS				0x068
+#define I2C_INT_BUS_CLEAR_DONE			(1<<11)
 #define I2C_INT_PACKET_XFER_COMPLETE		(1<<7)
 #define I2C_INT_ALL_PACKETS_XFER_COMPLETE	(1<<6)
 #define I2C_INT_TX_FIFO_OVERFLOW		(1<<5)
@@ -118,6 +122,15 @@
 #define I2C_HEADER_MASTER_ADDR_SHIFT		12
 #define I2C_HEADER_SLAVE_ADDR_SHIFT		1
 
+#define I2C_BUS_CLEAR_CNFG			0x084
+#define I2C_BC_SCLK_THRESHOLD			(9 << 16)
+#define I2C_BC_STOP_COND			(1 << 2)
+#define I2C_BC_TERMINATE			(1 << 1)
+#define I2C_BC_ENABLE				(1 << 0)
+
+#define I2C_BUS_CLEAR_STATUS			0x088
+#define I2C_BC_STATUS				(1 << 0)
+
 #define I2C_CONFIG_LOAD				0x08C
 #define I2C_MSTR_CONFIG_LOAD			(1 << 0)
 #define I2C_SLV_CONFIG_LOAD			(1 << 1)
@@ -129,6 +142,8 @@
 #define DPAUX_I2C_SDA_INPUT_RCV			(1 << 15)
 
 #define DPAUX_HYBRID_SPARE			0x134
+
+#define MAX_BUSCLEAR_CLOCK			(9 * 8 + 1)
 
 /*
  * msg_end_type: The bus control which need to be send at end of transfer.
@@ -156,6 +171,7 @@ enum msg_end_type {
  * @has_regulator: Controller requires extrnal regulator to be powered on
  *		during transfers.
  * @has_powergate: Controller is located inside a powergate partition.
+ * @has_hw_arb_support: Controller has hardware support for arbitration lost
  * @is_vi: Identifies the VI i2c controller, has a different register layout,
  *		and needs more clocks.
  * @is_dpaux: Identifies the DPAUX i2c controller, has separate pad control
@@ -174,6 +190,7 @@ struct tegra_i2c_hw_feature {
 	bool has_config_load_reg;
 	bool has_regulator;
 	bool has_powergate;
+	bool has_hw_arb_support;
 	bool is_vi;
 	bool is_dpaux;
 	int powergate_id;
@@ -675,6 +692,7 @@ static irqreturn_t tegra_i2c_isr(int irq, void *dev_id)
 	u32 status;
 	const u32 status_err = I2C_INT_NO_ACK | I2C_INT_ARBITRATION_LOST;
 	struct tegra_i2c_dev *i2c_dev = dev_id;
+	u32 mask;
 
 	status = i2c_readl(i2c_dev, I2C_INT_STATUS);
 
@@ -700,6 +718,10 @@ static irqreturn_t tegra_i2c_isr(int irq, void *dev_id)
 		goto err;
 	}
 
+	if (i2c_dev->hw->has_hw_arb_support &&
+		(status & I2C_INT_BUS_CLEAR_DONE))
+		goto err;
+
 	if (i2c_dev->msg_read && (status & I2C_INT_RX_FIFO_DATA_REQ)) {
 		if (i2c_dev->msg_buf_remaining)
 			tegra_i2c_empty_rx_fifo(i2c_dev);
@@ -724,16 +746,62 @@ static irqreturn_t tegra_i2c_isr(int irq, void *dev_id)
 	}
 	return IRQ_HANDLED;
 err:
-	/* An error occurred, mask all interrupts */
-	tegra_i2c_mask_irq(i2c_dev, I2C_INT_NO_ACK | I2C_INT_ARBITRATION_LOST |
+	mask = I2C_INT_NO_ACK | I2C_INT_ARBITRATION_LOST |
 		I2C_INT_PACKET_XFER_COMPLETE | I2C_INT_TX_FIFO_DATA_REQ |
-		I2C_INT_RX_FIFO_DATA_REQ);
+		I2C_INT_RX_FIFO_DATA_REQ;
+
+	if (i2c_dev->hw->has_hw_arb_support)
+		mask |= I2C_INT_BUS_CLEAR_DONE;
+
+	/* An error occurred, mask all interrupts */
+	tegra_i2c_mask_irq(i2c_dev, mask);
+
 	i2c_writel(i2c_dev, status, I2C_INT_STATUS);
 	if (i2c_dev->is_dvc)
 		dvc_writel(i2c_dev, DVC_STATUS_I2C_DONE_INTR, DVC_STATUS);
 
 	complete(&i2c_dev->msg_complete);
 	return IRQ_HANDLED;
+}
+
+static int tegra_i2c_bus_clear(struct tegra_i2c_dev *i2c_dev)
+{
+	unsigned long timeout;
+
+	if (!i2c_dev->hw->has_hw_arb_support) {
+		i2c_recover_bus(&i2c_dev->adapter);
+		return -EAGAIN;
+	}
+
+	reinit_completion(&i2c_dev->msg_complete);
+	i2c_writel(i2c_dev, I2C_BC_ENABLE
+			| I2C_BC_SCLK_THRESHOLD
+			| I2C_BC_TERMINATE,
+			I2C_BUS_CLEAR_CNFG);
+
+	if (i2c_dev->hw->has_config_load_reg) {
+		i2c_writel(i2c_dev, I2C_MSTR_CONFIG_LOAD,
+					I2C_CONFIG_LOAD);
+		timeout = jiffies + msecs_to_jiffies(1000);
+		while (i2c_readl(i2c_dev, I2C_CONFIG_LOAD) != 0) {
+			if (time_after(jiffies, timeout)) {
+				dev_warn(i2c_dev->dev,
+					"timeout config_load");
+				return -ETIMEDOUT;
+			}
+			msleep(1);
+		}
+	}
+
+	tegra_i2c_unmask_irq(i2c_dev, I2C_INT_BUS_CLEAR_DONE);
+
+	wait_for_completion_timeout(&i2c_dev->msg_complete,
+		TEGRA_I2C_TIMEOUT);
+
+	if (!(i2c_readl(i2c_dev, I2C_BUS_CLEAR_STATUS) & I2C_BC_STATUS))
+		dev_warn(i2c_dev->dev,
+			 "Un-recovered Arbitration lost\n");
+	return -EAGAIN;
 }
 
 static int tegra_i2c_xfer_msg(struct tegra_i2c_dev *i2c_dev,
@@ -824,7 +892,14 @@ static int tegra_i2c_xfer_msg(struct tegra_i2c_dev *i2c_dev,
 	if (i2c_dev->msg_err == I2C_ERR_NO_ACK)
 		udelay(DIV_ROUND_UP(2 * 1000000, i2c_dev->bus_clk_rate));
 
-	tegra_i2c_init(i2c_dev);
+	ret = tegra_i2c_init(i2c_dev);
+	if (WARN_ON(ret))
+		return ret;
+
+	/* Arbitration Lost occurs, Start recovery */
+	if (i2c_dev->msg_err & I2C_ERR_ARBITRATION_LOST)
+		return tegra_i2c_bus_clear(i2c_dev);
+
 	if (i2c_dev->msg_err == I2C_ERR_NO_ACK) {
 		if (msg->flags & I2C_M_IGNORE_NAK)
 			return 0;
@@ -898,6 +973,7 @@ static const struct tegra_i2c_hw_feature tegra20_i2c_hw = {
 	.clk_divisor_std_fast_mode = 0,
 	.clk_divisor_fast_plus_mode = 0,
 	.has_config_load_reg = false,
+	.has_hw_arb_support = false,
 };
 
 static const struct tegra_i2c_hw_feature tegra30_i2c_hw = {
@@ -908,6 +984,7 @@ static const struct tegra_i2c_hw_feature tegra30_i2c_hw = {
 	.clk_divisor_std_fast_mode = 0,
 	.clk_divisor_fast_plus_mode = 0,
 	.has_config_load_reg = false,
+	.has_hw_arb_support = false,
 };
 
 static const struct tegra_i2c_hw_feature tegra114_i2c_hw = {
@@ -918,6 +995,7 @@ static const struct tegra_i2c_hw_feature tegra114_i2c_hw = {
 	.clk_divisor_std_fast_mode = 0x19,
 	.clk_divisor_fast_plus_mode = 0x10,
 	.has_config_load_reg = false,
+	.has_hw_arb_support = true,
 };
 
 static const struct tegra_i2c_hw_feature tegra124_i2c_hw = {
@@ -928,6 +1006,7 @@ static const struct tegra_i2c_hw_feature tegra124_i2c_hw = {
 	.clk_divisor_std_fast_mode = 0x19,
 	.clk_divisor_fast_plus_mode = 0x10,
 	.has_config_load_reg = true,
+	.has_hw_arb_support = true,
 };
 
 static const struct tegra_i2c_hw_feature tegra210_i2c_vi_hw = {
@@ -942,6 +1021,7 @@ static const struct tegra_i2c_hw_feature tegra210_i2c_vi_hw = {
 	.has_powergate = true,
 	.powergate_id = TEGRA_POWERGATE_VENC,
 	.is_vi = true,
+	.has_hw_arb_support = true,
 };
 
 static const struct tegra_i2c_hw_feature tegra210_i2c_dpaux_hw = {
@@ -972,6 +1052,10 @@ static const struct of_device_id tegra_i2c_of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, tegra_i2c_of_match);
 
+static struct i2c_bus_recovery_info tegra_i2c_bus_recovery_info = {
+	.recover_bus		= i2c_generic_gpio_recovery,
+};
+
 static int tegra_i2c_probe(struct platform_device *pdev)
 {
 	struct tegra_i2c_dev *i2c_dev;
@@ -983,6 +1067,8 @@ static int tegra_i2c_probe(struct platform_device *pdev)
 	int irq;
 	int ret = 0;
 	int clk_multiplier = I2C_CLK_MULTIPLIER_STD_FAST_MODE;
+	int scl_gpio;
+	int sda_gpio;
 
 	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	base = devm_ioremap_resource(&pdev->dev, mem);
@@ -1031,6 +1117,10 @@ static int tegra_i2c_probe(struct platform_device *pdev)
 		i2c_dev->hw = match->data;
 		i2c_dev->is_dvc = of_device_is_compatible(pdev->dev.of_node,
 						"nvidia,tegra20-i2c-dvc");
+		scl_gpio = of_get_named_gpio(pdev->dev.of_node,
+						"nvidia,scl-gpio", 0);
+		sda_gpio = of_get_named_gpio(pdev->dev.of_node,
+						"nvidia,sda-gpio", 0);
 	} else if (pdev->id == 3) {
 		i2c_dev->is_dvc = 1;
 	}
@@ -1146,6 +1236,10 @@ static int tegra_i2c_probe(struct platform_device *pdev)
 	i2c_dev->adapter.dev.parent = &pdev->dev;
 	i2c_dev->adapter.nr = pdev->id;
 	i2c_dev->adapter.dev.of_node = pdev->dev.of_node;
+
+	tegra_i2c_bus_recovery_info.scl_gpio = scl_gpio;
+	tegra_i2c_bus_recovery_info.sda_gpio = sda_gpio;
+	i2c_dev->adapter.bus_recovery_info = &tegra_i2c_bus_recovery_info;
 
 	ret = i2c_add_numbered_adapter(&i2c_dev->adapter);
 	if (ret) {
