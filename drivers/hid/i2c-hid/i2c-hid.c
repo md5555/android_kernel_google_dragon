@@ -1126,12 +1126,12 @@ static int i2c_hid_resume(struct device *dev)
 		enable_irq(client->irq);
 		ret = i2c_hid_hwreset(client);
 		if (ret)
-			return ret;
+			goto error_disable_irq;
 
 		if (hid->driver && hid->driver->reset_resume) {
 			ret = hid->driver->reset_resume(hid);
 			if (ret)
-				return ret;
+				goto error_set_power_sleep;
 		}
 	}
 
@@ -1139,6 +1139,12 @@ static int i2c_hid_resume(struct device *dev)
 		disable_irq_wake(client->irq);
 
 	return 0;
+
+error_set_power_sleep:
+	i2c_hid_set_power(client, I2C_HID_PWR_SLEEP);
+error_disable_irq:
+	disable_irq(client->irq);
+	return ret;
 }
 #endif
 
@@ -1164,18 +1170,23 @@ static int i2c_hid_runtime_resume(struct device *dev)
 	i2c_hid_get_input(ihid);
 
 	enable_irq(client->irq);
-	i2c_hid_set_power(client, I2C_HID_PWR_ON);
 	ret = i2c_hid_hwreset(client);
 	if (ret)
-		return ret;
+		goto error_disable_irq;
 
 	if (hid->driver && hid->driver->reset_resume) {
 		ret = hid->driver->reset_resume(hid);
 		if (ret)
-			return ret;
+			goto error_set_power_sleep;
 	}
 
 	return 0;
+
+error_set_power_sleep:
+	i2c_hid_set_power(client, I2C_HID_PWR_SLEEP);
+error_disable_irq:
+	disable_irq(client->irq);
+	return ret;
 }
 #endif
 
