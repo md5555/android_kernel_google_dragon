@@ -46,11 +46,6 @@ static const char * const top_mfg_clk_name[] = {
 #define REG_MFG_CG_SET 0x04
 #define REG_MFG_CG_CLR 0x08
 
-static void mtk_mfg_set_clock_gating(void __iomem *reg)
-{
-	writel(REG_MFG_ALL, reg + REG_MFG_CG_SET);
-}
-
 static void mtk_mfg_clr_clock_gating(void __iomem *reg)
 {
 	writel(REG_MFG_ALL, reg + REG_MFG_CG_CLR);
@@ -107,7 +102,6 @@ static void mtk_mfg_disable_clock(struct mtk_mfg *mfg)
 {
 	int i;
 
-	mtk_mfg_set_clock_gating(mfg->reg_base);
 	for (i = MAX_TOP_MFG_CLK - 1; i >= 0; i--)
 		clk_disable(mfg->top_clk[i]);
 }
@@ -121,17 +115,6 @@ static void mtk_mfg_enable_hw_apm(struct mtk_mfg *mfg)
 	writel(0x002b0234, mfg->reg_base + 0xe8);
 	writel(0x80000000, mfg->reg_base + 0xec);
 	writel(0x08000000, mfg->reg_base + 0xa0);
-}
-
-static void mtk_mfg_disable_hw_apm(struct mtk_mfg *mfg)
-{
-	writel(0x00, mfg->reg_base + 0x24);
-	writel(0x00, mfg->reg_base + 0x28);
-	writel(0x00, mfg->reg_base + 0xe0);
-	writel(0x00, mfg->reg_base + 0xe4);
-	writel(0x00, mfg->reg_base + 0xe8);
-	writel(0x00, mfg->reg_base + 0xec);
-	writel(0x00, mfg->reg_base + 0xa0);
 }
 
 int mtk_mfg_enable(struct mtk_mfg *mfg)
@@ -165,7 +148,6 @@ err_regulator_disable:
 
 void mtk_mfg_disable(struct mtk_mfg *mfg)
 {
-	mtk_mfg_disable_hw_apm(mfg);
 	mtk_mfg_disable_clock(mfg);
 	pm_runtime_put_sync(mfg->dev);
 	regulator_disable(mfg->vgpu);
