@@ -2696,19 +2696,21 @@ gk20a_pmu_init_vm(struct gk20a_pmu_priv *priv, const struct firmware *fw)
 	struct nvkm_device *device = nv_device(&priv->base);
 	struct nvkm_vm *vm;
 	struct nvkm_pmu *pmu = &priv->base;
+	struct nvkm_mmu *mmu = nvkm_mmu(priv);
 	const u64 pmu_area_len = 300*1024;
 
-	/* mem for inst blk*/
+	/* allocate inst blk */
 	ret = nvkm_gpuobj_new(nv_object(priv), NULL, 0x1000, 0, 0, &pmuvm->mem);
 	if (ret)
 		return ret;
 
-	/* mem for pgd*/
-	ret = nvkm_gpuobj_new(nv_object(priv), NULL, 0x8000, 0, 0, &pmuvm->pgd);
+	/* allocate pgd and initialize inst blk */
+	ret = mmu->create_pgd(mmu, nv_object(priv), pmuvm->mem,
+				pmu_area_len, &pmuvm->pgd);
 	if (ret)
 		return ret;
 
-	/*allocate virtual memory range*/
+	/* allocate virtual memory range */
 	ret = nvkm_vm_new(device, 0, pmu_area_len, 0, &vm);
 	if (ret)
 		return ret;
@@ -2719,12 +2721,6 @@ gk20a_pmu_init_vm(struct gk20a_pmu_priv *priv, const struct firmware *fw)
 	ret = nvkm_vm_ref(vm, &pmuvm->vm, pmuvm->pgd);
 	if (ret)
 		return ret;
-
-	/*update pgd in inst blk */
-	nv_wo32(pmuvm->mem, 0x0200, lower_32_bits(pmuvm->pgd->addr));
-	nv_wo32(pmuvm->mem, 0x0204, upper_32_bits(pmuvm->pgd->addr));
-	nv_wo32(pmuvm->mem, 0x0208, lower_32_bits(pmu_area_len - 1));
-	nv_wo32(pmuvm->mem, 0x020c, upper_32_bits(pmu_area_len - 1));
 
 	/* allocate memory for pmu fw to be copied to*/
 	ret = nvkm_gpuobj_new(nv_object(priv), NULL, GK20A_PMU_UCODE_SIZE_MAX,

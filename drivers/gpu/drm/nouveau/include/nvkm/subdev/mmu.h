@@ -99,7 +99,9 @@ struct nvkm_mmu {
 
 	int  (*create)(struct nvkm_mmu *, u64 offset, u64 length,
 		       u64 mm_offset, struct nvkm_vm **);
-
+	/* Allocate pgd and initialize inst blk with it */
+	int  (*create_pgd)(struct nvkm_mmu *mmu, struct nvkm_object *parent,
+			 void *inst_blk, u64 length, struct nvkm_gpuobj **ppgd);
 	void (*map_pgt)(struct nvkm_gpuobj *pgd, u32 pde,
 			struct nvkm_gpuobj *pgt[2]);
 	void (*map)(struct nvkm_vma *, struct nvkm_gpuobj *,

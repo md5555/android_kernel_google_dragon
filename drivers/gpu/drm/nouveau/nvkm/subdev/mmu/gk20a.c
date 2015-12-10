@@ -306,6 +306,7 @@ gk20a_mmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	priv->base.spg_shift = 12;
 	priv->base.lpg_shift = 17;
 	priv->base.create = gf100_vm_create;
+	priv->base.create_pgd = gf100_vm_create_pgd;
 	priv->base.map_pgt = gf100_vm_map_pgt;
 	priv->base.map = gk20a_vm_map;
 	priv->base.map_sg = gk20a_vm_map_sg;

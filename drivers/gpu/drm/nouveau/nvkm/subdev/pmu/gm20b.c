@@ -850,38 +850,31 @@ gm20b_pmu_init_vm(struct nvkm_pmu *ppmu)
 	struct nvkm_pmu_priv_vm *pmuvm = &pmu->pmuvm;
 	struct nvkm_device *device = nv_device(&ppmu->base);
 	struct nvkm_vm *vm;
+	struct nvkm_mmu *mmu = nvkm_mmu(pmu);
+	const u64 pmu_area_len = 600*1024;
 
-	u64 pmu_area_len = 600*1024;
-
-	/* mem for inst blk*/
-	ret = nvkm_gpuobj_new(nv_object(ppmu), NULL, 0x1000, 0, 0,
-				&pmuvm->mem);
+	/* allocate inst blk */
+	ret = nvkm_gpuobj_new(nv_object(ppmu), NULL, 0x1000, 0, 0, &pmuvm->mem);
 	if (ret)
 		return ret;
 
-	/* mem for pgd*/
-	ret = nvkm_gpuobj_new(nv_object(ppmu), NULL, 0x8000, 0, 0,
-				&pmuvm->pgd);
+	/* allocate pgd and initialize inst blk */
+	ret = mmu->create_pgd(mmu, nv_object(ppmu), pmuvm->mem,
+				pmu_area_len, &pmuvm->pgd);
 	if (ret)
 		return ret;
 
-	/*allocate virtual memory range*/
+	/* allocate virtual memory range */
 	ret = nvkm_vm_new(device, 0, pmu_area_len, 0, &vm);
 	if (ret)
 		return ret;
 
 	atomic_inc(&vm->engref[NVDEV_SUBDEV_PMU]);
 
-	/*update VM with pgd */
+	/* update VM with pgd */
 	ret = nvkm_vm_ref(vm, &pmuvm->vm, pmuvm->pgd);
 	if (ret)
 		return ret;
-
-	/*update pgd in inst blk */
-	nv_wo32(pmuvm->mem, 0x0200, lower_32_bits(pmuvm->pgd->addr));
-	nv_wo32(pmuvm->mem, 0x0204, upper_32_bits(pmuvm->pgd->addr));
-	nv_wo32(pmuvm->mem, 0x0208, lower_32_bits(pmu_area_len - 1));
-	nv_wo32(pmuvm->mem, 0x020c, upper_32_bits(pmu_area_len - 1));
 
 	ppmu->pmu_vm = pmuvm;
 

@@ -83,22 +83,26 @@ gf100_bar_ctor_vm(struct gf100_bar_priv *priv, struct gf100_bar_priv_vm *bar_vm,
 		  int bar_nr)
 {
 	struct nvkm_device *device = nv_device(&priv->base);
+	struct nvkm_mmu *mmu = nvkm_mmu(priv);
 	struct nvkm_vm *vm;
 	resource_size_t bar_len;
 	int ret;
 
+	/* allocate inst blk */
 	ret = nvkm_gpuobj_new(nv_object(priv), NULL, 0x1000, 0, 0,
 			      &bar_vm->mem);
 	if (ret)
 		return ret;
 
-	ret = nvkm_gpuobj_new(nv_object(priv), NULL, 0x8000, 0, 0,
-			      &bar_vm->pgd);
+	bar_len = nv_device_resource_len(device, bar_nr);
+
+	/* allocate pgd and initialize inst blk */
+	ret = mmu->create_pgd(mmu, nv_object(priv), bar_vm->mem,
+				bar_len, &bar_vm->pgd);
 	if (ret)
 		return ret;
 
-	bar_len = nv_device_resource_len(device, bar_nr);
-
+	/* allocate virtual memory range */
 	ret = nvkm_vm_new(device, 0, bar_len, 0, &vm);
 	if (ret)
 		return ret;
@@ -123,10 +127,6 @@ gf100_bar_ctor_vm(struct gf100_bar_priv *priv, struct gf100_bar_priv_vm *bar_vm,
 	if (ret)
 		return ret;
 
-	nv_wo32(bar_vm->mem, 0x0200, lower_32_bits(bar_vm->pgd->addr));
-	nv_wo32(bar_vm->mem, 0x0204, upper_32_bits(bar_vm->pgd->addr));
-	nv_wo32(bar_vm->mem, 0x0208, lower_32_bits(bar_len - 1));
-	nv_wo32(bar_vm->mem, 0x020c, upper_32_bits(bar_len - 1));
 	return 0;
 }
 
