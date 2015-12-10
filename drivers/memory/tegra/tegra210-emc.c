@@ -1206,6 +1206,8 @@ void __emc_copy_table_params(struct emc_table *src, struct emc_table *dst,
 
 		for (i = 0; i < src->num_burst_per_ch; i++)
 			dst->burst_reg_per_ch[i] = src->burst_reg_per_ch[i];
+
+		dst->trained = src->trained;
 	}
 }
 
