@@ -2408,6 +2408,10 @@ static int i915_edp_psr_status(struct seq_file *m, void *data)
 				enabled = true;
 		}
 	}
+
+	seq_printf(m, "Forcing main link standby: %s\n",
+			yesno(dev_priv->psr.link_standby));
+
 	seq_printf(m, "HW Enabled & Active bit: %s", yesno(enabled));
 
 	if (!HAS_DDI(dev))
@@ -2425,6 +2429,7 @@ static int i915_edp_psr_status(struct seq_file *m, void *data)
 
 		seq_printf(m, "Performance_Counter: %u\n", psrperf);
 	}
+
 	mutex_unlock(&dev_priv->psr.lock);
 
 	intel_runtime_pm_put(dev_priv);
