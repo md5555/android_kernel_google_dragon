@@ -1974,68 +1974,12 @@ static int tegra_pmc_suspend(void)
 	enum tegra_suspend_mode mode = tegra_pmc_get_suspend_mode();
 	tegra_pmc_enter_suspend_mode(mode);
 
-	if (pmc->pmc_clk1_out_en) {
-		u32 val;
-
-		val = tegra_pmc_readl(PMC_CLK_OUT_CNTRL);
-		val &= ~(PMC_CLK_OUT_CLK1_SRC_SEL_MASK);
-		switch (pmc->pmc_clk1_out_src) {
-		case PMC_CLK_OUT_SRC_OSC:
-			val |= PMC_CLK_OUT_CLK1_SRC_SEL_DIV1;
-			break;
-		case PMC_CLK_OUT_SRC_OSC_DIV_2:
-			val |= PMC_CLK_OUT_CLK1_SRC_SEL_DIV2;
-			break;
-		case PMC_CLK_OUT_SRC_OSC_DIV_4:
-			val |= PMC_CLK_OUT_CLK1_SRC_SEL_DIV4;
-			break;
-		default:
-			break;
-		}
-		tegra_pmc_writel(val, PMC_CLK_OUT_CNTRL);
-
-		val = tegra_pmc_readl(PMC_CLK_OUT_CNTRL);
-		val &= ~(PMC_CLK_OUT_CLK1_IDLE_STATE_MASK);
-		tegra_pmc_writel(val, PMC_CLK_OUT_CNTRL);
-
-		val = tegra_pmc_readl(PMC_CLK_OUT_CNTRL);
-		val |= PMC_CLK_OUT_CLK1_ACCEPT_REQ;
-		tegra_pmc_writel(val, PMC_CLK_OUT_CNTRL);
-
-		val = tegra_pmc_readl(PMC_CLK_OUT_CNTRL);
-		val |= PMC_CLK_OUT_CLK1_FORCE_EN;
-		tegra_pmc_writel(val, PMC_CLK_OUT_CNTRL);
-
-		val = tegra_pmc_readl(PMC_OSC_EDPD_OVER);
-		val &= ~(OSC_EDPD_XO_LP0_MODE_MASK);
-		val |= OSC_EDPD_OSC_CTRL_SELECT_PMC |
-		       OSC_EDPD_XO_LP0_MODE_ON;
-		tegra_pmc_writel(val, PMC_OSC_EDPD_OVER);
-	}
 #endif
 	return 0;
 }
 
 static void tegra_pmc_resume(void)
 {
-	u32 val;
-
-	if (pmc->pmc_clk1_out_en) {
-		val = tegra_pmc_readl(PMC_CLK_OUT_CNTRL);
-		val &= ~PMC_CLK_OUT_CLK1_SRC_SEL_MASK;
-		val |= PMC_CLK_OUT_CLK1_SRC_SEL_CAR;
-		tegra_pmc_writel(val, PMC_CLK_OUT_CNTRL);
-
-		val = tegra_pmc_readl(PMC_CLK_OUT_CNTRL);
-		val &= ~PMC_CLK_OUT_CLK1_ACCEPT_REQ;
-		tegra_pmc_writel(val, PMC_CLK_OUT_CNTRL);
-
-		val = tegra_pmc_readl(PMC_OSC_EDPD_OVER);
-		val &= ~(OSC_EDPD_XO_LP0_MODE_MASK);
-		val &= ~OSC_EDPD_OSC_CTRL_SELECT_PMC;
-		tegra_pmc_writel(val, PMC_OSC_EDPD_OVER);
-	}
-
 	tegra_pmc_clear_dpd_sample();
 	/* Clear DPD Enable */
 	switch (tegra_get_chip_id()) {
@@ -2940,6 +2884,45 @@ static int tegra_pmc_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "unable to register restart handler, %d\n",
 			err);
 		return err;
+	}
+
+	if (pmc->pmc_clk1_out_en) {
+		u32 val;
+
+		val = tegra_pmc_readl(PMC_CLK_OUT_CNTRL);
+		val &= ~(PMC_CLK_OUT_CLK1_SRC_SEL_MASK);
+		switch (pmc->pmc_clk1_out_src) {
+		case PMC_CLK_OUT_SRC_OSC:
+			val |= PMC_CLK_OUT_CLK1_SRC_SEL_DIV1;
+			break;
+		case PMC_CLK_OUT_SRC_OSC_DIV_2:
+			val |= PMC_CLK_OUT_CLK1_SRC_SEL_DIV2;
+			break;
+		case PMC_CLK_OUT_SRC_OSC_DIV_4:
+			val |= PMC_CLK_OUT_CLK1_SRC_SEL_DIV4;
+			break;
+		default:
+			break;
+		}
+		tegra_pmc_writel(val, PMC_CLK_OUT_CNTRL);
+
+		val = tegra_pmc_readl(PMC_CLK_OUT_CNTRL);
+		val &= ~(PMC_CLK_OUT_CLK1_IDLE_STATE_MASK);
+		tegra_pmc_writel(val, PMC_CLK_OUT_CNTRL);
+
+		val = tegra_pmc_readl(PMC_CLK_OUT_CNTRL);
+		val |= PMC_CLK_OUT_CLK1_ACCEPT_REQ;
+		tegra_pmc_writel(val, PMC_CLK_OUT_CNTRL);
+
+		val = tegra_pmc_readl(PMC_CLK_OUT_CNTRL);
+		val |= PMC_CLK_OUT_CLK1_FORCE_EN;
+		tegra_pmc_writel(val, PMC_CLK_OUT_CNTRL);
+
+		val = tegra_pmc_readl(PMC_OSC_EDPD_OVER);
+		val &= ~(OSC_EDPD_XO_LP0_MODE_MASK);
+		val |= OSC_EDPD_OSC_CTRL_SELECT_PMC |
+		       OSC_EDPD_XO_LP0_MODE_ON;
+		tegra_pmc_writel(val, PMC_OSC_EDPD_OVER);
 	}
 
 #ifdef CONFIG_PM_SLEEP
