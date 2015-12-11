@@ -746,13 +746,14 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVInit(void *hDevice)
 	eError = SysCreateConfigData(&psSysConfig, hDevice);
 	if (eError != PVRSRV_OK)
 	{
-		return eError;
+		goto Error;
 	}
 
 	if (psSysConfig->uiDeviceCount > 1)
 	{
 		PVR_DPF((PVR_DBG_ERROR, "PVRSRVInit: System config contains too many devices"));
-		return PVRSRV_ERROR_INVALID_DEVICE;
+		eError = PVRSRV_ERROR_INVALID_DEVICE;
+		goto Error;
 	}
 
 #if defined(SUPPORT_PVRSRV_GPUVIRT)
@@ -763,14 +764,16 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVInit(void *hDevice)
 	/* Save to global pointer for later */
 	gpsSysConfig = psSysConfig;
 
-    /*
-     * Allocate the device-independent data
-     */
-    psPVRSRVData = OSAllocZMem(sizeof(*gpsPVRSRVData));
-    if (psPVRSRVData == NULL)
-    {
-        return PVRSRV_ERROR_OUT_OF_MEMORY;
-    }
+	/*
+	 * Allocate the device-independent data
+	 */
+	psPVRSRVData = OSAllocZMem(sizeof(*gpsPVRSRVData));
+	if (psPVRSRVData == NULL)
+	{
+		 eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+		 goto Error;
+	}
+
 	psPVRSRVData->ui32NumDevices = psSysConfig->uiDeviceCount;
 
 	for (i=0;i<SYS_DEVICE_COUNT;i++)
@@ -907,9 +910,10 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVInit(void *hDevice)
 	/* Register all the system devices */
 	for (i=0;i<psSysConfig->uiDeviceCount;i++)
 	{
-		if (PVRSRVRegisterDevice(&psSysConfig->pasDevices[i]) != PVRSRV_OK)
+		eError = PVRSRVRegisterDevice(&psSysConfig->pasDevices[i]);
+		if (eError != PVRSRV_OK)
 		{
-			return eError;
+			goto Error;
 		}
 
 		/* Initialise the Transport Layer.
@@ -981,7 +985,7 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVInit(void *hDevice)
 	}
 #endif
 
-	return eError;
+	return 0;
 
 Error:
 	PVRSRVDeInit(hDevice);

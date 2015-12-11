@@ -111,18 +111,18 @@ static struct platform_driver powervr_driver = {
 *****************************************************************************/
 int PVRSRVSystemInit(struct drm_device *pDrmDevice)
 {
-	static IMG_BOOL bCalledSysInit = IMG_FALSE;
-
 	struct platform_device *pDevice = pDrmDevice->platformdev;
+	PVRSRV_ERROR err;
 
 	PVR_TRACE(("%s (pDevice=%p)", __func__, pDevice));
 
-	/* PVRSRVInit is only designed to be called once */
-	if (bCalledSysInit == IMG_FALSE) {
-		gpsPVRLDMDev = pDevice;
-		bCalledSysInit = IMG_TRUE;
+	gpsPVRLDMDev = pDevice;
 
-		if (PVRSRVInit(pDevice) != PVRSRV_OK)
+	err = PVRSRVInit(pDevice);
+	if (err) {
+		if (err == PVRSRV_ERROR_PROBE_DEFER)
+			return -EPROBE_DEFER;
+		else
 			return -ENODEV;
 	}
 

@@ -189,7 +189,7 @@ static struct devfreq_dev_profile img_devfreq_dev_profile = {
 #endif
 };
 
-static PVRSRV_ERROR InitializeOPPTable(struct device *psDev)
+static int InitializeOPPTable(struct device *psDev)
 {
 	IMG_DVFS_DEVICE_CFG	*psDVFSDeviceCfg = &gpsDeviceNode->psDevConfig->sDVFS.sDVFSDeviceCfg;
 	IMG_UINT32		i;
@@ -200,16 +200,17 @@ static PVRSRV_ERROR InitializeOPPTable(struct device *psDev)
 #endif
 	for (i = 0; i < psDVFSDeviceCfg->ui32OPPTableSize; i++)
 	{
-		IMG_UINT32	ui32Error, ui32Freq, ui32Volt;
+		IMG_UINT32	ui32Freq, ui32Volt;
+		int err;
 
 		ui32Freq = psDVFSDeviceCfg->pasOPPTable[i].ui32Freq;
 		ui32Volt = psDVFSDeviceCfg->pasOPPTable[i].ui32Volt;
 
-		ui32Error = OPP_ADD(psDev, ui32Freq, ui32Volt);
-		if (ui32Error)
+		err = OPP_ADD(psDev, ui32Freq, ui32Volt);
+		if (err)
 		{
 			PVR_DPF((PVR_DBG_ERROR, "Failed to add OPP"));
-			return PVRSRV_ERROR_INIT_FAILURE;
+			return err;
 		}
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0))
@@ -217,8 +218,10 @@ static PVRSRV_ERROR InitializeOPPTable(struct device *psDev)
 #endif
 	}
 
-	return PVRSRV_OK;
+	return 0;
 }
+
+#define TO_IMG_ERR(err) ((err == -EPROBE_DEFER) ? PVRSRV_ERROR_PROBE_DEFER : PVRSRV_ERROR_INIT_FAILURE)
 
 PVRSRV_ERROR InitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
 {
@@ -226,12 +229,12 @@ PVRSRV_ERROR InitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
 	IMG_DVFS_DEVICE		*psDVFSDevice = NULL;
 	IMG_DVFS_DEVICE_CFG	*psDVFSDeviceCfg = NULL;
 	IMG_DVFS_GOVERNOR_CFG	*psDVFSGovernorCfg = NULL;
-	IMG_UINT32		ui32Error, i;
 	PVRSRV_ERROR		eError;
 	struct OPP_STRUCT	*opp;
 	struct DEVICE_STRUCT	*psLDMDev = (struct DEVICE_STRUCT *) hDevice;
 	struct device		*psDev = &psLDMDev->dev;
 	unsigned long		min_freq, max_freq, min_volt;
+	int			i, err;
 
 	for (i = 0; i < psPVRSRVData->ui32RegisteredDevices; i++)
 	{
@@ -255,17 +258,15 @@ PVRSRV_ERROR InitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
 	}
 
 	eError = RGXRegisterGpuUtilStats(&psDVFSDevice->hGpuUtilUserDVFS);
-	if (eError != PVRSRV_OK)
-	{
-		PVR_DPF((PVR_DBG_ERROR, "Failed to register to the GPU utilisation stats"));
+	if (eError != PVRSRV_OK) {
+		PVR_DPF((PVR_DBG_ERROR, "Failed to register to the GPU utilisation stats, %d", eError));
 		return eError;
 	}
 
-	eError = InitializeOPPTable(psDev);
-	if (eError != PVRSRV_OK)
-	{
-		PVR_DPF((PVR_DBG_ERROR, "Failed to init OPP table"));
-		return eError;
+	err = InitializeOPPTable(psDev);
+	if (err) {
+		PVR_DPF((PVR_DBG_ERROR, "Failed to init OPP table, %d", err));
+		return TO_IMG_ERR(err);
 	}
 
 	rcu_read_lock();
@@ -274,8 +275,8 @@ PVRSRV_ERROR InitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
 	opp = OPP_FIND_FREQ_CEIL(psDev, &min_freq);
 	if (IS_ERR(opp)) {
 		rcu_read_unlock();
-		PVR_DPF((PVR_DBG_ERROR, "Couldn't find lowest frequency"));
-		return PVRSRV_ERROR_INIT_FAILURE;
+		PVR_DPF((PVR_DBG_ERROR, "Couldn't find lowest frequency, %ld", PTR_ERR(opp)));
+		return TO_IMG_ERR(PTR_ERR(opp));
 	}
 
 	min_volt = OPP_GET_VOLTAGE(opp);
@@ -285,8 +286,8 @@ PVRSRV_ERROR InitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
 
 	if (IS_ERR(opp)) {
 		rcu_read_unlock();
-		PVR_DPF((PVR_DBG_ERROR, "Couldn't find hightest frequency"));
-		return PVRSRV_ERROR_INIT_FAILURE;
+		PVR_DPF((PVR_DBG_ERROR, "Couldn't find hightest frequency, %ld", PTR_ERR(opp)));
+		return TO_IMG_ERR(PTR_ERR(opp));
 	}
 
 	rcu_read_unlock();
@@ -307,8 +308,9 @@ PVRSRV_ERROR InitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
 			&psDVFSDevice->data);
 	if (IS_ERR(psDVFSDevice->psDevFreq))
 	{
-		PVR_DPF((PVR_DBG_ERROR, "Failed to add as devfreq device %p", psDVFSDevice->psDevFreq));
-		return PVRSRV_ERROR_INIT_FAILURE;
+		PVR_DPF((PVR_DBG_ERROR, "Failed to add as devfreq device %p, %ld",
+		         psDVFSDevice->psDevFreq, PTR_ERR(psDVFSDevice->psDevFreq)));
+		return TO_IMG_ERR(PTR_ERR(psDVFSDevice->psDevFreq));
 	}
 
 	eError = SuspendDVFS();
@@ -321,10 +323,10 @@ PVRSRV_ERROR InitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
 	psDVFSDevice->psDevFreq->min_freq = min_freq;
 	psDVFSDevice->psDevFreq->max_freq = max_freq;
 
-	ui32Error = devfreq_register_opp_notifier(psDev, psDVFSDevice->psDevFreq);
-	if (ui32Error < 0) {
-		PVR_DPF((PVR_DBG_ERROR, "Failed to register opp notifier"));
-		return PVRSRV_ERROR_INIT_FAILURE;
+	err = devfreq_register_opp_notifier(psDev, psDVFSDevice->psDevFreq);
+	if (err) {
+		PVR_DPF((PVR_DBG_ERROR, "Failed to register opp notifier, %d", err));
+		return TO_IMG_ERR(err);
 	}
 
 	PVR_TRACE(("PVR DVFS activated: %lu-%lu Hz, Period: %ums", min_freq,
