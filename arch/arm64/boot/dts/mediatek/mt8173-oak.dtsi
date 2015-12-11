@@ -739,6 +739,10 @@
 	};
 };
 
+&scpsys {
+	mfg_async-supply = <&mt6397_vgpu_reg>;
+};
+
 &spi {
 	pinctrl-names = "default";
 	pinctrl-0 = <&spi_pins_a>;
