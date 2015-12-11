@@ -1718,3 +1718,151 @@ nouveau_gem_ioctl_as_free(struct drm_device *dev, void *data,
 
 	return nouveau_abi16_put(abi16, ret);
 }
+
+int
+nouveau_gem_ioctl_map(struct drm_device *dev, void *data,
+		      struct drm_file *file_priv)
+{
+	struct nouveau_drm *drm = nouveau_drm(dev);
+	struct nouveau_cli *cli = nouveau_cli(file_priv);
+	struct drm_nouveau_gem_map *req = data;
+	struct drm_gem_object *gem;
+	struct nouveau_bo *nvbo;
+	u64 nvbo_size;
+	struct nvkm_vma *vma, *new_vma;
+	struct nvkm_as *as;
+	unsigned old_page_shift;
+	int ret = 0;
+
+	gem = drm_gem_object_lookup(dev, file_priv, req->handle);
+	if (!gem)
+		return -ENOENT;
+
+	nvbo = nouveau_gem_object(gem);
+	nvbo_size = nvbo->bo.mem.num_pages << PAGE_SHIFT;
+
+	/* Does this mapping already exist?  If so, we're done. */
+	vma = nouveau_bo_subvma_find(nvbo, cli->vm, req->delta, req->length);
+	if (vma) {
+		req->offset = vma->offset;
+		goto unreference;
+	}
+
+	/*
+	 * Do we still have the start of nvbo implicit mapping in place?  If
+	 * so, get rid of it.
+	 */
+	vma = nouveau_bo_subvma_find(nvbo, cli->vm, 0, nvbo_size);
+	if (vma) {
+		nouveau_cancel_defer_vm_map(vma, nvbo);
+		nouveau_bo_vma_del(nvbo, vma);
+	}
+
+	/*
+	 * If this offset falls within an address space allocation, then honor
+	 * the address space allocation's alignment request (as->align_shift).
+	 * This may result in changing the nvbo to map with small page size
+	 * when previously it was mapped with large page size.
+	 *
+	 * Note that if the nvbo was originally mapped with small page size
+	 * (if, for example, its size was not a multiple of large page size),
+	 * we cannot just promote to large page size.
+	 */
+	old_page_shift = nvbo->page_shift;
+	as = nvkm_vm_find_as(cli->vm, req->offset);
+	if (as)
+		nvbo->page_shift = min(nvbo->page_shift, as->align_shift);
+
+	/* Make our new vma. */
+	new_vma = kzalloc(sizeof(*vma), GFP_KERNEL);
+	if (!new_vma) {
+		ret = -ENOMEM;
+		goto error;
+	}
+
+	ret = nouveau_bo_subvma_add(nvbo, cli->vm, new_vma, req->offset,
+				    req->delta, req->length, true);
+	if (!ret)
+		goto success;
+
+	/*
+	 * We could have failed if there is an unmap pending for a given
+	 * address, and we ask for that address again, so flush the pending
+	 * unmaps and try again.
+	 */
+	flush_workqueue(drm->gem_unmap_wq);
+	ret = nouveau_bo_subvma_add(nvbo, cli->vm, new_vma, req->offset,
+				    req->delta, req->length, true);
+	if (ret)
+		goto error;
+
+success:
+	/*
+	 * If input offset was zero, we'll get an arbitrary address back
+	 * from nouveau_bo_subvma_add(), so report that back up the stack.
+	 */
+	req->offset = new_vma->offset;
+
+	/*
+	 * On success, we delete the old vma, and hang on to the gem object
+	 * reference so that while this mapping exists, we don't free the bo.
+	 */
+	kfree(vma);
+	return ret;
+
+error:
+	/*
+	 * On failure, give up the gem object reference, delete the new vma,
+	 * and roll back to the old vma.
+	 */
+	kfree(new_vma);
+	nvbo->page_shift = old_page_shift;
+	nouveau_bo_vma_add_offset(nvbo, cli->vm, vma, vma->offset, true);
+
+unreference:
+	drm_gem_object_unreference_unlocked(gem);
+	return ret;
+}
+
+int
+nouveau_gem_ioctl_unmap(struct drm_device *dev, void *data,
+			struct drm_file *file_priv)
+{
+	struct nouveau_cli *cli = nouveau_cli(file_priv);
+	struct drm_nouveau_gem_unmap *req = data;
+	struct drm_gem_object *gem;
+	struct nouveau_bo *nvbo;
+	struct nvkm_vma *vma;
+	int ret = 0;
+
+	gem = drm_gem_object_lookup(dev, file_priv, req->handle);
+	if (!gem)
+		return -ENOENT;
+
+	nvbo = nouveau_gem_object(gem);
+
+	vma = nouveau_bo_subvma_find(nvbo, cli->vm, req->delta, req->length);
+	if (!vma) {
+		ret = -ENOENT;
+		goto error;
+	}
+
+	nouveau_cancel_defer_vm_map(vma, nvbo);
+	nouveau_bo_subvma_del(nvbo, vma);
+
+	kfree(vma);
+
+	/*
+	 * On success, we release the reference acquired by
+	 * nouveau_gem_ioctl_map().
+	 */
+	drm_gem_object_unreference_unlocked(gem);
+
+error:
+	/*
+	 * Finally, in any case, release the reference acquired by this
+	 * function's call to drm_gem_object_lookup().
+	 */
+	drm_gem_object_unreference_unlocked(gem);
+	return ret;
+}

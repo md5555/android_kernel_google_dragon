@@ -51,6 +51,10 @@ extern int nouveau_gem_ioctl_as_alloc(struct drm_device *, void *,
 				      struct drm_file *);
 extern int nouveau_gem_ioctl_as_free(struct drm_device *, void *,
 				     struct drm_file *);
+extern int nouveau_gem_ioctl_map(struct drm_device *, void *,
+				 struct drm_file *);
+extern int nouveau_gem_ioctl_unmap(struct drm_device *, void *,
+				   struct drm_file *);
 
 extern int nouveau_gem_pushbuf_queue_kthread_fn(void *data);
 
