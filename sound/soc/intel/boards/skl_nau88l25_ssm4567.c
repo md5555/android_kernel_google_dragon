@@ -338,6 +338,7 @@ static struct snd_soc_card skylake_audio_card = {
 	.num_dapm_routes = ARRAY_SIZE(skylake_map),
 	.codec_conf = ssm4567_codec_conf,
 	.num_configs = ARRAY_SIZE(ssm4567_codec_conf),
+	.fully_routed = true,
 };
 
 static int skylake_audio_probe(struct platform_device *pdev)
