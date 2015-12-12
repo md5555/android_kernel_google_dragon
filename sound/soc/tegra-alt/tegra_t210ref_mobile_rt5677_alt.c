@@ -50,13 +50,20 @@
 #define GPIO_INT_MIC_EN BIT(2)
 #define GPIO_EXT_MIC_EN BIT(3)
 #define GPIO_HP_DET     BIT(4)
+/* RT5677_MCLK is the frequency received by rt5677 MCLK1 pin. */
+#define RT5677_MCLK	19200000
+/* RT5677_SYSCLK is the frequency of the System clock in rt5677 used for
+ * DACs/ADCs/DMICs. PLL1 converts 19200000 to 24576000.
+ */
+#define RT5677_SYSCLK	24576000
 
 struct tegra_t210ref {
 	struct tegra_asoc_platform_data *pdata;
 	struct tegra_asoc_audio_clock_info audio_clock;
 	unsigned int num_codec_links;
 	int gpio_requested;
-	int clock_enabled;
+	bool clock_enabled;
+	bool hotword_stream_active;
 	struct snd_soc_jack jack;
 	struct sysedp_consumer *sysedpc;
 	const char *edp_name;
@@ -77,35 +84,34 @@ static int tegra_t210ref_dai_init(struct snd_soc_pcm_runtime *rtd,
 	struct snd_soc_card *card = rtd->card;
 	struct tegra_t210ref *machine = snd_soc_card_get_drvdata(card);
 	struct snd_soc_pcm_stream *dai_params;
-	unsigned int idx, mclk, clk_out_rate;
+	unsigned int idx;
 	int err, tdm_mask;
 
-	switch (rate) {
-	case 11025:
-	case 22050:
-	case 44100:
-	case 88200:
-	case 176000:
-		clk_out_rate = 11289600 * 2; /* Codec rate */
-		mclk = 11289600 * 2; /* PLL_A rate */
-		break;
-	case 8000:
-	case 16000:
-	case 32000:
-	case 48000:
-	case 64000:
-	case 96000:
-	case 192000:
-	default:
-		clk_out_rate = 12288000 * 2;
-		mclk = 12288000 * 2;
-		break;
-	}
-
-	pr_debug("Setting pll_a = %d Hz clk_out = %d Hz\n",
-			mclk, clk_out_rate);
+	/* A constant frequency is used to avoid switching MCLK while the
+	 * rt5677 DSP fw is running for hotwording. The DSP expects a fixed
+	 * 16KHz mono stream from a DMIC. This also avoids MCLK clock frequeny
+	 * change at suspend/resume since tegra can output only a limited number
+	 * of frequencies during suspend. e.g. 19.2MHz is supported, but not
+	 * 24.576MHz.
+	 *
+	 * The MCLK output is configured to 19.2MHz at boot, coming from
+	 * the oscillator. It never changes. tegra_alt_asoc_utils_set_rate
+	 * won't affect MCLK because the pin is controlled via pmc registers.
+	 *
+	 * MCLK is asynchronous to BCLK/LRCK. RT5677 ASRC function ensures the
+	 * constant MCLK works with various BCLK/LRCK frequencies on I2S1.
+	 * Filters on those audio paths connected to I2S1 use Clock_i2s1_asrc
+	 * which is derived from I2S1 clock.
+	 *
+	 * RT5677 I2S2 and I2S3 are in master mode, outputing BCLK/LRCK which
+	 * are derived from MCLK. Filters on those audio paths connected to
+	 * I2S2 and I2S3 use the Clock_system clock which is derived from MCLK.
+	 *
+	 * RT5677 PLL1 converts 19.2MHz MCLK to 24.576MHz Clock_system which is
+	 * more suitable for 48K and 16K rates.
+	 */
 	err = tegra_alt_asoc_utils_set_rate(&machine->audio_clock,
-				rate, mclk, clk_out_rate);
+				rate, RT5677_SYSCLK, RT5677_SYSCLK);
 	if (err < 0) {
 		dev_err(card->dev, "Can't configure clocks\n");
 		return err;
@@ -116,12 +122,50 @@ static int tegra_t210ref_dai_init(struct snd_soc_pcm_runtime *rtd,
 	if (idx != -EINVAL) {
 		dai_params =
 			(struct snd_soc_pcm_stream *)card->rtd[idx].dai_link->params;
+
+		err = snd_soc_dai_set_pll(card->rtd[idx].codec_dai, 0,
+			RT5677_PLL1_S_MCLK, RT5677_MCLK, RT5677_SYSCLK);
+		if (err < 0) {
+			dev_err(card->dev, "codec_dai pll not set\n");
+			return err;
+		}
 		err = snd_soc_dai_set_sysclk(card->rtd[idx].codec_dai,
-			RT5677_SCLK_S_MCLK, clk_out_rate, SND_SOC_CLOCK_IN);
+			RT5677_SCLK_S_PLL1, RT5677_SYSCLK, SND_SOC_CLOCK_IN);
 		if (err < 0) {
 			dev_err(card->dev, "codec_dai clock not set\n");
 			return err;
 		}
+
+		/* Configure 5677 filter clocks and ASRC
+		 *
+		 * Clock_i2s1_asrc is enabled and derived from I2S1.
+		 *
+		 * Speaker playback path: Tegra -> 5677 I2S1 -> Stereo1 DAC
+		 * (Clock_i2s1_asrc) -> Stereo3 ADC (Clock_system) -> 5677 I2S2
+		 * -> MAX98357A
+		 *
+		 * Headphone playback path: Tegra -> 5677 I2S1 -> Stereo1 DAC
+		 * (Clock_i2s1_asrc) -> Stereo3 ADC (Clock_system) -> 5677 I2S3
+		 * -> NAU8825
+		 *
+		 * DMIC capture path: 4 DMICS -> Stereo1 ADC (Clock_i2s1_asrc) +
+		 * Stereo2 ADC (Clock_i2s1_asrc) -> 5677 I2S1 -> Tegra
+		 *
+		 * AMIC capture path: AMIC -> NAU8825 -> 5677 I2S3 -> DAC MONO3
+		 * DD_MIX1 (Clock_system) -> Stereo1 ADC (Clock_i2s1_asrc) ->
+		 * 5677 I2S1 -> Tegra
+		 *
+		 * DMIC hotword path: 1 DMIC -> Mono ADC L (Clock_system5) ->
+		 * VAD ADC -> 5677 DSP (Configured in rt5677-hotword.c)
+		 */
+		rt5677_sel_asrc_clk_src(card->rtd[idx].codec_dai->codec,
+			RT5677_DA_STEREO_FILTER | RT5677_AD_STEREO1_FILTER |
+			RT5677_AD_STEREO2_FILTER | RT5677_I2S1_SOURCE,
+			RT5677_CLK_SEL_I2S1_ASRC);
+		rt5677_sel_asrc_clk_src(card->rtd[idx].codec_dai->codec,
+			RT5677_AD_STEREO3_FILTER | RT5677_DA_MONO3_L_FILTER |
+			RT5677_DA_MONO3_R_FILTER,
+			RT5677_CLK_SEL_SYS);
 
 		/* update link_param to update hw_param for DAPM */
 		dai_params->rate_min = rate;
@@ -313,8 +357,8 @@ static int tegra_t210ref_suspend_post(struct snd_soc_card *card)
 {
 	struct tegra_t210ref *machine = snd_soc_card_get_drvdata(card);
 
-	if (machine->clock_enabled) {
-		machine->clock_enabled = 0;
+	if (!machine->hotword_stream_active && machine->clock_enabled) {
+		machine->clock_enabled = false;
 		tegra_alt_asoc_utils_clk_disable(&machine->audio_clock);
 	}
 
@@ -326,7 +370,7 @@ static int tegra_t210ref_resume_pre(struct snd_soc_card *card)
 	struct tegra_t210ref *machine = snd_soc_card_get_drvdata(card);
 
 	if (!machine->clock_enabled) {
-		machine->clock_enabled = 1;
+		machine->clock_enabled = true;
 		tegra_alt_asoc_utils_clk_enable(&machine->audio_clock);
 	}
 
@@ -369,6 +413,20 @@ static int tegra_rt5677_hotword_init(struct snd_soc_pcm_runtime *runtime)
 {
 	struct snd_soc_card *card = runtime->card;
 	struct snd_soc_codec *codec = runtime->codec;
+	int ret;
+
+	ret = snd_soc_dai_set_pll(runtime->codec_dai, 0,
+		RT5677_PLL1_S_MCLK, RT5677_MCLK, RT5677_SYSCLK);
+	if (ret < 0) {
+		dev_err(card->dev, "codec_dai pll not set\n");
+		return ret;
+	}
+	ret = snd_soc_dai_set_sysclk(runtime->codec_dai,
+		RT5677_SCLK_S_PLL1, RT5677_SYSCLK, SND_SOC_CLOCK_IN);
+	if (ret < 0) {
+		dev_err(card->dev, "codec_dai clock not set\n");
+		return ret;
+	}
 
 	snd_soc_dapm_ignore_suspend(&card->dapm, "Int Mic");
 	snd_soc_dapm_ignore_suspend(&codec->dapm, "DSP Buffer");
@@ -380,6 +438,30 @@ static const struct snd_kcontrol_new tegra_t210ref_controls[] = {
 	SOC_DAPM_PIN_SWITCH("Headphone Jack"),
 	SOC_DAPM_PIN_SWITCH("Mic Jack"),
 	SOC_DAPM_PIN_SWITCH("Int Mic"),
+};
+
+static int tegra_rt5677_hotword_startup(struct snd_pcm_substream *substream)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_card *card = rtd->card;
+	struct tegra_t210ref *machine = snd_soc_card_get_drvdata(card);
+
+	machine->hotword_stream_active = true;
+	return 0;
+}
+
+static void tegra_rt5677_hotword_shutdown(struct snd_pcm_substream *substream)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_card *card = rtd->card;
+	struct tegra_t210ref *machine = snd_soc_card_get_drvdata(card);
+
+	machine->hotword_stream_active = false;
+}
+
+static struct snd_soc_ops tegra_rt5677_hotword_ops = {
+	.startup = tegra_rt5677_hotword_startup,
+	.shutdown = tegra_rt5677_hotword_shutdown,
 };
 
 static struct snd_soc_card snd_soc_tegra_t210ref = {
@@ -429,20 +511,16 @@ static struct snd_soc_dai_link tegra_rt5677_dai[] = {
 		.platform_name = "spi32766.0",
 		.ignore_suspend = 1,
 		.init = tegra_rt5677_hotword_init,
+		.ops = &tegra_rt5677_hotword_ops,
 	},
 };
 
 static int tegra_t210ref_set_mclk(struct tegra_t210ref *machine, struct device *dev)
 {
 	int err;
-	int rate = 48000;
-	int clk_out_rate = rate * 512; /* Codec rate */
-	int mclk = clk_out_rate; /* PLL_A rate */
 
-	pr_debug("Setting pll_a = %d Hz clk_out = %d Hz\n",
-			mclk, clk_out_rate);
 	err = tegra_alt_asoc_utils_set_rate(&machine->audio_clock,
-				rate, mclk, clk_out_rate);
+			48000, RT5677_SYSCLK, RT5677_SYSCLK);
 	if (err < 0) {
 		dev_err(dev, "Can't configure clocks\n");
 		return err;
@@ -593,6 +671,7 @@ static int tegra_t210ref_driver_probe(struct platform_device *pdev)
 					card);
 	if (ret)
 		goto err_alloc_dai_link;
+	machine->clock_enabled = true;
 
 	ret = tegra_t210ref_set_mclk(machine, &pdev->dev);
 	if (ret)
