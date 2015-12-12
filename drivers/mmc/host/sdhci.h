@@ -407,6 +407,8 @@ struct sdhci_host {
 #define SDHCI_QUIRK2_BAYTRAIL_EMMC			(1<<31)
 /* Tegra errata: Turn card clock off while sending tuning command */
 #define SDHCI_QUIRK2_TUNING_CLOCK_OFF                  (1<<30)
+/* Reset on retune to avoid inhibit bits not released on Tegra  */
+#define SDHCI_QUIRK2_RESET_ON_TUNE_TIMEOUT		(1<<29)
 
 	int irq;		/* Device IRQ */
 	void __iomem *ioaddr;	/* Mapped address */

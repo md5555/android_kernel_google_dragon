@@ -2026,6 +2026,14 @@ static int sdhci_execute_tuning(struct mmc_host *mmc, u32 opcode)
 			ctrl &= ~SDHCI_CTRL_EXEC_TUNING;
 			sdhci_writew(host, ctrl, SDHCI_HOST_CONTROL2);
 
+			/*
+			 * Timeout could result in data inhibit bit
+			 * not being released.
+			 */
+			if (host->quirks2 & SDHCI_QUIRK2_RESET_ON_TUNE_TIMEOUT)
+				sdhci_do_reset(host,
+					SDHCI_RESET_CMD | SDHCI_RESET_DATA);
+
 			err = -EIO;
 			goto out;
 		}
