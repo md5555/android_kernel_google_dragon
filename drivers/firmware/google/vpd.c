@@ -79,7 +79,7 @@ static int vpd_section_attrib_add(const uint8_t *key, int32_t key_len,
 	struct vpd_attrib_info *info = kzalloc(sizeof(struct vpd_attrib_info),
 			GFP_KERNEL);
 
-	info->key = kzalloc(sizeof(key_len + 1), GFP_KERNEL);
+	info->key = kzalloc(key_len + 1, GFP_KERNEL);
 	if (!info->key)
 		return -ENOMEM;
 
