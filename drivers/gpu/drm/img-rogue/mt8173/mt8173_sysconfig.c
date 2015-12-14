@@ -246,8 +246,6 @@ static int SetupDVFSInfo(struct device *dev, PVRSRV_DVFS *hDVFS)
 	img_dvfs_cfg->bIdleReq = IMG_FALSE;
 	img_dvfs_cfg->pasOPPTable = opp_table;
 	img_dvfs_cfg->ui32OPPTableSize = count;
-	img_dvfs_cfg->ui32FreqMin = opp_table[0].ui32Freq;
-	img_dvfs_cfg->ui32FreqMax = opp_table[count - 1].ui32Freq;
 	img_dvfs_cfg->pfnSetFrequency = SetFrequency;
 	img_dvfs_cfg->pfnSetVoltage = SetVoltage;
 	img_dvfs_cfg->ui32PollMs = MTK_DVFS_SWITCH_INTERVAL;

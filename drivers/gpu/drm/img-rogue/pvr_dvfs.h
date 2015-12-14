@@ -70,8 +70,6 @@ typedef struct _IMG_DVFS_DEVICE_CFG_
 	const IMG_OPP			*pasOPPTable;
 	IMG_UINT32			ui32OPPTableSize;
 
-	IMG_UINT32			ui32FreqMin;
-	IMG_UINT32			ui32FreqMax;
 	IMG_UINT32			ui32PollMs;
 	IMG_BOOL			bIdleReq;
 

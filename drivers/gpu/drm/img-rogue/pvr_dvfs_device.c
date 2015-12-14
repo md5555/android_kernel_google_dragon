@@ -49,6 +49,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define OPP_GET_FREQ dev_pm_opp_get_freq
 #define OPP_GET_VOLTAGE dev_pm_opp_get_voltage
 #define OPP_ADD dev_pm_opp_add
+#define OPP_FIND_FREQ_CEIL dev_pm_opp_find_freq_ceil
 #define OPP_FIND_FREQ_FLOOR dev_pm_opp_find_freq_floor
 #define OPP_STRUCT dev_pm_opp
 #else
@@ -56,6 +57,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define OPP_GET_FREQ opp_get_freq
 #define OPP_GET_VOLTAGE opp_get_voltage
 #define OPP_ADD opp_add
+#define OPP_FIND_FREQ_CEIL opp_find_freq_ceil
 #define OPP_FIND_FREQ_FLOOR opp_find_freq_floor
 #define OPP_STRUCT opp
 #endif
@@ -224,12 +226,12 @@ PVRSRV_ERROR InitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
 	IMG_DVFS_DEVICE		*psDVFSDevice = NULL;
 	IMG_DVFS_DEVICE_CFG	*psDVFSDeviceCfg = NULL;
 	IMG_DVFS_GOVERNOR_CFG	*psDVFSGovernorCfg = NULL;
-	IMG_UINT32		ui32InitialFreq, ui32InitialVolt, ui32Error, i;
+	IMG_UINT32		ui32Error, i;
 	PVRSRV_ERROR		eError;
 	struct OPP_STRUCT	*opp;
 	struct DEVICE_STRUCT	*psLDMDev = (struct DEVICE_STRUCT *) hDevice;
 	struct device		*psDev = &psLDMDev->dev;
-	unsigned long		freq;
+	unsigned long		min_freq, max_freq, min_volt;
 
 	for (i = 0; i < psPVRSRVData->ui32RegisteredDevices; i++)
 	{
@@ -244,7 +246,6 @@ PVRSRV_ERROR InitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
 			psDVFSDeviceCfg = &gpsDeviceNode->psDevConfig->sDVFS.sDVFSDeviceCfg;
 			psDVFSGovernorCfg = &psDeviceNode->psDevConfig->sDVFS.sDVFSGovernorCfg;
 			psRGXTimingInfo = psRGXData->psRGXTimingInfo;
-			freq = psDVFSDeviceCfg->ui32FreqMin;
 		}
 	}
 	if (gpsDeviceNode == NULL)
@@ -268,30 +269,39 @@ PVRSRV_ERROR InitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
 	}
 
 	rcu_read_lock();
-	opp = OPP_FIND_FREQ_FLOOR(psDev, &freq);
 
-	if (IS_ERR(opp))
-	{
+	min_freq = 0;
+	opp = OPP_FIND_FREQ_CEIL(psDev, &min_freq);
+	if (IS_ERR(opp)) {
 		rcu_read_unlock();
-		PVR_DPF((PVR_DBG_ERROR, "Invalid initial frequency %u MHz", psDVFSDeviceCfg->ui32FreqMin));
+		PVR_DPF((PVR_DBG_ERROR, "Couldn't find lowest frequency"));
 		return PVRSRV_ERROR_INIT_FAILURE;
 	}
 
-	ui32InitialFreq = OPP_GET_FREQ(opp);
-	ui32InitialVolt = OPP_GET_VOLTAGE(opp);
+	min_volt = OPP_GET_VOLTAGE(opp);
+
+	max_freq = INT_MAX;
+	opp = OPP_FIND_FREQ_FLOOR(psDev, &max_freq);
+
+	if (IS_ERR(opp)) {
+		rcu_read_unlock();
+		PVR_DPF((PVR_DBG_ERROR, "Couldn't find hightest frequency"));
+		return PVRSRV_ERROR_INIT_FAILURE;
+	}
+
 	rcu_read_unlock();
 
-	img_devfreq_dev_profile.initial_freq = ui32InitialFreq;
+	img_devfreq_dev_profile.initial_freq = min_freq;
 	img_devfreq_dev_profile.polling_ms = psDVFSDeviceCfg->ui32PollMs;
 
-	psDVFSDeviceCfg->pfnSetFrequency(ui32InitialFreq);
+	psRGXTimingInfo->ui32CoreClockSpeed = min_freq;
 
-	psRGXTimingInfo->ui32CoreClockSpeed = ui32InitialFreq;
-
-	psDVFSDeviceCfg->pfnSetVoltage(ui32InitialVolt);
+	psDVFSDeviceCfg->pfnSetFrequency(min_freq);
+	psDVFSDeviceCfg->pfnSetVoltage(min_volt);
 
 	psDVFSDevice->data.upthreshold = psDVFSGovernorCfg->ui32UpThreshold;
 	psDVFSDevice->data.downdifferential = psDVFSGovernorCfg->ui32DownDifferential;
+
 	psDVFSDevice->psDevFreq = devm_devfreq_add_device(psDev,
 			&img_devfreq_dev_profile, "simple_ondemand",
 			&psDVFSDevice->data);
@@ -308,8 +318,8 @@ PVRSRV_ERROR InitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
 		return eError;
 	}
 
-	psDVFSDevice->psDevFreq->min_freq = psDVFSDeviceCfg->ui32FreqMin;
-	psDVFSDevice->psDevFreq->max_freq = psDVFSDeviceCfg->ui32FreqMax;
+	psDVFSDevice->psDevFreq->min_freq = min_freq;
+	psDVFSDevice->psDevFreq->max_freq = max_freq;
 
 	ui32Error = devfreq_register_opp_notifier(psDev, psDVFSDevice->psDevFreq);
 	if (ui32Error < 0) {
@@ -317,8 +327,8 @@ PVRSRV_ERROR InitDVFS(PVRSRV_DATA *psPVRSRVData, void *hDevice)
 		return PVRSRV_ERROR_INIT_FAILURE;
 	}
 
-	PVR_TRACE(("PVR DVFS activated: %u-%uMhz, Period: %ums", psDVFSDeviceCfg->ui32FreqMin, \
-			psDVFSDeviceCfg->ui32FreqMax, psDVFSDeviceCfg->ui32PollMs));
+	PVR_TRACE(("PVR DVFS activated: %lu-%lu Hz, Period: %ums", min_freq,
+			max_freq, psDVFSDeviceCfg->ui32PollMs));
 
 	return PVRSRV_OK;
 }
