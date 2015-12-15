@@ -56,6 +56,11 @@
 		pinctrl-0 = <&bl_fixed_pins>;
 	};
 
+	btmrvl {
+		compatible = "btmrvl,cfgdata";
+		btmrvl,gpio-gap = <0x0d64>;
+	};
+
 	chosen {
 		linux,stdout-path = &uart0;
 	};
@@ -104,11 +109,6 @@
 		mediatek,platform = <&afe>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&aud_i2s2>;
-	};
-
-	btmrvl {
-		compatible = "btmrvl,cfgdata";
-		btmrvl,gpio-gap = <0x0d64>;
 	};
 };
 
