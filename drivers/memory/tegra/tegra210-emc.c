@@ -814,6 +814,7 @@ void set_over_temp_timing(struct emc_table *next_timing, unsigned long state)
 
 	switch (state) {
 	case TEGRA_DRAM_OVER_TEMP_NONE:
+	case TEGRA_DRAM_OVER_TEMP_THROTTLE:
 		break;
 	case TEGRA_DRAM_OVER_TEMP_REFRESH_X2:
 		REFRESH_SPEEDUP(ref, REFRESH_X2);
@@ -821,7 +822,6 @@ void set_over_temp_timing(struct emc_table *next_timing, unsigned long state)
 		REFRESH_SPEEDUP(dsr_cntrl, REFRESH_X2);
 		break;
 	case TEGRA_DRAM_OVER_TEMP_REFRESH_X4:
-	case TEGRA_DRAM_OVER_TEMP_THROTTLE:
 		REFRESH_SPEEDUP(ref, REFRESH_X4);
 		REFRESH_SPEEDUP(pre_ref, REFRESH_X4);
 		REFRESH_SPEEDUP(dsr_cntrl, REFRESH_X4);
