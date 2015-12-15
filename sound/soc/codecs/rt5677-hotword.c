@@ -53,6 +53,8 @@ struct rt5677_dsp {
 	u32 mic_read_offset;	/* zero-based offset into DSP's mic buffer */
 	enum rt5677_hotword_state state;
 	struct wake_lock wake_lock;
+	u8 *model_buf;
+	unsigned int model_len;
 };
 
 static const struct snd_pcm_hardware rt5677_hotword_pcm_hardware = {
@@ -67,6 +69,40 @@ static const struct snd_pcm_hardware rt5677_hotword_pcm_hardware = {
 	.channels_min		= 1,
 	.channels_max		= 1,
 	.buffer_bytes_max	= 0x20000,
+};
+
+static int rt5677_hotword_model_put(struct snd_kcontrol *kcontrol,
+		const unsigned int __user *bytes, unsigned int size)
+{
+
+	struct snd_soc_platform *platform = snd_soc_kcontrol_platform(kcontrol);
+	struct rt5677_dsp *dsp = snd_soc_platform_get_drvdata(platform);
+	int ret = 0;
+
+	mutex_lock(&dsp->lock);
+	if (!dsp->model_buf || dsp->model_len < size) {
+		if (dsp->model_buf)
+			devm_kfree(dsp->spi, dsp->model_buf);
+		dsp->model_buf = devm_kmalloc(dsp->spi, size, GFP_KERNEL);
+		if (!dsp->model_buf) {
+			ret = -ENOMEM;
+			goto done;
+		}
+	}
+
+	if (copy_from_user(dsp->model_buf, bytes, size))
+		ret = -EFAULT;
+
+done:
+	dsp->model_len = (ret ? 0 : size);
+	mutex_unlock(&dsp->lock);
+	return ret;
+}
+
+static const struct snd_kcontrol_new rt5677_hotword_snd_controls[] = {
+	/* Size of the model is limited to 0x50000 bytes */
+	SND_SOC_BYTES_TLV("Hotword Model", 0x50000,
+		NULL, rt5677_hotword_model_put),
 };
 
 static int rt5677_hotword_load_fw(struct rt5677_dsp *dsp, const u8 *buf,
@@ -134,6 +170,20 @@ static int rt5677_hotword_load_fw_from_file(struct rt5677_dsp *dsp)
 
 	ret = rt5677_hotword_load_fw(dsp, fwp->data, fwp->size);
 	release_firmware(fwp);
+	if (ret)
+		goto error;
+
+	/* Load hotword language model */
+	if (dsp->model_buf && dsp->model_len) {
+		ret = rt5677_spi_write(RT5677_MODEL_ADDR, dsp->model_buf,
+				       dsp->model_len);
+		if (ret) {
+			dev_err(dsp->spi, "Model load failed %d\n", ret);
+			goto error;
+		}
+		dev_info(dsp->spi, "Loaded model (%u)\n", dsp->model_len);
+	}
+error:
 	return ret;
 }
 
@@ -704,6 +754,8 @@ static struct snd_soc_platform_driver rt5677_hotword_platform = {
 
 static const struct snd_soc_component_driver rt5677_hotword_dai_component = {
 	.name		= "rt5677-hotword",
+	.controls	= rt5677_hotword_snd_controls,
+	.num_controls	= ARRAY_SIZE(rt5677_hotword_snd_controls),
 };
 
 static int rt5677_hotword_dai_hw_params(struct snd_pcm_substream *substream,
