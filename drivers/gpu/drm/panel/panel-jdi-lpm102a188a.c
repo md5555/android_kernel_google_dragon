@@ -700,7 +700,6 @@ static const struct backlight_ops backlight_jdi_funcs = {
 static const struct backlight_properties backlight_jdi_props = {
 	.type = BACKLIGHT_RAW,
 	.brightness = 0,
-	.resume_brightness = -1,
 	.max_brightness = 0xFF,
 };
 
