@@ -434,7 +434,7 @@ static void rt5677_hotword_stream(struct rt5677_dsp *dsp)
 {
 	struct snd_pcm_runtime *runtime;
 	u32 mic_write_offset;
-	size_t new_bytes, copy_bytes, period_bytes;
+	size_t new_bytes, copy_bytes, period_bytes, hw_avail_bytes;
 	int ret = 0;
 
 	/* Ensure runtime->dma_area buffer does not go away while copying. */
@@ -480,6 +480,16 @@ static void rt5677_hotword_stream(struct rt5677_dsp *dsp)
 	/* Copy all new samples from DSP mic buffer, one period at a time */
 	period_bytes = snd_pcm_lib_period_bytes(dsp->substream);
 	while (new_bytes) {
+		/* If the space left in the dma_area buffer is less then one
+		 * period, stop copying from DSP and wait for userspace to read,
+		 * so that we don't overflow. The DSP has a 4sec buffer which is
+		 * usually much larger than the dma_area buffer.
+		 */
+		hw_avail_bytes = frames_to_bytes(runtime,
+				snd_pcm_capture_hw_avail(runtime));
+		if (hw_avail_bytes < period_bytes)
+			goto done;
+
 		copy_bytes = min(new_bytes, period_bytes
 				- dsp->avail_bytes);
 		ret = rt5677_hotword_copy(dsp, copy_bytes);
