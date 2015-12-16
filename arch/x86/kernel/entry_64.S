@@ -413,7 +413,8 @@ GLOBAL(system_call_after_swapgs)
 system_call_fastpath:
 #if __SYSCALL_MASK == ~0
 # ifdef CONFIG_ALT_SYSCALL
-	cmpq TI_nr_syscalls+THREAD_INFO(%rsp,RIP-ARGOFFSET),%rax
+	movl TI_nr_syscalls+THREAD_INFO(%rsp,RIP-ARGOFFSET),%r11d
+	cmpq %r11,%rax
 	jae ret_from_sys_call
 # else
 	cmpq $__NR_syscall_max,%rax
@@ -535,7 +536,8 @@ tracesys_phase2:
 	RESTORE_REST
 #if __SYSCALL_MASK == ~0
 # ifdef CONFIG_ALT_SYSCALL
-	cmpq TI_nr_syscalls+THREAD_INFO(%rsp,RIP-ARGOFFSET),%rax
+	movl TI_nr_syscalls+THREAD_INFO(%rsp,RIP-ARGOFFSET),%r11d
+	cmpq %r11,%rax
 	jae  int_ret_from_sys_call
 # else
 	cmpq $__NR_syscall_max,%rax
