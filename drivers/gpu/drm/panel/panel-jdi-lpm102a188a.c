@@ -803,6 +803,14 @@ static int panel_jdi_setup_primary(struct mipi_dsi_device *dsi,
 		goto out_slave;
 	}
 
+	ret = gpio_direction_output(jdi->enable_gpio,
+		(jdi->enable_gpio_flags & GPIO_ACTIVE_LOW) ? 0 : 1);
+	if (ret) {
+		DRM_ERROR("Request enable gpio output failed: %d\n",
+			  ret);
+		goto out_slave;
+	}
+
 	jdi->reset_gpio = of_get_named_gpio_flags(dsi->dev.of_node,
 				"reset-gpio", 0, &gpio_flags);
 	if (!gpio_is_valid(jdi->reset_gpio)) {
@@ -820,6 +828,14 @@ static int panel_jdi_setup_primary(struct mipi_dsi_device *dsi,
 		goto out_slave;
 	}
 
+	ret = gpio_direction_output(jdi->reset_gpio,
+		(jdi->reset_gpio_flags & GPIO_ACTIVE_LOW) ? 1 : 0);
+	if (ret) {
+		DRM_ERROR("Request reset gpio output failed: %d\n",
+			  ret);
+		goto out_slave;
+	}
+
 	jdi->ts_reset_gpio = of_get_named_gpio_flags(dsi->dev.of_node,
 				"ts-reset-gpio", 0, &gpio_flags);
 	if (!gpio_is_valid(jdi->ts_reset_gpio)) {
@@ -832,6 +848,14 @@ static int panel_jdi_setup_primary(struct mipi_dsi_device *dsi,
 			"jdi-ts-reset");
 		if (ret < 0) {
 			DRM_ERROR("Request ts reset gpio failed: %d\n", ret);
+			goto out_slave;
+		}
+
+		ret = gpio_direction_output(jdi->ts_reset_gpio,
+			(jdi->ts_reset_gpio_flags & GPIO_ACTIVE_LOW) ? 1 : 0);
+		if (ret) {
+			DRM_ERROR("Request ts reset gpio output failed: %d\n",
+				  ret);
 			goto out_slave;
 		}
 	}
