@@ -1633,8 +1633,7 @@ EXPORT_SYMBOL_GPL(tegra_machine_remove_dai_link);
 int tegra_machine_append_dai_link(struct snd_soc_dai_link *link,
 		unsigned int link_size)
 {
-	unsigned int size1 = of_machine_is_compatible("nvidia,tegra210") ?
-			TEGRA210_XBAR_DAI_LINKS : TEGRA124_XBAR_DAI_LINKS;
+	unsigned int size1 = num_dai_links;
 	unsigned int size2 = link_size;
 
 	if (!tegra_asoc_machine_links) {

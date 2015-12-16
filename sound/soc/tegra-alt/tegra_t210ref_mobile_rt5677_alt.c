@@ -605,15 +605,13 @@ static int tegra_t210ref_driver_probe(struct platform_device *pdev)
 	/* append t210ref specific dai_links */
 	card->num_links =
 		tegra_machine_append_dai_link(tegra_t210ref_codec_links,
-			2 * machine->num_codec_links + ARRAY_SIZE(tegra_rt5677_dai));
+			2 * machine->num_codec_links);
+	card->num_links =
+		tegra_machine_append_dai_link(tegra_rt5677_dai,
+			ARRAY_SIZE(tegra_rt5677_dai));
 
 	tegra_machine_dai_links = tegra_machine_get_dai_link();
 	card->dai_link = tegra_machine_dai_links;
-
-	/* append our custom dais */
-	memcpy(&card->dai_link[card->num_links-ARRAY_SIZE(tegra_rt5677_dai)],
-		tegra_rt5677_dai,
-		ARRAY_SIZE(tegra_rt5677_dai) * sizeof(struct snd_soc_dai_link));
 
 	/* append t210ref specific codec_conf */
 	card->num_configs =
