@@ -406,24 +406,6 @@ static int panel_jdi_prepare(struct drm_panel *panel)
 	mutex_lock(&jdi->lock);
 
 	if (!jdi->enabled) {
-		ret = regulator_enable(jdi->supply);
-		if (ret < 0) {
-			DRM_ERROR("failed to enable supply: %d\n", ret);
-			goto out;
-		}
-
-		/* T1 = 2ms */
-		usleep_range(2000, 4000);
-
-		ret = regulator_enable(jdi->ddi_supply);
-		if (ret < 0) {
-			DRM_ERROR("failed to enable ddi_supply: %d\n", ret);
-			goto out;
-		}
-
-		/* T2 = 1ms */
-		usleep_range(1000, 3000);
-
 		gpio_set_value(jdi->enable_gpio,
 			(jdi->enable_gpio_flags & GPIO_ACTIVE_LOW) ? 0 : 1);
 
@@ -537,7 +519,6 @@ static int panel_jdi_prepare(struct drm_panel *panel)
 	if (ret)
 		DRM_ERROR("failed to write dc registers %d\n", ret);
 
-out:
 	mutex_unlock(&jdi->lock);
 	return ret;
 }
