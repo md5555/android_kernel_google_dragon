@@ -1795,7 +1795,7 @@ void
 nouveau_bo_vma_del(struct nouveau_bo *nvbo, struct nvkm_vma *vma)
 {
 	if (vma->node) {
-		if (nvbo->bo.mem.mem_type != TTM_PL_SYSTEM)
+		if (vma->mapped && nvbo->bo.mem.mem_type != TTM_PL_SYSTEM)
 			nvkm_vm_unmap(vma);
 		nvkm_vm_put(vma);
 		list_del(&vma->head);
