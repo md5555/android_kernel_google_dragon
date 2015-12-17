@@ -419,7 +419,7 @@ static const struct falcon_ops vic_falcon_ops = {
 static const struct host1x_client_clock vic_t210_clocks[] = {
 	{
 		.clk_name = "vic_cbus",
-		.default_rate = 140800000,
+		.default_rate = 448000000,
 		.valid_constraint_types =
 			BIT(HOST1X_USER_CONSTRAINT_TYPE_HZ),
 	}, {
