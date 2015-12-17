@@ -2897,9 +2897,9 @@ static int tegra_xudc_alloc_event_ring(struct tegra_xudc *xudc)
 	return 0;
 
 free_dma:
-	for (; i >= 0; i--) {
+	for (; i > 0; i--) {
 		dma_free_coherent(xudc->dev, XUDC_EVENT_RING_SIZE *
-				  sizeof(*xudc->event_ring[i]),
+				  sizeof(*xudc->event_ring[i - 1]),
 				  xudc->event_ring[i - 1],
 				  xudc->event_ring_phys[i - 1]);
 	}
