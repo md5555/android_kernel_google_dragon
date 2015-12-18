@@ -217,6 +217,7 @@ static int skl_suspend(struct device *dev)
 	struct pci_dev *pci = to_pci_dev(dev);
 	struct hdac_ext_bus *ebus = pci_get_drvdata(pci);
 	struct skl *skl  = ebus_to_skl(ebus);
+	struct hdac_bus *bus = ebus_to_hbus(ebus);
 
 	/*
 	 * Do not suspend if streams which are marked ignore suspend are
@@ -224,6 +225,7 @@ static int skl_suspend(struct device *dev)
 	 */
 	if (skl->supend_active) {
 		snd_hdac_ext_bus_link_power_down_all(ebus);
+		enable_irq_wake(bus->irq);
 		pci_save_state(pci);
 		pci_disable_device(pci);
 		return 0;
@@ -237,6 +239,7 @@ static int skl_resume(struct device *dev)
 	struct pci_dev *pci = to_pci_dev(dev);
 	struct hdac_ext_bus *ebus = pci_get_drvdata(pci);
 	struct skl *skl  = ebus_to_skl(ebus);
+	struct hdac_bus *bus = ebus_to_hbus(ebus);
 	int ret;
 
 	/*
@@ -247,6 +250,7 @@ static int skl_resume(struct device *dev)
 		pci_restore_state(pci);
 		ret = pci_enable_device(pci);
 		snd_hdac_ext_bus_link_power_up_all(ebus);
+		disable_irq_wake(bus->irq);
 	} else {
 		ret = _skl_resume(ebus);
 	}
