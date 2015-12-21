@@ -400,6 +400,30 @@ static int tegra_dpaux_remove(struct platform_device *pdev)
 
 	return 0;
 }
+#ifdef CONFIG_PM_SLEEP
+static int tegra_dpaux_suspend(struct device *dev)
+{
+	return 0;
+}
+
+static int tegra_dpaux_resume(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct tegra_dpaux *dpaux = platform_get_drvdata(pdev);
+	u32 value;
+
+	/* enable all interrupts */
+	value = DPAUX_INTR_AUX_DONE | DPAUX_INTR_IRQ_EVENT |
+		DPAUX_INTR_UNPLUG_EVENT | DPAUX_INTR_PLUG_EVENT;
+	tegra_dpaux_writel(dpaux, value, DPAUX_INTR_EN_AUX);
+
+	return 0;
+}
+
+static const struct dev_pm_ops tegra_dpaux_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(tegra_dpaux_suspend, tegra_dpaux_resume)
+};
+#endif
 
 static const struct of_device_id tegra_dpaux_of_match[] = {
 	{ .compatible = "nvidia,tegra210-dpaux", },
@@ -411,6 +435,9 @@ MODULE_DEVICE_TABLE(of, tegra_dpaux_of_match);
 struct platform_driver tegra_dpaux_driver = {
 	.driver = {
 		.name = "tegra-dpaux",
+#ifdef CONFIG_PM_SLEEP
+		.pm	= &tegra_dpaux_pm_ops,
+#endif
 		.of_match_table = tegra_dpaux_of_match,
 	},
 	.probe = tegra_dpaux_probe,
@@ -468,6 +495,7 @@ int drm_dp_aux_attach(struct drm_dp_aux *aux, struct tegra_output *output)
 	}
 
 	enable_irq(dpaux->irq);
+
 	return 0;
 }
 
