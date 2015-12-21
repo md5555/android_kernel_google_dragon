@@ -44,6 +44,8 @@ struct mtk_mfg {
 	/* for gpu device freq/volt update */
 	struct regulator *vgpu;
 	struct clk *mmpll;
+
+	struct thermal_zone_device *tz;
 };
 
 

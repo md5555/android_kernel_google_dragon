@@ -22,6 +22,7 @@
 #include <linux/pm_opp.h>
 #include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
+#include <linux/thermal.h>
 
 #include "mt8173_mfgsys.h"
 
@@ -244,6 +245,12 @@ static int mtk_mfg_bind_device_resource(struct mtk_mfg *mfg)
 				top_mfg_clk_name[i]);
 			return PTR_ERR(mfg->top_clk[i]);
 		}
+	}
+
+	mfg->tz = thermal_zone_get_zone_by_name("cpu_thermal");
+	if (IS_ERR(mfg->tz)) {
+		dev_err(dev, "Failed to get cpu_thermal zone\n");
+		return PTR_ERR(mfg->tz);
 	}
 
 	mfg->vgpu = devm_regulator_get(dev, "mfgsys-power");
