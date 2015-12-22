@@ -862,22 +862,31 @@ gm20b_pmu_init_vm(struct nvkm_pmu *ppmu)
 	ret = mmu->create_pgd(mmu, nv_object(ppmu), pmuvm->mem,
 				pmu_area_len, &pmuvm->pgd);
 	if (ret)
-		return ret;
+		goto err_pgd;
 
 	/* allocate virtual memory range */
 	ret = nvkm_vm_new(device, 0, pmu_area_len, 0, &vm);
 	if (ret)
-		return ret;
+		goto err_vm;
 
 	atomic_inc(&vm->engref[NVDEV_SUBDEV_PMU]);
 
 	/* update VM with pgd */
 	ret = nvkm_vm_ref(vm, &pmuvm->vm, pmuvm->pgd);
 	if (ret)
-		return ret;
+		goto err_ref;
 
 	ppmu->pmu_vm = pmuvm;
+	return 0;
 
+err_ref:
+	nvkm_vm_ref(NULL, &vm, NULL);
+err_vm:
+	nvkm_gpuobj_destroy(pmuvm->pgd);
+	pmuvm->pgd = NULL;
+err_pgd:
+	nvkm_gpuobj_destroy(pmuvm->mem);
+	pmuvm->mem = NULL;
 	return ret;
 }
 

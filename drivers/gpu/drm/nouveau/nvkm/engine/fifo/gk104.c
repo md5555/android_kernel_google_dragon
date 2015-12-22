@@ -485,20 +485,26 @@ gk104_fifo_context_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	/* allocate instance block */
 	ret = nvkm_fifo_context_create(parent, engine, oclass, NULL, 0x1000,
 				       0x1000, NVOBJ_FLAG_ZERO_ALLOC, &base);
-	*pobject = nv_object(base);
 	if (ret)
 		return ret;
 
 	/* allocate and initialize pgd */
 	ret = mmu->create_pgd(mmu, nv_object(base), base, length, &base->pgd);
 	if (ret)
-		return ret;
+		goto err_pgd;
 
 	ret = nvkm_vm_ref(nvkm_client(parent)->vm, &base->vm, base->pgd);
 	if (ret)
-		return ret;
+		goto err_ref;
 
+	*pobject = nv_object(base);
 	return 0;
+
+err_ref:
+	nvkm_gpuobj_destroy(base->pgd);
+err_pgd:
+	nvkm_fifo_context_destroy(&base->base);
+	return ret;
 }
 
 static void

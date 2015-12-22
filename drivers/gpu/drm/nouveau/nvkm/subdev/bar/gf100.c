@@ -100,12 +100,12 @@ gf100_bar_ctor_vm(struct gf100_bar_priv *priv, struct gf100_bar_priv_vm *bar_vm,
 	ret = mmu->create_pgd(mmu, nv_object(priv), bar_vm->mem,
 				bar_len, &bar_vm->pgd);
 	if (ret)
-		return ret;
+		goto err_pgd;
 
 	/* allocate virtual memory range */
 	ret = nvkm_vm_new(device, 0, bar_len, 0, &vm);
 	if (ret)
-		return ret;
+		goto err_vm;
 
 	atomic_inc(&vm->engref[NVDEV_SUBDEV_BAR]);
 
@@ -117,17 +117,28 @@ gf100_bar_ctor_vm(struct gf100_bar_priv *priv, struct gf100_bar_priv_vm *bar_vm,
 				      (bar_len >> 12) * 8, 0x1000,
 				      NVOBJ_FLAG_ZERO_ALLOC,
 				      &vm->pgt[0].obj[0]);
-		vm->pgt[0].refcount[0] = 1;
 		if (ret)
-			return ret;
+			goto err_pgt;
+		vm->pgt[0].refcount[0] = 1;
 	}
 
 	ret = nvkm_vm_ref(vm, &bar_vm->vm, bar_vm->pgd);
 	nvkm_vm_ref(NULL, &vm, NULL);
 	if (ret)
-		return ret;
+		goto err_pgt;
 
 	return 0;
+
+err_pgt:
+	if (vm->pgt[0].obj[0])
+		nvkm_gpuobj_destroy(vm->pgt[0].obj[0]);
+err_vm:
+	nvkm_gpuobj_destroy(bar_vm->pgd);
+	bar_vm->pgd = NULL;
+err_pgd:
+	nvkm_gpuobj_destroy(bar_vm->mem);
+	bar_vm->mem = NULL;
+	return ret;
 }
 
 int

@@ -2708,25 +2708,25 @@ gk20a_pmu_init_vm(struct gk20a_pmu_priv *priv, const struct firmware *fw)
 	ret = mmu->create_pgd(mmu, nv_object(priv), pmuvm->mem,
 				pmu_area_len, &pmuvm->pgd);
 	if (ret)
-		return ret;
+		goto err_pgd;
 
 	/* allocate virtual memory range */
 	ret = nvkm_vm_new(device, 0, pmu_area_len, 0, &vm);
 	if (ret)
-		return ret;
+		goto err_vm;
 
 	atomic_inc(&vm->engref[NVDEV_SUBDEV_PMU]);
 
 	/* update VM with pgd */
 	ret = nvkm_vm_ref(vm, &pmuvm->vm, pmuvm->pgd);
 	if (ret)
-		return ret;
+		goto err_ref;
 
 	/* allocate memory for pmu fw to be copied to*/
 	ret = nvkm_gpuobj_new(nv_object(priv), NULL, GK20A_PMU_UCODE_SIZE_MAX,
 			      0x1000, 0, &priv->ucode.obj);
 	if (ret)
-		return ret;
+		goto err_fw;
 
 	ucode_image = (u32 *)((u8 *)desc + desc->descriptor_size);
 	gpu_obj_memwr(priv->ucode.obj, 0,
@@ -2736,10 +2736,24 @@ gk20a_pmu_init_vm(struct gk20a_pmu_priv *priv, const struct firmware *fw)
 	ret = nvkm_gpuobj_map_vm(priv->ucode.obj, vm, NV_MEM_ACCESS_RW,
 				 &priv->ucode.vma);
 	if (ret)
-		return ret;
+		goto err_map;
 
 	pmu->pmu_vm = pmuvm;
+	return 0;
 
+err_map:
+	nvkm_gpuobj_destroy(priv->ucode.obj);
+	priv->ucode.obj = NULL;
+err_fw:
+	nvkm_vm_ref(NULL, &vm, pmuvm->pgd);
+err_ref:
+	nvkm_vm_ref(NULL, &vm, NULL);
+err_vm:
+	nvkm_gpuobj_destroy(pmuvm->pgd);
+	pmuvm->pgd = NULL;
+err_pgd:
+	nvkm_gpuobj_destroy(pmuvm->mem);
+	pmuvm->mem = NULL;
 	return ret;
 }
 
