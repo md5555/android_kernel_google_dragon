@@ -1449,7 +1449,7 @@ int __pm_genpd_add_device(struct generic_pm_domain *genpd, struct device *dev,
 
 	spin_lock_irq(&dev->power.lock);
 
-	dev_pm_domain_set(dev, &genpd->domain);
+	dev->pm_domain = &genpd->domain;
 	if (dev->power.subsys_data->domain_data) {
 		gpd_data = to_gpd_data(dev->power.subsys_data->domain_data);
 	} else {
@@ -1529,7 +1529,7 @@ int pm_genpd_remove_device(struct generic_pm_domain *genpd,
 
 	spin_lock_irq(&dev->power.lock);
 
-	dev_pm_domain_set(dev, NULL);
+	dev->pm_domain = NULL;
 	pdd = dev->power.subsys_data->domain_data;
 	list_del_init(&pdd->list_node);
 	gpd_data = to_gpd_data(pdd);

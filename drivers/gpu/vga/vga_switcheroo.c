@@ -652,17 +652,17 @@ int vga_switcheroo_init_domain_pm_ops(struct device *dev, struct dev_pm_domain *
 		domain->ops.runtime_suspend = vga_switcheroo_runtime_suspend;
 		domain->ops.runtime_resume = vga_switcheroo_runtime_resume;
 
-		dev_pm_domain_set(dev, domain);
+		dev->pm_domain = domain;
 		return 0;
 	}
-	dev_pm_domain_set(dev, NULL);
+	dev->pm_domain = NULL;
 	return -EINVAL;
 }
 EXPORT_SYMBOL(vga_switcheroo_init_domain_pm_ops);
 
 void vga_switcheroo_fini_domain_pm_ops(struct device *dev)
 {
-	dev_pm_domain_set(dev, NULL);
+	dev->pm_domain = NULL;
 }
 EXPORT_SYMBOL(vga_switcheroo_fini_domain_pm_ops);
 
@@ -702,10 +702,10 @@ int vga_switcheroo_init_domain_pm_optimus_hdmi_audio(struct device *dev, struct 
 		domain->ops = *dev->bus->pm;
 		domain->ops.runtime_resume = vga_switcheroo_runtime_resume_hdmi_audio;
 
-		dev_pm_domain_set(dev, domain);
+		dev->pm_domain = domain;
 		return 0;
 	}
-	dev_pm_domain_set(dev, NULL);
+	dev->pm_domain = NULL;
 	return -EINVAL;
 }
 EXPORT_SYMBOL(vga_switcheroo_init_domain_pm_optimus_hdmi_audio);
