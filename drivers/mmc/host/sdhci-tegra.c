@@ -36,8 +36,6 @@
 #define SDHCI_TEGRA_VENDOR_CLK_CTRL		0x100
 #define SDHCI_CLK_CTRL_SDMMC_CLK		0x1
 #define SDHCI_CLK_CTRL_INPUT_IO_CLK		0x2
-#define SDHCI_CLK_CTRL_SPI_MODE_CLKEN_OVERRIDE	0x4
-#define SDHCI_CLK_CTRL_PADPIPE_CLKEN_OVERRIDE	0x8
 #define SDHCI_CLK_CTRL_TAP_VAL_SHIFT		16
 #define SDHCI_CLK_CTRL_TAP_VAL_MASK		0xff
 #define SDHCI_CLK_CTRL_TRIM_VAL_SHIFT		24
@@ -45,6 +43,8 @@
 
 #define SDHCI_VNDR_SYS_SW_CTRL			0x104
 #define SDHCI_VNDR_SYS_SW_CTRL_WR_CRC_TMCLK	0x40000000
+#define SDHCI_CLOCK_CTRL_PADPIPE_CLKEN_OVERRIDE		BIT(3)
+#define SDHCI_CLOCK_CTRL_SPI_MODE_CLKEN_OVERRIDE	BIT(2)
 
 #define SDHCI_TEGRA_VENDOR_MISC_CTRL		0x120
 #define SDHCI_MISC_CTRL_INFINITE_ERASE_TIMEOUT	0x1
@@ -471,7 +471,7 @@ static void sdhci_tegra_reset(struct sdhci_host *host, u8 mask)
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct sdhci_tegra *tegra_host = pltfm_host->priv;
 	const struct sdhci_tegra_soc_data *soc_data = tegra_host->soc_data;
-	u32 misc_ctrl, vendor_ctrl;
+	u32 misc_ctrl, vendor_ctrl, clk_ctrl;
 
 	sdhci_reset(host, mask);
 
@@ -541,6 +541,12 @@ static void sdhci_tegra_reset(struct sdhci_host *host, u8 mask)
 		vendor_ctrl |= SDHCI_VNDR_SYS_SW_CTRL_WR_CRC_TMCLK;
 		sdhci_writel(host, vendor_ctrl, SDHCI_VNDR_SYS_SW_CTRL);
 	}
+
+	clk_ctrl = sdhci_readl(host, SDHCI_TEGRA_VENDOR_CLK_CTRL);
+	clk_ctrl &= ~SDHCI_CLOCK_CTRL_SPI_MODE_CLKEN_OVERRIDE;
+	sdhci_writel(host, clk_ctrl, SDHCI_TEGRA_VENDOR_CLK_CTRL);
+
+	tegra_host->ddr_signaling = false;
 }
 
 static void sdhci_tegra_set_bus_width(struct sdhci_host *host, int bus_width)
