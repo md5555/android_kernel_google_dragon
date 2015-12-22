@@ -323,14 +323,13 @@ gf100_fifo_context_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	ret = nvkm_fifo_context_create(parent, engine, oclass, NULL, 0x1000,
 				       0x1000, NVOBJ_FLAG_ZERO_ALLOC |
 				       NVOBJ_FLAG_HEAP, &base);
-	*pobject = nv_object(base);
 	if (ret)
 		return ret;
 
 	ret = nvkm_gpuobj_new(nv_object(base), NULL, 0x10000, 0x1000, 0,
 			      &base->pgd);
 	if (ret)
-		return ret;
+		goto err_pgd;
 
 	nv_wo32(base, 0x0200, lower_32_bits(base->pgd->addr));
 	nv_wo32(base, 0x0204, upper_32_bits(base->pgd->addr));
@@ -339,9 +338,16 @@ gf100_fifo_context_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 
 	ret = nvkm_vm_ref(nvkm_client(parent)->vm, &base->vm, base->pgd);
 	if (ret)
-		return ret;
+		goto err_ref;
 
+	*pobject = nv_object(base);
 	return 0;
+
+err_ref:
+	nvkm_gpuobj_destroy(base->pgd);
+err_pgd:
+	nvkm_fifo_context_destroy(&base->base);
+	return ret;
 }
 
 static void
