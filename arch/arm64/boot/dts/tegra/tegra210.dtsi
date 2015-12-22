@@ -1694,7 +1694,7 @@
 		};
 
 		idle-states {
-			enable-method = "arm,psci";
+			entry-method = "psci";
 
 			C7: c7 {
 				compatible = "arm,idle-state";
