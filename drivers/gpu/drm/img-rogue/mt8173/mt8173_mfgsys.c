@@ -14,6 +14,7 @@
 
 #include <linux/clk.h>
 #include <linux/io.h>
+#include <linux/iopoll.h>
 #include <linux/mutex.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
@@ -36,11 +37,12 @@ static const char * const top_mfg_clk_name[] = {
 
 #define MAX_TOP_MFG_CLK ARRAY_SIZE(top_mfg_clk_name)
 
-#define REG_MFG_AXI BIT(0)
-#define REG_MFG_MEM BIT(1)
-#define REG_MFG_G3D BIT(2)
-#define REG_MFG_26M BIT(3)
-#define REG_MFG_ALL (REG_MFG_AXI | REG_MFG_MEM | REG_MFG_G3D | REG_MFG_26M)
+#define REG_MFG_AXI  BIT(0)
+#define REG_MFG_MEM  BIT(1)
+#define REG_MFG_G3D  BIT(2)
+#define REG_MFG_26M  BIT(3)
+#define REG_MFG_IDLE BIT(16)
+#define REG_MFG_ALL  (REG_MFG_AXI | REG_MFG_MEM | REG_MFG_G3D | REG_MFG_26M)
 
 #define REG_MFG_CG_STA 0x00
 #define REG_MFG_CG_SET 0x04
@@ -146,8 +148,21 @@ err_regulator_disable:
 	return ret;
 }
 
+static void mtk_mfg_wait_gpu_idle(struct mtk_mfg *mfg)
+{
+	int ret;
+	u32 val;
+
+	ret = readl_poll_timeout(mfg->reg_base + REG_MFG_CG_STA, val,
+				 (REG_MFG_IDLE == (val & REG_MFG_IDLE)),
+				 100, 20000);
+	if (ret)
+		dev_err(mfg->dev, "Failed to wait GPU idle (0x%x)\n", val);
+}
+
 void mtk_mfg_disable(struct mtk_mfg *mfg)
 {
+	mtk_mfg_wait_gpu_idle(mfg);
 	mtk_mfg_disable_clock(mfg);
 	pm_runtime_put_sync(mfg->dev);
 	regulator_disable(mfg->vgpu);
