@@ -1354,6 +1354,8 @@ static int hdmi_codec_probe(struct snd_soc_codec *codec)
 	 * hdac_device core already sets the state to active and calls
 	 * get_noresume. So enable runtime and set the device to suspend.
 	 */
+	pm_runtime_set_autosuspend_delay(&edev->hdac.dev, 2000);
+	pm_runtime_use_autosuspend(&edev->hdac.dev);
 	pm_runtime_enable(&edev->hdac.dev);
 	pm_runtime_put(&edev->hdac.dev);
 	pm_runtime_suspend(&edev->hdac.dev);
