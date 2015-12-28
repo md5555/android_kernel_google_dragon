@@ -176,6 +176,8 @@ static int PVRSRVDriverProbe(struct platform_device *pDevice)
 
 	result = drm_platform_init(&sPVRDRMDriver, pDevice);
 
+	dma_set_mask(&pDevice->dev, DMA_BIT_MASK(33));
+
 	if (result == 0)
 		PVRSRVDeviceInit();
 
