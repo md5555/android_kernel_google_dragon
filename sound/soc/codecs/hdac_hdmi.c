@@ -514,6 +514,8 @@ static int hdac_hdmi_trigger(struct snd_pcm_substream *substream, int cmd,
 	return 0;
 }
 
+static void hdac_hdmi_present_sense(struct hdac_hdmi_pin *pin, int repoll);
+
 static int hdac_hdmi_set_hw_params(struct snd_pcm_substream *substream,
 	struct snd_pcm_hw_params *hparams, struct snd_soc_dai *dai)
 {
@@ -532,12 +534,15 @@ static int hdac_hdmi_set_hw_params(struct snd_pcm_substream *substream,
 	if (!pin)
 		return -EIO;
 
-	if ((!pin->eld.monitor_present) ||
-		(!pin->eld.eld_valid)) {
-		dev_err(&hdac->hdac.dev,
-			"failed: montior present? %d eld valid?: %d for pin: %d\n",
-			pin->eld.monitor_present, pin->eld.eld_valid, pin->nid);
-		return -ENODEV;
+	if ((!pin->eld.monitor_present) || (!pin->eld.eld_valid)) {
+		/* one more last try to detect pin sense */
+		hdac_hdmi_present_sense(pin, 0);
+		if ((!pin->eld.monitor_present) || (!pin->eld.eld_valid)) {
+			dev_err(&hdac->hdac.dev,
+				"Failed: montior present? %d eld valid?: %d for pin: %d\n",
+				pin->eld.monitor_present, pin->eld.eld_valid, pin->nid);
+			return -EINVAL;
+		}
 	}
 
 	dai_map->pin = pin;
