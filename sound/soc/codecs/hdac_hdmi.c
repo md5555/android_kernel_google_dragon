@@ -414,36 +414,9 @@ static int hdac_hdmi_query_pin_connlist(struct hdac_ext_device *hdac,
 	return pin->num_mux_nids;
 }
 
-static inline struct hdac_hdmi_pin *hdac_hdmi_get_pin(
-			struct hdac_ext_device *edev,
-			struct snd_soc_dapm_path *p,
-			struct hdac_hdmi_cvt *cvt)
-{
-	struct hdac_hdmi_priv *hdmi = edev->private_data;
-	struct hdac_hdmi_pin *pin;
-	hda_nid_t *nid;
-	int ret, i;
-
-	nid = (hda_nid_t *)p->sink->priv;
-	list_for_each_entry(pin, &hdmi->pin_list, head) {
-		if (pin->nid == *nid) {
-			ret = hdac_hdmi_query_pin_connlist(edev, pin);
-			if (ret < 0)
-				continue;
-
-			for (i = 0; i < pin->num_mux_nids; i++) {
-				if (pin->mux_nids[i] == cvt->nid)
-					return pin;
-			}
-		}
-	}
-
-	return NULL;
-}
-
 /*
- * This queries mux widgets in each sink path of the dai widget and returns
- * a matching pin widget to which the stream may be routed.
+ * This queries pcm list and returns a matching pin widget to which
+ * stream is routed to.
  *
  * The converter may be input to multiple pin muxes. So each
  * pin mux (basically each pin widget) is queried to identify if
@@ -455,21 +428,31 @@ static inline struct hdac_hdmi_pin *hdac_hdmi_get_pin(
  *
  * So return the first pin connected
  */
-static struct hdac_hdmi_pin *hdac_hdmi_get_pin_from_daistream(
+static struct hdac_hdmi_pin *hdac_hdmi_get_pin_from_cvt(
 			struct hdac_ext_device *edev,
-			struct snd_soc_dapm_widget *strm_w,
+			struct hdac_hdmi_priv *hdmi,
 			struct hdac_hdmi_cvt *cvt)
 {
-	struct snd_soc_dapm_path *p;
+	struct hdac_hdmi_pcm *pcm;
+	struct hdac_hdmi_pin *pin = NULL;
+	int ret, i;
 
-	snd_soc_dapm_widget_for_each_sink_path(strm_w, p) {
-		if (!p->connect)
-			continue;
+	list_for_each_entry(pcm, &hdmi->pcm_list, head) {
+		if (pcm->cvt == cvt) {
+			pin = pcm->pin;
+			break;
+		}
+	}
 
-		if (strstr(p->sink->name, "Mux"))
-			return hdac_hdmi_get_pin(edev, p, cvt);
-		else
-			return hdac_hdmi_get_pin_from_daistream(edev, p->sink, cvt);
+	if (pin) {
+		ret = hdac_hdmi_query_pin_connlist(edev, pin);
+		if (ret < 0)
+			return NULL;
+
+		for (i = 0; i < pin->num_mux_nids; i++) {
+			if (pin->mux_nids[i] == cvt->nid)
+				return pin;
+		}
 	}
 
 	return NULL;
@@ -483,11 +466,6 @@ static int hdac_hdmi_playback_prepare(struct snd_pcm_substream *substream,
 	struct hdac_hdmi_dai_pin_map *dai_map;
 	struct hdac_ext_dma_params *dd;
 	int ret;
-
-	if (dai->id > 0) {
-		dev_err(&hdac->hdac.dev, "Only one dai supported as of now\n");
-		return -ENODEV;
-	}
 
 	dai_map = &hdmi->dai_map[dai->id];
 
@@ -535,15 +513,10 @@ static int hdac_hdmi_set_hw_params(struct snd_pcm_substream *substream,
 	int ret;
 	struct hdac_ext_dma_params *dd;
 
-	if (dai->id > 0) {
-		dev_err(&hdac->hdac.dev, "Only one dai supported as of now\n");
-		return -ENODEV;
-	}
-
 	dai_map = &hdmi->dai_map[dai->id];
 
 	cvt = dai_map->cvt;
-	pin = hdac_hdmi_get_pin_from_daistream(hdac, dai->playback_widget, cvt);
+	pin = hdac_hdmi_get_pin_from_cvt(hdac, hdmi, cvt);
 	if (!pin)
 		return -EIO;
 
