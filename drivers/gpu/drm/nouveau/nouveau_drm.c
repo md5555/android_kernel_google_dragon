@@ -573,6 +573,8 @@ nouveau_do_suspend(struct drm_device *dev, bool runtime)
 			return ret;
 	}
 
+	flush_workqueue(drm->gem_unmap_wq);
+
 	if (dev->pdev) {
 		NV_INFO(drm, "evicting buffers...\n");
 		ttm_bo_evict_mm(&drm->ttm.bdev, TTM_PL_VRAM);
