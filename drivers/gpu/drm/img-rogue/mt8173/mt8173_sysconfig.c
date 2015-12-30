@@ -210,8 +210,8 @@ power_table[POWER_TABLE_NUM_VOLT][POWER_TABLE_NUM_TEMP] = {
 };
 
 /** Frequency and Power in Khz and mW respectively */
-static const int f_range[] = {253500, 299000, 396500, 455000};
-static const IMG_UINT32 max_dynamic_power[] = {612, 722, 957, 1100};
+static const int f_range[] = {253500, 299000, 396500, 455000, 494000, 598000};
+static const IMG_UINT32 max_dynamic_power[] = {612, 722, 957, 1100, 1194, 1445};
 
 static u32 interpolate(int value, const int *x, const unsigned int *y, int len)
 {
