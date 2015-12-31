@@ -329,9 +329,6 @@ static int panel_jdi_unprepare(struct drm_panel *panel)
 
 	gpio_set_value(jdi->reset_gpio,
 		(jdi->reset_gpio_flags & GPIO_ACTIVE_LOW) ? 0 : 1);
-	if (gpio_is_valid(jdi->ts_reset_gpio))
-		gpio_set_value(jdi->ts_reset_gpio,
-			(jdi->ts_reset_gpio_flags & GPIO_ACTIVE_LOW) ? 0 : 1);
 
 	/* T4 = 1ms */
 	usleep_range(1000, 3000);
@@ -529,11 +526,6 @@ static int panel_jdi_prepare(struct drm_panel *panel)
 		 */
 		msleep(70);
 
-		if (gpio_is_valid(jdi->ts_reset_gpio))
-			gpio_set_value(jdi->ts_reset_gpio,
-			       (jdi->ts_reset_gpio_flags & GPIO_ACTIVE_LOW) ?
-					1 : 0);
-
 		/*
 		 * We need to wait 150ms between mipi_dsi_dcs_exit_sleep_mode()
 		 * and mipi_dsi_dcs_set_display_on().
@@ -567,6 +559,14 @@ static int panel_jdi_enable(struct drm_panel *panel)
 
 	if (!jdi->enabled && jdi->touch)
 		pm_runtime_force_resume(&jdi->touch->dev);
+
+	if (gpio_is_valid(jdi->ts_reset_gpio)) {
+		gpio_set_value(jdi->ts_reset_gpio,
+			(jdi->ts_reset_gpio_flags & GPIO_ACTIVE_LOW) ?  0 : 1);
+		usleep_range(9000, 10000);
+		gpio_set_value(jdi->ts_reset_gpio,
+			(jdi->ts_reset_gpio_flags & GPIO_ACTIVE_LOW) ?  1 : 0);
+	}
 
 	jdi->enabled = true;
 
