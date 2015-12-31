@@ -59,6 +59,7 @@
 				ddi-supply = <&pp1800_lcdio>;
 				enable-gpio = <&gpio TEGRA_GPIO(V, 1) GPIO_ACTIVE_HIGH>;
 				reset-gpio = <&gpio TEGRA_GPIO(V, 2) GPIO_ACTIVE_LOW>;
+				ts-reset-gpio = <&gpio TEGRA_GPIO(V, 6) GPIO_ACTIVE_LOW>;
 				backlight = <&backlight>;
 				slave = <&secondary_panel>;
 				panel-boot-on;
