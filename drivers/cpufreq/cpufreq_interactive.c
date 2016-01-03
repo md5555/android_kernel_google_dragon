@@ -663,7 +663,10 @@ static int cpufreq_interactive_notifier(
 	unsigned long flags;
 
 	if (val == CPUFREQ_PRECHANGE) {
+
 		pcpu = &per_cpu(cpuinfo, freq->cpu);
+		if (!pcpu)
+			return 0;
 		if (!down_read_trylock(&pcpu->enable_sem))
 			return 0;
 		if (!pcpu->governor_enabled) {
