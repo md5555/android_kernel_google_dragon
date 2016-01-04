@@ -421,6 +421,7 @@ config SND_SOC_HDMI_CODEC
 config SND_SOC_HDAC_HDMI
 	tristate
 	select SND_HDA_EXT_CORE
+	select SND_PCM_ELD
 	select HDMI
 
 config SND_SOC_ES8328
