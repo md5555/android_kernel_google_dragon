@@ -375,52 +375,6 @@ static int hdac_hdmi_playback_prepare(struct snd_pcm_substream *substream,
 			dai_map->pin->nid, dd->stream_tag, dd->format);
 }
 
-static int hdac_hdmi_set_hw_params(struct snd_pcm_substream *substream,
-	struct snd_pcm_hw_params *hparams, struct snd_soc_dai *dai)
-{
-	struct hdac_ext_device *hdac = snd_soc_dai_get_drvdata(dai);
-	struct hdac_ext_dma_params *dd;
-
-	if (dai->id > 0) {
-		dev_err(&hdac->hdac.dev, "Only one dai supported as of now\n");
-		return -ENODEV;
-	}
-
-	dd = kzalloc(sizeof(*dd), GFP_KERNEL);
-	if (!dd)
-		return -ENOMEM;
-	dd->format = snd_hdac_calc_stream_format(params_rate(hparams),
-			params_channels(hparams), params_format(hparams),
-			24, 0);
-
-	snd_soc_dai_set_dma_data(dai, substream, (void *)dd);
-
-	return 0;
-}
-
-static int hdac_hdmi_playback_cleanup(struct snd_pcm_substream *substream,
-		struct snd_soc_dai *dai)
-{
-	struct hdac_ext_device *edev = snd_soc_dai_get_drvdata(dai);
-	struct hdac_ext_dma_params *dd;
-	struct hdac_hdmi_priv *hdmi = edev->private_data;
-	struct hdac_hdmi_dai_pin_map *dai_map;
-
-	dai_map = &hdmi->dai_map[dai->id];
-
-	snd_hdac_codec_write(&edev->hdac, dai_map->cvt->nid, 0,
-				AC_VERB_SET_CHANNEL_STREAMID, 0);
-	snd_hdac_codec_write(&edev->hdac, dai_map->cvt->nid, 0,
-				AC_VERB_SET_STREAM_FORMAT, 0);
-
-	dd = (struct hdac_ext_dma_params *)snd_soc_dai_get_dma_data(dai, substream);
-	snd_soc_dai_set_dma_data(dai, substream, NULL);
-
-	kfree(dd);
-
-	return 0;
-}
-
 static int hdac_hdmi_enable_pin(struct hdac_ext_device *hdac,
 		struct hdac_hdmi_dai_pin_map *dai_map)
 {
@@ -532,8 +486,8 @@ static struct hdac_hdmi_pin *hdac_hdmi_get_pin_from_daistream(
 	return NULL;
 }
 
-static int hdac_hdmi_pcm_open(struct snd_pcm_substream *substream,
-			struct snd_soc_dai *dai)
+static int hdac_hdmi_set_hw_params(struct snd_pcm_substream *substream,
+	struct snd_pcm_hw_params *hparams, struct snd_soc_dai *dai)
 {
 	struct hdac_ext_device *hdac = snd_soc_dai_get_drvdata(dai);
 	struct hdac_hdmi_priv *hdmi = hdac->private_data;
@@ -541,6 +495,7 @@ static int hdac_hdmi_pcm_open(struct snd_pcm_substream *substream,
 	struct hdac_hdmi_cvt *cvt;
 	struct hdac_hdmi_pin *pin;
 	int ret;
+	struct hdac_ext_dma_params *dd;
 
 	if (dai->id > 0) {
 		dev_err(&hdac->hdac.dev, "Only one dai supported as of now\n");
@@ -573,25 +528,59 @@ static int hdac_hdmi_pcm_open(struct snd_pcm_substream *substream,
 	if (ret < 0)
 		return ret;
 
-	return snd_pcm_hw_constraint_eld(substream->runtime,
-				pin->eld.eld_buffer);
+	ret = snd_pcm_hw_constraint_eld(substream->runtime,
+			dai_map->pin->eld.eld_buffer);
+
+	if (ret < 0)
+		return ret;
+
+	dd = (struct hdac_ext_dma_params *)snd_soc_dai_get_dma_data(dai, substream);
+	if (!dd) {
+		dd = kzalloc(sizeof(*dd), GFP_KERNEL);
+		if (!dd)
+			return -ENOMEM;
+	}
+	dd->format = snd_hdac_calc_stream_format(params_rate(hparams),
+			params_channels(hparams), params_format(hparams),
+			24, 0);
+
+	snd_soc_dai_set_dma_data(dai, substream, (void *)dd);
+
+	return 0;
 }
 
-static void hdac_hdmi_pcm_close(struct snd_pcm_substream *substream,
+static int hdac_hdmi_playback_cleanup(struct snd_pcm_substream *substream,
 		struct snd_soc_dai *dai)
 {
-	struct hdac_ext_device *hdac = snd_soc_dai_get_drvdata(dai);
-	struct hdac_hdmi_priv *hdmi = hdac->private_data;
+	struct hdac_ext_device *edev = snd_soc_dai_get_drvdata(dai);
+	struct hdac_ext_dma_params *dd;
+	struct hdac_hdmi_priv *hdmi = edev->private_data;
 	struct hdac_hdmi_dai_pin_map *dai_map;
 
 	dai_map = &hdmi->dai_map[dai->id];
 
-	hdac_hdmi_set_power_state(hdac, dai_map, AC_PWRST_D3);
+	dd = (struct hdac_ext_dma_params *)snd_soc_dai_get_dma_data(dai, substream);
 
-	snd_hdac_codec_write(&hdac->hdac, dai_map->pin->nid, 0,
+	if (dd) {
+		snd_soc_dai_set_dma_data(dai, substream, NULL);
+		kfree(dd);
+	}
+
+	if (dai_map->pin) {
+		snd_hdac_codec_write(&edev->hdac, dai_map->cvt->nid, 0,
+				AC_VERB_SET_CHANNEL_STREAMID, 0);
+		snd_hdac_codec_write(&edev->hdac, dai_map->cvt->nid, 0,
+				AC_VERB_SET_STREAM_FORMAT, 0);
+
+		hdac_hdmi_set_power_state(edev, dai_map, AC_PWRST_D3);
+
+		snd_hdac_codec_write(&edev->hdac, dai_map->pin->nid, 0,
 			AC_VERB_SET_AMP_GAIN_MUTE, AMP_OUT_MUTE);
 
-	dai_map->pin = NULL;
+		dai_map->pin = NULL;
+	}
+
+	return 0;
 }
 
 static int
@@ -1026,8 +1015,6 @@ static void hdac_hdmi_skl_enable_dp12(struct hdac_device *hdac)
 }
 
 static struct snd_soc_dai_ops hdmi_dai_ops = {
-	.startup = hdac_hdmi_pcm_open,
-	.shutdown = hdac_hdmi_pcm_close,
 	.hw_params = hdac_hdmi_set_hw_params,
 	.prepare = hdac_hdmi_playback_prepare,
 	.hw_free = hdac_hdmi_playback_cleanup,
