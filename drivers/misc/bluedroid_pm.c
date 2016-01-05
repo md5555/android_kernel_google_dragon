@@ -59,6 +59,7 @@ struct bluedroid_pm_data {
 	struct delayed_work retry_work;
 };
 
+static struct bluedroid_pm_data *bluedroid_pm;
 static struct tty_ldisc_ops bluedroid_pm_ldisc_ops;
 
 static irqreturn_t bluedroid_pm_hostwake_isr(int irq, void *dev_id)
@@ -76,9 +77,7 @@ static void bluedroid_pm_work(struct work_struct *work)
 	struct bluedroid_pm_data *bluedroid_pm =
 		container_of(work, struct bluedroid_pm_data, retry_work.work);
 
-	bluedroid_pm->retries = bluedroid_pm->retries + 1;
-
-	if (bluedroid_pm->retries >= MAX_SLEEP_RETRIES)
+	if (++bluedroid_pm->retries >= MAX_SLEEP_RETRIES)
 		dev_err(bluedroid_pm->dev, "Couldn't sleep after %d tries",
 			bluedroid_pm->retries);
 
@@ -98,12 +97,9 @@ static void bluedroid_pm_work(struct work_struct *work)
 static int bluedroid_pm_tty_ioctl(struct tty_struct *tty, struct file *file,
 				unsigned int cmd, unsigned long arg)
 {
-	struct bluedroid_pm_data *bluedroid_pm;
-
 	if (!tty || tty->magic != TTY_MAGIC)
 		return -ENODEV;
 
-	bluedroid_pm = tty->driver_data;
 	if (!bluedroid_pm)
 		return -ENODEV;
 
@@ -130,6 +126,13 @@ static int bluedroid_pm_tty_ioctl(struct tty_struct *tty, struct file *file,
 	}
 }
 
+static long bluedroid_pm_tty_compat_ioctl(struct tty_struct *tty,
+					  struct file *file,
+					  unsigned int cmd, unsigned long arg)
+{
+	return bluedroid_pm_tty_ioctl(tty, file, cmd, arg);
+}
+
 static int bluedroid_pm_tty_init(void)
 {
 	int err;
@@ -140,6 +143,7 @@ static int bluedroid_pm_tty_init(void)
 	bluedroid_pm_ldisc_ops.owner = THIS_MODULE;
 	bluedroid_pm_ldisc_ops.name = "bluedroid_pm_tty";
 	bluedroid_pm_ldisc_ops.ioctl = bluedroid_pm_tty_ioctl;
+	bluedroid_pm_ldisc_ops.compat_ioctl = bluedroid_pm_tty_compat_ioctl;
 
 	err = tty_register_ldisc(N_BRCM_HCI, &bluedroid_pm_ldisc_ops);
 	if (err)
@@ -164,6 +168,7 @@ static void bluedroid_pm_tty_cleanup(void)
 static int bluedroid_pm_rfkill_set_power(void *data, bool blocked)
 {
 	struct bluedroid_pm_data *bluedroid_pm = data;
+
 	/*
 	 * check if BT gpio_shutdown line status and current request are same.
 	 * If same, then return, else perform requested operation.
@@ -210,7 +215,6 @@ MODULE_DEVICE_TABLE(of, bluedroid_match);
 
 static int bluedroid_pm_probe(struct platform_device *pdev)
 {
-	static struct bluedroid_pm_data *bluedroid_pm;
 	int ret;
 
 	bluedroid_pm = devm_kzalloc(&pdev->dev, sizeof(*bluedroid_pm),
