@@ -25,6 +25,7 @@
 #include <linux/pci.h>
 #include <linux/pm_runtime.h>
 #include <linux/platform_device.h>
+#include <linux/firmware.h>
 #include <sound/pcm.h>
 #include "../common/sst-acpi.h"
 #include <sound/hda_register.h>
@@ -694,6 +695,10 @@ static void skl_remove(struct pci_dev *pci)
 	struct skl *skl = ebus_to_skl(ebus);
 
 	snd_hdac_i915_exit(&ebus->bus);
+
+	if (skl->tplg)
+		release_firmware(skl->tplg);
+
 	if (pci_dev_run_wake(pci))
 		pm_runtime_get_noresume(&pci->dev);
 	pci_dev_put(pci);

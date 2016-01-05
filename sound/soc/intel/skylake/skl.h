@@ -73,6 +73,7 @@ struct skl {
 	struct list_head ppl_list;
 
 	const char *fw_name;
+	const struct firmware *tplg;
 
 	int supend_active;
 };
