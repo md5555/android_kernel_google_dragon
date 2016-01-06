@@ -48,7 +48,7 @@ nv50_bar_kmap(struct nvkm_bar *bar, struct nvkm_mem *mem, u32 flags,
 	struct nv50_bar_priv *priv = (void *)bar;
 	int ret;
 
-	ret = nvkm_vm_get(priv->bar3_vm, mem->size << 12, 12, flags, vma);
+	ret = nvkm_vm_get(priv->bar3_vm, 0, mem->size << 12, 12, flags, vma);
 	if (ret)
 		return ret;
 
@@ -63,7 +63,7 @@ nv50_bar_umap(struct nvkm_bar *bar, struct nvkm_mem *mem, u32 flags,
 	struct nv50_bar_priv *priv = (void *)bar;
 	int ret;
 
-	ret = nvkm_vm_get(priv->bar1_vm, mem->size << 12, 12, flags, vma);
+	ret = nvkm_vm_get(priv->bar1_vm, 0, mem->size << 12, 12, flags, vma);
 	if (ret)
 		return ret;
 

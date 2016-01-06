@@ -1107,12 +1107,12 @@ nouveau_bo_move_prep(struct nouveau_drm *drm, struct ttm_buffer_object *bo,
 	u64 size = (u64)mem->num_pages << PAGE_SHIFT;
 	int ret;
 
-	ret = nvkm_vm_get(drm->client.vm, size, old_node->page_shift,
+	ret = nvkm_vm_get(drm->client.vm, 0, size, old_node->page_shift,
 			  NV_MEM_ACCESS_RW, &old_node->vma[0]);
 	if (ret)
 		return ret;
 
-	ret = nvkm_vm_get(drm->client.vm, size, new_node->page_shift,
+	ret = nvkm_vm_get(drm->client.vm, 0, size, new_node->page_shift,
 			  NV_MEM_ACCESS_RW, &old_node->vma[1]);
 	if (ret) {
 		nvkm_vm_put(&old_node->vma[0]);
@@ -1773,7 +1773,7 @@ nouveau_bo_vma_add_offset(struct nouveau_bo *nvbo, struct nvkm_vm *vm,
 	const u32 size = nvbo->bo.mem.num_pages << PAGE_SHIFT;
 	int ret;
 
-	ret = nvkm_vm_get_offset(vm, size, nvbo->page_shift,
+	ret = nvkm_vm_get_offset(vm, 0, size, nvbo->page_shift,
 				 NV_MEM_ACCESS_RW, vma, offset);
 	if (ret)
 		return ret;

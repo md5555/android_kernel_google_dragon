@@ -262,13 +262,15 @@ nvkm_vm_map(struct nvkm_vma *vma, struct nvkm_mem *node)
 
 	if (node->sg) {
 		if (mmu->iommu_capable && vma->node->type == mmu->lpg_shift)
-			nvkm_vm_map_sg_table_with_iommu(vma, 0, node->size << 12, node);
+			nvkm_vm_map_sg_table_with_iommu(vma, vma->delta,
+							vma->length, node);
 		else
-			nvkm_vm_map_sg_table(vma, 0, node->size << 12, node);
+			nvkm_vm_map_sg_table(vma, vma->delta, vma->length,
+					     node);
 	} else if (node->pages) {
-			nvkm_vm_map_sg(vma, 0, node->size << 12, node);
+			nvkm_vm_map_sg(vma, vma->delta, vma->length, node);
 	} else {
-		nvkm_vm_map_at(vma, 0, node);
+		nvkm_vm_map_at(vma, vma->delta, node);
 	}
 
 	vma->mapped = true;
@@ -333,7 +335,7 @@ nvkm_vm_unmap_iommu(struct nvkm_vma *vma)
 void
 nvkm_vm_unmap(struct nvkm_vma *vma)
 {
-	nvkm_vm_unmap_at(vma, 0, (u64)vma->node->length << 12);
+	nvkm_vm_unmap_at(vma, vma->delta, (u64)vma->node->length << 12);
 
 	if (vma->iommu_mapping)
 		nvkm_vm_unmap_iommu(vma);
@@ -437,8 +439,8 @@ nvkm_vm_find_as(struct nvkm_vm *vm, u64 offset)
 }
 
 int
-nvkm_vm_get_offset(struct nvkm_vm *vm, u64 size, u32 page_shift, u32 access,
-		   struct nvkm_vma *vma, u64 offset)
+nvkm_vm_get_offset(struct nvkm_vm *vm, u64 delta, u64 size, u32 page_shift,
+		   u32 access, struct nvkm_vma *vma, u64 offset)
 {
 	struct nvkm_mmu *mmu = vm->mmu;
 	u32 align = (1 << page_shift) >> 12;
@@ -504,14 +506,16 @@ nvkm_vm_get_offset(struct nvkm_vm *vm, u64 size, u32 page_shift, u32 access,
 	nvkm_vm_ref(vm, &vma->vm, NULL);
 	vma->offset = (u64)vma->node->offset << 12;
 	vma->access = access;
+	vma->delta = delta;
+	vma->length = size;
 	return 0;
 }
 
 int
-nvkm_vm_get(struct nvkm_vm *vm, u64 size, u32 page_shift, u32 access,
-	    struct nvkm_vma *vma)
+nvkm_vm_get(struct nvkm_vm *vm, u64 delta, u64 size, u32 page_shift,
+	    u32 access, struct nvkm_vma *vma)
 {
-	return nvkm_vm_get_offset(vm, size, page_shift, access, vma, 0);
+	return nvkm_vm_get_offset(vm, delta, size, page_shift, access, vma, 0);
 }
 
 void
