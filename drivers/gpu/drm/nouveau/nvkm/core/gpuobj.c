@@ -262,7 +262,7 @@ nvkm_gpuobj_map_vm(struct nvkm_gpuobj *gpuobj, struct nvkm_vm *vm,
 	struct nvkm_mem **mem = (void *)(iobj + 1);
 	int ret;
 
-	ret = nvkm_vm_get(vm, gpuobj->size, 12, access, vma);
+	ret = nvkm_vm_get(vm, 0, gpuobj->size, 12, access, vma);
 	if (ret)
 		return ret;
 

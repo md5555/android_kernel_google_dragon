@@ -47,7 +47,7 @@ gf100_bar_kmap(struct nvkm_bar *bar, struct nvkm_mem *mem, u32 flags,
 	struct gf100_bar_priv *priv = (void *)bar;
 	int ret;
 
-	ret = nvkm_vm_get(priv->bar[0].vm, mem->size << 12, 12, flags, vma);
+	ret = nvkm_vm_get(priv->bar[0].vm, 0, mem->size << 12, 12, flags, vma);
 	if (ret)
 		return ret;
 
@@ -62,7 +62,7 @@ gf100_bar_umap(struct nvkm_bar *bar, struct nvkm_mem *mem, u32 flags,
 	struct gf100_bar_priv *priv = (void *)bar;
 	int ret;
 
-	ret = nvkm_vm_get(priv->bar[1].vm, mem->size << 12,
+	ret = nvkm_vm_get(priv->bar[1].vm, 0, mem->size << 12,
 			  mem->page_shift, flags, vma);
 	if (ret)
 		return ret;

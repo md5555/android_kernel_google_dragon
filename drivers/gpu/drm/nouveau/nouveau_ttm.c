@@ -263,7 +263,7 @@ nv04_gart_manager_new(struct ttm_mem_type_manager *man,
 
 	node->page_shift = 12;
 
-	ret = nvkm_vm_get(man->priv, mem->num_pages << 12, node->page_shift,
+	ret = nvkm_vm_get(man->priv, 0, mem->num_pages << 12, node->page_shift,
 			  NV_MEM_ACCESS_RW, &node->vma[0]);
 	if (ret) {
 		kfree(node);
