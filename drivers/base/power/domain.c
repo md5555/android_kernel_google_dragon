@@ -18,6 +18,10 @@
 #include <linux/suspend.h>
 #include <linux/export.h>
 
+#include "power.h"
+
+#define GENPD_RETRY_MAX_MS	250		/* Approximate */
+
 #define GENPD_DEV_CALLBACK(genpd, type, callback, dev)		\
 ({								\
 	type (*__routine)(struct device *__d); 			\
