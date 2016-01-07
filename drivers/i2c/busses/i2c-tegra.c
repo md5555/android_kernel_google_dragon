@@ -189,6 +189,7 @@ enum msg_end_type {
  *		single_master mode, no arbitration checks happen.
  * @has_slcg_override_reg: Controller has sclg override register used for
  *		overriding clk enable for multimaster busses.
+ * @rx_fifo_trig: Receive FIFO trigger level
  */
 
 struct tegra_i2c_hw_feature {
@@ -207,6 +208,7 @@ struct tegra_i2c_hw_feature {
 	u16 clk_divisor_fast_plus_mode;
 	bool has_multi_master_mode;
 	bool has_slcg_override_reg;
+	u32 rx_fifo_trig;
 };
 
 /**
@@ -657,7 +659,8 @@ static int tegra_i2c_init(struct tegra_i2c_dev *i2c_dev)
 	}
 
 	val = 7 << I2C_FIFO_CONTROL_TX_TRIG_SHIFT |
-		0 << I2C_FIFO_CONTROL_RX_TRIG_SHIFT;
+		((i2c_dev->hw->rx_fifo_trig & 0x7) <<
+		 I2C_FIFO_CONTROL_RX_TRIG_SHIFT);
 	i2c_writel(i2c_dev, val, I2C_FIFO_CONTROL);
 
 	if (tegra_i2c_flush_fifos(i2c_dev))
@@ -790,6 +793,9 @@ static irqreturn_t tegra_i2c_isr(int irq, void *dev_id)
 		dvc_writel(i2c_dev, DVC_STATUS_I2C_DONE_INTR, DVC_STATUS);
 
 	if (status & I2C_INT_PACKET_XFER_COMPLETE) {
+		if (i2c_dev->hw->rx_fifo_trig > 0)
+			if (i2c_dev->msg_read && i2c_dev->msg_buf_remaining)
+				tegra_i2c_empty_rx_fifo(i2c_dev);
 		BUG_ON(i2c_dev->msg_buf_remaining);
 		complete(&i2c_dev->msg_complete);
 	}
@@ -1037,6 +1043,7 @@ static const struct tegra_i2c_hw_feature tegra20_i2c_hw = {
 	.has_hw_arb_support = false,
 	.has_multi_master_mode = false,
 	.has_slcg_override_reg = false,
+	.rx_fifo_trig = 0,
 };
 
 static const struct tegra_i2c_hw_feature tegra30_i2c_hw = {
@@ -1050,6 +1057,7 @@ static const struct tegra_i2c_hw_feature tegra30_i2c_hw = {
 	.has_hw_arb_support = false,
 	.has_multi_master_mode = false,
 	.has_slcg_override_reg = false,
+	.rx_fifo_trig = 0,
 };
 
 static const struct tegra_i2c_hw_feature tegra114_i2c_hw = {
@@ -1063,6 +1071,7 @@ static const struct tegra_i2c_hw_feature tegra114_i2c_hw = {
 	.has_hw_arb_support = true,
 	.has_multi_master_mode = false,
 	.has_slcg_override_reg = false,
+	.rx_fifo_trig = 0,
 };
 
 static const struct tegra_i2c_hw_feature tegra124_i2c_hw = {
@@ -1076,6 +1085,7 @@ static const struct tegra_i2c_hw_feature tegra124_i2c_hw = {
 	.has_hw_arb_support = true,
 	.has_multi_master_mode = false,
 	.has_slcg_override_reg = true,
+	.rx_fifo_trig = 0,
 };
 
 static const struct tegra_i2c_hw_feature tegra210_i2c_hw = {
@@ -1089,6 +1099,7 @@ static const struct tegra_i2c_hw_feature tegra210_i2c_hw = {
 	.has_hw_arb_support = true,
 	.has_multi_master_mode = true,
 	.has_slcg_override_reg = true,
+	.rx_fifo_trig = 4,
 };
 
 static const struct tegra_i2c_hw_feature tegra210_i2c_vi_hw = {
@@ -1106,6 +1117,7 @@ static const struct tegra_i2c_hw_feature tegra210_i2c_vi_hw = {
 	.has_hw_arb_support = true,
 	.has_multi_master_mode = true,
 	.has_slcg_override_reg = true,
+	.rx_fifo_trig = 4,
 };
 
 static const struct tegra_i2c_hw_feature tegra210_i2c_dpaux_hw = {
@@ -1121,6 +1133,7 @@ static const struct tegra_i2c_hw_feature tegra210_i2c_dpaux_hw = {
 	.is_dpaux = true,
 	.has_multi_master_mode = true,
 	.has_slcg_override_reg = true,
+	.rx_fifo_trig = 4,
 };
 
 /* Match table for of_platform binding */
