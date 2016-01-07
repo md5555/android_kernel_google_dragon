@@ -77,6 +77,8 @@ Required properties:
 - dma-names: Must include the following entries:
   - rx
   - tx
+- nvidia,multimaster-mode: Should be set if the bus is operating in
+  multimaster mode.
 
 Optional properties:
 - nvidia,controller-id: ID of controller when referred to in
@@ -98,6 +100,7 @@ Example:
 		reset-names = "i2c";
 		dmas = <&apbdma 16>, <&apbdma 16>;
 		dma-names = "rx", "tx";
+		nvidia,multimaster-mode;
 		nvidia,controller-id = <0>;
 		status = "disabled";
 	};
