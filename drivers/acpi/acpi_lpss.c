@@ -18,6 +18,7 @@
 #include <linux/io.h>
 #include <linux/platform_device.h>
 #include <linux/platform_data/clk-lpss.h>
+#include <linux/pm_domain.h>
 #include <linux/pm_runtime.h>
 #include <linux/delay.h>
 
@@ -642,19 +643,22 @@ static int acpi_lpss_platform_notify(struct notifier_block *nb,
 	switch (action) {
 	case BUS_NOTIFY_BOUND_DRIVER:
 		if (pdata->dev_desc->flags & LPSS_SAVE_CTX)
-			pdev->dev.pm_domain = &acpi_lpss_pm_domain;
+			dev_pm_domain_set(&pdev->dev, &acpi_lpss_pm_domain);
 		break;
 	case BUS_NOTIFY_UNBOUND_DRIVER:
 		if (pdata->dev_desc->flags & LPSS_SAVE_CTX)
-			pdev->dev.pm_domain = NULL;
+			dev_pm_domain_set(&pdev->dev, NULL);
 		break;
 	case BUS_NOTIFY_ADD_DEVICE:
+		dev_pm_domain_set(&pdev->dev, &acpi_lpss_pm_domain);
 		if (pdata->dev_desc->flags & LPSS_LTR)
 			return sysfs_create_group(&pdev->dev.kobj,
 						  &lpss_attr_group);
 	case BUS_NOTIFY_DEL_DEVICE:
 		if (pdata->dev_desc->flags & LPSS_LTR)
 			sysfs_remove_group(&pdev->dev.kobj, &lpss_attr_group);
+		dev_pm_domain_set(&pdev->dev, NULL);
+		break;
 	default:
 		break;
 	}
