@@ -1291,7 +1291,7 @@ static int tegra_sor_connector_get_modes(struct drm_connector *connector)
 	int err;
 
 	if (sor->aux)
-		drm_dp_aux_enable(sor->aux);
+		drm_dp_aux_enable(sor->aux, DRM_DP_AUX_MODE_AUX);
 
 	err = tegra_output_connector_get_modes(connector);
 
@@ -1664,7 +1664,7 @@ static void tegra_sor_edp_enable(struct drm_encoder *encoder)
 
 	usleep_range(20, 100);
 
-	drm_dp_aux_enable(sor->aux);
+	drm_dp_aux_enable(sor->aux, DRM_DP_AUX_MODE_AUX);
 
 	err = drm_dp_link_probe(sor->aux, &sor->link);
 	if (err < 0) {
@@ -2328,7 +2328,7 @@ static void tegra_sor_dp_disable(struct drm_encoder *encoder)
 	u32 value;
 	int err;
 
-	drm_dp_aux_enable(sor->aux);
+	drm_dp_aux_enable(sor->aux, DRM_DP_AUX_MODE_AUX);
 
 	err = drm_dp_link_power_down(sor->aux, &sor->link);
 	if (err < 0)
@@ -2410,7 +2410,7 @@ static void tegra_sor_dp_enable(struct drm_encoder *encoder)
 
 	usleep_range(20, 100);
 
-	drm_dp_aux_enable(sor->aux);
+	drm_dp_aux_enable(sor->aux, DRM_DP_AUX_MODE_AUX);
 
 	err = drm_dp_link_probe(sor->aux, &sor->link);
 	if (err < 0) {

@@ -361,24 +361,6 @@ static int tegra_dpaux_probe(struct platform_device *pdev)
 	if (err < 0)
 		return err;
 
-	/*
-	 * Assume that by default the DPAUX/I2C pads will be used for HDMI,
-	 * so power them up and configure them in I2C mode.
-	 *
-	 * The DPAUX code paths reconfigure the pads in AUX mode, but there
-	 * is no possibility to perform the I2C mode configuration in the
-	 * HDMI path.
-	 */
-	value = tegra_dpaux_readl(dpaux, DPAUX_HYBRID_SPARE);
-	value &= ~DPAUX_HYBRID_SPARE_PAD_POWER_DOWN;
-	tegra_dpaux_writel(dpaux, value, DPAUX_HYBRID_SPARE);
-
-	value = tegra_dpaux_readl(dpaux, DPAUX_HYBRID_PADCTL);
-	value = DPAUX_HYBRID_PADCTL_I2C_SDA_INPUT_RCV |
-		DPAUX_HYBRID_PADCTL_I2C_SCL_INPUT_RCV |
-		DPAUX_HYBRID_PADCTL_MODE_I2C;
-	tegra_dpaux_writel(dpaux, value, DPAUX_HYBRID_PADCTL);
-
 	/* enable and clear all interrupts */
 	value = DPAUX_INTR_AUX_DONE | DPAUX_INTR_IRQ_EVENT |
 		DPAUX_INTR_UNPLUG_EVENT | DPAUX_INTR_PLUG_EVENT;
@@ -513,17 +495,25 @@ int drm_dp_aux_detach(struct drm_dp_aux *aux)
 	return 0;
 }
 
-int drm_dp_aux_enable(struct drm_dp_aux *aux)
+int drm_dp_aux_enable(struct drm_dp_aux *aux, enum drm_dp_aux_mode mode)
 {
 	struct tegra_dpaux *dpaux = to_dpaux(aux);
 	u32 value;
 
-	value = DPAUX_HYBRID_PADCTL_AUX_CMH(2) |
-		DPAUX_HYBRID_PADCTL_AUX_DRVZ(4) |
-		DPAUX_HYBRID_PADCTL_AUX_DRVI(0x18) |
-		DPAUX_HYBRID_PADCTL_AUX_INPUT_RCV |
-		DPAUX_HYBRID_PADCTL_MODE_AUX;
-	tegra_dpaux_writel(dpaux, value, DPAUX_HYBRID_PADCTL);
+	if (mode == DRM_DP_AUX_MODE_I2C) {
+		value = tegra_dpaux_readl(dpaux, DPAUX_HYBRID_PADCTL);
+		value = DPAUX_HYBRID_PADCTL_I2C_SDA_INPUT_RCV |
+			DPAUX_HYBRID_PADCTL_I2C_SCL_INPUT_RCV |
+			DPAUX_HYBRID_PADCTL_MODE_I2C;
+		tegra_dpaux_writel(dpaux, value, DPAUX_HYBRID_PADCTL);
+	} else {
+		value = DPAUX_HYBRID_PADCTL_AUX_CMH(2) |
+			DPAUX_HYBRID_PADCTL_AUX_DRVZ(4) |
+			DPAUX_HYBRID_PADCTL_AUX_DRVI(0x18) |
+			DPAUX_HYBRID_PADCTL_AUX_INPUT_RCV |
+			DPAUX_HYBRID_PADCTL_MODE_AUX;
+		tegra_dpaux_writel(dpaux, value, DPAUX_HYBRID_PADCTL);
+	}
 
 	value = tegra_dpaux_readl(dpaux, DPAUX_HYBRID_SPARE);
 	value &= ~DPAUX_HYBRID_SPARE_PAD_POWER_DOWN;
