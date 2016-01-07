@@ -164,6 +164,7 @@ enum msg_end_type {
  * @clk_divisor_std_fast_mode: Clock divisor in standard/fast mode. It is
  *		applicable if there is no fast clock source i.e. single clock
  *		source.
+ * @rx_fifo_trig: Receive FIFO trigger level
  */
 
 struct tegra_i2c_hw_feature {
@@ -179,6 +180,9 @@ struct tegra_i2c_hw_feature {
 	int clk_divisor_hs_mode;
 	int clk_divisor_std_fast_mode;
 	u16 clk_divisor_fast_plus_mode;
+	bool multi_master_mode_en;
+	bool has_slcg_override_reg;
+	u32 rx_fifo_trig:3;
 };
 
 /**
@@ -599,7 +603,7 @@ static int tegra_i2c_init(struct tegra_i2c_dev *i2c_dev)
 	}
 
 	val = 7 << I2C_FIFO_CONTROL_TX_TRIG_SHIFT |
-		0 << I2C_FIFO_CONTROL_RX_TRIG_SHIFT;
+		(i2c_dev->hw->rx_fifo_trig << I2C_FIFO_CONTROL_RX_TRIG_SHIFT);
 	i2c_writel(i2c_dev, val, I2C_FIFO_CONTROL);
 
 	if (tegra_i2c_flush_fifos(i2c_dev))
@@ -718,6 +722,9 @@ static irqreturn_t tegra_i2c_isr(int irq, void *dev_id)
 		dvc_writel(i2c_dev, DVC_STATUS_I2C_DONE_INTR, DVC_STATUS);
 
 	if (status & I2C_INT_PACKET_XFER_COMPLETE) {
+		if (i2c_dev->hw->rx_fifo_trig > 0)
+			if (i2c_dev->msg_read && i2c_dev->msg_buf_remaining)
+				tegra_i2c_empty_rx_fifo(i2c_dev);
 		BUG_ON(i2c_dev->msg_buf_remaining);
 		complete(&i2c_dev->msg_complete);
 	}
@@ -897,6 +904,9 @@ static const struct tegra_i2c_hw_feature tegra20_i2c_hw = {
 	.clk_divisor_std_fast_mode = 0,
 	.clk_divisor_fast_plus_mode = 0,
 	.has_config_load_reg = false,
+	.multi_master_mode_en = false,
+	.has_slcg_override_reg = false,
+	.rx_fifo_trig = 0,
 };
 
 static const struct tegra_i2c_hw_feature tegra30_i2c_hw = {
@@ -907,6 +917,9 @@ static const struct tegra_i2c_hw_feature tegra30_i2c_hw = {
 	.clk_divisor_std_fast_mode = 0,
 	.clk_divisor_fast_plus_mode = 0,
 	.has_config_load_reg = false,
+	.multi_master_mode_en = false,
+	.has_slcg_override_reg = false,
+	.rx_fifo_trig = 0,
 };
 
 static const struct tegra_i2c_hw_feature tegra114_i2c_hw = {
@@ -917,6 +930,9 @@ static const struct tegra_i2c_hw_feature tegra114_i2c_hw = {
 	.clk_divisor_std_fast_mode = 0x19,
 	.clk_divisor_fast_plus_mode = 0x10,
 	.has_config_load_reg = false,
+	.multi_master_mode_en = false,
+	.has_slcg_override_reg = false,
+	.rx_fifo_trig = 0,
 };
 
 static const struct tegra_i2c_hw_feature tegra124_i2c_hw = {
@@ -927,6 +943,22 @@ static const struct tegra_i2c_hw_feature tegra124_i2c_hw = {
 	.clk_divisor_std_fast_mode = 0x19,
 	.clk_divisor_fast_plus_mode = 0x10,
 	.has_config_load_reg = true,
+	.multi_master_mode_en = false,
+	.has_slcg_override_reg = true,
+	.rx_fifo_trig = 0,
+};
+
+static const struct tegra_i2c_hw_feature tegra210_i2c_hw = {
+	.has_continue_xfer_support = true,
+	.has_per_pkt_xfer_complete_irq = true,
+	.has_single_clk_source = true,
+	.clk_divisor_hs_mode = 1,
+	.clk_divisor_std_fast_mode = 0x19,
+	.clk_divisor_fast_plus_mode = 0x10,
+	.has_config_load_reg = true,
+	.multi_master_mode_en = true,
+	.has_slcg_override_reg = true,
+	.rx_fifo_trig = 4,
 };
 
 static const struct tegra_i2c_hw_feature tegra210_i2c_vi_hw = {
@@ -941,6 +973,9 @@ static const struct tegra_i2c_hw_feature tegra210_i2c_vi_hw = {
 	.has_powergate = true,
 	.powergate_id = TEGRA_POWERGATE_VENC,
 	.is_vi = true,
+	.multi_master_mode_en = true,
+	.has_slcg_override_reg = true,
+	.rx_fifo_trig = 4,
 };
 
 static const struct tegra_i2c_hw_feature tegra210_i2c_dpaux_hw = {
@@ -954,6 +989,9 @@ static const struct tegra_i2c_hw_feature tegra210_i2c_dpaux_hw = {
 	.has_powergate = true,
 	.powergate_id = TEGRA_POWERGATE_SOR,
 	.is_dpaux = true,
+	.multi_master_mode_en = true,
+	.has_slcg_override_reg = true,
+	.rx_fifo_trig = 4,
 };
 
 /* Match table for of_platform binding */
