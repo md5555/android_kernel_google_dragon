@@ -27,6 +27,7 @@
 #include <linux/pci.h>
 #include <linux/console.h>
 #include <linux/vga_switcheroo.h>
+#include <linux/pm_domain.h>
 #include <linux/pm_runtime.h>
 
 #include <linux/vgaarb.h>
@@ -652,17 +653,17 @@ int vga_switcheroo_init_domain_pm_ops(struct device *dev, struct dev_pm_domain *
 		domain->ops.runtime_suspend = vga_switcheroo_runtime_suspend;
 		domain->ops.runtime_resume = vga_switcheroo_runtime_resume;
 
-		dev->pm_domain = domain;
+		dev_pm_domain_set(dev, domain);
 		return 0;
 	}
-	dev->pm_domain = NULL;
+	dev_pm_domain_set(dev, NULL);
 	return -EINVAL;
 }
 EXPORT_SYMBOL(vga_switcheroo_init_domain_pm_ops);
 
 void vga_switcheroo_fini_domain_pm_ops(struct device *dev)
 {
-	dev->pm_domain = NULL;
+	dev_pm_domain_set(dev, NULL);
 }
 EXPORT_SYMBOL(vga_switcheroo_fini_domain_pm_ops);
 
@@ -702,10 +703,10 @@ int vga_switcheroo_init_domain_pm_optimus_hdmi_audio(struct device *dev, struct 
 		domain->ops = *dev->bus->pm;
 		domain->ops.runtime_resume = vga_switcheroo_runtime_resume_hdmi_audio;
 
-		dev->pm_domain = domain;
+		dev_pm_domain_set(dev, domain);
 		return 0;
 	}
-	dev->pm_domain = NULL;
+	dev_pm_domain_set(dev, NULL);
 	return -EINVAL;
 }
 EXPORT_SYMBOL(vga_switcheroo_init_domain_pm_optimus_hdmi_audio);
