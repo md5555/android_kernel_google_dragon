@@ -44,10 +44,10 @@ struct thread_info {
 	 * the syscall entry assembly code, most variations use ..._max.
 	 */
 	unsigned int		nr_syscalls;	/* size of below */
-	ti_sys_call_ptr_t	*sys_call_table;
+	const ti_sys_call_ptr_t	*sys_call_table;
 # ifdef CONFIG_IA32_EMULATION
 	unsigned int		ia32_nr_syscalls;	/* size of below */
-	ti_sys_call_ptr_t	*ia32_sys_call_table;
+	const ti_sys_call_ptr_t	*ia32_sys_call_table;
 # endif
 #endif
 };
@@ -57,13 +57,13 @@ struct thread_info {
 extern ti_sys_call_ptr_t ia32_sys_call_table[];
 #  define INIT_THREAD_INFO_SYSCALL_COMPAT			\
 	.ia32_nr_syscalls	= IA32_NR_syscalls,		\
-	.ia32_sys_call_table	= &ia32_sys_call_table,
+	.ia32_sys_call_table	= ia32_sys_call_table,
 # else
 #  define INIT_THREAD_INFO_SYSCALL_COMPAT /* */
 # endif
 # define INIT_THREAD_INFO_SYSCALL \
 	.nr_syscalls	= NR_syscalls,		\
-	.sys_call_table	= &sys_call_table,	\
+	.sys_call_table	= sys_call_table,	\
 	INIT_THREAD_INFO_SYSCALL_COMPAT
 #else
 # define INIT_THREAD_INFO_SYSCALL /* */
