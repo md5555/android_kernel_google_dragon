@@ -369,6 +369,10 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 #ifdef CONFIG_X86_32
 	SYSCALL_ENTRY(socketcall),
 #else
+	SYSCALL_ENTRY(accept),
+	SYSCALL_ENTRY(accept4),
+	SYSCALL_ENTRY(bind),
+	SYSCALL_ENTRY(connect),
 	SYSCALL_ENTRY(getpeername),
 	SYSCALL_ENTRY(getsockname),
 	SYSCALL_ENTRY(getsockopt),
