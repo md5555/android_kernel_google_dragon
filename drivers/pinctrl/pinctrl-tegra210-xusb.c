@@ -1148,9 +1148,9 @@ static int tegra210_utmi_phy_power_on(struct phy *phy)
 		   XUSB_PADCTL_USB2_OTG_PAD_CTL0_PD |
 		   XUSB_PADCTL_USB2_OTG_PAD_CTL0_PD2 |
 		   XUSB_PADCTL_USB2_OTG_PAD_CTL0_PD_ZI);
-	value |= (priv->fuse.hs_curr_level[port] +
-		  utmi->hs_curr_level_offset) <<
-		 XUSB_PADCTL_USB2_OTG_PAD_CTL0_HS_CURR_LEVEL_SHIFT;
+	value |= (((u32) clamp_val((s32) priv->fuse.hs_curr_level[port] +
+		   utmi->hs_curr_level_offset, 0, 0x3f)) <<
+		  XUSB_PADCTL_USB2_OTG_PAD_CTL0_HS_CURR_LEVEL_SHIFT);
 	padctl_writel(padctl, value, XUSB_PADCTL_USB2_OTG_PADX_CTL0(port));
 
 	value = padctl_readl(padctl, XUSB_PADCTL_USB2_OTG_PADX_CTL1(port));
