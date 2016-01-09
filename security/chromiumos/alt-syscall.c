@@ -124,9 +124,11 @@ static asmlinkage long alt_sys_prctl(int option, unsigned long arg2,
 #define __NR_compat_lseek	__NR_ia32_lseek
 #define __NR_compat_lsetxattr	__NR_ia32_lsetxattr
 #define __NR_compat_madvise	__NR_ia32_madvise
+#define __NR_compat_mincore	__NR_ia32_mincore
 #define __NR_compat_mkdirat	__NR_ia32_mkdirat
 #define __NR_compat_mknodat	__NR_ia32_mknodat
 #define __NR_compat_mlockall	__NR_ia32_mlockall
+#define __NR_compat_modify_ldt	__NR_ia32_modify_ldt
 #define __NR_compat_mount	__NR_ia32_mount
 #define __NR_compat_mprotect	__NR_ia32_mprotect
 #define __NR_compat_mremap	__NR_ia32_mremap
@@ -158,6 +160,7 @@ static asmlinkage long alt_sys_prctl(int option, unsigned long arg2,
 #define __NR_compat_sched_setscheduler	__NR_ia32_sched_setscheduler
 #define __NR_compat_sched_yield	__NR_ia32_sched_yield
 #define __NR_compat_set_tid_address	__NR_ia32_set_tid_address
+#define __NR_compat_set_thread_area	__NR_ia32_set_thread_area
 #define __NR_compat_setgid	__NR_ia32_setgid
 #define __NR_compat_setgroups	__NR_ia32_setgroups
 #define __NR_compat_setitimer	__NR_ia32_setitimer
@@ -298,6 +301,7 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(lseek),
 	SYSCALL_ENTRY(lsetxattr),
 	SYSCALL_ENTRY(madvise),
+	SYSCALL_ENTRY(mincore),
 	SYSCALL_ENTRY(mkdirat),
 	SYSCALL_ENTRY(mknodat),
 	SYSCALL_ENTRY(mlockall),
@@ -417,6 +421,12 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(statfs64),
 	SYSCALL_ENTRY(ugetrlimit),
 #endif
+
+	/* X86-specific syscalls. */
+#ifdef CONFIG_X86
+	SYSCALL_ENTRY(modify_ldt),
+	SYSCALL_ENTRY(set_thread_area),
+#endif
 };
 
 #ifdef CONFIG_COMPAT
@@ -488,9 +498,11 @@ static struct syscall_whitelist_entry android_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY(lseek),
 	COMPAT_SYSCALL_ENTRY(lsetxattr),
 	COMPAT_SYSCALL_ENTRY(madvise),
+	COMPAT_SYSCALL_ENTRY(mincore),
 	COMPAT_SYSCALL_ENTRY(mkdirat),
 	COMPAT_SYSCALL_ENTRY(mknodat),
 	COMPAT_SYSCALL_ENTRY(mlockall),
+	COMPAT_SYSCALL_ENTRY(modify_ldt),
 	COMPAT_SYSCALL_ENTRY(mount),
 	COMPAT_SYSCALL_ENTRY(mprotect),
 	COMPAT_SYSCALL_ENTRY(mremap),
@@ -521,6 +533,7 @@ static struct syscall_whitelist_entry android_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY(sched_setscheduler),
 	COMPAT_SYSCALL_ENTRY(sched_yield),
 	COMPAT_SYSCALL_ENTRY(set_tid_address),
+	COMPAT_SYSCALL_ENTRY(set_thread_area),
 	COMPAT_SYSCALL_ENTRY(setgid),
 	COMPAT_SYSCALL_ENTRY(setgroups),
 	COMPAT_SYSCALL_ENTRY(setitimer),
