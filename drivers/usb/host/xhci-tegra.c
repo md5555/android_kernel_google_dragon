@@ -403,7 +403,8 @@ static int tegra_xhci_load_firmware(struct tegra_xhci_hcd *tegra)
 		usleep_range(100, 200);
 	} while (time_before(jiffies, timeout));
 
-	if (time_after_eq(jiffies, timeout)) {
+	if (!(csb_readl(tegra, XUSB_CSB_MEMPOOL_L2IMEMOP_RESULT) &
+	    XUSB_CSB_MEMPOOL_L2IMEMOP_RESULT_VLD)) {
 		dev_err(dev, "DMA timed out, status: %#x\n",
 			csb_readl(tegra, XUSB_CSB_MEMPOOL_L2IMEMOP_RESULT));
 		return -ETIMEDOUT;
