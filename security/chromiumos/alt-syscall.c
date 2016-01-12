@@ -33,6 +33,18 @@ struct syscall_whitelist {
 #endif
 };
 
+/* Intercept and log blocked syscalls. */
+static asmlinkage long alt_sys_ni_syscall(void)
+{
+	struct task_struct *task = current;
+	struct pt_regs *regs = task_pt_regs(task);
+
+	pr_warn("[%d] %s: blocked syscall %d\n", task_pid_nr(task),
+		task->comm, syscall_get_nr(task, regs));
+
+	return -ENOSYS;
+}
+
 /*
  * If an alt_syscall table allows prctl(), override it to prevent a process
  * from changing its syscall table.
@@ -617,7 +629,7 @@ static int alt_syscall_apply_whitelist(const struct syscall_whitelist *wl,
 
 	for (i = 0; i < t->size; i++) {
 		if (!test_bit(i, whitelist))
-			t->table[i] = (sys_call_ptr_t)sys_ni_syscall;
+			t->table[i] = (sys_call_ptr_t)alt_sys_ni_syscall;
 	}
 
 	return 0;
@@ -644,7 +656,7 @@ alt_syscall_apply_compat_whitelist(const struct syscall_whitelist *wl,
 
 	for (i = 0; i < t->compat_size; i++) {
 		if (!test_bit(i, whitelist))
-			t->compat_table[i] = (sys_call_ptr_t)sys_ni_syscall;
+			t->compat_table[i] = (sys_call_ptr_t)alt_sys_ni_syscall;
 	}
 
 	return 0;
