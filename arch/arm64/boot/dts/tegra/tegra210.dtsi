@@ -1315,8 +1315,10 @@
 		interrupts = <GIC_SPI 53 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <1>;
 		#size-cells = <0>;
-		clocks = <&tegra_car TEGRA210_CLK_I2C5>;
-		clock-names = "div-clk";
+		clocks = <&tegra_car TEGRA210_CLK_I2C5>,
+			 <&tegra_car TEGRA210_CLK_DFLL_REF>,
+			 <&tegra_car TEGRA210_CLK_DFLL_SOC>;
+		clock-names = "div-clk", "cl_dvfs_ref", "cl_dvfs_soc";
 		resets = <&tegra_car 47>;
 		reset-names = "i2c";
 		dmas = <&apbdma 24>, <&apbdma 24>;
