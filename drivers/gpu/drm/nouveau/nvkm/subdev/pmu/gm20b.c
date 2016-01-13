@@ -2536,7 +2536,7 @@ gm20b_pmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	priv->mutex = kzalloc(priv->mutex_cnt *
 				sizeof(struct pmu_mutex), GFP_KERNEL);
 	if (!priv->mutex) {
-		nv_error(ppmu, "alloc for pmu_mutexes failed\n");
+		nv_error(priv, "alloc for pmu_mutexes failed\n");
 		return -ENOMEM;
 	}
 
@@ -2546,7 +2546,7 @@ gm20b_pmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	priv->seq = kzalloc(PMU_MAX_NUM_SEQUENCES *
 		sizeof(struct pmu_sequence), GFP_KERNEL);
 	if (!priv->seq) {
-		nv_error(ppmu, "alloc for sequences failed\n");
+		nv_error(priv, "alloc for sequences failed\n");
 		kfree(priv->mutex);
 		return -ENOMEM;
 	}
