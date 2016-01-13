@@ -3151,7 +3151,7 @@ static int tcp_is_local(struct net *net, __be32 addr) {
 	return rt->dst.dev && (rt->dst.dev->flags & IFF_LOOPBACK);
 }
 
-#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
+#if defined(CONFIG_IPV6)
 static int tcp_is_local6(struct net *net, struct in6_addr *addr) {
 	struct rt6_info *rt6 = rt6_lookup(net, addr, addr, 0, 0);
 	return rt6 && rt6->dst.dev && (rt6->dst.dev->flags & IFF_LOOPBACK);
@@ -3169,12 +3169,12 @@ int tcp_nuke_addr(struct net *net, struct sockaddr *addr)
 	unsigned int bucket;
 
 	struct in_addr *in;
-#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
+#if defined(CONFIG_IPV6)
 	struct in6_addr *in6 = NULL;
 #endif
 	if (family == AF_INET) {
 		in = &((struct sockaddr_in *)addr)->sin_addr;
-#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
+#if defined(CONFIG_IPV6)
 	} else if (family == AF_INET6) {
 		in6 = &((struct sockaddr_in6 *)addr)->sin6_addr;
 #endif
@@ -3222,7 +3222,7 @@ restart:
 					continue;
 			}
 
-#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
+#if defined(CONFIG_IPV6)
 			if (family == AF_INET6) {
 				struct in6_addr *s6;
 
