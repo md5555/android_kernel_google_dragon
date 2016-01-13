@@ -700,7 +700,7 @@ static const struct of_device_id tpm_tis_i2c_of_match[] = {
 MODULE_DEVICE_TABLE(of, tpm_tis_i2c_of_match);
 #endif
 
-static int tpm_tis_i2c_suspend(struct device *dev)
+static int __maybe_unused tpm_tis_i2c_suspend(struct device *dev)
 {
 	if (tpm_dev.powered_while_suspended)
 		return 0;
@@ -708,7 +708,7 @@ static int tpm_tis_i2c_suspend(struct device *dev)
 	return tpm_pm_suspend(dev);
 }
 
-static int tpm_tis_i2c_resume(struct device *dev)
+static int __maybe_unused tpm_tis_i2c_resume(struct device *dev)
 {
 	if (tpm_dev.powered_while_suspended)
 		return 0;
