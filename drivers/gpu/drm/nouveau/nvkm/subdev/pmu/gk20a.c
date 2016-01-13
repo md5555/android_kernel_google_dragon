@@ -3276,9 +3276,9 @@ gk20a_pmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	mutex_init(&priv->allow_elpg_mutex);
 	mutex_init(&priv->elpg_mutex);
 	mutex_init(&priv->clk_gating_mutex);
-	init_completion(&pmu->gr_init);
 	priv->data = &gk20a_dvfs_data;
 	pmu = &priv->base;
+	init_completion(&pmu->gr_init);
 	pmc = nvkm_mc(pmu);
 	nv_subdev(pmu)->intr = gk20a_pmu_intr;
 	pmu->enable_elpg = gk20a_pmu_enable_elpg;
