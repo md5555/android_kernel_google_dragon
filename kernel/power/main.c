@@ -86,11 +86,6 @@ static const char * const pm_tests[__TEST_AFTER_LAST] = {
 	[TEST_FREEZER] = "freezer",
 };
 
-static const char * const unknown = "unknown";
-static const char * const automatic = "automatic";
-static const char * const user = "user";
-static const char * const invalid = "invalid";
-
 static ssize_t pm_test_show(struct kobject *kobj, struct kobj_attribute *attr,
 				char *buf)
 {
@@ -480,6 +475,11 @@ static ssize_t wakeup_count_store(struct kobject *kobj,
 }
 
 power_attr(wakeup_count);
+
+static const char * const unknown = "unknown";
+static const char * const automatic = "automatic";
+static const char * const user = "user";
+static const char * const invalid = "invalid";
 
 static ssize_t wakeup_type_show(struct kobject *kobj,
 				struct kobj_attribute *attr,
