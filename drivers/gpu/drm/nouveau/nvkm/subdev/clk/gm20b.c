@@ -1569,10 +1569,8 @@ gm20b_clk_oclass = {
 	},
 };
 
-#ifdef CONFIG_THERMAL
-/* Implement GPU throttle */
-
-static int gm20b_freq_to_pstate(struct nvkm_clk *clk, unsigned long rate)
+static int __maybe_unused gm20b_freq_to_pstate(struct nvkm_clk *clk,
+					       unsigned long rate)
 {
 	int i;
 	unsigned long domain;
@@ -1586,6 +1584,9 @@ static int gm20b_freq_to_pstate(struct nvkm_clk *clk, unsigned long rate)
 
 	return 0;
 }
+
+#ifdef CONFIG_THERMAL
+/* Implement GPU throttle */
 
 static int
 gm20b_clk_throt_get_cdev_max_state(struct thermal_cooling_device *cdev,
