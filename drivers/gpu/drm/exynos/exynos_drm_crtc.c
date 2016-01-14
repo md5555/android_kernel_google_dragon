@@ -417,7 +417,7 @@ void exynos_drm_crtc_disable_vblank(struct drm_device *dev, unsigned int pipe)
 		manager->ops->disable_vblank(manager);
 }
 
-void exynos_drm_crtc_finish_pageflip(struct drm_device *dev, int pipe)
+void exynos_drm_crtc_finish_pageflip(struct drm_device *dev, unsigned int pipe)
 {
 	struct exynos_drm_private *dev_priv = dev->dev_private;
 	struct drm_pending_vblank_event *e, *t;
