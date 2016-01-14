@@ -37,7 +37,7 @@
 
 #define DRV_NAME "tegra210-iqc"
 
-static const struct reg_default tegra210_iqc_reg_defaultss[] = {
+static const struct reg_default tegra210_iqc_reg_defaults[] = {
 	{ TEGRA210_IQC_AXBAR_TX_INT_MASK, 0x0000000f},
 	{ TEGRA210_IQC_AXBAR_TX_CIF_CTRL, 0x00007700},
 	{ TEGRA210_IQC_CG, 0x1},
