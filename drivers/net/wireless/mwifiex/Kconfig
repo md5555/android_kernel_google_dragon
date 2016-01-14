@@ -1,6 +1,8 @@
 config MWIFIEX
 	tristate "Marvell WiFi-Ex Driver"
 	depends on CFG80211
+	select WIRELESS_EXT
+	select WEXT_PRIV
 	---help---
 	  This adds support for wireless adapters based on Marvell
 	  802.11n/ac chipsets.
