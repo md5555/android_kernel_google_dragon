@@ -2223,7 +2223,7 @@ static int tegra_dc_set_latency_allowance(struct drm_crtc *crtc,
 		plane_emc_bw = tegra_dc_get_plane_emc_bw(tps, old_tps, update);
 
 		total_active_space_bw +=
-			DIV_ROUND_UP(plane_emc_bw, 1000);
+			DIV_ROUND_UP_ULL(plane_emc_bw, 1000);
 	}
 
 	for_each_plane_in_state(old_state, plane, old_plane_state, i) {
