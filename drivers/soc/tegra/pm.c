@@ -337,8 +337,10 @@ static bool tegra_sleep_core_init(void)
 static void tegra_suspend_enter_lp0(void)
 {
 #ifdef CONFIG_ARM
+#ifdef BROKEN
 	tegra_smp_clear_cpu_init_mask();
 	tegra_cpu_reset_handler_save();
+#endif
 #endif
 	tegra_tsc_suspend();
 }
@@ -348,7 +350,9 @@ static void tegra_suspend_exit_lp0(void)
 	tegra_tsc_resume();
 #ifdef CONFIG_ARM
 	tegra_pmc_lp0_resume();
+#ifdef BROKEN
 	tegra_cpu_reset_handler_restore();
+#endif
 #endif
 }
 
