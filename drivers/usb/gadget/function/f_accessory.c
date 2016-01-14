@@ -404,7 +404,7 @@ static void acc_hid_close(struct hid_device *hid)
 {
 }
 
-int acc_hid_raw_request(struct hid_device *hid, unsigned char reportnum,
+static int acc_hid_raw_request(struct hid_device *hid, unsigned char reportnum,
 	__u8 *buf, size_t len, unsigned char rtype, int reqtype)
 {
 	return 0;
