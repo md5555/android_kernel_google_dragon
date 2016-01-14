@@ -392,8 +392,9 @@ static unsigned int get_num_devices(struct hda_codec *codec, hda_nid_t nid)
 	    get_wcaps_type(wcaps) != AC_WID_PIN)
 		return 0;
 
-	if (snd_hdac_read_parm_uncached(&codec->core, nid, AC_PAR_DEVLIST_LEN))
-		return 0; /* error */
+	parm = snd_hdac_read_parm_uncached(&codec->core, nid, AC_PAR_DEVLIST_LEN);
+	if (parm == -1)
+		return 0;
 	return parm & AC_DEV_LIST_LEN_MASK;
 }
 
