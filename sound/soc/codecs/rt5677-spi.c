@@ -28,6 +28,7 @@
 #include <linux/sysfs.h>
 #include <linux/clk.h>
 #include <linux/firmware.h>
+#include <linux/of.h>
 
 #include "rt5677-spi.h"
 #include "rt5677-hotword.h"
