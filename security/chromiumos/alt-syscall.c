@@ -31,10 +31,13 @@ struct syscall_whitelist {
 	const struct syscall_whitelist_entry *compat_whitelist;
 	unsigned int nr_compat_whitelist;
 #endif
+	bool permissive;
 };
 
+static struct alt_sys_call_table default_table;
+
 /* Intercept and log blocked syscalls. */
-static asmlinkage long alt_sys_ni_syscall(void)
+static asmlinkage long block_syscall(void)
 {
 	struct task_struct *task = current;
 	struct pt_regs *regs = task_pt_regs(task);
@@ -44,6 +47,54 @@ static asmlinkage long alt_sys_ni_syscall(void)
 
 	return -ENOSYS;
 }
+
+typedef asmlinkage long (*raw_sys_call_ptr_t)(unsigned long, unsigned long,
+					      unsigned long, unsigned long,
+					      unsigned long, unsigned long);
+
+/*
+ * In permissive mode, warn that the syscall was blocked, but still allow
+ * it to go through.  Note that since we don't have an easy way to map from
+ * syscall to number of arguments, we pass the maximum (6).
+ */
+static long do_syscall(raw_sys_call_ptr_t fn)
+{
+	struct task_struct *task = current;
+	struct pt_regs *regs = task_pt_regs(task);
+	unsigned long args[6];
+
+	syscall_get_arguments(task, regs, 0, ARRAY_SIZE(args), args);
+
+	return fn(args[0], args[1], args[2], args[3], args[4], args[5]);
+}
+
+static asmlinkage long warn_syscall(void)
+{
+	struct task_struct *task = current;
+	struct pt_regs *regs = task_pt_regs(task);
+	int nr = syscall_get_nr(task, regs);
+	raw_sys_call_ptr_t fn = (raw_sys_call_ptr_t)default_table.table[nr];
+
+	pr_warn_ratelimited("[%d] %s: syscall %d not whitelisted\n",
+			    task_pid_nr(task), task->comm, nr);
+
+	return do_syscall(fn);
+}
+
+#ifdef CONFIG_COMPAT
+static asmlinkage long warn_compat_syscall(void)
+{
+	struct task_struct *task = current;
+	struct pt_regs *regs = task_pt_regs(task);
+	int nr = syscall_get_nr(task, regs);
+	raw_sys_call_ptr_t fn = (raw_sys_call_ptr_t)default_table.compat_table[nr];
+
+	pr_warn_ratelimited("[%d] %s: compat syscall %d not whitelisted\n",
+			    task_pid_nr(task), task->comm, nr);
+
+	return do_syscall(fn);
+}
+#endif
 
 /*
  * If an alt_syscall table allows prctl(), override it to prevent a process
@@ -71,6 +122,15 @@ static asmlinkage long alt_sys_prctl(int option, unsigned long arg2,
 #define SYSCALL_WHITELIST(x)						\
 	{								\
 		.name = #x,						\
+		.whitelist = x ## _whitelist,				\
+		.nr_whitelist = ARRAY_SIZE(x ## _whitelist),		\
+		SYSCALL_WHITELIST_COMPAT(x)				\
+	}
+
+#define PERMISSIVE_SYSCALL_WHITELIST(x)					\
+	{								\
+		.name = #x "_permissive",				\
+		.permissive = true,					\
 		.whitelist = x ## _whitelist,				\
 		.nr_whitelist = ARRAY_SIZE(x ## _whitelist),		\
 		SYSCALL_WHITELIST_COMPAT(x)				\
@@ -608,6 +668,7 @@ static struct syscall_whitelist_entry android_compat_whitelist[] = {
 static struct syscall_whitelist whitelists[] = {
 	SYSCALL_WHITELIST(read_write_test),
 	SYSCALL_WHITELIST(android),
+	PERMISSIVE_SYSCALL_WHITELIST(android),
 };
 
 static int alt_syscall_apply_whitelist(const struct syscall_whitelist *wl,
@@ -628,8 +689,11 @@ static int alt_syscall_apply_whitelist(const struct syscall_whitelist *wl,
 	}
 
 	for (i = 0; i < t->size; i++) {
-		if (!test_bit(i, whitelist))
-			t->table[i] = (sys_call_ptr_t)alt_sys_ni_syscall;
+		if (!test_bit(i, whitelist)) {
+			t->table[i] = wl->permissive ?
+				(sys_call_ptr_t)warn_syscall :
+				(sys_call_ptr_t)block_syscall;
+		}
 	}
 
 	return 0;
@@ -655,8 +719,11 @@ alt_syscall_apply_compat_whitelist(const struct syscall_whitelist *wl,
 	}
 
 	for (i = 0; i < t->compat_size; i++) {
-		if (!test_bit(i, whitelist))
-			t->compat_table[i] = (sys_call_ptr_t)alt_sys_ni_syscall;
+		if (!test_bit(i, whitelist)) {
+			t->compat_table[i] = wl->permissive ?
+				(sys_call_ptr_t)warn_compat_syscall :
+				(sys_call_ptr_t)block_syscall;
+		}
 	}
 
 	return 0;
@@ -704,10 +771,13 @@ static int alt_syscall_init_one(const struct syscall_whitelist *wl)
 static int chromiumos_alt_syscall_init(void)
 {
 	unsigned int i;
+	int err;
+
+	err = arch_dup_sys_call_table(&default_table);
+	if (err)
+		return err;
 
 	for (i = 0; i < ARRAY_SIZE(whitelists); i++) {
-		int err;
-
 		err = alt_syscall_init_one(&whitelists[i]);
 		if (err)
 			pr_warn("Failed to register syscall table %s: %d\n",
