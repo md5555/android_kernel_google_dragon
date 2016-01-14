@@ -59,7 +59,7 @@ static LIST_HEAD(wakeup_sources);
 
 static DECLARE_WAIT_QUEUE_HEAD(wakeup_count_wait_queue);
 
-static enum wakeup_type wakeup_source_type;
+static enum pm_wakeup_type wakeup_source_type;
 
 static struct platform_wakeup_source_ops *platform_wakeup_ops;
 
@@ -293,7 +293,7 @@ EXPORT_SYMBOL_GPL(device_wakeup_disable);
  * Sets the wakeup type to user, automatic, unknown, or invalid. The default
  * type for a device is unknown. Device must be able to wake the system.
  */
-int device_set_wakeup_type(struct device *dev, enum wakeup_type type)
+int device_set_wakeup_type(struct device *dev, enum pm_wakeup_type type)
 {
 	if (!dev->power.can_wakeup)
 		return -EINVAL;
@@ -821,7 +821,7 @@ void pm_wakeup_clear(void)
 	pm_abort_suspend = false;
 }
 
-void pm_set_wakeup_type(enum wakeup_type type)
+void pm_set_wakeup_type(enum pm_wakeup_type type)
 {
 	wakeup_source_type = type;
 }
@@ -1042,7 +1042,7 @@ out:
  *
  * USER > AUTOMATIC > UNKNOWN
  */
-enum wakeup_type pm_get_wakeup_source_type(void)
+enum pm_wakeup_type pm_get_wakeup_source_type(void)
 {
 	return wakeup_source_type;
 }
