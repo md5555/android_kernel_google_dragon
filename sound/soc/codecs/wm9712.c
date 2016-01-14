@@ -171,45 +171,46 @@ static int mixer_event(struct snd_soc_dapm_widget *w,
 	struct snd_kcontrol *k, int event)
 {
 	u16 l, r, beep, line, phone, mic, pcm, aux;
+	struct snd_soc_codec *codec = snd_soc_dapm_to_codec(w->dapm);
 
-	l = ac97_read(w->codec, HPL_MIXER);
-	r = ac97_read(w->codec, HPR_MIXER);
-	beep = ac97_read(w->codec, AC97_PC_BEEP);
-	mic = ac97_read(w->codec, AC97_VIDEO);
-	phone = ac97_read(w->codec, AC97_PHONE);
-	line = ac97_read(w->codec, AC97_LINE);
-	pcm = ac97_read(w->codec, AC97_PCM);
-	aux = ac97_read(w->codec, AC97_CD);
+	l = ac97_read(codec, HPL_MIXER);
+	r = ac97_read(codec, HPR_MIXER);
+	beep = ac97_read(codec, AC97_PC_BEEP);
+	mic = ac97_read(codec, AC97_VIDEO);
+	phone = ac97_read(codec, AC97_PHONE);
+	line = ac97_read(codec, AC97_LINE);
+	pcm = ac97_read(codec, AC97_PCM);
+	aux = ac97_read(codec, AC97_CD);
 
 	if (l & 0x1 || r & 0x1)
-		ac97_write(w->codec, AC97_VIDEO, mic & 0x7fff);
+		ac97_write(codec, AC97_VIDEO, mic & 0x7fff);
 	else
-		ac97_write(w->codec, AC97_VIDEO, mic | 0x8000);
+		ac97_write(codec, AC97_VIDEO, mic | 0x8000);
 
 	if (l & 0x2 || r & 0x2)
-		ac97_write(w->codec, AC97_PCM, pcm & 0x7fff);
+		ac97_write(codec, AC97_PCM, pcm & 0x7fff);
 	else
-		ac97_write(w->codec, AC97_PCM, pcm | 0x8000);
+		ac97_write(codec, AC97_PCM, pcm | 0x8000);
 
 	if (l & 0x4 || r & 0x4)
-		ac97_write(w->codec, AC97_LINE, line & 0x7fff);
+		ac97_write(codec, AC97_LINE, line & 0x7fff);
 	else
-		ac97_write(w->codec, AC97_LINE, line | 0x8000);
+		ac97_write(codec, AC97_LINE, line | 0x8000);
 
 	if (l & 0x8 || r & 0x8)
-		ac97_write(w->codec, AC97_PHONE, phone & 0x7fff);
+		ac97_write(codec, AC97_PHONE, phone & 0x7fff);
 	else
-		ac97_write(w->codec, AC97_PHONE, phone | 0x8000);
+		ac97_write(codec, AC97_PHONE, phone | 0x8000);
 
 	if (l & 0x10 || r & 0x10)
-		ac97_write(w->codec, AC97_CD, aux & 0x7fff);
+		ac97_write(codec, AC97_CD, aux & 0x7fff);
 	else
-		ac97_write(w->codec, AC97_CD, aux | 0x8000);
+		ac97_write(codec, AC97_CD, aux | 0x8000);
 
 	if (l & 0x20 || r & 0x20)
-		ac97_write(w->codec, AC97_PC_BEEP, beep & 0x7fff);
+		ac97_write(codec, AC97_PC_BEEP, beep & 0x7fff);
 	else
-		ac97_write(w->codec, AC97_PC_BEEP, beep | 0x8000);
+		ac97_write(codec, AC97_PC_BEEP, beep | 0x8000);
 
 	return 0;
 }
@@ -539,7 +540,7 @@ static const struct snd_soc_dai_ops wm9712_dai_ops_aux = {
 static struct snd_soc_dai_driver wm9712_dai[] = {
 {
 	.name = "wm9712-hifi",
-	.ac97_control = 1,
+	.bus_control = true,
 	.playback = {
 		.stream_name = "HiFi Playback",
 		.channels_min = 1,
