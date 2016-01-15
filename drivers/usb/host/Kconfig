@@ -68,7 +68,7 @@ config USB_XHCI_RCAR
 
 config USB_XHCI_TEGRA
 	tristate "xHCI support for NVIDIA Tegra SoCs"
-	depends on MFD_TEGRA_XUSB || COMPILE_TEST
+	depends on MFD_TEGRA_XUSB
 	depends on MAILBOX
 	depends on RESET_CONTROLLER
 	select FW_LOADER
