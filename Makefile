@@ -297,8 +297,8 @@ CONFIG_SHELL := $(shell if [ -x "$$BASH" ]; then echo $$BASH; \
 
 HOSTCC       = gcc
 HOSTCXX      = g++
-HOSTCFLAGS   = -Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fomit-frame-pointer -std=gnu89
-HOSTCXXFLAGS = -O2
+HOSTCFLAGS   = -Wall -Wmissing-prototypes -Wstrict-prototypes -O4 -fomit-frame-pointer -std=gnu89
+HOSTCXXFLAGS = -O4
 
 ifeq ($(shell $(HOSTCC) -v 2>&1 | grep -c "clang version"), 1)
 HOSTCFLAGS  += -Wno-unused-value -Wno-unused-parameter \
@@ -758,9 +758,9 @@ endif
 NOSTDINC_FLAGS += -nostdinc -isystem $(shell $(CC) -print-file-name=include)
 CHECKFLAGS     += $(NOSTDINC_FLAGS)
 
-ifdef CONFIG_ERROR_ON_WARNING
-KBUILD_CFLAGS += -Werror
-endif
+#ifdef CONFIG_ERROR_ON_WARNING
+#KBUILD_CFLAGS += -Werror
+#endif
 
 # warn about C99 declaration after statement
 KBUILD_CFLAGS += $(call cc-option,-Wdeclaration-after-statement,)
