@@ -240,7 +240,7 @@ config DM_CRYPT
 	  If unsure, say N.
 
 config DM_VERITY_CHROMEOS
-	bool "Support Chrome OS specific verity error behavior"
+	tristate "Support Chrome OS specific verity error behavior"
 	depends on DM_VERITY
 	---help---
 	  Enables Chrome OS platform-specific error behavior.  In particular,
