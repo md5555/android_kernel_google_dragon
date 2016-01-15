@@ -89,8 +89,12 @@ dtbs: prepare scripts
 dtbs_install:
 	$(Q)$(MAKE) $(dtbinst)=$(boot)/dts
 
-Image.fit Image.gz-dtb: vmlinux scripts dtbs
+Image.gz-dtb: vmlinux scripts dtbs
 	$(Q)$(MAKE) $(build)=$(boot) $(boot)/$@
+
+Image.fit: vmlinux scripts dtbs
+	$(Q)lzma -z -f -k $(srctree)/arch/arm64/boot/Image
+	$(Q)$(srctree)/scripts/generate-its-script.sh $(srctree)/arch/arm64/boot/Image.lzma $(srctree)/arch/arm64/boot/dts/tegra/*smaug*.dtb | dtc -I dts -O dtb -p 1024 > $(srctree)/arch/arm64/boot/Image.fit
 
 PHONY += vdso_install
 vdso_install:
