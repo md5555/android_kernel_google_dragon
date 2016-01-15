@@ -20,7 +20,7 @@ $0 [options] <image> <dtbs>
 	-o <its_script>    output its script pathname
 	-r <ramdisk_path>  ramdisk image to include
 
-$0 Image dts/*.dtb | dtc -I dts -O dtb -p 1024 > Image.fit
+$0 Image.lzma dts/*.dtb | dtc -I dts -O dtb -p 1024 > Image.fit
 EOF
 }
 
@@ -75,8 +75,8 @@ cat > "${its_out}" <<-EOF || die
 			type = "kernel_noload";
 			arch = "${kernel_arch}";
 			os = "linux";
-			compression = "none";
-			load = <0>;
+			compression = "lzma";
+			load = <0x00080000>;
 			entry = <0>;
 		};
 EOF
