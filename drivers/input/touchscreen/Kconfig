@@ -115,6 +115,15 @@ config TOUCHSCREEN_ATMEL_MXT
 	  To compile this driver as a module, choose M here: the
 	  module will be called atmel_mxt_ts.
 
+config TOUCHSCREEN_ATMEL_MXT_DT2WAKE
+	tristate "Enable DoubleTap2Wake"
+	depends on TOUCHSCREEN_ATMEL_MXT
+	default n
+	help
+	  Say Y here if you want to be able to wake the device with
+	  a double tap on the screen.
+	  This will force the touchscreen to constantly stay on.
+
 config TOUCHSCREEN_AUO_PIXCIR
 	tristate "AUO in-cell touchscreen using Pixcir ICs"
 	depends on I2C
