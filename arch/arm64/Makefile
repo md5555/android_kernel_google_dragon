@@ -68,6 +68,9 @@ all:	$(KBUILD_IMAGE) $(KBUILD_DTBS)
 
 boot := arch/arm64/boot
 
+Image Image.gz: vmlinux
+	$(Q)$(MAKE) $(build)=$(boot) $(boot)/$@
+
 zinstall install: vmlinux
 	$(Q)$(MAKE) $(build)=$(boot) $@
 
@@ -85,7 +88,7 @@ dtbs_install:
 Image.gz-dtb: vmlinux scripts dtbs
 	$(Q)$(MAKE) $(build)=$(boot) $(boot)/$@
 
-Image.fit: vmlinux scripts dtbs
+Image.fit: Image 
 	$(Q)lzma -z -f -k $(srctree)/arch/arm64/boot/Image
 	$(Q)$(srctree)/scripts/generate-its-script.sh $(srctree)/arch/arm64/boot/Image.lzma $(srctree)/arch/arm64/boot/dts/tegra/*smaug*.dtb | dtc -I dts -O dtb -p 1024 > $(srctree)/arch/arm64/boot/Image.fit
 
