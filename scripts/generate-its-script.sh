@@ -1,1 +1,0 @@
-../chromeos/scripts/generate-its-script.sh
