@@ -60,15 +60,13 @@ KBUILD_IMAGE	:= Image.fit
 else ifeq ($(CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE),y)
 KBUILD_IMAGE	:= Image.gz-dtb
 else
-
+KBUILD_IMAGE	:= Image.gz
 KBUILD_DTBS	:= dtbs
+endif
 
 all:	$(KBUILD_IMAGE) $(KBUILD_DTBS)
 
 boot := arch/arm64/boot
-
-Image Image.gz: vmlinux
-	$(Q)$(MAKE) $(build)=$(boot) $(boot)/$@
 
 zinstall install: vmlinux
 	$(Q)$(MAKE) $(build)=$(boot) $@
