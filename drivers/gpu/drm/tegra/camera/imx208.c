@@ -634,8 +634,6 @@ static struct miscdevice imx208_device = {
 	.fops = &imx208_fileops,
 };
 
-MODULE_DEVICE_TABLE(of, imx208_of_match);
-
 static int imx208_check_module(struct imx208_info *info)
 {
 	u8 module_id[2];
