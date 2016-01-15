@@ -24,7 +24,7 @@ config CHROMEOS
 
 config CHROMEOS_OF_FIRMWARE
 	bool "ChromeOS firmware interface driver"
-	depends on OF && MFD_CROS_EC
+	depends on OF
 	select CHROMEOS
 	select CHROMEOS_VBC_EC
 	---help---
@@ -58,7 +58,8 @@ config CHROMEOS_PSTORE
 
 config CHROMEOS_VBC_EC
 	bool
-	depends on CHROMEOS && MFD_CROS_EC
+	depends on CHROMEOS
+	select MFD_CROS_EC
 
 	---help---
 	  Provides access to vboot context stored on EC's nvram.  Select this
