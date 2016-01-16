@@ -105,6 +105,7 @@ vdso_install:
 
 # We use MRPROPER_FILES and CLEAN_FILES now
 archclean:
+	$(Q)rm -f $(srctree)/arch/arm64/boot/Image.lzma $(srctree)/arch/arm64/boot/Image.fit
 	$(Q)$(MAKE) $(clean)=$(boot)
 	$(Q)$(MAKE) $(clean)=$(boot)/dts
 
