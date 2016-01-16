@@ -895,6 +895,10 @@ static void tegra_dsi_encoder_prepare(struct drm_encoder *encoder)
 	tegra_dsi_encoder_disable(encoder);
 }
 
+static void tegra_dsi_encoder_commit(struct drm_encoder *encoder)
+{
+}
+
 static int tegra_dsi_pad_calibrate(struct tegra_dsi *dsi)
 {
 	u32 value;
@@ -922,59 +926,6 @@ static int tegra_dsi_pad_calibrate(struct tegra_dsi *dsi)
 		return tegra_dsi_pad_calibrate(dsi->slave);
 
 	return 0;
-}
-
-static void tegra_dsi_encoder_commit(struct drm_encoder *encoder)
-{
-	struct tegra_output *output = encoder_to_output(encoder);
-	struct tegra_dc *dc = to_tegra_dc(encoder->crtc);
-	struct tegra_dsi *dsi = to_dsi(output);
-	struct tegra_dsi_state *state;
-	u32 value;
-	int err;
-
-	err = tegra_dsi_pad_calibrate(dsi);
-	if (err < 0) {
-		dev_err(dsi->dev, "MIPI calibration failed: %d\n", err);
-		return;
-	}
-
-	state = tegra_dsi_get_state(dsi);
-
-	tegra_dsi_set_timeout(dsi, state->bclk, state->vrefresh);
-
-	/*
-	 * The D-PHY timing fields are expressed in byte-clock cycles, so
-	 * multiply the period by 8.
-	 */
-	tegra_dsi_set_phy_timing(dsi, state->period * 8, &state->timing);
-
-	if (output->panel)
-		drm_panel_prepare(output->panel);
-
-	tegra_dsi_lock(dsi);
-
-	tegra_dsi_configure(dsi, dc->pipe, &encoder->crtc->mode);
-
-	if (output->connector.display_info.bpc >= 8)
-		tegra_dc_writel(dc, DITHER_CONTROL_DISABLE,
-				DC_DISP_DISP_COLOR_CONTROL);
-
-	/* enable display controller */
-	value = tegra_dc_readl(dc, DC_DISP_DISP_WIN_OPTIONS);
-	value |= DSI_ENABLE;
-	tegra_dc_writel(dc, value, DC_DISP_DISP_WIN_OPTIONS);
-
-	tegra_dc_commit(dc);
-	tegra_dsi_set_dc_active(dsi, true);
-
-	/* enable DSI controller */
-	tegra_dsi_encoder_dpms(encoder, DRM_MODE_DPMS_ON);
-
-	tegra_dsi_unlock(dsi);
-
-	if (output->panel)
-		drm_panel_enable(output->panel);
 }
 
 static void tegra_dsi_encoder_mode_set(struct drm_encoder *encoder,
