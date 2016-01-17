@@ -246,7 +246,7 @@ extern void osl_pcie_rreg(osl_t *osh, ulong addr, void *v, uint size);
 extern int osl_error(int bcmerror);
 
 /* the largest reasonable packet buffer driver uses for ethernet MTU in bytes */
-#define	PKTBUFSZ	2048   /* largest reasonable packet buffer, driver uses for ethernet MTU */
+#define	PKTBUFSZ	4096   /* largest reasonable packet buffer, driver uses for ethernet MTU */
 
 #define OSH_NULL   NULL
 
