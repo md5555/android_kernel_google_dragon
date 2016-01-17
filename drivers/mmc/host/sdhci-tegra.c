@@ -43,8 +43,8 @@
 
 #define SDHCI_VNDR_SYS_SW_CTRL			0x104
 #define SDHCI_VNDR_SYS_SW_CTRL_WR_CRC_TMCLK	0x40000000
-#define SDHCI_CLOCK_CTRL_PADPIPE_CLKEN_OVERRIDE		BIT(3)
-#define SDHCI_CLOCK_CTRL_SPI_MODE_CLKEN_OVERRIDE	BIT(2)
+#define SDHCI_CLK_CTRL_PADPIPE_CLKEN_OVERRIDE		BIT(3)
+#define SDHCI_CLK_CTRL_SPI_MODE_CLKEN_OVERRIDE	BIT(2)
 
 #define SDHCI_TEGRA_VENDOR_MISC_CTRL		0x120
 #define SDHCI_MISC_CTRL_INFINITE_ERASE_TIMEOUT	0x1
@@ -543,10 +543,8 @@ static void sdhci_tegra_reset(struct sdhci_host *host, u8 mask)
 	}
 
 	clk_ctrl = sdhci_readl(host, SDHCI_TEGRA_VENDOR_CLK_CTRL);
-	clk_ctrl &= ~SDHCI_CLOCK_CTRL_SPI_MODE_CLKEN_OVERRIDE;
+	clk_ctrl &= ~SDHCI_CLK_CTRL_SPI_MODE_CLKEN_OVERRIDE;
 	sdhci_writel(host, clk_ctrl, SDHCI_TEGRA_VENDOR_CLK_CTRL);
-
-	tegra_host->ddr_signaling = false;
 }
 
 static void sdhci_tegra_set_bus_width(struct sdhci_host *host, int bus_width)
