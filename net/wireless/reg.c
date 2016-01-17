@@ -218,7 +218,7 @@ static DECLARE_DELAYED_WORK(reg_timeout, reg_timeout_work);
 
 /* We keep a static world regulatory domain in case of the absence of CRDA */
 static const struct ieee80211_regdomain world_regdom = {
-	.n_reg_rules = 8,
+	.n_reg_rules = 6,
 	.alpha2 =  "00",
 	.reg_rules = {
 		/* IEEE 802.11b/g, channels 1..11 */
@@ -1272,9 +1272,6 @@ static bool ignore_reg_update(struct wiphy *wiphy,
 		return true;
 	}
 
-	if (wiphy->flags & WIPHY_FLAG_SELF_MANAGED_REG)
-		return true;
-
 	if (initiator == NL80211_REGDOM_SET_BY_CORE &&
 	    wiphy->regulatory_flags & REGULATORY_CUSTOM_REG) {
 		REG_DBG_PRINT("Ignoring regulatory request set by %s "
@@ -1366,9 +1363,6 @@ static void wiphy_update_new_beacon(struct wiphy *wiphy,
 {
 	unsigned int i;
 	struct ieee80211_supported_band *sband;
-
-	if (wiphy->flags & WIPHY_FLAG_SELF_MANAGED_REG)
-		return;
 
 	if (!wiphy->bands[reg_beacon->chan.band])
 		return;
@@ -1845,8 +1839,11 @@ __reg_process_hint_country_ie(struct wiphy *wiphy,
 			return REG_REQ_IGNORE;
 		return REG_REQ_ALREADY_SET;
 	}
-
-	if (regdom_changes(country_ie_request->alpha2))
+	/*
+	 * Two consecutive Country IE hints on the same wiphy.
+	 * This should be picked up early by the driver/stack
+	 */
+	if (WARN_ON(regdom_changes(country_ie_request->alpha2)))
 		return REG_REQ_OK;
 	return REG_REQ_ALREADY_SET;
 }
