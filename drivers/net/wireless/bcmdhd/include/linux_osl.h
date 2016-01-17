@@ -228,7 +228,7 @@ extern void osl_dma_unmap(osl_t *osh, dmaaddr_t pa, uint size, int direction);
 extern int osl_error(int bcmerror);
 
 /* the largest reasonable packet buffer driver uses for ethernet MTU in bytes */
-#define	PKTBUFSZ	2048   /* largest reasonable packet buffer, driver uses for ethernet MTU */
+#define	PKTBUFSZ	4096   /* largest reasonable packet buffer, driver uses for ethernet MTU */
 
 #define OSH_NULL   NULL
 
