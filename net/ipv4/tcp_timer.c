@@ -105,6 +105,7 @@ static void tcp_mtu_probing(struct inet_connection_sock *icsk, struct sock *sk)
 	if (sysctl_tcp_mtu_probing) {
 		if (!icsk->icsk_mtup.enabled) {
 			icsk->icsk_mtup.enabled = 1;
+			icsk->icsk_mtup.probe_timestamp = tcp_time_stamp;
 			tcp_sync_mss(sk, icsk->icsk_pmtu_cookie);
 		} else {
 			struct tcp_sock *tp = tcp_sk(sk);

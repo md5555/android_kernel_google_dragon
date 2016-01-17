@@ -1347,6 +1347,8 @@ void tcp_mtup_init(struct sock *sk)
 			       icsk->icsk_af_ops->net_header_len;
 	icsk->icsk_mtup.search_low = tcp_mss_to_mtu(sk, sysctl_tcp_base_mss);
 	icsk->icsk_mtup.probe_size = 0;
+	if (icsk->icsk_mtup.enabled)
+		icsk->icsk_mtup.probe_timestamp = tcp_time_stamp;
 }
 EXPORT_SYMBOL(tcp_mtup_init);
 
@@ -1792,6 +1794,31 @@ send_now:
 	return false;
 }
 
+static inline void tcp_mtu_check_reprobe(struct sock *sk)
+{
+	struct inet_connection_sock *icsk = inet_csk(sk);
+	struct tcp_sock *tp = tcp_sk(sk);
+	struct net *net = sock_net(sk);
+	u32 interval;
+	s32 delta;
+
+	interval = net->ipv4.sysctl_tcp_probe_interval;
+	delta = tcp_time_stamp - icsk->icsk_mtup.probe_timestamp;
+	if (unlikely(delta >= interval * HZ)) {
+		int mss = tcp_current_mss(sk);
+
+		/* Update current search range */
+		icsk->icsk_mtup.probe_size = 0;
+		icsk->icsk_mtup.search_high = tp->rx_opt.mss_clamp +
+			sizeof(struct tcphdr) +
+			icsk->icsk_af_ops->net_header_len;
+		icsk->icsk_mtup.search_low = tcp_mss_to_mtu(sk, mss);
+
+		/* Update probe time stamp */
+		icsk->icsk_mtup.probe_timestamp = tcp_time_stamp;
+	}
+}
+
 /* Create a new MTU probe if we are ready.
  * MTU probe is regularly attempting to increase the path MTU by
  * deliberately sending larger packets.  This discovers routing
@@ -1827,8 +1854,9 @@ static int tcp_mtu_probe(struct sock *sk)
 	mss_now = tcp_current_mss(sk);
 	probe_size = 2 * tp->mss_cache;
 	size_needed = probe_size + (tp->reordering + 1) * tp->mss_cache;
-	if (probe_size > tcp_mtu_to_mss(sk, icsk->icsk_mtup.search_high)) {
+ 	if (probe_size > tcp_mtu_to_mss(sk, icsk->icsk_mtup.search_high)) {
 		/* TODO: set timer for probe_converge_event */
+		tcp_mtu_check_reprobe(sk);
 		return -1;
 	}
 
