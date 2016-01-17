@@ -86,6 +86,7 @@ struct netns_ipv4 {
 	atomic_t dev_addr_genid;
 
 #ifdef CONFIG_SYSCTL
+	u32 sysctl_tcp_probe_interval;
 	unsigned long *sysctl_local_reserved_ports;
 #endif
 

@@ -67,14 +67,17 @@ void tcp_time_wait(struct sock *sk, int state, int timeo);
 /* The least MTU to use for probing */
 #define TCP_BASE_MSS		512
 
+/* probing interval, default to 10 minutes as per RFC4821 */
+#define TCP_PROBE_INTERVAL	600
+
 /* After receiving this amount of duplicate ACKs fast retransmit starts. */
-#define TCP_FASTRETRANS_THRESH 3
+#define TCP_FASTRETRANS_THRESH 5
 
 /* Maximal reordering. */
-#define TCP_MAX_REORDERING	127
+#define TCP_MAX_REORDERING	63
 
 /* Maximal number of ACKs sent quickly to accelerate slow-start. */
-#define TCP_MAX_QUICKACKS	16U
+#define TCP_MAX_QUICKACKS	32U
 
 /* urg_data states */
 #define TCP_URG_VALID	0x0100
@@ -129,7 +132,7 @@ void tcp_time_wait(struct sock *sk, int state, int timeo);
 #define TCP_ATO_MIN	4U
 #endif
 #define TCP_RTO_MAX	((unsigned)(120*HZ))
-#define TCP_RTO_MIN	((unsigned)(HZ/5))
+#define TCP_RTO_MIN	((unsigned)(HZ/10))
 #define TCP_TIMEOUT_INIT ((unsigned)(1*HZ))	/* RFC6298 2.1 initial RTO value	*/
 #define TCP_TIMEOUT_FALLBACK ((unsigned)(3*HZ))	/* RFC 1122 initial RTO value, now
 						 * used as a fallback RTO for the
