@@ -387,7 +387,8 @@ static const struct sdhci_pci_fixes sdhci_intel_byt_sd = {
 	.quirks		= SDHCI_QUIRK_NO_ENDATTR_IN_NOPDESC,
 	.quirks2	= SDHCI_QUIRK2_CARD_ON_NEEDS_BUS_ON |
 			  SDHCI_QUIRK2_PRESET_VALUE_BROKEN |
-			  SDHCI_QUIRK2_STOP_WITH_TC,
+			  SDHCI_QUIRK2_STOP_WITH_TC |
+			  SDHCI_QUIRK2_BAYTRAIL_EMMC,
 	.allow_runtime_pm = true,
 	.own_cd_for_runtime_pm = true,
 	.probe_slot	= byt_sd_probe_slot,
