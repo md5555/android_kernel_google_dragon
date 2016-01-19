@@ -380,7 +380,8 @@ static int tegra210_pex_uphy_enable(struct tegra_xusb_padctl *padctl)
 		usleep_range(10, 20);
 	}
 
-	if (time_after_eq(jiffies, timeout)) {
+	value = padctl_readl(padctl, XUSB_PADCTL_UPHY_PLL_P0_CTL2);
+	if (!(value & XUSB_PADCTL_UPHY_PLL_CTL2_CAL_DONE)) {
 		err = -ETIMEDOUT;
 		goto reset;
 	}
@@ -399,7 +400,8 @@ static int tegra210_pex_uphy_enable(struct tegra_xusb_padctl *padctl)
 		usleep_range(10, 20);
 	}
 
-	if (time_after_eq(jiffies, timeout)) {
+	value = padctl_readl(padctl, XUSB_PADCTL_UPHY_PLL_P0_CTL2);
+	if (value & XUSB_PADCTL_UPHY_PLL_CTL2_CAL_DONE) {
 		err = -ETIMEDOUT;
 		goto reset;
 	}
@@ -418,7 +420,8 @@ static int tegra210_pex_uphy_enable(struct tegra_xusb_padctl *padctl)
 		usleep_range(10, 20);
 	}
 
-	if (time_after_eq(jiffies, timeout)) {
+	value = padctl_readl(padctl, XUSB_PADCTL_UPHY_PLL_P0_CTL1);
+	if (!(value & XUSB_PADCTL_UPHY_PLL_CTL1_LOCKDET_STATUS)) {
 		err = -ETIMEDOUT;
 		goto reset;
 	}
@@ -438,7 +441,8 @@ static int tegra210_pex_uphy_enable(struct tegra_xusb_padctl *padctl)
 		usleep_range(10, 20);
 	}
 
-	if (time_after_eq(jiffies, timeout)) {
+	value = padctl_readl(padctl, XUSB_PADCTL_UPHY_PLL_P0_CTL8);
+	if (!(value & XUSB_PADCTL_UPHY_PLL_CTL8_RCAL_DONE)) {
 		err = -ETIMEDOUT;
 		goto reset;
 	}
@@ -457,7 +461,8 @@ static int tegra210_pex_uphy_enable(struct tegra_xusb_padctl *padctl)
 		usleep_range(10, 20);
 	}
 
-	if (time_after_eq(jiffies, timeout)) {
+	value = padctl_readl(padctl, XUSB_PADCTL_UPHY_PLL_P0_CTL8);
+	if (value & XUSB_PADCTL_UPHY_PLL_CTL8_RCAL_DONE) {
 		err = -ETIMEDOUT;
 		goto reset;
 	}
@@ -619,7 +624,8 @@ static int tegra210_sata_uphy_enable(struct tegra_xusb_padctl *padctl, bool usb)
 		usleep_range(10, 20);
 	}
 
-	if (time_after_eq(jiffies, timeout)) {
+	value = padctl_readl(padctl, XUSB_PADCTL_UPHY_PLL_S0_CTL2);
+	if (!(value & XUSB_PADCTL_UPHY_PLL_CTL2_CAL_DONE)) {
 		err = -ETIMEDOUT;
 		goto reset;
 	}
@@ -638,7 +644,8 @@ static int tegra210_sata_uphy_enable(struct tegra_xusb_padctl *padctl, bool usb)
 		usleep_range(10, 20);
 	}
 
-	if (time_after_eq(jiffies, timeout)) {
+	value = padctl_readl(padctl, XUSB_PADCTL_UPHY_PLL_S0_CTL2);
+	if (value & XUSB_PADCTL_UPHY_PLL_CTL2_CAL_DONE) {
 		err = -ETIMEDOUT;
 		goto reset;
 	}
@@ -657,7 +664,8 @@ static int tegra210_sata_uphy_enable(struct tegra_xusb_padctl *padctl, bool usb)
 		usleep_range(10, 20);
 	}
 
-	if (time_after_eq(jiffies, timeout)) {
+	value = padctl_readl(padctl, XUSB_PADCTL_UPHY_PLL_S0_CTL1);
+	if (!(value & XUSB_PADCTL_UPHY_PLL_CTL1_LOCKDET_STATUS)) {
 		err = -ETIMEDOUT;
 		goto reset;
 	}
@@ -677,7 +685,8 @@ static int tegra210_sata_uphy_enable(struct tegra_xusb_padctl *padctl, bool usb)
 		usleep_range(10, 20);
 	}
 
-	if (time_after_eq(jiffies, timeout)) {
+	value = padctl_readl(padctl, XUSB_PADCTL_UPHY_PLL_S0_CTL8);
+	if (!(value & XUSB_PADCTL_UPHY_PLL_CTL8_RCAL_DONE)) {
 		err = -ETIMEDOUT;
 		goto reset;
 	}
@@ -696,7 +705,8 @@ static int tegra210_sata_uphy_enable(struct tegra_xusb_padctl *padctl, bool usb)
 		usleep_range(10, 20);
 	}
 
-	if (time_after_eq(jiffies, timeout)) {
+	value = padctl_readl(padctl, XUSB_PADCTL_UPHY_PLL_S0_CTL8);
+	if (value & XUSB_PADCTL_UPHY_PLL_CTL8_RCAL_DONE) {
 		err = -ETIMEDOUT;
 		goto reset;
 	}
@@ -1138,9 +1148,9 @@ static int tegra210_utmi_phy_power_on(struct phy *phy)
 		   XUSB_PADCTL_USB2_OTG_PAD_CTL0_PD |
 		   XUSB_PADCTL_USB2_OTG_PAD_CTL0_PD2 |
 		   XUSB_PADCTL_USB2_OTG_PAD_CTL0_PD_ZI);
-	value |= (priv->fuse.hs_curr_level[port] +
-		  utmi->hs_curr_level_offset) <<
-		 XUSB_PADCTL_USB2_OTG_PAD_CTL0_HS_CURR_LEVEL_SHIFT;
+	value |= (((u32) clamp_val((s32) priv->fuse.hs_curr_level[port] +
+		   utmi->hs_curr_level_offset, 0, 0x3f)) <<
+		  XUSB_PADCTL_USB2_OTG_PAD_CTL0_HS_CURR_LEVEL_SHIFT);
 	padctl_writel(padctl, value, XUSB_PADCTL_USB2_OTG_PADX_CTL0(port));
 
 	value = padctl_readl(padctl, XUSB_PADCTL_USB2_OTG_PADX_CTL1(port));
