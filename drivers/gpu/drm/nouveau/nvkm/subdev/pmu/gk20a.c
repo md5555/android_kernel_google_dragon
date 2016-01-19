@@ -922,92 +922,79 @@ gk20a_pmu_queue_init(struct gk20a_pmu_priv *priv,
 	return 0;
 }
 
-static int
-gk20a_pmu_queue_head_get(struct gk20a_pmu_priv *priv, struct pmu_queue *queue,
-			u32 *head)
+static u32
+gk20a_pmu_queue_head_get(struct gk20a_pmu_priv *priv, struct pmu_queue *queue)
 {
 	struct nvkm_pmu *pmu = &priv->base;
 
-	if (WARN_ON(!head))
-		return -EINVAL;
-
 	if (PMU_IS_COMMAND_QUEUE(queue->id)) {
-		if (queue->index >= 0x00000004)
-			return -EINVAL;
+		/*
+		 * Return some safe value to avoid overwriting some other
+		 * data if write is attempted to such incorrect queue.
+		 *
+		 * The queue will be always seen as empty.
+		 */
+		if (WARN_ON(queue->index > 3))
+			return queue->offset;
 
-		*head = nv_rd32(pmu, 0x0010a4a0 + (queue->index * 4)) &
-				0xffffffff;
-	} else {
-		*head = nv_rd32(pmu, 0x0010a4c8) & 0xffffffff;
+		return nv_rd32(pmu, 0x0010a4a0 + 4 * (queue->index & 3));
 	}
 
-	return 0;
+	return nv_rd32(pmu, 0x0010a4c8);
 }
 
-static int
+static void
 gk20a_pmu_queue_head_set(struct gk20a_pmu_priv *priv, struct pmu_queue *queue,
-			u32 *head)
+			 u32 head)
 {
 	struct nvkm_pmu *pmu = &priv->base;
 
-	if (WARN_ON(!head))
-		return -EINVAL;
-
 	if (PMU_IS_COMMAND_QUEUE(queue->id)) {
-		if (queue->index >= 0x00000004)
-			return -EINVAL;
+		if (WARN_ON(queue->index > 3))
+			return;
 
-		nv_wr32(pmu, (0x0010a4a0 + (queue->index * 4)),
-						(*head & 0xffffffff));
-	} else {
-		nv_wr32(pmu, 0x0010a4c8, (*head & 0xffffffff));
+		nv_wr32(pmu, 0x0010a4a0 + 4 * (queue->index & 3), head);
+		return;
 	}
 
-	return 0;
+	nv_wr32(pmu, 0x0010a4c8, head);
 }
 
-static int
-gk20a_pmu_queue_tail_get(struct gk20a_pmu_priv *priv, struct pmu_queue *queue,
-			u32 *tail)
+static u32
+gk20a_pmu_queue_tail_get(struct gk20a_pmu_priv *priv, struct pmu_queue *queue)
 {
 	struct nvkm_pmu *pmu = &priv->base;
 
-	if (WARN_ON(!tail))
-		return -EINVAL;
-
 	if (PMU_IS_COMMAND_QUEUE(queue->id)) {
-		if (queue->index >= 0x00000004)
-			return -EINVAL;
+		/*
+		 * Return some safe value to avoid overwriting some other
+		 * data if write is attempted to such incorrect queue.
+		 *
+		 * The queue will be always seen as empty.
+		 */
+		if (WARN_ON(queue->index > 3))
+			return queue->offset;
 
-		*tail = nv_rd32(pmu, 0x0010a4b0 + (queue->index * 4)) &
-				0xffffffff;
-	} else {
-		*tail = nv_rd32(pmu, 0x0010a4cc) & 0xffffffff;
+		return nv_rd32(pmu, 0x0010a4b0 + 4 * (queue->index & 3));
 	}
 
-	return 0;
+	return nv_rd32(pmu, 0x0010a4cc);
 }
 
-static int
+static void
 gk20a_pmu_queue_tail_set(struct gk20a_pmu_priv *priv, struct pmu_queue *queue,
-			u32 *tail)
+			 u32 tail)
 {
 	struct nvkm_pmu *pmu = &priv->base;
 
-	if (WARN_ON(!tail))
-		return -EINVAL;
-
 	if (PMU_IS_COMMAND_QUEUE(queue->id)) {
-		if (queue->index >= 0x00000004)
-			return -EINVAL;
+		if (WARN_ON(queue->index > 3))
+			return;
 
-		nv_wr32(pmu, (0x0010a4b0 + (queue->index * 4)),
-						(*tail & 0xffffffff));
-	} else {
-		nv_wr32(pmu, 0x0010a4cc, (*tail & 0xffffffff));
+		nv_wr32(pmu, 0x0010a4b0 + 4 * (queue->index & 3), tail);
 	}
 
-	return 0;
+	nv_wr32(pmu, 0x0010a4cc, tail);
 }
 
 static inline void
@@ -1182,11 +1169,11 @@ gk20a_pmu_queue_is_empty(struct gk20a_pmu_priv *priv,
 {
 	u32 head, tail;
 
-	gk20a_pmu_queue_head_get(priv, queue, &head);
+	head = gk20a_pmu_queue_head_get(priv, queue);
 	if (queue->opened && queue->oflag == OFLAG_READ)
 		tail = queue->position;
 	else
-		gk20a_pmu_queue_tail_get(priv, queue, &tail);
+		tail = gk20a_pmu_queue_tail_get(priv, queue);
 
 	return head == tail;
 }
@@ -1200,8 +1187,8 @@ gk20a_pmu_queue_has_room(struct gk20a_pmu_priv *priv,
 
 	size = ALIGN(size, QUEUE_ALIGNMENT);
 
-	gk20a_pmu_queue_head_get(priv, queue, &head);
-	gk20a_pmu_queue_tail_get(priv, queue, &tail);
+	head = gk20a_pmu_queue_head_get(priv, queue);
+	tail = gk20a_pmu_queue_tail_get(priv, queue);
 
 	if (head >= tail) {
 		free = queue->offset + queue->size - head;
@@ -1254,7 +1241,7 @@ gk20a_pmu_queue_pop(struct gk20a_pmu_priv *priv,
 		return -EINVAL;
 	}
 
-	gk20a_pmu_queue_head_get(priv, queue, &head);
+	head = gk20a_pmu_queue_head_get(priv, queue);
 	tail = queue->position;
 
 	if (head == tail) {
@@ -1318,7 +1305,7 @@ gk20a_pmu_queue_open_read(struct gk20a_pmu_priv *priv,
 	if (WARN_ON(queue->opened))
 		return -EBUSY;
 
-	gk20a_pmu_queue_tail_get(priv, queue, &queue->position);
+	queue->position = gk20a_pmu_queue_tail_get(priv, queue);
 	queue->oflag = OFLAG_READ;
 	queue->opened = true;
 
@@ -1350,7 +1337,7 @@ gk20a_pmu_queue_open_write(struct gk20a_pmu_priv *priv,
 		return -EAGAIN;
 	}
 
-	gk20a_pmu_queue_head_get(priv, queue, &queue->position);
+	queue->position = gk20a_pmu_queue_head_get(priv, queue);
 	queue->oflag = OFLAG_WRITE;
 	queue->opened = true;
 
@@ -1375,10 +1362,10 @@ gk20a_pmu_queue_close(struct gk20a_pmu_priv *priv,
 	if (commit) {
 		if (queue->oflag == OFLAG_READ) {
 			gk20a_pmu_queue_tail_set(priv, queue,
-				&queue->position);
+				queue->position);
 		} else {
 			gk20a_pmu_queue_head_set(priv, queue,
-				&queue->position);
+				queue->position);
 		}
 	}
 
