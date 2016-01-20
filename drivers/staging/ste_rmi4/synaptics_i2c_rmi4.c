@@ -34,6 +34,11 @@
 #include <linux/input/mt.h>
 #include "synaptics_i2c_rmi4.h"
 
+#ifdef CONFIG_WAKE_GESTURES
+#include <linux/wake_gestures.h>
+#include <linux/wakelock.h>
+#endif
+
 /* TODO: for multiple device support will need a per-device mutex */
 #define DRIVER_NAME "synaptics_rmi4_i2c"
 
@@ -70,6 +75,8 @@
 #define PDT_ENTRY_SIZE		(0x0006)
 #define SYNAPTICS_RMI4_TOUCHPAD_FUNC_NUM	(0x11)
 #define SYNAPTICS_RMI4_DEVICE_CONTROL_FUNC_NUM	(0x01)
+
+static struct mutex suspended_mutex;
 
 /**
  * struct synaptics_rmi4_fn_desc - contains the function descriptor information
@@ -186,7 +193,21 @@ struct synaptics_rmi4_data {
 	wait_queue_head_t	wait;
 	bool			touch_stopped;
 	unsigned char		fingers_supported;
+	bool			suspended;
 };
+
+#ifdef CONFIG_WAKE_GESTURES
+struct synaptics_rmi4_data *gl_rmi4_data;
+static struct wake_lock syn_wakelock;
+bool gestures_enabled;
+bool scr_suspended(void)
+{
+	struct synaptics_rmi4_data *rmi4_data = gl_rmi4_data;
+	return rmi4_data->suspended;
+}
+#endif
+
+
 
 /**
  * synaptics_rmi4_set_page() - sets the page
@@ -486,6 +507,12 @@ static irqreturn_t synaptics_rmi4_irq(int irq, void *data)
 {
 	struct synaptics_rmi4_data *pdata = data;
 	int touch_count;
+
+#ifdef CONFIG_WAKE_GESTURES
+	if (pdata->suspended && gestures_enabled) {
+		wake_lock_timeout(&syn_wakelock, HZ/4);
+	}
+#endif
 
 	do {
 		touch_count = synaptics_rmi4_sensor_report(pdata);
@@ -1001,6 +1028,15 @@ static int synaptics_rmi4_probe
 		goto err_free_irq;
 	}
 
+	mutex_init(&suspended_mutex);
+
+	rmi4_data->suspended = false;
+
+#ifdef CONFIG_WAKE_GESTURES
+	wake_lock_init(&syn_wakelock, WAKE_LOCK_SUSPEND, "syn_wakelock");
+	gl_rmi4_data = rmi4_data;
+#endif
+
 	return retval;
 
 err_free_irq:
@@ -1017,6 +1053,22 @@ err_input:
 
 	return retval;
 }
+
+#ifdef CONFIG_WAKE_GESTURES
+static void s2w_enable(struct synaptics_rmi4_data *rmi4_data, bool enable)
+{
+	if (enable) {
+		enable_irq_wake(rmi4_data->i2c_client->irq);
+	} else {
+		disable_irq_wake(rmi4_data->i2c_client->irq);
+	}
+
+	mutex_lock(&suspended_mutex);
+	rmi4_data->suspended = enable;
+	mutex_unlock(&suspended_mutex);
+}
+#endif
+
 /**
  * synaptics_rmi4_remove() - Removes the i2c-client touchscreen driver
  * @client: i2c client structure pointer
@@ -1054,6 +1106,13 @@ static int synaptics_rmi4_suspend(struct device *dev)
 	unsigned char intr_status;
 	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
 
+#ifdef CONFIG_WAKE_GESTURES
+	if (gestures_enabled) {
+		s2w_enable(rmi4_data, true);
+		return 0;
+	}
+#endif
+
 	rmi4_data->touch_stopped = true;
 	disable_irq(rmi4_data->i2c_client->irq);
 
@@ -1087,6 +1146,13 @@ static int synaptics_rmi4_resume(struct device *dev)
 	unsigned char intr_status;
 	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
 
+#ifdef CONFIG_WAKE_GESTURES
+	if (gestures_enabled) {
+		s2w_enable(rmi4_data, false);
+		goto out;
+	}
+#endif
+
 	retval = regulator_enable(rmi4_data->regulator);
 	if (retval) {
 		dev_err(dev, "Regulator enable failed (%d)\n", retval);
@@ -1108,6 +1174,18 @@ static int synaptics_rmi4_resume(struct device *dev)
 					(intr_status | TOUCHPAD_CTRL_INTR));
 	if (retval < 0)
 		return retval;
+
+#ifdef CONFIG_WAKE_GESTURES
+out:
+	if (dt2w_switch_changed) {
+		dt2w_switch = dt2w_switch_temp;
+		dt2w_switch_changed = false;
+	}
+	if (s2w_switch_changed) {
+		s2w_switch = s2w_switch_temp;
+		s2w_switch_changed = false;
+	}
+#endif
 
 	return 0;
 }

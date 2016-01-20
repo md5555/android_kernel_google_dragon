@@ -152,7 +152,6 @@ static void wake_pwrtrigger(void) {
 
 printk("pwrtrigger\n");
 
-	set_vibrate(vib_strength);
 	schedule_work(&wake_presspwr_work);
         return;
 }
