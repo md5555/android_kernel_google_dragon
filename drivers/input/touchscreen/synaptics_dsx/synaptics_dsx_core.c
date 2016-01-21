@@ -3890,8 +3890,6 @@ static int synaptics_rmi4_probe(struct platform_device *pdev)
 	queue_work(rmi4_data->reset_workqueue, &rmi4_data->reset_work);
 #endif
 
-	rmi4_data->stay_awake = true;
-
 	return retval;
 
 err_sysfs:
