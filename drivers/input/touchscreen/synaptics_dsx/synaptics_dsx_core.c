@@ -595,8 +595,15 @@ static ssize_t synaptics_rmi4_wake_gesture_store(struct device *dev,
 		return -EINVAL;
 	}
 
-	if (rmi4_data->f11_wakeup_gesture || rmi4_data->f12_wakeup_gesture)
+	if (rmi4_data->f11_wakeup_gesture || rmi4_data->f12_wakeup_gesture) {
 		rmi4_data->enable_wakeup_gesture = input;
+
+		if (input == 1) {
+			enable_irq_wake(rmi4_data->irq);
+		} else {
+			disable_irq_wake(rmi4_data->irq);
+		}
+	}
 
 	return count;
 }
@@ -3436,7 +3443,9 @@ static struct platform_driver synaptics_rmi4_driver = {
 		.name = PLATFORM_DRIVER_NAME,
 		.owner = THIS_MODULE,
 #ifdef CONFIG_PM
-		.pm = &synaptics_rmi4_dev_pm_ops,
+#ifndef CONFIG_WAKE_GESTURES
+		//.pm = &synaptics_rmi4_dev_pm_ops,
+#endif
 #endif
 	},
 	.probe = synaptics_rmi4_probe,
