@@ -501,8 +501,10 @@ static int wg_input_connect(struct input_handler *handler,
 	struct input_handle *handle;
 	int error;
 
+	/*
 	if (input_dev_filter(dev))
 		return -ENODEV;
+	*/
 
 	handle = kzalloc(sizeof(struct input_handle), GFP_KERNEL);
 	if (!handle)
@@ -519,6 +521,8 @@ static int wg_input_connect(struct input_handler *handler,
 	error = input_open_device(handle);
 	if (error)
 		goto err1;
+
+	printk("WG: Connected");
 
 	return 0;
 err1:

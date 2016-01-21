@@ -198,7 +198,7 @@ struct synaptics_rmi4_data {
 
 #ifdef CONFIG_WAKE_GESTURES
 struct synaptics_rmi4_data *gl_rmi4_data;
-static struct wake_lock syn_wakelock;
+//static struct wake_lock syn_wakelock;
 bool gestures_enabled;
 bool scr_suspended(void)
 {
@@ -509,9 +509,11 @@ static irqreturn_t synaptics_rmi4_irq(int irq, void *data)
 	int touch_count;
 
 #ifdef CONFIG_WAKE_GESTURES
+	/*
 	if (pdata->suspended && gestures_enabled) {
 		wake_lock_timeout(&syn_wakelock, HZ/4);
 	}
+	*/
 #endif
 
 	do {
@@ -1033,7 +1035,7 @@ static int synaptics_rmi4_probe
 	rmi4_data->suspended = false;
 
 #ifdef CONFIG_WAKE_GESTURES
-	wake_lock_init(&syn_wakelock, WAKE_LOCK_SUSPEND, "syn_wakelock");
+	//wake_lock_init(&syn_wakelock, WAKE_LOCK_SUSPEND, "syn_wakelock");
 	gl_rmi4_data = rmi4_data;
 #endif
 
@@ -1057,15 +1059,14 @@ err_input:
 #ifdef CONFIG_WAKE_GESTURES
 static void s2w_enable(struct synaptics_rmi4_data *rmi4_data, bool enable)
 {
+	/*
 	if (enable) {
 		enable_irq_wake(rmi4_data->i2c_client->irq);
 	} else {
 		disable_irq_wake(rmi4_data->i2c_client->irq);
-	}
+	}*/
 
-	mutex_lock(&suspended_mutex);
 	rmi4_data->suspended = enable;
-	mutex_unlock(&suspended_mutex);
 }
 #endif
 

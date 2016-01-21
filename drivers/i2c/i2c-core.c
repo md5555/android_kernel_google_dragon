@@ -705,12 +705,21 @@ static int i2c_legacy_suspend(struct device *dev, pm_message_t mesg)
 	struct i2c_client *client = i2c_verify_client(dev);
 	struct i2c_driver *driver;
 
+#ifndef CONFIG_WAKE_GESTURES
+
 	if (!client || !dev->driver)
 		return 0;
 	driver = to_i2c_driver(dev->driver);
 	if (!driver->suspend)
 		return 0;
 	return driver->suspend(client, mesg);
+
+#endif
+
+#ifdef CONFIG_WAKE_GESTURES
+	return 0;
+#endif
+
 }
 
 static int i2c_legacy_resume(struct device *dev)
@@ -718,72 +727,116 @@ static int i2c_legacy_resume(struct device *dev)
 	struct i2c_client *client = i2c_verify_client(dev);
 	struct i2c_driver *driver;
 
+#ifndef CONFIG_WAKE_GESTURES
+
 	if (!client || !dev->driver)
 		return 0;
 	driver = to_i2c_driver(dev->driver);
 	if (!driver->resume)
 		return 0;
 	return driver->resume(client);
+#endif
+
+#ifdef CONFIG_WAKE_GESTURES
+	return 0;
+#endif
 }
 
 static int i2c_device_pm_suspend(struct device *dev)
 {
 	const struct dev_pm_ops *pm = dev->driver ? dev->driver->pm : NULL;
 
+#ifndef CONFIG_WAKE_GESTURES
+
 	if (pm)
 		return pm_generic_suspend(dev);
 	else
 		return i2c_legacy_suspend(dev, PMSG_SUSPEND);
+#endif
+
+#ifdef CONFIG_WAKE_GESTURES
+	return 0;
+#endif
 }
 
 static int i2c_device_pm_resume(struct device *dev)
 {
 	const struct dev_pm_ops *pm = dev->driver ? dev->driver->pm : NULL;
 
+#ifndef CONFIG_WAKE_GESTURES
 	if (pm)
 		return pm_generic_resume(dev);
 	else
 		return i2c_legacy_resume(dev);
+#endif
+
+#ifdef CONFIG_WAKE_GESTURES
+	return 0;
+#endif
 }
 
 static int i2c_device_pm_freeze(struct device *dev)
 {
 	const struct dev_pm_ops *pm = dev->driver ? dev->driver->pm : NULL;
 
+#ifndef CONFIG_WAKE_GESTURES
 	if (pm)
 		return pm_generic_freeze(dev);
 	else
 		return i2c_legacy_suspend(dev, PMSG_FREEZE);
+#endif
+
+#ifdef CONFIG_WAKE_GESTURES
+	return 0;
+#endif
 }
 
 static int i2c_device_pm_thaw(struct device *dev)
 {
 	const struct dev_pm_ops *pm = dev->driver ? dev->driver->pm : NULL;
 
+#ifndef CONFIG_WAKE_GESTURES
 	if (pm)
 		return pm_generic_thaw(dev);
 	else
 		return i2c_legacy_resume(dev);
+#endif
+
+#ifdef CONFIG_WAKE_GESTURES
+	return 0;
+#endif
 }
 
 static int i2c_device_pm_poweroff(struct device *dev)
 {
 	const struct dev_pm_ops *pm = dev->driver ? dev->driver->pm : NULL;
 
+#ifndef CONFIG_WAKE_GESTURES
 	if (pm)
 		return pm_generic_poweroff(dev);
 	else
 		return i2c_legacy_suspend(dev, PMSG_HIBERNATE);
+#endif
+
+#ifdef CONFIG_WAKE_GESTURES
+	return 0;
+#endif
 }
 
 static int i2c_device_pm_restore(struct device *dev)
 {
 	const struct dev_pm_ops *pm = dev->driver ? dev->driver->pm : NULL;
 
+#ifndef CONFIG_WAKE_GESTURES
 	if (pm)
 		return pm_generic_restore(dev);
 	else
 		return i2c_legacy_resume(dev);
+#endif
+
+#ifdef CONFIG_WAKE_GESTURES
+	return 0;
+#endif
 }
 #else /* !CONFIG_PM_SLEEP */
 #define i2c_device_pm_suspend	NULL

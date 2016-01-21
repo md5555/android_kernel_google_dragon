@@ -30,6 +30,11 @@
 
 #include <video/mipi_display.h>
 
+#ifdef CONFIG_WAKE_GESTURES
+#include <linux/wake_gestures.h>
+#include <linux/wakelock.h>
+#endif
+
 static struct backlight_jdi_init {
 	u8 reg;
 	u8 value;
@@ -81,11 +86,35 @@ struct panel_jdi {
 
 	struct mutex lock;
 	bool enabled;
+	bool suspended;
 	int brightness;
 
 	struct dentry *debugfs_entry;
 	u8 current_register;
 };
+
+#ifdef CONFIG_WAKE_GESTURES
+static bool suspended;
+bool gestures_enabled;
+bool scr_suspended(void)
+{
+	return suspended;
+}
+#endif
+
+#ifdef CONFIG_WAKE_GESTURES
+static void s2w_enable(struct panel_jdi *panel, bool enable)
+{
+	if (enable) {
+		enable_irq_wake(panel->touch->irq);
+	} else {
+		disable_irq_wake(panel->touch->irq);
+	}
+
+	suspended = enable;
+}
+#endif
+
 
 static inline struct panel_jdi *to_panel_jdi(struct drm_panel *panel)
 {
@@ -283,13 +312,18 @@ static int panel_jdi_disable(struct drm_panel *panel)
 	if (!panel->connector || panel->connector->dpms == DRM_MODE_DPMS_ON)
 		goto out;
 
+#ifndef CONFIG_WAKE_GESTURES
 	if (jdi->touch)
 		pm_runtime_force_suspend(&jdi->touch->dev);
+#endif
 
 	ret = backlight_jdi_write_display_brightness(jdi, 0);
 	if (ret < 0)
 		DRM_ERROR("failed to set backlight on: %d\n", ret);
 
+	jdi->brightness = 0;
+
+#ifndef CONFIG_WAKE_GESTURES
 	ret = mipi_dsi_dcs_set_display_off(jdi->dsi);
 	if (ret < 0)
 		DRM_ERROR("failed to set display off: %d\n", ret);
@@ -306,13 +340,18 @@ static int panel_jdi_disable(struct drm_panel *panel)
 	ret = mipi_dsi_dcs_enter_sleep_mode(jdi->slave);
 	if (ret < 0)
 		DRM_ERROR("failed to enter sleep mode: %d\n", ret);
+#endif
 
+out:
 	/* Specified by JDI @ 150ms, subject to change */
 	msleep(150);
 
-	jdi->brightness = 0;
-out:
 	mutex_unlock(&jdi->lock);
+
+#ifdef CONFIG_WAKE_GESTURES
+	s2w_enable(jdi, true);
+#endif
+
 	return ret;
 }
 
@@ -538,6 +577,7 @@ static int panel_jdi_prepare(struct drm_panel *panel)
 		DRM_ERROR("failed to write dc registers %d\n", ret);
 
 out:
+
 	mutex_unlock(&jdi->lock);
 	return ret;
 }
@@ -557,8 +597,10 @@ static int panel_jdi_enable(struct drm_panel *panel)
 	if (ret < 0)
 		DRM_ERROR("failed to set display on: %d\n", ret);
 
+#ifndef CONFIG_WAKE_GESTURES
 	if (!jdi->enabled && jdi->touch)
 		pm_runtime_force_resume(&jdi->touch->dev);
+#endif
 
 	if (gpio_is_valid(jdi->ts_reset_gpio)) {
 		gpio_set_value(jdi->ts_reset_gpio,
@@ -575,6 +617,19 @@ static int panel_jdi_enable(struct drm_panel *panel)
 	ret = backlight_jdi_update_status(jdi->bl);
 	if (ret)
 		DRM_ERROR("failed to update backlight: %d\n", ret);
+
+#ifdef CONFIG_WAKE_GESTURES
+	if (dt2w_switch_changed) {
+		dt2w_switch = dt2w_switch_temp;
+		dt2w_switch_changed = false;
+	}
+	if (s2w_switch_changed) {
+		s2w_switch = s2w_switch_temp;
+		s2w_switch_changed = false;
+	}
+#endif
+
+	s2w_enable(jdi, false);
 
 	return ret;
 }
@@ -773,6 +828,7 @@ static int panel_jdi_setup_primary(struct mipi_dsi_device *dsi,
 	mutex_init(&jdi->lock);
 
 	jdi->enabled = of_property_read_bool(dsi->dev.of_node, "panel-boot-on");
+	jdi->suspended = false;
 
 	jdi->supply = devm_regulator_get(&dsi->dev, "power");
 	if (IS_ERR(jdi->supply)) {
