@@ -2401,6 +2401,9 @@ intel_sdvo_connector_init(struct intel_sdvo_connector *connector,
 	if (ret < 0)
 		goto err1;
 
+	intel_i2c_register(encoder->base.base.dev, &connector->base.base,
+			   encoder->ddc_bus);
+
 	ret = sysfs_create_link(&drm_connector->kdev->kobj,
 				&encoder->ddc.dev.kobj,
 				encoder->ddc.dev.kobj.name);
