@@ -42,8 +42,8 @@
 #define WG_PWRKEY_DUR           60
 
 /* shamu */
-#define SWEEP_Y_MAX             1920
-#define SWEEP_X_MAX             1080
+#define SWEEP_Y_MAX             1800
+#define SWEEP_X_MAX             2560
 #define SWEEP_EDGE		90
 #define SWEEP_Y_LIMIT           SWEEP_Y_MAX-SWEEP_EDGE
 #define SWEEP_X_LIMIT           SWEEP_X_MAX-SWEEP_EDGE
@@ -54,7 +54,7 @@
 #define SWEEP_X_FINAL           270
 #define SWEEP_Y_NEXT            135
 #define DT2W_FEATHER		150
-#define DT2W_TIME 		50
+#define DT2W_TIME 		250
 
 /* Wake Gestures */
 #define SWEEP_TIMEOUT		30
@@ -104,9 +104,15 @@ static struct work_struct s2w_input_work;
 static struct work_struct dt2w_input_work;
 static struct wake_lock dt2w_wakelock;
 
+extern bool scr_is_suspended;
+
 void wg_setdev(struct input_dev * input_device) {
 	wake_dev = input_device;
 	return;
+}
+
+bool scr_suspended(void) {
+	return scr_is_suspended;
 }
 
 /* Wake Gestures */
@@ -114,7 +120,7 @@ void wg_setdev(struct input_dev * input_device) {
 static void report_gesture(int gest)
 {
 	pwrtrigger_time[1] = pwrtrigger_time[0];
-	pwrtrigger_time[0] = jiffies;	
+	pwrtrigger_time[0] = jiffies_64;	
 
 	if (pwrtrigger_time[0] - pwrtrigger_time[1] < TRIGGER_TIMEOUT)
 		return;
@@ -127,15 +133,15 @@ static void report_gesture(int gest)
 
 /* PowerKey work func */
 static void wake_presspwr(struct work_struct * wake_presspwr_work) {
+
 	if (!mutex_trylock(&pwrkeyworklock))
         	return;
 
-	input_event(wake_dev, EV_KEY, KEY_POWER, 1);
-	input_event(wake_dev, EV_SYN, 0, 0);
-	msleep(WG_PWRKEY_DUR);
-	input_event(wake_dev, EV_KEY, KEY_POWER, 0);
-	input_event(wake_dev, EV_SYN, 0, 0);
-	msleep(WG_PWRKEY_DUR);
+	input_report_key(wake_dev, KEY_WAKEUP, 1);
+	input_sync(wake_dev);
+	input_report_key(wake_dev, KEY_WAKEUP, 0);
+	input_sync(wake_dev);
+
     	mutex_unlock(&pwrkeyworklock);
 
 	return;
@@ -145,7 +151,7 @@ static DECLARE_WORK(wake_presspwr_work, wake_presspwr);
 /* PowerKey trigger */
 static void wake_pwrtrigger(void) {
 	pwrtrigger_time[1] = pwrtrigger_time[0];
-	pwrtrigger_time[0] = jiffies;
+	pwrtrigger_time[0] = jiffies_64;
 	
 	if (pwrtrigger_time[0] - pwrtrigger_time[1] < TRIGGER_TIMEOUT)
 		return;
@@ -179,7 +185,7 @@ static unsigned int calc_feather(int coord, int prev_coord) {
 
 /* init a new touch */
 static void new_touch(int x, int y) {
-	tap_time_pre = jiffies;
+	tap_time_pre = jiffies_64;
 	x_pre = x;
 	y_pre = y;
 	touch_nr++;
@@ -191,22 +197,28 @@ static void detect_doubletap2wake(int x, int y, bool st)
 {
         bool single_touch = st;
 #if WG_DEBUG
-        printk(LOGTAG"x,y(%4d,%4d) tap_time_pre:%llu\n",
-                x, y, tap_time_pre);
+        printk(LOGTAG"x,y(%4d,%4d) tap_time_pre:%llu, jiffies_64: %llu\n",
+                x, y, tap_time_pre, jiffies_64);
 #endif
 	if (x < SWEEP_EDGE || x > SWEEP_X_LIMIT)
        		return;
 	if (y < SWEEP_EDGE || y > SWEEP_Y_LIMIT)
        		return;
 
+	printk(LOGTAG"single_touch: %d, exec_count: %d, touch_cnt: %d\n", 
+		single_touch, exec_count, touch_cnt);
+
 	if ((single_touch) && (dt2w_switch) && (exec_count) && (touch_cnt)) {
 		touch_cnt = false;
+
+		printk(LOGTAG"pre touch_nr: %d x_pre: %d y_pre: %d\n", touch_nr, x_pre, y_pre);
+
 		if (touch_nr == 0) {
 			new_touch(x, y);
 		} else if (touch_nr == 1) {
 			if ((calc_feather(x, x_pre) < DT2W_FEATHER) &&
 			    (calc_feather(y, y_pre) < DT2W_FEATHER) &&
-			    ((jiffies-tap_time_pre) < DT2W_TIME))
+			    ((jiffies_64-tap_time_pre) < DT2W_TIME))
 				touch_nr++;
 			else {
 				doubletap2wake_reset();
@@ -216,6 +228,9 @@ static void detect_doubletap2wake(int x, int y, bool st)
 			doubletap2wake_reset();
 			new_touch(x, y);
 		}
+
+		printk(LOGTAG"post touch_nr: %d\n", touch_nr);
+
 		if ((touch_nr > 1)) {
 			exec_count = false;
 #if (WAKE_GESTURES_ENABLED)
@@ -259,7 +274,7 @@ static void detect_sweep2wake_v(int x, int y, bool st)
 
 	if (firsty == 0) {
 		firsty = y;
-		firsty_time = jiffies;
+		firsty_time = jiffies_64;
 	}
 
 #if WG_DEBUG
@@ -280,7 +295,7 @@ static void detect_sweep2wake_v(int x, int y, bool st)
 				barriery[1] = true;
 				if (y < prevy) {
 					if (y < (nexty - SWEEP_Y_NEXT)) {
-						if (exec_county && (jiffies - firsty_time < SWEEP_TIMEOUT)) {
+						if (exec_county && (jiffies_64 - firsty_time < SWEEP_TIMEOUT)) {
 #if (WAKE_GESTURES_ENABLED)
 							if (gestures_switch) {
 								report_gesture(3);
@@ -309,7 +324,7 @@ static void detect_sweep2wake_v(int x, int y, bool st)
 				barriery[1] = true;
 				if (y > prevy) {
 					if (y > (nexty + SWEEP_Y_NEXT)) {
-						if (exec_county && (jiffies - firsty_time < SWEEP_TIMEOUT)) {
+						if (exec_county && (jiffies_64 - firsty_time < SWEEP_TIMEOUT)) {
 #if (WAKE_GESTURES_ENABLED)
 							if (gestures_switch) {
 								report_gesture(4);
@@ -341,7 +356,7 @@ static void detect_sweep2wake_h(int x, int y, bool st, bool scr_suspended)
 
 	if (firstx == 0) {
 		firstx = x;
-		firstx_time = jiffies;
+		firstx_time = jiffies_64;
 	}
 
 #if WG_DEBUG
@@ -365,7 +380,7 @@ static void detect_sweep2wake_h(int x, int y, bool st, bool scr_suspended)
 				barrierx[1] = true;
 				if (x > prevx) {
 					if (x > (SWEEP_X_MAX - SWEEP_X_FINAL)) {
-						if (exec_countx && (jiffies - firstx_time < SWEEP_TIMEOUT)) {
+						if (exec_countx && (jiffies_64 - firstx_time < SWEEP_TIMEOUT)) {
 #if (WAKE_GESTURES_ENABLED)
 							if (gestures_switch && scr_suspended) {
 								report_gesture(1);
@@ -441,10 +456,6 @@ static void wg_input_start(struct input_handle *handle) {
 static void wg_input_event(struct input_handle *handle, unsigned int type,
 				unsigned int code, int value)
 {
-
-	if (scr_suspended() && code == ABS_MT_POSITION_X) {
-		value -= 5000;
-	}
 
 #if WG_DEBUG
 	printk("wg: code: %s|%u, val: %i\n",
@@ -541,7 +552,7 @@ static void wg_input_disconnect(struct input_handle *handle) {
 static const struct input_device_id wg_ids[] = {
 	{ 
 		.flags = INPUT_DEVICE_ID_MATCH_KEYBIT,
-		.keybit = { [BIT_WORD(0x0145)] = BIT_MASK(0x0145) },
+		.keybit = { [BIT_WORD(0x008f)] = BIT_MASK(0x008f) },
 	},
 };
 
