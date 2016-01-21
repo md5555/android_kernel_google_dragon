@@ -2617,8 +2617,8 @@ static void synaptics_rmi4_set_configured(struct synaptics_rmi4_data *rmi4_data)
 		return;
 	}
 
-	rmi4_data->no_sleep_setting = device_ctrl & NO_SLEEP_ON;
-	device_ctrl |= CONFIGURED;
+	rmi4_data->no_sleep_setting = true; // device_ctrl & NO_SLEEP_ON;
+	device_ctrl |= CONFIGURED | NO_SLEEP_ON;
 
 	retval = synaptics_rmi4_reg_write(rmi4_data,
 			rmi4_data->f01_ctrl_base_addr,
@@ -4237,12 +4237,6 @@ static int synaptics_rmi4_suspend(struct device *dev)
 	struct synaptics_rmi4_exp_fhandler *exp_fhandler;
 	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
 
-#ifdef CONFIG_WAKE_GESTURES
-	suspended = true;
-	s2w_enable(rmi4_data, true);
-	return 0;
-#endif
-
 	if (rmi4_data->stay_awake)
 		return 0;
 
@@ -4253,10 +4247,17 @@ static int synaptics_rmi4_suspend(struct device *dev)
 	}
 
 	if (!rmi4_data->suspend) {
-		synaptics_rmi4_irq_enable(rmi4_data, false, false);
-		synaptics_rmi4_sleep_enable(rmi4_data, true);
+		synaptics_rmi4_irq_enable(rmi4_data, true, false);
+		synaptics_rmi4_sleep_enable(rmi4_data, false);
 		synaptics_rmi4_free_fingers(rmi4_data);
 	}
+
+#ifdef CONFIG_WAKE_GESTURES
+	suspended = true;
+	s2w_enable(rmi4_data, true);
+	return 0;
+#endif
+
 
 exit:
 	mutex_lock(&exp_data.mutex);
@@ -4267,7 +4268,7 @@ exit:
 	}
 	mutex_unlock(&exp_data.mutex);
 
-	rmi4_data->suspend = true;
+	rmi4_data->suspend = false;
 
 	return 0;
 }
@@ -4283,18 +4284,6 @@ static int synaptics_rmi4_resume(struct device *dev)
 #ifdef CONFIG_WAKE_GESTURES
 	suspended = false;
 	s2w_enable(rmi4_data, false);
-	return 0;
-#endif
-
-#ifdef CONFIG_WAKE_GESTURES
-        if (dt2w_switch_changed) {
-                dt2w_switch = dt2w_switch_temp;
-                dt2w_switch_changed = false;
-        }
-        if (s2w_switch_changed) {
-                s2w_switch = s2w_switch_temp;
-                s2w_switch_changed = false;
-        }
 #endif
 
 	if (rmi4_data->stay_awake)
@@ -4310,6 +4299,18 @@ static int synaptics_rmi4_resume(struct device *dev)
 
 	synaptics_rmi4_sleep_enable(rmi4_data, false);
 	synaptics_rmi4_irq_enable(rmi4_data, true, false);
+
+#ifdef CONFIG_WAKE_GESTURES
+        if (dt2w_switch_changed) {
+                dt2w_switch = dt2w_switch_temp;
+                dt2w_switch_changed = false;
+        }
+        if (s2w_switch_changed) {
+                s2w_switch = s2w_switch_temp;
+                s2w_switch_changed = false;
+        }
+	return 0;
+#endif
 
 exit:
 #ifdef FB_READY_RESET

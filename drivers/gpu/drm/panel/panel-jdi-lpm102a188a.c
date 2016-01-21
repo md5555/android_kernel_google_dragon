@@ -283,8 +283,10 @@ static int panel_jdi_disable(struct drm_panel *panel)
 	if (!panel->connector || panel->connector->dpms == DRM_MODE_DPMS_ON)
 		goto out;
 
+#ifndef CONFIG_WAKE_GESTURES
 	if (jdi->touch)
 		pm_runtime_force_suspend(&jdi->touch->dev);
+#endif
 
 	ret = backlight_jdi_write_display_brightness(jdi, 0);
 	if (ret < 0)
@@ -557,8 +559,10 @@ static int panel_jdi_enable(struct drm_panel *panel)
 	if (ret < 0)
 		DRM_ERROR("failed to set display on: %d\n", ret);
 
+#ifndef CONFIG_WAKE_GESTURES
 	if (!jdi->enabled && jdi->touch)
 		pm_runtime_force_resume(&jdi->touch->dev);
+#endif
 
 	if (gpio_is_valid(jdi->ts_reset_gpio)) {
 		gpio_set_value(jdi->ts_reset_gpio,
