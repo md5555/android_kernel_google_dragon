@@ -33,9 +33,8 @@ int chromiumos_security_sb_mount(const char *dev_name, struct path *path,
 				 const char *type, unsigned long flags,
 				 void *data)
 {
-	int error = current->total_link_count ? -ELOOP : 0;
-
-	if (error) {
+#ifdef CONFIG_SECURITY_CHROMIUMOS_NO_SYMLINK_MOUNT
+	if (current->total_link_count) {
 		char *cmdline;
 
 		cmdline = printable_cmdline(current);
@@ -43,9 +42,11 @@ int chromiumos_security_sb_mount(const char *dev_name, struct path *path,
 			"pid=%d cmdline=%s\n",
 			task_pid_nr(current), cmdline);
 		kfree(cmdline);
+		return -ELOOP;
 	}
+#endif
 
-	return error;
+	return 0;
 }
 
 static void report_load(const char *origin, struct path *path, char *operation)
