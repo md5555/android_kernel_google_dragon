@@ -1089,8 +1089,6 @@ static int i2c_hid_suspend(struct device *dev)
 	struct hid_device *hid = ihid->hid;
 	int ret;
 
-#ifndef CONFIG_WAKE_GESTURES
-
 	if (!pm_runtime_status_suspended(dev)) {
 		/* Save some power */
 		i2c_hid_set_power(client, I2C_HID_PWR_SLEEP);
@@ -1106,8 +1104,6 @@ static int i2c_hid_suspend(struct device *dev)
 	if (device_may_wakeup(&client->dev))
 		enable_irq_wake(client->irq);
 
-#endif
-
 	return 0;
 }
 
@@ -1117,8 +1113,6 @@ static int i2c_hid_resume(struct device *dev)
 	struct i2c_hid *ihid = i2c_get_clientdata(client);
 	struct hid_device *hid = ihid->hid;
 	int ret;
-
-#ifndef CONFIG_WAKE_GESTURES
 
 	if (!pm_runtime_status_suspended(dev)) {
 		/* We'll resume to full power */
@@ -1144,8 +1138,6 @@ static int i2c_hid_resume(struct device *dev)
 	if (device_may_wakeup(&client->dev))
 		disable_irq_wake(client->irq);
 
-#endif
-
 	return 0;
 }
 #endif
@@ -1154,13 +1146,9 @@ static int i2c_hid_resume(struct device *dev)
 static int i2c_hid_runtime_suspend(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
-	
-#ifndef CONFIG_WAKE_GESTURES
 
 	i2c_hid_set_power(client, I2C_HID_PWR_SLEEP);
 	disable_irq(client->irq);
-
-#endif
 
 	return 0;
 }
@@ -1171,8 +1159,6 @@ static int i2c_hid_runtime_resume(struct device *dev)
 	struct i2c_hid *ihid = i2c_get_clientdata(client);
 	struct hid_device *hid = ihid->hid;
 	int ret;
-
-#ifndef CONFIG_WAKE_GESTURES
 
 	/* Handle all pending reports */
 	i2c_hid_get_input(ihid);
@@ -1188,8 +1174,6 @@ static int i2c_hid_runtime_resume(struct device *dev)
 		if (ret)
 			return ret;
 	}
-
-#endif
 
 	return 0;
 }

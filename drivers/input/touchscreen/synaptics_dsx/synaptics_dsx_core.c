@@ -46,6 +46,11 @@
 #include <linux/input/mt.h>
 #endif
 
+#ifdef CONFIG_WAKE_GESTURES
+#include <linux/wake_gestures.h>
+#include <linux/wakelock.h>
+#endif
+
 #define INPUT_PHYS_NAME "synaptics_dsx/touch_input"
 #define STYLUS_PHYS_NAME "synaptics_dsx/stylus"
 
@@ -650,6 +655,30 @@ static ssize_t synaptics_rmi4_f01_reset_store(struct device *dev,
 
 	return count;
 }
+
+#ifdef CONFIG_WAKE_GESTURES
+//struct synaptics_rmi4_data *gl_rmi4_data;
+//static struct wake_lock syn_wakelock;
+static bool suspended = false;
+bool gestures_enabled;
+bool scr_suspended(void)
+{
+	return suspended;
+}
+#endif
+
+#ifdef CONFIG_WAKE_GESTURES
+static void s2w_enable(struct synaptics_rmi4_data *rmi4_data, bool enable)
+{
+	if (enable) {
+		enable_irq_wake(rmi4_data->irq);
+	} else {
+		disable_irq_wake(rmi4_data->irq);
+	}
+
+	suspended = enable;
+}
+#endif
 
 static ssize_t synaptics_rmi4_f01_productinfo_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -3861,6 +3890,8 @@ static int synaptics_rmi4_probe(struct platform_device *pdev)
 	queue_work(rmi4_data->reset_workqueue, &rmi4_data->reset_work);
 #endif
 
+	rmi4_data->stay_awake = true;
+
 	return retval;
 
 err_sysfs:
@@ -4208,6 +4239,12 @@ static int synaptics_rmi4_suspend(struct device *dev)
 	struct synaptics_rmi4_exp_fhandler *exp_fhandler;
 	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
 
+#ifdef CONFIG_WAKE_GESTURES
+	suspended = true;
+	s2w_enable(rmi4_data, true);
+	return 0;
+#endif
+
 	if (rmi4_data->stay_awake)
 		return 0;
 
@@ -4244,6 +4281,23 @@ static int synaptics_rmi4_resume(struct device *dev)
 #endif
 	struct synaptics_rmi4_exp_fhandler *exp_fhandler;
 	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+
+#ifdef CONFIG_WAKE_GESTURES
+	suspended = false;
+	s2w_enable(rmi4_data, false);
+	return 0;
+#endif
+
+#ifdef CONFIG_WAKE_GESTURES
+        if (dt2w_switch_changed) {
+                dt2w_switch = dt2w_switch_temp;
+                dt2w_switch_changed = false;
+        }
+        if (s2w_switch_changed) {
+                s2w_switch = s2w_switch_temp;
+                s2w_switch_changed = false;
+        }
+#endif
 
 	if (rmi4_data->stay_awake)
 		return 0;

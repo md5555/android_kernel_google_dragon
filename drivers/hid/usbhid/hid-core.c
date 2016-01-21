@@ -1518,7 +1518,6 @@ static int hid_suspend(struct usb_interface *intf, pm_message_t message)
 	bool driver_suspended = false;
 	unsigned int ledcount;
 
-#ifndef CONFIG_WAKE_GESTURES
 	if (PMSG_IS_AUTO(message)) {
 		ledcount = hidinput_count_leds(hid);
 		spin_lock_irq(&usbhid->lock);	/* Sync with error handler */
@@ -1569,11 +1568,6 @@ static int hid_suspend(struct usb_interface *intf, pm_message_t message)
  failed:
 	hid_resume_common(hid, driver_suspended);
 	return status;
-#endif
-
-#ifdef CONFIG_WAKE_GESTURES
-	return 0;
-#endif
 }
 
 static int hid_resume(struct usb_interface *intf)

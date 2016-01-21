@@ -540,8 +540,8 @@ static void wg_input_disconnect(struct input_handle *handle) {
 
 static const struct input_device_id wg_ids[] = {
 	{ 
-		.bustype = 0x0018,
-		.flags = INPUT_DEVICE_ID_MATCH_BUS,
+		.flags = INPUT_DEVICE_ID_MATCH_KEYBIT,
+		.keybit = { [BIT_WORD(0x0145)] = BIT_MASK(0x0145) },
 	},
 };
 

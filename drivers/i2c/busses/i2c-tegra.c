@@ -1182,13 +1182,9 @@ static int tegra_i2c_suspend(struct device *dev)
 {
 	struct tegra_i2c_dev *i2c_dev = dev_get_drvdata(dev);
 
-#ifndef CONFIG_WAKE_GESTURES
-
 	i2c_lock_adapter(&i2c_dev->adapter);
 	i2c_dev->is_suspended = true;
 	i2c_unlock_adapter(&i2c_dev->adapter);
-
-#endif
 
 	return 0;
 }
@@ -1197,8 +1193,6 @@ static int tegra_i2c_resume(struct device *dev)
 {
 	struct tegra_i2c_dev *i2c_dev = dev_get_drvdata(dev);
 	int ret;
-
-#ifndef CONFIG_WAKE_GESTURES
 
 	i2c_lock_adapter(&i2c_dev->adapter);
 
@@ -1213,8 +1207,6 @@ static int tegra_i2c_resume(struct device *dev)
 	i2c_dev->is_suspended = false;
 
 	i2c_unlock_adapter(&i2c_dev->adapter);
-
-#endif
 
 	return 0;
 }
