@@ -1618,6 +1618,8 @@ static int usbtouch_probe(struct usb_interface *intf,
 	usb_make_path(udev, usbtouch->phys, sizeof(usbtouch->phys));
 	strlcat(usbtouch->phys, "/input0", sizeof(usbtouch->phys));
 
+	printk("TOUCH: %s", usbtouch->name);
+
 	input_dev->name = usbtouch->name;
 	input_dev->phys = usbtouch->phys;
 	usb_to_input_id(udev, &input_dev->id);

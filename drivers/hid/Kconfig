@@ -4,6 +4,9 @@
 menu "HID support"
      depends on INPUT
 
+config WAKE_GESTURES
+        bool "Wake Gestures"
+
 config HID
 	tristate "HID bus support"
 	depends on INPUT
