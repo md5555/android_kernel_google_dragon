@@ -46,11 +46,6 @@
 #include <linux/input/mt.h>
 #endif
 
-#ifdef CONFIG_WAKE_GESTURES
-#include <linux/wake_gestures.h>
-#include <linux/wakelock.h>
-#endif
-
 #define INPUT_PHYS_NAME "synaptics_dsx/touch_input"
 #define STYLUS_PHYS_NAME "synaptics_dsx/stylus"
 
@@ -60,7 +55,7 @@
 #define TYPE_B_PROTOCOL
 #endif
 
-#define WAKEUP_GESTURE false
+#define WAKEUP_GESTURE true
 
 #define NO_0D_WHILE_2D
 #define REPORT_2D_Z
@@ -613,13 +608,13 @@ static struct device_attribute attrs[] = {
 	__ATTR(flashprog, 0440,
 			synaptics_rmi4_f01_flashprog_show,
 			synaptics_rmi4_store_error),
-	__ATTR(0dbutton, 0660,
+	__ATTR(0dbutton, (0440 | 0220),
 			synaptics_rmi4_0dbutton_show,
 			synaptics_rmi4_0dbutton_store),
 	__ATTR(suspend, 0220,
 			synaptics_rmi4_show_error,
 			synaptics_rmi4_suspend_store),
-	__ATTR(wake_gesture, 0660,
+	__ATTR(wake_gesture, (0440 | 0220),
 			synaptics_rmi4_wake_gesture_show,
 			synaptics_rmi4_wake_gesture_store),
 };
@@ -627,7 +622,7 @@ static struct device_attribute attrs[] = {
 static struct kobj_attribute virtual_key_map_attr = {
 	.attr = {
 		.name = VIRTUAL_KEY_MAP_FILE_NAME,
-		.mode = S_IRUGO,
+		.mode = 0440,
 	},
 	.show = synaptics_rmi4_virtual_key_map_show,
 };
@@ -655,30 +650,6 @@ static ssize_t synaptics_rmi4_f01_reset_store(struct device *dev,
 
 	return count;
 }
-
-#ifdef CONFIG_WAKE_GESTURES
-//struct synaptics_rmi4_data *gl_rmi4_data;
-//static struct wake_lock syn_wakelock;
-static bool suspended = false;
-bool gestures_enabled;
-bool scr_suspended(void)
-{
-	return suspended;
-}
-#endif
-
-#ifdef CONFIG_WAKE_GESTURES
-static void s2w_enable(struct synaptics_rmi4_data *rmi4_data, bool enable)
-{
-	if (enable) {
-		enable_irq_wake(rmi4_data->irq);
-	} else {
-		disable_irq_wake(rmi4_data->irq);
-	}
-
-	suspended = enable;
-}
-#endif
 
 static ssize_t synaptics_rmi4_f01_productinfo_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -1604,7 +1575,7 @@ static int synaptics_rmi4_irq_enable(struct synaptics_rmi4_data *rmi4_data,
 		synaptics_rmi4_sensor_report(rmi4_data, false);
 
 		retval = request_threaded_irq(rmi4_data->irq, NULL,
-				synaptics_rmi4_irq, IRQF_TRIGGER_FALLING | IRQF_ONESHOT, 
+				synaptics_rmi4_irq, IRQF_TRIGGER_FALLING|IRQF_ONESHOT,
 				PLATFORM_DRIVER_NAME, rmi4_data);
 		if (retval < 0) {
 			dev_err(rmi4_data->pdev->dev.parent,
@@ -2924,6 +2895,8 @@ flash_prog_mode:
 	else
 		rmi4_data->enable_wakeup_gesture = false;
 
+	printk("Synaptics: wakeup is enabled: %d", (rmi4_data->enable_wakeup_gesture?1:0));
+
 	synaptics_rmi4_set_configured(rmi4_data);
 
 	return 0;
@@ -4237,12 +4210,6 @@ static int synaptics_rmi4_suspend(struct device *dev)
 	struct synaptics_rmi4_exp_fhandler *exp_fhandler;
 	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
 
-#ifdef CONFIG_WAKE_GESTURES
-	suspended = true;
-	s2w_enable(rmi4_data, true);
-	return 0;
-#endif
-
 	if (rmi4_data->stay_awake)
 		return 0;
 
@@ -4279,23 +4246,6 @@ static int synaptics_rmi4_resume(struct device *dev)
 #endif
 	struct synaptics_rmi4_exp_fhandler *exp_fhandler;
 	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
-
-#ifdef CONFIG_WAKE_GESTURES
-	suspended = false;
-	s2w_enable(rmi4_data, false);
-	return 0;
-#endif
-
-#ifdef CONFIG_WAKE_GESTURES
-        if (dt2w_switch_changed) {
-                dt2w_switch = dt2w_switch_temp;
-                dt2w_switch_changed = false;
-        }
-        if (s2w_switch_changed) {
-                s2w_switch = s2w_switch_temp;
-                s2w_switch_changed = false;
-        }
-#endif
 
 	if (rmi4_data->stay_awake)
 		return 0;
