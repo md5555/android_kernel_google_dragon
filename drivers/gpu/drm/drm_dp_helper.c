@@ -1033,7 +1033,8 @@ static int drm_dp_i2c_xfer(struct i2c_adapter *adapter, struct i2c_msg *msgs,
 		msg.size = 0;
 		err = drm_dp_i2c_do_msg(aux, &msg);
 		if (err < 0)
-			break;
+			DRM_INFO("Bare address transaction is failed: %d\n",
+				err);
 		/*
 		 * Many hardware implementations support FIFOs larger than a
 		 * single byte, but it has been empirically determined that
