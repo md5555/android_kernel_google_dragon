@@ -33,6 +33,7 @@
 //extern bool gestures_enabled;
 bool scr_suspended(void);
 void wg_setdev(struct input_dev *);
+void wg_setpdev(struct device *);
 void set_vibrate(int value);
 
 #endif	/* _LINUX_WAKE_GESTURES_H */

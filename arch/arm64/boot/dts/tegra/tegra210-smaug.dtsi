@@ -539,15 +539,21 @@
 		status = "okay";
 		hid-descr-addr = <0x0020>;
 		interrupt-parent = <&gpio>;
+		spi-cpha;
+		spi-cpol;
 		interrupts = <TEGRA_GPIO(X, 1) IRQ_TYPE_EDGE_FALLING>;
 		synaptics,irq-gpio = <&gpio TEGRA_GPIO(X, 1) IRQ_TYPE_EDGE_FALLING>;
 		synaptics,irq-on-state = <0>;
+		synaptics,irq-flags = <0x2008>;
 		synaptics,dev-dscrptr-addr = <0x0020>;
 		synaptics,power-delay-ms = <200>;
                	synaptics,reset-delay-ms = <200>;
                	synaptics,reset-on-state = <0>;
                	synaptics,reset-active-ms = <20>;
 		wakeup-source;
+		nvidia,pmc-wakeup = <&pmc
+				PMC_WAKE_TYPE_GPIO 3 PMC_TRIGGER_TYPE_NONE>;
+
 	};
 };
 

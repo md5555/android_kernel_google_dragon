@@ -44,6 +44,8 @@
 #include <linux/platform_device.h>
 #include <linux/input/synaptics_dsx.h>
 #include "synaptics_dsx_core.h"
+#include <linux/wake_gestures.h>
+#include <linux/suspend.h>
 
 #define SYN_I2C_RETRY_TIMES 10
 
@@ -863,6 +865,17 @@ static void synaptics_rmi4_i2c_dev_release(struct device *dev)
 	kfree(synaptics_dsx_i2c_device);
 
 	return;
+}
+
+static irqreturn_t synaptics_rmi4_i2c_irq(int irq, void *data)
+{
+	struct platform_device *pdevice = data;
+
+	if(scr_suspended()) {
+		pm_system_wakeup();
+ 	}	
+
+	return IRQ_HANDLED;
 }
 
 static int synaptics_rmi4_i2c_probe(struct i2c_client *client,

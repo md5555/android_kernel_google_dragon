@@ -54,7 +54,7 @@
 #define SWEEP_X_FINAL           270
 #define SWEEP_Y_NEXT            135
 #define DT2W_FEATHER		150
-#define DT2W_TIME 		250
+#define DT2W_TIME 		600
 
 /* Wake Gestures */
 #define SWEEP_TIMEOUT		30
@@ -98,6 +98,7 @@ static bool touch_cnt = true;
 int vib_strength = VIB_STRENGTH;
 
 static struct input_dev * wake_dev;
+static struct device * pdev_dev;
 static DEFINE_MUTEX(pwrkeyworklock);
 static struct workqueue_struct *s2w_input_wq;
 static struct workqueue_struct *dt2w_input_wq;
@@ -112,6 +113,12 @@ void wg_setdev(struct input_dev * input_device) {
 	wake_dev = input_device;
 	return;
 }
+
+void wg_setpdev(struct device * pdevice) {
+	pdev_dev = pdevice;
+	return;
+}
+
 
 bool scr_suspended(void) {
 	return scr_is_suspended;
@@ -223,11 +230,11 @@ static void detect_doubletap2wake(int x, int y, bool st)
 			    ((jiffies_64-tap_time_pre) < DT2W_TIME))
 				touch_nr++;
 			else {
-				doubletap2wake_reset();
+				//doubletap2wake_reset();
 				new_touch(x, y);
 			}
 		} else {
-			doubletap2wake_reset();
+			//doubletap2wake_reset();
 			new_touch(x, y);
 		}
 
@@ -252,7 +259,7 @@ static void detect_doubletap2wake(int x, int y, bool st)
 
 cancel:
 
-	pm_relax(&wake_dev->dev);
+	return;
 }
 
 
@@ -474,7 +481,7 @@ static void wg_input_event(struct input_handle *handle, unsigned int type,
 		"undef"), code, value);
 #endif
 	if (code == ABS_MT_SLOT) {
-		doubletap2wake_reset();
+		//doubletap2wake_reset();
 		return;
 	}
 
