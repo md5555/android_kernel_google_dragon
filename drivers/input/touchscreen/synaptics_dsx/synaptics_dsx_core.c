@@ -595,15 +595,8 @@ static ssize_t synaptics_rmi4_wake_gesture_store(struct device *dev,
 		return -EINVAL;
 	}
 
-	if (rmi4_data->f11_wakeup_gesture || rmi4_data->f12_wakeup_gesture) {
+	if (rmi4_data->f11_wakeup_gesture || rmi4_data->f12_wakeup_gesture)
 		rmi4_data->enable_wakeup_gesture = input;
-
-		if (input == 1) {
-			enable_irq_wake(rmi4_data->irq);
-		} else {
-			disable_irq_wake(rmi4_data->irq);
-		}
-	}
 
 	return count;
 }
@@ -2841,6 +2834,8 @@ static int synaptics_rmi4_probe(struct platform_device *pdev)
 	rmi4_data->irq_enable = synaptics_rmi4_irq_enable;
 	rmi4_data->reset_device = synaptics_rmi4_reset_device;
 
+	//wake_lock_init(&rmi4_data->wakelock, WAKE_LOCK_SUSPEND, "synapticsrmi4");
+
 	mutex_init(&(rmi4_data->rmi4_reset_mutex));
 	mutex_init(&(rmi4_data->rmi4_report_mutex));
 	mutex_init(&(rmi4_data->rmi4_io_ctrl_mutex));
@@ -2929,6 +2924,8 @@ static int synaptics_rmi4_probe(struct platform_device *pdev)
 	disable_irq(rmi4_data->irq);
 
 	irq_set_irq_wake(rmi4_data->irq, 1);
+
+	dev_pm_set_wake_irq(&(rmi4_data->pdev->dev), rmi4_data->irq); 
 
 	retval = synaptics_rmi4_irq_enable(rmi4_data, true);
 	if (retval < 0) {
@@ -3227,7 +3224,7 @@ static void synaptics_rmi4_sensor_wake(struct synaptics_rmi4_data *rmi4_data)
 	}
 
 	device_ctrl = (device_ctrl & ~MASK_3BIT);
-	device_ctrl = (device_ctrl | no_sleep_setting | NORMAL_OPERATION);
+	device_ctrl = (device_ctrl | NO_SLEEP_ON | NORMAL_OPERATION);
 
 	retval = synaptics_rmi4_reg_write(rmi4_data,
 			rmi4_data->f01_ctrl_base_addr,
@@ -3363,15 +3360,24 @@ static int synaptics_rmi4_suspend(struct device *dev)
 	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
 
 	dev_info(rmi4_data->pdev->dev.parent, " %s\n", __func__);
+
 	if (rmi4_data->stay_awake)
 		return 0;
 
 	if (rmi4_data->enable_wakeup_gesture) {
+		synaptics_rmi4_irq_enable(rmi4_data,true);
+		enable_irq_wake(rmi4_data->irq);
+		synaptics_rmi4_sensor_wake(rmi4_data);
+		//wake_lock(&rmi4_data->wakelock);
+		goto out;
+
+		/*
 		if (rmi4_data->irq_enabled) {
 			dev_dbg(rmi4_data->pdev->dev.parent, " %s, irq disabled\n", __func__);
 			disable_irq(rmi4_data->irq);
 			rmi4_data->irq_enabled = false;
 		}
+		*/
 	}
 
 	mutex_lock(&exp_data.mutex);
@@ -3385,6 +3391,8 @@ static int synaptics_rmi4_suspend(struct device *dev)
 	if (rmi4_data->pwr_reg)
 		regulator_disable(rmi4_data->pwr_reg);
 
+out:
+
 	return 0;
 }
 
@@ -3397,6 +3405,7 @@ static int synaptics_rmi4_resume(struct device *dev)
 			rmi4_data->hw_if->board_data;
 
 	dev_info(rmi4_data->pdev->dev.parent, " %s\n", __func__);
+
 	if (rmi4_data->stay_awake)
 		return 0;
 
@@ -3414,11 +3423,15 @@ static int synaptics_rmi4_resume(struct device *dev)
 	}
 
 	if (rmi4_data->enable_wakeup_gesture) {
+		//wake_unlock(&rmi4_data->wakelock);
+
+		/*
 		if (!rmi4_data->irq_enabled) {
 			dev_dbg(rmi4_data->pdev->dev.parent, " %s, irq enabled\n", __func__);
 			enable_irq(rmi4_data->irq);
 			rmi4_data->irq_enabled = true;
 		}
+		*/
 	}
 
 	mutex_lock(&exp_data.mutex);
@@ -3443,9 +3456,7 @@ static struct platform_driver synaptics_rmi4_driver = {
 		.name = PLATFORM_DRIVER_NAME,
 		.owner = THIS_MODULE,
 #ifdef CONFIG_PM
-#ifndef CONFIG_WAKE_GESTURES
-		//.pm = &synaptics_rmi4_dev_pm_ops,
-#endif
+		.pm = &synaptics_rmi4_dev_pm_ops,
 #endif
 	},
 	.probe = synaptics_rmi4_probe,

@@ -25,6 +25,7 @@
 #define SYNAPTICS_DSX_DRIVER_VERSION 0x2002
 
 #include <linux/version.h>
+#include <linux/wakelock.h>
 
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38))
 #define KERNEL_ABOVE_2_6_38
@@ -267,6 +268,9 @@ struct synaptics_rmi4_data {
 #ifdef CONFIG_FB
 	struct notifier_block fb_notifier;
 #endif
+
+	struct wake_lock wakelock;
+
 	unsigned char current_page;
 	unsigned char button_0d_enabled;
 	unsigned char full_pm_cycle;
