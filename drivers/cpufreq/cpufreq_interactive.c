@@ -781,11 +781,6 @@ static const struct input_device_id cpufreq_interactive_ids[] = {
 	{ },
 };
 
-struct cpufreq_interactive_input_handler_data {
-	int ref;
-	struct mutex lock;
-};
-
 static struct input_handler cpufreq_interactive_input_handler = {
 	.event          = cpufreq_interactive_input_event,
 	.connect        = cpufreq_interactive_input_connect,
@@ -1258,7 +1253,6 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 	struct cpufreq_interactive_cpuinfo *pcpu;
 	struct cpufreq_frequency_table *freq_table;
 	struct cpufreq_interactive_tunables *tunables;
-	struct cpufreq_interactive_input_handler_data *input_handler_data;
 	unsigned long flags;
 
 	if (have_governor_per_policy())
@@ -1317,17 +1311,10 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 			return rc;
 		}
 
-		input_handler_data = cpufreq_interactive_input_handler.private;
-		mutex_lock(&input_handler_data->lock);
-		input_handler_data->ref++;
-		if (input_handler_data->ref == 1) {
-			rc = input_register_handler(
-					&cpufreq_interactive_input_handler);
-			if (rc)
-				pr_warn("%s: failed to register input handler\n",
-					__func__);
-		}
-		mutex_unlock(&input_handler_data->lock);
+		rc = input_register_handler(&cpufreq_interactive_input_handler);
+		if (rc)
+			pr_warn("%s: failed to register input handler\n",
+				__func__);
 
 		if (!policy->governor->initialized) {
 			idle_notifier_register(&cpufreq_interactive_idle_nb);
@@ -1343,16 +1330,9 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 				cpufreq_unregister_notifier(&cpufreq_notifier_block,
 						CPUFREQ_TRANSITION_NOTIFIER);
 				idle_notifier_unregister(&cpufreq_interactive_idle_nb);
-			}
-			input_handler_data =
-				cpufreq_interactive_input_handler.private;
-			mutex_lock(&input_handler_data->lock);
-			input_handler_data->ref--;
-			if (!input_handler_data->ref) {
 				input_unregister_handler(
 					&cpufreq_interactive_input_handler);
 			}
-			mutex_unlock(&input_handler_data->lock);
 
 			sysfs_remove_group(get_governor_parent_kobj(policy),
 					get_sysfs_attr());
@@ -1476,8 +1456,6 @@ static int __init cpufreq_interactive_init(void)
 	unsigned int i;
 	struct cpufreq_interactive_cpuinfo *pcpu;
 	struct sched_param param = { .sched_priority = MAX_RT_PRIO-1 };
-	struct cpufreq_interactive_input_handler_data *ih_data;
-	int ret;
 
 	/* Initalize per-cpu timers */
 	for_each_possible_cpu(i) {
@@ -1492,19 +1470,13 @@ static int __init cpufreq_interactive_init(void)
 		init_rwsem(&pcpu->enable_sem);
 	}
 
-	ih_data = kzalloc(sizeof(*ih_data), GFP_KERNEL);
-	mutex_init(&ih_data->lock);
-	cpufreq_interactive_input_handler.private = ih_data;
-
 	spin_lock_init(&speedchange_cpumask_lock);
 	mutex_init(&gov_lock);
 	speedchange_task =
 		kthread_create(cpufreq_interactive_speedchange_task, NULL,
 			       "cfinteractive");
-	if (IS_ERR(speedchange_task)) {
-		ret = PTR_ERR(speedchange_task);
-		goto out_err;
-	}
+	if (IS_ERR(speedchange_task))
+		return PTR_ERR(speedchange_task);
 
 	sched_setscheduler_nocheck(speedchange_task, SCHED_FIFO, &param);
 	get_task_struct(speedchange_task);
@@ -1512,16 +1484,7 @@ static int __init cpufreq_interactive_init(void)
 	/* NB: wake up so the thread does not look hung to the freezer */
 	wake_up_process(speedchange_task);
 
-	ret = cpufreq_register_governor(&cpufreq_gov_interactive);
-	if (ret)
-		goto out_err;
-
-	return ret;
-
-out_err:
-	kfree(cpufreq_interactive_input_handler.private);
-	cpufreq_interactive_input_handler.private = NULL;
-	return ret;
+	return cpufreq_register_governor(&cpufreq_gov_interactive);
 }
 
 #ifdef CONFIG_CPU_FREQ_DEFAULT_GOV_INTERACTIVE
@@ -1535,9 +1498,6 @@ static void __exit cpufreq_interactive_exit(void)
 	cpufreq_unregister_governor(&cpufreq_gov_interactive);
 	kthread_stop(speedchange_task);
 	put_task_struct(speedchange_task);
-
-	kfree(cpufreq_interactive_input_handler.private);
-	cpufreq_interactive_input_handler.private = NULL;
 }
 
 module_exit(cpufreq_interactive_exit);
