@@ -137,6 +137,8 @@ static void wake_presspwr(struct work_struct * wake_presspwr_work) {
 	if (!mutex_trylock(&pwrkeyworklock))
         	return;
 
+	pm_wakeup_event(&wake_dev->dev, 250);
+
 	input_report_key(wake_dev, KEY_WAKEUP, 1);
 	input_sync(wake_dev);
 	input_report_key(wake_dev, KEY_WAKEUP, 0);

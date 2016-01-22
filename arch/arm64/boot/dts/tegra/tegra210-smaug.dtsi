@@ -547,6 +547,7 @@
                	synaptics,reset-delay-ms = <200>;
                	synaptics,reset-on-state = <0>;
                	synaptics,reset-active-ms = <20>;
+		wakeup-source;
 	};
 };
 

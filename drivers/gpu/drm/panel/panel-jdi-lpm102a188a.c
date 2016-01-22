@@ -320,11 +320,6 @@ static int panel_jdi_disable(struct drm_panel *panel)
 
 	scr_is_suspended = true;
 
-#ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_DSX_WAKEUP_GESTURE
-	if (jdi->touch)
-		pm_runtime_force_resume(&jdi->touch->dev);
-#endif
-
 out:
 	mutex_unlock(&jdi->lock);
 	return ret;
@@ -356,12 +351,6 @@ static int panel_jdi_unprepare(struct drm_panel *panel)
 
 	jdi->enabled = false;
 #endif
-
-#ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_DSX_WAKEUP_GESTURE
-	if (jdi->touch)
-		pm_runtime_force_resume(&jdi->touch->dev);
-#endif
-
 
 out:
 	mutex_unlock(&jdi->lock);
