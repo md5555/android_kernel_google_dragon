@@ -27,6 +27,7 @@
 #include <linux/init.h>
 #include <linux/err.h>
 #include <linux/wake_gestures.h>
+#include <linux/suspend.h>
 #include <linux/slab.h>
 #include <linux/workqueue.h>
 #include <linux/input.h>
@@ -88,6 +89,8 @@ static void dt2w_wake_event(struct work_struct * dt2w_wake_event_work) {
 
 	if (!mutex_trylock(&pwrkeyworklock))
         	return;
+
+	pm_system_wakeup();
 
 	input_report_key(wake_dev, KEY_WAKEUP, 1);
 	input_sync(wake_dev);

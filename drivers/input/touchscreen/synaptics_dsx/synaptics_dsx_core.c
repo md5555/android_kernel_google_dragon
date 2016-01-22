@@ -1244,9 +1244,10 @@ static irqreturn_t synaptics_rmi4_irq(int irq, void *data)
 	if (gpio_get_value(bdata->irq_gpio) != bdata->irq_on_state)
 		goto exit;
 
+	/*
 	if(scr_suspended()) {
-		wake_lock_timeout(&(rmi4_data->wakelock), 1000);
- 	}	
+		wake_lock_timeout(&(rmi4_data->wakelock), 200);
+ 	}*/
 
 	synaptics_rmi4_sensor_report(rmi4_data);
 exit:
@@ -2829,7 +2830,7 @@ static int synaptics_rmi4_probe(struct platform_device *pdev)
 	mutex_init(&(rmi4_data->rmi4_report_mutex));
 	mutex_init(&(rmi4_data->rmi4_io_ctrl_mutex));
 
-	wake_lock_init(&(rmi4_data->wakelock), WAKE_LOCK_SUSPEND, "syn-rmi-irq-wakelock");
+	//wake_lock_init(&(rmi4_data->wakelock), WAKE_LOCK_SUSPEND, "syn-rmi-irq-wakelock");
 
 	platform_set_drvdata(pdev, rmi4_data);
 
