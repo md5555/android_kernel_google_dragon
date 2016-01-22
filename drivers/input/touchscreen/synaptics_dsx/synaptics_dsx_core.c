@@ -2346,7 +2346,7 @@ static int synaptics_rmi4_set_input_dev(struct synaptics_rmi4_data *rmi4_data)
 
 	synaptics_rmi4_set_params(rmi4_data);
 
-	device_init_wakeup(&rmi4_data->pdev->dev, true);
+	//device_init_wakeup(&rmi4_data->pdev->dev, true);
 
 	retval = input_register_device(rmi4_data->input_dev);
 	if (retval) {
@@ -3356,8 +3356,9 @@ static int synaptics_rmi4_suspend(struct device *dev)
 	if (rmi4_data->enable_wakeup_gesture) {
 		if (rmi4_data->irq_enabled) {
 			dev_dbg(rmi4_data->pdev->dev.parent, " %s, irq disabled\n", __func__);
-			disable_irq(rmi4_data->irq);
-			rmi4_data->irq_enabled = false;
+			synaptics_rmi4_irq_enable(rmi4_data, false);
+			//disable_irq(rmi4_data->irq);
+			//rmi4_data->irq_enabled = false;
 		}
 		goto out;
 	}
@@ -3393,8 +3394,9 @@ static int synaptics_rmi4_resume(struct device *dev)
 	if (rmi4_data->enable_wakeup_gesture) {
 		if (!rmi4_data->irq_enabled) {
 			dev_dbg(rmi4_data->pdev->dev.parent, " %s, irq enabled\n", __func__);
-			enable_irq(rmi4_data->irq);
-			rmi4_data->irq_enabled = true;
+			synaptics_rmi4_irq_enable(rmi4_data, true);
+			//enable_irq(rmi4_data->irq);
+			//rmi4_data->irq_enabled = true;
 			goto out;
 		}
 	}
