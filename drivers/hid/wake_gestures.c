@@ -137,8 +137,6 @@ static void wake_presspwr(struct work_struct * wake_presspwr_work) {
 	if (!mutex_trylock(&pwrkeyworklock))
         	return;
 
-	pm_wakeup_event(&wake_dev->dev, 250);
-
 	input_report_key(wake_dev, KEY_WAKEUP, 1);
 	input_sync(wake_dev);
 	input_report_key(wake_dev, KEY_WAKEUP, 0);
@@ -203,9 +201,9 @@ static void detect_doubletap2wake(int x, int y, bool st)
                 x, y, tap_time_pre, jiffies_64);
 #endif
 	if (x < SWEEP_EDGE || x > SWEEP_X_LIMIT)
-       		return;
+       		goto cancel;
 	if (y < SWEEP_EDGE || y > SWEEP_Y_LIMIT)
-       		return;
+       		goto cancel;
 
 	printk(LOGTAG"single_touch: %d, exec_count: %d, touch_cnt: %d\n", 
 		single_touch, exec_count, touch_cnt);
@@ -245,8 +243,14 @@ static void detect_doubletap2wake(int x, int y, bool st)
 			}
 #endif
 			doubletap2wake_reset();
+
+			return;
 		}
 	}
+
+cancel:
+
+	pm_relax(&wake_dev->dev);
 }
 
 
