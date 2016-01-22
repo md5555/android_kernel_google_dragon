@@ -162,16 +162,15 @@ static void dt2w_detect_wake(int x, int y, bool st)
 			    ((jiffies_64-tap_time_pre) < DT2W_TIME))
 				touch_seqence++;
 			else {
+				dt2w_reset();
 				dt2w_register_touch(x, y);
 			}
-		} else {
-			dt2w_reset();
 		}
 
 		if (touch_seqence == 2) {
 			process_touches = false;
-			dt2w_trigger_wakeup();
 			dt2w_reset();
+			dt2w_trigger_wakeup();
 			return;
 		}
 	}
@@ -197,16 +196,17 @@ static void dt2w_input_event(struct input_handle *handle, unsigned int type,
 		return;
 	}
 
+	if (code == ABS_MT_TRACKING_ID && value == -1) {
+		process_touches = true;
+		queue_work_on(0, dt2w_input_wq, &dt2w_input_work);
+	}
+
 	if (code == ABS_MT_POSITION_X) {
 		touch_x = value;
 	}
 
 	if (code == ABS_MT_POSITION_Y) {
 		touch_y = value;
-	}
-
-	if (code == ABS_MT_TRACKING_ID && value == -1) {
-		queue_work_on(0, dt2w_input_wq, &dt2w_input_work);
 	}
 }
 
