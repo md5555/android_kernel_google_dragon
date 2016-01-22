@@ -230,12 +230,12 @@ static void detect_doubletap2wake(int x, int y, bool st)
 			    ((jiffies_64-tap_time_pre) < DT2W_TIME))
 				touch_nr++;
 			else {
-				//doubletap2wake_reset();
+				doubletap2wake_reset();
 				new_touch(x, y);
 			}
 		} else {
 			//doubletap2wake_reset();
-			new_touch(x, y);
+			//new_touch(x, y);
 		}
 
 		printk(LOGTAG"post touch_nr: %d\n", touch_nr);
