@@ -23,14 +23,14 @@
 
 #include <linux/input.h>
 
-extern int s2w_switch;
-extern int s2w_switch_temp;
-extern bool s2w_switch_changed;
-extern int dt2w_switch;
-extern int dt2w_switch_temp;
-extern bool dt2w_switch_changed;
-extern int vib_strength;
-extern bool gestures_enabled;
+//extern int s2w_switch;
+//extern int s2w_switch_temp;
+//extern bool s2w_switch_changed;
+//extern int dt2w_switch;
+//extern int dt2w_switch_temp;
+//xtern bool dt2w_switch_changed;
+//extern int vib_strength;
+//extern bool gestures_enabled;
 bool scr_suspended(void);
 void wg_setdev(struct input_dev *);
 void set_vibrate(int value);
