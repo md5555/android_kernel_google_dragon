@@ -2905,7 +2905,7 @@ static int synaptics_rmi4_probe(struct platform_device *pdev)
 	rmi4_data->irq = gpio_to_irq(bdata->irq_gpio);
 
 	retval = request_threaded_irq(rmi4_data->irq, NULL,
-			synaptics_rmi4_irq, IRQF_TRIGGER_FALLING|IRQF_ONESHOT|IRQF_NO_SUSPEND, 
+			synaptics_rmi4_irq, IRQF_TRIGGER_FALLING|IRQF_ONESHOT, 
 			PLATFORM_DRIVER_NAME, rmi4_data);
 	if (retval < 0) {
 		dev_err(rmi4_data->pdev->dev.parent,
@@ -2913,7 +2913,7 @@ static int synaptics_rmi4_probe(struct platform_device *pdev)
 				__func__);
 		return retval;
 	}
-	irq_set_irq_wake(rmi4_data->irq, 1);
+	//irq_set_irq_wake(rmi4_data->irq, 1);
 
 	disable_irq(rmi4_data->irq);
 
