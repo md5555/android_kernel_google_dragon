@@ -97,7 +97,7 @@
 
 #define SHIFT_BITS (10)
 
-bool wake_gestures_enabled;
+bool wake_gestures_enabled = true;
 
 static int synaptics_rmi4_f12_set_enables(struct synaptics_rmi4_data *rmi4_data,
 		unsigned short ctrl28);
