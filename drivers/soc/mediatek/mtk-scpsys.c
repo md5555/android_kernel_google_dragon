@@ -537,18 +537,17 @@ static int scpsys_probe(struct platform_device *pdev)
 		genpd->dev_ops.active_wakeup = scpsys_active_wakeup;
 
 		/*
-		 * Initially turn on all domains to make the domains usable
-		 * with !CONFIG_PM and to get the hardware in sync with the
-		 * software.  The unused domains will be switched off during
-		 * late_init time.
+		 * With CONFIG_PM disabled turn on all domains to make the
+		 * hardware usable.
 		 */
-		genpd->power_on(genpd);
+		if (!IS_ENABLED(CONFIG_PM))
+			genpd->power_on(genpd);
 
 		if (i == MT8173_POWER_DOMAIN_MFG_2D ||
 		    i == MT8173_POWER_DOMAIN_MFG_ASYNC)
 			continue;
 
-		pm_genpd_init(genpd, NULL, false);
+		pm_genpd_init(genpd, NULL, true);
 	}
 
 	/*
