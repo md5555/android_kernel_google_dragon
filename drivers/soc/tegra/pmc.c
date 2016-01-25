@@ -1909,11 +1909,12 @@ static void tegra_pmc_wake_syscore_resume(void)
 			continue;
 		}
 
+		log_wakeup_reason(wake->irq_num);
+
 		desc = irq_to_desc(wake->irq_num);
 		if (!desc || !desc->action || !desc->action->name) {
 			pr_info("Resume caused by PMC WAKE%d, irq %d\n",
 				wake->wake_mask_offset, wake->irq_num);
-			log_wakeup_reason(wake->irq_num);
 			continue;
 		}
 
