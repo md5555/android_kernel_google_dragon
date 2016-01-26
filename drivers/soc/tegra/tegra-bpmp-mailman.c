@@ -342,7 +342,7 @@ static int tegra_bpmp_get_fwtag(void *fwtag)
 
 	spin_lock_irqsave(&bpmp->shared_memory_lock, flags);
 	err = tegra_bpmp_send_receive_atomic(MRQ_QUERY_TAG, &shared_phys,
-					     FWTAG_SIZE, NULL, 0);
+					     sizeof(shared_phys), NULL, 0);
 	if (!err)
 		memcpy(fwtag, shared_virt, FWTAG_SIZE);
 	spin_unlock_irqrestore(&bpmp->shared_memory_lock, flags);
