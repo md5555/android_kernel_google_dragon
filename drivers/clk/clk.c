@@ -2570,7 +2570,7 @@ void __clk_put(struct clk *clk)
  */
 int clk_notifier_register(struct clk *clk, struct notifier_block *nb)
 {
-	struct clk_notifier *cn;
+	struct clk_notifier *tmp, *cn = NULL;
 	int ret = -ENOMEM;
 
 	if (!clk || !nb)
@@ -2579,12 +2579,15 @@ int clk_notifier_register(struct clk *clk, struct notifier_block *nb)
 	clk_prepare_lock();
 
 	/* search the list of notifiers for this clk */
-	list_for_each_entry(cn, &clk_notifier_list, node)
-		if (cn->clk == clk)
+	list_for_each_entry(tmp, &clk_notifier_list, node) {
+		if (tmp->clk == clk) {
+			cn = tmp;
 			break;
+		}
+	}
 
 	/* if clk wasn't in the notifier list, allocate new clk_notifier */
-	if (cn->clk != clk) {
+	if (!cn) {
 		cn = kzalloc(sizeof(struct clk_notifier), GFP_KERNEL);
 		if (!cn)
 			goto out;
