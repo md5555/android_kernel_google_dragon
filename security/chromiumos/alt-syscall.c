@@ -175,6 +175,7 @@ static asmlinkage long alt_sys_prctl(int option, unsigned long arg2,
 #define __NR_compat_fgetxattr	__NR_ia32_fgetxattr
 #define __NR_compat_flistxattr	__NR_ia32_flistxattr
 #define __NR_compat_flock	__NR_ia32_flock
+#define __NR_compat_fork	__NR_ia32_fork
 #define __NR_compat_fremovexattr	__NR_ia32_fremovexattr
 #define __NR_compat_fsetxattr	__NR_ia32_fsetxattr
 #define __NR_compat_fstat	__NR_ia32_fstat
@@ -261,10 +262,13 @@ static asmlinkage long alt_sys_prctl(int option, unsigned long arg2,
 #define __NR_compat_restart_syscall	__NR_ia32_restart_syscall
 #define __NR_compat_rmdir	__NR_ia32_rmdir
 #define __NR_compat_rt_sigaction	__NR_ia32_rt_sigaction
+#define __NR_compat_rt_sigpending	__NR_ia32_rt_sigpending
 #define __NR_compat_rt_sigprocmask	__NR_ia32_rt_sigprocmask
+#define __NR_compat_rt_sigqueueinfo	__NR_ia32_rt_sigqueueinfo
 #define __NR_compat_rt_sigreturn	__NR_ia32_rt_sigreturn
 #define __NR_compat_rt_sigsuspend	__NR_ia32_rt_sigsuspend
 #define __NR_compat_rt_sigtimedwait	__NR_ia32_rt_sigtimedwait
+#define __NR_compat_rt_tgsigqueueinfo	__NR_ia32_rt_tgsigqueueinfo
 #define __NR_compat_sched_getparam	__NR_ia32_sched_getparam
 #define __NR_compat_sched_getscheduler	__NR_ia32_sched_getscheduler
 #define __NR_compat_sched_setscheduler	__NR_ia32_sched_setscheduler
@@ -292,6 +296,7 @@ static asmlinkage long alt_sys_prctl(int option, unsigned long arg2,
 #define __NR_compat_symlink	__NR_ia32_symlink
 #define __NR_compat_symlinkat	__NR_ia32_symlinkat
 #define __NR_compat_sync_file_range	__NR_ia32_sync_file_range
+#define __NR_compat_sysinfo	__NR_ia32_sysinfo
 #define __NR_compat_syslog	__NR_ia32_syslog
 #define __NR_compat_tgkill	__NR_ia32_tgkill
 #define __NR_compat_timer_create	__NR_ia32_timer_create
@@ -331,7 +336,10 @@ static asmlinkage long alt_sys_prctl(int option, unsigned long arg2,
 #define __NR_compat__newselect	__NR_ia32__newselect
 #define __NR_compat__llseek	__NR_ia32__llseek
 #define __NR_compat_sigaction	__NR_ia32_sigaction
+#define __NR_compat_sigpending	__NR_ia32_sigpending
+#define __NR_compat_sigprocmask	__NR_ia32_sigprocmask
 #define __NR_compat_sigreturn	__NR_ia32_sigreturn
+#define __NR_compat_sigsuspend	__NR_ia32_sigsuspend
 #define __NR_compat_setgid32	__NR_ia32_setgid32
 #define __NR_compat_setgroups32	__NR_ia32_setgroups32
 #define __NR_compat_setregid32	__NR_ia32_setregid32
@@ -475,10 +483,13 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(renameat),
 	SYSCALL_ENTRY(restart_syscall),
 	SYSCALL_ENTRY(rt_sigaction),
+	SYSCALL_ENTRY(rt_sigpending),
 	SYSCALL_ENTRY(rt_sigprocmask),
+	SYSCALL_ENTRY(rt_sigqueueinfo),
 	SYSCALL_ENTRY(rt_sigreturn),
 	SYSCALL_ENTRY(rt_sigsuspend),
 	SYSCALL_ENTRY(rt_sigtimedwait),
+	SYSCALL_ENTRY(rt_tgsigqueueinfo),
 	SYSCALL_ENTRY(sched_getparam),
 	SYSCALL_ENTRY(sched_getscheduler),
 	SYSCALL_ENTRY(sched_setscheduler),
@@ -501,6 +512,7 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(sigaltstack),
 	SYSCALL_ENTRY(statfs),
 	SYSCALL_ENTRY(symlinkat),
+	SYSCALL_ENTRY(sysinfo),
 	SYSCALL_ENTRY(syslog),
 	SYSCALL_ENTRY(tgkill),
 	SYSCALL_ENTRY(timer_create),
@@ -532,6 +544,7 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(epoll_create),
 	SYSCALL_ENTRY(epoll_wait),
 	SYSCALL_ENTRY(eventfd),
+	SYSCALL_ENTRY(fork),
 	SYSCALL_ENTRY(futimesat),
 	SYSCALL_ENTRY(getdents),
 	SYSCALL_ENTRY(inotify_init),
@@ -624,7 +637,10 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(_newselect),
 	SYSCALL_ENTRY(_llseek),
 	SYSCALL_ENTRY(sigaction),
+	SYSCALL_ENTRY(sigpending),
+	SYSCALL_ENTRY(sigprocmask),
 	SYSCALL_ENTRY(sigreturn),
+	SYSCALL_ENTRY(sigsuspend),
 	SYSCALL_ENTRY(setgid32),
 	SYSCALL_ENTRY(setgroups32),
 	SYSCALL_ENTRY(setregid32),
@@ -692,6 +708,7 @@ static struct syscall_whitelist_entry android_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY(fgetxattr),
 	COMPAT_SYSCALL_ENTRY(flistxattr),
 	COMPAT_SYSCALL_ENTRY(flock),
+	COMPAT_SYSCALL_ENTRY(fork),
 	COMPAT_SYSCALL_ENTRY(fremovexattr),
 	COMPAT_SYSCALL_ENTRY(fsetxattr),
 	COMPAT_SYSCALL_ENTRY(fstat),
@@ -776,10 +793,13 @@ static struct syscall_whitelist_entry android_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY(restart_syscall),
 	COMPAT_SYSCALL_ENTRY(rmdir),
 	COMPAT_SYSCALL_ENTRY(rt_sigaction),
+	COMPAT_SYSCALL_ENTRY(rt_sigpending),
 	COMPAT_SYSCALL_ENTRY(rt_sigprocmask),
+	COMPAT_SYSCALL_ENTRY(rt_sigqueueinfo),
 	COMPAT_SYSCALL_ENTRY(rt_sigreturn),
 	COMPAT_SYSCALL_ENTRY(rt_sigsuspend),
 	COMPAT_SYSCALL_ENTRY(rt_sigtimedwait),
+	COMPAT_SYSCALL_ENTRY(rt_tgsigqueueinfo),
 	COMPAT_SYSCALL_ENTRY(sched_getparam),
 	COMPAT_SYSCALL_ENTRY(sched_getscheduler),
 	COMPAT_SYSCALL_ENTRY(sched_setscheduler),
@@ -804,6 +824,7 @@ static struct syscall_whitelist_entry android_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY(statfs),
 	COMPAT_SYSCALL_ENTRY(symlink),
 	COMPAT_SYSCALL_ENTRY(symlinkat),
+	COMPAT_SYSCALL_ENTRY(sysinfo),
 	COMPAT_SYSCALL_ENTRY(syslog),
 	COMPAT_SYSCALL_ENTRY(tgkill),
 	COMPAT_SYSCALL_ENTRY(timer_create),
@@ -841,7 +862,10 @@ static struct syscall_whitelist_entry android_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY(_newselect),
 	COMPAT_SYSCALL_ENTRY(_llseek),
 	COMPAT_SYSCALL_ENTRY(sigaction),
+	COMPAT_SYSCALL_ENTRY(sigpending),
+	COMPAT_SYSCALL_ENTRY(sigprocmask),
 	COMPAT_SYSCALL_ENTRY(sigreturn),
+	COMPAT_SYSCALL_ENTRY(sigsuspend),
 	COMPAT_SYSCALL_ENTRY(setgid32),
 	COMPAT_SYSCALL_ENTRY(setgroups32),
 	COMPAT_SYSCALL_ENTRY(setregid32),
