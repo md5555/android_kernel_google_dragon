@@ -74,7 +74,7 @@
 #define BQ27500_FLAG_SOC1		BIT(2) /* State-of-Charge threshold 1 */
 #define BQ27500_FLAG_FC			BIT(9)
 #define BQ27500_FLAG_OTC		BIT(15)
-#define BQ27500_MAX_NAME_LEN		7
+#define BQ27500_MAX_NAME_LEN		20
 
 #define BQ27742_POWER_AVG		0x76
 
@@ -353,14 +353,20 @@ static int bq27x00_battery_model_name(struct bq27x00_device_info *di)
 		return -EINVAL;
 
 	len = bq27x00_read(di, BQ27500_REG_DEV_NAME_LEN, false);
-	if (len < 0 || len > BQ27500_MAX_NAME_LEN) {
+	if (len <= 0) {
 		dev_err(di->dev, "error reading available length = %d\n", len);
 		return -EINVAL;
+	}
+
+	if (len >= BQ27500_MAX_NAME_LEN) {
+		dev_info(di->dev, "model name too long, length = %d\n", len);
+		len = BQ27500_MAX_NAME_LEN - 1;
 	}
 
 	for (i = 0; i < len; ++i)
 		model_name[i] = bq27x00_read(di, BQ27500_REG_DEV_NAME + i,
 					     false);
+	model_name[i] = '\0';
 
 	return 0;
 }
@@ -942,7 +948,7 @@ static int bq27x00_battery_probe(struct i2c_client *client,
 
 	retval = bq27x00_battery_model_name(di);
 	if (retval)
-		strcpy(model_name, "unknown");
+		strlcpy(model_name, "unknown", BQ27500_MAX_NAME_LEN);
 
 	return 0;
 
