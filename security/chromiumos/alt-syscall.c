@@ -146,7 +146,7 @@ static asmlinkage long alt_sys_prctl(int option, unsigned long arg2,
 #define __NR_compat_chmod	__NR_ia32_chmod
 #define __NR_compat_clock_gettime	__NR_ia32_clock_gettime
 #define __NR_compat_clock_getres	__NR_ia32_clock_getres
-#define __NR_compat_clock_nanosleep	__NR_ia32_nanosleep
+#define __NR_compat_clock_nanosleep	__NR_ia32_clock_nanosleep
 #define __NR_compat_clone	__NR_ia32_clone
 #define __NR_compat_close	__NR_ia32_close
 #define __NR_compat_creat	__NR_ia32_creat
