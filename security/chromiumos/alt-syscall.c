@@ -245,6 +245,7 @@ static asmlinkage long alt_sys_prctl(int option, unsigned long arg2,
 #define __NR_compat_prctl	__NR_ia32_prctl
 #define __NR_compat_pread64	__NR_ia32_pread64
 #define __NR_compat_preadv	__NR_ia32_preadv
+#define __NR_compat_process_vm_readv	__NR_ia32_process_vm_readv
 #define __NR_compat_pselect6	__NR_ia32_pselect6
 #define __NR_compat_ptrace	__NR_ia32_ptrace
 #define __NR_compat_pwrite64	__NR_ia32_pwrite64
@@ -279,6 +280,7 @@ static asmlinkage long alt_sys_prctl(int option, unsigned long arg2,
 #define __NR_compat_setgid	__NR_ia32_setgid
 #define __NR_compat_setgroups	__NR_ia32_setgroups
 #define __NR_compat_setitimer	__NR_ia32_setitimer
+#define __NR_compat_setns	__NR_ia32_setns
 #define __NR_compat_setpgid	__NR_ia32_setpgid
 #define __NR_compat_setpriority	__NR_ia32_setpriority
 #define __NR_compat_setregid	__NR_ia32_setregid
@@ -469,6 +471,7 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY_ALT(prctl, alt_sys_prctl),
 	SYSCALL_ENTRY(pread64),
 	SYSCALL_ENTRY(preadv),
+	SYSCALL_ENTRY(process_vm_readv),
 	SYSCALL_ENTRY(pselect6),
 	SYSCALL_ENTRY(ptrace),
 	SYSCALL_ENTRY(pwrite64),
@@ -499,6 +502,7 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(setgid),
 	SYSCALL_ENTRY(setgroups),
 	SYSCALL_ENTRY(setitimer),
+	SYSCALL_ENTRY(setns),
 	SYSCALL_ENTRY(setpgid),
 	SYSCALL_ENTRY(setpriority),
 	SYSCALL_ENTRY(setregid),
@@ -776,6 +780,7 @@ static struct syscall_whitelist_entry android_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY_ALT(prctl, alt_sys_prctl),
 	COMPAT_SYSCALL_ENTRY(pread64),
 	COMPAT_SYSCALL_ENTRY(preadv),
+	COMPAT_SYSCALL_ENTRY(process_vm_readv),
 	COMPAT_SYSCALL_ENTRY(pselect6),
 	COMPAT_SYSCALL_ENTRY(ptrace),
 	COMPAT_SYSCALL_ENTRY(pwrite64),
@@ -809,6 +814,7 @@ static struct syscall_whitelist_entry android_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY(setgid),
 	COMPAT_SYSCALL_ENTRY(setgroups),
 	COMPAT_SYSCALL_ENTRY(setitimer),
+	COMPAT_SYSCALL_ENTRY(setns),
 	COMPAT_SYSCALL_ENTRY(setpgid),
 	COMPAT_SYSCALL_ENTRY(setpriority),
 	COMPAT_SYSCALL_ENTRY(setregid),
