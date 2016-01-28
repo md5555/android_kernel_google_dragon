@@ -31,6 +31,9 @@
 #include <linux/kthread.h>
 #include <linux/slab.h>
 #include <linux/input.h>
+#include <linux/kernel_stat.h>
+#include <linux/display_state.h>
+#include <asm/cputime.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/cpufreq_interactive.h>
@@ -68,6 +71,7 @@ static struct mutex gov_lock;
 static unsigned int default_target_loads[] = {DEFAULT_TARGET_LOAD};
 
 #define DEFAULT_TIMER_RATE (20 * USEC_PER_MSEC)
+#define SCREEN_OFF_TIMER_RATE ((unsigned long)(50 * USEC_PER_MSEC))
 #define DEFAULT_ABOVE_HISPEED_DELAY DEFAULT_TIMER_RATE
 static unsigned int default_above_hispeed_delay[] = {
 	DEFAULT_ABOVE_HISPEED_DELAY };
@@ -93,6 +97,7 @@ struct cpufreq_interactive_tunables {
 	 * The sample rate of the timer used to increase frequency
 	 */
 	unsigned long timer_rate;
+	unsigned long prev_timer_rate;
 	/*
 	 * Wait this long before raising speed above hispeed, by default a
 	 * single timer interval.
@@ -350,6 +355,7 @@ static void cpufreq_interactive_timer(unsigned long data)
 	int i, fcpu;
 	struct cpufreq_govinfo govinfo;
 	unsigned int this_hispeed_freq;
+	bool display_on = is_display_on();
 
 	if (!down_read_trylock(&pcpu->enable_sem))
 		return;
@@ -361,6 +367,17 @@ static void cpufreq_interactive_timer(unsigned long data)
 	delta_time = (unsigned int)(now - pcpu->cputime_speedadj_timestamp);
 	cputime_speedadj = pcpu->cputime_speedadj;
 	spin_unlock_irqrestore(&pcpu->load_lock, flags);
+
+	if (display_on
+		&& tunables->timer_rate != tunables->prev_timer_rate)
+		tunables->timer_rate = tunables->prev_timer_rate;
+	else if (!display_on
+		&& tunables->timer_rate != SCREEN_OFF_TIMER_RATE) {
+		tunables->prev_timer_rate = tunables->timer_rate;
+		tunables->timer_rate
+			= max(tunables->timer_rate,
+				SCREEN_OFF_TIMER_RATE);
+	}
 
 	if (WARN_ON_ONCE(!delta_time))
 		goto rearm;
@@ -1002,7 +1019,9 @@ static ssize_t store_timer_rate(struct cpufreq_interactive_tunables *tunables,
 	ret = kstrtoul(buf, 0, &val);
 	if (ret < 0)
 		return ret;
+
 	tunables->timer_rate = val;
+
 	return count;
 }
 
@@ -1251,9 +1270,6 @@ static int cpufreq_interactive_idle_notifier(struct notifier_block *nb,
 	case IDLE_END:
 		cpufreq_interactive_idle_end();
 		break;
-	}
-
-	return 0;
 }
 
 static struct notifier_block cpufreq_interactive_idle_nb = {
