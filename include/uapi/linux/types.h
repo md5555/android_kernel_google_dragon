@@ -1,7 +1,7 @@
 #ifndef _UAPI_LINUX_TYPES_H
 #define _UAPI_LINUX_TYPES_H
 
-#include <asm/types.h>
+#include <asm-generic/types.h>
 
 #ifndef __ASSEMBLY__
 #ifndef	__KERNEL__
