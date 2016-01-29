@@ -743,6 +743,16 @@ static void tegra210_plld2_set_defaults(struct tegra_clk_pll *plld2)
 			PLLD2_MISC1_CFG_DEFAULT_VALUE,
 			PLLD2_MISC2_CTRL1_DEFAULT_VALUE,
 			PLLD2_MISC3_CTRL2_DEFAULT_VALUE);
+
+	if (PLLD2_MISC1_CFG_DEFAULT_VALUE & PLLDSS_MISC1_CFG_EN_SSC) {
+		/* SSC requires SDM enabled */
+		BUILD_BUG_ON(!(PLLD2_MISC1_CFG_DEFAULT_VALUE &
+			       PLLDSS_MISC1_CFG_EN_SDM));
+	} else {
+		/* SSC should be disabled */
+		plld2->params->ssc_ctrl_en_mask = 0;
+	}
+
 }
 
 static void tegra210_plldp_set_defaults(struct tegra_clk_pll *plldp)
