@@ -799,14 +799,38 @@ static int ion_debug_pid_show(struct seq_file *s, void *unused)
 
 static int ion_debug_pid_open(struct inode *inode, struct file *file)
 {
+	struct ion_pid_data *p = inode->i_private;
+
+	kref_get(&p->ref);
+
 	return single_open(file, ion_debug_pid_show, inode->i_private);
+}
+
+static void ion_pid_release_locked(struct kref *kref)
+{
+	struct ion_pid_data *p = container_of(kref, struct ion_pid_data, ref);
+	debugfs_remove(p->debug_root);
+	rb_erase(&p->node, &p->dev->pids);
+	kfree(p);
+}
+
+static int ion_debug_pid_release(struct inode *inode, struct file *file)
+{
+	struct ion_pid_data *p = inode->i_private;
+	struct ion_device *dev = p->dev;
+
+	down_write(&dev->lock);
+	kref_put(&p->ref, ion_pid_release_locked);
+	up_write(&dev->lock);
+
+	return single_release(inode, file);
 }
 
 static const struct file_operations debug_pid_fops = {
 	.open = ion_debug_pid_open,
 	.read = seq_read,
 	.llseek = seq_lseek,
-	.release = single_release,
+	.release = ion_debug_pid_release,
 };
 
 static int ion_get_client_serial(const struct rb_root *root,
@@ -864,14 +888,6 @@ static void ion_pid_get_locked(struct ion_device *dev, pid_t pid)
 		rb_link_node(&p->node, parent, new);
 		rb_insert_color(&p->node, root);
 	}
-}
-
-static void ion_pid_release_locked(struct kref *kref)
-{
-	struct ion_pid_data *p = container_of(kref, struct ion_pid_data, ref);
-	debugfs_remove(p->debug_root);
-	rb_erase(&p->node, &p->dev->pids);
-	kfree(p);
 }
 
 static struct ion_pid_data *ion_pid_find_locked(struct ion_device *dev,
