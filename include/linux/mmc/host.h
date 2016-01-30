@@ -515,4 +515,11 @@ static inline void mmc_retune_recheck(struct mmc_host *host)
 		host->retune_now = 1;
 }
 
+void mmc_retune_enable(struct mmc_host *host);
+void mmc_retune_disable(struct mmc_host *host);
+void mmc_retune_timer_stop(struct mmc_host *host);
+void mmc_retune_hold(struct mmc_host *host);
+void mmc_retune_release(struct mmc_host *host);
+int mmc_retune(struct mmc_host *host);
+
 #endif /* LINUX_MMC_HOST_H */

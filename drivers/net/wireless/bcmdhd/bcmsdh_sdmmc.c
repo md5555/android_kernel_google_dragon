@@ -1463,8 +1463,8 @@ sdioh_retune_hold(sdioh_info_t *sd, bool hold)
 {
 	sdio_claim_host(sd->func[0]);
 	if (hold)
-		sdio_retune_hold_now(sd->func[0]);
+		mmc_retune_hold(sd->func[0]->card->host);
 	else
-		sdio_retune_release(sd->func[0]);
+		mmc_retune_release(sd->func[0]->card->host);
 	sdio_release_host(sd->func[0]);
 }

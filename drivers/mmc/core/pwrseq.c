@@ -19,7 +19,7 @@
 
 struct mmc_pwrseq_match {
 	const char *compatible;
-	struct mmc_pwrseq *(*alloc)(struct mmc_host *host, struct device *dev);
+	int (*alloc)(struct mmc_host *host, struct device *dev);
 };
 
 static struct mmc_pwrseq_match pwrseq_match[] = {
@@ -71,9 +71,8 @@ int mmc_pwrseq_alloc(struct mmc_host *host)
 		goto err;
 	}
 
-	pwrseq = match->alloc(host, &pdev->dev);
-	if (IS_ERR(pwrseq)) {
-		ret = PTR_ERR(pwrseq);
+	ret = match->alloc(host, &pdev->dev);
+	if (ret) {
 		goto err;
 	}
 
