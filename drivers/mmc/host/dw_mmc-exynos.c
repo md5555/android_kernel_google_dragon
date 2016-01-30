@@ -477,7 +477,7 @@ static int dw_mci_exynos_execute_tuning(struct dw_mci_slot *slot, u32 opcode)
 	return ret;
 }
 
-int dw_mci_exynos_prepare_hs400_tuning(struct dw_mci *host,
+static int dw_mci_exynos_prepare_hs400_tuning(struct dw_mci *host,
 					struct mmc_ios *ios)
 {
 	struct dw_mci_exynos_priv_data *priv = host->priv;
@@ -543,7 +543,7 @@ static const struct dev_pm_ops dw_mci_exynos_pmops = {
 
 static struct platform_driver dw_mci_exynos_pltfm_driver = {
 	.probe		= dw_mci_exynos_probe,
-	.remove		= __exit_p(dw_mci_pltfm_remove),
+	.remove		= dw_mci_pltfm_remove,
 	.driver		= {
 		.name		= "dwmmc_exynos",
 		.of_match_table	= dw_mci_exynos_match,
@@ -556,4 +556,4 @@ module_platform_driver(dw_mci_exynos_pltfm_driver);
 MODULE_DESCRIPTION("Samsung Specific DW-MSHC Driver Extension");
 MODULE_AUTHOR("Thomas Abraham <thomas.ab@samsung.com");
 MODULE_LICENSE("GPL v2");
-MODULE_ALIAS("platform:dwmmc-exynos");
+MODULE_ALIAS("platform:dwmmc_exynos");

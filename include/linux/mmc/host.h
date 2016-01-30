@@ -16,7 +16,6 @@
 #include <linux/sched.h>
 #include <linux/device.h>
 #include <linux/fault-inject.h>
-#include <linux/pm_qos.h>
 
 #include <linux/mmc/core.h>
 #include <linux/mmc/card.h>
@@ -81,12 +80,6 @@ struct mmc_ios {
 };
 
 struct mmc_host_ops {
-	/*
-	 * 'enable' is called when the host is claimed and 'disable' is called
-	 * when the host is released. 'enable' and 'disable' are deprecated.
-	 */
-	int (*enable)(struct mmc_host *host);
-	int (*disable)(struct mmc_host *host);
 	/*
 	 * It is optional for the host to implement pre_req and post_req in
 	 * order to support double buffering of requests (prepare one
@@ -170,7 +163,6 @@ struct mmc_async_req {
  * struct mmc_slot - MMC slot functions
  *
  * @cd_irq:		MMC/SD-card slot hotplug detection IRQ or -EINVAL
- * @lock:		protect the @handler_priv pointer
  * @handler_priv:	MMC/SD-card slot context
  *
  * Some MMC/SD host controllers implement slot-functions like card and
@@ -180,7 +172,6 @@ struct mmc_async_req {
  */
 struct mmc_slot {
 	int cd_irq;
-	struct mutex lock;
 	void *handler_priv;
 };
 
@@ -201,6 +192,7 @@ struct mmc_context_info {
 };
 
 struct regulator;
+struct mmc_pwrseq;
 
 struct mmc_supply {
 	struct regulator *vmmc;		/* Card power supply */
@@ -212,6 +204,7 @@ struct mmc_host {
 	struct device		class_dev;
 	int			index;
 	const struct mmc_host_ops *ops;
+	struct mmc_pwrseq	*pwrseq;
 	unsigned int		f_min;
 	unsigned int		f_max;
 	unsigned int		f_init;
@@ -295,20 +288,9 @@ struct mmc_host {
 				 MMC_CAP2_HS400_1_2V)
 #define MMC_CAP2_HSX00_1_2V	(MMC_CAP2_HS200_1_2V_SDR | MMC_CAP2_HS400_1_2V)
 #define MMC_CAP2_SDIO_IRQ_NOTHREAD (1 << 17)
+#define MMC_CAP2_NO_WRITE_PROTECT (1 << 18)	/* No physical write protect pin, assume that card is always read-write */
 
 	mmc_pm_flag_t		pm_caps;	/* supported pm features */
-
-#ifdef CONFIG_MMC_CLKGATE
-	int			clk_requests;	/* internal reference counter */
-	unsigned int		clk_delay;	/* number of MCI clk hold cycles */
-	bool			clk_gated;	/* clock gated */
-	struct delayed_work	clk_gate_work; /* delayed clock gate */
-	unsigned int		clk_old;	/* old clock value cache */
-	spinlock_t		clk_lock;	/* lock for clk fields */
-	struct mutex		clk_gate_mutex;	/* mutex for clock gating */
-	struct device_attribute clkgate_delay_attr;
-	unsigned long           clkgate_delay;
-#endif
 
 	/* host specific block data */
 	unsigned int		max_seg_size;	/* see blk_queue_max_segment_size */
@@ -362,7 +344,6 @@ struct mmc_host {
 	struct task_struct	*sdio_irq_thread;
 	bool			sdio_irq_pending;
 	atomic_t		sdio_irq_thread_abort;
-	atomic_t		sdio_irq_thread_suspend;
 
 	mmc_pm_flag_t		pm_flags;	/* requested pm features */
 
@@ -389,16 +370,6 @@ struct mmc_host {
 	int			dsr_req;	/* DSR value is valid */
 	u32			dsr;	/* optional driver stage (DSR) value */
 
-#ifdef CONFIG_MMC_EMBEDDED_SDIO
-	struct {
-		struct sdio_cis			*cis;
-		struct sdio_cccr		*cccr;
-		struct sdio_embedded_func	*funcs;
-		int				num_funcs;
-	} embedded_sdio_data;
-#endif
-
-	struct pm_qos_request	*qos;
 	unsigned long		private[0] ____cacheline_aligned;
 };
 
@@ -407,14 +378,6 @@ int mmc_add_host(struct mmc_host *);
 void mmc_remove_host(struct mmc_host *);
 void mmc_free_host(struct mmc_host *);
 int mmc_of_parse(struct mmc_host *host);
-
-#ifdef CONFIG_MMC_EMBEDDED_SDIO
-extern void mmc_set_embedded_sdio_data(struct mmc_host *host,
-				       struct sdio_cis *cis,
-				       struct sdio_cccr *cccr,
-				       struct sdio_embedded_func *funcs,
-				       int num_funcs);
-#endif
 
 static inline void *mmc_priv(struct mmc_host *host)
 {
@@ -437,7 +400,8 @@ static inline void mmc_signal_sdio_irq(struct mmc_host *host)
 {
 	host->ops->enable_sdio_irq(host, 0);
 	host->sdio_irq_pending = true;
-	wake_up_process(host->sdio_irq_thread);
+	if (host->sdio_irq_thread)
+		wake_up_process(host->sdio_irq_thread);
 }
 
 void sdio_run_irqs(struct mmc_host *host);
@@ -447,6 +411,7 @@ int mmc_regulator_get_ocrmask(struct regulator *supply);
 int mmc_regulator_set_ocr(struct mmc_host *mmc,
 			struct regulator *supply,
 			unsigned short vdd_bit);
+int mmc_regulator_set_vqmmc(struct mmc_host *mmc, struct mmc_ios *ios);
 #else
 static inline int mmc_regulator_get_ocrmask(struct regulator *supply)
 {
@@ -458,6 +423,12 @@ static inline int mmc_regulator_set_ocr(struct mmc_host *mmc,
 				 unsigned short vdd_bit)
 {
 	return 0;
+}
+
+static inline int mmc_regulator_set_vqmmc(struct mmc_host *mmc,
+					  struct mmc_ios *ios)
+{
+	return -EINVAL;
 }
 #endif
 
@@ -502,26 +473,6 @@ static inline int mmc_host_packed_wr(struct mmc_host *host)
 {
 	return host->caps2 & MMC_CAP2_PACKED_WR;
 }
-
-#ifdef CONFIG_MMC_CLKGATE
-void mmc_host_clk_hold(struct mmc_host *host);
-void mmc_host_clk_release(struct mmc_host *host);
-unsigned int mmc_host_clk_rate(struct mmc_host *host);
-
-#else
-static inline void mmc_host_clk_hold(struct mmc_host *host)
-{
-}
-
-static inline void mmc_host_clk_release(struct mmc_host *host)
-{
-}
-
-static inline unsigned int mmc_host_clk_rate(struct mmc_host *host)
-{
-	return host->ios.clock;
-}
-#endif
 
 static inline int mmc_card_hs(struct mmc_card *card)
 {

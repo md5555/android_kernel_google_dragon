@@ -53,7 +53,6 @@
 
 #define SD_SPI_MODE          0x108
 #define SD_CE_ATA_1          0x10C
-#define SDCE_MMC_CARD		BIT(28)
 
 #define SD_CE_ATA_2          0x10E
 #define SDCE_MISC_INT		(1<<2)
@@ -64,7 +63,6 @@ struct sdhci_pxa {
 	struct clk *clk_io;
 	u8	power_mode;
 	void __iomem *sdio3_conf_reg;
-	void __iomem *mbus_win_regs;
 };
 
 /*
@@ -83,14 +81,28 @@ struct sdhci_pxa {
 #define SDIO3_CONF_CLK_INV	BIT(0)
 #define SDIO3_CONF_SD_FB_CLK	BIT(2)
 
-static int mv_conf_mbus_windows(struct device *dev, void __iomem *regs,
+static int mv_conf_mbus_windows(struct platform_device *pdev,
 				const struct mbus_dram_target_info *dram)
 {
 	int i;
+	void __iomem *regs;
+	struct resource *res;
 
 	if (!dram) {
-		dev_err(dev, "no mbus dram info\n");
+		dev_err(&pdev->dev, "no mbus dram info\n");
 		return -EINVAL;
+	}
+
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	if (!res) {
+		dev_err(&pdev->dev, "cannot get mbus registers\n");
+		return -EINVAL;
+	}
+
+	regs = ioremap(res->start, resource_size(res));
+	if (!regs) {
+		dev_err(&pdev->dev, "cannot map mbus registers\n");
+		return -ENOMEM;
 	}
 
 	for (i = 0; i < SDHCI_MAX_WIN_NUM; i++) {
@@ -110,6 +122,8 @@ static int mv_conf_mbus_windows(struct device *dev, void __iomem *regs,
 		writel(cs->base, regs + SDHCI_WINDOW_BASE(i));
 	}
 
+	iounmap(regs);
+
 	return 0;
 }
 
@@ -120,14 +134,6 @@ static int armada_38x_quirks(struct platform_device *pdev,
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct sdhci_pxa *pxa = pltfm_host->priv;
 	struct resource *res;
-
-	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "mbus");
-	pxa->mbus_win_regs = devm_ioremap_resource(&pdev->dev, res);
-	if (IS_ERR(pxa->mbus_win_regs)) {
-		dev_err(mmc_dev(host->mmc),
-			"failed to obtain MBus windows register base\n");
-		return PTR_ERR(pxa->mbus_win_regs);
-	}
 
 	host->quirks &= ~SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN;
 	host->quirks |= SDHCI_QUIRK_MISSING_CAPS;
@@ -188,22 +194,6 @@ static void pxav3_reset(struct sdhci_host *host, u8 mask)
 			tmp |= SDCLK_SEL;
 			writew(tmp, host->ioaddr + SD_CLOCK_BURST_SIZE_SETUP);
 		}
-	}
-}
-
-static void pxav3_init_card(struct sdhci_host *host, struct mmc_card *card)
-{
-	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
-	struct device_node *np = pdev->dev.of_node;
-	u32 reg_val;
-
-	if (of_device_is_compatible(np, "marvell,armada-380-sdhci")) {
-		reg_val = sdhci_readl(host, SD_CE_ATA_1);
-		if (mmc_card_mmc(card))
-			reg_val |= SDCE_MMC_CARD;
-		else
-			reg_val &= ~SDCE_MMC_CARD;
-		sdhci_writel(host, reg_val, SD_CE_ATA_1);
 	}
 }
 
@@ -324,7 +314,6 @@ static const struct sdhci_ops pxav3_sdhci_ops = {
 	.set_bus_width = sdhci_set_bus_width,
 	.reset = pxav3_reset,
 	.set_uhs_signaling = pxav3_set_uhs_signaling,
-	.init_card = pxav3_init_card,
 };
 
 static struct sdhci_pltfm_data sdhci_pxav3_pdata = {
@@ -414,8 +403,7 @@ static int sdhci_pxav3_probe(struct platform_device *pdev)
 		ret = armada_38x_quirks(pdev, host);
 		if (ret < 0)
 			goto err_mbus_win;
-		ret = mv_conf_mbus_windows(&pdev->dev, pxa->mbus_win_regs,
-					   mv_mbus_dram_info());
+		ret = mv_conf_mbus_windows(pdev, mv_mbus_dram_info());
 		if (ret < 0)
 			goto err_mbus_win;
 	}
@@ -532,12 +520,6 @@ static int sdhci_pxav3_resume(struct device *dev)
 {
 	int ret;
 	struct sdhci_host *host = dev_get_drvdata(dev);
-	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
-	struct sdhci_pxa *pxa = pltfm_host->priv;
-
-	if (pxa->mbus_win_regs)
-		ret = mv_conf_mbus_windows(dev, pxa->mbus_win_regs,
-					   mv_mbus_dram_info());
 
 	pm_runtime_get_sync(dev);
 	ret = sdhci_resume_host(host);

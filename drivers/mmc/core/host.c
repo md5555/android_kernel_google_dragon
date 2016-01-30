@@ -29,13 +29,20 @@
 
 #include "core.h"
 #include "host.h"
+#include "slot-gpio.h"
+#include "pwrseq.h"
 
 #define cls_dev_to_mmc_host(d)	container_of(d, struct mmc_host, class_dev)
+
+static DEFINE_IDR(mmc_host_idr);
+static DEFINE_SPINLOCK(mmc_host_lock);
 
 static void mmc_host_classdev_release(struct device *dev)
 {
 	struct mmc_host *host = cls_dev_to_mmc_host(dev);
-	mutex_destroy(&host->slot.lock);
+	spin_lock(&mmc_host_lock);
+	idr_remove(&mmc_host_idr, host->index);
+	spin_unlock(&mmc_host_lock);
 	kfree(host);
 }
 
@@ -53,249 +60,6 @@ void mmc_unregister_host_class(void)
 {
 	class_unregister(&mmc_host_class);
 }
-
-static DEFINE_IDR(mmc_host_idr);
-static DEFINE_SPINLOCK(mmc_host_lock);
-
-#ifdef CONFIG_MMC_CLKGATE
-static ssize_t clkgate_delay_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct mmc_host *host = cls_dev_to_mmc_host(dev);
-	return snprintf(buf, PAGE_SIZE, "%lu\n", host->clkgate_delay);
-}
-
-static ssize_t clkgate_delay_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
-{
-	struct mmc_host *host = cls_dev_to_mmc_host(dev);
-	unsigned long flags, value;
-
-	if (kstrtoul(buf, 0, &value))
-		return -EINVAL;
-
-	spin_lock_irqsave(&host->clk_lock, flags);
-	host->clkgate_delay = value;
-	spin_unlock_irqrestore(&host->clk_lock, flags);
-	return count;
-}
-
-/*
- * Enabling clock gating will make the core call out to the host
- * once up and once down when it performs a request or card operation
- * intermingled in any fashion. The driver will see this through
- * set_ios() operations with ios.clock field set to 0 to gate (disable)
- * the block clock, and to the old frequency to enable it again.
- */
-static void mmc_host_clk_gate_delayed(struct mmc_host *host)
-{
-	unsigned long tick_ns;
-	unsigned long freq = host->ios.clock;
-	unsigned long flags;
-
-	if (!freq) {
-		pr_debug("%s: frequency set to 0 in disable function, "
-			 "this means the clock is already disabled.\n",
-			 mmc_hostname(host));
-		return;
-	}
-	/*
-	 * New requests may have appeared while we were scheduling,
-	 * then there is no reason to delay the check before
-	 * clk_disable().
-	 */
-	spin_lock_irqsave(&host->clk_lock, flags);
-
-	/*
-	 * Delay n bus cycles (at least 8 from MMC spec) before attempting
-	 * to disable the MCI block clock. The reference count may have
-	 * gone up again after this delay due to rescheduling!
-	 */
-	if (!host->clk_requests) {
-		spin_unlock_irqrestore(&host->clk_lock, flags);
-		tick_ns = DIV_ROUND_UP(1000000000, freq);
-		ndelay(host->clk_delay * tick_ns);
-	} else {
-		/* New users appeared while waiting for this work */
-		spin_unlock_irqrestore(&host->clk_lock, flags);
-		return;
-	}
-	mutex_lock(&host->clk_gate_mutex);
-	spin_lock_irqsave(&host->clk_lock, flags);
-	if (!host->clk_requests) {
-		spin_unlock_irqrestore(&host->clk_lock, flags);
-		/* This will set host->ios.clock to 0 */
-		mmc_gate_clock(host);
-		spin_lock_irqsave(&host->clk_lock, flags);
-		pr_debug("%s: gated MCI clock\n", mmc_hostname(host));
-	}
-	spin_unlock_irqrestore(&host->clk_lock, flags);
-	mutex_unlock(&host->clk_gate_mutex);
-}
-
-/*
- * Internal work. Work to disable the clock at some later point.
- */
-static void mmc_host_clk_gate_work(struct work_struct *work)
-{
-	struct mmc_host *host = container_of(work, struct mmc_host,
-					      clk_gate_work.work);
-
-	mmc_host_clk_gate_delayed(host);
-}
-
-/**
- *	mmc_host_clk_hold - ungate hardware MCI clocks
- *	@host: host to ungate.
- *
- *	Makes sure the host ios.clock is restored to a non-zero value
- *	past this call.	Increase clock reference count and ungate clock
- *	if we're the first user.
- */
-void mmc_host_clk_hold(struct mmc_host *host)
-{
-	unsigned long flags;
-
-	/* cancel any clock gating work scheduled by mmc_host_clk_release() */
-	cancel_delayed_work_sync(&host->clk_gate_work);
-	mutex_lock(&host->clk_gate_mutex);
-	spin_lock_irqsave(&host->clk_lock, flags);
-	if (host->clk_gated) {
-		spin_unlock_irqrestore(&host->clk_lock, flags);
-		mmc_ungate_clock(host);
-		spin_lock_irqsave(&host->clk_lock, flags);
-		pr_debug("%s: ungated MCI clock\n", mmc_hostname(host));
-	}
-	host->clk_requests++;
-	spin_unlock_irqrestore(&host->clk_lock, flags);
-	mutex_unlock(&host->clk_gate_mutex);
-}
-
-/**
- *	mmc_host_may_gate_card - check if this card may be gated
- *	@card: card to check.
- */
-static bool mmc_host_may_gate_card(struct mmc_card *card)
-{
-	/* If there is no card we may gate it */
-	if (!card)
-		return true;
-	/*
-	 * Don't gate SDIO cards! These need to be clocked at all times
-	 * since they may be independent systems generating interrupts
-	 * and other events. The clock requests counter from the core will
-	 * go down to zero since the core does not need it, but we will not
-	 * gate the clock, because there is somebody out there that may still
-	 * be using it.
-	 */
-	return !(card->quirks & MMC_QUIRK_BROKEN_CLK_GATING);
-}
-
-/**
- *	mmc_host_clk_release - gate off hardware MCI clocks
- *	@host: host to gate.
- *
- *	Calls the host driver with ios.clock set to zero as often as possible
- *	in order to gate off hardware MCI clocks. Decrease clock reference
- *	count and schedule disabling of clock.
- */
-void mmc_host_clk_release(struct mmc_host *host)
-{
-	unsigned long flags;
-
-	spin_lock_irqsave(&host->clk_lock, flags);
-	host->clk_requests--;
-	if (mmc_host_may_gate_card(host->card) &&
-	    !host->clk_requests)
-		schedule_delayed_work(&host->clk_gate_work,
-				      msecs_to_jiffies(host->clkgate_delay));
-	spin_unlock_irqrestore(&host->clk_lock, flags);
-}
-
-/**
- *	mmc_host_clk_rate - get current clock frequency setting
- *	@host: host to get the clock frequency for.
- *
- *	Returns current clock frequency regardless of gating.
- */
-unsigned int mmc_host_clk_rate(struct mmc_host *host)
-{
-	unsigned long freq;
-	unsigned long flags;
-
-	spin_lock_irqsave(&host->clk_lock, flags);
-	if (host->clk_gated)
-		freq = host->clk_old;
-	else
-		freq = host->ios.clock;
-	spin_unlock_irqrestore(&host->clk_lock, flags);
-	return freq;
-}
-
-/**
- *	mmc_host_clk_init - set up clock gating code
- *	@host: host with potential clock to control
- */
-static inline void mmc_host_clk_init(struct mmc_host *host)
-{
-	host->clk_requests = 0;
-	/* Hold MCI clock for 8 cycles by default */
-	host->clk_delay = 8;
-	/*
-	 * Default clock gating delay is 0ms to avoid wasting power.
-	 * This value can be tuned by writing into sysfs entry.
-	 */
-	host->clkgate_delay = 0;
-	host->clk_gated = false;
-	INIT_DELAYED_WORK(&host->clk_gate_work, mmc_host_clk_gate_work);
-	spin_lock_init(&host->clk_lock);
-	mutex_init(&host->clk_gate_mutex);
-}
-
-/**
- *	mmc_host_clk_exit - shut down clock gating code
- *	@host: host with potential clock to control
- */
-static inline void mmc_host_clk_exit(struct mmc_host *host)
-{
-	/*
-	 * Wait for any outstanding gate and then make sure we're
-	 * ungated before exiting.
-	 */
-	if (cancel_delayed_work_sync(&host->clk_gate_work))
-		mmc_host_clk_gate_delayed(host);
-	if (host->clk_gated)
-		mmc_host_clk_hold(host);
-	/* There should be only one user now */
-	WARN_ON(host->clk_requests > 1);
-}
-
-static inline void mmc_host_clk_sysfs_init(struct mmc_host *host)
-{
-	host->clkgate_delay_attr.show = clkgate_delay_show;
-	host->clkgate_delay_attr.store = clkgate_delay_store;
-	sysfs_attr_init(&host->clkgate_delay_attr.attr);
-	host->clkgate_delay_attr.attr.name = "clkgate_delay";
-	host->clkgate_delay_attr.attr.mode = S_IRUGO | S_IWUSR;
-	if (device_create_file(&host->class_dev, &host->clkgate_delay_attr))
-		pr_err("%s: Failed to create clkgate_delay sysfs entry\n",
-				mmc_hostname(host));
-}
-#else
-
-static inline void mmc_host_clk_init(struct mmc_host *host)
-{
-}
-
-static inline void mmc_host_clk_exit(struct mmc_host *host)
-{
-}
-
-static inline void mmc_host_clk_sysfs_init(struct mmc_host *host)
-{
-}
-
-#endif
 
 void mmc_retune_enable(struct mmc_host *host)
 {
@@ -323,12 +87,6 @@ void mmc_retune_hold(struct mmc_host *host)
 {
 	if (!host->hold_retune)
 		host->retune_now = 1;
-	host->hold_retune += 1;
-}
-
-void mmc_retune_hold_now(struct mmc_host *host)
-{
-	host->retune_now = 0;
 	host->hold_retune += 1;
 }
 
@@ -457,16 +215,10 @@ int mmc_of_parse(struct mmc_host *host)
 
 		ret = mmc_gpiod_request_cd(host, "cd", 0, true,
 					   0, &cd_gpio_invert);
-		if (ret) {
-			if (ret == -EPROBE_DEFER)
-				return ret;
-			if (ret != -ENOENT) {
-				dev_err(host->parent,
-					"Failed to request CD GPIO: %d\n",
-					ret);
-			}
-		} else
+		if (!ret)
 			dev_info(host->parent, "Got CD GPIO\n");
+		else if (ret != -ENOENT && ret != -ENOSYS)
+			return ret;
 
 		/*
 		 * There are two ways to flag that the CD line is inverted:
@@ -487,16 +239,13 @@ int mmc_of_parse(struct mmc_host *host)
 	ro_cap_invert = of_property_read_bool(np, "wp-inverted");
 
 	ret = mmc_gpiod_request_ro(host, "wp", 0, false, 0, &ro_gpio_invert);
-	if (ret) {
-		if (ret == -EPROBE_DEFER)
-			goto out;
-		if (ret != -ENOENT) {
-			dev_err(host->parent,
-				"Failed to request WP GPIO: %d\n",
-				ret);
-		}
-	} else
+	if (!ret)
 		dev_info(host->parent, "Got WP GPIO\n");
+	else if (ret != -ENOENT && ret != -ENOSYS)
+		return ret;
+
+	if (of_property_read_bool(np, "disable-wp"))
+		host->caps2 |= MMC_CAP2_NO_WRITE_PROTECT;
 
 	/* See the comment on CD inversion above */
 	if (ro_cap_invert ^ ro_gpio_invert)
@@ -549,11 +298,7 @@ int mmc_of_parse(struct mmc_host *host)
 		host->dsr_req = 0;
 	}
 
-	return 0;
-
-out:
-	mmc_gpio_free_cd(host);
-	return ret;
+	return mmc_pwrseq_alloc(host);
 }
 
 EXPORT_SYMBOL(mmc_of_parse);
@@ -583,8 +328,10 @@ struct mmc_host *mmc_alloc_host(int extra, struct device *dev)
 		host->index = err;
 	spin_unlock(&mmc_host_lock);
 	idr_preload_end();
-	if (err < 0)
-		goto free;
+	if (err < 0) {
+		kfree(host);
+		return NULL;
+	}
 
 	dev_set_name(&host->class_dev, "mmc%d", host->index);
 
@@ -593,10 +340,10 @@ struct mmc_host *mmc_alloc_host(int extra, struct device *dev)
 	host->class_dev.class = &mmc_host_class;
 	device_initialize(&host->class_dev);
 
-	mmc_host_clk_init(host);
-
-	mutex_init(&host->slot.lock);
-	host->slot.cd_irq = -EINVAL;
+	if (mmc_gpio_alloc(host)) {
+		put_device(&host->class_dev);
+		return NULL;
+	}
 
 	spin_lock_init(&host->lock);
 	init_waitqueue_head(&host->wq);
@@ -618,10 +365,6 @@ struct mmc_host *mmc_alloc_host(int extra, struct device *dev)
 	host->max_blk_count = PAGE_CACHE_SIZE / 512;
 
 	return host;
-
-free:
-	kfree(host);
-	return NULL;
 }
 
 EXPORT_SYMBOL(mmc_alloc_host);
@@ -650,11 +393,9 @@ int mmc_add_host(struct mmc_host *host)
 #ifdef CONFIG_DEBUG_FS
 	mmc_add_host_debugfs(host);
 #endif
-	mmc_host_clk_sysfs_init(host);
 
 	mmc_start_host(host);
-	if (!(host->pm_flags & MMC_PM_IGNORE_PM_NOTIFY))
-		register_pm_notifier(&host->pm_notify);
+	register_pm_notifier(&host->pm_notify);
 
 	return 0;
 }
@@ -671,9 +412,7 @@ EXPORT_SYMBOL(mmc_add_host);
  */
 void mmc_remove_host(struct mmc_host *host)
 {
-	if (!(host->pm_flags & MMC_PM_IGNORE_PM_NOTIFY))
-		unregister_pm_notifier(&host->pm_notify);
-
+	unregister_pm_notifier(&host->pm_notify);
 	mmc_stop_host(host);
 
 #ifdef CONFIG_DEBUG_FS
@@ -683,8 +422,6 @@ void mmc_remove_host(struct mmc_host *host)
 	device_del(&host->class_dev);
 
 	led_trigger_unregister_simple(host->led);
-
-	mmc_host_clk_exit(host);
 }
 
 EXPORT_SYMBOL(mmc_remove_host);
@@ -697,10 +434,7 @@ EXPORT_SYMBOL(mmc_remove_host);
  */
 void mmc_free_host(struct mmc_host *host)
 {
-	spin_lock(&mmc_host_lock);
-	idr_remove(&mmc_host_idr, host->index);
-	spin_unlock(&mmc_host_lock);
-
+	mmc_pwrseq_free(host);
 	put_device(&host->class_dev);
 }
 

@@ -309,9 +309,10 @@ struct sdhci_adma2_64_desc {
  */
 #define SDHCI_MAX_SEGS		128
 
-struct sdhci_host_next {
-	unsigned int	sg_count;
-	s32		cookie;
+enum sdhci_cookie {
+	COOKIE_UNMAPPED,
+	COOKIE_MAPPED,
+	COOKIE_GIVEN,
 };
 
 struct sdhci_host {
@@ -399,16 +400,23 @@ struct sdhci_host {
 #define SDHCI_QUIRK2_STOP_WITH_TC			(1<<8)
 /* Controller does not support 64-bit DMA */
 #define SDHCI_QUIRK2_BROKEN_64_BIT_DMA			(1<<9)
+/* need clear transfer mode register before send cmd */
+#define SDHCI_QUIRK2_CLEAR_TRANSFERMODE_REG_BEFORE_CMD	(1<<10)
 /* Capability register bit-63 indicates HS400 support */
 #define SDHCI_QUIRK2_CAPS_BIT63_FOR_HS400		(1<<11)
-
-/* CHROMIUM */
-/* Baytrail eMMC slot needs to restrict Cx states during DMA transfer */
-#define SDHCI_QUIRK2_BAYTRAIL_EMMC			(1<<31)
-/* Tegra errata: Turn card clock off while sending tuning command */
-#define SDHCI_QUIRK2_TUNING_CLOCK_OFF                  (1<<30)
-/* Reset on retune to avoid inhibit bits not released on Tegra  */
-#define SDHCI_QUIRK2_RESET_ON_TUNE_TIMEOUT		(1<<29)
+/* forced tuned clock */
+#define SDHCI_QUIRK2_TUNING_WORK_AROUND			(1<<12)
+/* disable the block count for single block transactions */
+#define SDHCI_QUIRK2_SUPPORT_SINGLE			(1<<13)
+/* Controller broken with using ACMD23 */
+#define SDHCI_QUIRK2_ACMD23_BROKEN			(1<<14)
+/* Broken Clock divider zero in controller */
+#define SDHCI_QUIRK2_CLOCK_DIV_ZERO_BROKEN		(1<<15)
+/*
+ * When internal clock is disabled, a delay is needed before modifying the
+ * SD clock frequency or enabling back the internal clock.
+ */
+#define SDHCI_QUIRK2_NEED_DELAY_AFTER_INT_CLK_RST	(1<<16)
 
 	int irq;		/* Device IRQ */
 	void __iomem *ioaddr;	/* Mapped address */
@@ -536,12 +544,11 @@ struct sdhci_ops {
 	void    (*adma_workaround)(struct sdhci_host *host, u32 intmask);
 	void	(*platform_init)(struct sdhci_host *host);
 	void    (*card_event)(struct sdhci_host *host);
+	void	(*voltage_switch)(struct sdhci_host *host);
 	int	(*select_drive_strength)(struct sdhci_host *host,
 					 struct mmc_card *card,
 					 unsigned int max_dtr, int host_drv,
 					 int card_drv, int *drv_type);
-	void	(*init_card)(struct sdhci_host *host, struct mmc_card *card);
-	int	(*get_max_tuning_iterations)(struct sdhci_host *sdhci);
 };
 
 #ifdef CONFIG_MMC_SDHCI_IO_ACCESSORS

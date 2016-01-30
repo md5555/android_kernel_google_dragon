@@ -295,20 +295,6 @@ mmc_send_cxd_data(struct mmc_card *card, struct mmc_host *host,
 	struct mmc_command cmd = {0};
 	struct mmc_data data = {0};
 	struct scatterlist sg;
-	void *data_buf;
-	int is_on_stack;
-
-	is_on_stack = object_is_on_stack(buf);
-	if (is_on_stack) {
-		/*
-		 * dma onto stack is unsafe/nonportable, but callers to this
-		 * routine normally provide temporary on-stack buffers ...
-		 */
-		data_buf = kmalloc(len, GFP_KERNEL);
-		if (!data_buf)
-			return -ENOMEM;
-	} else
-		data_buf = buf;
 
 	mrq.cmd = &cmd;
 	mrq.data = &data;
@@ -329,7 +315,7 @@ mmc_send_cxd_data(struct mmc_card *card, struct mmc_host *host,
 	data.sg = &sg;
 	data.sg_len = 1;
 
-	sg_init_one(&sg, data_buf, len);
+	sg_init_one(&sg, buf, len);
 
 	if (opcode == MMC_SEND_CSD || opcode == MMC_SEND_CID) {
 		/*
@@ -342,11 +328,6 @@ mmc_send_cxd_data(struct mmc_card *card, struct mmc_host *host,
 		mmc_set_data_timeout(&data, card);
 
 	mmc_wait_for_req(host, &mrq);
-
-	if (is_on_stack) {
-		memcpy(buf, data_buf, len);
-		kfree(data_buf);
-	}
 
 	if (cmd.error)
 		return cmd.error;
@@ -365,7 +346,7 @@ int mmc_send_csd(struct mmc_card *card, u32 *csd)
 		return mmc_send_cxd_native(card->host, card->rca << 16,
 				csd, MMC_SEND_CSD);
 
-	csd_tmp = kmalloc(16, GFP_KERNEL);
+	csd_tmp = kzalloc(16, GFP_KERNEL);
 	if (!csd_tmp)
 		return -ENOMEM;
 
@@ -393,7 +374,7 @@ int mmc_send_cid(struct mmc_host *host, u32 *cid)
 				cid, MMC_SEND_CID);
 	}
 
-	cid_tmp = kmalloc(16, GFP_KERNEL);
+	cid_tmp = kzalloc(16, GFP_KERNEL);
 	if (!cid_tmp)
 		return -ENOMEM;
 
@@ -424,7 +405,7 @@ int mmc_get_ext_csd(struct mmc_card *card, u8 **new_ext_csd)
 	 * As the ext_csd is so large and mostly unused, we don't store the
 	 * raw block in mmc_card.
 	 */
-	ext_csd = kmalloc(512, GFP_KERNEL);
+	ext_csd = kzalloc(512, GFP_KERNEL);
 	if (!ext_csd)
 		return -ENOMEM;
 
@@ -508,7 +489,6 @@ int __mmc_switch(struct mmc_card *card, u8 set, u8 index, u8 value,
 	unsigned long timeout;
 	u32 status = 0;
 	bool use_r1b_resp = use_busy_signal;
-	bool expired = false;
 
 	mmc_retune_hold(host);
 
@@ -565,12 +545,6 @@ int __mmc_switch(struct mmc_card *card, u8 set, u8 index, u8 value,
 	timeout = jiffies + msecs_to_jiffies(timeout_ms);
 	do {
 		if (send_status) {
-			/*
-			 * Due to the possibility of being preempted after
-			 * sending the status command, check the expiration
-			 * time first.
-			 */
-			expired = time_after(jiffies, timeout);
 			err = __mmc_send_status(card, &status, ignore_crc);
 			if (err)
 				goto out;
@@ -591,7 +565,7 @@ int __mmc_switch(struct mmc_card *card, u8 set, u8 index, u8 value,
 		}
 
 		/* Timeout if the device never leaves the program state. */
-		if (expired && R1_CURRENT_STATE(status) == R1_STATE_PRG) {
+		if (time_after(jiffies, timeout)) {
 			pr_err("%s: Card stuck in programming state! %s\n",
 				mmc_hostname(host), __func__);
 			err = -ETIMEDOUT;

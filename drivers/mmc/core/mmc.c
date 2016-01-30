@@ -11,6 +11,7 @@
  */
 
 #include <linux/err.h>
+#include <linux/of.h>
 #include <linux/slab.h>
 #include <linux/stat.h>
 #include <linux/pm_runtime.h>
@@ -339,12 +340,8 @@ static int mmc_decode_ext_csd(struct mmc_card *card, u8 *ext_csd)
 {
 	int err = 0, idx;
 	unsigned int part_size;
-
-	if (!ext_csd)
-		return 0;
-
-	/* Reset partition, they will be rescaned. */
-	card->nr_parts = 0;
+	struct device_node *np;
+	bool broken_hpi = false;
 
 	/* Version is coded in the CSD_STRUCTURE byte in the EXT_CSD register */
 	card->ext_csd.raw_ext_csd_structure = ext_csd[EXT_CSD_STRUCTURE];
@@ -357,6 +354,11 @@ static int mmc_decode_ext_csd(struct mmc_card *card, u8 *ext_csd)
 			goto out;
 		}
 	}
+
+	np = mmc_of_find_child_device(card->host, 0);
+	if (np && of_device_is_compatible(np, "mmc-card"))
+		broken_hpi = of_property_read_bool(np, "broken-hpi");
+	of_node_put(np);
 
 	/*
 	 * The EXT_CSD format is meant to be forward compatible. As long
@@ -493,16 +495,18 @@ static int mmc_decode_ext_csd(struct mmc_card *card, u8 *ext_csd)
 		/* check whether the eMMC card supports BKOPS */
 		if (ext_csd[EXT_CSD_BKOPS_SUPPORT] & 0x1) {
 			card->ext_csd.bkops = 1;
-			card->ext_csd.bkops_en = ext_csd[EXT_CSD_BKOPS_EN];
+			card->ext_csd.man_bkops_en =
+					(ext_csd[EXT_CSD_BKOPS_EN] &
+						EXT_CSD_MANUAL_BKOPS_MASK);
 			card->ext_csd.raw_bkops_status =
 				ext_csd[EXT_CSD_BKOPS_STATUS];
-			if (!card->ext_csd.bkops_en)
-				pr_info("%s: BKOPS_EN bit is not set\n",
+			if (!card->ext_csd.man_bkops_en)
+				pr_info("%s: MAN_BKOPS_EN bit is not set\n",
 					mmc_hostname(card->host));
 		}
 
 		/* check whether the eMMC card supports HPI */
-		if (ext_csd[EXT_CSD_HPI_FEATURES] & 0x1) {
+		if (!broken_hpi && (ext_csd[EXT_CSD_HPI_FEATURES] & 0x1)) {
 			card->ext_csd.hpi = 1;
 			if (ext_csd[EXT_CSD_HPI_FEATURES] & 0x2)
 				card->ext_csd.hpi_cmd =	MMC_STOP_TRANSMISSION;
@@ -896,7 +900,7 @@ static int mmc_select_bus_width(struct mmc_card *card)
 	unsigned idx, bus_width = 0;
 	int err = 0;
 
-	if (!mmc_can_ext_csd(card) &&
+	if (!mmc_can_ext_csd(card) ||
 	    !(host->caps & (MMC_CAP_4_BIT_DATA | MMC_CAP_8_BIT_DATA)))
 		return 0;
 
@@ -1072,7 +1076,8 @@ static int mmc_select_hs400(struct mmc_card *card)
 	mmc_set_clock(host, max_dtr);
 
 	/* Switch card to HS mode */
-	val = EXT_CSD_TIMING_HS;
+	val = EXT_CSD_TIMING_HS |
+	      card->drive_strength << EXT_CSD_DRV_STR_SHIFT;
 	err = __mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
 			   EXT_CSD_HS_TIMING, val,
 			   card->ext_csd.generic_cmd6_time,
@@ -1155,7 +1160,8 @@ int mmc_hs400_to_hs200(struct mmc_card *card)
 	mmc_set_clock(host, max_dtr);
 
 	/* Switch HS400 to HS DDR */
-	val = EXT_CSD_TIMING_HS;
+	val = EXT_CSD_TIMING_HS |
+	      card->drive_strength << EXT_CSD_DRV_STR_SHIFT;
 	err = __mmc_switch(card, EXT_CSD_CMD_SET_NORMAL, EXT_CSD_HS_TIMING,
 			   val, card->ext_csd.generic_cmd6_time,
 			   true, send_status, true);
@@ -1402,24 +1408,12 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 		goto err;
 
 	if (oldcard) {
-		/*
-		 * When comparing the CID, we should exclude the product
-		 * revision (Field PRV, offset 55:48), because it can change if
-		 * the firmware is upgraded. The new CRC can then be different.
-		 * Therefore we test if offset 8 - 48 and 128 - 56 are checked.
-		 */
-		if ((cid[0] != oldcard->raw_cid[0]) ||
-		    (cid[1] != oldcard->raw_cid[1]) ||
-		    ((cid[2] & 0xFF00FFFF) !=
-		     (oldcard->raw_cid[2] & 0xFF00FFFF)) ||
-		    ((cid[3] & 0xFFFFFF00) !=
-		     (oldcard->raw_cid[3] & 0xFFFFFF00))) {
+		if (memcmp(cid, oldcard->raw_cid, sizeof(cid)) != 0) {
 			err = -ENOENT;
 			goto err;
 		}
 
 		card = oldcard;
-		memcpy(card->raw_cid, cid, sizeof(cid));
 	} else {
 		/*
 		 * Allocate card structure.
@@ -1453,20 +1447,21 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 		mmc_set_bus_mode(host, MMC_BUSMODE_PUSHPULL);
 	}
 
-	/*
-	 * Fetch CSD from card.
-	 */
-	err = mmc_send_csd(card, card->raw_csd);
-	if (err)
-		goto free_card;
+	if (!oldcard) {
+		/*
+		 * Fetch CSD from card.
+		 */
+		err = mmc_send_csd(card, card->raw_csd);
+		if (err)
+			goto free_card;
 
-	err = mmc_decode_csd(card);
-	if (err)
-		goto free_card;
-
-	err = mmc_decode_cid(card);
-	if (err)
-		goto free_card;
+		err = mmc_decode_csd(card);
+		if (err)
+			goto free_card;
+		err = mmc_decode_cid(card);
+		if (err)
+			goto free_card;
+	}
 
 	/*
 	 * handling only for cards supporting DSR and hosts requesting
@@ -1484,12 +1479,12 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 			goto free_card;
 	}
 
-	/* Read extended CSD. */
-	err = mmc_read_ext_csd(card);
-	if (err)
-		goto free_card;
-
 	if (!oldcard) {
+		/* Read extended CSD. */
+		err = mmc_read_ext_csd(card);
+		if (err)
+			goto free_card;
+
 		/* If doing byte addressing, check if required to do sector
 		 * addressing.  Handle the case of <2GB cards needing sector
 		 * addressing.  See section 8.1 JEDEC Standard JED84-A441;
@@ -1831,14 +1826,8 @@ static int _mmc_suspend(struct mmc_host *host, bool is_suspend)
 	if (mmc_can_poweroff_notify(host->card) &&
 		((host->caps2 & MMC_CAP2_FULL_PWR_CYCLE) || !is_suspend))
 		err = mmc_poweroff_notify(host->card, notify_type);
-	else if (mmc_can_sleep(host->card)) {
-		if (host->card->quirks & MMC_QUIRK_NOTIFY_POWEROFF_ON_SLEEP) {
-			err = mmc_poweroff_notify(host->card, notify_type);
-			if (err)
-				goto out;
-		}
+	else if (mmc_can_sleep(host->card))
 		err = mmc_sleep(host);
-	}
 	else if (!mmc_host_is_spi(host))
 		err = mmc_deselect_cards(host);
 
@@ -1987,14 +1976,12 @@ static int mmc_reset(struct mmc_host *host)
 	if (!mmc_can_reset(card))
 		return -EOPNOTSUPP;
 
-	mmc_host_clk_hold(host);
 	mmc_set_clock(host, host->f_init);
 
 	host->ops->hw_reset(host);
 
 	/* Set initial state and call mmc_set_ios */
 	mmc_set_initial_state(host);
-	mmc_host_clk_release(host);
 
 	return mmc_init_card(host, card->ocr, card);
 }
@@ -2062,14 +2049,13 @@ int mmc_attach_mmc(struct mmc_host *host)
 
 	mmc_release_host(host);
 	err = mmc_add_card(host->card);
-	mmc_claim_host(host);
 	if (err)
 		goto remove_card;
 
+	mmc_claim_host(host);
 	return 0;
 
 remove_card:
-	mmc_release_host(host);
 	mmc_remove_card(host->card);
 	mmc_claim_host(host);
 	host->card = NULL;

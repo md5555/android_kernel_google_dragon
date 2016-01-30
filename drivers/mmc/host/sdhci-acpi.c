@@ -157,7 +157,7 @@ static int sdhci_acpi_emmc_probe_slot(struct platform_device *pdev,
 
 	host = c->host;
 
-	/* Platform specific code during emmc proble slot goes here */
+	/* Platform specific code during emmc probe slot goes here */
 
 	if (hid && uid && !strcmp(hid, "80860F14") && !strcmp(uid, "1") &&
 	    sdhci_readl(host, SDHCI_CAPABILITIES) == 0x446cc8b2 &&
@@ -178,7 +178,7 @@ static int sdhci_acpi_sdio_probe_slot(struct platform_device *pdev,
 
 	host = c->host;
 
-	/* Platform specific code during emmc proble slot goes here */
+	/* Platform specific code during sdio probe slot goes here */
 
 	return 0;
 }
@@ -194,7 +194,7 @@ static int sdhci_acpi_sd_probe_slot(struct platform_device *pdev,
 
 	host = c->host;
 
-	/* Platform specific code during emmc proble slot goes here */
+	/* Platform specific code during sd probe slot goes here */
 
 	return 0;
 }
@@ -207,8 +207,9 @@ static const struct sdhci_acpi_slot sdhci_acpi_slot_int_emmc = {
 	.caps2   = MMC_CAP2_HC_ERASE_SZ,
 	.flags   = SDHCI_ACPI_RUNTIME_PM,
 	.quirks  = SDHCI_QUIRK_NO_ENDATTR_IN_NOPDESC,
-	.quirks2 = SDHCI_QUIRK2_PRESET_VALUE_BROKEN | SDHCI_QUIRK2_STOP_WITH_TC |
-                   SDHCI_QUIRK2_BAYTRAIL_EMMC,
+	.quirks2 = SDHCI_QUIRK2_PRESET_VALUE_BROKEN |
+		   SDHCI_QUIRK2_STOP_WITH_TC |
+		   SDHCI_QUIRK2_CAPS_BIT63_FOR_HS400,
 	.probe_slot	= sdhci_acpi_emmc_probe_slot,
 };
 
@@ -240,6 +241,9 @@ struct sdhci_acpi_uid_slot {
 };
 
 static const struct sdhci_acpi_uid_slot sdhci_acpi_uids[] = {
+	{ "80865ACA", NULL, &sdhci_acpi_slot_int_sd },
+	{ "80865ACC", NULL, &sdhci_acpi_slot_int_emmc },
+	{ "80865AD0", NULL, &sdhci_acpi_slot_int_sdio },
 	{ "80860F14" , "1" , &sdhci_acpi_slot_int_emmc },
 	{ "80860F14" , "3" , &sdhci_acpi_slot_int_sd   },
 	{ "80860F16" , NULL, &sdhci_acpi_slot_int_sd   },
@@ -247,16 +251,22 @@ static const struct sdhci_acpi_uid_slot sdhci_acpi_uids[] = {
 	{ "INT33BB"  , "3" , &sdhci_acpi_slot_int_sd },
 	{ "INT33C6"  , NULL, &sdhci_acpi_slot_int_sdio },
 	{ "INT3436"  , NULL, &sdhci_acpi_slot_int_sdio },
+	{ "INT344D"  , NULL, &sdhci_acpi_slot_int_sdio },
+	{ "PNP0FFF"  , "3" , &sdhci_acpi_slot_int_sd   },
 	{ "PNP0D40"  },
 	{ },
 };
 
 static const struct acpi_device_id sdhci_acpi_ids[] = {
+	{ "80865ACA" },
+	{ "80865ACC" },
+	{ "80865AD0" },
 	{ "80860F14" },
 	{ "80860F16" },
 	{ "INT33BB"  },
 	{ "INT33C6"  },
 	{ "INT3436"  },
+	{ "INT344D"  },
 	{ "PNP0D40"  },
 	{ },
 };
@@ -370,16 +380,6 @@ static int sdhci_acpi_probe(struct platform_device *pdev)
 	if (err)
 		goto err_free;
 
-	if (host->quirks2 & SDHCI_QUIRK2_BAYTRAIL_EMMC) {
-		pr_info("%s: Enabling QoS on Baytrail eMMC slot\n",
-			__func__);
-		host->mmc->qos = kzalloc(sizeof(struct pm_qos_request),
-			GFP_KERNEL);
-		if (host->mmc->qos)
-			pm_qos_add_request(host->mmc->qos,
-				PM_QOS_CPU_DMA_LATENCY, PM_QOS_DEFAULT_VALUE);
-	}
-
 	if (c->use_runtime_pm) {
 		pm_runtime_set_active(dev);
 		pm_suspend_ignore_children(dev, 1);
@@ -409,11 +409,6 @@ static int sdhci_acpi_remove(struct platform_device *pdev)
 
 	if (c->slot && c->slot->remove_slot)
 		c->slot->remove_slot(pdev);
-
-	if (c->host->mmc->qos) {
-		pm_qos_remove_request(c->host->mmc->qos);
-		kfree(c->host->mmc->qos);
-	}
 
 	dead = (sdhci_readl(c->host, SDHCI_INT_STATUS) == ~0);
 	sdhci_remove_host(c->host, dead);
@@ -461,24 +456,18 @@ static int sdhci_acpi_runtime_resume(struct device *dev)
 	return sdhci_runtime_resume_host(c->host);
 }
 
-static int sdhci_acpi_runtime_idle(struct device *dev)
-{
-	return 0;
-}
-
 #endif
 
 static const struct dev_pm_ops sdhci_acpi_pm_ops = {
 	.suspend		= sdhci_acpi_suspend,
 	.resume			= sdhci_acpi_resume,
 	SET_RUNTIME_PM_OPS(sdhci_acpi_runtime_suspend,
-			sdhci_acpi_runtime_resume, sdhci_acpi_runtime_idle)
+			sdhci_acpi_runtime_resume, NULL)
 };
 
 static struct platform_driver sdhci_acpi_driver = {
 	.driver = {
 		.name			= "sdhci-acpi",
-		.owner			= THIS_MODULE,
 		.acpi_match_table	= sdhci_acpi_ids,
 		.pm			= &sdhci_acpi_pm_ops,
 	},
