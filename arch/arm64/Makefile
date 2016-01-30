@@ -64,6 +64,7 @@ libs-$(CONFIG_EFI_STUB) += drivers/firmware/efi/libstub/
 # Default target when executing plain make
 ifeq ($(CONFIG_BUILD_ARM64_FIT_IMAGE),y)
 KBUILD_IMAGE	:= Image.fit
+KBUILD_DTBS	:= dtbs
 else ifeq ($(CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE),y)
 KBUILD_IMAGE	:= Image.gz-dtb
 else
@@ -75,7 +76,7 @@ all:	$(KBUILD_IMAGE) $(KBUILD_DTBS)
 
 boot := arch/arm64/boot
 
-Image Image.gz: vmlinux dtbs
+Image Image.gz Image.fit: vmlinux dtbs
 	$(Q)$(MAKE) $(build)=$(boot) $(boot)/$@
 
 zinstall install: vmlinux
@@ -95,9 +96,9 @@ dtbs_install:
 Image.gz-dtb: vmlinux scripts dtbs
 	$(Q)$(MAKE) $(build)=$(boot) $(boot)/$@
 
-Image.fit: Image 
-	$(Q)lzma -z -f -k $(srctree)/arch/arm64/boot/Image
-	$(Q)$(srctree)/scripts/generate-its-script.sh $(srctree)/arch/arm64/boot/Image.lzma $(srctree)/arch/arm64/boot/dts/tegra/*smaug*.dtb | dtc -I dts -O dtb -p 1024 > $(srctree)/arch/arm64/boot/Image.fit
+#Image.fit: Image 
+#	$(Q)lzma -z -f -k $(srctree)/arch/arm64/boot/Image
+#	$(Q)$(srctree)/scripts/generate-its-script.sh $(srctree)/arch/arm64/boot/Image.lzma $(srctree)/arch/arm64/boot/dts/tegra/*.dtb | dtc -I dts -O dtb -p 1024 > $(srctree)/arch/arm64/boot/Image.fit
 
 PHONY += vdso_install
 vdso_install:
@@ -105,7 +106,7 @@ vdso_install:
 
 # We use MRPROPER_FILES and CLEAN_FILES now
 archclean:
-	$(Q)rm -f $(srctree)/arch/arm64/boot/Image.lzma $(srctree)/arch/arm64/boot/Image.fit
+#	$(Q)rm -f $(srctree)/arch/arm64/boot/Image.lzma $(srctree)/arch/arm64/boot/Image.fit
 	$(Q)$(MAKE) $(clean)=$(boot)
 	$(Q)$(MAKE) $(clean)=$(boot)/dts
 

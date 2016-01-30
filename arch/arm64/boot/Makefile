@@ -14,17 +14,23 @@
 # Based on the ia64 boot/Makefile.
 #
 
-targets := Image Image.gz
+targets := Image Image.lzma Image.fit
 
 $(obj)/Image: vmlinux FORCE
 	$(call if_changed,objcopy)
 
+quiet_cmd_lzmaimage = BUILD   $@
+cmd_lzmaimage = lzma -z -f -k $<
+
 quiet_cmd_fitimage = BUILD   $@
 cmd_fitimage = $(CONFIG_SHELL) $(srctree)/scripts/generate-its-script.sh \
-	       -a $(ARCH) $< $(DTB_OBJS) | \
+	       -a $(ARCH) $(obj)/Image.lzma $(obj)/dts/tegra/*.dtb | \
 	       $(objtree)/scripts/dtc/dtc -I dts -O dtb -p 1024 > $@
 
-$(obj)/Image.fit: $(obj)/Image $(DTB_OBJS) FORCE
+$(obj)/Image.lzma: $(obj)/Image FORCE
+	$(call if_changed,lzmaimage)
+
+$(obj)/Image.fit: $(obj)/Image.lzma $(DTB_OBJS) FORCE
 	$(call if_changed,fitimage)
 
 $(obj)/Image.gz: $(obj)/Image FORCE
