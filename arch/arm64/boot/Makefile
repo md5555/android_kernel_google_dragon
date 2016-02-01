@@ -20,8 +20,8 @@ $(obj)/Image: vmlinux FORCE
 	$(call if_changed,objcopy)
 
 quiet_cmd_fitimage = BUILD   $@
-cmd_fitimage = $(CONFIG_SHELL) $(srctree)/scripts/generate-its-script.sh \
-	       -a $(ARCH) $< $(DTB_OBJS) | \
+cmd_fitimage = $(CONFIG_SHELL) $(srctree)/chromeos/scripts/generate-its-script.sh \
+	       -a $(ARCH) $(obj)/Image.lzma $(obj)/dts/tegra/*.dtb | \
 	       $(objtree)/scripts/dtc/dtc -I dts -O dtb -p 1024 > $@
 
 $(obj)/Image.fit: $(obj)/Image $(DTB_OBJS) FORCE

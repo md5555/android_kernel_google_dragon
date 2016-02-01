@@ -75,8 +75,8 @@ cat > "${its_out}" <<-EOF || die
 			type = "kernel_noload";
 			arch = "${kernel_arch}";
 			os = "linux";
-			compression = "none";
-			load = <0>;
+			compression = "lzma";
+			load = <0x00080000>;
 			entry = <0>;
 		};
 EOF
