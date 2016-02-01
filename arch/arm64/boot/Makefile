@@ -23,7 +23,7 @@ quiet_cmd_lzmaimage = BUILD   $@
 cmd_lzmaimage = lzma -z -f -k $<
 
 quiet_cmd_fitimage = BUILD   $@
-cmd_fitimage = $(CONFIG_SHELL) $(srctree)/scripts/generate-its-script.sh \
+cmd_fitimage = $(CONFIG_SHELL) $(srctree)/chromeos/scripts/generate-its-script.sh \
 	       -a $(ARCH) $(obj)/Image.lzma $(obj)/dts/tegra/*.dtb | \
 	       $(objtree)/scripts/dtc/dtc -I dts -O dtb -p 1024 > $@
 
