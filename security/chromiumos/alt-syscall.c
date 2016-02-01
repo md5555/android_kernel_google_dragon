@@ -618,10 +618,13 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 #endif
 
 	/* 64-bit only syscalls. */
-#ifdef CONFIG_X86_64
+#if defined(CONFIG_X86_64) || defined(CONFIG_ARM64)
 	SYSCALL_ENTRY(newfstatat),
 	SYSCALL_ENTRY(mmap),
+	/* select(2) is deprecated and not wired up on ARM64. */
+#ifndef CONFIG_ARM64
 	SYSCALL_ENTRY(select),
+#endif
 #endif
 
 	/* 32-bit only syscalls. */
