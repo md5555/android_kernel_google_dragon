@@ -849,15 +849,25 @@ static ssize_t ffs_epfile_io(struct file *file, struct ffs_io_data *io_data)
 			req->complete = ffs_epfile_io_complete;
 
 			ret = usb_ep_queue(ep->ep, req, GFP_ATOMIC);
+			if (ret < 0)
+				goto error_lock;
 
 			spin_unlock_irq(&epfile->ffs->eps_lock);
 
-			if (unlikely(ret < 0)) {
-				/* nop */
-			} else if (unlikely(
-				   wait_for_completion_interruptible(&done))) {
+			ret = wait_for_completion_interruptible(&done);
+
+			spin_lock_irq(&epfile->ffs->eps_lock);
+			if (!epfile->ep) {
+				/*
+				 * We may have been unbound (and the EPs freed)
+				 * before the transfer completed.
+				 */
+				ret = -ESHUTDOWN;
+				goto error_lock;
+			} else if (ret < 0) {
 				ret = -EINTR;
 				usb_ep_dequeue(ep->ep, req);
+				goto error_lock;
 			} else {
 				/*
 				 * XXX We may end up silently droping data
@@ -867,6 +877,7 @@ static ssize_t ffs_epfile_io(struct file *file, struct ffs_io_data *io_data)
 				 * data then user space has space for.
 				 */
 				ret = ep->status;
+				spin_unlock_irq(&epfile->ffs->eps_lock);
 				if (io_data->read && ret > 0) {
 					ret = min_t(size_t, ret, io_data->len);
 
