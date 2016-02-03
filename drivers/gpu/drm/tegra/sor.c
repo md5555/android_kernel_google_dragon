@@ -1678,6 +1678,12 @@ static void tegra_sor_edp_enable(struct drm_encoder *encoder)
 		goto out;
 	}
 
+	err = drm_dp_link_power_up(sor->aux, &sor->link);
+	if (err < 0) {
+		dev_err(sor->dev, "failed to power up eDP link: %d\n", err);
+		goto out;
+	}
+
 	if (output->panel)
 		drm_panel_prepare(output->panel);
 
@@ -1764,12 +1770,6 @@ static void tegra_sor_edp_enable(struct drm_encoder *encoder)
 	}
 
 	dev_dbg(sor->dev, "link training succeeded\n");
-
-	err = drm_dp_link_power_up(sor->aux, &sor->link);
-	if (err < 0) {
-		dev_err(sor->dev, "failed to power up eDP link: %d\n", err);
-		goto out;
-	}
 
 	/* compute configuration */
 	memset(&config, 0, sizeof(config));
@@ -2424,6 +2424,12 @@ static void tegra_sor_dp_enable(struct drm_encoder *encoder)
 		goto out;
 	}
 
+	err = drm_dp_link_power_up(sor->aux, &sor->link);
+	if (err < 0) {
+		dev_err(sor->dev, "failed to power up DP link: %d\n", err);
+		goto out;
+	}
+
 	value = tegra_sor_readl(sor, SOR_PLL2);
 	value &= ~SOR_PLL2_BANDGAP_POWERDOWN;
 	tegra_sor_writel(sor, value, SOR_PLL2);
@@ -2507,12 +2513,6 @@ static void tegra_sor_dp_enable(struct drm_encoder *encoder)
 	}
 
 	dev_dbg(sor->dev, "link training succeeded\n");
-
-	err = drm_dp_link_power_up(sor->aux, &sor->link);
-	if (err < 0) {
-		dev_err(sor->dev, "failed to power up DP link: %d\n", err);
-		goto out;
-	}
 
 	/* compute configuration */
 	memset(&config, 0, sizeof(config));
