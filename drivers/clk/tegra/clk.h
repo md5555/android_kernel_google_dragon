@@ -378,12 +378,6 @@ struct clk *tegra_clk_register_pllre(const char *name, const char *parent_name,
 			   struct tegra_clk_pll_params *pll_params,
 			   spinlock_t *lock, unsigned long parent_rate);
 
-struct clk *tegra_clk_register_pllre_tegra210(const char *name,
-			   const char *parent_name, void __iomem *clk_base,
-			   void __iomem *pmc, unsigned long flags,
-			   struct tegra_clk_pll_params *pll_params,
-			   spinlock_t *lock, unsigned long parent_rate);
-
 struct clk *tegra_clk_register_plle_tegra114(const char *name,
 				const char *parent_name,
 				void __iomem *clk_base, unsigned long flags,
@@ -731,12 +725,6 @@ struct tegra_clk_init_table {
 	unsigned int	clk_id;
 	unsigned int	parent_id;
 	unsigned long	rate;
-#define CLK_INIT_DISABLE	-1
-#define CLK_INIT_UNSET		0
-#define CLK_INIT_ENABLE		1
-#define CLK_INIT_STATE(state) (state != CLK_INIT_UNSET)
-#define CLK_INIT_STATE_ENABLE(state) (state == CLK_INIT_ENABLE)
-#define CLK_INIT_STATE_DISABLE(state) (state == CLK_INIT_DISABLE)
 	int		state;
 };
 
