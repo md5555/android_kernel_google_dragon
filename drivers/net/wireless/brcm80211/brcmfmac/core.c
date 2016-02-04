@@ -22,12 +22,12 @@
 #include <brcmu_utils.h>
 #include <brcmu_wifi.h>
 
-#include "dhd.h"
-#include "dhd_bus.h"
-#include "dhd_dbg.h"
+#include "core.h"
+#include "bus.h"
+#include "debug.h"
 #include "fwil_types.h"
 #include "p2p.h"
-#include "wl_cfg80211.h"
+#include "cfg80211.h"
 #include "fwil.h"
 #include "fwsignal.h"
 #include "feature.h"
@@ -59,9 +59,9 @@ module_param_named(debug, brcmf_msg_level, int, S_IRUSR | S_IWUSR);
 MODULE_PARM_DESC(debug, "level of debug output");
 
 /* P2P0 enable */
-static int brcmf_p2p_enable = 1;
-#ifdef CONFIG_BRCMDBG
-module_param_named(p2pon, brcmf_p2p_enable, int, 1);
+static int brcmf_p2p_enable;
+#ifdef CPTCFG_BRCMDBG
+module_param_named(p2pon, brcmf_p2p_enable, int, 0);
 MODULE_PARM_DESC(p2pon, "enable p2p management functionality");
 #endif
 
@@ -836,7 +836,7 @@ struct brcmf_if *brcmf_add_if(struct brcmf_pub *drvr, s32 bssidx, s32 ifidx,
 	return ifp;
 }
 
-void brcmf_del_if(struct brcmf_pub *drvr, s32 bssidx)
+static void brcmf_del_if(struct brcmf_pub *drvr, s32 bssidx)
 {
 	struct brcmf_if *ifp;
 
@@ -867,6 +867,38 @@ void brcmf_del_if(struct brcmf_pub *drvr, s32 bssidx)
 	} else {
 		kfree(ifp);
 	}
+}
+
+void brcmf_remove_interface(struct brcmf_pub *drvr, u32 bssidx)
+{
+	if (drvr->iflist[bssidx]) {
+		brcmf_fws_del_interface(drvr->iflist[bssidx]);
+		brcmf_del_if(drvr, bssidx);
+	}
+}
+
+int brcmf_get_next_free_bsscfgidx(struct brcmf_pub *drvr)
+{
+	int ifidx;
+	int bsscfgidx;
+	bool available;
+	int highest;
+
+	available = false;
+	bsscfgidx = 2;
+	highest = 2;
+	for (ifidx = 0; ifidx < BRCMF_MAX_IFS; ifidx++) {
+		if (drvr->iflist[ifidx]) {
+			if (drvr->iflist[ifidx]->bssidx == bsscfgidx)
+				bsscfgidx = highest + 1;
+			else if (drvr->iflist[ifidx]->bssidx > highest)
+				highest = drvr->iflist[ifidx]->bssidx;
+		} else {
+			available = true;
+		}
+	}
+
+	return available ? bsscfgidx : -ENOMEM;
 }
 
 int brcmf_attach(struct device *dev)
@@ -1033,10 +1065,7 @@ void brcmf_detach(struct device *dev)
 
 	/* make sure primary interface removed last */
 	for (i = BRCMF_MAX_IFS-1; i > -1; i--)
-		if (drvr->iflist[i]) {
-			brcmf_fws_del_interface(drvr->iflist[i]);
-			brcmf_del_if(drvr, i);
-		}
+		brcmf_remove_interface(drvr, i);
 
 	brcmf_cfg80211_detach(drvr->config);
 
@@ -1080,13 +1109,13 @@ int brcmf_netdev_wait_pend8021x(struct net_device *ndev)
 
 static void brcmf_driver_register(struct work_struct *work)
 {
-#ifdef CONFIG_BRCMFMAC_SDIO
+#ifdef CPTCFG_BRCMFMAC_SDIO
 	brcmf_sdio_register();
 #endif
-#ifdef CONFIG_BRCMFMAC_USB
+#ifdef CPTCFG_BRCMFMAC_USB
 	brcmf_usb_register();
 #endif
-#ifdef CONFIG_BRCMFMAC_PCIE
+#ifdef CPTCFG_BRCMFMAC_PCIE
 	brcmf_pcie_register();
 #endif
 }
@@ -1095,7 +1124,7 @@ static DECLARE_WORK(brcmf_driver_work, brcmf_driver_register);
 static int __init brcmfmac_module_init(void)
 {
 	brcmf_debugfs_init();
-#ifdef CONFIG_BRCMFMAC_SDIO
+#ifdef CPTCFG_BRCMFMAC_SDIO
 	brcmf_sdio_init();
 #endif
 	if (!schedule_work(&brcmf_driver_work))
@@ -1108,13 +1137,13 @@ static void __exit brcmfmac_module_exit(void)
 {
 	cancel_work_sync(&brcmf_driver_work);
 
-#ifdef CONFIG_BRCMFMAC_SDIO
+#ifdef CPTCFG_BRCMFMAC_SDIO
 	brcmf_sdio_exit();
 #endif
-#ifdef CONFIG_BRCMFMAC_USB
+#ifdef CPTCFG_BRCMFMAC_USB
 	brcmf_usb_exit();
 #endif
-#ifdef CONFIG_BRCMFMAC_PCIE
+#ifdef CPTCFG_BRCMFMAC_PCIE
 	brcmf_pcie_exit();
 #endif
 	brcmf_debugfs_exit();

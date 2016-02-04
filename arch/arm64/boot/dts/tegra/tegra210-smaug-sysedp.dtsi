@@ -438,11 +438,13 @@
 				nvidia,states = <0 90>; /* OFF ON */
 			};
 
+			/*
 			consumer-wifi {
 				nvidia,consumer = <&wifi>;
-				nvidia,states = <0 2050>; /* OFF ON */
+				nvidia,states = <0 2050>;
 				nvidia,consumer-always-on;
 			};
+			*/
 
 			consumer-emmc {
 				nvidia,consumer = <&sdmmc4>;

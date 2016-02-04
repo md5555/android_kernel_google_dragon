@@ -168,6 +168,7 @@
 		vdd-core-supply = <&ppvar_soc>;
 	};
 
+	/*
 	wifi: wifi_bcm4354 {
 		compatible = "bcm,bcm4354";
 		interrupt-parent = <&gpio>;
@@ -177,6 +178,7 @@
 		nvidia,pmc-wakeup = <&pmc
 			PMC_WAKE_TYPE_EVENT 8 PMC_TRIGGER_TYPE_HIGH>;
 	};
+	*/
 
 	bt_bcm4354 {
 		compatible = "bcm,bt-bcm4354";
