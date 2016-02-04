@@ -28,6 +28,7 @@
 #include <bcm_cfg.h>
 #include <typedefs.h>
 #include <bcmutils.h>
+#include <linux/ctype.h>
 
 #ifdef BCMDRIVER
 #include <osl.h>
