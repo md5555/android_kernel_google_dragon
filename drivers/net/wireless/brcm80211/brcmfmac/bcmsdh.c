@@ -1172,9 +1172,11 @@ static struct sdio_driver brcmf_sdmmc_driver = {
 	.id_table = brcmf_sdmmc_ids,
 	.drv = {
 		.owner = THIS_MODULE,
+#if 0
 #ifdef CONFIG_PM_SLEEP
-		.pm = &brcmf_sdio_pm_ops,
+//		.pm = &brcmf_sdio_pm_ops,
 #endif	/* CONFIG_PM_SLEEP */
+#endif
 	},
 };
 
