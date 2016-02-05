@@ -25,7 +25,7 @@
 #include <brcm_hw_ids.h>
 #include <brcmu_utils.h>
 #include <chipcommon.h>
-#include "dhd_dbg.h"
+#include "debug.h"
 #include "chip.h"
 
 /* SOC Interconnect types (aka chip types) */
@@ -510,7 +510,6 @@ static void brcmf_chip_get_raminfo(struct brcmf_chip_priv *ci)
 	case BRCM_CC_43567_CHIP_ID:
 	case BRCM_CC_43569_CHIP_ID:
 	case BRCM_CC_43570_CHIP_ID:
-	case BRCM_CC_4371_CHIP_ID:
 		ci->pub.ramsize = 0xc0000;
 		ci->pub.rambase = 0x180000;
 		break;

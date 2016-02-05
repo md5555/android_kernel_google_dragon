@@ -1033,8 +1033,6 @@
 	nvidia,trim-delay = <8>;
 	nvidia,tap-delay = <0>;
 	status = "okay";
-	nvidia,pmc-wakeup = <&pmc
-			PMC_WAKE_TYPE_EVENT 8 PMC_TRIGGER_TYPE_HIGH>;
 };
 
 &sdmmc4 {
