@@ -928,6 +928,14 @@ static int brcmf_sdiod_remove(struct brcmf_sdio_dev *sdiodev)
 	return 0;
 }
 
+static void brcmf_sdiod_host_fixup(struct mmc_host *host)
+{
+	/* runtime-pm powers off the device */
+	pm_runtime_forbid(host->parent);
+	/* avoid removal detection upon resume */
+	host->caps |= MMC_CAP_NONREMOVABLE;
+}
+
 static int brcmf_sdiod_probe(struct brcmf_sdio_dev *sdiodev)
 {
 	struct sdio_func *func;
@@ -989,7 +997,7 @@ static int brcmf_sdiod_probe(struct brcmf_sdio_dev *sdiodev)
 		ret = -ENODEV;
 		goto out;
 	}
-	pm_runtime_forbid(host->parent);
+	brcmf_sdiod_host_fixup(host);
 out:
 	if (ret)
 		brcmf_sdiod_remove(sdiodev);
@@ -1172,11 +1180,9 @@ static struct sdio_driver brcmf_sdmmc_driver = {
 	.id_table = brcmf_sdmmc_ids,
 	.drv = {
 		.owner = THIS_MODULE,
-#if 0
 #ifdef CONFIG_PM_SLEEP
-//		.pm = &brcmf_sdio_pm_ops,
+		.pm = &brcmf_sdio_pm_ops,
 #endif	/* CONFIG_PM_SLEEP */
-#endif
 	},
 };
 

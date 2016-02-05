@@ -1397,6 +1397,7 @@
 		resets = <&tegra_car 9>;
 		reset-names = "sdhci";
 		status = "disabled";
+		non-removable;
 	};
 
 	sdmmc3: sdhci@700b0400 {
