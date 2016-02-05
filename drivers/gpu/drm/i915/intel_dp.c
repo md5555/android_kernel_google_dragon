@@ -228,6 +228,13 @@ intel_dp_mode_valid(struct drm_connector *connector,
 	max_rate = intel_dp_max_data_rate(max_link_clock, max_lanes);
 	mode_rate = intel_dp_link_required(target_clock, 18);
 
+       /* DVI monitor connected via DP-HDMI adapter
+        * or HDMI monitor connected via DP-DVI adapter
+        */
+       if (intel_dp->has_hdmi_sink && intel_dp->has_dvi_sink &&
+           target_clock > 165000)
+               return MODE_CLOCK_HIGH;
+
 	if (mode_rate > max_rate)
 		return MODE_CLOCK_HIGH;
 
@@ -3914,6 +3921,7 @@ intel_dp_get_dpcd(struct intel_dp *intel_dp)
 	struct drm_device *dev = dig_port->base.base.dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	uint8_t rev;
+	uint8_t type;
 
 	if (intel_dp_dpcd_read_wake(&intel_dp->aux, 0x000, intel_dp->dpcd,
 				    sizeof(intel_dp->dpcd)) < 0)
@@ -3998,6 +4006,10 @@ intel_dp_get_dpcd(struct intel_dp *intel_dp)
 				    intel_dp->downstream_ports,
 				    DP_MAX_DOWNSTREAM_PORTS) < 0)
 		return false; /* downstream port status fetch failed */
+
+	type = intel_dp->downstream_ports[0] & DP_DS_PORT_TYPE_MASK;
+	intel_dp->has_hdmi_sink = type == DP_DS_PORT_TYPE_HDMI;
+	intel_dp->has_dvi_sink = type == DP_DS_PORT_TYPE_DVI;
 
 	return true;
 }
@@ -4663,6 +4675,11 @@ intel_dp_set_edid(struct intel_dp *intel_dp)
 		intel_dp->has_audio = intel_dp->force_audio == HDMI_AUDIO_ON;
 	else
 		intel_dp->has_audio = drm_detect_monitor_audio(edid);
+
+	if (drm_detect_hdmi_monitor(edid))
+		intel_dp->has_hdmi_sink = true;
+	else
+		intel_dp->has_dvi_sink = true;
 }
 
 static void
