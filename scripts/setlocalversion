@@ -16,10 +16,9 @@ usage() {
 
 scm_only=false
 srctree=.
-if test "$1" = "--save-scmversion"; then
-	scm_only=true
-	shift
-fi
+#if test "$1" = "--save-scmversion"; then
+#	shift
+#fi
 if test $# -gt 0; then
 	srctree=$1
 	shift
