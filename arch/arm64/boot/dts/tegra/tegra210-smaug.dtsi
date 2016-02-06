@@ -174,8 +174,6 @@
 		interrupts = <TEGRA_GPIO(H, 2) IRQ_TYPE_LEVEL_HIGH>;
 		wl_reg_on = <&gpio TEGRA_GPIO(H, 1) GPIO_ACTIVE_HIGH>;
 		wl_host_wake = <&gpio TEGRA_GPIO(H, 2) IRQ_TYPE_LEVEL_HIGH>;
-		nvidia,pmc-wakeup = <&pmc
-			PMC_WAKE_TYPE_EVENT 8 PMC_TRIGGER_TYPE_HIGH>;
 	};
 
 	bt_bcm4354 {
@@ -555,7 +553,7 @@
 		reg = <0x1e>;
 		interrupt-parent = <&gpio>;
 		interrupts = <TEGRA_GPIO(Z, 1) IRQ_TYPE_LEVEL_LOW>;
-		wakeup-source;
+
 		nvidia,pmc-wakeup = <&pmc
 				PMC_WAKE_TYPE_EVENT 35 PMC_TRIGGER_TYPE_LOW>;
 
@@ -1022,6 +1020,8 @@
 };
 
 &sdmmc2 {
+	sd-uhs-sdr104;
+	enable-sdio-wakeup;
 	power-gpios = <&gpio TEGRA_GPIO(H, 1) GPIO_ACTIVE_HIGH>;
 	bus-width = <4>;
 	keep-power-in-suspend;
@@ -1031,6 +1031,8 @@
 	nvidia,trim-delay = <8>;
 	nvidia,tap-delay = <0>;
 	status = "okay";
+	nvidia,pmc-wakeup = <&pmc
+		PMC_WAKE_TYPE_EVENT 8 PMC_TRIGGER_TYPE_HIGH>;
 };
 
 &sdmmc4 {
