@@ -46,6 +46,8 @@ struct tegra210_cpufreq_priv {
 	struct clk *dfll_clk;
 	struct clk *cpu_clk;
 	struct clk *emc_clk;
+	struct workqueue_struct *emc_rate_wq;
+	struct work_struct emc_rate_work;
 	struct device *cpu_dev;
 	int suspend_index;
 	bool dfll_mode;
@@ -172,9 +174,12 @@ out:
 	return ret;
 }
 
-static void tegra210_vote_emc_rate(unsigned long cpu_rate)
+static void tegra210_vote_emc_rate_work(struct work_struct *work)
 {
+	unsigned long cpu_rate;
+
 	/* Vote on memory bus frequency based on cpu frequency */
+	cpu_rate = clk_get_rate(priv.cpu_clk);
 	if (cpu_rate >= 1300000000)
 		/* cpu >= 1.3GHz, emc max */
 		clk_set_rate(priv.emc_clk, ULONG_MAX);
@@ -206,16 +211,13 @@ static int tegra210_set_target(struct cpufreq_policy *policy,
 	new_rate = clk_round_rate(priv.cpu_clk, freq_table[index].frequency * 1000);
 	old_rate = clk_get_rate(priv.cpu_clk);
 
-	if (new_rate > old_rate)
-		tegra210_vote_emc_rate(new_rate);
-
 	if (priv.dfll_mode)
 		clk_set_rate(priv.cpu_clk, new_rate);
 	else
 		tegra210_set_rate_pll(new_rate, old_rate);
 
-	if (new_rate < old_rate)
-		tegra210_vote_emc_rate(new_rate);
+	if (new_rate != old_rate)
+		queue_work(priv.emc_rate_wq, &priv.emc_rate_work);
 
 	mutex_unlock(&tegra_cpu_lock);
 
@@ -344,6 +346,14 @@ static int tegra210_cpufreq_probe(struct platform_device *pdev)
 	}
 	clk_prepare_enable(priv.emc_clk);
 
+	priv.emc_rate_wq = alloc_workqueue("emc_rate_wq",
+			WQ_HIGHPRI | WQ_UNBOUND, 1);
+	if (!priv.emc_rate_wq) {
+		ret = -ENOMEM;
+		goto out_put_emc_clk;
+	}
+	INIT_WORK(&priv.emc_rate_work, tegra210_vote_emc_rate_work);
+
 	rcu_read_lock();
 	ret = dev_pm_opp_get_opp_count(cpu_dev);
 	rcu_read_unlock();
@@ -369,6 +379,8 @@ static int tegra210_cpufreq_probe(struct platform_device *pdev)
 out_switch_pllx:
 	tegra210_cpu_switch_to_pllx();
 out_put_emc_clk:
+	if (priv.emc_rate_wq)
+		destroy_workqueue(priv.emc_rate_wq);
 	clk_disable_unprepare(priv.emc_clk);
 	clk_put(priv.emc_clk);
 out_put_pllp_clk:
@@ -393,6 +405,8 @@ static int tegra210_cpufreq_remove(struct platform_device *pdev)
 {
 	tegra210_cpu_switch_to_pllx();
 
+	cancel_work_sync(&priv.emc_rate_work);
+	destroy_workqueue(priv.emc_rate_wq);
 	clk_disable_unprepare(priv.emc_clk);
 	clk_put(priv.emc_clk);
 	clk_put(priv.pllp_clk);
