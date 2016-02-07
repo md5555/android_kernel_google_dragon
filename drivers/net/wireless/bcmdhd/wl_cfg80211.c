@@ -11009,8 +11009,8 @@ static s32 wl_event_handler(void *data)
 			}
 			wl_put_event(e);
 		}
+		DHD_OS_WAKE_UNLOCK(cfg->pub);
 	}
-	DHD_OS_WAKE_UNLOCK(cfg->pub);
 	WL_ERR(("was terminated\n"));
 	complete_and_exit(&tsk->completed, 0);
 	return 0;
