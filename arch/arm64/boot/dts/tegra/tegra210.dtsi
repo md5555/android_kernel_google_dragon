@@ -1399,6 +1399,7 @@
 		status = "disabled";
 		keep-power-in-suspend;
 		non-removable;
+		pm-ignore;
 	};
 
 	sdmmc3: sdhci@700b0400 {
