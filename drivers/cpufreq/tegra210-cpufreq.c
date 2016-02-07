@@ -36,6 +36,7 @@
 #define TEGRA210_CPU_BACKUP_RATE	204000000U
 
 static DEFINE_MUTEX(tegra_cpu_lock);
+static DEFINE_MUTEX(tegra_emc_lock);
 
 struct tegra210_cpufreq_priv {
 	struct regulator *vdd_cpu_reg;
@@ -178,6 +179,8 @@ static void tegra210_vote_emc_rate_work(struct work_struct *work)
 {
 	unsigned long cpu_rate;
 
+	mutex_lock(&tegra_emc_lock);
+
 	/* Vote on memory bus frequency based on cpu frequency */
 	cpu_rate = clk_get_rate(priv.cpu_clk);
 	if (cpu_rate >= 1300000000)
@@ -198,6 +201,8 @@ static void tegra210_vote_emc_rate_work(struct work_struct *work)
 	else
 		/* emc min */
 		clk_set_rate(priv.emc_clk, 0);
+
+	mutex_unlock(&tegra_emc_lock);
 }
 
 static int tegra210_set_target(struct cpufreq_policy *policy,
@@ -347,7 +352,7 @@ static int tegra210_cpufreq_probe(struct platform_device *pdev)
 	clk_prepare_enable(priv.emc_clk);
 
 	priv.emc_rate_wq = alloc_workqueue("emc_rate_wq",
-			WQ_HIGHPRI | WQ_UNBOUND, 1);
+			WQ_HIGHPRI | WQ_UNBOUND | WQ_FREEZABLE, 1);
 	if (!priv.emc_rate_wq) {
 		ret = -ENOMEM;
 		goto out_put_emc_clk;
