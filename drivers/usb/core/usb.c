@@ -302,9 +302,6 @@ static int usb_dev_prepare(struct device *dev)
 {
 	struct usb_device *udev = to_usb_device(dev);
 
-	if (!pm_runtime_enabled(dev))
-		return 0;
-
 	/* Return 0 if the current wakeup setting is wrong, otherwise 1 */
 	if (udev->do_remote_wakeup != device_may_wakeup(dev))
 		return 0;
