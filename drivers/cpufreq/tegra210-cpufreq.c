@@ -45,7 +45,7 @@ struct tegra210_cpufreq_priv {
 	struct clk *pllx_clk;
 	struct clk *dfll_clk;
 	struct clk *cpu_clk;
-	struct clk *emc_clk;
+//	struct clk *emc_clk;
 	struct device *cpu_dev;
 	int suspend_index;
 	bool dfll_mode;
@@ -172,6 +172,7 @@ out:
 	return ret;
 }
 
+#if 0
 static void tegra210_vote_emc_rate(unsigned long cpu_rate)
 {
 	/* Vote on memory bus frequency based on cpu frequency */
@@ -194,6 +195,7 @@ static void tegra210_vote_emc_rate(unsigned long cpu_rate)
 		/* emc min */
 		clk_set_rate(priv.emc_clk, 0);
 }
+#endif
 
 static int tegra210_set_target(struct cpufreq_policy *policy,
 		unsigned int index)
@@ -206,16 +208,20 @@ static int tegra210_set_target(struct cpufreq_policy *policy,
 	new_rate = clk_round_rate(priv.cpu_clk, freq_table[index].frequency * 1000);
 	old_rate = clk_get_rate(priv.cpu_clk);
 
+#if 0
 	if (new_rate > old_rate)
 		tegra210_vote_emc_rate(new_rate);
+#endif
 
 	if (priv.dfll_mode)
 		clk_set_rate(priv.cpu_clk, new_rate);
 	else
 		tegra210_set_rate_pll(new_rate, old_rate);
 
+#if 0
 	if (new_rate < old_rate)
 		tegra210_vote_emc_rate(new_rate);
+#endif
 
 	mutex_unlock(&tegra_cpu_lock);
 
@@ -337,12 +343,15 @@ static int tegra210_cpufreq_probe(struct platform_device *pdev)
 		goto out_put_pllx_clk;
 	}
 
+#if 0
 	priv.emc_clk = of_clk_get_by_name(np, "emc");
 	if (IS_ERR(priv.emc_clk)) {
 		pr_info("Tegra210_cpufreq: no cpu.emc shared clock found\n");
 		priv.emc_clk = NULL;
+	} else {
+		clk_prepare_enable(priv.emc_clk);
 	}
-	clk_prepare_enable(priv.emc_clk);
+#endif
 
 	rcu_read_lock();
 	ret = dev_pm_opp_get_opp_count(cpu_dev);
@@ -369,8 +378,12 @@ static int tegra210_cpufreq_probe(struct platform_device *pdev)
 out_switch_pllx:
 	tegra210_cpu_switch_to_pllx();
 out_put_emc_clk:
-	clk_disable_unprepare(priv.emc_clk);
-	clk_put(priv.emc_clk);
+#if 0
+	if(priv.emc_clk != NULL) {
+		clk_disable_unprepare(priv.emc_clk);
+		clk_put(priv.emc_clk);
+	}
+#endif
 out_put_pllp_clk:
 	clk_put(priv.pllp_clk);
 out_put_pllx_clk:
@@ -393,8 +406,13 @@ static int tegra210_cpufreq_remove(struct platform_device *pdev)
 {
 	tegra210_cpu_switch_to_pllx();
 
-	clk_disable_unprepare(priv.emc_clk);
-	clk_put(priv.emc_clk);
+#if 0
+	if(priv.emc_clk != NULL) {
+		clk_disable_unprepare(priv.emc_clk);
+		clk_put(priv.emc_clk);
+	}
+#endif
+
 	clk_put(priv.pllp_clk);
 	clk_put(priv.pllx_clk);
 	clk_put(priv.dfll_clk);
