@@ -450,7 +450,7 @@ nouveau_drm_load(struct drm_device *dev, unsigned long flags)
 
 	if (drm->device.info.family >= NV_DEVICE_INFO_V0_TESLA) {
 		ret = nvkm_vm_new(nvxx_device(&drm->device), 0, (1ULL << 40),
-				  0x1000, &drm->client.vm);
+				  0x2000000, &drm->client.vm);
 		if (ret)
 			goto fail_device;
 
@@ -909,7 +909,7 @@ nouveau_drm_open(struct drm_device *dev, struct drm_file *fpriv)
 
 	if (drm->device.info.family >= NV_DEVICE_INFO_V0_TESLA) {
 		ret = nvkm_vm_new(nvxx_device(&drm->device), 0, (1ULL << 40),
-				  0x1000, &cli->vm);
+				  0x2000000, &cli->vm);
 		if (ret) {
 			nouveau_cli_destroy(cli);
 			goto out_suspend;
