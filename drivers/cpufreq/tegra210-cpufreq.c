@@ -199,19 +199,15 @@ static int tegra210_set_target(struct cpufreq_policy *policy,
 	struct cpufreq_frequency_table *freq_table = policy->freq_table;
 	unsigned int old_rate, new_rate;
 
-	if (new_rate > old_rate)
-		tegra210_vote_emc_rate(new_rate);
-
 	new_rate = clk_round_rate(priv.cpu_clk, freq_table[index].frequency * 1000);
 	old_rate = clk_get_rate(priv.cpu_clk);
+
+	tegra210_vote_emc_rate(new_rate);
 
 	if (priv.dfll_mode)
 		clk_set_rate(priv.cpu_clk, new_rate);
 	else
 		tegra210_set_rate_pll(new_rate, old_rate);
-
-	if (new_rate < old_rate)
-		tegra210_vote_emc_rate(new_rate);
 
 	return 0;
 }
