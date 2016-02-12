@@ -1580,9 +1580,10 @@
 				 <&tegra_car TEGRA210_CLK_PLL_X>,
 				 <&tegra_car TEGRA210_CLK_PLL_P_OUT4>,
 				 <&tegra_car TEGRA210_CLK_CPU_EMC>,
+			 	 <&tegra_car TEGRA210_CLK_OVERRIDE_EMC>,
 				 <&dfll>;
 			clock-names = "cpu_g", "cpu_lp", "pll_x", "pll_p",
-				      "emc", "dfll";
+				      "emc", "emc_override", "dfll";
 			clock-latency = <300000>;
 			cpu-idle-states = <&C7>;
 			next-level-cache = <&L2>;

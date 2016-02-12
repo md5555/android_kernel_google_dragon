@@ -1519,6 +1519,7 @@ static int tegra210_emc_resume(struct device *dev)
 		clk_set_rate(emc_override_clk, emc_override_rate);
 		clk_disable_unprepare(emc_override_clk);
 	}
+
 	return 0;
 }
 #endif
