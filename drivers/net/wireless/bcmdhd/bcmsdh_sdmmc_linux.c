@@ -337,7 +337,7 @@ static int bcmsdh_sdmmc_suspend(struct device *pdev)
 	struct sdio_func *func = dev_to_sdio_func(pdev);
 	mmc_pm_flag_t sdio_flags;
 
-	sd_err(("%s Enter\n", __FUNCTION__));
+	sd_trace(("%s Enter\n", __FUNCTION__));
 	if (func->num != 2)
 		return 0;
 
@@ -351,10 +351,6 @@ static int bcmsdh_sdmmc_suspend(struct device *pdev)
 		sd_err(("%s: can't keep power while host is suspended\n", __FUNCTION__));
 		return  -EINVAL;
 	}
-
-#ifdef	CONFIG_BCMDHD_CUSTOM_SYSFS_TEGRA
-	tegra_sysfs_suspend();
-#endif
 
 	/* keep power while host suspended */
 	err = sdio_set_host_pm_flags(func, MMC_PM_KEEP_POWER);
@@ -376,7 +372,7 @@ static int bcmsdh_sdmmc_resume(struct device *pdev)
 	sdioh_info_t *sdioh;
 	struct sdio_func *func = dev_to_sdio_func(pdev);
 
-	sd_err(("%s Enter\n", __FUNCTION__));
+	sd_trace(("%s Enter\n", __FUNCTION__));
 	if (func->num != 2)
 		return 0;
 
@@ -385,9 +381,6 @@ static int bcmsdh_sdmmc_resume(struct device *pdev)
 #if defined(OOB_INTR_ONLY)
 	bcmsdh_resume(sdioh->bcmsdh);
 #endif 
-#ifdef	CONFIG_BCMDHD_CUSTOM_SYSFS_TEGRA
-	tegra_sysfs_resume();
-#endif
 
 	smp_mb();
 	return 0;

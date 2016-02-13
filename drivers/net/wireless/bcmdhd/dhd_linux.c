@@ -799,7 +799,7 @@ static int dhd_pm_callback(struct notifier_block *nfb, unsigned long action, voi
 	   in this function is breaking LP0. So moving this function
 	   call to dhd_set_suspend. Need to enable it after fixing
 	   wd wakelock issue. */
-#if 0
+
 #if defined(SUPPORT_P2P_GO_PS)
 #ifdef PROP_TXSTATUS
 	if (suspend) {
@@ -810,7 +810,6 @@ static int dhd_pm_callback(struct notifier_block *nfb, unsigned long action, voi
 		dhd_wlfc_resume(&dhdinfo->pub);
 #endif
 #endif /* defined(SUPPORT_P2P_GO_PS) */
-#endif
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && (LINUX_VERSION_CODE <= \
 	KERNEL_VERSION(2, 6, 39))
@@ -1641,11 +1640,15 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 	uint roamvar = 1;
 #endif /* ENABLE_FW_ROAM_SUSPEND */
 	uint nd_ra_filter = 0;
+	int lpas = 0;
+	int dtim_period = 0;
+	int bcn_interval = 0;
+	int bcn_to_dly = 0;
+	int bcn_timeout = CUSTOM_BCN_TIMEOUT_SETTING;
 	int ret = 0;
 
 	if (!dhd)
 		return -ENODEV;
-
 
 	DHD_TRACE(("%s: enter, value = %d in_suspend=%d\n",
 		__FUNCTION__, value, dhd->in_suspend));
@@ -1662,12 +1665,11 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 #ifdef PKT_FILTER_SUPPORT
 				dhd->early_suspended = 1;
 #endif
-#ifdef CONFIG_BCMDHD_CUSTOM_SYSFS_TEGRA
-				tegra_sysfs_suspend();
-#endif
 				/* Kernel suspended */
 				DHD_ERROR(("%s: force extra Suspend setting \n", __FUNCTION__));
-
+#ifdef CUSTOM_SET_SHORT_DWELL_TIME
+				dhd_set_short_dwell_time(dhd, TRUE);
+#endif
 #ifndef SUPPORT_PM2_ONLY
 				dhd_wl_ioctl_cmd(dhd, WLC_SET_PM, (char *)&power_mode,
 				                 sizeof(power_mode), TRUE, 0);
@@ -1676,17 +1678,34 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 				/* Enable packet filter, only allow unicast packet to send up */
 				dhd_enable_packet_filter(1, dhd);
 
-
 				/* If DTIM skip is set up as default, force it to wake
 				 * each third DTIM for better power savings.  Note that
 				 * one side effect is a chance to miss BC/MC packet.
 				 */
 				bcn_li_dtim = dhd_get_suspend_bcn_li_dtim(dhd);
-				bcm_mkiovar("bcn_li_dtim", (char *)&bcn_li_dtim,
-					4, iovbuf, sizeof(iovbuf));
-				if (dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, iovbuf, sizeof(iovbuf),
-					TRUE, 0) < 0)
-					DHD_ERROR(("%s: set dtim failed\n", __FUNCTION__));
+				dhd_iovar(dhd, 0, "bcn_li_dtim", (char *)&bcn_li_dtim, sizeof(bcn_li_dtim), 1);
+				if (bcn_li_dtim * dtim_period * bcn_interval >= MIN_DTIM_FOR_ROAM_THRES_EXTEND) {
+					/*
+					* Increase max roaming threshold from 2 secs to 8 secs
+					* the real roam threshold is MIN(max_roam_threshold, bcn_timeout/2)
+					*/
+					lpas = 1;
+					dhd_iovar(dhd, 0, "lpas", (char *)&lpas, sizeof(lpas), 1);
+
+					bcn_to_dly = 1;
+					/*
+					* if bcn_to_dly is 1, the real roam threshold is MIN(max_roam_threshold, bcn_timeout -1);
+					* notify link down event after roaming procedure complete if we hit bcn_timeout
+					* while we are in roaming progress.
+					*
+					*/
+					dhd_iovar(dhd, 0, "bcn_to_dly", (char *)&bcn_to_dly, sizeof(bcn_to_dly), 1);
+					/* Increase beacon timeout to 6 secs */
+					bcn_timeout = (bcn_timeout < BCN_TIMEOUT_IN_SUSPEND) ?
+										BCN_TIMEOUT_IN_SUSPEND : bcn_timeout;
+					dhd_iovar(dhd, 0, "bcn_timeout", (char *)&bcn_timeout, sizeof(bcn_timeout), 1);
+				}
+
 
 #ifndef ENABLE_FW_ROAM_SUSPEND
 				/* Disable firmware roaming during suspend */
@@ -1704,25 +1723,16 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 						DHD_ERROR(("failed to set nd_ra_filter (%d)\n",
 							ret));
 				}
-#if defined(SUPPORT_P2P_GO_PS)
-if (bcmdhd_support_p2p_go_ps) {
-#ifdef PROP_TXSTATUS
-				DHD_OS_WAKE_LOCK_WAIVE(dhd);
-				dhd_wlfc_suspend(dhd);
-				DHD_OS_WAKE_LOCK_RESTORE(dhd);
-#endif
-}
-#endif /* defined(SUPPORT_P2P_GO_PS) */
+				dhd_os_suppress_logging(dhd, TRUE);
 			} else {
 #ifdef PKT_FILTER_SUPPORT
 				dhd->early_suspended = 0;
 #endif
-#ifdef CONFIG_BCMDHD_CUSTOM_SYSFS_TEGRA
-				tegra_sysfs_resume();
-#endif
 				/* Kernel resumed  */
 				DHD_ERROR(("%s: Remove extra suspend setting \n", __FUNCTION__));
-
+#ifdef CUSTOM_SET_SHORT_DWELL_TIME
+				dhd_set_short_dwell_time(dhd, FALSE);
+#endif
 #ifndef SUPPORT_PM2_ONLY
 				power_mode = PM_FAST;
 				dhd_wl_ioctl_cmd(dhd, WLC_SET_PM, (char *)&power_mode,
@@ -1733,11 +1743,15 @@ if (bcmdhd_support_p2p_go_ps) {
 				dhd_enable_packet_filter(0, dhd);
 #endif /* PKT_FILTER_SUPPORT */
 
-				/* restore pre-suspend setting for dtim_skip */
-				bcm_mkiovar("bcn_li_dtim", (char *)&bcn_li_dtim,
-					4, iovbuf, sizeof(iovbuf));
+				/* restore pre-suspend setting */
+				dhd_iovar(dhd, 0, "bcn_li_dtim", (char *)&bcn_li_dtim, sizeof(bcn_li_dtim), 1);
 
-				dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, iovbuf, sizeof(iovbuf), TRUE, 0);
+				dhd_iovar(dhd, 0, "lpas", (char *)&lpas, sizeof(lpas), 1);
+
+				dhd_iovar(dhd, 0, "bcn_to_dly", (char *)&bcn_to_dly, sizeof(bcn_to_dly), 1);
+
+				dhd_iovar(dhd, 0, "bcn_timeout", (char *)&bcn_timeout, sizeof(bcn_timeout), 1);
+
 #ifndef ENABLE_FW_ROAM_SUSPEND
 				roamvar = dhd_roam_disable;
 				bcm_mkiovar("roam_off", (char *)&roamvar, 4, iovbuf,
@@ -1754,14 +1768,7 @@ if (bcmdhd_support_p2p_go_ps) {
 						DHD_ERROR(("failed to set nd_ra_filter (%d)\n",
 							ret));
 				}
-#if defined(SUPPORT_P2P_GO_PS)
-if (bcmdhd_support_p2p_go_ps) {
-#ifdef PROP_TXSTATUS
-				dhd_wlfc_resume(dhd);
-#endif
-}
-#endif /* defined(SUPPORT_P2P_GO_PS) */
-
+				dhd_os_suppress_logging(dhd, FALSE);
 			}
 	}
 	dhd_suspend_unlock(dhd);
@@ -1789,6 +1796,7 @@ static int dhd_suspend_resume_helper(struct dhd_info *dhd, int val, int force)
 	DHD_OS_WAKE_UNLOCK(dhdp);
 	return ret;
 }
+
 
 #if defined(CONFIG_HAS_EARLYSUSPEND) && defined(DHD_USE_EARLYSUSPEND)
 static void dhd_early_suspend(struct early_suspend *h)
