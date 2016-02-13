@@ -1002,6 +1002,10 @@ dhdsdio_clk_devsleep_iovar(dhd_bus_t *bus, bool on)
 		DHD_TRACE(("%s: clk before sleep: 0x%x\n", __FUNCTION__,
 			bcmsdh_cfg_read(bus->sdh, SDIO_FUNC_1,
 			SBSDIO_FUNC1_CHIPCLKCSR, &err)));
+
+		/* Dongle would not reponse to CMD19 in sleep so block retune */
+		bcmsdh_retune_hold(bus->sdh, TRUE);
+
 #ifdef USE_CMD14
 		err = bcmsdh_sleep(bus->sdh, TRUE);
 #else
@@ -1060,7 +1064,12 @@ dhdsdio_clk_devsleep_iovar(dhd_bus_t *bus, bool on)
 		{
 			err = bcmsdh_gpioout(bus->sdh, GPIO_DEV_WAKEUP, TRUE);  /* GPIO_1 is on */
 		}
-		err = dhdsdio_clk_kso_enab(bus, TRUE);
+		do {
+			err = dhdsdio_clk_kso_enab(bus, TRUE);
+			if (err)
+				OSL_SLEEP(10);
+		} while ((err != 0) && (++retry < 3));
+
 		if (err != 0) {
 			DHD_ERROR(("ERROR: kso set failed retry: %d\n", retry));
 			err = 0; /* continue anyway */
@@ -1096,6 +1105,9 @@ dhdsdio_clk_devsleep_iovar(dhd_bus_t *bus, bool on)
 				err = BCME_NODEVICE;
 			}
 		}
+
+		/* Unblock retune */
+		bcmsdh_retune_hold(bus->sdh, FALSE);
 	}
 
 	/* Update if successful */
@@ -1110,6 +1122,8 @@ dhdsdio_clk_devsleep_iovar(dhd_bus_t *bus, bool on)
 
 	return err;
 }
+
+
 
 /* Turn backplane clock on or off */
 static int
