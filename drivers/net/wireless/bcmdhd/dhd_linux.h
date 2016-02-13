@@ -63,6 +63,7 @@ typedef struct wifi_adapter_info {
 	uint		bus_type;
 	uint		bus_num;
 	uint		slot_num;
+	bool		powered_on;
 	struct sysedp_consumer *sysedpc;
 #ifdef NV_COUNTRY_CODE
 	int		n_country;
