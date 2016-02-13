@@ -458,19 +458,21 @@ fail:
 
 static int wifi_plat_dev_drv_probe(struct platform_device *pdev)
 {
-	struct resource *resource;
+	const struct platform_device_id *pdev_id = platform_get_device_id(pdev);
+	struct resource *resource = NULL;
 	wifi_adapter_info_t *adapter;
-	struct device_node *node;
-	struct irq_data *irq_data;
-	u32 irq_flags;
+	int error;
 
-	/* Android style wifi platform data device ("bcmdhd_wlan" or "bcm4329_wlan")
-	 * is kept for backward compatibility and supports only 1 adapter
-	 */
+	adapter = devm_kzalloc(&pdev->dev, sizeof(wifi_adapter_info_t),
+				GFP_KERNEL);
+	if (!adapter)
+		return -ENOMEM;
 
-	ASSERT(dhd_wifi_platdata != NULL);
-	ASSERT(dhd_wifi_platdata->num_adapters == 1);
-	adapter = &dhd_wifi_platdata->adapters[0];
+	adapter->name = "DHD generic adapter";
+	adapter->bus_type = -1;
+	adapter->bus_num = -1;
+	adapter->slot_num = -1;
+	adapter->irq_num = -1;
 
 #if defined(DHD_OF_SUPPORT)
 	adapter->wifi_plat_data = wifi_plat_dev_parse_dt(&pdev->dev);
@@ -479,44 +481,39 @@ static int wifi_plat_dev_drv_probe(struct platform_device *pdev)
 	error = -ENXIO;
 #endif
 
-	if (pdev->dev.of_node) {
-		node = pdev->dev.of_node;
+	if (!error) {
+		/* Still one adapter for now */
+		dhd_wifi_platdata->adapters = adapter;
+	} else if (error != -ENXIO) {
+		return error;
+	} else if (pdev_id && pdev_id->driver_data) {
+		/* Android style wifi platform data device ("bcmdhd_wlan" or "bcm4329_wlan")
+		 * is kept for backward compatibility and supports only 1 adapter
+		 */
+		ASSERT(dhd_wifi_platdata != NULL);
+		ASSERT(dhd_wifi_platdata->num_adapters == 1);
 
-		//adapter->wlan_pwr = of_get_named_gpio(node, "wlan-pwr-gpio", 0);
-		//adapter->wlan_rst = of_get_named_gpio(node, "wlan-rst-gpio", 0);
+		dhd_wifi_platdata->adapters = adapter;
 
-		/* This is to get the irq for the OOB */
-		adapter->irq_num = platform_get_irq(pdev, 0);
-		if (adapter->irq_num > -1) {
-			irq_data = irq_get_irq_data(adapter->irq_num);
-			irq_flags = irqd_get_trigger_type(irq_data);
-			adapter->intr_flags = irq_flags & IRQF_TRIGGER_MASK;
-		}
+		adapter->wifi_plat_data = pdev->dev.platform_data;
 
-		if (of_property_read_string(node, "edp-consumer-name", &adapter->edp_name)) {
-			adapter->sysedpc = NULL;
-			DHD_ERROR(("%s: property 'edp-consumer-name' missing or invalid\n",
-									__FUNCTION__));
-		} else {
-			adapter->sysedpc = sysedp_create_consumer(node, adapter->edp_name);
-		}
-#ifdef NV_COUNTRY_CODE
-		if (wifi_platform_get_country_code_map(node, adapter))
-			DHD_ERROR(("%s:platform country code map is not available\n", __func__));
-#endif
-	} else {
 		resource = platform_get_resource_byname(pdev, IORESOURCE_IRQ, "bcmdhd_wlan_irq");
-		if (resource == NULL)
+		if (!resource)
 			resource = platform_get_resource_byname(pdev, IORESOURCE_IRQ, "bcm4329_wlan_irq");
-		if (resource) {
-			adapter->irq_num = resource->start;
-			adapter->intr_flags = resource->flags & IRQF_TRIGGER_MASK;
-		}
-		adapter->sysedpc = sysedp_create_consumer(node, "wifi");
+	} else {
+		dhd_wifi_platdata = pdev->dev.platform_data;
 	}
 
-	wifi_plat_dev_probe_ret = dhd_wifi_platform_load();
-	return wifi_plat_dev_probe_ret;
+	if (!resource)
+		resource = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
+
+	if (resource) {
+		adapter->irq_num = resource->start;
+		adapter->intr_flags = resource->flags & IRQF_TRIGGER_MASK;
+	}
+
+	platform_set_drvdata(pdev, adapter);
+	return dhd_wifi_platform_load();
 }
 
 static int wifi_plat_dev_drv_remove(struct platform_device *pdev)
