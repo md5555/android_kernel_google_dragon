@@ -621,7 +621,7 @@ static struct clk *tegra210_emc_predict_parent(unsigned long rate,
 	return new_parent;
 }
 
-static int tegra210_emc_set_rate(unsigned long rate)
+int tegra210_emc_set_rate(unsigned long rate)
 {
 	int i;
 	u32 clk_setting;
@@ -675,6 +675,7 @@ static int tegra210_emc_set_rate(unsigned long rate)
 
 	return 0;
 }
+EXPORT_SYMBOL(tegra210_emc_set_rate);
 
 static inline int bw_calc_get_freq_idx(unsigned long bw)
 {
