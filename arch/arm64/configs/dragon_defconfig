@@ -1670,6 +1670,7 @@ CONFIG_BCMDHD_HW_OOB=y
 # CONFIG_BCMDHD_DISABLE_MCC is not set
 # CONFIG_BCMDHD_CUSTOM_SYSFS_TEGRA is not set
 # CONFIG_BCMDHD_CUSTOM_NET_PERF_TEGRA is not set
+CONFIG_DHD_OF_SUPPORT=y
 
 #
 # Enable WiMAX (Networking options) to see the WiMAX drivers
