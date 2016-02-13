@@ -912,9 +912,17 @@ extern uint dhd_force_tx_queueing;
 #define CUSTOM_LISTEN_INTERVAL 		LISTEN_INTERVAL
 #endif /* CUSTOM_LISTEN_INTERVAL */
 
-#define DEFAULT_SUSPEND_BCN_LI_DTIM		3
+#define DEFAULT_SUSPEND_BCN_LI_DTIM		5
 #ifndef CUSTOM_SUSPEND_BCN_LI_DTIM
 #define CUSTOM_SUSPEND_BCN_LI_DTIM		DEFAULT_SUSPEND_BCN_LI_DTIM
+#endif
+
+#ifndef BCN_TIMEOUT_IN_SUSPEND
+#define BCN_TIMEOUT_IN_SUSPEND			6 /* bcn timeout value in suspend mode */
+#endif
+
+#ifndef MIN_DTIM_FOR_ROAM_THRES_EXTEND
+#define MIN_DTIM_FOR_ROAM_THRES_EXTEND 600 /* minimum dtim interval to extend roam threshold */
 #endif
 
 #ifndef CUSTOM_RXF_PRIO_SETTING
@@ -949,8 +957,15 @@ extern uint dhd_force_tx_queueing;
 #endif /* WLTDLS */
 
 #define DEFAULT_BCN_TIMEOUT		8
+#define DEFAULT_BCN_TIMEOUT_VALUE	8
 #ifndef CUSTOM_BCN_TIMEOUT
 #define CUSTOM_BCN_TIMEOUT		DEFAULT_BCN_TIMEOUT
+#endif
+
+/* Default bcn_timeout value is 4 */
+#define DEFAULT_BCN_TIMEOUT
+#ifndef CUSTOM_BCN_TIMEOUT_SETTING
+#define CUSTOM_BCN_TIMEOUT_SETTING	DEFAULT_BCN_TIMEOUT
 #endif
 
 #define MAX_DTIM_SKIP_BEACON_INTERVAL	100 /* max allowed associated AP beacon for DTIM skip */
