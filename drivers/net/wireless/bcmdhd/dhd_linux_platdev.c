@@ -617,63 +617,57 @@ static int wifi_platdev_match(struct device *dev, void *data)
 static int wifi_ctrlfunc_register_drv(void)
 {
 	int err = 0;
-	struct device *dev1, *dev2;
-	struct device_node *dt_node;
-	wifi_adapter_info_t *adapter;
+	struct device *dev;
+	bool plat_dev_present;
 
-	dev1 = bus_find_device(&platform_bus_type, NULL, WIFI_PLAT_NAME, wifi_platdev_match);
-	dev2 = bus_find_device(&platform_bus_type, NULL, WIFI_PLAT_NAME2, wifi_platdev_match);
-	dt_node = of_find_compatible_node(NULL, NULL, "android,bcmdhd_wlan");
+	/* XXX: dtor: this is stupid. Whatever. I'll fix it later */
+	dev = bus_find_device(&platform_bus_type, NULL, WIFI_PLAT_NAME,
+			      wifi_platdev_match);
+	if (dev) {
+		plat_dev_present = true;
+		put_device(dev);
+	}
 
-	if (dev1 == NULL && dev2 == NULL && dt_node == NULL) {
+	dev = bus_find_device(&platform_bus_type, NULL, WIFI_PLAT_NAME2,
+			      wifi_platdev_match);
+	if (dev) {
+		plat_dev_present = true;
+		put_device(dev);
+	}
+
+	if (cfg_multichip) {
+		dev = bus_find_device(&platform_bus_type, NULL, WIFI_PLAT_EXT,
+				      wifi_platdev_match);
+		if (dev) {
+			plat_dev_present = true;
+			put_device(dev);
+		}
+	}
+
+	if (!dts_enabled && plat_dev_present) {
 		DHD_ERROR(("no wifi platform data, skip\n"));
 		return -ENXIO;
 	}
 
-	/* multi-chip support not enabled, build one adapter information for
-	 * DHD (either SDIO, USB or PCIe)
-	 */
-	adapter = kzalloc(sizeof(wifi_adapter_info_t), GFP_KERNEL);
-	adapter->name = "DHD generic adapter";
-	adapter->bus_type = -1;
-	adapter->bus_num = -1;
-	adapter->slot_num = -1;
-	adapter->irq_num = -1;
-	is_power_on = FALSE;
-	wifi_plat_dev_probe_ret = 0;
-	dhd_wifi_platdata = kzalloc(sizeof(bcmdhd_wifi_platdata_t), GFP_KERNEL);
-	dhd_wifi_platdata->num_adapters = 1;
-	dhd_wifi_platdata->adapters = adapter;
+	if (!cfg_multichip) {
+		/* multi-chip support not enabled, build one adapter information for
+		 * DHD (either SDIO, USB or PCIe)
+		 */
 
-	if (dev1 || dt_node) {
-		err = platform_driver_register(&wifi_platform_dev_driver);
-		if (err) {
-			DHD_ERROR(("%s: failed to register wifi ctrl func driver\n",
-				__FUNCTION__));
-			return err;
-		}
-	}
-	if (dev2) {
-		err = platform_driver_register(&wifi_platform_dev_driver_legacy);
-		if (err) {
-			DHD_ERROR(("%s: failed to register wifi ctrl func legacy driver\n",
-				__FUNCTION__));
-			return err;
-		}
+		dhd_wifi_platdata = kzalloc(sizeof(bcmdhd_wifi_platdata_t), GFP_KERNEL);
+		dhd_wifi_platdata->num_adapters = 1;
 	}
 
-	if (dts_enabled) {
-		struct resource *resource;
-		adapter->wifi_plat_data = (void *)&dhd_wlan_control;
-		resource = &dhd_wlan_resources;
-		adapter->irq_num = resource->start;
-		adapter->intr_flags = resource->flags & IRQF_TRIGGER_MASK;
-		wifi_plat_dev_probe_ret = dhd_wifi_platform_load();
+	err = platform_driver_register(&wifi_platform_dev_driver);
+	if (err) {
+		DHD_ERROR(("%s: failed to register wifi ctrl func driver\n",
+			__FUNCTION__));
+		return err;
 	}
 
-	/* return probe function's return value if registeration succeeded */
-	return wifi_plat_dev_probe_ret;
+	return 0;
 }
+
 
 void wifi_ctrlfunc_unregister_drv(void)
 {
