@@ -4,14 +4,14 @@
  * Provides type definitions and function prototypes used to link the
  * DHD OS, bus, and protocol modules.
  *
- * Copyright (C) 1999-2014, Broadcom Corporation
- *
+ * Copyright (C) 1999-2015, Broadcom Corporation
+ * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
  * under the terms of the GNU General Public License version 2 (the "GPL"),
  * available at http://www.broadcom.com/licenses/GPLv2.php, with the
  * following added to such license:
- *
+ * 
  *      As a special exception, the copyright holders of this software give you
  * permission to link this software with independent modules, and to copy and
  * distribute the resulting executable under terms of your choice, provided that
@@ -19,12 +19,12 @@
  * the license of that module.  An independent module is a module which is not
  * derived from this software.  The special exception does not apply to any
  * modifications of the software.
- *
+ * 
  *      Notwithstanding the above, under no circumstances may you combine this
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: dhd_bus.h 469959 2014-04-11 23:07:39Z $
+ * $Id: dhd_bus.h 513049 2014-11-05 09:36:42Z $
  */
 
 #ifndef _dhd_bus_h_
@@ -80,6 +80,7 @@ extern bool dhd_bus_dev_pm_enabled(dhd_pub_t *dhdpub);
 #if defined(DHD_DEBUG)
 /* Device console input function */
 extern int dhd_bus_console_in(dhd_pub_t *dhd, uchar *msg, uint msglen);
+extern int dhd_bus_mem_dump(dhd_pub_t *dhd);
 #endif /* defined(DHD_DEBUG) */
 
 /* Deferred processing for the bus, return TRUE requests reschedule */
@@ -156,7 +157,7 @@ extern void dhd_bus_cmn_writeshared(struct dhd_bus *bus, void * data, uint32 len
 extern void dhd_bus_ringbell(struct dhd_bus *bus, uint32 value);
 extern void dhd_bus_cmn_readshared(struct dhd_bus *bus, void* data, uint8 type, uint16 ringid);
 extern uint32 dhd_bus_get_sharedflags(struct dhd_bus *bus);
-extern void dhd_bus_rx_frame(struct dhd_bus *bus, void* pkt, int ifidx, uint pkt_count, int pkt_wake);
+extern void dhd_bus_rx_frame(struct dhd_bus *bus, void* pkt, int ifidx, uint pkt_count);
 extern void dhd_bus_start_queue(struct dhd_bus *bus);
 extern void dhd_bus_stop_queue(struct dhd_bus *bus);
 extern void dhd_bus_update_retlen(struct dhd_bus *bus, uint32 retlen, uint32 cmd_id, uint16 status,
@@ -185,6 +186,7 @@ extern void dhdpcie_bus_free_resource(struct dhd_bus *bus);
 extern bool dhdpcie_bus_dongle_attach(struct dhd_bus *bus);
 extern int dhd_bus_release_dongle(struct dhd_bus *bus);
 extern int dhd_bus_request_irq(struct dhd_bus *bus);
+
 
 #endif /* BCMPCIE */
 #endif /* _dhd_bus_h_ */

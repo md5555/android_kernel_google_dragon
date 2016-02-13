@@ -2,7 +2,7 @@
  *  BCMSDH interface glue
  *  implement bcmsdh API for SDIOH driver
  *
- * Copyright (C) 1999-2014, Broadcom Corporation
+ * Copyright (C) 1999-2015, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -702,13 +702,4 @@ bcmsdh_gpioout(void *sdh, uint32 gpio, bool enab)
 	sdioh_info_t *sd = (sdioh_info_t *)(p->sdioh);
 
 	return sdioh_gpioout(sd, gpio, enab);
-}
-
-void
-bcmsdh_retune_hold(void *sdh, bool hold)
-{
-	bcmsdh_info_t *p = (bcmsdh_info_t *)sdh;
-	sdioh_info_t *sd = (sdioh_info_t *)(p->sdioh);
-
-	sdioh_retune_hold(sd, hold);
 }
