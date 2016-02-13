@@ -963,7 +963,6 @@ extern uint dhd_force_tx_queueing;
 #endif
 
 /* Default bcn_timeout value is 4 */
-#define DEFAULT_BCN_TIMEOUT
 #ifndef CUSTOM_BCN_TIMEOUT_SETTING
 #define CUSTOM_BCN_TIMEOUT_SETTING	DEFAULT_BCN_TIMEOUT
 #endif
