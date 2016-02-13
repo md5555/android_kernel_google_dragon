@@ -70,6 +70,8 @@ bool cfg_multichip = FALSE;
 bcmdhd_wifi_platdata_t *dhd_wifi_platdata = NULL;
 static int wifi_plat_dev_probe_ret = 0;
 static bool is_power_on = FALSE;
+
+#if 0
 #if defined(DHD_OF_SUPPORT)
 static bool dts_enabled = TRUE;
 extern struct resource dhd_wlan_resources;
@@ -79,6 +81,15 @@ static bool dts_enabled = FALSE;
 struct resource dhd_wlan_resources = {0};
 struct wifi_platform_data dhd_wlan_control = {0};
 #endif /* CONFIG_OF && !defined(CONFIG_ARCH_MSM) */
+#endif
+
+#if defined(DHD_OF_SUPPORT)
+static bool dts_enabled = TRUE;
+extern struct wifi_platform_data *wifi_plat_dev_parse_dt(struct device *);
+extern const struct of_device_id wifi_dt_ids[];
+#else
+static bool dts_enabled = FALSE;
+#endif /* defined(DHD_OF_SUPPORT) */
 
 static int dhd_wifi_platform_load(void);
 
@@ -456,16 +467,23 @@ static int wifi_plat_dev_drv_probe(struct platform_device *pdev)
 	/* Android style wifi platform data device ("bcmdhd_wlan" or "bcm4329_wlan")
 	 * is kept for backward compatibility and supports only 1 adapter
 	 */
+
 	ASSERT(dhd_wifi_platdata != NULL);
 	ASSERT(dhd_wifi_platdata->num_adapters == 1);
 	adapter = &dhd_wifi_platdata->adapters[0];
-	adapter->wifi_plat_data = (struct wifi_platform_data *)(pdev->dev.platform_data);
+
+#if defined(DHD_OF_SUPPORT)
+	adapter->wifi_plat_data = wifi_plat_dev_parse_dt(&pdev->dev);
+	error = PTR_ERR_OR_ZERO(adapter->wifi_plat_data);
+#else
+	error = -ENXIO;
+#endif
 
 	if (pdev->dev.of_node) {
 		node = pdev->dev.of_node;
 
-		adapter->wlan_pwr = of_get_named_gpio(node, "wlan-pwr-gpio", 0);
-		adapter->wlan_rst = of_get_named_gpio(node, "wlan-rst-gpio", 0);
+		//adapter->wlan_pwr = of_get_named_gpio(node, "wlan-pwr-gpio", 0);
+		//adapter->wlan_rst = of_get_named_gpio(node, "wlan-rst-gpio", 0);
 
 		/* This is to get the irq for the OOB */
 		adapter->irq_num = platform_get_irq(pdev, 0);
