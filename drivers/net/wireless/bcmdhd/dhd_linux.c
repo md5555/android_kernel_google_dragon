@@ -171,6 +171,10 @@ extern bool ap_cfg_running;
 extern bool ap_fw_loaded;
 #endif
 
+#if defined(DHD_OF_SUPPORT)
+extern int dhd_wlan_init(void);
+extern void dhd_wlan_exit(void);
+#endif /* defined(DHD_OF_SUPPORT) */
 
 #ifdef ENABLE_ADAPTIVE_SCHED
 #define DEFAULT_CPUFREQ_THRESH		1000000	/* threshold frequency : 1000000 = 1GHz */
@@ -7467,10 +7471,14 @@ dhd_module_init(void)
 	int retry = POWERUP_MAX_RETRY;
 
 	DHD_ERROR(("%s in\n", __FUNCTION__));
+#if defined(DHD_OF_SUPPORT)
+	err = dhd_wlan_init();
+	if(err) {
+		DHD_ERROR(("%s: failed in dhd_wlan_init.",__FUNCTION__));
+		return err;
+	}
+#endif /* defined(DHD_OF_SUPPORT) */
 
-#ifdef CONFIG_BCMDHD_CUSTOM_NET_PERF_TEGRA
-	tegra_net_perf_init();
-#endif
 
 	DHD_PERIM_RADIO_INIT();
 
