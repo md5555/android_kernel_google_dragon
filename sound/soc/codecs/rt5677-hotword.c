@@ -134,9 +134,6 @@ static int rt5677_hotword_load_fw(struct rt5677_dsp *dsp, const u8 *buf,
 	for (i = 0; i < elf_hdr->e_phnum; i++) {
 		/* TODO: handle p_memsz != p_filesz */
 		if (pr_hdr->p_paddr && pr_hdr->p_filesz) {
-			dev_info(dsp->spi, "Load 0x%x bytes to 0x%x\n",
-					pr_hdr->p_filesz, pr_hdr->p_paddr);
-
 			ret = rt5677_spi_write(pr_hdr->p_paddr,
 					buf + pr_hdr->p_offset,
 					pr_hdr->p_filesz);
@@ -444,14 +441,8 @@ static void rt5677_hotword_stream(struct rt5677_dsp *dsp)
 	runtime = dsp->substream->runtime;
 
 	if (rt5677_hotword_mic_write_offset(&mic_write_offset)) {
-		/* Sometimes the SPI read for mic_write_offset fails because
-		 * it's too early during resume. Schedule the work item again
-		 * to retry.
-		 * TODO benzh: Figure out how to wait for the SPI device to
-		 * complete its resume, then remove this retry loop.
-		 */
-		dev_err(dsp->spi, "No mic_write_offset, retrying...\n");
-		goto done;
+		dev_err(dsp->spi, "No mic_write_offset\n");
+		return;
 	}
 
 	/* If this is the first time that we've asked for streaming data after
@@ -507,7 +498,7 @@ static void rt5677_hotword_stream(struct rt5677_dsp *dsp)
 
 done:
 	/* TODO benzh: use better delay time based on period_bytes */
-	schedule_delayed_work(&dsp->work,
+	queue_delayed_work(system_freezable_wq, &dsp->work,
 			msecs_to_jiffies(RT5677_HOTWORD_STREAM_DELAY_MS));
 }
 
@@ -532,13 +523,14 @@ static void rt5677_hotword_work(struct work_struct *work)
 	case RT5677_HOTWORD_ARMED:
 		break;
 	case RT5677_HOTWORD_FIRED:
-		dev_info(dsp->spi, "Hotword fired\n");
+		dev_info(dsp->spi, "Hotword fired, streaming...\n");
 		/* Fall through to start streaming */
 	case RT5677_HOTWORD_STREAM:
 		rt5677_hotword_stream(dsp);
 		break;
 	case RT5677_HOTWORD_STOP:
 		rt5677_hotword_stop(dsp);
+		dev_info(dsp->spi, "Hotword stopped\n");
 		break;
 	}
 	mutex_unlock(&dsp->lock);
@@ -579,7 +571,7 @@ static irqreturn_t rt5677_hotword_irq(int unused, void *data)
 		 * the pcm device is closed.
 		 */
 		wake_lock(&dsp->wake_lock);
-		schedule_delayed_work(&dsp->work, 0);
+		queue_delayed_work(system_freezable_wq, &dsp->work, 0);
 	}
 done:
 	mutex_unlock(&dsp->lock);
@@ -638,7 +630,7 @@ static int rt5677_hotword_pcm_open(struct snd_pcm_substream *substream)
 	wake_lock(&dsp->wake_lock);
 
 	dsp->state = RT5677_HOTWORD_START;
-	schedule_delayed_work(&dsp->work,
+	queue_delayed_work(system_freezable_wq, &dsp->work,
 			msecs_to_jiffies(RT5677_HOTWORD_START_DELAY_MS));
 
 	snd_soc_set_runtime_hwparams(substream, &rt5677_hotword_pcm_hardware);
@@ -656,7 +648,7 @@ static int rt5677_hotword_pcm_close(struct snd_pcm_substream *substream)
 		goto done;
 	}
 	dsp->state = RT5677_HOTWORD_STOP;
-	schedule_delayed_work(&dsp->work, 0);
+	queue_delayed_work(system_freezable_wq, &dsp->work, 0);
 done:
 	mutex_unlock(&dsp->lock);
 	flush_delayed_work(&dsp->work);
