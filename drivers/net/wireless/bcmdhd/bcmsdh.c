@@ -43,6 +43,8 @@
 #include <bcmsdbus.h>	/* common SDIO/controller interface */
 #include <sbsdio.h>	/* SDIO device core hardware definitions. */
 #include <sdio.h>	/* SDIO Device and Protocol Specs */
+#include <linux/mmc/sdio_func.h>
+#include <bcmsdh_sdmmc.h>
 
 #define SDIOH_API_ACCESS_RETRY_LIMIT	2
 const uint bcmsdh_msglevel = BCMSDH_ERROR_VAL;
@@ -702,4 +704,24 @@ bcmsdh_gpioout(void *sdh, uint32 gpio, bool enab)
 	sdioh_info_t *sd = (sdioh_info_t *)(p->sdioh);
 
 	return sdioh_gpioout(sd, gpio, enab);
+}
+
+static void
+sdioh_retune_hold(sdioh_info_t *sd, bool hold)
+{
+	sdio_claim_host(sd->func[0]);
+	if (hold)
+		sdio_retune_hold_now(sd->func[0]);
+	else
+		sdio_retune_release(sd->func[0]);
+	sdio_release_host(sd->func[0]);
+}
+
+void
+bcmsdh_retune_hold(void *sdh, bool hold)
+{
+	bcmsdh_info_t *p = (bcmsdh_info_t *)sdh;
+	sdioh_info_t *sd = (sdioh_info_t *)(p->sdioh);
+
+	sdioh_retune_hold(sd, hold);
 }
