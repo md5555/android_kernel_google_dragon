@@ -28,6 +28,7 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/platform_device.h>
+#include <linux/wlan_plat.h>
 #include <bcmutils.h>
 #include <linux_osl.h>
 #include <dhd_dbg.h>
@@ -222,8 +223,8 @@ int wifi_platform_get_mac_addr(wifi_adapter_info_t *adapter, unsigned char *buf)
 	return -EOPNOTSUPP;
 }
 
-void *wifi_platform_get_country_code(wifi_adapter_info_t *adapter, char *ccode,
-				     u32 flags)
+void *wifi_platform_get_country_code(wifi_adapter_info_t *adapter, char *ccode
+				     )
 {
 	/* get_country_code was added after 2.6.39 */
 #if	(LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39))
@@ -235,7 +236,7 @@ void *wifi_platform_get_country_code(wifi_adapter_info_t *adapter, char *ccode,
 
 	DHD_TRACE(("%s\n", __FUNCTION__));
 	if (plat_data->get_country_code) {
-		return plat_data->get_country_code(plat_data, ccode, flags);
+		return plat_data->get_country_code(plat_data, ccode, 0);
 	}
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)) */
 
