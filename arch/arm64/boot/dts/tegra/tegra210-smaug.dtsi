@@ -1022,7 +1022,7 @@
 };
 
 &sdmmc2 {
-	power-gpios = <&gpio TEGRA_GPIO(H, 1) GPIO_ACTIVE_HIGH>;
+	//power-gpios = <&gpio TEGRA_GPIO(H, 1) GPIO_ACTIVE_HIGH>;
 	bus-width = <4>;
 	keep-power-in-suspend;
 	non-removable;
