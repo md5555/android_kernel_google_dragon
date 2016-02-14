@@ -3446,8 +3446,6 @@ exit:
 static int
 dhd_dpc_thread(void *data)
 {
-	unsigned long timeout;
-	unsigned int loopcnt, count;
 	tsk_ctl_t *tsk = (tsk_ctl_t *)data;
 	dhd_info_t *dhd = (dhd_info_t *)tsk->parent;
 
@@ -3457,7 +3455,7 @@ dhd_dpc_thread(void *data)
 	if (dhd_dpc_prio > 0)
 	{
 		struct sched_param param;
-		param.sched_priority = DHD_DEFAULT_RT_PRIORITY;
+		param.sched_priority = (dhd_dpc_prio < MAX_RT_PRIO)?dhd_dpc_prio:(MAX_RT_PRIO-1);
 		setScheduler(current, SCHED_FIFO, &param);
 	}
 
@@ -3467,6 +3465,7 @@ dhd_dpc_thread(void *data)
 #ifdef CUSTOM_SET_CPUCORE
 	dhd->pub.current_dpc = current;
 #endif /* CUSTOM_SET_CPUCORE */
+
 	/* Run until signal received */
 	while (1) {
 		if (!binary_sema_down(tsk)) {
@@ -3481,24 +3480,9 @@ dhd_dpc_thread(void *data)
 			/* Call bus dpc unless it indicated down (then clean stop) */
 			if (dhd->pub.busstate != DHD_BUS_DOWN) {
 				dhd_os_wd_timer_extend(&dhd->pub, TRUE);
-				timeout = jiffies + msecs_to_jiffies(100);
-				loopcnt = 0;
-				count = 0;
-				/* DPC_CAPTURE(); */
 				while (dhd_bus_dpc(dhd->pub.bus)) {
-					++loopcnt;
-					if (time_after(jiffies, timeout) &&
-						(loopcnt % 1000 == 0)) {
-						count++;
-						timeout = jiffies +
-							msecs_to_jiffies(100);
-					}
 					/* process all data */
 				}
-				if (count)
-					DHD_ERROR(("%s is consuming too much time"
-						" Looped %u times for 1000 iterations in 100ms timeout\n",
-						__func__, count));
 				dhd_os_wd_timer_extend(&dhd->pub, FALSE);
 				DHD_OS_WAKE_UNLOCK(&dhd->pub);
 
@@ -3511,6 +3495,7 @@ dhd_dpc_thread(void *data)
 		else
 			break;
 	}
+
 	complete_and_exit(&tsk->completed, 0);
 }
 
