@@ -903,7 +903,7 @@ extern uint dhd_force_tx_queueing;
 #define CUSTOM_PNO_EVENT_LOCK_xTIME	 DEFAULT_PNO_EVENT_LOCK_xTIME
 #endif
 /* hooks for custom dhd_dpc_prio setting option via Makefile */
-#define DEFAULT_DHP_DPC_PRIO  1
+#define DEFAULT_DHP_DPC_PRIO  0
 #ifndef CUSTOM_DPC_PRIO_SETTING
 #define CUSTOM_DPC_PRIO_SETTING 	DEFAULT_DHP_DPC_PRIO
 #endif

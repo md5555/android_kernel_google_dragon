@@ -247,7 +247,7 @@ static void bcmdhd_dynamic_configure(int chipid)
 		bcmdhd_custom_ampdu_mpdu = 16;
 		bcmdhd_use_custom_pspretend_thr = true;
 		bcmdhd_custom_pspretend_thr = 30;
-		dhd_dpc_prio = dhd_rxf_prio = 99;
+		dhd_dpc_prio = dhd_rxf_prio = 0;
 		/* set on/off delay */
 		bcmdhd_wifi_turnon_delay = 200;
 		bcmdhd_wifi_turnoff_delay = 200;
