@@ -170,6 +170,7 @@ out:
 	return ret;
 }
 
+#if 0
 static void tegra210_vote_emc_rate(unsigned long cpu_rate)
 {
 	unsigned long rate;
@@ -196,6 +197,7 @@ static void tegra210_vote_emc_rate(unsigned long cpu_rate)
 
 	tegra210_emc_set_rate(rate);
 }
+#endif
 
 static int tegra210_set_target(struct cpufreq_policy *policy,
 		unsigned int index)
@@ -206,7 +208,7 @@ static int tegra210_set_target(struct cpufreq_policy *policy,
 	new_rate = clk_round_rate(priv.cpu_clk, freq_table[index].frequency * 1000);
 	old_rate = clk_get_rate(priv.cpu_clk);
 
-	tegra210_vote_emc_rate(new_rate);
+	//tegra210_vote_emc_rate(new_rate);
 
 	if (priv.dfll_mode)
 		clk_set_rate(priv.cpu_clk, new_rate);
