@@ -8458,7 +8458,7 @@ static s32 wl_setup_wiphy(struct wireless_dev *wdev, struct device *sdiofunc_dev
 	wiphy_apply_custom_regulatory(wdev->wiphy, &brcm_regdom);
 
 	WL_DBG(("Registering Vendor80211)\n"));
-	err = cfgvendor_attach(wdev->wiphy);
+	err = wl_cfgvendor_attach(wdev->wiphy, dhd);
 	if (unlikely(err < 0)) {
 		WL_ERR(("Couldn not attach vendor commands (%d)\n", err));
 	}
@@ -8488,7 +8488,7 @@ static void wl_free_wdev(struct bcm_cfg80211 *cfg)
 	}
 	wiphy = wdev->wiphy;
 
-	cfgvendor_detach(wdev->wiphy);
+	wl_cfgvendor_detach(wdev->wiphy);
 
 	wiphy_unregister(wdev->wiphy);
 	wdev->wiphy->dev.parent = NULL;

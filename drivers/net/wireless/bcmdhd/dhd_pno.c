@@ -44,7 +44,11 @@
 #include <dhd.h>
 #include <dhd_pno.h>
 #include <dhd_dbg.h>
+#include <wl_cfg80211.h>
+#include <wldev_common.h>
 
+#define IS_CHANNEL_RADAR(channel)	(((channel & WL_CHAN_RADAR) || \
+	(channel & WL_CHAN_PASSIVE)) ? true : false)
 #ifdef __BIG_ENDIAN
 #include <bcmendian.h>
 #define htod32(i) (bcmswap32(i))
@@ -412,12 +416,16 @@ _dhd_pno_chan_merge(uint16 *d_chan_list, int *nchan,
 	*nchan = k;
 	return err;
 }
+struct net_device *dhd_pno_netdev;
 static int
 _dhd_pno_get_channels(dhd_pub_t *dhd, uint16 *d_chan_list,
 	int *nchan, uint8 band, bool skip_dfs)
 {
 	int err = BCME_OK;
 	int i, j;
+	u32 channel = 0;
+	bool skip_passive;
+
 	uint32 chan_buf[WL_NUMCHANNELS + 1];
 	wl_uint32_list_t *list;
 	NULL_CHECK(dhd, "dhd is NULL", err);
@@ -431,6 +439,8 @@ _dhd_pno_get_channels(dhd_pub_t *dhd, uint16 *d_chan_list,
 		DHD_ERROR(("failed to get channel list (err: %d)\n", err));
 		goto exit;
 	}
+	skip_passive = (band & WLC_BAND_ACTIVE);
+	band &= ~WLC_BAND_ACTIVE;
 	for (i = 0, j = 0; i < dtoh32(list->count) && i < *nchan; i++) {
 		if (band == WLC_BAND_2G) {
 			if (dtoh32(list->element[i]) > CHANNEL_2G_MAX)
@@ -444,6 +454,18 @@ _dhd_pno_get_channels(dhd_pub_t *dhd, uint16 *d_chan_list,
 		} else { /* All channels */
 			if (skip_dfs && is_dfs(dtoh32(list->element[i])))
 				continue;
+		}
+		if (dhd_pno_netdev && skip_passive) {
+			channel = dtoh32(list->element[i]);
+			err = wldev_iovar_getint(dhd_pno_netdev, "per_chan_info", &channel);
+			if (err < 0) {
+				DHD_ERROR(("%s get 'per_chan_info' failed, error = %d\n", __FUNCTION__, err));
+				goto exit;
+			}
+			if (IS_CHANNEL_RADAR(channel)) {
+				DHD_ERROR(("%s: channel %d is passive - skip\n", __FUNCTION__, dtoh32(list->element[i])));
+				continue;
+			}
 		}
 		d_chan_list[j++] = dtoh32(list->element[i]);
 	}
@@ -1133,6 +1155,158 @@ exit:
 		kfree(p_ssid_list);
 	return err;
 }
+
+#ifdef GSCAN_SUPPORT
+static void *dhd_get_gscan_batch_results(dhd_pub_t *dhd, uint32 *len)
+{
+	gscan_results_cache_t *iter, *results;
+	dhd_pno_status_info_t *_pno_state;
+	dhd_pno_params_t *_params;
+	uint16 num_scan_ids = 0, num_results = 0;
+
+	_pno_state = PNO_GET_PNOSTATE(dhd);
+	_params = &_pno_state->pno_params_arr[INDEX_OF_GSCAN_PARAMS];
+
+	iter = results = _params->params_gscan.gscan_batch_cache;
+	while (iter) {
+		num_results += iter->tot_count - iter->tot_consumed;
+		num_scan_ids++;
+		iter = iter->next;
+	}
+
+	*len = ((num_results << 16) | (num_scan_ids));
+	return results;
+}
+
+void * dhd_pno_get_gscan(dhd_pub_t *dhd, dhd_pno_gscan_cmd_cfg_t type,
+                          void *info, uint32 *len)
+{
+	void *ret = NULL;
+	dhd_pno_gscan_capabilities_t *ptr;
+	dhd_epno_params_t *epno_params;
+	dhd_pno_params_t *_params;
+	dhd_pno_status_info_t *_pno_state;
+
+	if (!dhd || !dhd->pno_state) {
+		DHD_ERROR(("NULL POINTER : %s\n", __FUNCTION__));
+		return NULL;
+	}
+	_pno_state = PNO_GET_PNOSTATE(dhd);
+	_params = &_pno_state->pno_params_arr[INDEX_OF_GSCAN_PARAMS];
+	if (!len) {
+		DHD_ERROR(("%s: len is NULL\n", __FUNCTION__));
+		return NULL;
+	}
+
+	switch (type) {
+		case DHD_PNO_GET_CAPABILITIES:
+			ptr = (dhd_pno_gscan_capabilities_t *)
+			kmalloc(sizeof(dhd_pno_gscan_capabilities_t), GFP_KERNEL);
+			if (!ptr)
+				break;
+			/* Hardcoding these values for now, need to get
+			 * these values from FW, will change in a later check-in
+			 */
+			ptr->max_scan_cache_size = GSCAN_MAX_AP_CACHE;
+			ptr->max_scan_buckets = GSCAN_MAX_CH_BUCKETS;
+			ptr->max_ap_cache_per_scan = GSCAN_MAX_AP_CACHE_PER_SCAN;
+			ptr->max_rssi_sample_size = PFN_SWC_RSSI_WINDOW_MAX;
+			ptr->max_scan_reporting_threshold = 100;
+			ptr->max_hotlist_aps = PFN_HOTLIST_MAX_NUM_APS;
+			ptr->max_significant_wifi_change_aps = PFN_SWC_MAX_NUM_APS;
+			ptr->max_epno_ssid_crc32 = MAX_EPNO_SSID_NUM;
+			ptr->max_epno_hidden_ssid = MAX_EPNO_HIDDEN_SSID;
+			ptr->max_white_list_ssid = MAX_WHITELIST_SSID;
+			ret = (void *)ptr;
+			*len = sizeof(dhd_pno_gscan_capabilities_t);
+			break;
+
+		case DHD_PNO_GET_BATCH_RESULTS:
+			ret = dhd_get_gscan_batch_results(dhd, len);
+			break;
+		case DHD_PNO_GET_CHANNEL_LIST:
+			if (info) {
+				uint16 ch_list[WL_NUMCHANNELS];
+				uint32 *ptr, mem_needed, i;
+				int32 err, nchan = WL_NUMCHANNELS;
+				uint32 *gscan_band = (uint32 *) info;
+				uint8 band = 0;
+
+				/* No band specified?, nothing to do */
+				if ((*gscan_band & GSCAN_BAND_MASK) == 0) {
+					DHD_PNO(("No band specified\n"));
+					*len = 0;
+					break;
+				}
+
+				/* HAL and DHD use different bits for 2.4G and
+				 * 5G in bitmap. Hence translating it here...
+				 */
+				if (*gscan_band & GSCAN_BG_BAND_MASK)
+					band |= WLC_BAND_2G;
+				if (*gscan_band & GSCAN_A_BAND_MASK)
+					band |= WLC_BAND_5G;
+				if (*gscan_band & GSCAN_ACTIVE_CHAN_MASK)
+					band |= WLC_BAND_ACTIVE;
+				err = _dhd_pno_get_channels(dhd, ch_list, &nchan,
+				                          (band & GSCAN_ABG_BAND_MASK) |
+				                          (band & GSCAN_ACTIVE_CHAN_MASK),
+				                          !(*gscan_band & GSCAN_DFS_MASK));
+
+				if (err < 0) {
+					DHD_ERROR(("%s: failed to get valid channel list\n",
+						__FUNCTION__));
+					*len = 0;
+				} else {
+					mem_needed = sizeof(uint32) * nchan;
+					ptr = (uint32 *) kmalloc(mem_needed, GFP_KERNEL);
+					if (!ptr) {
+						DHD_ERROR(("%s: Unable to malloc %d bytes\n",
+							__FUNCTION__, mem_needed));
+						break;
+					}
+					for (i = 0; i < nchan; i++) {
+						ptr[i] = wf_channel2mhz(ch_list[i],
+							(ch_list[i] <= CH_MAX_2G_CHANNEL?
+							WF_CHAN_FACTOR_2_4_G : WF_CHAN_FACTOR_5_G));
+					}
+					ret = ptr;
+					*len = mem_needed;
+				}
+			} else {
+				*len = 0;
+				DHD_ERROR(("%s: info buffer is NULL\n", __FUNCTION__));
+			}
+			break;
+		case DHD_PNO_GET_EPNO_SSID_ELEM:
+			if (_params->params_gscan.num_epno_ssid >=
+			   (MAX_EPNO_SSID_NUM + MAX_EPNO_HIDDEN_SSID)) {
+				DHD_ERROR(("Excessive number of ePNO SSIDs programmed %d\n",
+				     _params->params_gscan.num_epno_ssid));
+				return NULL;
+			}
+
+			if (!_params->params_gscan.num_epno_ssid)
+				INIT_LIST_HEAD(&_params->params_gscan.epno_ssid_list);
+
+			epno_params = kzalloc(sizeof(dhd_epno_params_t), GFP_KERNEL);
+			if (!epno_params) {
+				DHD_ERROR(("EPNO ssid: cannot alloc %zd bytes",
+				sizeof(dhd_epno_params_t)));
+				return NULL;
+			}
+			_params->params_gscan.num_epno_ssid++;
+			epno_params->index = DHD_EPNO_DEFAULT_INDEX;
+			list_add_tail(&epno_params->list, &_params->params_gscan.epno_ssid_list);
+			ret = epno_params;
+		default:
+			break;
+	}
+
+	return ret;
+
+}
+#endif /* GSCAN_SUPPORT */
 
 static int
 _dhd_pno_get_for_batch(dhd_pub_t *dhd, char *buf, int bufsize, int reason)

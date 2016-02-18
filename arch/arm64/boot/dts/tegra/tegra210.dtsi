@@ -2001,4 +2001,10 @@
 
 		#cooling-cells = <2>; /* min followed by max */
 	};
+
+        cpuidle {
+                vdd-cpu-supply = <&max77621_cpu>;
+                cc4-microvolt = <606250>;
+        };
+
 };

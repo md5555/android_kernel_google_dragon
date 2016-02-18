@@ -25,6 +25,16 @@ config CPU_IDLE_GOV_MENU
 	bool "Menu governor (for tickless system)"
 	default y
 
+config CPU_IDLE_TEGRA210
+	bool "CPU Idle Driver for NVIDIA Tegra210 SoC"
+	depends on ARCH_TEGRA_210_SOC
+	default y
+	help
+          Support for entering different power states on NVIDIA Tegra210
+          SoC when CPUs become idle.
+
+          Select this to enable cpuidle on NVIDIA Tegra210 SoC.
+
 config DT_IDLE_STATES
 	bool
 
