@@ -3452,7 +3452,7 @@ dhd_dpc_thread(void *data)
 	/* This thread doesn't need any user-level access,
 	 * so get rid of all our resources
 	 */
-	if (dhd_dpc_prio > 0)
+	if (dhd_dpc_prio >= 0)
 	{
 		struct sched_param param;
 		param.sched_priority = (dhd_dpc_prio < MAX_RT_PRIO)?dhd_dpc_prio:(MAX_RT_PRIO-1);
@@ -3513,7 +3513,7 @@ dhd_rxf_thread(void *data)
 	/* This thread doesn't need any user-level access,
 	 * so get rid of all our resources
 	 */
-	if (dhd_rxf_prio > 0)
+	if (dhd_rxf_prio >= 0)
 	{
 		struct sched_param param;
 		param.sched_priority = DHD_DEFAULT_RT_PRIORITY;
