@@ -4508,6 +4508,24 @@ static int rt5677_set_bias_level(struct snd_soc_codec *codec,
 		break;
 
 	case SND_SOC_BIAS_OFF:
+		/* Ensure the codec is not in dsp mode before doing bias off
+		 * to avoid bricking the codec. When the codec is in dsp mode
+		 * (MX-65[1]=1), I2C/SPI/Slimbus register access is routed
+		 * through the dsp. If LDO1 for dsp is turned off (MX-64[0]=0)
+		 * in dsp mode, the codec will be bricked and no longer accept
+		 * any register reads/writes until a reboot.
+		 * See ALC5677 datasheet 9.4 Control Interface Configuration.
+		 * */
+		if (rt5677->is_dsp_mode) {
+			dev_err(codec->dev, "DSP still runs at bias off\n");
+			/* Set DSP CPU to Stop */
+			regmap_update_bits(rt5677->regmap, RT5677_PWR_DSP1,
+				0x1, 0x1);
+			/* Power off DSP */
+			rt5677_set_dsp_mode(codec, false);
+			regmap_write(rt5677->regmap, RT5677_PWR_DSP1, 0x0001);
+		}
+
 		regmap_update_bits(rt5677->regmap, RT5677_DIG_MISC, 0x1, 0x0);
 		regmap_write(rt5677->regmap, RT5677_PWR_DIG1, 0x0000);
 		regmap_write(rt5677->regmap, RT5677_PWR_DIG2, 0x0000);
