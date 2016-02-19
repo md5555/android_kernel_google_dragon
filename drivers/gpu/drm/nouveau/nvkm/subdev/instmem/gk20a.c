@@ -175,13 +175,13 @@ gk20a_instobj_map_sg(struct nvkm_vma *vma, struct nvkm_object *object,
 	u32 *ramin_ptr = gk20a_instobj_get_cpu_ptr(object);
 	u32 tag = 0;
 
-	WARN_ON(delta & ((1 << mmu->lpg_shift) - 1));
-
 	if (!mem->cached)
 		target |= 1;
 
-	if (mem->tag)
+	if (mem->tag) {
+		WARN_ON(delta & ((1 << mmu->lpg_shift) - 1));
 		tag = mem->tag->offset + (delta >> mmu->lpg_shift);
+	}
 
 	pte <<= 1;
 	while (cnt--) {
