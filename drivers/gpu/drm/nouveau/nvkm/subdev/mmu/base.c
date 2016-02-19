@@ -45,14 +45,13 @@ nvkm_vm_map_at(struct nvkm_vma *vma, u64 delta, struct nvkm_mem *node)
 	struct nvkm_ltc *ltc = nvkm_ltc(mmu);
 	struct nvkm_mm_node *r;
 	int big = vma->node->type != mmu->spg_shift;
-	u32 offset = vma->node->offset + (delta >> 12);
+	u32 offset = vma->node->offset;
 	u32 bits = vma->node->type - 12;
 	u32 pde  = (offset >> mmu->pgt_bits) - vm->fpde;
 	u32 pte  = (offset & ((1 << mmu->pgt_bits) - 1)) >> bits;
 	u32 max  = 1 << (mmu->pgt_bits - bits);
 	u32 end, len;
 
-	delta = 0;
 	list_for_each_entry(r, &node->regions, rl_entry) {
 		u64 phys = (u64)r->offset << 12;
 		u32 num  = r->length >> bits;
@@ -91,23 +90,36 @@ nvkm_vm_map_sg_table(struct nvkm_vma *vma, u64 delta, u64 length,
 	struct nvkm_mmu *mmu = vm->mmu;
 	struct nvkm_ltc *ltc = nvkm_ltc(mmu);
 	int big = vma->node->type != mmu->spg_shift;
-	u32 offset = vma->node->offset + (delta >> 12);
+	u32 offset = vma->node->offset;
 	u32 bits = vma->node->type - 12;
 	u32 num  = length >> vma->node->type;
 	u32 pde  = (offset >> mmu->pgt_bits) - vm->fpde;
 	u32 pte  = (offset & ((1 << mmu->pgt_bits) - 1)) >> bits;
 	u32 max  = 1 << (mmu->pgt_bits - bits);
-	unsigned m, sglen;
+	unsigned m;
 	u32 end, len;
-	int i;
 	struct scatterlist *sg;
+	u64 skip;
 
-	for_each_sg(mem->sg->sgl, sg, mem->sg->nents, i) {
+	/*
+	 * Skip "delta" bytes into the sgl. "skip" is left with the offset
+	 * into the first sg element we want to start with.
+	 */
+	sg = mem->sg->sgl;
+	skip = delta;
+	while (skip >= sg_dma_len(sg)) {
+		skip -= sg_dma_len(sg);
+		sg = sg_next(sg);
+	}
+
+	while (sg) {
 		dma_addr_t *addr_list;
 		struct nvkm_gpuobj *pgt = vm->pgt[pde].obj[big];
-		dma_addr_t sgdma = sg_dma_address(sg);
+		dma_addr_t sgdma = sg_dma_address(sg) + skip;
+		unsigned sglen = (sg_dma_len(sg) - skip) >> PAGE_SHIFT;
 
-		sglen = sg_dma_len(sg) >> PAGE_SHIFT;
+		skip = 0;
+
 next_pde:
 		end = pte + sglen;
 		if (unlikely(end >= max))
@@ -123,7 +135,7 @@ next_pde:
 		for (m = 0; m < len; m++)
 			addr_list[m] = sgdma + (m << PAGE_SHIFT);
 
-		mmu->map_sg(vma, pgt, mem, pte, len, addr_list, 0);
+		mmu->map_sg(vma, pgt, mem, pte, len, addr_list, delta);
 		kfree(addr_list);
 		pte += m;
 		num -= m;
@@ -135,12 +147,17 @@ next_pde:
 			pde++;
 			pte = 0;
 		}
+
+		delta += (u64)len << vma->node->type;
+
 		if (m < sglen) {
 			sglen -= m;
 			sgdma += m << PAGE_SHIFT;
 			pgt = vm->pgt[pde].obj[big];
 			goto next_pde;
 		}
+
+		sg = sg_next(sg);
 	}
 finish:
 	ltc->invalidate(ltc);
@@ -154,7 +171,7 @@ nvkm_vm_map_sg_table_with_iommu(struct nvkm_vma *vma, u64 delta, u64 length,
 	struct nvkm_vm *vm = vma->vm;
 	struct nvkm_mmu *mmu = vm->mmu;
 	struct nvkm_ltc *ltc = nvkm_ltc(mmu);
-	u32 offset = vma->node->offset + (delta >> 12);
+	u32 offset = vma->node->offset;
 	u32 bits = vma->node->type - 12;
 	u32 num  = length >> vma->node->type;
 	u32 max  = 1 << (mmu->pgt_bits - bits);
@@ -181,11 +198,10 @@ nvkm_vm_map_sg_table_with_iommu(struct nvkm_vma *vma, u64 delta, u64 length,
 	}
 
 	for (lpidx = 0; lpidx < num; lpidx++)
-		addr_list[lpidx] = iova + (lpidx << mmu->lpg_shift);
+		addr_list[lpidx] = iova + (lpidx << mmu->lpg_shift) + delta;
 
 	lpidx = 0;
 	list = addr_list;
-	delta = 0;
 	while (num) {
 		struct nvkm_gpuobj *pgt;
 		u32 lpoff, pde, pte, end, len;
@@ -223,7 +239,7 @@ nvkm_vm_map_sg(struct nvkm_vma *vma, u64 delta, u64 length,
 	dma_addr_t *list = mem->pages;
 	struct nvkm_ltc *ltc = nvkm_ltc(mmu);
 	int big = vma->node->type != mmu->spg_shift;
-	u32 offset = vma->node->offset + (delta >> 12);
+	u32 offset = vma->node->offset;
 	u32 bits = vma->node->type - 12;
 	u32 num  = length >> vma->node->type;
 	u32 pde  = (offset >> mmu->pgt_bits) - vm->fpde;
@@ -239,7 +255,7 @@ nvkm_vm_map_sg(struct nvkm_vma *vma, u64 delta, u64 length,
 			end = max;
 		len = end - pte;
 
-		mmu->map_sg(vma, pgt, mem, pte, len, list, 0);
+		mmu->map_sg(vma, pgt, mem, pte, len, list, delta);
 
 		num  -= len;
 		pte  += len;
@@ -248,6 +264,8 @@ nvkm_vm_map_sg(struct nvkm_vma *vma, u64 delta, u64 length,
 			pde++;
 			pte = 0;
 		}
+
+		delta += (u64)len << vma->node->type;
 	}
 
 	ltc->invalidate(ltc);
@@ -277,13 +295,13 @@ nvkm_vm_map(struct nvkm_vma *vma, struct nvkm_mem *node)
 }
 
 static void
-nvkm_vm_unmap_at(struct nvkm_vma *vma, u64 delta, u64 length)
+nvkm_vm_unmap_at(struct nvkm_vma *vma, u64 length)
 {
 	struct nvkm_vm *vm = vma->vm;
 	struct nvkm_mmu *mmu = vm->mmu;
 	struct nvkm_ltc *ltc = nvkm_ltc(mmu);
 	int big = vma->node->type != mmu->spg_shift;
-	u32 offset = vma->node->offset + (delta >> 12);
+	u32 offset = vma->node->offset;
 	u32 bits = vma->node->type - 12;
 	u32 num  = length >> vma->node->type;
 	u32 pde  = (offset >> mmu->pgt_bits) - vm->fpde;
@@ -335,7 +353,7 @@ nvkm_vm_unmap_iommu(struct nvkm_vma *vma)
 void
 nvkm_vm_unmap(struct nvkm_vma *vma)
 {
-	nvkm_vm_unmap_at(vma, vma->delta, (u64)vma->node->length << 12);
+	nvkm_vm_unmap_at(vma, (u64)vma->node->length << 12);
 
 	if (vma->iommu_mapping)
 		nvkm_vm_unmap_iommu(vma);
