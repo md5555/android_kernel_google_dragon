@@ -1702,6 +1702,21 @@ nouveau_bo_vma_find(struct nouveau_bo *nvbo, struct nvkm_vm *vm)
 	return NULL;
 }
 
+struct nvkm_vma *
+nouveau_bo_subvma_find(struct nouveau_bo *nvbo, struct nvkm_vm *vm,
+		       u64 delta, u64 length)
+{
+	struct nvkm_vma *vma;
+
+	list_for_each_entry(vma, &nvbo->vma_list, head)
+		if ((vma->vm == vm) &&
+		    (vma->delta == delta) &&
+		    (vma->length == length))
+			return vma;
+
+	return NULL;
+}
+
 void
 nouveau_defer_vm_map(struct nvkm_vma *vma, struct nouveau_bo *nvbo)
 {
@@ -1711,7 +1726,9 @@ nouveau_defer_vm_map(struct nvkm_vma *vma, struct nouveau_bo *nvbo)
 	mutex_lock(&vm->dirty_vma_lock);
 
 	list_for_each_entry(vma_entry, &vm->dirty_vma_list, entry)
-		if (vma_entry && vma_entry->bo == nvbo) {
+		if ((vma_entry && vma_entry->bo == nvbo) &&
+		    (vma_entry->vma->offset == vma->offset) &&
+		    (vma_entry->vma->delta == vma->delta)) {
 			mutex_unlock(&vm->dirty_vma_lock);
 			return;
 		}
@@ -1806,4 +1823,37 @@ nouveau_bo_vma_del(struct nouveau_bo *nvbo, struct nvkm_vma *vma)
 		nvkm_vm_put(vma);
 		list_del(&vma->head);
 	}
+}
+
+int
+nouveau_bo_subvma_add(struct nouveau_bo *nvbo, struct nvkm_vm *vm,
+		      struct nvkm_vma *vma, u64 offset, u64 delta, u64 length,
+		      bool lazy)
+{
+	int ret;
+
+	ret = nvkm_vm_get_offset(vm, delta, length, nvbo->page_shift,
+				 NV_MEM_ACCESS_RW, vma, offset);
+	if (ret)
+		return ret;
+
+	vma->delta = delta;
+	vma->length = length;
+
+	if (nouveau_bo_vma_mappable(nvbo, vma)) {
+		if (lazy)
+			nouveau_defer_vm_map(vma, nvbo);
+		else
+			nvkm_vm_map(vma, nvbo->bo.mem.mm_node);
+	}
+
+	list_add_tail(&vma->head, &nvbo->vma_list);
+	vma->refcount = 1;
+	return 0;
+}
+
+void
+nouveau_bo_subvma_del(struct nouveau_bo *nvbo, struct nvkm_vma *vma)
+{
+	nouveau_bo_vma_del(nvbo, vma);
 }
