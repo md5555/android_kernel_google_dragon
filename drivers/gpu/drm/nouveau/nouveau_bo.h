@@ -96,11 +96,18 @@ void nouveau_bo_l2_flush(struct nouveau_bo *nvbo);
 struct nvkm_vma *
 nouveau_bo_vma_find(struct nouveau_bo *, struct nvkm_vm *);
 
+struct nvkm_vma *
+nouveau_bo_subvma_find(struct nouveau_bo *, struct nvkm_vm *, u64, u64);
+
 int  nouveau_bo_vma_add(struct nouveau_bo *, struct nvkm_vm *,
 			struct nvkm_vma *, bool lazy);
 int  nouveau_bo_vma_add_offset(struct nouveau_bo *, struct nvkm_vm *,
 			       struct nvkm_vma *, u64 offset, bool lazy);
 void nouveau_bo_vma_del(struct nouveau_bo *, struct nvkm_vma *);
+int  nouveau_bo_subvma_add(struct nouveau_bo *, struct nvkm_vm *,
+			   struct nvkm_vma *, u64 offset, u64 delta, u64 length,
+			   bool lazy);
+void nouveau_bo_subvma_del(struct nouveau_bo *, struct nvkm_vma *);
 void nouveau_defer_vm_map(struct nvkm_vma *vma, struct nouveau_bo *nvbo);
 void nouveau_cancel_defer_vm_map(struct nvkm_vma *vma, struct nouveau_bo *nvbo);
 
