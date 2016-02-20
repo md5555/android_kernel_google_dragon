@@ -1702,7 +1702,7 @@
 			C7: c7 {
 				compatible = "arm,idle-state";
 				arm,psci-suspend-param = <0x00010007>;
-				wakeup-latency-us = <200>;
+				wakeup-latency-us = <130>;
 				min-residency-us = <1000>;
 				idle-state-name = "c7-cpu-powergate";
 				status = "okay";
