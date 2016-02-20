@@ -42,9 +42,9 @@
 #define SDHCI_USE_LEDS_CLASS
 #endif
 
-#define MAX_TUNING_LOOP 40
+#define MAX_TUNING_LOOP 128
 
-#define CSTATE_EXIT_LATENCY_C1	1
+#define CSTATE_EXIT_LATENCY_C1	2
 
 static unsigned int debug_quirks = 0;
 static unsigned int debug_quirks2;
@@ -185,7 +185,7 @@ void sdhci_reset(struct sdhci_host *host, u8 mask)
 	}
 
 	/* Wait max 100 ms */
-	timeout = 100;
+	timeout = 200;
 
 	/* hw clears the bit when it's done */
 	while (sdhci_readb(host, SDHCI_SOFTWARE_RESET) & mask) {
@@ -196,7 +196,7 @@ void sdhci_reset(struct sdhci_host *host, u8 mask)
 			return;
 		}
 		timeout--;
-		mdelay(1);
+		mdelay(2);
 	}
 }
 EXPORT_SYMBOL_GPL(sdhci_reset);
@@ -1001,7 +1001,7 @@ void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 	WARN_ON(host->cmd);
 
 	/* Wait max 10 ms */
-	timeout = 10;
+	timeout = 50;
 
 	mask = SDHCI_CMD_INHIBIT;
 	if ((cmd->data != NULL) || (cmd->flags & MMC_RSP_BUSY))
@@ -1022,7 +1022,7 @@ void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 			return;
 		}
 		timeout--;
-		mdelay(1);
+		mdelay(2);
 	}
 
 	timeout = jiffies;
@@ -1231,7 +1231,7 @@ clock_set:
 	sdhci_writew(host, clk, SDHCI_CLOCK_CONTROL);
 
 	/* Wait max 20 ms */
-	timeout = 20;
+	timeout = 40;
 	while (!((clk = sdhci_readw(host, SDHCI_CLOCK_CONTROL))
 		& SDHCI_CLOCK_INT_STABLE)) {
 		if (timeout == 0) {
@@ -1241,7 +1241,7 @@ clock_set:
 			return;
 		}
 		timeout--;
-		mdelay(1);
+		mdelay(2);
 	}
 
 	clk |= SDHCI_CLOCK_CARD_EN;
@@ -1324,7 +1324,7 @@ static void sdhci_set_power(struct sdhci_host *host, unsigned char mode,
 		 * they can apply clock after applying power
 		 */
 		if (host->quirks & SDHCI_QUIRK_DELAY_AFTER_POWER)
-			mdelay(10);
+			mdelay(20);
 	}
 }
 
@@ -2044,7 +2044,7 @@ static int sdhci_execute_tuning(struct mmc_host *mmc, u32 opcode)
 		host->tuning_done = 0;
 
 		ctrl = sdhci_readw(host, SDHCI_HOST_CONTROL2);
-		mdelay(1);
+		mdelay(2);
 
 	} while (ctrl & SDHCI_CTRL_EXEC_TUNING);
 
