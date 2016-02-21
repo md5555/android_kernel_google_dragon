@@ -709,12 +709,10 @@ bcmsdh_gpioout(void *sdh, uint32 gpio, bool enab)
 static void
 sdioh_retune_hold(sdioh_info_t *sd, bool hold)
 {
-	sdio_claim_host(sd->func[0]);
 	if (hold)
 		sdio_retune_hold_now(sd->func[0]);
 	else
 		sdio_retune_release(sd->func[0]);
-	sdio_release_host(sd->func[0]);
 }
 
 void

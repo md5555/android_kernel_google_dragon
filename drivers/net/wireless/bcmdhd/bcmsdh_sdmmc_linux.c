@@ -402,11 +402,7 @@ static int bcmsdh_sdmmc_resume_noirq(struct device *pdev)
 #endif
 
 static const struct dev_pm_ops bcmsdh_sdmmc_pm_ops = {
-	.suspend	= bcmsdh_sdmmc_suspend,
-	.resume		= bcmsdh_sdmmc_resume,
-#ifdef CONFIG_BCMDHD_CUSTOM_SYSFS_TEGRA
-	.resume_noirq   = bcmsdh_sdmmc_resume_noirq,
-#endif
+	SET_LATE_SYSTEM_SLEEP_PM_OPS(bcmsdh_sdmmc_suspend, bcmsdh_sdmmc_resume)
 };
 #endif  /* (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 39)) && defined(CONFIG_PM) */
 

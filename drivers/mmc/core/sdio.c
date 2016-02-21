@@ -638,7 +638,7 @@ try_again:
 	 */
 	if (!powered_resume && (rocr & ocr & R4_18V_PRESENT)) {
 		err = mmc_set_signal_voltage(host, MMC_SIGNAL_VOLTAGE_180,
-					ocr_card);
+					ocr);
 		if (err == -EAGAIN) {
 			sdio_reset(host);
 			mmc_go_idle(host);
@@ -987,8 +987,8 @@ static int mmc_sdio_resume(struct mmc_host *host)
 	}
 
 	if (!err && host->sdio_irqs) {
+		atomic_set(&host->sdio_irq_thread_suspend, 0);
 		if (!(host->caps2 & MMC_CAP2_SDIO_IRQ_NOTHREAD)) {
-			atomic_set(&host->sdio_irq_thread_suspend, 0);
 			wake_up_process(host->sdio_irq_thread);
 		} else if (host->caps & MMC_CAP_SDIO_IRQ) {
 			mmc_host_clk_hold(host);
