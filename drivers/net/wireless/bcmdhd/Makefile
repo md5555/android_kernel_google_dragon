@@ -183,7 +183,6 @@ ifneq ($(CONFIG_BCM4354),)
   DHDCFLAGS += -DWL11U
   DHDCFLAGS += -DMFP
   DHDCFLAGS += -DDHD_ENABLE_LPC
-  DHDCFLAGS += -DCUSTOM_PSPRETEND_THR=30
   DHDCFLAGS += -DCUSTOM_SDIO_F2_BLKSIZE=256
 
 # Make same as proven good value from other platform
