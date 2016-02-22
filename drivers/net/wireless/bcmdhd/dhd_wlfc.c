@@ -2837,7 +2837,7 @@ dhd_wlfc_transfer_packets(void *data)
 
 #if defined(DHD_WLFC_THREAD)
 	/* wait till someone wakeup me up, will change it at running time */
-	int wait_msec = msecs_to_jiffies(0xFFFFFFFF);
+	long wait_msec = MAX_JIFFY_OFFSET; 
 #endif /* defined(DHD_WLFC_THREAD) */
 
 #if defined(DHD_WLFC_THREAD)
