@@ -3,6 +3,25 @@
 #include <core/subdev.h>
 #include <subdev/mmu.h>
 
+/*
+ * Copied from nvgpu driver and should be compatible with NVIDIA proprietary
+ * drivers for dGPU.
+ */
+enum pmu_mutex_id {
+	PMU_MUTEX_ID_GPUSER     = 1,
+	PMU_MUTEX_ID_QUEUE_BIOS = 2,
+	PMU_MUTEX_ID_QUEUE_SMI  = 3,
+	PMU_MUTEX_ID_GPMUTEX    = 4,
+	PMU_MUTEX_ID_I2C        = 5,
+	PMU_MUTEX_ID_RMLOCK     = 6,
+	PMU_MUTEX_ID_MSGBOX     = 7,
+	PMU_MUTEX_ID_FIFO       = 8,
+	PMU_MUTEX_ID_PG         = 9,
+	PMU_MUTEX_ID_GR         = 10,
+	PMU_MUTEX_ID_CLK        = 11,
+	PMU_MUTEX_ID_INVALID    = 16,
+};
+
 struct pmu_buf_desc {
 	struct nvkm_gpuobj *obj;
 	struct nvkm_vma vma;
@@ -51,6 +70,8 @@ struct nvkm_pmu {
 	int (*boot_fecs)(struct nvkm_pmu *);
 	int (*message)(struct nvkm_pmu *, u32[2], u32, u32, u32, u32);
 	void (*pgob)(struct nvkm_pmu *, bool);
+	int (*acquire_mutex)(struct nvkm_pmu *, u32, u32 *);
+	int (*release_mutex)(struct nvkm_pmu *, u32, u32 *);
 };
 
 static inline struct nvkm_pmu *

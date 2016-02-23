@@ -228,6 +228,13 @@ intel_dp_mode_valid(struct drm_connector *connector,
 	max_rate = intel_dp_max_data_rate(max_link_clock, max_lanes);
 	mode_rate = intel_dp_link_required(target_clock, 18);
 
+       /* DVI monitor connected via DP-HDMI adapter
+        * or HDMI monitor connected via DP-DVI adapter
+        */
+       if (intel_dp->has_hdmi_sink && intel_dp->has_dvi_sink &&
+           target_clock > 165000)
+               return MODE_CLOCK_HIGH;
+
 	if (mode_rate > max_rate)
 		return MODE_CLOCK_HIGH;
 
@@ -261,40 +268,6 @@ static void intel_dp_unpack_aux(uint32_t src, uint8_t *dst, int dst_bytes)
 		dst[i] = src >> ((3-i) * 8);
 }
 
-/* hrawclock is 1/4 the FSB frequency */
-static int
-intel_hrawclk(struct drm_device *dev)
-{
-	struct drm_i915_private *dev_priv = dev->dev_private;
-	uint32_t clkcfg;
-
-	/* There is no CLKCFG reg in Valleyview. VLV hrawclk is 200 MHz */
-	if (IS_VALLEYVIEW(dev))
-		return 200;
-
-	clkcfg = I915_READ(CLKCFG);
-	switch (clkcfg & CLKCFG_FSB_MASK) {
-	case CLKCFG_FSB_400:
-		return 100;
-	case CLKCFG_FSB_533:
-		return 133;
-	case CLKCFG_FSB_667:
-		return 166;
-	case CLKCFG_FSB_800:
-		return 200;
-	case CLKCFG_FSB_1067:
-		return 266;
-	case CLKCFG_FSB_1333:
-		return 333;
-	/* these two are just a guess; one of them might be right */
-	case CLKCFG_FSB_1600:
-	case CLKCFG_FSB_1600_ALT:
-		return 400;
-	default:
-		return 133;
-	}
-}
-
 static void
 intel_dp_init_panel_power_sequencer(struct drm_device *dev,
 				    struct intel_dp *intel_dp);
@@ -314,7 +287,7 @@ static void pps_lock(struct intel_dp *intel_dp)
 	 * See vlv_power_sequencer_reset() why we need
 	 * a power domain reference here.
 	 */
-	power_domain = intel_display_port_power_domain(encoder);
+	power_domain = intel_display_port_aux_power_domain(encoder);
 	intel_display_power_get(dev_priv, power_domain);
 
 	mutex_lock(&dev_priv->pps_mutex);
@@ -330,7 +303,7 @@ static void pps_unlock(struct intel_dp *intel_dp)
 
 	mutex_unlock(&dev_priv->pps_mutex);
 
-	power_domain = intel_display_port_power_domain(encoder);
+	power_domain = intel_display_port_aux_power_domain(encoder);
 	intel_display_power_put(dev_priv, power_domain);
 }
 
@@ -853,8 +826,6 @@ intel_dp_aux_ch(struct intel_dp *intel_dp,
 
 	intel_dp_check_edp(intel_dp);
 
-	intel_aux_display_runtime_get(dev_priv);
-
 	/* Try to wait for any previous AUX channel activity */
 	for (try = 0; try < 3; try++) {
 		status = I915_READ_NOTRACE(ch_ctl);
@@ -956,7 +927,6 @@ done:
 	ret = recv_bytes;
 out:
 	pm_qos_update_request(&dev_priv->pm_qos, PM_QOS_DEFAULT_VALUE);
-	intel_aux_display_runtime_put(dev_priv);
 
 	if (vdd)
 		edp_panel_vdd_off(intel_dp, false);
@@ -1424,7 +1394,10 @@ intel_dp_compute_config(struct intel_encoder *encoder,
 	 * bpc in between. */
 	bpp = pipe_config->pipe_bpp;
 	if (is_edp(intel_dp)) {
-		if (dev_priv->vbt.edp_bpp && dev_priv->vbt.edp_bpp < bpp) {
+
+		/* Get bpp from vbt only for panels that dont have bpp in edid */
+		if (intel_connector->base.display_info.bpc == 0 &&
+			(dev_priv->vbt.edp_bpp && dev_priv->vbt.edp_bpp < bpp)) {
 			DRM_DEBUG_KMS("clamping bpp for eDP panel to BIOS-provided %i\n",
 				      dev_priv->vbt.edp_bpp);
 			bpp = dev_priv->vbt.edp_bpp;
@@ -1688,12 +1661,21 @@ static void wait_panel_off(struct intel_dp *intel_dp)
 
 static void wait_panel_power_cycle(struct intel_dp *intel_dp)
 {
+	ktime_t panel_power_on_time;
+	s64 panel_power_off_duration;
+
 	DRM_DEBUG_KMS("Wait for panel power cycle\n");
+
+	/* take the difference of currrent time and panel power off time
+	 * and then make panel wait for t11_t12 if needed. */
+	panel_power_on_time = ktime_get_boottime();
+	panel_power_off_duration = ktime_ms_delta(panel_power_on_time, intel_dp->panel_power_off_time);
 
 	/* When we disable the VDD override bit last we have to do the manual
 	 * wait. */
-	wait_remaining_ms_from_jiffies(intel_dp->last_power_cycle,
-				       intel_dp->panel_power_cycle_delay);
+	if (panel_power_off_duration < (s64)intel_dp->panel_power_cycle_delay)
+		wait_remaining_ms_from_jiffies(jiffies,
+				       intel_dp->panel_power_cycle_delay - panel_power_off_duration);
 
 	wait_panel_status(intel_dp, IDLE_CYCLE_MASK, IDLE_CYCLE_VALUE);
 }
@@ -1757,7 +1739,7 @@ static bool edp_panel_vdd_on(struct intel_dp *intel_dp)
 	if (edp_have_panel_vdd(intel_dp))
 		return need_to_disable;
 
-	power_domain = intel_display_port_power_domain(intel_encoder);
+	power_domain = intel_display_port_aux_power_domain(intel_encoder);
 	intel_display_power_get(dev_priv, power_domain);
 
 	DRM_DEBUG_KMS("Turning eDP port %c VDD on\n",
@@ -1845,9 +1827,9 @@ static void edp_panel_vdd_off_sync(struct intel_dp *intel_dp)
 	I915_READ(pp_stat_reg), I915_READ(pp_ctrl_reg));
 
 	if ((pp & POWER_TARGET_ON) == 0)
-		intel_dp->last_power_cycle = jiffies;
+		intel_dp->panel_power_off_time = ktime_get_boottime();
 
-	power_domain = intel_display_port_power_domain(intel_encoder);
+	power_domain = intel_display_port_aux_power_domain(intel_encoder);
 	intel_display_power_put(dev_priv, power_domain);
 }
 
@@ -1994,11 +1976,11 @@ static void edp_panel_off(struct intel_dp *intel_dp)
 	I915_WRITE(pp_ctrl_reg, pp);
 	POSTING_READ(pp_ctrl_reg);
 
-	intel_dp->last_power_cycle = jiffies;
+	intel_dp->panel_power_off_time = ktime_get_boottime();
 	wait_panel_off(intel_dp);
 
 	/* We got a reference when we enabled the VDD. */
-	power_domain = intel_display_port_power_domain(intel_encoder);
+	power_domain = intel_display_port_aux_power_domain(intel_encoder);
 	intel_display_power_put(dev_priv, power_domain);
 }
 
@@ -3942,6 +3924,7 @@ intel_dp_get_dpcd(struct intel_dp *intel_dp)
 	struct drm_device *dev = dig_port->base.base.dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	uint8_t rev;
+	uint8_t type;
 
 	if (intel_dp_dpcd_read_wake(&intel_dp->aux, 0x000, intel_dp->dpcd,
 				    sizeof(intel_dp->dpcd)) < 0)
@@ -4026,6 +4009,10 @@ intel_dp_get_dpcd(struct intel_dp *intel_dp)
 				    intel_dp->downstream_ports,
 				    DP_MAX_DOWNSTREAM_PORTS) < 0)
 		return false; /* downstream port status fetch failed */
+
+	type = intel_dp->downstream_ports[0] & DP_DS_PORT_TYPE_MASK;
+	intel_dp->has_hdmi_sink = type == DP_DS_PORT_TYPE_HDMI;
+	intel_dp->has_dvi_sink = type == DP_DS_PORT_TYPE_DVI;
 
 	return true;
 }
@@ -4691,6 +4678,11 @@ intel_dp_set_edid(struct intel_dp *intel_dp)
 		intel_dp->has_audio = intel_dp->force_audio == HDMI_AUDIO_ON;
 	else
 		intel_dp->has_audio = drm_detect_monitor_audio(edid);
+
+	if (drm_detect_hdmi_monitor(edid))
+		intel_dp->has_hdmi_sink = true;
+	else
+		intel_dp->has_dvi_sink = true;
 }
 
 static void
@@ -4702,26 +4694,6 @@ intel_dp_unset_edid(struct intel_dp *intel_dp)
 	intel_connector->detect_edid = NULL;
 
 	intel_dp->has_audio = false;
-}
-
-static enum intel_display_power_domain
-intel_dp_power_get(struct intel_dp *dp)
-{
-	struct intel_encoder *encoder = &dp_to_dig_port(dp)->base;
-	enum intel_display_power_domain power_domain;
-
-	power_domain = intel_display_port_power_domain(encoder);
-	intel_display_power_get(to_i915(encoder->base.dev), power_domain);
-
-	return power_domain;
-}
-
-static void
-intel_dp_power_put(struct intel_dp *dp,
-		   enum intel_display_power_domain power_domain)
-{
-	struct intel_encoder *encoder = &dp_to_dig_port(dp)->base;
-	intel_display_power_put(to_i915(encoder->base.dev), power_domain);
 }
 
 static enum drm_connector_status
@@ -4747,7 +4719,8 @@ intel_dp_detect(struct drm_connector *connector, bool force)
 		return connector_status_disconnected;
 	}
 
-	power_domain = intel_dp_power_get(intel_dp);
+	power_domain = intel_display_port_aux_power_domain(intel_encoder);
+	intel_display_power_get(to_i915(dev), power_domain);
 
 	/* Can't disconnect eDP, but you can close the lid... */
 	if (is_edp(intel_dp))
@@ -4790,7 +4763,7 @@ intel_dp_detect(struct drm_connector *connector, bool force)
 	}
 
 out:
-	intel_dp_power_put(intel_dp, power_domain);
+	intel_display_power_put(to_i915(dev), power_domain);
 	return status;
 }
 
@@ -4799,6 +4772,7 @@ intel_dp_force(struct drm_connector *connector)
 {
 	struct intel_dp *intel_dp = intel_attached_dp(connector);
 	struct intel_encoder *intel_encoder = &dp_to_dig_port(intel_dp)->base;
+	struct drm_i915_private *dev_priv = to_i915(intel_encoder->base.dev);
 	enum intel_display_power_domain power_domain;
 
 	DRM_DEBUG_KMS("[CONNECTOR:%d:%s]\n",
@@ -4808,11 +4782,12 @@ intel_dp_force(struct drm_connector *connector)
 	if (connector->status != connector_status_connected)
 		return;
 
-	power_domain = intel_dp_power_get(intel_dp);
+	power_domain = intel_display_port_aux_power_domain(intel_encoder);
+	intel_display_power_get(dev_priv, power_domain);
 
 	intel_dp_set_edid(intel_dp);
 
-	intel_dp_power_put(intel_dp, power_domain);
+	intel_display_power_put(dev_priv, power_domain);
 
 	if (intel_encoder->type != INTEL_OUTPUT_EDP)
 		intel_encoder->type = INTEL_OUTPUT_DISPLAYPORT;
@@ -5028,7 +5003,7 @@ static void intel_edp_panel_vdd_sanitize(struct intel_dp *intel_dp)
 	 * indefinitely.
 	 */
 	DRM_DEBUG_KMS("VDD left on by BIOS, adjusting state tracking\n");
-	power_domain = intel_display_port_power_domain(&intel_dig_port->base);
+	power_domain = intel_display_port_aux_power_domain(&intel_dig_port->base);
 	intel_display_power_get(dev_priv, power_domain);
 
 	edp_panel_vdd_schedule_off(intel_dp);
@@ -5109,7 +5084,7 @@ intel_dp_hpd_pulse(struct intel_digital_port *intel_dig_port, bool long_hpd)
 		      port_name(intel_dig_port->port),
 		      long_hpd ? "long" : "short");
 
-	power_domain = intel_display_port_power_domain(intel_encoder);
+	power_domain = intel_display_port_aux_power_domain(intel_encoder);
 	intel_display_power_get(dev_priv, power_domain);
 
 	if (long_hpd) {
@@ -5230,7 +5205,7 @@ intel_dp_add_properties(struct intel_dp *intel_dp, struct drm_connector *connect
 
 static void intel_dp_init_panel_power_timestamps(struct intel_dp *intel_dp)
 {
-	intel_dp->last_power_cycle = jiffies;
+	intel_dp->panel_power_off_time = ktime_get_boottime();
 	intel_dp->last_power_on = jiffies;
 	intel_dp->last_backlight_off = jiffies;
 }
@@ -6102,7 +6077,7 @@ intel_dp_init(struct drm_device *dev, int output_reg, enum port port)
 	encoder = &intel_encoder->base;
 
 	drm_encoder_init(dev, &intel_encoder->base, &intel_dp_enc_funcs,
-			 DRM_MODE_ENCODER_TMDS);
+			 DRM_MODE_ENCODER_TMDS, NULL);
 
 	intel_encoder->compute_config = intel_dp_compute_config;
 	intel_encoder->disable = intel_disable_dp;

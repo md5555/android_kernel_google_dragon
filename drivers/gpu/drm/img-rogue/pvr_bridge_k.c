@@ -174,10 +174,8 @@ PVRSRV_ERROR DeinitRIBridge(void);
 PVRSRV_ERROR InitDEVICEMEMHISTORYBridge(void);
 PVRSRV_ERROR DeinitDEVICEMEMHISTORYBridge(void);
 #endif
-#if defined(SUPPORT_DMABUF)
 PVRSRV_ERROR InitDMABUFBridge(void);
 PVRSRV_ERROR DeinitDMABUFBridge(void);
-#endif
 #if defined(SUPPORT_VALIDATION)
 PVRSRV_ERROR InitVALIDATIONBridge(void);
 #endif
@@ -268,13 +266,11 @@ LinuxBridgeInit(void)
 	}
 #endif
 
-#if defined(SUPPORT_DMABUF)
 	eError = InitDMABUFBridge();
 	if (eError != PVRSRV_OK)
 	{
 		return eError;
 	}
-#endif
 
 #if defined(SUPPORT_DISPLAY_CLASS)
 	eError = InitDCBridge();
@@ -434,8 +430,7 @@ LinuxBridgeDeInit(void)
 #if defined(DEBUG_BRIDGE_KM)
 	if (gpsPVRDebugFSBridgeStatsEntry != NULL)
 	{
-		PVRDebugFSRemoveEntry(gpsPVRDebugFSBridgeStatsEntry);
-		gpsPVRDebugFSBridgeStatsEntry = NULL;
+		PVRDebugFSRemoveEntry(&gpsPVRDebugFSBridgeStatsEntry);
 	}
 #endif
 
@@ -500,13 +495,11 @@ LinuxBridgeDeInit(void)
 	}
 #endif
 
-#if defined(SUPPORT_DMABUF)
 	eError = DeinitDMABUFBridge();
 	if (eError != PVRSRV_OK)
 	{
 		return eError;
 	}
-#endif
 
 #if defined(PVR_TESTING_UTILS)
 	eError = DeinitTUTILSBridge();
@@ -769,6 +762,11 @@ PVRSRV_BridgeDispatchKM(struct file *pFile, unsigned int ioctlCmd, unsigned long
 		return -EFAULT;
 	}
 
+	if(OSGetDriverSuspended())
+	{
+		return -EINTR;
+	}
+
 #if defined(SUPPORT_DRM)
 	psBridgePackageKM = (PVRSRV_BRIDGE_PACKAGE *)arg;
 	PVR_ASSERT(psBridgePackageKM != NULL);
@@ -853,6 +851,11 @@ PVRSRV_BridgeCompatDispatchKM(struct file *pFile,
 		return -EFAULT;
 	}
 
+	if(OSGetDriverSuspended())
+	{
+		return -EINTR;
+	}
+
 	/* make sure there is no padding inserted by compiler */
 	BUILD_BUG_ON(sizeof(struct bridge_package_from_32) != 7 * sizeof(IMG_UINT32));
 
@@ -928,20 +931,14 @@ PVRSRV_MMap(struct file *pFile, struct vm_area_struct *ps_vma)
 		goto e0;
 	}
 
-	/*
-	 * Take a reference so that we can drop the PMRLock early. We must then
-	 * drop the reference later as PMRMMapPMR will also take a reference.
-	 */
-	PMRRefPMR(psPMR);
-	PMRUnlock();
-
+	/* Note: PMRMMapPMR will take a reference on the PMR */
 	eError = PMRMMapPMR(psPMR, ps_vma);
 	if (eError != PVRSRV_OK)
 	{
 		goto e1;
 	}
 
-	PMRUnrefPMR(psPMR);
+	PMRUnlock();
 	mutex_unlock(&g_sMMapMutex);
 
 	return 0;

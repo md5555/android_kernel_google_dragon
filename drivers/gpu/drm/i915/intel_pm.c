@@ -1784,16 +1784,6 @@ struct skl_pipe_wm_parameters {
 	uint32_t pipe_htotal;
 	uint32_t pixel_rate; /* in KHz */
 	struct intel_plane_wm_parameters plane[I915_MAX_PLANES];
-	struct intel_plane_wm_parameters cursor;
-};
-
-struct ilk_pipe_wm_parameters {
-	bool active;
-	uint32_t pipe_htotal;
-	uint32_t pixel_rate;
-	struct intel_plane_wm_parameters pri;
-	struct intel_plane_wm_parameters spr;
-	struct intel_plane_wm_parameters cur;
 };
 
 struct ilk_wm_maximums {
@@ -1814,26 +1804,26 @@ struct intel_wm_config {
  * For both WM_PIPE and WM_LP.
  * mem_value must be in 0.1us units.
  */
-static uint32_t ilk_compute_pri_wm(const struct ilk_pipe_wm_parameters *params,
+static uint32_t ilk_compute_pri_wm(const struct intel_crtc_state *cstate,
+				   const struct intel_plane_state *pstate,
 				   uint32_t mem_value,
 				   bool is_lp)
 {
+	int bpp = pstate->base.fb ? pstate->base.fb->bits_per_pixel / 8 : 0;
 	uint32_t method1, method2;
 
-	if (!params->active || !params->pri.enabled)
+	if (!cstate->base.active || !pstate->visible)
 		return 0;
 
-	method1 = ilk_wm_method1(params->pixel_rate,
-				 params->pri.bytes_per_pixel,
-				 mem_value);
+	method1 = ilk_wm_method1(ilk_pipe_pixel_rate(cstate), bpp, mem_value);
 
 	if (!is_lp)
 		return method1;
 
-	method2 = ilk_wm_method2(params->pixel_rate,
-				 params->pipe_htotal,
-				 params->pri.horiz_pixels,
-				 params->pri.bytes_per_pixel,
+	method2 = ilk_wm_method2(ilk_pipe_pixel_rate(cstate),
+				 cstate->base.adjusted_mode.crtc_htotal,
+				 drm_rect_width(&pstate->dst),
+				 bpp,
 				 mem_value);
 
 	return min(method1, method2);
@@ -1843,21 +1833,21 @@ static uint32_t ilk_compute_pri_wm(const struct ilk_pipe_wm_parameters *params,
  * For both WM_PIPE and WM_LP.
  * mem_value must be in 0.1us units.
  */
-static uint32_t ilk_compute_spr_wm(const struct ilk_pipe_wm_parameters *params,
+static uint32_t ilk_compute_spr_wm(const struct intel_crtc_state *cstate,
+				   const struct intel_plane_state *pstate,
 				   uint32_t mem_value)
 {
+	int bpp = pstate->base.fb ? pstate->base.fb->bits_per_pixel / 8 : 0;
 	uint32_t method1, method2;
 
-	if (!params->active || !params->spr.enabled)
+	if (!cstate->base.active || !pstate->visible)
 		return 0;
 
-	method1 = ilk_wm_method1(params->pixel_rate,
-				 params->spr.bytes_per_pixel,
-				 mem_value);
-	method2 = ilk_wm_method2(params->pixel_rate,
-				 params->pipe_htotal,
-				 params->spr.horiz_pixels,
-				 params->spr.bytes_per_pixel,
+	method1 = ilk_wm_method1(ilk_pipe_pixel_rate(cstate), bpp, mem_value);
+	method2 = ilk_wm_method2(ilk_pipe_pixel_rate(cstate),
+				 cstate->base.adjusted_mode.crtc_htotal,
+				 drm_rect_width(&pstate->dst),
+				 bpp,
 				 mem_value);
 	return min(method1, method2);
 }
@@ -1866,29 +1856,33 @@ static uint32_t ilk_compute_spr_wm(const struct ilk_pipe_wm_parameters *params,
  * For both WM_PIPE and WM_LP.
  * mem_value must be in 0.1us units.
  */
-static uint32_t ilk_compute_cur_wm(const struct ilk_pipe_wm_parameters *params,
+static uint32_t ilk_compute_cur_wm(const struct intel_crtc_state *cstate,
+				   const struct intel_plane_state *pstate,
 				   uint32_t mem_value)
 {
-	if (!params->active || !params->cur.enabled)
+	int bpp = pstate->base.fb ? pstate->base.fb->bits_per_pixel / 8 : 0;
+
+	if (!cstate->base.active || !pstate->visible)
 		return 0;
 
-	return ilk_wm_method2(params->pixel_rate,
-			      params->pipe_htotal,
-			      params->cur.horiz_pixels,
-			      params->cur.bytes_per_pixel,
+	return ilk_wm_method2(ilk_pipe_pixel_rate(cstate),
+			      cstate->base.adjusted_mode.crtc_htotal,
+			      drm_rect_width(&pstate->dst),
+			      bpp,
 			      mem_value);
 }
 
 /* Only for WM_LP. */
-static uint32_t ilk_compute_fbc_wm(const struct ilk_pipe_wm_parameters *params,
+static uint32_t ilk_compute_fbc_wm(const struct intel_crtc_state *cstate,
+				   const struct intel_plane_state *pstate,
 				   uint32_t pri_val)
 {
-	if (!params->active || !params->pri.enabled)
+	int bpp = pstate->base.fb ? pstate->base.fb->bits_per_pixel / 8 : 0;
+
+	if (!cstate->base.active || !pstate->visible)
 		return 0;
 
-	return ilk_wm_fbc(pri_val,
-			  params->pri.horiz_pixels,
-			  params->pri.bytes_per_pixel);
+	return ilk_wm_fbc(pri_val, drm_rect_width(&pstate->dst), bpp);
 }
 
 static unsigned int ilk_display_fifo_size(const struct drm_device *dev)
@@ -2053,10 +2047,12 @@ static bool ilk_validate_wm_level(int level,
 }
 
 static void ilk_compute_wm_level(const struct drm_i915_private *dev_priv,
+				 const struct intel_crtc *intel_crtc,
 				 int level,
-				 const struct ilk_pipe_wm_parameters *p,
+				 struct intel_crtc_state *cstate,
 				 struct intel_wm_level *result)
 {
+	struct intel_plane *intel_plane;
 	uint16_t pri_latency = dev_priv->wm.pri_latency[level];
 	uint16_t spr_latency = dev_priv->wm.spr_latency[level];
 	uint16_t cur_latency = dev_priv->wm.cur_latency[level];
@@ -2068,10 +2064,29 @@ static void ilk_compute_wm_level(const struct drm_i915_private *dev_priv,
 		cur_latency *= 5;
 	}
 
-	result->pri_val = ilk_compute_pri_wm(p, pri_latency, level);
-	result->spr_val = ilk_compute_spr_wm(p, spr_latency);
-	result->cur_val = ilk_compute_cur_wm(p, cur_latency);
-	result->fbc_val = ilk_compute_fbc_wm(p, result->pri_val);
+	for_each_intel_plane_on_crtc(dev_priv->dev, intel_crtc, intel_plane) {
+		struct intel_plane_state *pstate =
+			to_intel_plane_state(intel_plane->base.state);
+
+		switch (intel_plane->base.type) {
+		case DRM_PLANE_TYPE_PRIMARY:
+			result->pri_val = ilk_compute_pri_wm(cstate, pstate,
+							     pri_latency,
+							     level);
+			result->fbc_val = ilk_compute_fbc_wm(cstate, pstate,
+							     result->pri_val);
+			break;
+		case DRM_PLANE_TYPE_OVERLAY:
+			result->spr_val = ilk_compute_spr_wm(cstate, pstate,
+							     spr_latency);
+			break;
+		case DRM_PLANE_TYPE_CURSOR:
+			result->cur_val = ilk_compute_cur_wm(cstate, pstate,
+							     cur_latency);
+			break;
+		}
+	}
+
 	result->enable = true;
 }
 
@@ -2330,48 +2345,6 @@ static void skl_setup_wm_latency(struct drm_device *dev)
 	intel_print_wm_latency(dev, "Gen9 Plane", dev_priv->wm.skl_latency);
 }
 
-static void ilk_compute_wm_parameters(struct drm_crtc *crtc,
-				      struct ilk_pipe_wm_parameters *p)
-{
-	struct drm_device *dev = crtc->dev;
-	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
-	enum pipe pipe = intel_crtc->pipe;
-	struct drm_plane *plane;
-
-	if (!intel_crtc->active)
-		return;
-
-	p->active = true;
-	p->pipe_htotal = intel_crtc->config->base.adjusted_mode.crtc_htotal;
-	p->pixel_rate = ilk_pipe_pixel_rate(intel_crtc->config);
-
-	if (crtc->primary->state->fb)
-		p->pri.bytes_per_pixel =
-			crtc->primary->state->fb->bits_per_pixel / 8;
-	else
-		p->pri.bytes_per_pixel = 4;
-
-	p->cur.bytes_per_pixel = 4;
-	/*
-	 * TODO: for now, assume primary and cursor planes are always enabled.
-	 * Setting them to false makes the screen flicker.
-	 */
-	p->pri.enabled = true;
-	p->cur.enabled = true;
-
-	p->pri.horiz_pixels = intel_crtc->config->pipe_src_w;
-	p->cur.horiz_pixels = intel_crtc->base.cursor->state->crtc_w;
-
-	drm_for_each_legacy_plane(plane, &dev->mode_config.plane_list) {
-		struct intel_plane *intel_plane = to_intel_plane(plane);
-
-		if (intel_plane->pipe == pipe) {
-			p->spr = intel_plane->wm;
-			break;
-		}
-	}
-}
-
 static void ilk_compute_wm_config(struct drm_device *dev,
 				  struct intel_wm_config *config)
 {
@@ -2391,34 +2364,47 @@ static void ilk_compute_wm_config(struct drm_device *dev,
 }
 
 /* Compute new watermarks for the pipe */
-static bool intel_compute_pipe_wm(struct drm_crtc *crtc,
-				  const struct ilk_pipe_wm_parameters *params,
+static bool intel_compute_pipe_wm(struct intel_crtc_state *cstate,
 				  struct intel_pipe_wm *pipe_wm)
 {
+	struct drm_crtc *crtc = cstate->base.crtc;
 	struct drm_device *dev = crtc->dev;
 	const struct drm_i915_private *dev_priv = dev->dev_private;
+	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
+	struct intel_plane *intel_plane;
+	struct intel_plane_state *sprstate = NULL;
 	int level, max_level = ilk_wm_max_level(dev);
 	/* LP0 watermark maximums depend on this pipe alone */
 	struct intel_wm_config config = {
 		.num_pipes_active = 1,
-		.sprites_enabled = params->spr.enabled,
-		.sprites_scaled = params->spr.scaled,
 	};
 	struct ilk_wm_maximums max;
 
-	pipe_wm->pipe_enabled = params->active;
-	pipe_wm->sprites_enabled = params->spr.enabled;
-	pipe_wm->sprites_scaled = params->spr.scaled;
+	for_each_intel_plane_on_crtc(dev, intel_crtc, intel_plane) {
+		if (intel_plane->base.type == DRM_PLANE_TYPE_OVERLAY) {
+			sprstate = to_intel_plane_state(intel_plane->base.state);
+			break;
+		}
+	}
+
+	config.sprites_enabled = sprstate->visible;
+	config.sprites_scaled = sprstate->visible &&
+		(drm_rect_width(&sprstate->dst) != drm_rect_width(&sprstate->src) >> 16 ||
+		drm_rect_height(&sprstate->dst) != drm_rect_height(&sprstate->src) >> 16);
+
+	pipe_wm->pipe_enabled = cstate->base.active;
+	pipe_wm->sprites_enabled = sprstate->visible;
+	pipe_wm->sprites_scaled = config.sprites_scaled;
 
 	/* ILK/SNB: LP2+ watermarks only w/o sprites */
-	if (INTEL_INFO(dev)->gen <= 6 && params->spr.enabled)
+	if (INTEL_INFO(dev)->gen <= 6 && sprstate->visible)
 		max_level = 1;
 
 	/* ILK/SNB/IVB: LP1+ watermarks only w/o scaling */
-	if (params->spr.scaled)
+	if (config.sprites_scaled)
 		max_level = 0;
 
-	ilk_compute_wm_level(dev_priv, 0, params, &pipe_wm->wm[0]);
+	ilk_compute_wm_level(dev_priv, intel_crtc, 0, cstate, &pipe_wm->wm[0]);
 
 	if (IS_HASWELL(dev) || IS_BROADWELL(dev))
 		pipe_wm->linetime = hsw_compute_linetime_wm(dev, crtc);
@@ -2435,7 +2421,7 @@ static bool intel_compute_pipe_wm(struct drm_crtc *crtc,
 	for (level = 1; level <= max_level; level++) {
 		struct intel_wm_level wm = {};
 
-		ilk_compute_wm_level(dev_priv, level, params, &wm);
+		ilk_compute_wm_level(dev_priv, intel_crtc, level, cstate, &wm);
 
 		/*
 		 * Disable any watermark level that exceeds the
@@ -2883,7 +2869,7 @@ skl_ddb_get_pipe_allocation_limits(struct drm_device *dev,
 static unsigned int skl_cursor_allocation(const struct intel_wm_config *config)
 {
 	if (config->num_pipes_active == 1)
-		return 32;
+		return 52;
 
 	return 8;
 }
@@ -2911,7 +2897,8 @@ void skl_ddb_get_hw_state(struct drm_i915_private *dev_priv,
 		}
 
 		val = I915_READ(CUR_BUF_CFG(pipe));
-		skl_ddb_entry_init_from_hw(&ddb->cursor[pipe], val);
+		skl_ddb_entry_init_from_hw(&ddb->plane[pipe][PLANE_CURSOR],
+					   val);
 	}
 }
 
@@ -2980,13 +2967,14 @@ skl_allocate_pipe_ddb(struct drm_crtc *crtc,
 	alloc_size = skl_ddb_entry_size(alloc);
 	if (alloc_size == 0) {
 		memset(ddb->plane[pipe], 0, sizeof(ddb->plane[pipe]));
-		memset(&ddb->cursor[pipe], 0, sizeof(ddb->cursor[pipe]));
+		memset(&ddb->plane[pipe][PLANE_CURSOR], 0,
+		       sizeof(ddb->plane[pipe][PLANE_CURSOR]));
 		return;
 	}
 
 	cursor_blocks = skl_cursor_allocation(config);
-	ddb->cursor[pipe].start = alloc->end - cursor_blocks;
-	ddb->cursor[pipe].end = alloc->end;
+	ddb->plane[pipe][PLANE_CURSOR].start = alloc->end - cursor_blocks;
+	ddb->plane[pipe][PLANE_CURSOR].end = alloc->end;
 
 	alloc_size -= cursor_blocks;
 	alloc->end -= cursor_blocks;
@@ -3125,8 +3113,8 @@ static bool skl_ddb_allocation_changed(const struct skl_ddb_allocation *new_ddb,
 		   sizeof(new_ddb->plane[pipe])))
 		return true;
 
-	if (memcmp(&new_ddb->cursor[pipe], &cur_ddb->cursor[pipe],
-		    sizeof(new_ddb->cursor[pipe])))
+	if (memcmp(&new_ddb->plane[pipe][PLANE_CURSOR], &cur_ddb->plane[pipe][PLANE_CURSOR],
+		    sizeof(new_ddb->plane[pipe][PLANE_CURSOR])))
 		return true;
 
 	return false;
@@ -3170,7 +3158,8 @@ static void skl_compute_wm_pipe_parameters(struct drm_crtc *crtc,
 		if (fb) {
 			p->plane[0].enabled = true;
 			p->plane[0].bytes_per_pixel = fb->pixel_format == DRM_FORMAT_NV12 ?
-				drm_format_plane_cpp(fb->pixel_format, 1) : fb->bits_per_pixel / 8;
+				drm_format_plane_cpp(fb->pixel_format, 1) :
+				drm_format_plane_cpp(fb->pixel_format, 0);
 			p->plane[0].y_bytes_per_pixel = fb->pixel_format == DRM_FORMAT_NV12 ?
 				drm_format_plane_cpp(fb->pixel_format, 0) : 0;
 			p->plane[0].tiling = fb->modifier[0];
@@ -3185,17 +3174,17 @@ static void skl_compute_wm_pipe_parameters(struct drm_crtc *crtc,
 		p->plane[0].rotation = crtc->primary->state->rotation;
 
 		fb = crtc->cursor->state->fb;
-		p->cursor.y_bytes_per_pixel = 0;
+		p->plane[PLANE_CURSOR].y_bytes_per_pixel = 0;
 		if (fb) {
-			p->cursor.enabled = true;
-			p->cursor.bytes_per_pixel = fb->bits_per_pixel / 8;
-			p->cursor.horiz_pixels = crtc->cursor->state->crtc_w;
-			p->cursor.vert_pixels = crtc->cursor->state->crtc_h;
+			p->plane[PLANE_CURSOR].enabled = true;
+			p->plane[PLANE_CURSOR].bytes_per_pixel = fb->bits_per_pixel / 8;
+			p->plane[PLANE_CURSOR].horiz_pixels = crtc->cursor->state->crtc_w;
+			p->plane[PLANE_CURSOR].vert_pixels = crtc->cursor->state->crtc_h;
 		} else {
-			p->cursor.enabled = false;
-			p->cursor.bytes_per_pixel = 0;
-			p->cursor.horiz_pixels = 64;
-			p->cursor.vert_pixels = 64;
+			p->plane[PLANE_CURSOR].enabled = false;
+			p->plane[PLANE_CURSOR].bytes_per_pixel = 0;
+			p->plane[PLANE_CURSOR].horiz_pixels = 64;
+			p->plane[PLANE_CURSOR].vert_pixels = 64;
 		}
 	}
 
@@ -3309,11 +3298,12 @@ static void skl_compute_wm_level(const struct drm_i915_private *dev_priv,
 						&result->plane_res_l[i]);
 	}
 
-	ddb_blocks = skl_ddb_entry_size(&ddb->cursor[pipe]);
-	result->cursor_en = skl_compute_plane_wm(dev_priv, p, &p->cursor,
+	ddb_blocks = skl_ddb_entry_size(&ddb->plane[pipe][PLANE_CURSOR]);
+	result->plane_en[PLANE_CURSOR] = skl_compute_plane_wm(dev_priv, p,
+						 &p->plane[PLANE_CURSOR],
 						 ddb_blocks, level,
-						 &result->cursor_res_b,
-						 &result->cursor_res_l);
+						 &result->plane_res_b[PLANE_CURSOR],
+						 &result->plane_res_l[PLANE_CURSOR]);
 }
 
 static uint32_t
@@ -3341,7 +3331,7 @@ static void skl_compute_transition_wm(struct drm_crtc *crtc,
 	/* Until we know more, just disable transition WMs */
 	for (i = 0; i < intel_num_planes(intel_crtc); i++)
 		trans_wm->plane_en[i] = false;
-	trans_wm->cursor_en = false;
+	trans_wm->plane_en[PLANE_CURSOR] = false;
 }
 
 static void skl_compute_pipe_wm(struct drm_crtc *crtc,
@@ -3390,13 +3380,13 @@ static void skl_compute_wm_results(struct drm_device *dev,
 
 		temp = 0;
 
-		temp |= p_wm->wm[level].cursor_res_l << PLANE_WM_LINES_SHIFT;
-		temp |= p_wm->wm[level].cursor_res_b;
+		temp |= p_wm->wm[level].plane_res_l[PLANE_CURSOR] << PLANE_WM_LINES_SHIFT;
+		temp |= p_wm->wm[level].plane_res_b[PLANE_CURSOR];
 
-		if (p_wm->wm[level].cursor_en)
+		if (p_wm->wm[level].plane_en[PLANE_CURSOR])
 			temp |= PLANE_WM_EN;
 
-		r->cursor[pipe][level] = temp;
+		r->plane[pipe][PLANE_CURSOR][level] = temp;
 
 	}
 
@@ -3412,12 +3402,12 @@ static void skl_compute_wm_results(struct drm_device *dev,
 	}
 
 	temp = 0;
-	temp |= p_wm->trans_wm.cursor_res_l << PLANE_WM_LINES_SHIFT;
-	temp |= p_wm->trans_wm.cursor_res_b;
-	if (p_wm->trans_wm.cursor_en)
+	temp |= p_wm->trans_wm.plane_res_l[PLANE_CURSOR] << PLANE_WM_LINES_SHIFT;
+	temp |= p_wm->trans_wm.plane_res_b[PLANE_CURSOR];
+	if (p_wm->trans_wm.plane_en[PLANE_CURSOR])
 		temp |= PLANE_WM_EN;
 
-	r->cursor_trans[pipe] = temp;
+	r->plane_trans[pipe][PLANE_CURSOR] = temp;
 
 	r->wm_linetime[pipe] = p_wm->linetime;
 }
@@ -3451,12 +3441,13 @@ static void skl_write_wm_values(struct drm_i915_private *dev_priv,
 				I915_WRITE(PLANE_WM(pipe, i, level),
 					   new->plane[pipe][i][level]);
 			I915_WRITE(CUR_WM(pipe, level),
-				   new->cursor[pipe][level]);
+				   new->plane[pipe][PLANE_CURSOR][level]);
 		}
 		for (i = 0; i < intel_num_planes(crtc); i++)
 			I915_WRITE(PLANE_WM_TRANS(pipe, i),
 				   new->plane_trans[pipe][i]);
-		I915_WRITE(CUR_WM_TRANS(pipe), new->cursor_trans[pipe]);
+		I915_WRITE(CUR_WM_TRANS(pipe),
+			   new->plane_trans[pipe][PLANE_CURSOR]);
 
 		for (i = 0; i < intel_num_planes(crtc); i++) {
 			skl_ddb_entry_write(dev_priv,
@@ -3468,7 +3459,7 @@ static void skl_write_wm_values(struct drm_i915_private *dev_priv,
 		}
 
 		skl_ddb_entry_write(dev_priv, CUR_BUF_CFG(pipe),
-				    &new->ddb.cursor[pipe]);
+				    &new->ddb.plane[pipe][PLANE_CURSOR]);
 	}
 }
 
@@ -3676,6 +3667,26 @@ static void skl_update_other_pipe_wm(struct drm_device *dev,
 	}
 }
 
+static void skl_clear_wm(struct skl_wm_values *watermarks, enum pipe pipe)
+{
+	watermarks->wm_linetime[pipe] = 0;
+	memset(watermarks->plane[pipe], 0,
+	       sizeof(uint32_t) * 8 * I915_MAX_PLANES);
+	memset(watermarks->plane_trans[pipe],
+	       0, sizeof(uint32_t) * I915_MAX_PLANES);
+	watermarks->plane_trans[pipe][PLANE_CURSOR] = 0;
+
+	/* Clear ddb entries for pipe */
+	memset(&watermarks->ddb.pipe[pipe], 0, sizeof(struct skl_ddb_entry));
+	memset(&watermarks->ddb.plane[pipe], 0,
+	       sizeof(struct skl_ddb_entry) * I915_MAX_PLANES);
+	memset(&watermarks->ddb.y_plane[pipe], 0,
+	       sizeof(struct skl_ddb_entry) * I915_MAX_PLANES);
+	memset(&watermarks->ddb.plane[pipe][PLANE_CURSOR], 0,
+	       sizeof(struct skl_ddb_entry));
+
+}
+
 static void skl_update_wm(struct drm_crtc *crtc)
 {
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
@@ -3686,7 +3697,11 @@ static void skl_update_wm(struct drm_crtc *crtc)
 	struct skl_pipe_wm pipe_wm = {};
 	struct intel_wm_config config = {};
 
-	memset(results, 0, sizeof(*results));
+
+	/* Clear all dirty flags */
+	memset(results->dirty, 0, sizeof(bool) * I915_MAX_PIPES);
+
+	skl_clear_wm(results, intel_crtc->pipe);
 
 	skl_compute_wm_global_parameters(dev, &config);
 
@@ -3741,19 +3756,19 @@ skl_update_sprite_wm(struct drm_plane *plane, struct drm_crtc *crtc,
 static void ilk_update_wm(struct drm_crtc *crtc)
 {
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
+	struct intel_crtc_state *cstate = to_intel_crtc_state(crtc->state);
 	struct drm_device *dev = crtc->dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct ilk_wm_maximums max;
-	struct ilk_pipe_wm_parameters params = {};
 	struct ilk_wm_values results = {};
 	enum intel_ddb_partitioning partitioning;
 	struct intel_pipe_wm pipe_wm = {};
 	struct intel_pipe_wm lp_wm_1_2 = {}, lp_wm_5_6 = {}, *best_lp_wm;
 	struct intel_wm_config config = {};
 
-	ilk_compute_wm_parameters(crtc, &params);
+	WARN_ON(cstate->base.active != intel_crtc->active);
 
-	intel_compute_pipe_wm(crtc, &params, &pipe_wm);
+	intel_compute_pipe_wm(cstate, &pipe_wm);
 
 	if (!memcmp(&intel_crtc->wm.active, &pipe_wm, sizeof(pipe_wm)))
 		return;
@@ -3793,12 +3808,6 @@ ilk_update_sprite_wm(struct drm_plane *plane,
 	struct drm_device *dev = plane->dev;
 	struct intel_plane *intel_plane = to_intel_plane(plane);
 
-	intel_plane->wm.enabled = enabled;
-	intel_plane->wm.scaled = scaled;
-	intel_plane->wm.horiz_pixels = sprite_width;
-	intel_plane->wm.vert_pixels = sprite_width;
-	intel_plane->wm.bytes_per_pixel = pixel_size;
-
 	/*
 	 * IVB workaround: must disable low power watermarks for at least
 	 * one frame before enabling scaling.  LP watermarks can be re-enabled
@@ -3830,10 +3839,10 @@ static void skl_pipe_wm_active_state(uint32_t val,
 					(val >> PLANE_WM_LINES_SHIFT) &
 						PLANE_WM_LINES_MASK;
 		} else {
-			active->wm[level].cursor_en = is_enabled;
-			active->wm[level].cursor_res_b =
+			active->wm[level].plane_en[PLANE_CURSOR] = is_enabled;
+			active->wm[level].plane_res_b[PLANE_CURSOR] =
 					val & PLANE_WM_BLOCKS_MASK;
-			active->wm[level].cursor_res_l =
+			active->wm[level].plane_res_l[PLANE_CURSOR] =
 					(val >> PLANE_WM_LINES_SHIFT) &
 						PLANE_WM_LINES_MASK;
 		}
@@ -3846,10 +3855,10 @@ static void skl_pipe_wm_active_state(uint32_t val,
 					(val >> PLANE_WM_LINES_SHIFT) &
 						PLANE_WM_LINES_MASK;
 		} else {
-			active->trans_wm.cursor_en = is_enabled;
-			active->trans_wm.cursor_res_b =
+			active->trans_wm.plane_en[PLANE_CURSOR] = is_enabled;
+			active->trans_wm.plane_res_b[PLANE_CURSOR] =
 					val & PLANE_WM_BLOCKS_MASK;
-			active->trans_wm.cursor_res_l =
+			active->trans_wm.plane_res_l[PLANE_CURSOR] =
 					(val >> PLANE_WM_LINES_SHIFT) &
 						PLANE_WM_LINES_MASK;
 		}
@@ -3875,12 +3884,12 @@ static void skl_pipe_wm_get_hw_state(struct drm_crtc *crtc)
 		for (i = 0; i < intel_num_planes(intel_crtc); i++)
 			hw->plane[pipe][i][level] =
 					I915_READ(PLANE_WM(pipe, i, level));
-		hw->cursor[pipe][level] = I915_READ(CUR_WM(pipe, level));
+		hw->plane[pipe][PLANE_CURSOR][level] = I915_READ(CUR_WM(pipe, level));
 	}
 
 	for (i = 0; i < intel_num_planes(intel_crtc); i++)
 		hw->plane_trans[pipe][i] = I915_READ(PLANE_WM_TRANS(pipe, i));
-	hw->cursor_trans[pipe] = I915_READ(CUR_WM_TRANS(pipe));
+	hw->plane_trans[pipe][PLANE_CURSOR] = I915_READ(CUR_WM_TRANS(pipe));
 
 	if (!intel_crtc->active)
 		return;
@@ -3895,7 +3904,7 @@ static void skl_pipe_wm_get_hw_state(struct drm_crtc *crtc)
 			skl_pipe_wm_active_state(temp, active, false,
 						false, i, level);
 		}
-		temp = hw->cursor[pipe][level];
+		temp = hw->plane[pipe][PLANE_CURSOR][level];
 		skl_pipe_wm_active_state(temp, active, false, true, i, level);
 	}
 
@@ -3904,7 +3913,7 @@ static void skl_pipe_wm_get_hw_state(struct drm_crtc *crtc)
 		skl_pipe_wm_active_state(temp, active, true, false, i, 0);
 	}
 
-	temp = hw->cursor_trans[pipe];
+	temp = hw->plane_trans[pipe][PLANE_CURSOR];
 	skl_pipe_wm_active_state(temp, active, true, true, i, 0);
 }
 

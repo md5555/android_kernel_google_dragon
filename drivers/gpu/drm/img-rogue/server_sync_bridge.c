@@ -84,6 +84,7 @@ PVRSRVBridgeAllocSyncPrimitiveBlock(IMG_UINT32 ui32DispatchTableEntry,
 	psAllocSyncPrimitiveBlockOUT->hSyncHandle = NULL;
 
 
+	PMRLock();
 
 
 	psAllocSyncPrimitiveBlockOUT->eError =
@@ -95,8 +96,10 @@ PVRSRVBridgeAllocSyncPrimitiveBlock(IMG_UINT32 ui32DispatchTableEntry,
 	/* Exit early if bridged call fails */
 	if(psAllocSyncPrimitiveBlockOUT->eError != PVRSRV_OK)
 	{
+		PMRUnlock();
 		goto AllocSyncPrimitiveBlock_exit;
 	}
+	PMRUnlock();
 
 
 	psAllocSyncPrimitiveBlockOUT->eError = PVRSRVAllocHandle(psConnection->psHandleBase,
@@ -163,6 +166,7 @@ PVRSRVBridgeFreeSyncPrimitiveBlock(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
+	PMRLock();
 
 
 
@@ -174,9 +178,11 @@ PVRSRVBridgeFreeSyncPrimitiveBlock(IMG_UINT32 ui32DispatchTableEntry,
 	if ((psFreeSyncPrimitiveBlockOUT->eError != PVRSRV_OK) && (psFreeSyncPrimitiveBlockOUT->eError != PVRSRV_ERROR_RETRY))
 	{
 		PVR_ASSERT(0);
+		PMRUnlock();
 		goto FreeSyncPrimitiveBlock_exit;
 	}
 
+	PMRUnlock();
 
 
 FreeSyncPrimitiveBlock_exit:
@@ -427,6 +433,9 @@ PVRSRVBridgeServerSyncAlloc(IMG_UINT32 ui32DispatchTableEntry,
 				goto ServerSyncAlloc_exit;
 			}
 
+#if defined(PDUMP)
+	PMRLock();
+#endif
 
 
 	psServerSyncAllocOUT->eError =
@@ -438,8 +447,14 @@ PVRSRVBridgeServerSyncAlloc(IMG_UINT32 ui32DispatchTableEntry,
 	/* Exit early if bridged call fails */
 	if(psServerSyncAllocOUT->eError != PVRSRV_OK)
 	{
+#if defined(PDUMP)
+		PMRUnlock();
+#endif
 		goto ServerSyncAlloc_exit;
 	}
+#if defined(PDUMP)
+	PMRUnlock();
+#endif
 
 
 	psServerSyncAllocOUT->eError = PVRSRVAllocHandle(psConnection->psHandleBase,
@@ -515,6 +530,9 @@ PVRSRVBridgeServerSyncQueueHWOp(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
+#if defined(PDUMP)
+	PMRLock();
+#endif
 
 
 				{
@@ -526,6 +544,9 @@ PVRSRVBridgeServerSyncQueueHWOp(IMG_UINT32 ui32DispatchTableEntry,
 											PVRSRV_HANDLE_TYPE_SERVER_SYNC_PRIMITIVE);
 					if(psServerSyncQueueHWOpOUT->eError != PVRSRV_OK)
 					{
+#if defined(PDUMP)
+						PMRUnlock();
+#endif
 						goto ServerSyncQueueHWOp_exit;
 					}
 				}
@@ -537,6 +558,9 @@ PVRSRVBridgeServerSyncQueueHWOp(IMG_UINT32 ui32DispatchTableEntry,
 					psServerSyncQueueHWOpIN->bbUpdate,
 					&psServerSyncQueueHWOpOUT->ui32FenceValue,
 					&psServerSyncQueueHWOpOUT->ui32UpdateValue);
+#if defined(PDUMP)
+	PMRUnlock();
+#endif
 
 
 
@@ -1201,6 +1225,7 @@ PVRSRVBridgeSyncPrimPDump(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
+	PMRLock();
 
 
 				{
@@ -1212,6 +1237,7 @@ PVRSRVBridgeSyncPrimPDump(IMG_UINT32 ui32DispatchTableEntry,
 											PVRSRV_HANDLE_TYPE_SYNC_PRIMITIVE_BLOCK);
 					if(psSyncPrimPDumpOUT->eError != PVRSRV_OK)
 					{
+						PMRUnlock();
 						goto SyncPrimPDump_exit;
 					}
 				}
@@ -1221,6 +1247,7 @@ PVRSRVBridgeSyncPrimPDump(IMG_UINT32 ui32DispatchTableEntry,
 		PVRSRVSyncPrimPDumpKM(
 					psSyncHandleInt,
 					psSyncPrimPDumpIN->ui32Offset);
+	PMRUnlock();
 
 
 
@@ -1242,6 +1269,7 @@ PVRSRVBridgeSyncPrimPDumpValue(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
+	PMRLock();
 
 
 				{
@@ -1253,6 +1281,7 @@ PVRSRVBridgeSyncPrimPDumpValue(IMG_UINT32 ui32DispatchTableEntry,
 											PVRSRV_HANDLE_TYPE_SYNC_PRIMITIVE_BLOCK);
 					if(psSyncPrimPDumpValueOUT->eError != PVRSRV_OK)
 					{
+						PMRUnlock();
 						goto SyncPrimPDumpValue_exit;
 					}
 				}
@@ -1263,6 +1292,7 @@ PVRSRVBridgeSyncPrimPDumpValue(IMG_UINT32 ui32DispatchTableEntry,
 					psSyncHandleInt,
 					psSyncPrimPDumpValueIN->ui32Offset,
 					psSyncPrimPDumpValueIN->ui32Value);
+	PMRUnlock();
 
 
 

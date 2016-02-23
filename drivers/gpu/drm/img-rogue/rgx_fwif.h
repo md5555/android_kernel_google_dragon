@@ -352,6 +352,7 @@ typedef struct _RGX_BIFINFO_
 typedef struct _RGX_MMUINFO_
 {
 	IMG_UINT64	RGXFW_ALIGN		ui64MMUStatus;
+	IMG_UINT64	RGXFW_ALIGN		ui64PCAddress; /*!< phys address of the page catalogue */
 } RGX_MMUINFO;
 
 typedef struct _RGX_POLLINFO_

@@ -1134,6 +1134,12 @@ nouveau_bo_move_m2mf(struct ttm_buffer_object *bo, int evict, bool intr,
 	struct nouveau_fence *fence;
 	int ret;
 
+	/*
+	 * There is a possible race here.
+	 * The race is between this function and gem_unmap_work which runs in a wq.
+	 * TODO: add a lock protection later to avoid the race.
+	 */
+
 	/* create temporary vmas for the transfer and attach them to the
 	 * old nvkm_mem node, these will get cleaned up after ttm has
 	 * destroyed the ttm_mem_reg
@@ -1795,7 +1801,7 @@ void
 nouveau_bo_vma_del(struct nouveau_bo *nvbo, struct nvkm_vma *vma)
 {
 	if (vma->node) {
-		if (nvbo->bo.mem.mem_type != TTM_PL_SYSTEM)
+		if (vma->mapped && nvbo->bo.mem.mem_type != TTM_PL_SYSTEM)
 			nvkm_vm_unmap(vma);
 		nvkm_vm_put(vma);
 		list_del(&vma->head);

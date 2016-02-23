@@ -98,9 +98,8 @@ nvkm_gpuobj_create_(struct nvkm_object *parent, struct nvkm_object *engine,
 	}
 
 	ret = nvkm_object_create_(parent, engine, oclass, pclass |
-				  NV_GPUOBJ_CLASS, length, pobject);
+				  NV_GPUOBJ_CLASS, length, (void *) &gpuobj);
 	nvkm_object_ref(NULL, &parent);
-	gpuobj = *pobject;
 	if (ret)
 		return ret;
 
@@ -113,7 +112,7 @@ nvkm_gpuobj_create_(struct nvkm_object *parent, struct nvkm_object *engine,
 		ret = nvkm_mm_head(heap, 0, 1, size, size, max(align, (u32)1),
 				   &gpuobj->node);
 		if (ret)
-			return ret;
+			goto err_mm_head;
 
 		gpuobj->addr += gpuobj->node->offset;
 	}
@@ -121,7 +120,7 @@ nvkm_gpuobj_create_(struct nvkm_object *parent, struct nvkm_object *engine,
 	if (gpuobj->flags & NVOBJ_FLAG_HEAP) {
 		ret = nvkm_mm_init(&gpuobj->heap, 0, gpuobj->size, 1);
 		if (ret)
-			return ret;
+			goto err_mm_init;
 	}
 
 	if (flags & NVOBJ_FLAG_ZERO_ALLOC) {
@@ -129,6 +128,13 @@ nvkm_gpuobj_create_(struct nvkm_object *parent, struct nvkm_object *engine,
 			nv_wo32(gpuobj, i, 0x00000000);
 	}
 
+	*pobject = gpuobj;
+	return 0;
+
+err_mm_init:
+	nvkm_mm_free(heap, &gpuobj->node);
+err_mm_head:
+	nvkm_object_destroy((void *) gpuobj);
 	return ret;
 }
 

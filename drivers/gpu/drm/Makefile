@@ -63,6 +63,7 @@ obj-$(CONFIG_DRM_QXL) += qxl/
 obj-$(CONFIG_DRM_BOCHS) += bochs/
 obj-$(CONFIG_DRM_MSM) += msm/
 obj-$(CONFIG_DRM_TEGRA) += tegra/
+obj-$(CONFIG_DRM_MEDIATEK) += mediatek/
 obj-$(CONFIG_DRM_STI) += sti/
 obj-$(CONFIG_DRM_POWERVR_ROGUE) += img-rogue/
 obj-y			+= i2c/

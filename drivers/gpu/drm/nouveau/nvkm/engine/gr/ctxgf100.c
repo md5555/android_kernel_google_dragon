@@ -1266,6 +1266,7 @@ gf100_grctx_generate(struct gf100_gr_priv *priv)
 	struct gf100_grctx_oclass *oclass = (void *)nv_engine(priv)->cclass;
 	struct nvkm_ltc *ltc = nvkm_ltc(priv);
 	struct nvkm_bar *bar = nvkm_bar(priv);
+	struct nvkm_mmu *mmu = nvkm_mmu(priv);
 	struct nvkm_gpuobj *chan;
 	struct gf100_grctx info;
 	int ret, i;
@@ -1280,19 +1281,22 @@ gf100_grctx_generate(struct gf100_gr_priv *priv)
 		return ret;
 	}
 
+	/* Trying to cover ctx memory with only 1 valid PDE below */
+	BUG_ON(chan->size > (1ULL << (mmu->lpg_shift + 10)));
+
 	/* PGD pointer */
 	nv_wo32(chan, 0x0200, lower_32_bits(chan->addr + 0x1000));
 	nv_wo32(chan, 0x0204, upper_32_bits(chan->addr + 0x1000));
-	nv_wo32(chan, 0x0208, 0xffffffff);
-	nv_wo32(chan, 0x020c, 0x000000ff);
+	nv_wo32(chan, 0x0208, lower_32_bits(chan->size -1));
+	nv_wo32(chan, 0x020c, upper_32_bits(chan->size -1));
 
 	/* PGT[0] pointer */
 	nv_wo32(chan, 0x1000, 0x00000000);
 	nv_wo32(chan, 0x1004, 0x00000001 | (chan->addr + 0x2000) >> 8);
 
 	/* identity-map the whole "channel" into its own vm */
-	for (i = 0; i < chan->size / 4096; i++) {
-		u64 addr = ((chan->addr + (i * 4096)) >> 8) | 1;
+	for (i = 0; i < (chan->size >> mmu->spg_shift); i++) {
+		u64 addr = ((chan->addr + (i << mmu->spg_shift)) >> 8) | 1;
 		nv_wo32(chan, 0x2000 + (i * 8), lower_32_bits(addr));
 		nv_wo32(chan, 0x2004 + (i * 8), upper_32_bits(addr));
 	}

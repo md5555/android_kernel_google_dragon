@@ -243,12 +243,6 @@ enum gm20b_throt_type {
 	GM20B_NUM_THROT_TYPE,
 };
 
-static const char *cdev_type[GM20B_NUM_THROT_TYPE] = {
-	[GM20B_THROT_BALANCED_CPU_GPU] = "gpu-balanced-cpu",
-	[GM20B_THROT_BALANCED_GPU_GPU] = "gpu-balanced-gpu",
-	[GM20B_THROT_BALANCED_TSKIN_GPU] = "gpu-balanced-tskin",
-};
-
 struct gm20b_clk_thermal {
 	bool in_suspend;
 	struct mutex suspend_lock;
@@ -1569,10 +1563,8 @@ gm20b_clk_oclass = {
 	},
 };
 
-#ifdef CONFIG_THERMAL
-/* Implement GPU throttle */
-
-static int gm20b_freq_to_pstate(struct nvkm_clk *clk, unsigned long rate)
+static int __maybe_unused gm20b_freq_to_pstate(struct nvkm_clk *clk,
+					       unsigned long rate)
 {
 	int i;
 	unsigned long domain;
@@ -1586,6 +1578,9 @@ static int gm20b_freq_to_pstate(struct nvkm_clk *clk, unsigned long rate)
 
 	return 0;
 }
+
+#ifdef CONFIG_THERMAL
+/* Implement GPU throttle */
 
 static int
 gm20b_clk_throt_get_cdev_max_state(struct thermal_cooling_device *cdev,
@@ -1717,6 +1712,16 @@ err:
 	of_node_put(t_np);
 	return ret;
 }
+
+/*
+ * These are only used with CONFIG_THERMAL, so keep them closer to the usage to avoid
+ * warnings about unused variables
+ */
+static const char *cdev_type[GM20B_NUM_THROT_TYPE] = {
+	[GM20B_THROT_BALANCED_CPU_GPU] = "gpu-balanced-cpu",
+	[GM20B_THROT_BALANCED_GPU_GPU] = "gpu-balanced-gpu",
+	[GM20B_THROT_BALANCED_TSKIN_GPU] = "gpu-balanced-tskin",
+};
 
 static int
 gm20b_clk_throttle_cdev_register(struct gm20b_clk_priv *priv,

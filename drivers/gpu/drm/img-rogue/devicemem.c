@@ -325,7 +325,8 @@ _SubAllocImportAlloc(RA_PERARENA_HANDLE hArena,
 	*/
 	eError = _DevmemImportStructDevMap(psHeap,
 									   IMG_TRUE,
-									   psImport);
+									   psImport,
+									   DEVICEMEM_UTILS_NO_ADDRESS);
 	if (eError != PVRSRV_OK)
 	{
 		goto failMap;
@@ -428,6 +429,7 @@ _PopulateContextFromBlueprint(struct _DEVMEM_CONTEXT_ *psCtx,
                                   uiLog2DataPageSize,
                                   uiLog2ImportAlignment,
                                   aszHeapName,
+                                  uiHeapBlueprintID,
                                   &ppsHeapArray[uiHeapIndex]);
         if (eError != PVRSRV_OK)
         {
@@ -770,6 +772,7 @@ DevmemCreateHeap(DEVMEM_CONTEXT *psCtx,
                  IMG_UINT32 ui32Log2Quantum,
                  IMG_UINT32 ui32Log2ImportAlignment,
                  const IMG_CHAR *pszName,
+                 DEVMEM_HEAPCFGID uiHeapBlueprintID,
                  DEVMEM_HEAP **ppsHeapPtr)
 {
     PVRSRV_ERROR eError = PVRSRV_OK;
@@ -778,6 +781,7 @@ DevmemCreateHeap(DEVMEM_CONTEXT *psCtx,
     /* handle to the server-side counterpart of the device memory
        heap (specifically, for handling mapping to device MMU */
     IMG_HANDLE hDevMemServerHeap;
+    IMG_BOOL bRANoSplit = IMG_FALSE;
 
     IMG_CHAR aszBuf[100];
     IMG_CHAR *pszStr;
@@ -821,13 +825,37 @@ DevmemCreateHeap(DEVMEM_CONTEXT *psCtx,
     OSStringCopy(pszStr, aszBuf);
     psHeap->pszSubAllocRAName = pszStr;
 
+#if defined(PDUMP) && defined(ANDROID)
+    /* the META heap is shared globally so a single
+     * physical memory import may be used to satisfy
+     * allocations of different processes.
+     * This is problematic when PDumping because the
+     * physical memory import used to satisfy a new allocation
+     * may actually have been imported (and thus the PDump MALLOC
+     * generated) before the PDump client was started, leading to the
+     * MALLOC being missing.
+     * This is solved by disabling splitting of imports for the META physmem
+     * RA, meaning that every firmware allocation gets its own import, thus
+     * ensuring the MALLOC is present for every allocation made within the
+     * pdump capture range
+     */
+    if(uiHeapBlueprintID == DEVMEM_HEAPCFG_META)
+    {
+    	bRANoSplit = IMG_TRUE;
+    }
+#else
+    PVR_UNREFERENCED_PARAMETER(uiHeapBlueprintID);
+#endif
+
+
     psHeap->psSubAllocRA = RA_Create(psHeap->pszSubAllocRAName,
                        /* Subsequent imports: */
                        ui32Log2Quantum,
 					   RA_LOCKCLASS_2,
                        _SubAllocImportAlloc,
                        _SubAllocImportFree,
-                       (RA_PERARENA_HANDLE) psHeap);
+                       (RA_PERARENA_HANDLE) psHeap,
+                       bRANoSplit);
     if (psHeap->psSubAllocRA == NULL)
     {
         eError = PVRSRV_ERROR_DEVICEMEM_UNABLE_TO_CREATE_ARENA;
@@ -852,7 +880,8 @@ DevmemCreateHeap(DEVMEM_CONTEXT *psCtx,
     psHeap->psQuantizedVMRA = RA_Create(psHeap->pszQuantizedVMRAName,
                        /* Subsequent import: */
                                        0, RA_LOCKCLASS_1, NULL, NULL,
-                       (RA_PERARENA_HANDLE) psHeap);
+                       (RA_PERARENA_HANDLE) psHeap,
+                       IMG_FALSE);
 
     if (psHeap->psQuantizedVMRA == NULL)
     {
@@ -893,6 +922,8 @@ DevmemCreateHeap(DEVMEM_CONTEXT *psCtx,
 	{
 		goto e7;
 	}
+
+	psHeap->eHeapType = DEVMEM_HEAP_TYPE_UNKNOWN;
 
     psHeap->psCtx->uiNumHeaps ++;
     *ppsHeapPtr = psHeap;
@@ -1179,6 +1210,11 @@ failDeviceMemAlloc:
 failMemDescAlloc:
 failParams:
     PVR_ASSERT(eError != PVRSRV_OK);
+	PVR_DPF((PVR_DBG_ERROR,
+			"%s: Failed! Error is %s. Allocation size: %#llX",
+			__func__,
+			PVRSRVGETERRORSTRING(eError),
+			(unsigned long long) uiSize));
     return eError;
 }
 
@@ -1295,6 +1331,11 @@ failDeviceMemAlloc:
 failMemDescAlloc:
 failParams:
     PVR_ASSERT(eError != PVRSRV_OK);
+	PVR_DPF((PVR_DBG_ERROR,
+		"%s: Failed! Error is %s. Allocation size: %#llX",
+		__func__,
+		PVRSRVGETERRORSTRING(eError),
+		(unsigned long long) uiSize));
     return eError;
 }
 
@@ -1411,6 +1452,11 @@ failDeviceMemAlloc:
 failMemDescAlloc:
 failParams:
     PVR_ASSERT(eError != PVRSRV_OK);
+	PVR_DPF((PVR_DBG_ERROR,
+		"%s: Failed! Error is %s. Allocation size: %#llX",
+		__func__,
+		PVRSRVGETERRORSTRING(eError),
+		(unsigned long long) uiSize));
     return eError;
 }
 
@@ -1881,7 +1927,8 @@ DevmemMapToDevice(DEVMEM_MEMDESC *psMemDesc,
 
 	eError = _DevmemImportStructDevMap(psHeap,
 									   bMap,
-									   psImport);
+									   psImport,
+									   DEVICEMEM_UTILS_NO_ADDRESS);
 	if (eError != PVRSRV_OK)
 	{
 		goto failMap;
@@ -1893,6 +1940,101 @@ DevmemMapToDevice(DEVMEM_MEMDESC *psMemDesc,
 	psMemDesc->sDeviceMemDesc.ui32RefCount++;
 
     *psDevVirtAddr = psMemDesc->sDeviceMemDesc.sDevVAddr;
+
+    OSLockRelease(psMemDesc->sDeviceMemDesc.hLock);
+
+#if defined(SUPPORT_PAGE_FAULT_DEBUG)
+	BridgeDevicememHistoryMap(psMemDesc->psImport->hDevConnection,
+						psMemDesc->sDeviceMemDesc.sDevVAddr,
+						psMemDesc->uiAllocSize,
+						psMemDesc->sTraceData.szText);
+#endif
+
+#if defined(PVR_RI_DEBUG)
+	if (psMemDesc->hRIHandle)
+    {
+		 eError = BridgeRIUpdateMEMDESCAddr(psImport->hDevConnection,
+    									   psMemDesc->hRIHandle,
+    									   psImport->sDeviceImport.sDevVAddr);
+		if( eError != PVRSRV_OK)
+		{
+			PVR_DPF((PVR_DBG_ERROR, "%s: call to BridgeRIUpdateMEMDESCAddr failed (eError=%d)", __func__, eError));
+		}
+	}
+#endif
+
+    return PVRSRV_OK;
+
+failMap:
+	_DevmemMemDescRelease(psMemDesc);
+failCheck:
+failParams:
+	OSLockRelease(psMemDesc->sDeviceMemDesc.hLock);
+	PVR_ASSERT(eError != PVRSRV_OK);
+
+failFlags:
+	return eError;
+}
+
+IMG_INTERNAL PVRSRV_ERROR
+DevmemMapToDeviceAddress(DEVMEM_MEMDESC *psMemDesc,
+                         DEVMEM_HEAP *psHeap,
+                         IMG_DEV_VIRTADDR sDevVirtAddr)
+{
+	DEVMEM_IMPORT *psImport;
+	IMG_DEV_VIRTADDR sDevVAddr;
+	PVRSRV_ERROR eError;
+	IMG_BOOL bMap = IMG_TRUE;
+
+	/* Do not try to map unpinned memory */
+	if (psMemDesc->psImport->uiProperties & DEVMEM_PROPERTIES_UNPINNED)
+	{
+		eError = PVRSRV_ERROR_INVALID_MAP_REQUEST;
+		goto failFlags;
+	}
+
+	OSLockAcquire(psMemDesc->sDeviceMemDesc.hLock);
+	if (psHeap == NULL)
+	{
+		eError = PVRSRV_ERROR_INVALID_PARAMS;
+		goto failParams;
+	}
+
+	if (psMemDesc->sDeviceMemDesc.ui32RefCount != 0)
+	{
+		eError = PVRSRV_ERROR_DEVICEMEM_ALREADY_MAPPED;
+		goto failCheck;
+	}
+
+	/* Don't map memory for deferred allocations */
+	if (psMemDesc->psImport->uiFlags & PVRSRV_MEMALLOCFLAG_NO_OSPAGES_ON_ALLOC)
+	{
+		PVR_ASSERT(psMemDesc->psImport->uiProperties & DEVMEM_PROPERTIES_EXPORTABLE);
+		bMap = IMG_FALSE;
+	}
+
+	DEVMEM_REFCOUNT_PRINT("%s (%p) %d->%d",
+					__FUNCTION__,
+					psMemDesc,
+					psMemDesc->sDeviceMemDesc.ui32RefCount,
+					psMemDesc->sDeviceMemDesc.ui32RefCount+1);
+
+	psImport = psMemDesc->psImport;
+	_DevmemMemDescAcquire(psMemDesc);
+
+	eError = _DevmemImportStructDevMap(psHeap,
+									   bMap,
+									   psImport,
+									   sDevVirtAddr.uiAddr);
+	if (eError != PVRSRV_OK)
+	{
+		goto failMap;
+	}
+
+	sDevVAddr.uiAddr = psImport->sDeviceImport.sDevVAddr.uiAddr;
+	sDevVAddr.uiAddr += psMemDesc->uiOffset;
+	psMemDesc->sDeviceMemDesc.sDevVAddr = sDevVAddr;
+	psMemDesc->sDeviceMemDesc.ui32RefCount++;
 
     OSLockRelease(psMemDesc->sDeviceMemDesc.hLock);
 

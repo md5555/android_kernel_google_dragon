@@ -83,9 +83,15 @@ static void SrvInitDevice_ForEachVaCb(PVRSRV_DEVICE_NODE *psDeviceNode, va_list 
 PVRSRV_ERROR SrvInit(void)
 {
 	PVRSRV_DATA *psPVRSRVData = PVRSRVGetPVRSRVData();
+	static IMG_BOOL bInitSuccessful = IMG_FALSE;
 	PVRSRV_ERROR eError = PVRSRV_OK;
 	PVRSRV_ERROR eRet;
-	IMG_BOOL bInitSuccesful = IMG_FALSE;
+
+	if (bInitSuccessful)
+	{
+		eRet = eError;
+		goto exit;
+	}
 
 	PVRSRVSetInitServerState(PVRSRV_INIT_SERVER_RUNNING, IMG_TRUE);
 
@@ -99,13 +105,13 @@ PVRSRV_ERROR SrvInit(void)
 
 	_ParseHTBAppHints(NULL);
 
-	bInitSuccesful = IMG_TRUE;
+	bInitSuccessful = IMG_TRUE;
 cleanup:
 	eRet = eError;
 
 	eError = PVRSRVInitSrvDisconnectKM(NULL,
 						NULL,
-						bInitSuccesful,
+						bInitSuccessful,
 						(IMG_UINT32)(RGX_BUILD_OPTIONS));
 	if (eError != PVRSRV_OK)
 	{
@@ -113,5 +119,6 @@ cleanup:
 		eRet = eError;
 	}
 
+exit:
 	return eRet;
 }

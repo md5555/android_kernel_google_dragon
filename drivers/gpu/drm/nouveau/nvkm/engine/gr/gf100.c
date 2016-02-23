@@ -1157,14 +1157,26 @@ gf100_gr_intr(struct nvkm_subdev *subdev)
 	}
 
 	if (stat & 0x00000010) {
+		int ret = -EINVAL;
+
 		handle = nvkm_handle_get_class(engctx, class);
-		if (!handle || nv_call(handle->object, mthd, data)) {
+		if (handle) {
+			ret = nv_call(handle->object, mthd, data);
+			nvkm_handle_put(handle);
+		} else {
+			/* special case for compute */
+			if ((class & 0x00ff) == 0xc0 && mthd == 0x1528)
+				ret = gf100_gr_set_shader_exceptions(engctx, mthd,
+						&data, sizeof(data));
+		}
+
+		if (ret)
 			nv_error(priv,
-				 "ILLEGAL_MTHD ch %d [0x%010llx %s] subc %d class 0x%04x mthd 0x%04x data 0x%08x\n",
+				 "ILLEGAL_MTHD ch %d [0x%010llx %s] subc %d class 0x%04x "
+				 "mthd 0x%04x data 0x%08x\n",
 				 chid, inst << 12, nvkm_client_name(engctx),
 				 subc, class, mthd, data);
-		}
-		nvkm_handle_put(handle);
+
 		nv_wr32(priv, 0x400100, 0x00000010);
 		stat &= ~0x00000010;
 	}

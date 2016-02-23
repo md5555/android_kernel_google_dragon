@@ -836,7 +836,7 @@ _FreePagesFromPoolUnlocked(IMG_UINT32 uiMaxPagesToFree,
 			/* Is this pool entry exhausted, delete it */
 			if (psPagePoolEntry->uiItemsRemaining == 0)
 			{
-				OSFreeMem(psPagePoolEntry->ppsPageArray);
+				OSFreeMemNoStats(psPagePoolEntry->ppsPageArray);
 				list_del(&psPagePoolEntry->sPagePoolItem);
 				kmem_cache_free(g_psLinuxPagePoolCache, psPagePoolEntry);
 			}
@@ -902,7 +902,7 @@ _GetPagesFromPoolUnlocked(IMG_UINT32 ui32CPUCacheFlags,
 			/* Is this pool entry exhausted, delete it */
 			if (psPagePoolEntry->uiItemsRemaining == 0)
 			{
-				OSFreeMem(psPagePoolEntry->ppsPageArray);
+				OSFreeMemNoStats(psPagePoolEntry->ppsPageArray);
 				list_del(&psPagePoolEntry->sPagePoolItem);
 				kmem_cache_free(g_psLinuxPagePoolCache, psPagePoolEntry);
 			}
@@ -1268,8 +1268,16 @@ _AllocOSPageArray(PMR_SIZE_T uiChunkSize,
         goto e_freed_psPageArrayData;
     }
 
-    /* Allocate the page array */
-    psPageArrayData->pagearray = OSAllocZMem(sizeof(struct page *) * ui32NumVirtPages);
+	/* Allocate the page array.
+	 *
+	 * We avoid tracking this memory because this structure might go into the page pool.
+	 * The OS can drain the pool asynchronously and when doing that we have to avoid
+	 * any potential deadlocks.
+	 * In one scenario the process stats vmalloc hash table lock is held and then
+	 * the oom-killer softirq is trying to call _ScanObjectsInPagePool(), it must not
+	 * try to acquire the vmalloc hash table lock again.
+	 */
+    psPageArrayData->pagearray = OSAllocZMemNoStats(sizeof(struct page *) * ui32NumVirtPages);
     if (psPageArrayData->pagearray == NULL)
     {
         kmem_cache_free(g_psLinuxPageArray, psPageArrayData);
@@ -1385,7 +1393,14 @@ _ApplyOSPagesAttribute(struct page **ppsPage,
 
 			IMG_UINT32 ui32Idx;
 
-			if (uiNumPages < PVR_DIRTY_PAGECOUNT_FLUSH_THRESHOLD)
+			eError = PVRSRV_ERROR_RETRY;
+			if (uiNumPages >= PVR_DIRTY_PAGECOUNT_FLUSH_THRESHOLD)
+			{
+				/* May fail so fallback to range-based flush */
+				eError = OSCPUOperation(PVRSRV_CACHE_OP_FLUSH);
+			}
+
+			if (eError != PVRSRV_OK)
 			{
 				for (ui32Idx = 0; ui32Idx < uiNumPages;  ++ui32Idx)
 				{
@@ -1415,14 +1430,12 @@ _ApplyOSPagesAttribute(struct page **ppsPage,
 
 					kunmap(ppsPage[ui32Idx]);
 				}
+
+				eError = PVRSRV_OK;
 			}
-			else
-			{
-				OSCPUOperation(PVRSRV_CACHE_OP_FLUSH);
-			}
-		}			
+		}
 	}
-	
+
 	return eError;
 }
 
@@ -1917,7 +1930,7 @@ _FreeOSPagesArray(struct _PMR_OSPAGEARRAY_DATA_ *psPageArrayData)
 	 * It might be the case that has been moved to the page pool */
 	if (psPageArrayData->pagearray != NULL)
 	{
-		OSFreeMem(psPageArrayData->pagearray);
+		OSFreeMemNoStats(psPageArrayData->pagearray);
 	}
 
 	kmem_cache_free(g_psLinuxPageArray, psPageArrayData);
@@ -1989,7 +2002,7 @@ _FreeOSPages_Sparse(struct _PMR_OSPAGEARRAY_DATA_ *psPageArrayData,
 	}
 
 	/* OSAllocMemstatMem required because this code may be run without the bridge lock held */
-	ppsTempPageArray = OSAllocMem(sizeof(struct page*) * uiTempArraySize);
+	ppsTempPageArray = OSAllocMemNoStats(sizeof(struct page*) * uiTempArraySize);
 	if (ppsTempPageArray == NULL)
 	{
 		PVR_DPF((PVR_DBG_ERROR, "%s: Failed free_pages metadata allocation", __FUNCTION__));
@@ -2059,7 +2072,7 @@ _FreeOSPages_Sparse(struct _PMR_OSPAGEARRAY_DATA_ *psPageArrayData,
 	}
 	
 	/* Free the temp page array here if it did not move to the pool */
-	OSFreeMem(ppsTempPageArray);
+	OSFreeMemNoStats(ppsTempPageArray);
 	
 exit_ok:    
     

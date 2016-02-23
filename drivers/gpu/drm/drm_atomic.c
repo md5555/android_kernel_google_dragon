@@ -673,7 +673,7 @@ static int drm_atomic_plane_check(struct drm_plane *plane,
 {
 	struct drm_mode_config *config;
 	unsigned int fb_width, fb_height;
-	unsigned int i;
+	int ret;
 
 	/* either *both* CRTC and FB must be set, or neither */
 	if (WARN_ON(state->crtc && !state->fb)) {
@@ -695,13 +695,11 @@ static int drm_atomic_plane_check(struct drm_plane *plane,
 	}
 
 	/* Check whether this plane supports the fb pixel format. */
-	for (i = 0; i < plane->format_count; i++)
-		if (state->fb->pixel_format == plane->format_types[i])
-			break;
-	if (i == plane->format_count) {
+	ret = drm_plane_check_pixel_format(plane, state->fb->pixel_format);
+	if (ret) {
 		DRM_DEBUG_ATOMIC("Invalid pixel format %s\n",
 				 drm_get_format_name(state->fb->pixel_format));
-		return -EINVAL;
+		return ret;
 	}
 
 	/* Check whether the source width and height are within limits */
@@ -1075,7 +1073,7 @@ drm_atomic_add_affected_connectors(struct drm_atomic_state *state,
 	 * Changed connectors are already in @state, so only need to look at the
 	 * current configuration.
 	 */
-	list_for_each_entry(connector, &config->connector_list, head) {
+	drm_for_each_connector(connector, state->dev) {
 		if (connector->state->crtc != crtc)
 			continue;
 

@@ -171,7 +171,7 @@ struct drm_plane *sti_drm_plane_init(struct drm_device *dev,
 	err = drm_universal_plane_init(dev, &layer->plane, possible_crtcs,
 			     &sti_drm_plane_funcs,
 			     sti_layer_get_formats(layer),
-			     sti_layer_get_nb_formats(layer), type);
+			     sti_layer_get_nb_formats(layer), type, NULL);
 	if (err) {
 		DRM_ERROR("Failed to initialize plane\n");
 		return NULL;

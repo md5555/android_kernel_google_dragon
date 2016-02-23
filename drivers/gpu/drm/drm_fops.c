@@ -470,8 +470,6 @@ int drm_release(struct inode *inode, struct file *filp)
 
 	if (!--dev->open_count) {
 		retcode = drm_lastclose(dev);
-		if (drm_device_is_unplugged(dev))
-			drm_put_dev(dev);
 	}
 	mutex_unlock(&drm_global_mutex);
 

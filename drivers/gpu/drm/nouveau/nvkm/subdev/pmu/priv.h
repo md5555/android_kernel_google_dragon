@@ -41,6 +41,8 @@ struct nvkm_pmu_impl {
 	} data;
 
 	void (*pgob)(struct nvkm_pmu *, bool);
+	int (*acquire_mutex)(struct nvkm_pmu *, u32, u32 *);
+	int (*release_mutex)(struct nvkm_pmu *, u32, u32 *);
 };
 
 void gk110_pmu_pgob(struct nvkm_pmu *, bool);

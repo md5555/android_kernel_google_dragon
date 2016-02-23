@@ -72,6 +72,7 @@ struct udl_device {
 	atomic_t cpu_kcycles_used; /* transpired during pixel processing */
 
 	struct udl_flip_queue *flip_queue;
+	struct mutex transfer_lock; /* to serialize transfers */
 };
 
 struct udl_gem_object {
@@ -116,7 +117,7 @@ void udl_fbdev_unplug(struct drm_device *dev);
 struct drm_framebuffer *
 udl_fb_user_fb_create(struct drm_device *dev,
 		      struct drm_file *file,
-		      struct drm_mode_fb_cmd2 *mode_cmd);
+		      const struct drm_mode_fb_cmd2 *mode_cmd);
 
 int udl_render_hline(struct drm_device *dev, int bpp, struct urb **urb_ptr,
 		     const char *front, char **urb_buf_ptr,

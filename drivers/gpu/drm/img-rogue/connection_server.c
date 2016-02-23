@@ -92,7 +92,9 @@ static PVRSRV_ERROR ConnectionDataDestroy(CONNECTION_DATA *psConnection)
 			ui64MaxBridgeTime = CONNECTION_DEFERRED_CLEANUP_TIMESLICE_NS;
 		}
 
+		PMRLock();
 		eError = PVRSRVFreeHandleBase(psConnection->psHandleBase, ui64MaxBridgeTime);
+		PMRUnlock();
 		if (eError != PVRSRV_OK)
 		{
 			if (eError != PVRSRV_ERROR_RETRY)

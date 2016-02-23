@@ -774,7 +774,7 @@ struct gk20a_pmu_priv {
 	bool perfmon_sampling_enabled;
 	bool sw_ready;
 	bool perfmon_ready;
-	bool initialized;
+	bool out_of_reset;
 	u32 sample_buffer;
 	bool buf_loaded;
 	void *pmu_chip_data;
@@ -883,5 +883,11 @@ gk20a_pmu_debugfs_register(struct gk20a_pmu_priv *priv);
 void
 gk20a_pmu_debugfs_unregister(struct gk20a_pmu_priv *priv);
 #define to_gk20a_priv(ptr) container_of(ptr, struct gk20a_pmu_priv, base)
+
+int
+gk20a_pmu_mutex_acquire(struct nvkm_pmu *pmu, u32 id, u32 *token);
+
+int
+gk20a_pmu_mutex_release(struct nvkm_pmu *pmu, u32 id, u32 *token);
 
 #endif

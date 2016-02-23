@@ -202,8 +202,9 @@ static int vgem_gem_dumb_create(struct drm_file *file, struct drm_device *dev,
 {
 	struct drm_gem_object *gem_object;
 	uint64_t size;
+	uint64_t pitch = args->width * DIV_ROUND_UP(args->bpp, 8);
 
-	size = args->height * args->width * DIV_ROUND_UP(args->bpp, 8);
+	size = args->height * pitch;
 	if (size == 0)
 		return -EINVAL;
 
@@ -215,7 +216,7 @@ static int vgem_gem_dumb_create(struct drm_file *file, struct drm_device *dev,
 	}
 
 	args->size = gem_object->size;
-	args->pitch = args->width;
+	args->pitch = pitch;
 
 	DRM_DEBUG_DRIVER("Created object of size %lld\n", size);
 
@@ -327,6 +328,9 @@ static const struct file_operations vgem_driver_fops = {
 	.poll		= drm_poll,
 	.read		= drm_read,
 	.unlocked_ioctl = drm_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl	= drm_compat_ioctl,
+#endif
 	.release	= drm_release,
 };
 

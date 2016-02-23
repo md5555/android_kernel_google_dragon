@@ -221,6 +221,9 @@ PVRSRV_ERROR DevDeInitRGX(PVRSRV_DEVICE_NODE *psDeviceNode);
 
 
 #if !defined(NO_HARDWARE)
+
+void RGX_WaitForInterruptsTimeout(PVRSRV_RGXDEV_INFO *psDevInfo);
+
 /*!
 *******************************************************************************
 

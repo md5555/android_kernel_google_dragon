@@ -52,64 +52,65 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 #define PVRSRV_BRIDGE_CMM_CMD_FIRST			0
-#define PVRSRV_BRIDGE_CMM_DEVMEMINTCTXEXPORT			PVRSRV_BRIDGE_CMM_CMD_FIRST+0
-#define PVRSRV_BRIDGE_CMM_DEVMEMINTCTXUNEXPORT			PVRSRV_BRIDGE_CMM_CMD_FIRST+1
-#define PVRSRV_BRIDGE_CMM_DEVMEMINTCTXIMPORT			PVRSRV_BRIDGE_CMM_CMD_FIRST+2
+#define PVRSRV_BRIDGE_CMM_DEVMEMINTEXPORTCTX			PVRSRV_BRIDGE_CMM_CMD_FIRST+0
+#define PVRSRV_BRIDGE_CMM_DEVMEMINTUNEXPORTCTX			PVRSRV_BRIDGE_CMM_CMD_FIRST+1
+#define PVRSRV_BRIDGE_CMM_DEVMEMINTACQUIREREMOTECTX			PVRSRV_BRIDGE_CMM_CMD_FIRST+2
 #define PVRSRV_BRIDGE_CMM_CMD_LAST			(PVRSRV_BRIDGE_CMM_CMD_FIRST+2)
 
 
 /*******************************************
-            DevmemIntCtxExport          
+            DevmemIntExportCtx          
  *******************************************/
 
-/* Bridge in structure for DevmemIntCtxExport */
-typedef struct PVRSRV_BRIDGE_IN_DEVMEMINTCTXEXPORT_TAG
+/* Bridge in structure for DevmemIntExportCtx */
+typedef struct PVRSRV_BRIDGE_IN_DEVMEMINTEXPORTCTX_TAG
 {
-	IMG_HANDLE hDevMemServerContext;
-} __attribute__((packed)) PVRSRV_BRIDGE_IN_DEVMEMINTCTXEXPORT;
+	IMG_HANDLE hContext;
+	IMG_HANDLE hPMR;
+} __attribute__((packed)) PVRSRV_BRIDGE_IN_DEVMEMINTEXPORTCTX;
 
-/* Bridge out structure for DevmemIntCtxExport */
-typedef struct PVRSRV_BRIDGE_OUT_DEVMEMINTCTXEXPORT_TAG
+/* Bridge out structure for DevmemIntExportCtx */
+typedef struct PVRSRV_BRIDGE_OUT_DEVMEMINTEXPORTCTX_TAG
 {
-	IMG_HANDLE hDevMemIntCtxExport;
+	IMG_HANDLE hContextExport;
 	PVRSRV_ERROR eError;
-} __attribute__((packed)) PVRSRV_BRIDGE_OUT_DEVMEMINTCTXEXPORT;
+} __attribute__((packed)) PVRSRV_BRIDGE_OUT_DEVMEMINTEXPORTCTX;
 
 
 /*******************************************
-            DevmemIntCtxUnexport          
+            DevmemIntUnexportCtx          
  *******************************************/
 
-/* Bridge in structure for DevmemIntCtxUnexport */
-typedef struct PVRSRV_BRIDGE_IN_DEVMEMINTCTXUNEXPORT_TAG
+/* Bridge in structure for DevmemIntUnexportCtx */
+typedef struct PVRSRV_BRIDGE_IN_DEVMEMINTUNEXPORTCTX_TAG
 {
-	IMG_HANDLE hDevMemIntCtxExport;
-} __attribute__((packed)) PVRSRV_BRIDGE_IN_DEVMEMINTCTXUNEXPORT;
+	IMG_HANDLE hContextExport;
+} __attribute__((packed)) PVRSRV_BRIDGE_IN_DEVMEMINTUNEXPORTCTX;
 
-/* Bridge out structure for DevmemIntCtxUnexport */
-typedef struct PVRSRV_BRIDGE_OUT_DEVMEMINTCTXUNEXPORT_TAG
+/* Bridge out structure for DevmemIntUnexportCtx */
+typedef struct PVRSRV_BRIDGE_OUT_DEVMEMINTUNEXPORTCTX_TAG
 {
 	PVRSRV_ERROR eError;
-} __attribute__((packed)) PVRSRV_BRIDGE_OUT_DEVMEMINTCTXUNEXPORT;
+} __attribute__((packed)) PVRSRV_BRIDGE_OUT_DEVMEMINTUNEXPORTCTX;
 
 
 /*******************************************
-            DevmemIntCtxImport          
+            DevmemIntAcquireRemoteCtx          
  *******************************************/
 
-/* Bridge in structure for DevmemIntCtxImport */
-typedef struct PVRSRV_BRIDGE_IN_DEVMEMINTCTXIMPORT_TAG
+/* Bridge in structure for DevmemIntAcquireRemoteCtx */
+typedef struct PVRSRV_BRIDGE_IN_DEVMEMINTACQUIREREMOTECTX_TAG
 {
-	IMG_HANDLE hDevMemIntCtxExport;
-} __attribute__((packed)) PVRSRV_BRIDGE_IN_DEVMEMINTCTXIMPORT;
+	IMG_HANDLE hPMR;
+} __attribute__((packed)) PVRSRV_BRIDGE_IN_DEVMEMINTACQUIREREMOTECTX;
 
-/* Bridge out structure for DevmemIntCtxImport */
-typedef struct PVRSRV_BRIDGE_OUT_DEVMEMINTCTXIMPORT_TAG
+/* Bridge out structure for DevmemIntAcquireRemoteCtx */
+typedef struct PVRSRV_BRIDGE_OUT_DEVMEMINTACQUIREREMOTECTX_TAG
 {
-	IMG_HANDLE hDevMemServerContext;
+	IMG_HANDLE hContext;
 	IMG_HANDLE hPrivData;
 	PVRSRV_ERROR eError;
-} __attribute__((packed)) PVRSRV_BRIDGE_OUT_DEVMEMINTCTXIMPORT;
+} __attribute__((packed)) PVRSRV_BRIDGE_OUT_DEVMEMINTACQUIREREMOTECTX;
 
 
 #endif /* COMMON_CMM_BRIDGE_H */

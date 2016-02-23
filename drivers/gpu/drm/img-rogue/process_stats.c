@@ -130,10 +130,14 @@ static IMG_CHAR*  pszProcessStatFmt[PVRSRV_PROCESS_STAT_TYPE_COUNT] = {
 	"FreeListGrowRequestsByFirmware    %10d\n", /* PVRSRV_PROCESS_STAT_TYPE_FREELIST_GROW_REQS_BY_FW */
 	"FreeListInitialPages              %10d\n", /* PVRSRV_PROCESS_STAT_TYPE_FREELIST_PAGES_INIT */
 	"FreeListMaxPages                  %10d\n", /* PVRSRV_PROCESS_STAT_TYPE_FREELIST_MAX_PAGES */
-	"MemoryUsageKMalloc                %10d\n", /* PVRSRV_STAT_TYPE_KMALLOC */
+#if !defined(PVR_DISABLE_KMALLOC_MEMSTATS)
+    "MemoryUsageKMalloc                %10d\n", /* PVRSRV_STAT_TYPE_KMALLOC */
 	"MemoryUsageKMallocMax             %10d\n", /* PVRSRV_STAT_TYPE_MAX_KMALLOC */
 	"MemoryUsageVMalloc                %10d\n", /* PVRSRV_STAT_TYPE_VMALLOC */
 	"MemoryUsageVMallocMax             %10d\n", /* PVRSRV_STAT_TYPE_MAX_VMALLOC */
+#else
+	"","","","",                                /* Empty strings if these stats are not logged */
+#endif
 	"MemoryUsageAllocPTMemoryUMA       %10d\n", /* PVRSRV_STAT_TYPE_ALLOC_PAGES_PT_UMA */
 	"MemoryUsageAllocPTMemoryUMAMax    %10d\n", /* PVRSRV_STAT_TYPE_MAX_ALLOC_PAGES_PT_UMA */
 	"MemoryUsageVMapPTUMA              %10d\n", /* PVRSRV_STAT_TYPE_VMAP_PT_UMA */
@@ -150,6 +154,14 @@ static IMG_CHAR*  pszProcessStatFmt[PVRSRV_PROCESS_STAT_TYPE_COUNT] = {
 	"MemoryUsageMappedGPUMemUMA/LMAMax %10d\n", /* PVRSRV_STAT_TYPE_MAX_MAP_UMA_LMA_PAGES */
 };
 
+/* structure used in hash table to track vmalloc statistic entries */
+typedef struct{
+	size_t	   uiSizeInBytes;
+	IMG_PID	   uiPid;
+}_PVR_STATS_VMALLOC_HASH_ENTRY;
+
+/* Function used internally to decrement per-process vmalloc statistic entries */
+static void _StatsDecrMemVAllocStat(_PVR_STATS_VMALLOC_HASH_ENTRY *psVmallocHashEntry);
 
 /*
  *  Functions for printing the information stored...
@@ -851,7 +863,7 @@ _RemoveOSStatisticEntries(PVRSRV_PROCESS_STATS* psProcessStats)
 	}
 	if( psProcessStats->pvOSPidFolderData != NULL)
 	{
-		OSRemoveStatisticFolder(psProcessStats->pvOSPidFolderData);
+		OSRemoveStatisticFolder(&psProcessStats->pvOSPidFolderData);
 	}
 
 } /* _RemoveOSStatisticEntries */
@@ -1073,11 +1085,10 @@ PVRSRVStatsDestroy(void)
 		_RemoveOSStatisticEntries(psProcessStats);
 	}
 
-	/* Remove the OS folders used by the PID folders... */
-	OSRemoveStatisticFolder(pvOSLivePidFolder);
-	pvOSLivePidFolder = NULL;
-	OSRemoveStatisticFolder(pvOSDeadPidFolder);
-	pvOSDeadPidFolder = NULL;
+	/* Remove the OS folders used by the PID folders...
+	 * OSRemoveStatisticFolder will NULL the pointers */
+	OSRemoveStatisticFolder(&pvOSLivePidFolder);
+	OSRemoveStatisticFolder(&pvOSDeadPidFolder);
 
 	if (gpsVmallocSizeHashTable != NULL)
 	{
@@ -1106,6 +1117,7 @@ static void _decrease_global_stat(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 
 	switch (eAllocType)
 	{
+#if !defined(PVR_DISABLE_KMALLOC_MEMSTATS)
 		case PVRSRV_MEM_ALLOC_TYPE_KMALLOC:
 			DECREASE_GLOBAL_STAT_VALUE(gsGlobalStats.ui32MemoryUsageKMalloc, uiBytes);
 			break;
@@ -1113,7 +1125,11 @@ static void _decrease_global_stat(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 		case PVRSRV_MEM_ALLOC_TYPE_VMALLOC:
 			DECREASE_GLOBAL_STAT_VALUE(gsGlobalStats.ui32MemoryUsageVMalloc, uiBytes);
 			break;
-
+#else
+		case PVRSRV_MEM_ALLOC_TYPE_KMALLOC:
+		case PVRSRV_MEM_ALLOC_TYPE_VMALLOC:
+			break;
+#endif
 		case PVRSRV_MEM_ALLOC_TYPE_ALLOC_PAGES_PT_UMA:
 			DECREASE_GLOBAL_STAT_VALUE(gsGlobalStats.ui32MemoryUsageAllocPTMemoryUMA, uiBytes);
 			break;
@@ -1160,6 +1176,7 @@ static void _increase_global_stat(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 
 	switch (eAllocType)
 	{
+#if !defined(PVR_DISABLE_KMALLOC_MEMSTATS)
 		case PVRSRV_MEM_ALLOC_TYPE_KMALLOC:
 			INCREASE_GLOBAL_STAT_VALUE(gsGlobalStats.ui32MemoryUsageKMalloc, uiBytes);
 			break;
@@ -1167,7 +1184,11 @@ static void _increase_global_stat(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 		case PVRSRV_MEM_ALLOC_TYPE_VMALLOC:
 			INCREASE_GLOBAL_STAT_VALUE(gsGlobalStats.ui32MemoryUsageVMalloc, uiBytes);
 			break;
-
+#else
+		case PVRSRV_MEM_ALLOC_TYPE_KMALLOC:
+		case PVRSRV_MEM_ALLOC_TYPE_VMALLOC:
+			break;
+#endif
 		case PVRSRV_MEM_ALLOC_TYPE_ALLOC_PAGES_PT_UMA:
 			INCREASE_GLOBAL_STAT_VALUE(gsGlobalStats.ui32MemoryUsageAllocPTMemoryUMA, uiBytes);
 			break;
@@ -1436,7 +1457,11 @@ _PVRSRVStatsAddMemAllocRecord(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 	 */
 
 	/* Allocate the memory record... */
-	psRecord = OSAllocMemNoStats(sizeof(PVRSRV_MEM_ALLOC_REC));
+#if defined(__linux__)
+	psRecord = (PVRSRV_MEM_ALLOC_REC*)OSAllocMemNoStats(sizeof(PVRSRV_MEM_ALLOC_REC));
+#else
+	psRecord = (PVRSRV_MEM_ALLOC_REC*)OSAllocMem(sizeof(PVRSRV_MEM_ALLOC_REC));
+#endif
 	if (psRecord == NULL)
 	{
 		return;
@@ -1536,7 +1561,11 @@ _PVRSRVStatsAddMemAllocRecord(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 		psProcessStats->psRIMemoryStats = OSAllocZMemNoStats(sizeof(PVRSRV_RI_MEMORY_STATS));
 		if (psProcessStats->psRIMemoryStats == NULL)
 		{
+#if defined(__linux__)
 			OSFreeMemNoStats(psProcessStats->psMemoryStats);
+#else
+			OSFreeMem(psProcessStats->psMemoryStats);
+#endif
 			OSLockDestroyNoStats(psProcessStats->hLock);
 			psProcessStats->hLock = NULL;
 			OSLockRelease(g_psLinkedListLock);
@@ -1571,7 +1600,11 @@ _PVRSRVStatsAddMemAllocRecord(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 #endif
 		if (psRecord != NULL)
 		{
+#if defined(__linux__)
 			OSFreeMemNoStats(psRecord);
+#else
+			OSFreeMem(psRecord);
+#endif
 		}
 		return;
 	}
@@ -1589,6 +1622,7 @@ _PVRSRVStatsAddMemAllocRecord(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 	/* Update the memory watermarks... */
 	switch (eAllocType)
 	{
+#if !defined(PVR_DISABLE_KMALLOC_MEMSTATS)
 		case PVRSRV_MEM_ALLOC_TYPE_KMALLOC:
 		{
 			if (psRecord != NULL)
@@ -1618,7 +1652,11 @@ _PVRSRVStatsAddMemAllocRecord(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 			psProcessStats->ui32StatAllocFlags |= (IMG_UINT32)(1 << (PVRSRV_PROCESS_STAT_TYPE_VMALLOC-PVRSRV_PROCESS_STAT_TYPE_KMALLOC));
 		}
 		break;
-
+#else
+		case PVRSRV_MEM_ALLOC_TYPE_KMALLOC:
+		case PVRSRV_MEM_ALLOC_TYPE_VMALLOC:
+			break;
+#endif
 		case PVRSRV_MEM_ALLOC_TYPE_ALLOC_PAGES_PT_UMA:
 		{
 			if (psRecord != NULL)
@@ -1867,6 +1905,7 @@ PVRSRVStatsRemoveMemAllocRecord(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 	
 		switch (eAllocType)
 		{
+#if !defined(PVR_DISABLE_KMALLOC_MEMSTATS)
 			case PVRSRV_MEM_ALLOC_TYPE_KMALLOC:
 			{
 				DECREASE_STAT_VALUE(psProcessStats, PVRSRV_PROCESS_STAT_TYPE_KMALLOC, (IMG_UINT32)psRecord->uiBytes);
@@ -1886,8 +1925,12 @@ PVRSRVStatsRemoveMemAllocRecord(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 				}
 			}
 			break;
-
-			case PVRSRV_MEM_ALLOC_TYPE_ALLOC_PAGES_PT_UMA:
+#else
+		case PVRSRV_MEM_ALLOC_TYPE_KMALLOC:
+		case PVRSRV_MEM_ALLOC_TYPE_VMALLOC:
+			break;
+#endif
+		case PVRSRV_MEM_ALLOC_TYPE_ALLOC_PAGES_PT_UMA:
 			{
 				DECREASE_STAT_VALUE(psProcessStats, PVRSRV_PROCESS_STAT_TYPE_ALLOC_PAGES_PT_UMA, (IMG_UINT32)psRecord->uiBytes);
 				if( psProcessStats->i32StatValue[PVRSRV_MEM_ALLOC_TYPE_ALLOC_PAGES_PT_UMA] == 0 )
@@ -1985,7 +2028,11 @@ PVRSRVStatsRemoveMemAllocRecord(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 		 * Free the record outside the lock so we don't deadlock and so we
 		 * reduce the time the lock is held.
 		 */
+#if defined(__linux__)
 		OSFreeMemNoStats(psRecord);
+#else
+		OSFreeMem(psRecord);
+#endif
 	}
 	else
 	{
@@ -2003,24 +2050,44 @@ PVRSRVStatsIncrMemAllocStatAndTrack(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 									size_t uiBytes,
 									IMG_UINT64 uiCpuVAddr)
 {
-	IMG_BOOL bRes;
+	IMG_BOOL bRes = IMG_FALSE;
+	_PVR_STATS_VMALLOC_HASH_ENTRY *psNewVmallocHashEntry = NULL;
 
 	if (!bProcessStatsInitialised || (gpsVmallocSizeHashTable == NULL) )
 	{
 		return;
 	}
 
-	OSLockAcquire(gpsVmallocSizeHashTableLock);
-	bRes = HASH_Insert(gpsVmallocSizeHashTable, uiCpuVAddr, uiBytes);
-	OSLockRelease(gpsVmallocSizeHashTableLock);
-
-	if (bRes)
+	/* Alloc untracked memory for the new hash table entry */
+#if defined(__linux__)
+	psNewVmallocHashEntry = (_PVR_STATS_VMALLOC_HASH_ENTRY *)OSAllocMemNoStats(sizeof(*psNewVmallocHashEntry));
+#else
+	psNewVmallocHashEntry = (_PVR_STATS_VMALLOC_HASH_ENTRY *)OSAllocMem(sizeof(*psNewVmallocHashEntry));
+#endif
+	if (psNewVmallocHashEntry)
 	{
-		PVRSRVStatsIncrMemAllocStat(eAllocType, uiBytes);
+		/* Fill-in the size of the vmalloc and PID of the allocating process */
+		psNewVmallocHashEntry->uiSizeInBytes = uiBytes;
+		psNewVmallocHashEntry->uiPid = OSGetCurrentProcessID();
+		OSLockAcquire(gpsVmallocSizeHashTableLock);
+		/* Insert address of the new struct into the hash table */
+		bRes = HASH_Insert(gpsVmallocSizeHashTable, uiCpuVAddr, (uintptr_t)psNewVmallocHashEntry);
+		OSLockRelease(gpsVmallocSizeHashTableLock);
+	}
+	if (psNewVmallocHashEntry)
+	{
+		if (bRes)
+		{
+			PVRSRVStatsIncrMemAllocStat(eAllocType, uiBytes);
+		}
+		else
+		{
+			PVR_DPF((PVR_DBG_ERROR, "*** %s : @ line %d HASH_Insert() failed!!", __FUNCTION__, __LINE__));
+		}
 	}
 	else
 	{
-		PVR_DPF((PVR_DBG_ERROR, "*** %s : @ line %d HASH_Insert() failed!!", __FUNCTION__, __LINE__));
+		PVR_DPF((PVR_DBG_ERROR, "*** %s : @ line %d Failed to alloc memory for psNewVmallocHashEntry!!", __FUNCTION__, __LINE__));
 	}
 }
 
@@ -2144,6 +2211,7 @@ PVRSRVStatsIncrMemAllocStat(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 		/* Update the memory watermarks... */
 		switch (eAllocType)
 		{
+#if !defined(PVR_DISABLE_KMALLOC_MEMSTATS)
 			case PVRSRV_MEM_ALLOC_TYPE_KMALLOC:
 			{
 				INCREASE_STAT_VALUE(psProcessStats, PVRSRV_PROCESS_STAT_TYPE_KMALLOC, (IMG_UINT32)uiBytes);
@@ -2157,7 +2225,11 @@ PVRSRVStatsIncrMemAllocStat(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 				psProcessStats->ui32StatAllocFlags |= (IMG_UINT32)(1 << (PVRSRV_PROCESS_STAT_TYPE_VMALLOC-PVRSRV_PROCESS_STAT_TYPE_KMALLOC));
 			}
 			break;
-
+#else
+			case PVRSRV_MEM_ALLOC_TYPE_KMALLOC:
+			case PVRSRV_MEM_ALLOC_TYPE_VMALLOC:
+			break;
+#endif
 			case PVRSRV_MEM_ALLOC_TYPE_ALLOC_PAGES_PT_UMA:
 			{
 				INCREASE_STAT_VALUE(psProcessStats, PVRSRV_PROCESS_STAT_TYPE_ALLOC_PAGES_PT_UMA, (IMG_UINT32)uiBytes);
@@ -2227,10 +2299,67 @@ PVRSRVStatsIncrMemAllocStat(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 }
 
 void
+PVRSRVStatsDecrMemKAllocStat(size_t uiBytes,
+                             IMG_PID decrPID)
+{
+#if !defined(PVR_DISABLE_KMALLOC_MEMSTATS)
+	PVRSRV_PROCESS_STATS*  psProcessStats;
+
+	/* Don't do anything if we are not initialised or we are shutting down! */
+	if (!bProcessStatsInitialised)
+	{
+		return;
+	}
+
+	_decrease_global_stat(PVRSRV_MEM_ALLOC_TYPE_KMALLOC, uiBytes);
+
+	OSLockAcquire(g_psLinkedListLock);
+
+	psProcessStats = _FindProcessStats(decrPID);
+
+	if (psProcessStats != NULL)
+	{
+		/* Decrement the kmalloc memory stat... */
+		DECREASE_STAT_VALUE(psProcessStats, PVRSRV_PROCESS_STAT_TYPE_KMALLOC, uiBytes);
+	}
+
+	OSLockRelease(g_psLinkedListLock);
+#endif
+}
+
+static void
+_StatsDecrMemVAllocStat(_PVR_STATS_VMALLOC_HASH_ENTRY *psVmallocHashEntry)
+{
+#if !defined(PVR_DISABLE_KMALLOC_MEMSTATS)
+	PVRSRV_PROCESS_STATS*  psProcessStats;
+
+	/* Don't do anything if we are not initialised or we are shutting down! */
+	if (!bProcessStatsInitialised)
+	{
+		return;
+	}
+
+	_decrease_global_stat(PVRSRV_MEM_ALLOC_TYPE_VMALLOC, psVmallocHashEntry->uiSizeInBytes);
+
+	OSLockAcquire(g_psLinkedListLock);
+
+	psProcessStats = _FindProcessStats(psVmallocHashEntry->uiPid);
+
+	if (psProcessStats != NULL)
+	{
+		/* Decrement the kmalloc memory stat... */
+		DECREASE_STAT_VALUE(psProcessStats, PVRSRV_PROCESS_STAT_TYPE_VMALLOC, psVmallocHashEntry->uiSizeInBytes);
+	}
+
+	OSLockRelease(g_psLinkedListLock);
+#endif
+}
+
+void
 PVRSRVStatsDecrMemAllocStatAndUntrack(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 									  IMG_UINT64 uiCpuVAddr)
 {
-	size_t uiBytes;
+	_PVR_STATS_VMALLOC_HASH_ENTRY *psVmallocHashEntry = NULL;
 
 	if (!bProcessStatsInitialised || (gpsVmallocSizeHashTable == NULL) )
 	{
@@ -2238,10 +2367,17 @@ PVRSRVStatsDecrMemAllocStatAndUntrack(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 	}
 
 	OSLockAcquire(gpsVmallocSizeHashTableLock);
-	uiBytes = HASH_Remove(gpsVmallocSizeHashTable, uiCpuVAddr);
+	psVmallocHashEntry = (_PVR_STATS_VMALLOC_HASH_ENTRY *)HASH_Remove(gpsVmallocSizeHashTable, uiCpuVAddr);
 	OSLockRelease(gpsVmallocSizeHashTableLock);
-
-	PVRSRVStatsDecrMemAllocStat(eAllocType, uiBytes);
+	if (psVmallocHashEntry)
+	{
+		_StatsDecrMemVAllocStat(psVmallocHashEntry);
+#if defined(__linux__)
+		OSFreeMemNoStats(psVmallocHashEntry);
+#else
+		OSFreeMem(psVmallocHashEntry);
+#endif
+	}
 }
 
 void
@@ -2289,6 +2425,7 @@ PVRSRVStatsDecrMemAllocStat(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 		/* Update the memory watermarks... */
 		switch (eAllocType)
 		{
+#if !defined(PVR_DISABLE_KMALLOC_MEMSTATS)
 			case PVRSRV_MEM_ALLOC_TYPE_KMALLOC:
 			{
 				DECREASE_STAT_VALUE(psProcessStats, PVRSRV_PROCESS_STAT_TYPE_KMALLOC, (IMG_UINT32)uiBytes);
@@ -2308,7 +2445,11 @@ PVRSRVStatsDecrMemAllocStat(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 				}
 			}
 			break;
-
+#else
+			case PVRSRV_MEM_ALLOC_TYPE_KMALLOC:
+			case PVRSRV_MEM_ALLOC_TYPE_VMALLOC:
+			break;
+#endif
 			case PVRSRV_MEM_ALLOC_TYPE_ALLOC_PAGES_PT_UMA:
 			{
 				DECREASE_STAT_VALUE(psProcessStats, PVRSRV_PROCESS_STAT_TYPE_ALLOC_PAGES_PT_UMA, (IMG_UINT32)uiBytes);
@@ -2641,10 +2782,18 @@ MemStatsPrintElements(void *pvFile,
 
 	while (psRecord != NULL)
 	{
+		IMG_BOOL bPrintStat = IMG_TRUE;
+
 		switch (psRecord->eAllocType)
 		{
+#if !defined(PVR_DISABLE_KMALLOC_MEMSTATS)
 		case PVRSRV_MEM_ALLOC_TYPE_KMALLOC:      		pfnOSStatsPrintf(pvFile, "KMALLOC             "); break;
 		case PVRSRV_MEM_ALLOC_TYPE_VMALLOC:      		pfnOSStatsPrintf(pvFile, "VMALLOC             "); break;
+#else
+		case PVRSRV_MEM_ALLOC_TYPE_KMALLOC:
+		case PVRSRV_MEM_ALLOC_TYPE_VMALLOC:
+															bPrintStat = IMG_FALSE; break;
+#endif
 		case PVRSRV_MEM_ALLOC_TYPE_ALLOC_PAGES_PT_LMA:  pfnOSStatsPrintf(pvFile, "ALLOC_PAGES_PT_LMA  "); break;
 		case PVRSRV_MEM_ALLOC_TYPE_ALLOC_PAGES_PT_UMA:  pfnOSStatsPrintf(pvFile, "ALLOC_PAGES_PT_UMA  "); break;
 		case PVRSRV_MEM_ALLOC_TYPE_IOREMAP_PT_LMA:		pfnOSStatsPrintf(pvFile, "IOREMAP_PT_LMA      "); break;
@@ -2655,27 +2804,29 @@ MemStatsPrintElements(void *pvFile,
 		default:										pfnOSStatsPrintf(pvFile, "INVALID             "); break;
 		}
 
-		for (ui32ItemNumber = 0;  ui32ItemNumber < ui32VAddrFields;  ui32ItemNumber++)
+		if (bPrintStat)
 		{
-			pfnOSStatsPrintf(pvFile, "%08x", *(((IMG_UINT32*) &psRecord->pvCpuVAddr) + ui32VAddrFields - ui32ItemNumber - 1));
-		}
-		pfnOSStatsPrintf(pvFile, "  ");
+			for (ui32ItemNumber = 0;  ui32ItemNumber < ui32VAddrFields;  ui32ItemNumber++)
+			{
+				pfnOSStatsPrintf(pvFile, "%08x", *(((IMG_UINT32*) &psRecord->pvCpuVAddr) + ui32VAddrFields - ui32ItemNumber - 1));
+			}
+			pfnOSStatsPrintf(pvFile, "  ");
 
-		for (ui32ItemNumber = 0;  ui32ItemNumber < ui32PAddrFields;  ui32ItemNumber++)
-		{
-			pfnOSStatsPrintf(pvFile, "%08x", *(((IMG_UINT32*) &psRecord->sCpuPAddr.uiAddr) + ui32PAddrFields - ui32ItemNumber - 1));
-		}
+			for (ui32ItemNumber = 0;  ui32ItemNumber < ui32PAddrFields;  ui32ItemNumber++)
+			{
+				pfnOSStatsPrintf(pvFile, "%08x", *(((IMG_UINT32*) &psRecord->sCpuPAddr.uiAddr) + ui32PAddrFields - ui32ItemNumber - 1));
+			}
 
 #if defined(PVRSRV_DEBUG_LINUX_MEMORY_STATS) && defined(DEBUG)
-		pfnOSStatsPrintf(pvFile, "  %u", psRecord->uiBytes);
+			pfnOSStatsPrintf(pvFile, "  %u", psRecord->uiBytes);
 
-		pfnOSStatsPrintf(pvFile, "  %s", (IMG_CHAR*)psRecord->pvAllocdFromFile);
+			pfnOSStatsPrintf(pvFile, "  %s", (IMG_CHAR*)psRecord->pvAllocdFromFile);
 
-		pfnOSStatsPrintf(pvFile, "  %d\n", psRecord->ui32AllocdFromLine);
+			pfnOSStatsPrintf(pvFile, "  %d\n", psRecord->ui32AllocdFromLine);
 #else
-		pfnOSStatsPrintf(pvFile, "  %u\n", psRecord->uiBytes);
+			pfnOSStatsPrintf(pvFile, "  %u\n", psRecord->uiBytes);
 #endif
-
+		}
 		/* Move to next record... */
 		psRecord = psRecord->psNext;
 	}
@@ -2818,10 +2969,12 @@ void GlobalStatsPrintElements(void *pvFile,
 
 	if (pfnOSGetStatsPrintf != NULL)
 	{
+#if !defined(PVR_DISABLE_KMALLOC_MEMSTATS)
 		pfnOSGetStatsPrintf(pvFile, "MemoryUsageKMalloc                %10d\n", gsGlobalStats.ui32MemoryUsageKMalloc);
 		pfnOSGetStatsPrintf(pvFile, "MemoryUsageKMallocMax             %10d\n", gsGlobalStats.ui32MemoryUsageKMallocMax);
 		pfnOSGetStatsPrintf(pvFile, "MemoryUsageVMalloc                %10d\n", gsGlobalStats.ui32MemoryUsageVMalloc);
 		pfnOSGetStatsPrintf(pvFile, "MemoryUsageVMallocMax             %10d\n", gsGlobalStats.ui32MemoryUsageVMallocMax);
+#endif
 		pfnOSGetStatsPrintf(pvFile, "MemoryUsageAllocPTMemoryUMA       %10d\n", gsGlobalStats.ui32MemoryUsageAllocPTMemoryUMA);
 		pfnOSGetStatsPrintf(pvFile, "MemoryUsageAllocPTMemoryUMAMax    %10d\n", gsGlobalStats.ui32MemoryUsageAllocPTMemoryUMAMax);
 		pfnOSGetStatsPrintf(pvFile, "MemoryUsageVMapPTUMA              %10d\n", gsGlobalStats.ui32MemoryUsageVMapPTUMA);

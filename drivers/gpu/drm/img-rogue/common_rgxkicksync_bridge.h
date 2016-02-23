@@ -117,8 +117,8 @@ typedef struct PVRSRV_BRIDGE_IN_RGXKICKSYNC_TAG
 	IMG_INT32 i32CheckFenceFD;
 	IMG_INT32 i32TimelineFenceFD;
 	IMG_CHAR * puiUpdateFenceName;
-	IMG_UINT32 ui32ExternalJobReference;
-	IMG_UINT32 ui32InternalJobReference;
+	IMG_UINT32 ui32ExtJobRef;
+	IMG_UINT32 ui32IntJobRef;
 } __attribute__((packed)) PVRSRV_BRIDGE_IN_RGXKICKSYNC;
 
 /* Bridge out structure for RGXKickSync */

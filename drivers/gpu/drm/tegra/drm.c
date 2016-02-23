@@ -140,7 +140,7 @@ static void tegra_atomic_complete(struct tegra_drm *tegra,
 	tegra_dc_update_emc_pre_commit(state);
 
 	drm_atomic_helper_commit_modeset_disables(drm, state);
-	drm_atomic_helper_commit_planes(drm, state);
+	drm_atomic_helper_commit_planes(drm, state, false);
 	drm_atomic_helper_commit_modeset_enables(drm, state);
 
 	tegra_atomic_wait_for_flip_complete(drm, state);
@@ -1113,7 +1113,8 @@ static struct drm_crtc *tegra_crtc_from_pipe(struct drm_device *drm,
 	return NULL;
 }
 
-static u32 tegra_drm_get_vblank_counter(struct drm_device *drm, int pipe)
+static u32 tegra_drm_get_vblank_counter(struct drm_device *drm,
+					unsigned int pipe)
 {
 	struct drm_crtc *crtc = tegra_crtc_from_pipe(drm, pipe);
 	struct tegra_dc *dc = to_tegra_dc(crtc);
@@ -1124,7 +1125,7 @@ static u32 tegra_drm_get_vblank_counter(struct drm_device *drm, int pipe)
 	return tegra_dc_get_vblank_counter(dc);
 }
 
-static int tegra_drm_enable_vblank(struct drm_device *drm, int pipe)
+static int tegra_drm_enable_vblank(struct drm_device *drm, unsigned int pipe)
 {
 	struct drm_crtc *crtc = tegra_crtc_from_pipe(drm, pipe);
 	struct tegra_dc *dc = to_tegra_dc(crtc);
@@ -1137,7 +1138,7 @@ static int tegra_drm_enable_vblank(struct drm_device *drm, int pipe)
 	return 0;
 }
 
-static void tegra_drm_disable_vblank(struct drm_device *drm, int pipe)
+static void tegra_drm_disable_vblank(struct drm_device *drm, unsigned int pipe)
 {
 	struct drm_crtc *crtc = tegra_crtc_from_pipe(drm, pipe);
 	struct tegra_dc *dc = to_tegra_dc(crtc);

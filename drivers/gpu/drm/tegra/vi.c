@@ -24,12 +24,14 @@
 #include <linux/reset.h>
 #include <linux/iommu.h>
 #include <linux/regulator/consumer.h>
+#include <linux/resource.h>
 #include <soc/tegra/pmc.h>
 
 #include "drm.h"
 #include "vi.h"
 
-#define VI_NUM_SYNCPTS 6
+#define VI_NUM_SYNCPTS	6
+#define WATCHDOG_INT 0x20
 
 struct vi_config {
 	u32 class_id;
@@ -45,6 +47,13 @@ struct vi {
 	struct device *dev;
 	struct clk *clk;
 	struct clk *plld_clk;
+	struct clk *cilab;
+	struct clk *cilcd;
+	struct clk *cile;
+	struct clk *csi;
+	struct clk *csus;
+	struct clk *sclk;
+
 	struct reset_control *rst;
 	struct regulator *reg;
 
@@ -52,18 +61,227 @@ struct vi {
 
 	struct iommu_domain *domain;
 
+	int vi_irq;
+	struct workqueue_struct *vi_workqueue;
+	struct work_struct mfi_cb_work;
+
 	/* Platform configuration */
 	struct vi_config *config;
 };
 
-static inline struct vi *to_vi(struct tegra_drm_client *client)
+static void (*mfi_callback)(void *);
+static void *mfi_callback_arg;
+static DEFINE_MUTEX(vi_mfi_lock);
+
+struct wd_reg {
+	u32 err_status_addr;
+	u32 wd_ctrl_addr;
+};
+
+static const struct wd_reg wd_reg_table[] = {
+	{VI_CSI_0_ERROR_STATUS, VI_CSI_0_WD_CTRL},
+	{VI_CSI_1_ERROR_STATUS, VI_CSI_1_WD_CTRL},
+	{VI_CSI_2_ERROR_STATUS, VI_CSI_2_WD_CTRL},
+	{VI_CSI_3_ERROR_STATUS, VI_CSI_3_WD_CTRL},
+	{VI_CSI_4_ERROR_STATUS, VI_CSI_4_WD_CTRL},
+	{VI_CSI_5_ERROR_STATUS, VI_CSI_5_WD_CTRL},
+};
+
+static const u32 mask_reg_table[] = {
+	VI_CFG_INTERRUPT_MASK_0,
+	VI_CSI_0_ERROR_INT_MASK_0,
+	VI_CSI_1_ERROR_INT_MASK_0,
+	VI_CSI_2_ERROR_INT_MASK_0,
+	VI_CSI_3_ERROR_INT_MASK_0,
+	VI_CSI_4_ERROR_INT_MASK_0,
+	VI_CSI_5_ERROR_INT_MASK_0,
+	VI_CSI_0_WD_CTRL,
+	VI_CSI_1_WD_CTRL,
+	VI_CSI_2_WD_CTRL,
+	VI_CSI_3_WD_CTRL,
+	VI_CSI_4_WD_CTRL,
+	VI_CSI_5_WD_CTRL,
+};
+
+static const u32 status_reg_table[] = {
+	VI_CSI_0_ERROR_STATUS,
+	VI_CSI_1_ERROR_STATUS,
+	VI_CSI_2_ERROR_STATUS,
+	VI_CSI_3_ERROR_STATUS,
+	VI_CSI_4_ERROR_STATUS,
+	VI_CSI_5_ERROR_STATUS,
+	VI_CFG_INTERRUPT_STATUS_0,
+};
+
+static struct vi *to_vi(struct tegra_drm_client *client)
 {
 	return container_of(client, struct vi, client);
+}
+
+static u32 vi_readl(struct vi *vi, u32 r)
+{
+	return readl(vi->regs + r);
 }
 
 static inline void vi_writel(struct vi *vi, u32 v, u32 r)
 {
 	writel(v, vi->regs + r);
+}
+
+static void clear_state(struct vi *tegra_vi, int addr)
+{
+	u32 val;
+
+	val = vi_readl(tegra_vi, addr);
+	vi_writel(tegra_vi, val, addr);
+}
+
+static void mask_interrupts(struct vi *tegra_vi)
+{
+	int i;
+
+	/* Mask all VI interrupts */
+	for (i = 0; i < ARRAY_SIZE(mask_reg_table); i++)
+		vi_writel(tegra_vi, 0, mask_reg_table[i]);
+}
+
+static void clear_interrupts(struct vi *tegra_vi)
+{
+	int i;
+
+	/* Clear all VI interrupt state registers */
+	for (i = 0; i < ARRAY_SIZE(status_reg_table); i++)
+		clear_state(tegra_vi, status_reg_table[i]);
+}
+
+static int vi_enable_irq(struct vi *tegra_vi)
+{
+	mask_interrupts(tegra_vi);
+	clear_interrupts(tegra_vi);
+	enable_irq(tegra_vi->vi_irq);
+
+	return 0;
+}
+
+static int vi_disable_irq(struct vi *tegra_vi)
+{
+	disable_irq(tegra_vi->vi_irq);
+	mask_interrupts(tegra_vi);
+	clear_interrupts(tegra_vi);
+
+	return 0;
+}
+
+static irqreturn_t vi_checkwd(struct vi *tegra_vi, int stream)
+{
+	int val;
+
+	if (stream >= NUM_VI_CHANS)
+		return IRQ_NONE;
+
+	val = vi_readl(tegra_vi, wd_reg_table[stream].err_status_addr);
+	if (val & WATCHDOG_INT) {
+		vi_writel(tegra_vi, 0, wd_reg_table[stream].wd_ctrl_addr);
+		vi_writel(tegra_vi, WATCHDOG_INT,
+			wd_reg_table[stream].err_status_addr);
+		queue_work(tegra_vi->vi_workqueue, &tegra_vi->mfi_cb_work);
+		return IRQ_HANDLED;
+	}
+
+	return IRQ_NONE;
+}
+
+static irqreturn_t vi_isr(int irq, void *dev_id)
+{
+	struct vi *tegra_vi = (struct vi *)dev_id;
+	int i;
+	irqreturn_t result = IRQ_NONE;
+
+	dev_dbg(tegra_vi->dev, "%s: ++", __func__);
+
+	for (i = 0; i < NUM_VI_CHANS; i++)
+		if (IRQ_HANDLED == vi_checkwd(tegra_vi, i))
+			result = IRQ_HANDLED;
+
+	clear_interrupts(tegra_vi);
+
+	return result;
+}
+
+static int vi_intr_init(struct vi *tegra_vi)
+{
+	struct platform_device *ndev = container_of(tegra_vi->dev,
+					struct platform_device, dev);
+	int ret;
+
+	dev_dbg(tegra_vi->dev, "%s: ++", __func__);
+
+	tegra_vi->vi_irq = platform_get_irq(ndev, 0);
+	if (tegra_vi->vi_irq < 0) {
+		dev_err(tegra_vi->dev, "missing vi irq\n");
+		return tegra_vi->vi_irq;
+	}
+
+	ret = request_irq(tegra_vi->vi_irq, vi_isr, 0,
+			dev_name(tegra_vi->dev), tegra_vi);
+	if (ret) {
+		dev_err(tegra_vi->dev, "failed to get vi irq\n");
+		return -EBUSY;
+	}
+
+	disable_irq(tegra_vi->vi_irq);
+
+	return 0;
+}
+
+static int vi_intr_free(struct vi *tegra_vi)
+{
+	dev_dbg(tegra_vi->dev, "%s: ++", __func__);
+
+	free_irq(tegra_vi->vi_irq, tegra_vi);
+
+	return 0;
+}
+
+int tegra_vi_register_mfi_cb(callback cb, void *cb_arg)
+{
+	mutex_lock(&vi_mfi_lock);
+	if (mfi_callback || mfi_callback_arg) {
+		pr_err("cb already registered\n");
+		mutex_unlock(&vi_mfi_lock);
+		return -EEXIST;
+	}
+
+	mfi_callback = cb;
+	mfi_callback_arg = cb_arg;
+	mutex_unlock(&vi_mfi_lock);
+
+	return 0;
+}
+EXPORT_SYMBOL(tegra_vi_register_mfi_cb);
+
+int tegra_vi_unregister_mfi_cb(void)
+{
+	mutex_lock(&vi_mfi_lock);
+	mfi_callback = NULL;
+	mfi_callback_arg = NULL;
+	mutex_unlock(&vi_mfi_lock);
+
+	return 0;
+}
+EXPORT_SYMBOL(tegra_vi_unregister_mfi_cb);
+
+static void vi_mfi_worker(struct work_struct *vi_work)
+{
+	mutex_lock(&vi_mfi_lock);
+	if (mfi_callback == NULL) {
+		pr_err("NULL MFI callback\n");
+		mutex_unlock(&vi_mfi_lock);
+		return;
+	}
+
+	mfi_callback(mfi_callback_arg);
+	mutex_unlock(&vi_mfi_lock);
 }
 
 static int vi_slcg_handler(struct notifier_block *nb,
@@ -93,6 +311,12 @@ static int vi_power_off(struct device *dev)
 	struct vi *vi = dev_get_drvdata(dev);
 	int err;
 
+	err = vi_disable_irq(vi);
+	if (err) {
+		dev_err(dev, "%s: vi_disable_irq failed\n", __func__);
+		return err;
+	}
+
 	err = reset_control_assert(vi->rst);
 	if (err)
 		return err;
@@ -105,6 +329,12 @@ static int vi_power_off(struct device *dev)
 	}
 
 	clk_disable_unprepare(vi->clk);
+	clk_disable_unprepare(vi->sclk);
+	clk_disable_unprepare(vi->csus);
+	clk_disable_unprepare(vi->csi);
+	clk_disable_unprepare(vi->cile);
+	clk_disable_unprepare(vi->cilcd);
+	clk_disable_unprepare(vi->cilab);
 
 	return tegra_pmc_powergate(vi->config->powergate_id);
 }
@@ -118,23 +348,82 @@ static int vi_power_on(struct device *dev)
 	if (err)
 		return err;
 
+	err = clk_prepare_enable(vi->cilab);
+	if (err) {
+		dev_err(dev, "enable cilab failed.\n");
+		goto enable_cilab_failed;
+	}
+
+	err = clk_prepare_enable(vi->cilcd);
+	if (err) {
+		dev_err(dev, "enable cilcd failed.\n");
+		goto enable_cilcd_failed;
+	}
+
+	err = clk_prepare_enable(vi->cile);
+	if (err) {
+		dev_err(dev, "enable cile failed.\n");
+		goto enable_cile_failed;
+	}
+
+	err = clk_prepare_enable(vi->csi);
+	if (err) {
+		dev_err(dev, "enable csi failed.\n");
+		goto enable_csi_failed;
+	}
+
+	err = clk_prepare_enable(vi->csus);
+	if (err) {
+		dev_err(dev, "enable cus failed.\n");
+		goto enable_csus_failed;
+	}
+
+	err = clk_prepare_enable(vi->sclk);
+	if (err) {
+		dev_err(dev, "enable sclk failed.\n");
+		goto enable_sclk_failed;
+	}
+
 	err = clk_prepare_enable(vi->clk);
 	if (err) {
-		tegra_pmc_powergate(vi->config->powergate_id);
-		return err;
+		dev_err(dev, "enable vi clk failed.\n");
+		goto enable_vi_failed;
 	}
 
 	err = regulator_enable(vi->reg);
 	if (err) {
-		clk_disable_unprepare(vi->clk);
-		tegra_pmc_powergate(TEGRA_POWERGATE_VENC);
 		dev_err(dev, "enable csi regulator failed.\n");
-		return err;
+		goto enable_reg_failed;
 	}
 
 	vi_writel(vi, T12_CG_2ND_LEVEL_EN, T12_VI_CFG_CG_CTRL);
 
+	err = vi_enable_irq(vi);
+	if (err) {
+		dev_err(dev, "%s: vi_enable_irq failed\n", __func__);
+		return err;
+	}
+
 	return 0;
+enable_reg_failed:
+	clk_disable_unprepare(vi->clk);
+enable_vi_failed:
+	clk_disable_unprepare(vi->sclk);
+enable_sclk_failed:
+	clk_disable_unprepare(vi->csus);
+enable_csus_failed:
+	clk_disable_unprepare(vi->csi);
+enable_csi_failed:
+	clk_disable_unprepare(vi->cile);
+enable_cile_failed:
+	clk_disable_unprepare(vi->cilcd);
+enable_cilcd_failed:
+	clk_disable_unprepare(vi->cilab);
+enable_cilab_failed:
+	tegra_pmc_powergate(vi->config->powergate_id);
+
+	return err;
+
 }
 
 static void vi_reset(struct device *dev)
@@ -357,6 +646,30 @@ static int vi_probe(struct platform_device *pdev)
 		return PTR_ERR(vi->rst);
 	}
 
+	vi->cilab = devm_clk_get(dev, "cilab");
+	if (IS_ERR(vi->cilab))
+		return PTR_ERR(vi->cilab);
+
+	vi->cilcd = devm_clk_get(dev, "cilcd");
+	if (IS_ERR(vi->cilcd))
+		return PTR_ERR(vi->cilcd);
+
+	vi->cile = devm_clk_get(dev, "cile");
+	if (IS_ERR(vi->cile))
+		return PTR_ERR(vi->cile);
+
+	vi->csi = devm_clk_get(dev, "csi");
+	if (IS_ERR(vi->csi))
+		return PTR_ERR(vi->csi);
+
+	vi->csus = devm_clk_get(dev, "csus");
+	if (IS_ERR(vi->csus))
+		return PTR_ERR(vi->csus);
+
+	vi->sclk = devm_clk_get(dev, "sclk");
+	if (IS_ERR(vi->sclk))
+		return PTR_ERR(vi->sclk);
+
 	vi->clk = devm_clk_get(dev, "vi");
 	if (IS_ERR(vi->clk))
 		return PTR_ERR(vi->clk);
@@ -387,12 +700,29 @@ static int vi_probe(struct platform_device *pdev)
 	tegra_slcg_register_notifier(vi->config->powergate_id,
 		&vi->slcg_notifier);
 
+	/* create vi workqueue */
+	vi->vi_workqueue = alloc_workqueue("vi_workqueue",
+					WQ_HIGHPRI | WQ_UNBOUND, 1);
+	if (!vi->vi_workqueue) {
+		dev_err(dev, "Failed to allocated vi_workqueue");
+		err = -ENOMEM;
+		goto error_slcg;
+	}
+
+	/* Init mfi callback work */
+	INIT_WORK(&vi->mfi_cb_work, vi_mfi_worker);
+
+	/* Init VI IRQs */
+	err = vi_intr_init(vi);
+	if (err < 0)
+		goto error_workqueue;
+
 	platform_set_drvdata(pdev, vi);
 
 	err = host1x_client_register(&vi->client.base);
 	if (err < 0) {
 		dev_err(dev, "failed to register host1x client: %d\n", err);
-		goto error_slcg;
+		goto error_intr_init;
 	}
 
 	err = vi_power_on(&pdev->dev);
@@ -412,9 +742,13 @@ static int vi_probe(struct platform_device *pdev)
 
 error_client_unregister:
 	host1x_client_unregister(&vi->client.base);
+error_intr_init:
+	vi_intr_free(vi);
+error_workqueue:
+	destroy_workqueue(vi->vi_workqueue);
 error_slcg:
 	tegra_slcg_unregister_notifier(vi->config->powergate_id,
-				       &vi->slcg_notifier);
+				&vi->slcg_notifier);
 	return err;
 }
 
@@ -429,6 +763,9 @@ static int vi_remove(struct platform_device *pdev)
 	if (err < 0)
 		dev_err(&pdev->dev, "failed to unregister host1x client: %d\n",
 			err);
+
+	vi_intr_free(vi);
+	destroy_workqueue(vi->vi_workqueue);
 
 	tegra_slcg_unregister_notifier(vi->config->powergate_id,
 		&vi->slcg_notifier);

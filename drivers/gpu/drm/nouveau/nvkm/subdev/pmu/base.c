@@ -170,6 +170,26 @@ nvkm_pmu_intr(struct nvkm_subdev *subdev)
 	}
 }
 
+static int
+nvkm_pmu_acquire_mutex(struct nvkm_pmu *pmu, u32 id, u32 *token)
+{
+	const struct nvkm_pmu_impl *impl = (void *)nv_oclass(pmu);
+
+	if (impl->acquire_mutex)
+		return impl->acquire_mutex(pmu, id, token);
+	return 0;
+}
+
+static int
+nvkm_pmu_release_mutex(struct nvkm_pmu *pmu, u32 id, u32 *token)
+{
+	const struct nvkm_pmu_impl *impl = (void *)nv_oclass(pmu);
+
+	if (impl->release_mutex)
+		return impl->release_mutex(pmu, id, token);
+	return 0;
+}
+
 int
 _nvkm_pmu_fini(struct nvkm_object *object, bool suspend)
 {
@@ -253,6 +273,8 @@ nvkm_pmu_create_(struct nvkm_object *parent, struct nvkm_object *engine,
 
 	INIT_WORK(&pmu->recv.work, nvkm_pmu_recv);
 	init_waitqueue_head(&pmu->recv.wait);
+	pmu->acquire_mutex = nvkm_pmu_acquire_mutex;
+	pmu->release_mutex = nvkm_pmu_release_mutex;
 	return 0;
 }
 

@@ -2408,6 +2408,10 @@ static int i915_edp_psr_status(struct seq_file *m, void *data)
 				enabled = true;
 		}
 	}
+
+	seq_printf(m, "Forcing main link standby: %s\n",
+			yesno(dev_priv->psr.link_standby));
+
 	seq_printf(m, "HW Enabled & Active bit: %s", yesno(enabled));
 
 	if (!HAS_DDI(dev))
@@ -2425,6 +2429,7 @@ static int i915_edp_psr_status(struct seq_file *m, void *data)
 
 		seq_printf(m, "Performance_Counter: %u\n", psrperf);
 	}
+
 	mutex_unlock(&dev_priv->psr.lock);
 
 	intel_runtime_pm_put(dev_priv);
@@ -2544,22 +2549,14 @@ static const char *power_domain_str(enum intel_display_power_domain domain)
 		return "TRANSCODER_C";
 	case POWER_DOMAIN_TRANSCODER_EDP:
 		return "TRANSCODER_EDP";
-	case POWER_DOMAIN_PORT_DDI_A_2_LANES:
-		return "PORT_DDI_A_2_LANES";
-	case POWER_DOMAIN_PORT_DDI_A_4_LANES:
-		return "PORT_DDI_A_4_LANES";
-	case POWER_DOMAIN_PORT_DDI_B_2_LANES:
-		return "PORT_DDI_B_2_LANES";
-	case POWER_DOMAIN_PORT_DDI_B_4_LANES:
-		return "PORT_DDI_B_4_LANES";
-	case POWER_DOMAIN_PORT_DDI_C_2_LANES:
-		return "PORT_DDI_C_2_LANES";
-	case POWER_DOMAIN_PORT_DDI_C_4_LANES:
-		return "PORT_DDI_C_4_LANES";
-	case POWER_DOMAIN_PORT_DDI_D_2_LANES:
-		return "PORT_DDI_D_2_LANES";
-	case POWER_DOMAIN_PORT_DDI_D_4_LANES:
-		return "PORT_DDI_D_4_LANES";
+	case POWER_DOMAIN_PORT_DDI_A_LANES:
+		return "PORT_DDI_A_LANES";
+	case POWER_DOMAIN_PORT_DDI_B_LANES:
+		return "PORT_DDI_B_LANES";
+	case POWER_DOMAIN_PORT_DDI_C_LANES:
+		return "PORT_DDI_C_LANES";
+	case POWER_DOMAIN_PORT_DDI_D_LANES:
+		return "PORT_DDI_D_LANES";
 	case POWER_DOMAIN_PORT_DSI:
 		return "PORT_DSI";
 	case POWER_DOMAIN_PORT_CRT:
@@ -2580,6 +2577,10 @@ static const char *power_domain_str(enum intel_display_power_domain domain)
 		return "AUX_C";
 	case POWER_DOMAIN_AUX_D:
 		return "AUX_D";
+	case POWER_DOMAIN_GMBUS:
+		return "GMBUS";
+	case POWER_DOMAIN_MODESET:
+		return "MODESET";
 	case POWER_DOMAIN_INIT:
 		return "INIT";
 	default:
@@ -2619,6 +2620,48 @@ static int i915_power_domain_info(struct seq_file *m, void *unused)
 	}
 
 	mutex_unlock(&power_domains->lock);
+
+	return 0;
+}
+
+static int i915_dmc_info(struct seq_file *m, void *unused)
+{
+	struct drm_info_node *node = m->private;
+	struct drm_device *dev = node->minor->dev;
+	struct drm_i915_private *dev_priv = dev->dev_private;
+	struct intel_csr *csr;
+
+	if (!HAS_CSR(dev)) {
+		seq_puts(m, "not supported\n");
+		return 0;
+	}
+
+	csr = &dev_priv->csr;
+
+	intel_runtime_pm_get(dev_priv);
+
+	seq_printf(m, "fw loaded: %s\n", yesno(csr->dmc_payload != NULL));
+	seq_printf(m, "path: %s\n", csr->fw_path);
+
+	if (!csr->dmc_payload)
+		goto out;
+
+	seq_printf(m, "version: %d.%d\n", CSR_VERSION_MAJOR(csr->version),
+		   CSR_VERSION_MINOR(csr->version));
+
+	if (IS_SKYLAKE(dev) && csr->version >= CSR_VERSION(1, 6)) {
+		seq_printf(m, "DC3 -> DC5 count: %d\n",
+			   I915_READ(SKL_CSR_DC3_DC5_COUNT));
+		seq_printf(m, "DC5 -> DC6 count: %d\n",
+			   I915_READ(SKL_CSR_DC5_DC6_COUNT));
+	}
+
+out:
+	seq_printf(m, "program base: 0x%08x\n", I915_READ(CSR_PROGRAM(0)));
+	seq_printf(m, "ssp base: 0x%08x\n", I915_READ(CSR_SSP_BASE));
+	seq_printf(m, "htp: 0x%08x\n", I915_READ(CSR_HTP_SKL));
+
+	intel_runtime_pm_put(dev_priv);
 
 	return 0;
 }
@@ -3003,7 +3046,7 @@ static int i915_ddb_info(struct seq_file *m, void *unused)
 				   skl_ddb_entry_size(entry));
 		}
 
-		entry = &ddb->cursor[pipe];
+		entry = &ddb->plane[pipe][PLANE_CURSOR];
 		seq_printf(m, "  %-13s%8u%8u%8u\n", "Cursor", entry->start,
 			   entry->end, skl_ddb_entry_size(entry));
 	}
@@ -5107,6 +5150,7 @@ static const struct drm_info_list i915_debugfs_list[] = {
 	{"i915_energy_uJ", i915_energy_uJ, 0},
 	{"i915_runtime_pm_status", i915_runtime_pm_status, 0},
 	{"i915_power_domain_info", i915_power_domain_info, 0},
+	{"i915_dmc_info", i915_dmc_info, 0},
 	{"i915_display_info", i915_display_info, 0},
 	{"i915_semaphore_status", i915_semaphore_status, 0},
 	{"i915_shared_dplls_info", i915_shared_dplls_info, 0},

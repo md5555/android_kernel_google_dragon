@@ -243,7 +243,7 @@ struct drm_encoder *mdp5_encoder_init(struct drm_device *dev, int intf,
 	encoder = &mdp5_encoder->base;
 
 	drm_encoder_init(dev, encoder, &mdp5_encoder_funcs,
-			 DRM_MODE_ENCODER_TMDS);
+			 DRM_MODE_ENCODER_TMDS, NULL);
 	drm_encoder_helper_add(encoder, &mdp5_encoder_helper_funcs);
 
 	bs_init(mdp5_encoder);

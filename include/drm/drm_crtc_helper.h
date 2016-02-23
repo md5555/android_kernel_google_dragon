@@ -39,6 +39,8 @@
 
 #include <linux/fb.h>
 
+#include <drm/drm_crtc.h>
+
 enum mode_set_atomic {
 	LEAVE_ATOMIC_MODE_SET,
 	ENTER_ATOMIC_MODE_SET,
@@ -185,7 +187,7 @@ extern void drm_helper_connector_dpms(struct drm_connector *connector, int mode)
 extern void drm_helper_move_panel_connectors_to_head(struct drm_device *);
 
 extern void drm_helper_mode_fill_fb_struct(struct drm_framebuffer *fb,
-					   struct drm_mode_fb_cmd2 *mode_cmd);
+					   const struct drm_mode_fb_cmd2 *mode_cmd);
 
 static inline void drm_crtc_helper_add(struct drm_crtc *crtc,
 				       const struct drm_crtc_helper_funcs *funcs)

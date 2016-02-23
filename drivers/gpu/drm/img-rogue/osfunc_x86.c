@@ -64,27 +64,32 @@ static void per_cpu_cache_flush(void *arg)
     wbinvd();
 }
 
-void OSCPUOperation(PVRSRV_CACHE_OP uiCacheOp)
+PVRSRV_ERROR OSCPUOperation(PVRSRV_CACHE_OP uiCacheOp)
 {
+	PVRSRV_ERROR eError = PVRSRV_OK;
+
 	switch(uiCacheOp)
 	{
 		/* Fall-through */
 		case PVRSRV_CACHE_OP_CLEAN:
 		case PVRSRV_CACHE_OP_FLUSH:
 		case PVRSRV_CACHE_OP_INVALIDATE:
-					on_each_cpu(per_cpu_cache_flush, NULL, 1);
-					break;
+			on_each_cpu(per_cpu_cache_flush, NULL, 1);
+			break;
 
 		case PVRSRV_CACHE_OP_NONE:
-					break;
+			break;
 
 		default:
-					PVR_DPF((PVR_DBG_ERROR,
-					"%s: Invalid cache operation type %d",
+			PVR_DPF((PVR_DBG_ERROR,
+					"%s: Global cache operation type %d is invalid",
 					__FUNCTION__, uiCacheOp));
-					PVR_ASSERT(0);
-					break;
+			eError = PVRSRV_ERROR_INVALID_PARAMS;
+			PVR_ASSERT(0);
+			break;
 	}
+
+	return eError;
 }
 
 static void x86_flush_cache_range(const void *pvStart, const void *pvEnd)
@@ -138,4 +143,9 @@ void OSInvalidateCPUCacheRangeKM(void *pvVirtStart,
 
 	/* No invalidate-only support */
 	x86_flush_cache_range(pvVirtStart, pvVirtEnd);
+}
+
+void OSUserModeAccessToPerfCountersEn(void)
+{
+	/* Not applicable to x86 architecture. */
 }

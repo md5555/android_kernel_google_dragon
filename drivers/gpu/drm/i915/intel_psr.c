@@ -210,7 +210,12 @@ static void hsw_psr_enable_sink(struct intel_dp *intel_dp)
 		   (aux_clock_divider << DP_AUX_CH_CTL_BIT_CLOCK_2X_SHIFT));
 	}
 
-	drm_dp_dpcd_writeb(&intel_dp->aux, DP_PSR_EN_CFG, DP_PSR_ENABLE);
+	if (dev_priv->psr.link_standby)
+		drm_dp_dpcd_writeb(&intel_dp->aux, DP_PSR_EN_CFG,
+			DP_PSR_ENABLE | DP_PSR_MAIN_LINK_ACTIVE);
+	else
+		drm_dp_dpcd_writeb(&intel_dp->aux, DP_PSR_EN_CFG,
+			DP_PSR_ENABLE);
 }
 
 static void vlv_psr_enable_source(struct intel_dp *intel_dp)
@@ -262,20 +267,19 @@ static void hsw_psr_enable_source(struct intel_dp *intel_dp)
 	uint32_t idle_frames = dev_priv->vbt.psr.idle_frames ?
 			       dev_priv->vbt.psr.idle_frames + 1 : 5;
 	uint32_t val = 0x0;
-	const uint32_t link_entry_time = EDP_PSR_MIN_LINK_ENTRY_TIME_8_LINES;
+
+	if (IS_HASWELL(dev))
+		val |= EDP_PSR_MIN_LINK_ENTRY_TIME_8_LINES;
+
+	if (dev_priv->psr.link_standby)
+		val |= EDP_PSR_LINK_STANDBY;
 
 	if (intel_dp->psr_dpcd[1] & DP_PSR_NO_TRAIN_ON_EXIT) {
-		/* It doesn't mean we shouldn't send TPS patters, so let's
-		   send the minimal TP1 possible and skip TP2. */
-		val |= EDP_PSR_TP1_TIME_100us;
-		val |= EDP_PSR_TP2_TP3_TIME_0us;
-		val |= EDP_PSR_SKIP_AUX_EXIT;
 		/* Sink should be able to train with the 5 or 6 idle patterns */
 		idle_frames += 4;
 	}
 
 	I915_WRITE(EDP_PSR_CTL(dev), val |
-		   (IS_BROADWELL(dev) ? 0 : link_entry_time) |
 		   max_sleep_time << EDP_PSR_MAX_SLEEP_TIME_SHIFT |
 		   idle_frames << EDP_PSR_IDLE_FRAME_SHIFT |
 		   EDP_PSR_ENABLE);
@@ -424,6 +428,19 @@ void intel_psr_enable(struct intel_dp *intel_dp)
 		 */
 		vlv_psr_enable_source(intel_dp);
 	}
+
+	/*
+	 * FIXME: Activation should happen immediately since this function
+	 * is just called after pipe is fully trained and enabled.
+	 * However on every platform we face issues when first activation
+	 * follows a modeset so quickly.
+	 *     - On VLV/CHV we get bank screen on first activation
+	 *     - On HSW/BDW we get a recoverable frozen screen until next
+	 *       exit-activate sequence.
+	 */
+	if (INTEL_INFO(dev)->gen < 9)
+		schedule_delayed_work(&dev_priv->psr.work,
+				      msecs_to_jiffies(intel_dp->panel_power_cycle_delay * 5));
 
 	dev_priv->psr.enabled = intel_dp;
 unlock:
@@ -732,8 +749,9 @@ void intel_psr_flush(struct drm_device *dev,
 	}
 
 	if (!dev_priv->psr.active && !dev_priv->psr.busy_frontbuffer_bits)
-		schedule_delayed_work(&dev_priv->psr.work,
-				      msecs_to_jiffies(100));
+		if (!work_busy(&dev_priv->psr.work.work))
+			schedule_delayed_work(&dev_priv->psr.work,
+					      msecs_to_jiffies(100));
 	mutex_unlock(&dev_priv->psr.lock);
 }
 
@@ -747,6 +765,9 @@ void intel_psr_flush(struct drm_device *dev,
 void intel_psr_init(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
+
+	if (i915.enable_psr == 2)
+		dev_priv->psr.link_standby = true;
 
 	INIT_DELAYED_WORK(&dev_priv->psr.work, intel_psr_work);
 	mutex_init(&dev_priv->psr.lock);

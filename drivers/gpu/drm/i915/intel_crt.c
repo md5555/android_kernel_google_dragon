@@ -871,7 +871,7 @@ void intel_crt_init(struct drm_device *dev)
 			   &intel_crt_connector_funcs, DRM_MODE_CONNECTOR_VGA);
 
 	drm_encoder_init(dev, &crt->base.base, &intel_crt_enc_funcs,
-			 DRM_MODE_ENCODER_DAC);
+			 DRM_MODE_ENCODER_DAC, NULL);
 
 	intel_connector_attach_encoder(intel_connector, &crt->base);
 
@@ -920,6 +920,8 @@ void intel_crt_init(struct drm_device *dev)
 	drm_connector_helper_add(connector, &intel_crt_connector_helper_funcs);
 
 	drm_connector_register(connector);
+
+	intel_i2c_register(dev, connector, dev_priv->vbt.crt_ddc_pin);
 
 	if (!I915_HAS_HOTPLUG(dev))
 		intel_connector->polled = DRM_CONNECTOR_POLL_CONNECT;

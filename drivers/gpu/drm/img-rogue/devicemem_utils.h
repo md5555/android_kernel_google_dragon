@@ -107,6 +107,14 @@ struct _DEVMEM_CONTEXT_ {
 	IMG_HANDLE hPrivData;
 };
 
+
+typedef enum
+{
+	DEVMEM_HEAP_TYPE_UNKNOWN = 0,
+	DEVMEM_HEAP_TYPE_USER_MANAGED,
+	DEVMEM_HEAP_TYPE_RA_MANAGED
+}DEVMEM_HEAP_TYPE;
+
 struct _DEVMEM_HEAP_ {
     /* Name of heap - for debug and lookup purposes. */
     IMG_CHAR *pszName;
@@ -119,6 +127,9 @@ struct _DEVMEM_HEAP_ {
      * not being full range 
      */
     IMG_DEV_VIRTADDR sBaseAddress;
+
+    /* The heap type, describing if the space is managed by the user or an RA*/
+    DEVMEM_HEAP_TYPE eHeapType;
 
     /* This RA is for managing sub-allocations in virtual space.  Two
        more RA's will be used under the Hood for managing the coarser
@@ -249,6 +260,8 @@ struct _DEVMEMX_VIRT_MEMDESC_ {
 #endif
 };
 
+#define DEVICEMEM_UTILS_NO_ADDRESS 0
+
 /******************************************************************************
 @Function       _DevmemValidateParams
 @Description    Check if flags are conflicting and if align is a size multiple.
@@ -307,11 +320,14 @@ void _DevmemImportStructInit(DEVMEM_IMPORT *psImport,
                           mapped in the page tables or if just a virtual range
                           should be reserved and the refcounts increased.
 @Input          psImport  The import we want to map.
+@Input          uiOptionalMapAddress  An optional address to map to.
+                                      Pass DEVICEMEM_UTILS_NOADDRESS if not used.
 @return         PVRSRV_ERROR
 ******************************************************************************/
 PVRSRV_ERROR _DevmemImportStructDevMap(DEVMEM_HEAP *psHeap,
 									   IMG_BOOL bMap,
-									   DEVMEM_IMPORT *psImport);
+									   DEVMEM_IMPORT *psImport,
+									   IMG_UINT64 uiOptionalMapAddress);
 
 /******************************************************************************
 @Function       _DevmemImportStructDevUnmap

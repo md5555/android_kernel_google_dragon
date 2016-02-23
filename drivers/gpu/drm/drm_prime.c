@@ -331,7 +331,7 @@ static const struct dma_buf_ops drm_gem_prime_dmabuf_ops =  {
  * drm_gem_prime_export - helper library implementation of the export callback
  * @dev: drm_device to export from
  * @obj: GEM object to export
- * @flags: flags like DRM_CLOEXEC
+ * @flags: flags like DRM_CLOEXEC and O_RDWR
  *
  * This is the implementation of the gem_prime_export functions for GEM drivers
  * using the PRIME helpers.
@@ -498,9 +498,6 @@ struct drm_gem_object *drm_gem_prime_import(struct drm_device *dev,
 	struct drm_gem_object *obj;
 	int ret;
 
-	if (!dev->driver->gem_prime_import_sg_table)
-		return ERR_PTR(-EINVAL);
-
 	if (dma_buf->ops == &drm_gem_prime_dmabuf_ops) {
 		obj = dma_buf->priv;
 		if (obj->dev == dev) {
@@ -512,6 +509,9 @@ struct drm_gem_object *drm_gem_prime_import(struct drm_device *dev,
 			return obj;
 		}
 	}
+
+	if (!dev->driver->gem_prime_import_sg_table)
+		return ERR_PTR(-EINVAL);
 
 	attach = dma_buf_attach(dma_buf, dev->dev);
 	if (IS_ERR(attach))
@@ -626,7 +626,6 @@ int drm_prime_handle_to_fd_ioctl(struct drm_device *dev, void *data,
 				 struct drm_file *file_priv)
 {
 	struct drm_prime_handle *args = data;
-	uint32_t flags;
 
 	if (!drm_core_check_feature(dev, DRIVER_PRIME))
 		return -EINVAL;
@@ -635,14 +634,11 @@ int drm_prime_handle_to_fd_ioctl(struct drm_device *dev, void *data,
 		return -ENOSYS;
 
 	/* check flags are valid */
-	if (args->flags & ~DRM_CLOEXEC)
+	if (args->flags & ~(DRM_CLOEXEC | O_RDWR))
 		return -EINVAL;
 
-	/* we only want to pass DRM_CLOEXEC which is == O_CLOEXEC */
-	flags = args->flags & DRM_CLOEXEC;
-
 	return dev->driver->prime_handle_to_fd(dev, file_priv,
-			args->handle, flags, &args->fd);
+			args->handle, args->flags, &args->fd);
 }
 
 int drm_prime_fd_to_handle_ioctl(struct drm_device *dev, void *data,

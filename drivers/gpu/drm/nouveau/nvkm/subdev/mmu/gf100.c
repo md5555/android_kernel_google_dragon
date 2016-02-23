@@ -83,6 +83,9 @@ gf100_vm_map_pgt(struct nvkm_gpuobj *pgd, u32 index, struct nvkm_gpuobj *pgt[2])
 
 	nv_wo32(pgd, (index * 8) + 0, pde[0]);
 	nv_wo32(pgd, (index * 8) + 4, pde[1]);
+
+	/* Flush posted PRAMIN writes. */
+	nv_ro32(pgd, (index * 8) + 0);
 }
 
 void
@@ -176,6 +179,33 @@ gf100_vm_flush(struct nvkm_vm *vm)
 }
 
 int
+gf100_vm_create_pgd(struct nvkm_mmu *mmu, struct nvkm_object *parent,
+		  void *inst_blk, u64 length, struct nvkm_gpuobj **ppgd)
+{
+	u32 pde_bits, pgd_size;
+	int ret;
+
+	/* Coverage of a single large page PDE, 2^10 PTEs per PDE */
+	pde_bits = mmu->lpg_shift + 10;
+
+	/* Necessary PGD size to cover address space length */
+	pgd_size = (ALIGN(length, (1ULL << pde_bits)) >> pde_bits) * 8;
+
+	/* PDB address has to be 4K aligned */
+	ret = nvkm_gpuobj_new(parent, NULL, pgd_size, 1 << 12, 0, ppgd);
+	if (ret)
+		return ret;
+
+	/* Update PGD in inst blk */
+	nv_wo32(inst_blk, 0x0200, lower_32_bits((*ppgd)->addr));
+	nv_wo32(inst_blk, 0x0204, upper_32_bits((*ppgd)->addr));
+	nv_wo32(inst_blk, 0x0208, lower_32_bits(length - 1));
+	nv_wo32(inst_blk, 0x020c, upper_32_bits(length - 1));
+
+	return 0;
+}
+
+int
 gf100_vm_create(struct nvkm_mmu *mmu, u64 offset, u64 length, u64 mm_offset,
 		struct nvkm_vm **pvm)
 {
@@ -201,6 +231,7 @@ gf100_mmu_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	priv->base.spg_shift = 12;
 	priv->base.lpg_shift = 17;
 	priv->base.create = gf100_vm_create;
+	priv->base.create_pgd = gf100_vm_create_pgd;
 	priv->base.map_pgt = gf100_vm_map_pgt;
 	priv->base.map = gf100_vm_map;
 	priv->base.map_sg = gf100_vm_map_sg;

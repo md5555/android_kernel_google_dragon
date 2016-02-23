@@ -116,15 +116,19 @@ static void MMapPMRClose(struct vm_area_struct *ps_vma)
 {
 	PMR *psPMR = ps_vma->vm_private_data;
 
+	PMRLock();
+
 #if defined(PVRSRV_ENABLE_PROCESS_STATS)
 #if	defined(PVRSRV_ENABLE_MEMORY_STATS)
-	uintptr_t vAddr = ps_vma->vm_start;
-
-	while (vAddr < ps_vma->vm_end)
 	{
-		/* USER MAPPING */
-		PVRSRVStatsRemoveMemAllocRecord(PVRSRV_MEM_ALLOC_TYPE_MAP_UMA_LMA_PAGES, (IMG_UINT64)vAddr);
-		vAddr += PAGE_SIZE;
+		uintptr_t vAddr = ps_vma->vm_start;
+
+		while (vAddr < ps_vma->vm_end)
+		{
+			/* USER MAPPING */
+			PVRSRVStatsRemoveMemAllocRecord(PVRSRV_MEM_ALLOC_TYPE_MAP_UMA_LMA_PAGES, (IMG_UINT64)vAddr);
+			vAddr += PAGE_SIZE;
+		}
 	}
 #else
 	PVRSRVStatsDecrMemAllocStat(PVRSRV_MEM_ALLOC_TYPE_MAP_UMA_LMA_PAGES, ps_vma->vm_end - ps_vma->vm_start);
@@ -133,6 +137,8 @@ static void MMapPMRClose(struct vm_area_struct *ps_vma)
 
 	PMRUnlockSysPhysAddresses(psPMR);
 	PMRUnrefPMR(psPMR);
+
+	PMRUnlock();
 }
 
 /*

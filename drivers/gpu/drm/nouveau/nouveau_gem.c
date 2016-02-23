@@ -502,10 +502,14 @@ static int nouveau_gem_remap(struct nouveau_drm *drm, struct nvkm_vm *vm,
 	 * the address space allocation's alignment request (as->align_shift).
 	 * This may result in changing the nvbo to map with small page size
 	 * when previously it was mapped with large page size.
+	 *
+	 * Note that if the nvbo was originally mapped with small page size
+	 * (if, for example, its size was not a multiple of large page size),
+	 * we cannot just promote to large page size.
 	 */
 	as = nvkm_vm_find_as(vm, offset);
 	if (as)
-		nvbo->page_shift = as->align_shift;
+		nvbo->page_shift = min(nvbo->page_shift, as->align_shift);
 
 	*new_vma = kzalloc(sizeof(*vma), GFP_KERNEL);
 	if (!*new_vma) {
@@ -1164,8 +1168,8 @@ nouveau_gem_pushbuf_queue_kthread_fn(void *data)
 
 	while (1) {
 		ret = wait_event_interruptible(chan->pushbuf_waitqueue,
-			(pb_data = nouveau_gem_pushbuf_queue_head(chan))
-			|| kthread_should_stop());
+			(pb_data = nouveau_gem_pushbuf_queue_head(chan)) ||
+			kthread_should_park() || kthread_should_stop());
 		if (ret) {
 			NV_ERROR(chan->drm,
 				 "PB thread interrupted on channel %s\n",
@@ -1173,22 +1177,34 @@ nouveau_gem_pushbuf_queue_kthread_fn(void *data)
 			break;
 		}
 
+		if (unlikely(kthread_should_park())) {
+			kthread_parkme();
+			continue;
+		}
+
 		/*
-		 * We can break out of the wait_event() above with !pb_data
-		 * only if kthread_should_stop() is true. Otherwise we need
-		 * to loop until there are no more pushbuffers in the queue.
+		 * When !pb_data is true and kthread is not going to
+		 * park, the only left possibility is kthread is
+		 * going to stop.
+		 * So checking !pb_data while not kthread_should_stop here
+		 * is able to make sure all pushbuffer in queue will
+		 * be processed before this kthread is terminated.
 		 */
 		if (unlikely(!pb_data))
 			break;
 
 		fence = pb_data->input_fence;
 		if (fence) {
-			ret = sync_fence_wait(fence, 500);
-			if (ret)
-				NV_ERROR(chan->drm,
-					"fence %s [%p] timeout on channel %s\n",
-					fence->name, fence,
-					nvxx_client(chan)->name);
+			int i;
+			for (i = 0; i < fence->num_fences; ++i) {
+				struct fence *pt = fence->cbs[i].sync_pt;
+				ret = nouveau_fence_sync(pt, chan, true);
+				if (ret)
+					NV_ERROR(chan->drm,
+						 "fence %s [%p] timeout on channel %s\n",
+						 fence->name, fence,
+						 nvxx_client(chan)->name);
+			}
 		}
 
 		ret = pm_runtime_get_sync(dev);
@@ -1317,6 +1333,7 @@ nouveau_gem_ioctl_pushbuf_2(struct drm_device *dev, void *data,
 
 		if (ret) {
 			NV_PRINTK(error, cli, "fence install: %d\n", ret);
+			fence_put(f);
 			goto out_fence;
 		}
 	}
@@ -1376,6 +1393,8 @@ nouveau_gem_ioctl_pushbuf(struct drm_device *dev, void *data,
 
 	if (unlikely(!abi16))
 		return -ENOMEM;
+
+	nouveau_vm_map_deferred(cli->vm);
 
 	list_for_each_entry(temp, &abi16->channels, head) {
 		if (temp->chan->object->handle == (NVDRM_CHAN | req->channel)) {

@@ -41,388 +41,406 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */ /**************************************************************************/
 
-#include "pvrsrv_device.h"
-#include "syscommon.h"
-#include "mt8173_sysconfig.h"
-#include "physheap.h"
-#if defined(SUPPORT_ION)
-#include "ion_support.h"
-#endif
-#include "mt8173_mfgsys.h"
-#if defined (LINUX)
 #include <linux/interrupt.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 #include <linux/platform_device.h>
-#endif
+#include <linux/pm_opp.h>
+#include <linux/thermal.h>
+#include <linux/devfreq_cooling.h>
 
-#define RGX_CR_ISP_GRIDOFFSET                             (0x0FA0U)
+#include "physheap.h"
+#include "pvrsrv_device.h"
+#include "rgxdevice.h"
+#include "syscommon.h"
 
-static RGX_TIMING_INFORMATION	gsRGXTimingInfo;
-static RGX_DATA					gsRGXData;
-static PVRSRV_DEVICE_CONFIG 	gsDevices[1];
-static PVRSRV_SYSTEM_CONFIG 	gsSysConfig;
+#include "mt8173_mfgsys.h"
 
-static PHYS_HEAP_FUNCTIONS	gsPhysHeapFuncs;
-static PHYS_HEAP_CONFIG		gsPhysHeapConfig;
+#define SYS_RGX_ACTIVE_POWER_LATENCY_MS 100
+#define RGX_HW_SYSTEM_NAME "RGX HW"
+#define RGX_HW_CORE_CLOCK_SPEED 395000000
+
+/* Setup RGX specific timing data */
+static RGX_TIMING_INFORMATION gsRGXTimingInfo = {
+	.ui32CoreClockSpeed = RGX_HW_CORE_CLOCK_SPEED,
+	.bEnableActivePM = IMG_TRUE,
+	.ui32ActivePMLatencyms = SYS_RGX_ACTIVE_POWER_LATENCY_MS,
+	.bEnableRDPowIsland = IMG_TRUE,
+};
+
+static RGX_DATA gsRGXData = {
+	.psRGXTimingInfo = &gsRGXTimingInfo,
+};
+
+static PVRSRV_DEVICE_CONFIG	gsDevice;
+static PVRSRV_SYSTEM_CONFIG	gsSysConfig;
+
+static IMG_UINT32 gauiBIFTilingHeapXStrides[RGXFWIF_NUM_BIF_TILING_CONFIGS] = {
+	0, /* BIF tiling heap 1 x-stride */
+	1, /* BIF tiling heap 2 x-stride */
+	2, /* BIF tiling heap 3 x-stride */
+	3  /* BIF tiling heap 4 x-stride */
+};
 
 /*
-	CPU to Device physcial address translation
-*/
+ * CPU to Device physical address translation
+ */
 static
 void UMAPhysHeapCpuPAddrToDevPAddr(IMG_HANDLE hPrivData,
-								   IMG_UINT32 ui32NumOfAddr,
-								   IMG_DEV_PHYADDR *psDevPAddr,
-								   IMG_CPU_PHYADDR *psCpuPAddr)
+				   IMG_UINT32 ui32NumOfAddr,
+				   IMG_DEV_PHYADDR *psDevPAddr,
+				   IMG_CPU_PHYADDR *psCpuPAddr)
 {
 	PVR_UNREFERENCED_PARAMETER(hPrivData);
-	
+
 	/* Optimise common case */
 	psDevPAddr[0].uiAddr = psCpuPAddr[0].uiAddr;
-	if (ui32NumOfAddr > 1)
-	{
+	if (ui32NumOfAddr > 1) {
 		IMG_UINT32 ui32Idx;
 		for (ui32Idx = 1; ui32Idx < ui32NumOfAddr; ++ui32Idx)
-		{
 			psDevPAddr[ui32Idx].uiAddr = psCpuPAddr[ui32Idx].uiAddr;
-		}
 	}
 }
 
 /*
-	Device to CPU physcial address translation
-*/
+ * Device to CPU physical address translation
+ */
 static
 void UMAPhysHeapDevPAddrToCpuPAddr(IMG_HANDLE hPrivData,
-								   IMG_UINT32 ui32NumOfAddr,
-								   IMG_CPU_PHYADDR *psCpuPAddr,
-								   IMG_DEV_PHYADDR *psDevPAddr)
+				   IMG_UINT32 ui32NumOfAddr,
+				   IMG_CPU_PHYADDR *psCpuPAddr,
+				   IMG_DEV_PHYADDR *psDevPAddr)
 {
 	PVR_UNREFERENCED_PARAMETER(hPrivData);
 
 	/* Optimise common case */
 	psCpuPAddr[0].uiAddr = psDevPAddr[0].uiAddr;
-	if (ui32NumOfAddr > 1)
-	{
+	if (ui32NumOfAddr > 1) {
 		IMG_UINT32 ui32Idx;
 		for (ui32Idx = 1; ui32Idx < ui32NumOfAddr; ++ui32Idx)
-		{
 			psCpuPAddr[ui32Idx].uiAddr = psDevPAddr[ui32Idx].uiAddr;
+	}
+}
+
+static PHYS_HEAP_FUNCTIONS gsPhysHeapFuncs = {
+	.pfnCpuPAddrToDevPAddr = UMAPhysHeapCpuPAddrToDevPAddr,
+	.pfnDevPAddrToCpuPAddr = UMAPhysHeapDevPAddrToCpuPAddr,
+};
+
+static PHYS_HEAP_CONFIG gsPhysHeapConfig = {
+	.ui32PhysHeapID = 0,
+	.pszPDumpMemspaceName = "SYSMEM",
+	.eType = PHYS_HEAP_TYPE_UMA,
+	.psMemFuncs = &gsPhysHeapFuncs,
+	.sStartAddr.uiAddr = 0,
+	.uiSize = 0,
+	.hPrivData = &gsSysConfig,
+};
+
+static PVRSRV_ERROR MTKSysDevPrePowerState(
+		PVRSRV_DEV_POWER_STATE eNewPowerState,
+		PVRSRV_DEV_POWER_STATE eCurrentPowerState,
+		IMG_BOOL bForced)
+{
+	/* HACK: IMG should pass context; for now access global. */
+	struct mtk_mfg *mfg = gsDevice.hSysData;
+
+	mtk_mfg_debug("MTKSysDevPrePowerState (%d->%d), bForced = %d\n",
+		      eCurrentPowerState, eNewPowerState, bForced);
+
+	mutex_lock(&mfg->set_power_state);
+
+	if ((PVRSRV_DEV_POWER_STATE_OFF == eNewPowerState) &&
+	    (PVRSRV_DEV_POWER_STATE_ON == eCurrentPowerState))
+		mtk_mfg_disable(mfg);
+
+	mutex_unlock(&mfg->set_power_state);
+	return PVRSRV_OK;
+}
+
+static PVRSRV_ERROR MTKSysDevPostPowerState(
+		PVRSRV_DEV_POWER_STATE eNewPowerState,
+		PVRSRV_DEV_POWER_STATE eCurrentPowerState,
+		IMG_BOOL bForced)
+{
+	/* HACK: IMG should pass context; for now access global. */
+	struct mtk_mfg *mfg = gsDevice.hSysData;
+	PVRSRV_ERROR ret;
+
+	mtk_mfg_debug("MTKSysDevPostPowerState (%d->%d)\n",
+		      eCurrentPowerState, eNewPowerState);
+
+	mutex_lock(&mfg->set_power_state);
+
+	if ((PVRSRV_DEV_POWER_STATE_ON == eNewPowerState) &&
+	    (PVRSRV_DEV_POWER_STATE_OFF == eCurrentPowerState)) {
+		if (mtk_mfg_enable(mfg)) {
+			ret = PVRSRV_ERROR_DEVICE_POWER_CHANGE_FAILURE;
+			goto done;
 		}
 	}
+
+	ret = PVRSRV_OK;
+done:
+	mutex_unlock(&mfg->set_power_state);
+
+	return ret;
 }
 
-#if defined(PVR_DVFS)
-void SetFrequency(IMG_UINT32 ui64Freq)
+#ifdef PVR_DVFS
+
+#define FALLBACK_STATIC_TEMPERATURE 65000
+
+/* Temperatures on power over-temp-and-voltage curve (C) */
+static const int vt_temperatures[] = { 25, 45, 65, 85, 105 };
+
+/* Voltages on power over-temp-and-voltage curve (mV) */
+static const int vt_voltages[] = { 900, 1000, 1130 };
+
+#define POWER_TABLE_NUM_TEMP ARRAY_SIZE(vt_temperatures)
+#define POWER_TABLE_NUM_VOLT ARRAY_SIZE(vt_voltages)
+
+static const unsigned int
+power_table[POWER_TABLE_NUM_VOLT][POWER_TABLE_NUM_TEMP] = {
+	/*   25     45      65      85     105 */
+	{ 14540, 35490,  60420, 120690, 230000 },  /*  900 mV */
+	{ 21570, 41910,  82380, 159140, 298620 },  /* 1000 mV */
+	{ 32320, 72950, 111320, 209290, 382700 },  /* 1130 mV */
+};
+
+/** Frequency and Power in Khz and mW respectively */
+static const int f_range[] = {253500, 299000, 396500, 455000, 494000, 598000};
+static const IMG_UINT32 max_dynamic_power[] = {612, 722, 957, 1100, 1194, 1445};
+
+static u32 interpolate(int value, const int *x, const unsigned int *y, int len)
 {
-	if (gsDevices[0].hSysData)
-		MTKSysSetFreq((struct mtk_mfg_base *)gsDevices[0].hSysData,
-			      ui64Freq);
-}
+	u64 tmp64;
+	u32 dx;
+	u32 dy;
+	int i, ret;
 
-void SetVoltage(IMG_UINT32 ui64Volt)
-{
-	if (gsDevices[0].hSysData)
-		MTKSysSetVolt((struct mtk_mfg_base *)gsDevices[0].hSysData,
-			      ui64Volt);
-}
+	if (value <= x[0])
+		return y[0];
+	if (value >= x[len - 1])
+		return y[len - 1];
 
-void SetupDVFSInfo(void *hDevice, PVRSRV_DVFS *hDVFS)
-{
-	struct platform_device *pDevice = (struct platform_device *)hDevice;
-	struct mtk_mfg_base *mfg_base;
-	IMG_OPP *opp_table;
-	IMG_DVFS_DEVICE_CFG *img_dvfs_cfg;
-	int i;
-
-	mfg_base = (struct mtk_mfg_base *)pDevice->dev.platform_data;
-
-	if (!mfg_base || !mfg_base->fv_table)
-		return;
-
-	opp_table = devm_kcalloc(&pDevice->dev,
-				 mfg_base->fv_table_length,
-				 sizeof(*opp_table),
-				 GFP_KERNEL);
-
-	if (!opp_table)
-		return;
-
-	img_dvfs_cfg = &hDVFS->sDVFSDeviceCfg;
-
-	for (i = 0; i < mfg_base->fv_table_length; ++i) {
-		opp_table[i].ui32Freq = mfg_base->fv_table[i].freq;
-		opp_table[i].ui32Volt = mfg_base->fv_table[i].volt;
+	for (i = 1; i < len - 1; i++) {
+		/* If value is identical, no need to interpolate */
+		if (value == x[i])
+			return y[i];
+		if (value < x[i])
+			break;
 	}
 
-	img_dvfs_cfg->bIdleReq = IMG_FALSE;
-	img_dvfs_cfg->pasOPPTable = (IMG_OPP_TABLE)opp_table;
-	img_dvfs_cfg->ui32OPPTableSize = mfg_base->fv_table_length;
-	img_dvfs_cfg->ui32FreqMin = opp_table[0].ui32Freq;
-	img_dvfs_cfg->ui32FreqMax = opp_table[mfg_base->fv_table_length - 1].ui32Freq;
-	img_dvfs_cfg->pfnSetFrequency = SetFrequency;
-	img_dvfs_cfg->pfnSetVoltage = SetVoltage;
-	img_dvfs_cfg->ui32PollMs = MTK_DVFS_SWITCH_INTERVAL;
+	/* Linear interpolation between the two (x,y) points */
+	dy = y[i] - y[i - 1];
+	dx = x[i] - x[i - 1];
 
-	hDVFS->sDVFSGovernorCfg.ui32UpThreshold = 90;
-	hDVFS->sDVFSGovernorCfg.ui32DownDifferential = 10;
-	gsDevices[0].hSysData = mfg_base;
+	tmp64 = value - x[i - 1];
+	tmp64 *= dy;
+	do_div(tmp64, dx);
+	ret = y[i - 1] + tmp64;
+
+	return ret;
 }
-#endif
 
-#if defined(MTK_POWER_ACTOR)
-IMG_UINT32 GetStaticPower(IMG_UINT32 voltage, IMG_INT32 temperature)
+static unsigned long mtk_mfg_get_static_power(unsigned long voltage)
 {
-	#define	NUM_RANGE 5
-	int t_range[NUM_RANGE] = {25, 45, 65, 85, 105};
-	IMG_UINT32 lookup_table_0p_9v[NUM_RANGE] = {14540, 35490, 60420, 120690, 230000};
-	IMG_UINT32 lookup_table_1p_0v[NUM_RANGE] = {21570, 41910, 82380, 159140, 298620};
-	IMG_UINT32 lookup_table_1p_1v[NUM_RANGE] = {32320, 72950,111320, 209290, 382700};
-	IMG_UINT32 *lookup = &lookup_table_1p_0v[0];
-	IMG_UINT32 power;
-	int low_idx = 0, high_idx = NUM_RANGE - 1;
+	struct mtk_mfg *mfg = gsDevice.hSysData;
+	struct thermal_zone_device *tz = mfg->tz;
+	unsigned long power;
+	int temperature = FALLBACK_STATIC_TEMPERATURE;
+	int low_idx = 0, high_idx = POWER_TABLE_NUM_VOLT - 1;
 	int i;
 
-	if (voltage < 1000000)
-		lookup = &lookup_table_0p_9v[0];
-	else if (voltage > 1100000)
-		lookup = &lookup_table_1p_1v[0];
+	if (tz->ops->get_temp(tz, &temperature))
+		dev_warn(mfg->dev, "Failed to read temperature\n");
+	do_div(temperature, 1000);
 
-	for (i = 0; i < NUM_RANGE; i++)	{
-		if (temperature <= t_range[NUM_RANGE - 1 - i])
-			high_idx = NUM_RANGE - 1 - i;
+	for (i = 0; i < POWER_TABLE_NUM_VOLT; i++) {
+		if (voltage <= vt_voltages[POWER_TABLE_NUM_VOLT - 1 - i])
+			high_idx = POWER_TABLE_NUM_VOLT - 1 - i;
 
-		if (temperature >= t_range[i])
+		 if (voltage >= vt_voltages[i])
 			low_idx = i;
 	}
 
 	if (low_idx == high_idx) {
-		power = lookup[low_idx];
+		power = interpolate(temperature,
+				    vt_temperatures,
+				    &power_table[low_idx][0],
+				    POWER_TABLE_NUM_TEMP);
 	} else {
-		IMG_UINT32 t_interval = t_range[high_idx] - t_range[low_idx];
-		IMG_UINT32 p_interval = lookup[high_idx] - lookup[low_idx];
+		unsigned long dvt =
+				vt_voltages[high_idx] - vt_voltages[low_idx];
+		unsigned long power1, power2;
 
-		power = p_interval * (temperature - t_range[low_idx]) / t_interval;
-		power += lookup[low_idx];
+		power1 = interpolate(temperature,
+				     vt_temperatures,
+				     &power_table[high_idx][0],
+				     POWER_TABLE_NUM_TEMP);
+
+		power2 = interpolate(temperature,
+				     vt_temperatures,
+				     &power_table[low_idx][0],
+				     POWER_TABLE_NUM_TEMP);
+
+		power = (power1 - power2) * (voltage - vt_voltages[low_idx]);
+		do_div(power, dvt);
+		power += power2;
 	}
 
-	PVR_TRACE(("voltage = %d, T = %d, power = %d [%d, %d]\n",
-		  voltage, temperature, power, low_idx, high_idx));
+	/* convert to mw */
+	do_div(power, 1000);
+
+	mtk_mfg_debug("mtk_mfg_get_static_power: %lu at Temperature %d\n",
+		      power, temperature);
 	return power;
+}
+
+static unsigned long mtk_mfg_get_dynamic_power(unsigned long freq,
+					       unsigned long voltage)
+{
+	#define NUM_RANGE  ARRAY_SIZE(f_range)
+	/** Frequency and Power in Khz and mW respectively */
+	IMG_INT32 i, low_idx = 0, high_idx = NUM_RANGE - 1;
+	IMG_UINT32 power;
+
+	for (i = 0; i < NUM_RANGE; i++) {
+		if (freq <= f_range[NUM_RANGE - 1 - i])
+			high_idx = NUM_RANGE - 1 - i;
+
+		if (freq >= f_range[i])
+			low_idx = i;
+	}
+
+	if (low_idx == high_idx) {
+		power = max_dynamic_power[low_idx];
+	} else {
+		IMG_UINT32 f_interval = f_range[high_idx] - f_range[low_idx];
+		IMG_UINT32 p_interval = max_dynamic_power[high_idx] -
+				max_dynamic_power[low_idx];
+
+		power = p_interval * (freq - f_range[low_idx]);
+		do_div(power, f_interval);
+		power += max_dynamic_power[low_idx];
+	}
+
+	power = (IMG_UINT32)(((IMG_UINT64)power * voltage * voltage)/1000000);
+
+	return power;
+	#undef NUM_RANGE
+}
+
+static struct devfreq_cooling_power sPowerOps = {
+	.get_static_power = mtk_mfg_get_static_power,
+	.get_dynamic_power = mtk_mfg_get_dynamic_power,
+};
+
+static void SetFrequency(IMG_UINT32 freq)
+{
+	struct mtk_mfg *mfg = gsDevice.hSysData;
+
+	/* freq is in Hz */
+	mtk_mfg_freq_set(mfg, freq);
+}
+
+static void SetVoltage(IMG_UINT32 volt)
+{
+	struct mtk_mfg *mfg = gsDevice.hSysData;
+
+	mtk_mfg_volt_set(mfg, volt);
 }
 #endif
 
-/*
-	SysCreateConfigData
-*/
-PVRSRV_ERROR SysCreateConfigData(PVRSRV_SYSTEM_CONFIG **ppsSysConfig, void *hDevice)
+static
+PVRSRV_ERROR SysDevInit(void *pvOSDevice, PVRSRV_DEVICE_CONFIG **ppsDevConfig)
 {
-	struct platform_device *pDevice = (struct platform_device *)hDevice;
-	struct resource *irq_res;
-	struct resource *reg_res;
+	struct platform_device *pDevice = pvOSDevice;
+	struct device *dev = &pDevice->dev;
+	struct mtk_mfg *mfg = dev_get_platdata(dev);
 
 	if (!pDevice) {
 		PVR_DPF((PVR_DBG_ERROR, "pDevice = NULL!"));
 		return PVRSRV_ERROR_INIT_FAILURE;
 	}
 
-	/*
-	 * Setup information about physaical memory heap(s) we have
-	 */
-	gsPhysHeapFuncs.pfnCpuPAddrToDevPAddr = UMAPhysHeapCpuPAddrToDevPAddr;
-	gsPhysHeapFuncs.pfnDevPAddrToCpuPAddr = UMAPhysHeapDevPAddrToCpuPAddr;
+	/* Setup RGX device */
+	gsDevice.eDeviceType = PVRSRV_DEVICE_TYPE_RGX;
+	gsDevice.pszName = "RGX";
 
-	gsPhysHeapConfig.ui32PhysHeapID = 0;
-	gsPhysHeapConfig.pszPDumpMemspaceName = "SYSMEM";
-	gsPhysHeapConfig.eType = PHYS_HEAP_TYPE_UMA;
-	gsPhysHeapConfig.psMemFuncs = &gsPhysHeapFuncs;
-	gsPhysHeapConfig.hPrivData = (IMG_HANDLE)&gsSysConfig;
-	#if 1
-	gsPhysHeapConfig.sStartAddr.uiAddr = 0;
-	gsPhysHeapConfig.uiSize = 0;
-	#endif
+	gsDevice.ui32IRQ = mfg->rgx_irq;
+	gsDevice.bIRQIsShared = IMG_FALSE;
+	gsDevice.eIRQActiveLevel = PVRSRV_DEVICE_IRQ_ACTIVE_LOW;
 
-	gsSysConfig.pasPhysHeaps = &gsPhysHeapConfig;
-	gsSysConfig.ui32PhysHeapCount = sizeof(gsPhysHeapConfig) / sizeof(PHYS_HEAP_CONFIG);
-/*
-add for new DDK 1.1.2550513
-*/
-	gsSysConfig.pui32BIFTilingHeapConfigs = gauiBIFTilingHeapXStrides;
-	gsSysConfig.ui32BIFTilingHeapCount = IMG_ARR_NUM_ELEMS(gauiBIFTilingHeapXStrides);
+	gsDevice.sRegsCpuPBase.uiAddr = mfg->rgx_start;
+	gsDevice.ui32RegsSize = mfg->rgx_size;
 
-	/*
-	 * Setup RGX specific timing data
-	 */
-	gsRGXTimingInfo.ui32CoreClockSpeed        = RGX_HW_CORE_CLOCK_SPEED;
-	
-	#if MTK_PM_SUPPORT
-	gsRGXTimingInfo.bEnableActivePM           = IMG_TRUE;
-	gsRGXTimingInfo.ui32ActivePMLatencyms       = SYS_RGX_ACTIVE_POWER_LATENCY_MS;
-	#else
-	gsRGXTimingInfo.bEnableActivePM           = IMG_FALSE;
-	#endif
-	
-	gsRGXTimingInfo.bEnableRDPowIsland        = IMG_FALSE;
+#ifdef PVR_DVFS
+	gsDevice.sDVFS.sDVFSDeviceCfg.bIdleReq = IMG_FALSE;
+	gsDevice.sDVFS.sDVFSDeviceCfg.pfnSetFrequency = SetFrequency;
+	gsDevice.sDVFS.sDVFSDeviceCfg.pfnSetVoltage = SetVoltage;
+	gsDevice.sDVFS.sDVFSDeviceCfg.ui32PollMs = MTK_DVFS_SWITCH_INTERVAL;
+	gsDevice.sDVFS.sDVFSDeviceCfg.psPowerOps = &sPowerOps;
 
-	/* for HWAPM enable */
-	#if MTK_ENABLE_HWAPM
-	gsRGXTimingInfo.bEnableRDPowIsland    = IMG_TRUE;
-	#else
-	gsRGXTimingInfo.bEnableRDPowIsland    = IMG_FALSE;
-	#endif
-	/*
-	 *Setup RGX specific data
-	 */
-	gsRGXData.psRGXTimingInfo = &gsRGXTimingInfo;
-
-	/*
-	 * Setup RGX device
-	 */
-	gsDevices[0].eDeviceType            = PVRSRV_DEVICE_TYPE_RGX;
-	gsDevices[0].pszName                = "RGX";
-
-	irq_res = platform_get_resource(pDevice, IORESOURCE_IRQ, 0);
-	if (irq_res) {
-		gsDevices[0].ui32IRQ = irq_res->start;
-		gsDevices[0].bIRQIsShared    = IMG_FALSE;
-		gsDevices[0].eIRQActiveLevel = PVRSRV_DEVICE_IRQ_ACTIVE_LOW;
-	} else {
-		PVR_DPF((PVR_DBG_ERROR, "irq_res = NULL!"));
-		return PVRSRV_ERROR_INIT_FAILURE;
-	}
-
-	reg_res = platform_get_resource(pDevice, IORESOURCE_MEM, 0);
-	if (reg_res) {
-		gsDevices[0].sRegsCpuPBase.uiAddr = reg_res->start;
-		gsDevices[0].ui32RegsSize	  = resource_size(reg_res);
-	} else {
-		PVR_DPF((PVR_DBG_ERROR, "reg_res = NULL!"));
-		return PVRSRV_ERROR_INIT_FAILURE;
-	}
-
-#if defined(PVR_DVFS)
-	SetupDVFSInfo(hDevice , (PVRSRV_DVFS *)(&gsDevices[0].sDVFS));
-#endif
-
-#if defined(PVR_POWER_ACTOR)
-	/* I=0.000497135 J=-0.048369531 K=2.65455599 L=-22.33068359 *10000 */
-	gsDevices[0].sDVFS.sDVFSPACfg.i32Ta = 49;
-	gsDevices[0].sDVFS.sDVFSPACfg.i32Tb = -4836;
-	gsDevices[0].sDVFS.sDVFSPACfg.i32Tc = 265455;
-	gsDevices[0].sDVFS.sDVFSPACfg.i32Td = -2233068;
-	gsDevices[0].sDVFS.sDVFSPACfg.ui32Other = 0;
-	gsDevices[0].sDVFS.sDVFSPACfg.ui32Weight = 0;
+	gsDevice.sDVFS.sDVFSGovernorCfg.ui32UpThreshold = 90;
+	gsDevice.sDVFS.sDVFSGovernorCfg.ui32DownDifferential = 10;
 #endif
 
 	/* Device's physical heap IDs */
-	gsDevices[0].aui32PhysHeapID[PVRSRV_DEVICE_PHYS_HEAP_GPU_LOCAL] = 0;
-	gsDevices[0].aui32PhysHeapID[PVRSRV_DEVICE_PHYS_HEAP_CPU_LOCAL] = 0;
-	gsDevices[0].aui32PhysHeapID[PVRSRV_DEVICE_PHYS_HEAP_FW_LOCAL] = 0;
+	gsDevice.aui32PhysHeapID[PVRSRV_DEVICE_PHYS_HEAP_GPU_LOCAL] = 0;
+	gsDevice.aui32PhysHeapID[PVRSRV_DEVICE_PHYS_HEAP_CPU_LOCAL] = 0;
+	gsDevice.aui32PhysHeapID[PVRSRV_DEVICE_PHYS_HEAP_FW_LOCAL] = 0;
 
-	/*  power management on  HW system */
-	#if MTK_PM_SUPPORT
-	gsDevices[0].pfnPrePowerState       = MTKSysDevPrePowerState;
-	gsDevices[0].pfnPostPowerState      = MTKSysDevPostPowerState;
-	#else
-	gsDevices[0].pfnPrePowerState       = NULL;
-	gsDevices[0].pfnPostPowerState      = NULL;
-	#endif
+	/* power management on  HW system */
+	gsDevice.pfnPrePowerState = MTKSysDevPrePowerState;
+	gsDevice.pfnPostPowerState = MTKSysDevPostPowerState;
 
-	/*  clock frequency  */
-	gsDevices[0].pfnClockFreqGet        = NULL;
+	/* clock frequency */
+	gsDevice.pfnClockFreqGet = NULL;
 
-	/*  interrupt handled  */
-	gsDevices[0].pfnInterruptHandled    = NULL;
+	/* interrupt handled */
+	gsDevice.pfnInterruptHandled = NULL;
 
-	gsDevices[0].hDevData               = &gsRGXData;
+	gsDevice.hDevData = &gsRGXData;
+	gsDevice.hSysData = mfg;
 
-	#if 0
-	gsDevices[0].bBPSet = IMG_FALSE;
-	gsDevices[0].eBPDM = RGXFWIF_DM_TA; //need to check
-	gsDevices[0].hSysData = NULL;
-	gsDevices[0].ui32PhysHeapID = 0;
-	gsDevices[0].uiFlags = 0; // currently unused
-	#endif
-
-	
-
-	/*
-	 * Setup system config
-	 */
-	gsSysConfig.pszSystemName = RGX_HW_SYSTEM_NAME;
-	gsSysConfig.uiDeviceCount = sizeof(gsDevices)/sizeof(gsDevices[0]);
-	gsSysConfig.pasDevices = &gsDevices[0];
-
-	/*  power management on  HW system */
-	#if MTK_PM_SUPPORT
-	gsSysConfig.pfnSysPrePowerState = MTKSystemPrePowerState;
-	gsSysConfig.pfnSysPostPowerState = MTKSystemPostPowerState;
-	#else
-	gsSysConfig.pfnSysPrePowerState = NULL;
-	gsSysConfig.pfnSysPostPowerState =NULL;
-	#endif
-
-	/*  cache snooping */
-	//gsSysConfig.bHasCacheSnooping = IMG_FALSE; // new DDK has new variable
-    gsSysConfig.eCacheSnoopingMode = 0;
-
-	#if 1 //chenzhu add 
-	gsSysConfig.uiSysFlags = 0;
-	#endif
-
-	/* Setup other system specific stuff */
-#if defined(SUPPORT_ION)
-	IonInit(NULL);
-#endif
-
-	*ppsSysConfig = &gsSysConfig;
-
-#if 0
-	PVR_TRACE(("SysCreateConfigData: start to OSMapPhysToLin "));
-	
-	void *pvRegsBaseKM = OSMapPhysToLin(gsDevices[0].sRegsCpuPBase, gsDevices[0].ui32RegsSize , 0);
-	IMG_UINT32 ui32Value;
-		
-    PVR_TRACE(("PVRCore_Init:pvRegsBaseKM = %p ",pvRegsBaseKM));
-		
-
-	ui32Value = OSReadHWReg32(pvRegsBaseKM, 0x20);
-	PVR_TRACE(("PVRCore_Init:ui32Value = 0x%X ",ui32Value));
-	ui32Value = OSReadHWReg32(pvRegsBaseKM, 0x28);
-	PVR_TRACE(("PVRCore_Init:ui32Value = 0x%X ",ui32Value));
-
-	OSWriteHWReg32(pvRegsBaseKM, RGX_CR_ISP_GRIDOFFSET, 0x55555555);
-	ui32Value = OSReadHWReg32(pvRegsBaseKM, RGX_CR_ISP_GRIDOFFSET);
-	PVR_TRACE(("PVRCore_Init:ui32Value = 0x%X ",ui32Value));
-
-	OSWriteHWReg32(pvRegsBaseKM, RGX_CR_ISP_GRIDOFFSET, 0xAAAAAAAA);
-	ui32Value = OSReadHWReg32(pvRegsBaseKM, RGX_CR_ISP_GRIDOFFSET);
-	PVR_TRACE(("PVRCore_Init:ui32Value = 0x%X ",ui32Value));
-#endif		
-
-	MTKSysSetInitialPowerState();
+	*ppsDevConfig = &gsDevice;
 
 	return PVRSRV_OK;
 }
 
+PVRSRV_ERROR SysCreateConfigData(PVRSRV_SYSTEM_CONFIG **ppsSysConfig,
+				 void *hDevice)
+{
+	PVRSRV_ERROR ret;
 
-/*
-	SysDestroyConfigData
-*/
+	gsSysConfig.pasPhysHeaps = &gsPhysHeapConfig;
+	gsSysConfig.ui32PhysHeapCount = 1;
+
+	gsSysConfig.pui32BIFTilingHeapConfigs = gauiBIFTilingHeapXStrides;
+	gsSysConfig.ui32BIFTilingHeapCount =
+			IMG_ARR_NUM_ELEMS(gauiBIFTilingHeapXStrides);
+
+	gsSysConfig.pszSystemName = RGX_HW_SYSTEM_NAME;
+	gsSysConfig.uiDeviceCount = 1;
+	ret = SysDevInit(hDevice, &gsSysConfig.pasDevices);
+	if (ret != PVRSRV_OK)
+		return ret;
+
+	*ppsSysConfig = &gsSysConfig;
+
+	return PVRSRV_OK;
+}
+
 void SysDestroyConfigData(PVRSRV_SYSTEM_CONFIG *psSysConfig)
 {
 	PVR_UNREFERENCED_PARAMETER(psSysConfig);
-
-#if defined(SUPPORT_ION)
-	IonDeinit();
-#endif
-
-	MTKSysRestoreInitialPowerState();
 }
 
 PVRSRV_ERROR SysDebugInfo(PVRSRV_SYSTEM_CONFIG *psSysConfig,
-						  DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf)
+			  DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf)
 {
 	PVR_UNREFERENCED_PARAMETER(psSysConfig);
 	PVR_UNREFERENCED_PARAMETER(pfnDumpDebugPrintf);
@@ -434,7 +452,3 @@ SYS_PHYS_ADDRESS_MASK SysDevicePhysAddressMask(void)
 {
 	return SYS_PHYS_ADDRESS_64_BIT;
 }
-
-/******************************************************************************
- End of file (sysconfig.c)
-******************************************************************************/

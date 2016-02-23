@@ -422,23 +422,19 @@ nouveau_fence_sync(struct fence *fence, struct nouveau_channel *chan, bool intr)
 
 	f = nouveau_local_fence(fence, chan->drm);
 	if (f) {
+		mutex_lock(&chan->fifo_lock);
 		rcu_read_lock();
 		prev = rcu_dereference(f->channel);
-		if (prev) {
-			if (prev == chan)
-				must_wait = false;
-			else {
-				mutex_lock(&chan->fifo_lock);
-				if (fctx->sync(f, prev, chan) == 0)
-					must_wait = false;
-				mutex_unlock(&chan->fifo_lock);
-			}
-		}
+		if (prev && (prev == chan || fctx->sync(f, prev, chan) == 0))
+			must_wait = false;
 		rcu_read_unlock();
+		mutex_unlock(&chan->fifo_lock);
 	}
 
-	if (must_wait)
-		ret = fence_wait(fence, intr);
+	if (must_wait) {
+		ret = fence_wait_timeout(fence, intr, msecs_to_jiffies(500));
+		return ret < 0 ? ret : 0;
+	}
 
 	return ret;
 }

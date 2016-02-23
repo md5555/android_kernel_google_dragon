@@ -55,27 +55,31 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "pmr.h"
 
 typedef PVRSRV_ERROR (*PFN_DESTROY_DMABUF_PMR)(PHYS_HEAP *psHeap,
-					       struct dma_buf_attachment *psAttachment);
+                                               struct dma_buf_attachment *psAttachment);
 
 PVRSRV_ERROR
 PhysmemCreateNewDmaBufBackedPMR(PHYS_HEAP *psHeap,
-				struct dma_buf_attachment *psAttachment,
-				PFN_DESTROY_DMABUF_PMR pfnDestroy,
-				PVRSRV_MEMALLOCFLAGS_T uiFlags,
-				PMR **ppsPMRPtr);
+                                struct dma_buf_attachment *psAttachment,
+                                PFN_DESTROY_DMABUF_PMR pfnDestroy,
+                                PVRSRV_MEMALLOCFLAGS_T uiFlags,
+                                PMR **ppsPMRPtr);
 
-#if defined(SUPPORT_DMABUF)
 struct dma_buf *
 PhysmemGetDmaBuf(PMR *psPMR);
 
 PVRSRV_ERROR
+PhysmemExportDmaBuf(CONNECTION_DATA *psConnection,
+                    PVRSRV_DEVICE_NODE *psDevNode,
+                    PMR *psPMR,
+                    IMG_INT *piFd);
+
+PVRSRV_ERROR
 PhysmemImportDmaBuf(CONNECTION_DATA *psConnection,
-		    PVRSRV_DEVICE_NODE *psDevNode,
-		    IMG_INT fd,
-		    PVRSRV_MEMALLOCFLAGS_T uiFlags,
-		    PMR **ppsPMRPtr,
-		    IMG_DEVMEM_SIZE_T *puiSize,
-		    IMG_DEVMEM_ALIGN_T *puiAlign);
-#endif
+                    PVRSRV_DEVICE_NODE *psDevNode,
+                    IMG_INT fd,
+                    PVRSRV_MEMALLOCFLAGS_T uiFlags,
+                    PMR **ppsPMRPtr,
+                    IMG_DEVMEM_SIZE_T *puiSize,
+                    IMG_DEVMEM_ALIGN_T *puiAlign);
 
 #endif /* !defined(_PHYSMEM_DMABUF_H_) */

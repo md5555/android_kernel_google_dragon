@@ -194,6 +194,11 @@ struct _RA_ARENA_
 	/* LockClass of this arena. This is used within lockdep to decide if a
 	 * recursive call sequence with the same lock class is allowed or not. */
 	IMG_UINT32 ui32LockClass;
+
+	/* If TRUE, imports will not be split up. Allocations will always get their
+	 * own import
+	 */
+	IMG_BOOL bNoSplit;
 };
 
 /*************************************************************************/ /*!
@@ -917,6 +922,11 @@ _AttemptAllocAligned (RA_ARENA *pArena,
 
 	_FreeListRemove (pArena, pBT);
 
+	if(pArena->bNoSplit)
+	{
+		goto nosplit;
+	}
+
 	/* with uAlignment we might need to discard the front of this segment */
 	if (aligned_base > pBT->base)
 	{
@@ -951,7 +961,7 @@ _AttemptAllocAligned (RA_ARENA *pArena,
 	
 		_FreeListInsert (pArena, pNeighbour);
 	}
-
+nosplit:
 	pBT->type = btt_live;
 	
 	if (!HASH_Insert_Extended (pArena->pSegmentHash, &pBT->base, (uintptr_t)pBT))
@@ -981,6 +991,7 @@ _AttemptAllocAligned (RA_ARENA *pArena,
 @Input          imp_alloc     A resource allocation callback or 0.
 @Input          imp_free      A resource de-allocation callback or 0.
 @Input          pImportHandle Handle passed to alloc and free or 0.
+@Input          bNoSplit      Disable splitting up imports.
 @Return         arena handle, or NULL.
 */ /**************************************************************************/
 IMG_INTERNAL RA_ARENA *
@@ -997,7 +1008,8 @@ RA_Create (IMG_CHAR *name,
 		   void (*imp_free) (RA_PERARENA_HANDLE,
                              RA_BASE_T,
                              RA_PERISPAN_HANDLE),
-		   RA_PERARENA_HANDLE arena_handle)
+		   RA_PERARENA_HANDLE arena_handle,
+		   IMG_BOOL bNoSplit)
 {
 	RA_ARENA *pArena;
 	PVRSRV_ERROR eError;
@@ -1037,6 +1049,7 @@ RA_Create (IMG_CHAR *name,
 	pArena->uQuantum = (IMG_UINT64) (1 << uLog2Quantum);
 	pArena->per_flags_buckets = NULL;
 	pArena->ui32LockClass = ui32LockClass;
+	pArena->bNoSplit = bNoSplit;
 
 	PVR_ASSERT(is_arena_valid(pArena));
 	return pArena;

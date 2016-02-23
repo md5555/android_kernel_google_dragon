@@ -134,7 +134,7 @@ static struct drm_encoder *slave_encoder_create(struct drm_device *dev,
 	encoder->possible_crtcs = 1;
 
 	ret = drm_encoder_init(dev, encoder, &slave_encoder_funcs,
-			DRM_MODE_ENCODER_TMDS);
+			DRM_MODE_ENCODER_TMDS, NULL);
 	if (ret)
 		goto fail;
 

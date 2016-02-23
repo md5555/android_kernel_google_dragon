@@ -126,6 +126,57 @@ static void tegra_dc_stats_reset(struct tegra_dc_stats *stats)
 	stats->overflow = 0;
 }
 
+static int tegra_dc_clk_enable(struct tegra_dc *dc)
+{
+	int err;
+
+	err = clk_prepare_enable(dc->clk);
+	if (err < 0) {
+		dev_err(dc->dev,
+			"failed to enable dc clock: %d\n", err);
+		return err;
+	}
+
+	if (dc->emc_clk) {
+		err = clk_prepare_enable(dc->emc_clk);
+		if (err < 0) {
+			dev_err(dc->dev,
+				"failed to enable emc clock: %d\n",
+				err);
+			goto err_emc_clk;
+		}
+	}
+
+
+	if (dc->emc_la_clk) {
+		err = clk_prepare_enable(dc->emc_la_clk);
+		if (err < 0) {
+			dev_err(dc->dev,
+				"failed to enable emc la clock: %d\n",
+				err);
+			goto err_emc_la_clk;
+		}
+	}
+
+	return 0;
+
+err_emc_la_clk:
+	clk_disable_unprepare(dc->emc_clk);
+err_emc_clk:
+	clk_disable_unprepare(dc->clk);
+
+	return err;
+}
+
+static void tegra_dc_clk_disable(struct tegra_dc *dc)
+{
+	clk_disable_unprepare(dc->clk);
+	if (dc->emc_clk)
+		clk_disable_unprepare(dc->emc_clk);
+	if (dc->emc_la_clk)
+		clk_disable_unprepare(dc->emc_la_clk);
+}
+
 /*
  * Reads the active copy of a register. This takes the dc->lock spinlock to
  * prevent races with the VBLANK processing which also needs access to the
@@ -179,7 +230,8 @@ static int tegra_dc_format(u32 fourcc, u32 *format, u32 *swap)
 	case DRM_FORMAT_RGBA8888:
 		if (swap)
 			*swap = BYTE_SWAP_SWAP4;
-		return WIN_COLOR_DEPTH_R8G8B8A8;
+		*format = WIN_COLOR_DEPTH_R8G8B8A8;
+		break;
 
 	case DRM_FORMAT_ARGB8888:
 	case DRM_FORMAT_XRGB8888:
@@ -788,6 +840,10 @@ static int tegra_plane_atomic_check(struct drm_plane *plane,
 	if (!state->crtc)
 		return 0;
 
+	if ((state->src_w >> 16) == 0 || (state->src_h >> 16) == 0 ||
+	    state->crtc_w == 0 || state->crtc_h == 0)
+		return -EINVAL;
+
 	err = tegra_dc_format(state->fb->pixel_format, &plane_state->format,
 			      &plane_state->swap);
 	if (err < 0)
@@ -1032,7 +1088,8 @@ static struct drm_plane *tegra_dc_primary_plane_create(struct drm_device *drm,
 				       &tegra_primary_plane_funcs,
 				       dc->soc->primary_plane_formats,
 				       dc->soc->num_primary_plane_formats,
-				       DRM_PLANE_TYPE_PRIMARY);
+				       DRM_PLANE_TYPE_PRIMARY,
+				       NULL);
 	if (err < 0) {
 		kfree(plane);
 		return ERR_PTR(err);
@@ -1203,7 +1260,8 @@ static struct drm_plane *tegra_dc_cursor_plane_create(struct drm_device *drm,
 
 	err = drm_universal_plane_init(drm, &plane->base, 1 << dc->pipe,
 				       &tegra_cursor_plane_funcs, formats,
-				       num_formats, DRM_PLANE_TYPE_CURSOR);
+				       num_formats, DRM_PLANE_TYPE_CURSOR,
+				       NULL);
 	if (err < 0) {
 		kfree(plane);
 		return ERR_PTR(err);
@@ -1253,7 +1311,8 @@ static struct drm_plane *tegra_dc_overlay_plane_create(struct drm_device *drm,
 				       &tegra_overlay_plane_funcs,
 				       dc->soc->overlay_plane_formats,
 				       dc->soc->num_overlay_plane_formats,
-				       DRM_PLANE_TYPE_OVERLAY);
+				       DRM_PLANE_TYPE_OVERLAY,
+				       NULL);
 	if (err < 0) {
 		kfree(plane);
 		return ERR_PTR(err);
@@ -1540,6 +1599,8 @@ static void tegra_crtc_disable(struct drm_crtc *crtc)
 
 	drm_crtc_vblank_off(crtc);
 
+	tegra_dc_clk_disable(dc);
+
 	if (dc->soc->has_powergate)
 		tegra_pmc_powergate(dc->powergate);
 }
@@ -1738,8 +1799,11 @@ static void tegra_crtc_mode_set_nofb(struct drm_crtc *crtc)
 
 	tegra_crtc_get_display_info(crtc);
 
-	if (dc->dpms == DRM_MODE_DPMS_OFF && dc->soc->has_powergate)
-		tegra_pmc_unpowergate(dc->powergate);
+	if (dc->dpms == DRM_MODE_DPMS_OFF) {
+		if (dc->soc->has_powergate)
+			tegra_pmc_unpowergate(dc->powergate);
+		tegra_dc_clk_enable(dc);
+	}
 
 	/*
 	 * If we're already initialized (ie: DPMS_ON || DPMS_STANDBY), don't re-
@@ -2162,7 +2226,7 @@ static int tegra_dc_set_latency_allowance(struct drm_crtc *crtc,
 		plane_emc_bw = tegra_dc_get_plane_emc_bw(tps, old_tps, update);
 
 		total_active_space_bw +=
-			DIV_ROUND_UP(plane_emc_bw, 1000);
+			DIV_ROUND_UP_ULL(plane_emc_bw, 1000);
 	}
 
 	for_each_plane_in_state(old_state, plane, old_plane_state, i) {
@@ -2622,11 +2686,19 @@ static int tegra_dc_show_regs(struct seq_file *s, void *data)
 {
 	struct drm_info_node *node = s->private;
 	struct tegra_dc *dc = node->info_ent->data;
+	unsigned long flags;
+	u32 win_header_save;
+	u32 state_access_save;
+	int i;
 
 	if (!tegra_powergate_is_powered(dc->powergate)) {
 		DRM_INFO("Can't dump registers as dc is powergated\n");
 		return -EPERM;
 	}
+
+	spin_lock_irqsave(&dc->lock, flags);
+	state_access_save = tegra_dc_readl(dc, DC_CMD_STATE_ACCESS);
+	tegra_dc_writel(dc, state_access_save | READ_MUX, DC_CMD_STATE_ACCESS);
 
 #define DUMP_REG(name)						\
 	seq_printf(s, "%-40s %#05x %08x\n", #name, name,	\
@@ -2809,44 +2881,68 @@ static int tegra_dc_show_regs(struct seq_file *s, void *data)
 	DUMP_REG(DC_DISP_SD_MAN_K_VALUES);
 	DUMP_REG(DC_DISP_CURSOR_START_ADDR_HI);
 	DUMP_REG(DC_DISP_BLEND_CURSOR_CONTROL);
-	DUMP_REG(DC_WIN_WIN_OPTIONS);
-	DUMP_REG(DC_WIN_BYTE_SWAP);
-	DUMP_REG(DC_WIN_BUFFER_CONTROL);
-	DUMP_REG(DC_WIN_COLOR_DEPTH);
-	DUMP_REG(DC_WIN_POSITION);
-	DUMP_REG(DC_WIN_SIZE);
-	DUMP_REG(DC_WIN_PRESCALED_SIZE);
-	DUMP_REG(DC_WIN_H_INITIAL_DDA);
-	DUMP_REG(DC_WIN_V_INITIAL_DDA);
-	DUMP_REG(DC_WIN_DDA_INC);
-	DUMP_REG(DC_WIN_LINE_STRIDE);
-	DUMP_REG(DC_WIN_BUF_STRIDE);
-	DUMP_REG(DC_WIN_UV_BUF_STRIDE);
-	DUMP_REG(DC_WIN_BUFFER_ADDR_MODE);
-	DUMP_REG(DC_WIN_DV_CONTROL);
-	DUMP_REG(DC_WIN_BLEND_NOKEY);
-	DUMP_REG(DC_WIN_BLEND_1WIN);
-	DUMP_REG(DC_WIN_BLEND_2WIN_X);
-	DUMP_REG(DC_WIN_BLEND_2WIN_Y);
-	DUMP_REG(DC_WIN_BLEND_3WIN_XY);
-	DUMP_REG(DC_WIN_HP_FETCH_CONTROL);
-	DUMP_REG(DC_WINBUF_START_ADDR);
-	DUMP_REG(DC_WINBUF_START_ADDR_NS);
-	DUMP_REG(DC_WINBUF_START_ADDR_U);
-	DUMP_REG(DC_WINBUF_START_ADDR_U_NS);
-	DUMP_REG(DC_WINBUF_START_ADDR_V);
-	DUMP_REG(DC_WINBUF_START_ADDR_V_NS);
-	DUMP_REG(DC_WINBUF_ADDR_H_OFFSET);
-	DUMP_REG(DC_WINBUF_ADDR_H_OFFSET_NS);
-	DUMP_REG(DC_WINBUF_ADDR_V_OFFSET);
-	DUMP_REG(DC_WINBUF_ADDR_V_OFFSET_NS);
-	DUMP_REG(DC_WINBUF_UFLOW_STATUS);
-	DUMP_REG(DC_WINBUF_AD_UFLOW_STATUS);
-	DUMP_REG(DC_WINBUF_BD_UFLOW_STATUS);
-	DUMP_REG(DC_WINBUF_CD_UFLOW_STATUS);
+
+	win_header_save = tegra_dc_readl(dc, DC_CMD_DISPLAY_WINDOW_HEADER);
+	for (i = 0; i < dc->soc->num_windows; i++) {
+		switch (i) {
+		case 0:
+			seq_printf(s, "\nWindow A registers:\n");
+			break;
+		case 1:
+			seq_printf(s, "\nWindow B registers:\n");
+			break;
+		case 2:
+			seq_printf(s, "\nWindow C registers:\n");
+			break;
+		default:
+			/* Currently we don't care about other windows */
+			continue;
+		}
+
+		tegra_dc_writel(dc, WINDOW_A_SELECT << i,
+				DC_CMD_DISPLAY_WINDOW_HEADER);
+
+		DUMP_REG(DC_WIN_WIN_OPTIONS);
+		DUMP_REG(DC_WIN_BYTE_SWAP);
+		DUMP_REG(DC_WIN_BUFFER_CONTROL);
+		DUMP_REG(DC_WIN_COLOR_DEPTH);
+		DUMP_REG(DC_WIN_POSITION);
+		DUMP_REG(DC_WIN_SIZE);
+		DUMP_REG(DC_WIN_PRESCALED_SIZE);
+		DUMP_REG(DC_WIN_H_INITIAL_DDA);
+		DUMP_REG(DC_WIN_V_INITIAL_DDA);
+		DUMP_REG(DC_WIN_DDA_INC);
+		DUMP_REG(DC_WIN_LINE_STRIDE);
+		DUMP_REG(DC_WIN_BUF_STRIDE);
+		DUMP_REG(DC_WIN_UV_BUF_STRIDE);
+		DUMP_REG(DC_WIN_BUFFER_ADDR_MODE);
+		DUMP_REG(DC_WIN_DV_CONTROL);
+		DUMP_REG(DC_WIN_BLEND_NOKEY);
+		DUMP_REG(DC_WIN_BLEND_1WIN);
+		DUMP_REG(DC_WIN_BLEND_2WIN_X);
+		DUMP_REG(DC_WIN_BLEND_2WIN_Y);
+		DUMP_REG(DC_WIN_BLEND_3WIN_XY);
+		DUMP_REG(DC_WIN_HP_FETCH_CONTROL);
+		DUMP_REG(DC_WINBUF_START_ADDR);
+		DUMP_REG(DC_WINBUF_START_ADDR_NS);
+		DUMP_REG(DC_WINBUF_START_ADDR_U);
+		DUMP_REG(DC_WINBUF_START_ADDR_U_NS);
+		DUMP_REG(DC_WINBUF_START_ADDR_V);
+		DUMP_REG(DC_WINBUF_START_ADDR_V_NS);
+		DUMP_REG(DC_WINBUF_ADDR_H_OFFSET);
+		DUMP_REG(DC_WINBUF_ADDR_H_OFFSET_NS);
+		DUMP_REG(DC_WINBUF_ADDR_V_OFFSET);
+		DUMP_REG(DC_WINBUF_ADDR_V_OFFSET_NS);
+		DUMP_REG(DC_WINBUF_UFLOW_STATUS);
+		DUMP_REG(DC_WINBUF_SURFACE_KIND);
+	}
+
+	tegra_dc_writel(dc, win_header_save, DC_CMD_DISPLAY_WINDOW_HEADER);
+	tegra_dc_writel(dc, state_access_save, DC_CMD_STATE_ACCESS);
 
 #undef DUMP_REG
 
+	spin_unlock_irqrestore(&dc->lock, flags);
 	return 0;
 }
 
@@ -2926,6 +3022,25 @@ static int tegra_dc_debugfs_exit(struct tegra_dc *dc)
 	return 0;
 }
 
+static void tegra_dc_clk_dvfs_init(struct tegra_dc *dc)
+{
+	unsigned long *freqs;
+	int num_freqs;
+	unsigned long rate;
+	int ret;
+
+	/*
+	 * Set the dc->clk's rate to the maximum rate of the dvfs
+	 * table if its default rate is larger than it.
+	 */
+	ret = tegra_dvfs_get_freqs(dc->clk, &freqs, &num_freqs);
+	if (!ret && num_freqs > 0) {
+		rate = clk_get_rate(dc->clk);
+		if (rate > freqs[num_freqs - 1])
+			clk_set_rate(dc->clk, freqs[num_freqs - 1]);
+	}
+}
+
 static int tegra_dc_init(struct host1x_client *client)
 {
 	struct drm_device *drm = dev_get_drvdata(client->parent);
@@ -2961,7 +3076,7 @@ static int tegra_dc_init(struct host1x_client *client)
 	}
 
 	err = drm_crtc_init_with_planes(drm, &dc->base, primary, cursor,
-					&tegra_crtc_funcs);
+					&tegra_crtc_funcs, NULL);
 	if (err < 0)
 		goto cleanup;
 
@@ -2999,6 +3114,16 @@ static int tegra_dc_init(struct host1x_client *client)
 		goto cleanup;
 	}
 
+	/*
+	 * Make sure that the default rate of dc->clk is in
+	 * the range of the dvfs table. Otherwise, it will cause
+	 * fault if any function of setting rate is directly or
+	 * indirectly called.
+	 */
+	tegra_dc_clk_dvfs_init(dc);
+
+	tegra_dc_clk_disable(dc);
+
 	/* Matches the ungate in probe() */
 	if (dc->soc->has_powergate)
 		tegra_pmc_powergate(dc->powergate);
@@ -3017,6 +3142,9 @@ cleanup:
 		dc->domain = NULL;
 	}
 
+	tegra_dc_clk_dvfs_init(dc);
+	tegra_dc_clk_disable(dc);
+
 	/* Matches the ungate in probe() */
 	if (dc->soc->has_powergate)
 		tegra_pmc_powergate(dc->powergate);
@@ -3031,6 +3159,8 @@ static int tegra_dc_exit(struct host1x_client *client)
 
 	if (dc->soc->has_powergate)
 		tegra_pmc_unpowergate(dc->powergate);
+
+	tegra_dc_clk_enable(dc);
 
 	devm_free_irq(dc->dev, dc->irq, dc);
 
@@ -3050,6 +3180,8 @@ static int tegra_dc_exit(struct host1x_client *client)
 		iommu_detach_device(dc->domain, dc->dev);
 		dc->domain = NULL;
 	}
+
+	tegra_dc_clk_disable(dc);
 
 	if (dc->soc->has_powergate)
 		tegra_pmc_powergate(dc->powergate);
@@ -3576,12 +3708,10 @@ static int tegra_dc_remove(struct platform_device *pdev)
 	tegra_slcg_unregister_notifier(dc->powergate,
 		&dc->slcg_notifier);
 
+	tegra_dc_clk_disable(dc);
+
 	if (dc->soc->has_powergate)
 		tegra_pmc_powergate(dc->powergate);
-
-	clk_disable_unprepare(dc->clk);
-	clk_disable_unprepare(dc->emc_clk);
-	clk_disable_unprepare(dc->emc_la_clk);
 
 	return 0;
 }

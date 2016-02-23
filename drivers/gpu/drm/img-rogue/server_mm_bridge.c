@@ -320,6 +320,7 @@ PVRSRVBridgePMRMakeLocalImportHandle(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
+	PMRLock();
 
 
 				{
@@ -331,6 +332,7 @@ PVRSRVBridgePMRMakeLocalImportHandle(IMG_UINT32 ui32DispatchTableEntry,
 											PVRSRV_HANDLE_TYPE_PMR_LOCAL_EXPORT_HANDLE);
 					if(psPMRMakeLocalImportHandleOUT->eError != PVRSRV_OK)
 					{
+						PMRUnlock();
 						goto PMRMakeLocalImportHandle_exit;
 					}
 				}
@@ -343,8 +345,10 @@ PVRSRVBridgePMRMakeLocalImportHandle(IMG_UINT32 ui32DispatchTableEntry,
 	/* Exit early if bridged call fails */
 	if(psPMRMakeLocalImportHandleOUT->eError != PVRSRV_OK)
 	{
+		PMRUnlock();
 		goto PMRMakeLocalImportHandle_exit;
 	}
+	PMRUnlock();
 
 
 	psPMRMakeLocalImportHandleOUT->eError = PVRSRVAllocHandle(psConnection->psHandleBase,
@@ -385,6 +389,7 @@ PVRSRVBridgePMRUnmakeLocalImportHandle(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
+	PMRLock();
 
 
 
@@ -396,9 +401,11 @@ PVRSRVBridgePMRUnmakeLocalImportHandle(IMG_UINT32 ui32DispatchTableEntry,
 	if ((psPMRUnmakeLocalImportHandleOUT->eError != PVRSRV_OK) && (psPMRUnmakeLocalImportHandleOUT->eError != PVRSRV_ERROR_RETRY))
 	{
 		PVR_ASSERT(0);
+		PMRUnlock();
 		goto PMRUnmakeLocalImportHandle_exit;
 	}
 
+	PMRUnlock();
 
 
 PMRUnmakeLocalImportHandle_exit:
@@ -1003,6 +1010,7 @@ PVRSRVBridgeDevmemIntCtxCreate(IMG_UINT32 ui32DispatchTableEntry,
 	psDevmemIntCtxCreateOUT->hDevMemServerContext = NULL;
 
 
+	PMRLock();
 
 
 	psDevmemIntCtxCreateOUT->eError =
@@ -1013,8 +1021,10 @@ PVRSRVBridgeDevmemIntCtxCreate(IMG_UINT32 ui32DispatchTableEntry,
 	/* Exit early if bridged call fails */
 	if(psDevmemIntCtxCreateOUT->eError != PVRSRV_OK)
 	{
+		PMRUnlock();
 		goto DevmemIntCtxCreate_exit;
 	}
+	PMRUnlock();
 
 
 	psDevmemIntCtxCreateOUT->eError = PVRSRVAllocHandle(psConnection->psHandleBase,
@@ -1081,6 +1091,7 @@ PVRSRVBridgeDevmemIntCtxDestroy(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
+	PMRLock();
 
 
 
@@ -1092,9 +1103,11 @@ PVRSRVBridgeDevmemIntCtxDestroy(IMG_UINT32 ui32DispatchTableEntry,
 	if ((psDevmemIntCtxDestroyOUT->eError != PVRSRV_OK) && (psDevmemIntCtxDestroyOUT->eError != PVRSRV_ERROR_RETRY))
 	{
 		PVR_ASSERT(0);
+		PMRUnlock();
 		goto DevmemIntCtxDestroy_exit;
 	}
 
+	PMRUnlock();
 
 
 DevmemIntCtxDestroy_exit:

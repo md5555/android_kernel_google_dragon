@@ -83,25 +83,29 @@ gf100_bar_ctor_vm(struct gf100_bar_priv *priv, struct gf100_bar_priv_vm *bar_vm,
 		  int bar_nr)
 {
 	struct nvkm_device *device = nv_device(&priv->base);
+	struct nvkm_mmu *mmu = nvkm_mmu(priv);
 	struct nvkm_vm *vm;
 	resource_size_t bar_len;
 	int ret;
 
+	/* allocate inst blk */
 	ret = nvkm_gpuobj_new(nv_object(priv), NULL, 0x1000, 0, 0,
 			      &bar_vm->mem);
 	if (ret)
 		return ret;
 
-	ret = nvkm_gpuobj_new(nv_object(priv), NULL, 0x8000, 0, 0,
-			      &bar_vm->pgd);
-	if (ret)
-		return ret;
-
 	bar_len = nv_device_resource_len(device, bar_nr);
 
+	/* allocate pgd and initialize inst blk */
+	ret = mmu->create_pgd(mmu, nv_object(priv), bar_vm->mem,
+				bar_len, &bar_vm->pgd);
+	if (ret)
+		goto err_pgd;
+
+	/* allocate virtual memory range */
 	ret = nvkm_vm_new(device, 0, bar_len, 0, &vm);
 	if (ret)
-		return ret;
+		goto err_vm;
 
 	atomic_inc(&vm->engref[NVDEV_SUBDEV_BAR]);
 
@@ -113,21 +117,28 @@ gf100_bar_ctor_vm(struct gf100_bar_priv *priv, struct gf100_bar_priv_vm *bar_vm,
 				      (bar_len >> 12) * 8, 0x1000,
 				      NVOBJ_FLAG_ZERO_ALLOC,
 				      &vm->pgt[0].obj[0]);
-		vm->pgt[0].refcount[0] = 1;
 		if (ret)
-			return ret;
+			goto err_pgt;
+		vm->pgt[0].refcount[0] = 1;
 	}
 
 	ret = nvkm_vm_ref(vm, &bar_vm->vm, bar_vm->pgd);
 	nvkm_vm_ref(NULL, &vm, NULL);
 	if (ret)
-		return ret;
+		goto err_pgt;
 
-	nv_wo32(bar_vm->mem, 0x0200, lower_32_bits(bar_vm->pgd->addr));
-	nv_wo32(bar_vm->mem, 0x0204, upper_32_bits(bar_vm->pgd->addr));
-	nv_wo32(bar_vm->mem, 0x0208, lower_32_bits(bar_len - 1));
-	nv_wo32(bar_vm->mem, 0x020c, upper_32_bits(bar_len - 1));
 	return 0;
+
+err_pgt:
+	if (vm->pgt[0].obj[0])
+		nvkm_gpuobj_destroy(vm->pgt[0].obj[0]);
+err_vm:
+	nvkm_gpuobj_destroy(bar_vm->pgd);
+	bar_vm->pgd = NULL;
+err_pgd:
+	nvkm_gpuobj_destroy(bar_vm->mem);
+	bar_vm->mem = NULL;
+	return ret;
 }
 
 int

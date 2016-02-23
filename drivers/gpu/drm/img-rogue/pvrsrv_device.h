@@ -50,7 +50,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "rgx_fwif_km.h"
 #include "pmr.h"
 #include "lock.h"
+#if defined(PVR_DVFS)
 #include "pvr_dvfs.h"
+#endif
 
 typedef struct _PVRSRV_DEVICE_CONFIG_ PVRSRV_DEVICE_CONFIG;
 
@@ -94,15 +96,17 @@ typedef PVRSRV_ERROR (*PFN_SYS_DEV_CHECK_MEM_ALLOC_SIZE)(struct _PVRSRV_DEVICE_N
 														 IMG_UINT64 ui64MemSize);
 
 #if defined(SUPPORT_TRUSTED_DEVICE)
-typedef struct _PVRSRV_TD_INIT_PARAMS_
+typedef struct _PVRSRV_TD_FW_PARAMS_
 {
+	const void *pvFirmware;
+	IMG_UINT32 ui32FirmwareSize;
 	IMG_DEV_VIRTADDR sFWCodeDevVAddrBase;
 	IMG_DEV_VIRTADDR sFWDataDevVAddrBase;
 	RGXFWIF_DEV_VIRTADDR sFWCorememCodeFWAddr;
 	RGXFWIF_DEV_VIRTADDR sFWInitFWAddr;
-} PVRSRV_TD_INIT_PARAMS;
+} PVRSRV_TD_FW_PARAMS;
 
-typedef PVRSRV_ERROR (*PFN_TD_SET_INIT_PARAMS)(PVRSRV_TD_INIT_PARAMS *psTDInitParams);
+typedef PVRSRV_ERROR (*PFN_TD_SEND_FW_IMAGE)(PVRSRV_TD_FW_PARAMS *psTDFWParams);
 
 
 typedef struct _PVRSRV_TD_POWER_PARAMS_
@@ -190,9 +194,9 @@ struct _PVRSRV_DEVICE_CONFIG_
 	PFN_SYS_DEV_CHECK_MEM_ALLOC_SIZE	pfnCheckMemAllocSize;
 
 #if defined(SUPPORT_TRUSTED_DEVICE)
-	/*! Callback to send the parameters needed at FW image loading time
+	/*! Callback to send FW image and FW boot time parameters
 	 *! to the trusted device */
-	PFN_TD_SET_INIT_PARAMS   pfnTDSetInitParams;
+	PFN_TD_SEND_FW_IMAGE     pfnTDSendFWImage;
 
 	/*! Callback to send parameters needed in a power transition
 	 *! to the trusted device */

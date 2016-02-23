@@ -425,7 +425,9 @@ static int i915_load_modeset_init(struct drm_device *dev)
 	if (ret)
 		goto cleanup_vga_switcheroo;
 
-	intel_power_domains_init_hw(dev_priv);
+	intel_power_domains_init_hw(dev_priv, false);
+
+	intel_csr_ucode_init(dev_priv);
 
 	ret = intel_irq_install(dev_priv);
 	if (ret)
@@ -849,7 +851,7 @@ int i915_driver_load(struct drm_device *dev, unsigned long flags)
 	spin_lock_init(&dev_priv->mmio_flip_lock);
 	mutex_init(&dev_priv->sb_lock);
 	mutex_init(&dev_priv->modeset_restore_lock);
-	mutex_init(&dev_priv->csr_lock);
+	mutex_init(&dev_priv->av_mutex);
 
 	intel_pm_setup(dev);
 
@@ -894,9 +896,6 @@ int i915_driver_load(struct drm_device *dev, unsigned long flags)
 	intel_detect_pch(dev);
 
 	intel_uncore_init(dev);
-
-	/* Load CSR Firmware for SKL */
-	intel_csr_ucode_init(dev);
 
 	ret = i915_gem_gtt_init(dev);
 	if (ret)
@@ -1073,7 +1072,7 @@ out_mtrrfree:
 out_gtt:
 	i915_global_gtt_cleanup(dev);
 out_freecsr:
-	intel_csr_ucode_fini(dev);
+	intel_csr_ucode_fini(dev_priv);
 	intel_uncore_fini(dev);
 	pci_iounmap(dev->pdev, dev_priv->regs);
 put_bridge:
@@ -1154,7 +1153,7 @@ int i915_driver_unload(struct drm_device *dev)
 	intel_fbc_cleanup_cfb(dev_priv);
 	i915_gem_cleanup_stolen(dev);
 
-	intel_csr_ucode_fini(dev);
+	intel_csr_ucode_fini(dev_priv);
 
 	intel_teardown_gmbus(dev);
 	intel_teardown_mchbar(dev);

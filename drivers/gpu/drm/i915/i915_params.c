@@ -32,13 +32,14 @@ struct i915_params i915 __read_mostly = {
 	.panel_use_ssc = -1,
 	.vbt_sdvo_panel_type = -1,
 	.enable_rc6 = -1,
+	.enable_dc = -1,
 	.enable_fbc = -1,
 	.enable_execlists = -1,
 	.enable_hangcheck = true,
 	.enable_ppgtt = -1,
-	.enable_psr = 0,
+	.enable_psr = 1,
 	.preliminary_hw_support = IS_ENABLED(CONFIG_DRM_I915_PRELIMINARY_HW_SUPPORT),
-	.disable_power_well = 1,
+	.disable_power_well = -1,
 	.enable_ips = 1,
 	.fastboot = 0,
 	.prefault_disable = 0,
@@ -76,6 +77,11 @@ MODULE_PARM_DESC(enable_rc6,
 	"(0 = disable; 1 = enable rc6; 2 = enable deep rc6; 4 = enable deepest rc6). "
 	"For example, 3 would enable rc6 and deep rc6, and 7 would enable everything. "
 	"default: -1 (use per-chip default)");
+
+module_param_named_unsafe(enable_dc, i915.enable_dc, int, 0400);
+MODULE_PARM_DESC(enable_dc,
+	"Enable power-saving display C-states. "
+	"(-1=auto [default]; 0=disable; 1=up to DC5; 2=up to DC6)");
 
 module_param_named_unsafe(enable_fbc, i915.enable_fbc, int, 0600);
 MODULE_PARM_DESC(enable_fbc,
@@ -117,7 +123,12 @@ MODULE_PARM_DESC(enable_execlists,
 	"(-1=auto [default], 0=disabled, 1=enabled)");
 
 module_param_named(enable_psr, i915.enable_psr, int, 0600);
-MODULE_PARM_DESC(enable_psr, "Enable PSR (default: false)");
+MODULE_PARM_DESC(enable_psr, "Enable PSR (default: 1)"
+	"(0=disabled [default], 1=link-off maximum power-savings, 2=link-standby mode)"
+	"In case you needed to force it on standby or disabled, please "
+	"report PCI device ID, subsystem vendor and subsystem device ID "
+	"to intel-gfx@lists.freedesktop.org, if your machine needs it. "
+	 "It will then be included in an upcoming module version.");
 
 module_param_named(preliminary_hw_support, i915.preliminary_hw_support, int, 0600);
 MODULE_PARM_DESC(preliminary_hw_support,
@@ -125,7 +136,8 @@ MODULE_PARM_DESC(preliminary_hw_support,
 
 module_param_named(disable_power_well, i915.disable_power_well, int, 0600);
 MODULE_PARM_DESC(disable_power_well,
-	"Disable the power well when possible (default: true)");
+	"Disable display power wells when possible "
+	"(-1=auto [default], 0=power wells always on, 1=power wells disabled when possible)");
 
 module_param_named(enable_ips, i915.enable_ips, int, 0600);
 MODULE_PARM_DESC(enable_ips, "Enable IPS (default: true)");

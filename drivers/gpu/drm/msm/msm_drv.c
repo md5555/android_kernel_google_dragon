@@ -399,24 +399,24 @@ static void msm_irq_uninstall(struct drm_device *dev)
 	kms->funcs->irq_uninstall(kms);
 }
 
-static int msm_enable_vblank(struct drm_device *dev, int crtc_id)
+static int msm_enable_vblank(struct drm_device *dev, unsigned int pipe)
 {
 	struct msm_drm_private *priv = dev->dev_private;
 	struct msm_kms *kms = priv->kms;
 	if (!kms)
 		return -ENXIO;
-	DBG("dev=%p, crtc=%d", dev, crtc_id);
-	return kms->funcs->enable_vblank(kms, priv->crtcs[crtc_id]);
+	DBG("dev=%p, crtc=%d", dev, pipe);
+	return kms->funcs->enable_vblank(kms, priv->crtcs[pipe]);
 }
 
-static void msm_disable_vblank(struct drm_device *dev, int crtc_id)
+static void msm_disable_vblank(struct drm_device *dev, unsigned int pipe)
 {
 	struct msm_drm_private *priv = dev->dev_private;
 	struct msm_kms *kms = priv->kms;
 	if (!kms)
 		return;
-	DBG("dev=%p, crtc=%d", dev, crtc_id);
-	kms->funcs->disable_vblank(kms, priv->crtcs[crtc_id]);
+	DBG("dev=%p, crtc=%d", dev, pipe);
+	kms->funcs->disable_vblank(kms, priv->crtcs[pipe]);
 }
 
 /*

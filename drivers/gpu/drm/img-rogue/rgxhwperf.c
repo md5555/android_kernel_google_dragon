@@ -45,6 +45,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #undef PVR_DPF_FUNCTION_TRACE_ON
 
 #include "pvr_debug.h"
+#include "pvr_hwperf.h"
 #include "osfunc.h"
 #include "allocmem.h"
 
@@ -543,6 +544,8 @@ PVRSRV_ERROR RGXHWPerfInitOnDemandResources(void)
 				| PVRSRV_MEMALLOCFLAG_ZERO_ON_ALLOC
 				#endif
 				;
+
+	PMRLock();
 	/* Allocate HWPerf FW L1 buffer */
 	eError = DevmemFwAllocate(gpsRgxDevInfo,
 							  gpsRgxDevInfo->ui32RGXFWIfHWPerfBufSize+RGXFW_HWPERF_L1_PADDING_DEFAULT,
@@ -610,6 +613,8 @@ PVRSRV_ERROR RGXHWPerfInitOnDemandResources(void)
 	PVR_UNREFERENCED_PARAMETER(RGXHWPerfTLCB);
 #endif 
 
+	PMRUnlock();
+
 	PVR_DPF_RETURN_OK;
 
 #if !defined(NO_HARDWARE)
@@ -619,6 +624,7 @@ e1: /* L2 buffer initialisation failures */
 e0: /* L1 buffer initialisation failures */
 	RGXHWPerfL1BufferDeinit();
 	
+	PMRUnlock();
 	PVR_DPF_RETURN_RC(eError);
 }
 
@@ -664,23 +670,26 @@ static PVRSRV_ERROR RGXHWPerfCtrlFwBuffer(PVRSRV_DEVICE_NODE *psDeviceNode,
 	PVRSRV_RGXDEV_INFO* psDevice = psDeviceNode->pvDevice;
 	RGXFWIF_KCCB_CMD sKccbCmd;
 
+	OSLockAcquire(psDevice->hLockHWPerfModule);
 	/* If this method is being used whether to enable or disable
 	 * then the hwperf buffers (host and FW) are likely to be needed
 	 * eventually so create them, also helps unit testing. Buffers
 	 * allocated on demand to reduce RAM foot print on systems not
 	 * needing HWPerf resources. */
-	OSLockAcquire(psDevice->hLockHWPerfModule);
 	if (RGXHWPerfIsInitRequired())
 	{
 		eError = RGXHWPerfInitOnDemandResources();
 		if (eError != PVRSRV_OK)
 		{
-			PVR_DPF((PVR_DBG_ERROR, "%s: Initialization of on-demand HWPerf resources failed", __FUNCTION__));
-			OSLockRelease(psDevice->hLockHWPerfModule);
-			return eError;
+			PVR_DPF((PVR_DBG_ERROR, "%s: Initialisation of on-demand HWPerfGpu "
+			        "resources failed", __func__));
+			goto unlock_and_return;
 		}
 	}
-	OSLockRelease(psDevice->hLockHWPerfModule);
+
+	/* Return if the filter is the same */
+	if (!bToggle && gpsRgxDevInfo->ui64HWPerfFilter == ui64Mask)
+		goto unlock_and_return;
 
 	/* Prepare command parameters ... */
 	sKccbCmd.eCmdType = RGXFWIF_KCCB_CMD_HWPERF_UPDATE_CONFIG;
@@ -692,47 +701,41 @@ static PVRSRV_ERROR RGXHWPerfCtrlFwBuffer(PVRSRV_DEVICE_NODE *psDeviceNode,
 								&sKccbCmd, sizeof(sKccbCmd), IMG_TRUE);
 	if (eError != PVRSRV_OK)
 	{
-		PVR_LOGR_IF_ERROR(eError, "RGXScheduleCommand");
+		PVR_DPF((PVR_DBG_ERROR, "%s: Failed to set new HWPerfGpu filter in "
+				"firmware (error = %d)", __func__, eError));
+		goto unlock_and_return;
 	}
 
-	/* PVR_DPF((PVR_DBG_VERBOSE, "PVRSRVRGXCtrlHWPerfKM command scheduled for FW")); */
+	gpsRgxDevInfo->ui64HWPerfFilter = bToggle ?
+	        gpsRgxDevInfo->ui64HWPerfFilter ^ ui64Mask : ui64Mask;
 
-	/* Wait for FW to complete
-	 */
-	eError = RGXWaitForFWOp(psDeviceNode->pvDevice, RGXFWIF_DM_GP, psDeviceNode->psSyncPrim, IMG_TRUE);
-	if (eError != PVRSRV_OK)
-	{
-		PVR_LOGR_IF_ERROR(eError, "RGXWaitForFWOp");
-	}
+	OSLockRelease(psDevice->hLockHWPerfModule);
 
-	/* PVR_DPF((PVR_DBG_VERBOSE, "PVRSRVRGXCtrlHWPerfKM firmware completed")); */
-
-	/* If it was being asked to disable then don't delete the stream as the FW
-	 * will continue to generate events during the disabling phase. Clean up
-	 * will be done when the driver is unloaded.
-	 * The increase in extra memory used by the stream would only occur on a
-	 * developer system and not a production device as a user would never
-	 * enable HWPerf. If this is not the case then a deferred clean system will
-	 * need to be implemented.
-	 */
-	/*if ((!bEnable) && (psDevice->hHWPerfStream))
-	{
-		TLStreamDestroy(psDevice->hHWPerfStream);
-		psDevice->hHWPerfStream = 0;
-	}*/
+	/* Wait for FW to complete */
+	eError = RGXWaitForFWOp(psDeviceNode->pvDevice, RGXFWIF_DM_GP,
+	                        psDeviceNode->psSyncPrim, IMG_TRUE);
+	PVR_LOGG_IF_ERROR(eError, "RGXWaitForFWOp", return_);
 
 #if defined(DEBUG)
 	if (bToggle)
 	{
-		PVR_DPF((PVR_DBG_WARNING, "HWPerf events (%llx) have been TOGGLED", ui64Mask));
+		PVR_DPF((PVR_DBG_WARNING, "HWPerfGpu events (%llx) have been TOGGLED",
+		        ui64Mask));
 	}
 	else
 	{
-		PVR_DPF((PVR_DBG_WARNING, "HWPerf mask has been SET to (%llx)", ui64Mask));
+		PVR_DPF((PVR_DBG_WARNING, "HWPerfGpu mask has been SET to (%llx)",
+		        ui64Mask));
 	}
 #endif
-	
+
 	return PVRSRV_OK;
+
+unlock_and_return:
+	OSLockRelease(psDevice->hLockHWPerfModule);
+
+return_:
+	return eError;
 }
 
 static PVRSRV_ERROR RGXHWPerfCtrlHostBuffer(PVRSRV_DEVICE_NODE *psDeviceNode,
@@ -741,7 +744,7 @@ static PVRSRV_ERROR RGXHWPerfCtrlHostBuffer(PVRSRV_DEVICE_NODE *psDeviceNode,
 {
 	PVRSRV_ERROR eError = PVRSRV_OK;
 	PVRSRV_RGXDEV_INFO* psDevice = psDeviceNode->pvDevice;
-	
+
 	OSLockAcquire(psDevice->hLockHWPerfHostStream);
 	if (psDevice->hHWPerfHostStream == NULL)
 	{
@@ -754,11 +757,24 @@ static PVRSRV_ERROR RGXHWPerfCtrlHostBuffer(PVRSRV_DEVICE_NODE *psDeviceNode,
 			return eError;
 		}
 	}
-	
+
 	psDevice->ui32HWPerfHostFilter = bToggle ?
 	        psDevice->ui32HWPerfHostFilter ^ ui32Mask : ui32Mask;
 	OSLockRelease(psDevice->hLockHWPerfHostStream);
-	
+
+#if defined(DEBUG)
+	if (bToggle)
+	{
+		PVR_DPF((PVR_DBG_WARNING, "HWPerfHost events (%x) have been TOGGLED",
+		        ui32Mask));
+	}
+	else
+	{
+		PVR_DPF((PVR_DBG_WARNING, "HWPerfHost mask has been SET to (%x)",
+		        ui32Mask));
+	}
+#endif
+
 	return PVRSRV_OK;
 }
 
@@ -1115,7 +1131,6 @@ error_stream_create:
 
 void RGXHWPerfHostDeInit(void)
 {
-	/* Clean up the stream and lock objects if allocated */
 	if (gpsRgxDevInfo && gpsRgxDevInfo->hHWPerfHostStream)
 	{
 		TLStreamClose(gpsRgxDevInfo->hHWPerfHostStream);
@@ -1139,8 +1154,9 @@ void RGXHWPerfHostSetEventFilter(IMG_UINT32 ui32Filter)
 	gpsRgxDevInfo->ui32HWPerfHostFilter = ui32Filter;
 }
 
-void RGXHWPerfHostPostEnqEvent(const RGX_HWPERF_HOST_ENQ_KICK_TYPE ui32EnqType,
+void RGXHWPerfHostPostEnqEvent(const RGX_HWPERF_KICK_TYPE ui32EnqType,
                                const IMG_UINT32 ui32Pid,
+                               const IMG_UINT32 ui32FWCtx,
                                const IMG_UINT32 ui32ExtJobRef,
                                const IMG_UINT32 ui32IntJobRef)
 {
@@ -1179,6 +1195,7 @@ void RGXHWPerfHostPostEnqEvent(const RGX_HWPERF_HOST_ENQ_KICK_TYPE ui32EnqType,
 	psData = (RGX_HWPERF_HOST_ENQ_DATA *) (psHeader + 1);
 	psData->ui32EnqType = ui32EnqType;
 	psData->ui32PID = ui32Pid;
+	psData->ui32FWCtx = ui32FWCtx;
 	psData->ui32ExtJobRef = ui32ExtJobRef;
 	psData->ui32IntJobRef = ui32IntJobRef;
 
@@ -1203,14 +1220,31 @@ cleanup:
 #if defined(SUPPORT_GPUTRACE_EVENTS)
 
 
-static POS_LOCK hFTraceLock;
+static POS_LOCK g_hFTraceLock;
+
+/* This lock ensures that the reference counting operation on the FTrace UFO
+ * events and enable/disable operation on firmware event are performed as
+ * one atomic operation. This should ensure that there are no race conditions
+ * between reference counting and firmware event state change.
+ * See below comment for g_uiUfoEventRef.
+ */
+static POS_LOCK g_hLockFTraceEventLock;
+
+/* Multiple FTrace UFO events are reflected in the firmware as only one event. When
+ * we enable FTrace UFO event we want to also at the same time enable it in
+ * the firmware. Since there is a multiple-to-one relation between those events
+ * we count how many FTrace UFO events is enabled. If at least one event is
+ * enabled we enabled the firmware event. When all FTrace UFO events are disabled
+ * we disable firmware event. */
+static IMG_INT g_uiUfoEventRef = 0;
+
 static void RGXHWPerfFTraceCmdCompleteNotify(PVRSRV_CMDCOMP_HANDLE);
 
 static PVRSRV_ERROR RGXHWPerfFTraceGPUEnable(void)
 {
 	PVRSRV_ERROR eError = PVRSRV_OK;
-	IMG_UINT64 ui64UFOFilter = RGX_HWPERF_EVENT_MASK_VALUE(RGX_HWPERF_UFO)
-			& ((IMG_UINT64) gpsRgxDevInfo->ui32HWPerfHostFilter) << 32;
+	IMG_UINT64 ui64UFOFilter = RGX_HWPERF_EVENT_MASK_VALUE(RGX_HWPERF_UFO) &
+	                           gpsRgxDevInfo->ui64HWPerfFilter;
 
 	PVR_DPF_ENTERED;
 
@@ -1270,7 +1304,7 @@ static PVRSRV_ERROR RGXHWPerfFTraceGPUDisable(IMG_BOOL bDeInit)
 
 	PVR_ASSERT(gpsRgxDevNode && gpsRgxDevInfo);
 
-	OSLockAcquire(hFTraceLock);
+	OSLockAcquire(g_hFTraceLock);
 
 	if (!bDeInit)
 	{
@@ -1317,7 +1351,7 @@ static PVRSRV_ERROR RGXHWPerfFTraceGPUDisable(IMG_BOOL bDeInit)
 
 	gpsRgxDevInfo->bFTraceGPUEventsEnabled = IMG_FALSE;
 
-	OSLockRelease(hFTraceLock);
+	OSLockRelease(g_hFTraceLock);
 
 	PVR_DPF_RETURN_RC(eError);
 }
@@ -1381,17 +1415,15 @@ IMG_BOOL PVRGpuTraceEnabled(void)
 
 void RGXHWPerfFTraceGPUEnqueueEvent(PVRSRV_RGXDEV_INFO *psDevInfo,
 		IMG_UINT32 ui32ExternalJobRef, IMG_UINT32 ui32InternalJobRef,
-		const IMG_CHAR* pszJobType)
+		RGX_HWPERF_KICK_TYPE eKickType)
 {
-	IMG_UINT32   ui32PID = OSGetCurrentClientProcessIDKM();
-
 	PVR_DPF_ENTERED;
 
-	PVR_ASSERT(pszJobType);
+	PVR_DPF((PVR_DBG_VERBOSE, "RGXHWPerfFTraceGPUEnqueueEvent: ExtJobRef %u, "
+	        "IntJobRef %u", ui32ExternalJobRef, ui32InternalJobRef));
 
-	PVR_DPF((PVR_DBG_VERBOSE, "RGXHWPerfFTraceGPUEnqueueEvent: PID %u, external jobRef %u, internal jobRef %u", ui32PID, ui32ExternalJobRef, ui32InternalJobRef));
-
-	PVRGpuTraceClientWork(ui32PID, ui32ExternalJobRef, ui32InternalJobRef, pszJobType);
+	PVRGpuTraceClientWork(ui32ExternalJobRef, ui32InternalJobRef,
+	                      RGXHWPerfKickTypeToStr(eKickType));
 
 	PVR_DPF_RETURN;
 }
@@ -1448,11 +1480,10 @@ static void RGXHWPerfFTraceGPUSwitchEvent(PVRSRV_RGXDEV_INFO *psDevInfo,
 	}
 
 	PVR_DPF((PVR_DBG_VERBOSE, "RGXHWPerfFTraceGPUSwitchEvent: %s ui32ExtJobRef=%d, ui32IntJobRef=%d, eSwType=%d",
-			pszWorkName, psHWPerfPktData->ui32ExtJobRef, psHWPerfPktData->ui32IntJobRef, eSwType));
+			pszWorkName, psHWPerfPktData->ui32DMContext, psHWPerfPktData->ui32IntJobRef, eSwType));
 
-	PVRGpuTraceWorkSwitch(ui64Timestamp, psHWPerfPktData->ui32PID,
-			psHWPerfPktData->ui32ExtJobRef, psHWPerfPktData->ui32IntJobRef,
-			pszWorkName, eSwType);
+	PVRGpuTraceWorkSwitch(ui64Timestamp, psHWPerfPktData->ui32DMContext,
+	                      psHWPerfPktData->ui32IntJobRef, pszWorkName, eSwType);
 
 	PVR_DPF_RETURN;
 }
@@ -1516,9 +1547,8 @@ static void RGXHWPerfFTraceGPUUfoEvent(PVRSRV_RGXDEV_INFO *psDevInfo,
 	        psHWPerfPktData->ui32IntJobRef));
 
 	PVRGpuTraceUfo(ui64Timestamp, psHWPerfPktData->eEvType,
-	        psHWPerfPktData->ui32PID, psHWPerfPktData->ui32ExtJobRef,
-	        psHWPerfPktData->ui32IntJobRef, psHWPerfPktData->ui32FWCtx,
-	        psHWPerfPktData->ui32TimeCorrIndex, ui32UFOCount, puData);
+	        psHWPerfPktData->ui32ExtJobRef, psHWPerfPktData->ui32FWCtx,
+	        psHWPerfPktData->ui32IntJobRef, ui32UFOCount, puData);
 }
 
 static IMG_BOOL ValidAndEmitFTraceEvent(PVRSRV_RGXDEV_INFO *psDevInfo,
@@ -1552,6 +1582,18 @@ static IMG_BOOL ValidAndEmitFTraceEvent(PVRSRV_RGXDEV_INFO *psDevInfo,
 
 	PVR_ASSERT(psHWPerfPkt);
 	eType = RGX_HWPERF_GET_TYPE(psHWPerfPkt);
+
+	if (psDevInfo->ui32FTraceLastOrdinal != psHWPerfPkt->ui32Ordinal - 1)
+	{
+		RGX_HWPERF_STREAM_ID eStreamId = RGX_HWPERF_GET_STREAM_ID(psHWPerfPkt);
+		PVRGpuTraceEventsLost(eStreamId,
+		                      psDevInfo->ui32FTraceLastOrdinal,
+		                      psHWPerfPkt->ui32Ordinal);
+		PVR_DPF((PVR_DBG_ERROR, "FTrace events lost (stream_id = %u, ordinal: last = %u, current = %u)",
+		         eStreamId, psDevInfo->ui32FTraceLastOrdinal, psHWPerfPkt->ui32Ordinal));
+	}
+
+	psDevInfo->ui32FTraceLastOrdinal = psHWPerfPkt->ui32Ordinal;
 
 	/* Process UFO packets */
 	if (eType == RGX_HWPERF_UFO)
@@ -1587,7 +1629,7 @@ static IMG_BOOL ValidAndEmitFTraceEvent(PVRSRV_RGXDEV_INFO *psDevInfo,
 }
 
 
-static void RGXHWPerfFTraceGPUThreadProcessPackets(PVRSRV_RGXDEV_INFO *psDevInfo,
+static void RGXHWPerfFTraceGPUProcessPackets(PVRSRV_RGXDEV_INFO *psDevInfo,
 		IMG_PBYTE pBuffer, IMG_UINT32 ui32ReadLen)
 {
 	IMG_UINT32			ui32TlPackets = 0;
@@ -1615,7 +1657,7 @@ static void RGXHWPerfFTraceGPUThreadProcessPackets(PVRSRV_RGXDEV_INFO *psDevInfo
 			IMG_UINT16 ui16DataLen = GET_PACKET_DATA_LEN(psHDRptr);
 			if (0 == ui16DataLen)
 			{
-				PVR_DPF((PVR_DBG_ERROR, "RGXHWPerfFTraceGPUThreadProcessPackets: ZERO Data in TL data packet: %p", psHDRptr));
+				PVR_DPF((PVR_DBG_ERROR, "RGXHWPerfFTraceGPUProcessPackets: ZERO Data in TL data packet: %p", psHDRptr));
 			}
 			else
 			{
@@ -1639,19 +1681,19 @@ static void RGXHWPerfFTraceGPUThreadProcessPackets(PVRSRV_RGXDEV_INFO *psDevInfo
 		}
 		else if (ui16TlType == PVRSRVTL_PACKETTYPE_MOST_RECENT_WRITE_FAILED)
 		{
-			PVR_DPF((PVR_DBG_MESSAGE, "RGXHWPerfFTraceGPUThreadProcessPackets: Indication that the transport buffer was full"));
+			PVR_DPF((PVR_DBG_MESSAGE, "RGXHWPerfFTraceGPUProcessPackets: Indication that the transport buffer was full"));
 		}
 		else
 		{
 			/* else Ignore padding packet type and others */
-			PVR_DPF((PVR_DBG_MESSAGE, "RGXHWPerfFTraceGPUThreadProcessPackets: Ignoring TL packet, type %d", ui16TlType ));
+			PVR_DPF((PVR_DBG_MESSAGE, "RGXHWPerfFTraceGPUProcessPackets: Ignoring TL packet, type %d", ui16TlType ));
 		}
 
 		psHDRptr = GET_NEXT_PACKET_ADDR(psHDRptr);
 		ui32TlPackets++;
 	}
 
-	PVR_DPF((PVR_DBG_VERBOSE, "RGXHWPerfFTraceGPUThreadProcessPackets: TL "
+	PVR_DPF((PVR_DBG_VERBOSE, "RGXHWPerfFTraceGPUProcessPackets: TL "
 	 		"Packets processed %03d, HWPerf packets %03d, sent %03d",
 	 		ui32TlPackets, ui32HWPerfPackets, ui32HWPerfPacketsSent));
 
@@ -1675,7 +1717,7 @@ void RGXHWPerfFTraceCmdCompleteNotify(PVRSRV_CMDCOMP_HANDLE hCmdCompHandle)
 	 * happening, just bail out and let the previous call finish.
 	 * This is ok because we can process the queued packets on the next call.
 	 */
-	if (!(OSTryLockAcquire(hFTraceLock)))
+	if (!(OSTryLockAcquire(g_hFTraceLock)))
 	{
 		PVR_DPF_RETURN;
 	}
@@ -1699,7 +1741,7 @@ void RGXHWPerfFTraceCmdCompleteNotify(PVRSRV_CMDCOMP_HANDLE hCmdCompHandle)
 				PVR_DPF((PVR_DBG_VERBOSE, "RGXHWPerfFTraceGPUThread: DATA AVAILABLE offset=%p, length=%d", pBuffer, ui32ReadLen));
 
 				/* Process the transport layer data for HWPerf packets... */
-				RGXHWPerfFTraceGPUThreadProcessPackets (psDeviceInfo, pBuffer, ui32ReadLen);
+				RGXHWPerfFTraceGPUProcessPackets(psDeviceInfo, pBuffer, ui32ReadLen);
 
 				eError = TLClientReleaseData(DIRECT_BRIDGE_HANDLE, hStream);
 				if (eError != PVRSRV_OK)
@@ -1710,7 +1752,7 @@ void RGXHWPerfFTraceCmdCompleteNotify(PVRSRV_CMDCOMP_HANDLE hCmdCompHandle)
 
 					/* Release TraceLock so we always have the locking
 					 * order BridgeLock->TraceLock to prevent AB-BA deadlocks*/
-					OSLockRelease(hFTraceLock);
+					OSLockRelease(g_hFTraceLock);
 					OSAcquireBridgeLock();
 					RGXHWPerfFTraceGPUDisable(IMG_FALSE);
 					OSReleaseBridgeLock();
@@ -1725,7 +1767,7 @@ void RGXHWPerfFTraceCmdCompleteNotify(PVRSRV_CMDCOMP_HANDLE hCmdCompHandle)
 		}
 	}
 
-	OSLockRelease(hFTraceLock);
+	OSLockRelease(g_hFTraceLock);
 out:
 	PVR_DPF_RETURN;
 }
@@ -1741,8 +1783,12 @@ PVRSRV_ERROR RGXHWPerfFTraceGPUInit(PVRSRV_RGXDEV_INFO *psDevInfo)
 	 * DevInfo object needed by FTrace event generation code */
 	PVR_ASSERT(gpsRgxDevInfo);
 	gpsRgxDevInfo->bFTraceGPUEventsEnabled = IMG_FALSE;
+	/* We initialise it only once because we want to track if any
+	 * packets were dropped. */
+	gpsRgxDevInfo->ui32FTraceLastOrdinal = IMG_UINT32_MAX - 1;
 
-	eError = OSLockCreate(&hFTraceLock, LOCK_TYPE_DISPATCH);
+	eError = OSLockCreate(&g_hFTraceLock, LOCK_TYPE_DISPATCH);
+	eError = OSLockCreate(&g_hLockFTraceEventLock, LOCK_TYPE_PASSIVE);
 
 	PVR_DPF_RETURN_RC(eError);
 }
@@ -1758,24 +1804,62 @@ void RGXHWPerfFTraceGPUDeInit(PVRSRV_RGXDEV_INFO *psDevInfo)
 		gpsRgxDevInfo->bFTraceGPUEventsEnabled = IMG_FALSE;
 	}
 
-	OSLockDestroy(hFTraceLock);
+	OSLockDestroy(g_hLockFTraceEventLock);
+	OSLockDestroy(g_hFTraceLock);
 
 	PVR_DPF_RETURN;
 }
 
+void PVRGpuTraceEnableUfoCallback(void)
+{
+    OSLockAcquire(g_hLockFTraceEventLock);
+
+	if (g_uiUfoEventRef++ == 0)
+	{
+		IMG_UINT64 ui64Filter = RGX_HWPERF_EVENT_MASK_VALUE(RGX_HWPERF_UFO) |
+		        gpsRgxDevInfo->ui64HWPerfFilter;
+		/* Small chance exists that ui64HWPerfFilter can be changed here and
+		 * the newest filter value will be changed to the old one + UFO event.
+		 * This is not a critical problem. */
+		if (PVRSRVRGXCtrlHWPerfKM(NULL, gpsRgxDevNode, RGX_HWPERF_STREAM_ID0_FW,
+		                          IMG_FALSE, ui64Filter) != PVRSRV_OK)
+		{
+			PVR_DPF((PVR_DBG_ERROR, "Could not enable UFO HWPerf event."));
+		}
+	}
+
+    OSLockRelease(g_hLockFTraceEventLock);
+}
+
+void PVRGpuTraceDisableUfoCallback(void)
+{
+    OSLockAcquire(g_hLockFTraceEventLock);
+
+    if (--g_uiUfoEventRef == 0)
+	{
+		IMG_UINT64 ui64Filter = ~(RGX_HWPERF_EVENT_MASK_VALUE(RGX_HWPERF_UFO)) &
+		        gpsRgxDevInfo->ui64HWPerfFilter;
+		/* Small chance exists that ui64HWPerfFilter can be changed here and
+		 * the newest filter value will be changed to the old one + UFO event.
+		 * This is not a critical problem. */
+		if (PVRSRVRGXCtrlHWPerfKM(NULL, gpsRgxDevNode, RGX_HWPERF_STREAM_ID0_FW,
+		                          IMG_FALSE, ui64Filter) != PVRSRV_OK)
+		{
+			PVR_DPF((PVR_DBG_ERROR, "Could not enable UFO HWPerf event."));
+		}
+	}
+
+    OSLockRelease(g_hLockFTraceEventLock);
+}
 
 #endif /* SUPPORT_GPUTRACE_EVENTS */
 
-
 /******************************************************************************
- * SUPPORT_KERNEL_HWPERF
- *
- * Currently only implemented on Linux. Feature can be enabled on Linux builds
- * to provide an interface to 3rd-party kernel modules that wish to access the
+ * Currently only implemented on Linux. Feature can be enabled to provide
+ * an interface to 3rd-party kernel modules that wish to access the
  * HWPerf data. The API is documented in the rgxapi_km.h header and
  * the rgx_hwperf* headers.
  *****************************************************************************/
-#if defined(SUPPORT_KERNEL_HWPERF)
 
 /* Internal HWPerf kernel connection/device data object to track the state
  * of a client session.
@@ -1783,6 +1867,7 @@ void RGXHWPerfFTraceGPUDeInit(PVRSRV_RGXDEV_INFO *psDevInfo)
 typedef struct
 {
 	PVRSRV_DEVICE_NODE* psRgxDevNode;
+	PVRSRV_RGXDEV_INFO* psRgxDevInfo;
 
 	/* TL Open/close state */
 	IMG_HANDLE          hSD[RGX_HWPERF_STREAM_ID_LAST];
@@ -1794,10 +1879,9 @@ typedef struct
 } RGX_KM_HWPERF_DEVDATA;
 
 
-PVRSRV_ERROR RGXHWPerfConnect(
+PVRSRV_ERROR RGXHWPerfLazyConnect(
 		IMG_HANDLE* phDevData)
 {
-	PVRSRV_ERROR           eError;
 	RGX_KM_HWPERF_DEVDATA* psDevData;
 
 	/* Valid input argument values supplied by the caller */
@@ -1815,6 +1899,38 @@ PVRSRV_ERROR RGXHWPerfConnect(
 		return PVRSRV_ERROR_INVALID_DEVICE;
 	}
 
+	/* Allocation the session object for this connection */
+	psDevData = OSAllocZMem(sizeof(*psDevData));
+	if (psDevData == NULL)
+	{
+		return PVRSRV_ERROR_OUT_OF_MEMORY;
+	}
+	psDevData->psRgxDevNode = gpsRgxDevNode;
+	psDevData->psRgxDevInfo = gpsRgxDevInfo;
+
+	*phDevData = psDevData;
+
+	return PVRSRV_OK;
+}
+
+PVRSRV_ERROR RGXHWPerfOpen(
+		IMG_HANDLE hDevData)
+{
+	PVRSRV_ERROR eError;
+	RGX_KM_HWPERF_DEVDATA* psDevData = (RGX_KM_HWPERF_DEVDATA*) hDevData;
+
+	/* Valid input argument values supplied by the caller */
+	if (!psDevData)
+	{
+		return PVRSRV_ERROR_INVALID_PARAMS;
+	}
+
+	/* Check the HWPerf module is initialised before we allow a connection */
+	if (!psDevData->psRgxDevNode || !psDevData->psRgxDevInfo)
+	{
+		return PVRSRV_ERROR_INVALID_DEVICE;
+	}
+
 	/* In the case where the AppHint has not been set we need to
 	 * initialise the HWPerf resources here. Allocated on-demand
 	 * to reduce RAM foot print on systems not needing HWPerf.
@@ -1825,7 +1941,8 @@ PVRSRV_ERROR RGXHWPerfConnect(
 		eError = RGXHWPerfInitOnDemandResources();
 		if (eError != PVRSRV_OK)
 		{
-			PVR_DPF((PVR_DBG_ERROR, "%s: Initialization of on-demand HWPerf resources failed", __FUNCTION__));
+			PVR_DPF((PVR_DBG_ERROR, "%s: Initialization of on-demand HWPerfGpu"
+			        " resources failed", __FUNCTION__));
 			OSLockRelease(gpsRgxDevInfo->hLockHWPerfModule);
 			goto e0;
 		}
@@ -1838,56 +1955,64 @@ PVRSRV_ERROR RGXHWPerfConnect(
 		eError = RGXHWPerfHostInitOnDemandResources();
 		if (eError != PVRSRV_OK)
 		{
-			PVR_DPF((PVR_DBG_ERROR, "%s: Initialization of on-demand HWPerfHost resources failed", __FUNCTION__));
+			PVR_DPF((PVR_DBG_ERROR, "%s: Initialization of on-demand HWPerfHost"
+			        " resources failed", __FUNCTION__));
 			OSLockRelease(gpsRgxDevInfo->hLockHWPerfHostStream);
-			goto e1;
+			goto e0;
 		}
 	}
 	OSLockRelease(gpsRgxDevInfo->hLockHWPerfHostStream);
 
-	/* Allocation the session object for this connection */
-	psDevData = OSAllocZMem(sizeof(*psDevData));
-	if (psDevData == NULL)
-	{
-		eError = PVRSRV_ERROR_OUT_OF_MEMORY;
-		goto e2;
-	}
-	psDevData->psRgxDevNode = gpsRgxDevNode;
-
-	/* Open the 'hwperf' TL stream for reading in this session */
+	/* Open the 'hwperf_gpu' TL stream for reading in this session */
 	eError = TLClientOpenStream(DIRECT_BRIDGE_HANDLE,
 								HWPERF_TL_STREAM_NAME,
 								PVRSRV_STREAM_FLAG_ACQUIRE_NONBLOCKING,
 								&psDevData->hSD[RGX_HWPERF_STREAM_ID0_FW]);
 	if (eError != PVRSRV_OK)
 	{
-		goto e3;
+		goto e1;
 	}
 
-	/* Open the 'hwperf' TL stream for reading in this session */
+	/* Open the 'hwperf_host' TL stream for reading in this session */
 	eError = TLClientOpenStream(DIRECT_BRIDGE_HANDLE,
 								HWPERF_HOST_TL_STREAM_NAME,
 								PVRSRV_STREAM_FLAG_ACQUIRE_NONBLOCKING,
 								&psDevData->hSD[RGX_HWPERF_STREAM_ID1_HOST]);
 	if (eError != PVRSRV_OK)
 	{
-		goto e3;
+		goto e1;
 	}
 
-	*phDevData = psDevData;
 	return PVRSRV_OK;
 
-	/* Error path... */
-e3:
-	OSFREEMEM(psDevData);
-e2:
-	RGXHWPerfHostDeInit();
 e1:
-	RGXHWPerfDeinit();
+	RGXHWPerfHostDeInit();
 e0:
+	RGXHWPerfDeinit();
+
 	return eError;
 }
 
+
+PVRSRV_ERROR RGXHWPerfConnect(
+		IMG_HANDLE* phDevData)
+{
+	PVRSRV_ERROR eError;
+
+	eError = RGXHWPerfLazyConnect(phDevData);
+	PVR_LOGG_IF_ERROR(eError, "RGXHWPerfLazyConnect", e0);
+
+	eError = RGXHWPerfOpen(*phDevData);
+	PVR_LOGG_IF_ERROR(eError, "RGXHWPerfOpen", e1);
+
+	return PVRSRV_OK;
+
+e1:
+	RGXHWPerfFreeConnection(phDevData);
+e0:
+	*phDevData = NULL;
+	return eError;
+}
 
 
 PVRSRV_ERROR RGXHWPerfControl(
@@ -2112,12 +2237,71 @@ PVRSRV_ERROR RGXHWPerfReleaseData(
 }
 
 
-PVRSRV_ERROR RGXHWPerfDisconnect(
+PVRSRV_ERROR RGXHWPerfGetFilter(
+		IMG_HANDLE  hDevData,
+		RGX_HWPERF_STREAM_ID eStreamId,
+		IMG_UINT64 *ui64Filter)
+{
+#if !defined(PVRSRV_GPUVIRT_GUESTDRV)
+	PVRSRV_RGXDEV_INFO* psRgxDevInfo =
+			hDevData ? ((RGX_KM_HWPERF_DEVDATA*) hDevData)->psRgxDevInfo : NULL;
+
+	/* Valid input argument values supplied by the caller */
+	if (!psRgxDevInfo)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: Invalid pointer to the RGX device",
+		        __func__));
+		return PVRSRV_ERROR_INVALID_PARAMS;
+	}
+
+	switch (eStreamId) {
+		case RGX_HWPERF_STREAM_ID0_FW:
+			OSLockAcquire(psRgxDevInfo->hLockHWPerfModule);
+			*ui64Filter = psRgxDevInfo->ui64HWPerfFilter;
+			OSLockRelease(psRgxDevInfo->hLockHWPerfModule);
+			break;
+		case RGX_HWPERF_STREAM_ID1_HOST:
+			OSLockAcquire(psRgxDevInfo->hLockHWPerfHostStream);
+			*ui64Filter = psRgxDevInfo->ui32HWPerfHostFilter;
+			OSLockRelease(psRgxDevInfo->hLockHWPerfHostStream);
+			break;
+		default:
+			PVR_DPF((PVR_DBG_ERROR, "%s: Invalid stream ID",
+			        __func__));
+			return PVRSRV_ERROR_INVALID_PARAMS;
+	}
+#endif
+
+	return PVRSRV_OK;
+}
+
+
+PVRSRV_ERROR RGXHWPerfFreeConnection(
 		IMG_HANDLE hDevData)
 {
-	PVRSRV_ERROR			eError = PVRSRV_OK;
-	RGX_KM_HWPERF_DEVDATA*	psDevData = (RGX_KM_HWPERF_DEVDATA*)hDevData;
-	IMG_UINT				uiStreamId;
+	RGX_KM_HWPERF_DEVDATA* psDevData = (RGX_KM_HWPERF_DEVDATA*) hDevData;
+
+	/* Check session handle is not zero */
+	if (!psDevData)
+	{
+		return PVRSRV_ERROR_INVALID_PARAMS;
+	}
+
+	/* Free the session memory */
+	psDevData->psRgxDevNode = NULL;
+	psDevData->psRgxDevInfo = NULL;
+	OSFREEMEM(psDevData);
+
+	return PVRSRV_OK;
+}
+
+
+PVRSRV_ERROR RGXHWPerfClose(
+		IMG_HANDLE hDevData)
+{
+	RGX_KM_HWPERF_DEVDATA* psDevData = (RGX_KM_HWPERF_DEVDATA*) hDevData;
+	IMG_UINT uiStreamId;
+	PVRSRV_ERROR eError;
 
 	/* Check session handle is not zero */
 	if (!psDevData)
@@ -2131,13 +2315,10 @@ PVRSRV_ERROR RGXHWPerfDisconnect(
 		 * before disconnecting so clean it up */
 		if (psDevData->pHwpBuf[uiStreamId])
 		{
+			/* RGXHWPerfReleaseData call will null out the buffer fields
+			 * and length */
 			eError = RGXHWPerfReleaseData(hDevData, uiStreamId);
-			if (eError != PVRSRV_OK)
-			{
-				PVR_DPF((PVR_DBG_ERROR, "RGXHWPerfDisconnect: Failed to release data (%d)", eError));
-			}
-			/* RGXHWPerfReleaseData call above will null out the buffer
-			 * fields and length */
+			PVR_LOG_ERROR(eError, "RGXHWPerfReleaseData");
 		}
 
 		/* Close the TL stream, ignore the error if it occurs as we
@@ -2146,23 +2327,44 @@ PVRSRV_ERROR RGXHWPerfDisconnect(
 		{
 			eError = TLClientCloseStream(DIRECT_BRIDGE_HANDLE,
 										 psDevData->hSD[uiStreamId]);
-			if (eError != PVRSRV_OK)
-			{
-				PVR_DPF((PVR_DBG_ERROR, "RGXHWPerfDisconnect: Failed to close handle on HWPerf stream (%d)", eError));
-			}
+			PVR_LOG_ERROR(eError, "TLClientCloseStream");
 			psDevData->hSD[uiStreamId] = NULL;
 		}
 	}
 
-	/* Free the session memory */
-	psDevData->psRgxDevNode = NULL;
-	OSFREEMEM(psDevData);
+	return PVRSRV_OK;
+}
+
+
+PVRSRV_ERROR RGXHWPerfDisconnect(
+		IMG_HANDLE hDevData)
+{
+	PVRSRV_ERROR eError = PVRSRV_OK;
+
+	eError = RGXHWPerfClose(hDevData);
+	PVR_LOG_ERROR(eError, "RGXHWPerfClose");
+
+	eError = RGXHWPerfFreeConnection(hDevData);
+	PVR_LOG_ERROR(eError, "RGXHWPerfFreeConnection");
+
 	return eError;
 }
 
 
-#endif /* SUPPORT_KERNEL_HWPERF */
+const IMG_CHAR *RGXHWPerfKickTypeToStr(RGX_HWPERF_KICK_TYPE eKickType)
+{
+	static const IMG_CHAR *aszKickType[RGX_HWPERF_KICK_TYPE_LAST+1] = {
+		"TA3D", "TQ2D", "TQ3D", "CDM", "RS", "VRDM", "LAST"
+	};
 
+	/* cast in case of negative value */
+	if (((IMG_UINT32) eKickType) >= RGX_HWPERF_KICK_TYPE_LAST)
+	{
+		return "<UNKNOWN>";
+	}
+
+	return aszKickType[eKickType];
+}
 
 /******************************************************************************
  End of file (rgxdebug.c)

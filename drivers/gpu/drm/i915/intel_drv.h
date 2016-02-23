@@ -722,9 +722,9 @@ struct intel_dp {
 	int backlight_off_delay;
 	struct delayed_work panel_vdd_work;
 	bool want_panel_vdd;
-	unsigned long last_power_cycle;
 	unsigned long last_power_on;
 	unsigned long last_backlight_off;
+	ktime_t panel_power_off_time;
 
 	struct notifier_block edp_notifier;
 
@@ -737,6 +737,8 @@ struct intel_dp {
 
 	bool use_tps3;
 	bool is_ps8617;
+	bool has_hdmi_sink;
+	bool has_dvi_sink;
 	bool can_mst; /* this port supports mst */
 	bool is_mst;
 	int active_mst_links;
@@ -1003,6 +1005,7 @@ void i915_audio_component_cleanup(struct drm_i915_private *dev_priv);
 extern const struct drm_plane_funcs intel_plane_funcs;
 bool intel_has_pending_fb_unpin(struct drm_device *dev);
 int intel_pch_rawclk(struct drm_device *dev);
+int intel_hrawclk(struct drm_device *dev);
 void intel_mark_busy(struct drm_device *dev);
 void intel_mark_idle(struct drm_device *dev);
 void intel_crtc_restore_mode(struct drm_crtc *crtc);
@@ -1129,7 +1132,10 @@ void broxton_ddi_phy_uninit(struct drm_device *dev);
 void bxt_enable_dc9(struct drm_i915_private *dev_priv);
 void bxt_disable_dc9(struct drm_i915_private *dev_priv);
 void skl_init_cdclk(struct drm_i915_private *dev_priv);
+int skl_sanitize_cdclk(struct drm_i915_private *dev_priv);
 void skl_uninit_cdclk(struct drm_i915_private *dev_priv);
+void skl_enable_dc6(struct drm_i915_private *dev_priv);
+void skl_disable_dc6(struct drm_i915_private *dev_priv);
 void intel_dp_get_m_n(struct intel_crtc *crtc,
 		      struct intel_crtc_state *pipe_config);
 void intel_dp_set_m_n(struct intel_crtc *crtc, enum link_m_n_set m_n);
@@ -1146,6 +1152,8 @@ void hsw_enable_ips(struct intel_crtc *crtc);
 void hsw_disable_ips(struct intel_crtc *crtc);
 enum intel_display_power_domain
 intel_display_port_power_domain(struct intel_encoder *intel_encoder);
+enum intel_display_power_domain
+intel_display_port_aux_power_domain(struct intel_encoder *intel_encoder);
 void intel_mode_from_pipe_config(struct drm_display_mode *mode,
 				 struct intel_crtc_state *pipe_config);
 void intel_crtc_wait_for_pending_flips(struct drm_crtc *crtc);
@@ -1161,13 +1169,9 @@ u32 skl_plane_ctl_tiling(uint64_t fb_modifier);
 u32 skl_plane_ctl_rotation(unsigned int rotation);
 
 /* intel_csr.c */
-void intel_csr_ucode_init(struct drm_device *dev);
-enum csr_state intel_csr_load_status_get(struct drm_i915_private *dev_priv);
-void intel_csr_load_status_set(struct drm_i915_private *dev_priv,
-					enum csr_state state);
-void intel_csr_load_program(struct drm_device *dev);
-void intel_csr_ucode_fini(struct drm_device *dev);
-void assert_csr_loaded(struct drm_i915_private *dev_priv);
+void intel_csr_ucode_init(struct drm_i915_private *);
+void intel_csr_load_program(struct drm_i915_private *);
+void intel_csr_ucode_fini(struct drm_i915_private *);
 
 /* intel_dp.c */
 void intel_dp_init(struct drm_device *dev, int output_reg, enum port port);
@@ -1339,7 +1343,10 @@ void intel_psr_single_frame_update(struct drm_device *dev,
 /* intel_runtime_pm.c */
 int intel_power_domains_init(struct drm_i915_private *);
 void intel_power_domains_fini(struct drm_i915_private *);
-void intel_power_domains_init_hw(struct drm_i915_private *dev_priv);
+void intel_power_domains_init_hw(struct drm_i915_private *dev_priv, bool resume);
+void intel_power_domains_suspend(struct drm_i915_private *dev_priv);
+void skl_pw1_misc_io_init(struct drm_i915_private *dev_priv);
+void skl_pw1_misc_io_fini(struct drm_i915_private *dev_priv);
 void intel_runtime_pm_enable(struct drm_i915_private *dev_priv);
 
 bool intel_display_power_is_enabled(struct drm_i915_private *dev_priv,
@@ -1350,8 +1357,6 @@ void intel_display_power_get(struct drm_i915_private *dev_priv,
 			     enum intel_display_power_domain domain);
 void intel_display_power_put(struct drm_i915_private *dev_priv,
 			     enum intel_display_power_domain domain);
-void intel_aux_display_runtime_get(struct drm_i915_private *dev_priv);
-void intel_aux_display_runtime_put(struct drm_i915_private *dev_priv);
 void intel_runtime_pm_get(struct drm_i915_private *dev_priv);
 void intel_runtime_pm_get_noresume(struct drm_i915_private *dev_priv);
 void intel_runtime_pm_put(struct drm_i915_private *dev_priv);

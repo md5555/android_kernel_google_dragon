@@ -551,7 +551,7 @@ static void _MMU_PhysMemFree(MMU_PHYSMEM_CONTEXT *psCtx,
 	if (--psMemDesc->psMapping->uiCpuVAddrRefCount == 0)
 	{
 		psCtx->psDevNode->pfnDevPxUnMap(psCtx->psDevNode, &psMemDesc->psMapping->sMemHandle,
-								psMemDesc->pvCpuVAddr);
+								psMemDesc->psMapping->pvCpuVAddr);
 	}
 
 	psMemDesc->pvCpuVAddr = NULL;
@@ -2006,7 +2006,8 @@ MMU_ContextCreate(PVRSRV_DEVICE_NODE *psDevNode,
 									RA_LOCKCLASS_1,
 									_MMU_PhysMem_RAImportAlloc,
 									_MMU_PhysMem_RAImportFree,
-									psCtx /* priv */);
+									psCtx, /* priv */
+									IMG_FALSE);
 	if (psCtx->psPhysMemRA == NULL)
 	{
 		OSFreeMem(psCtx->pszPhysMemRAName);

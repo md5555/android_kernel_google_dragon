@@ -470,6 +470,11 @@ PVRSRV_ERROR RGXRegisterMemoryContext(PVRSRV_DEVICE_NODE	*psDeviceNode,
 			psServerMMUContext->szProcessName[RGXMEM_SERVER_MMU_CONTEXT_MAX_NAME-1] = '\0';
 		}
 
+		PDUMPCOMMENTWITHFLAGS(PDUMP_FLAGS_CONTINUOUS, "New memory context: Process Name: %s PID: %u (0x%08X)",
+										psServerMMUContext->szProcessName,
+										psServerMMUContext->uiPID,
+										psServerMMUContext->uiPID);
+
 		OSWRLockAcquireWrite(psDevInfo->hMemoryCtxListLock);
 		dllist_add_to_tail(&psDevInfo->sMemoryContextList, &psServerMMUContext->sNode);
 		OSWRLockReleaseWrite(psDevInfo->hMemoryCtxListLock);
@@ -621,11 +626,18 @@ IMG_BOOL RGXPCAddrToProcessInfo(PVRSRV_RGXDEV_INFO *psDevInfo, IMG_DEV_PHYADDR s
 
 		 OSLockAcquire(psDevInfo->hMMUCtxUnregLock);
 
-		 for(i = (gui32UnregisteredMemCtxsHead > 0) ? (gui32UnregisteredMemCtxsHead - 1) :
-		 					UNREGISTERED_MEMORY_CONTEXTS_HISTORY_SIZE;
-							i != gui32UnregisteredMemCtxsHead; i--)
+		/* iterate through the list of unregistered memory contexts
+		 * from newest (one before the head) to the oldest (the current head)
+		 */
+		i = gui32UnregisteredMemCtxsHead;
+
+		do
 		{
-			UNREGISTERED_MEMORY_CONTEXT *psRecord = &gasUnregisteredMemCtxs[i];
+			UNREGISTERED_MEMORY_CONTEXT *psRecord;
+
+			i ? i-- : (i = (UNREGISTERED_MEMORY_CONTEXTS_HISTORY_SIZE - 1));
+
+			psRecord = &gasUnregisteredMemCtxs[i];
 
 			if(psRecord->sPCDevPAddr.uiAddr == sPCAddress.uiAddr)
 			{
@@ -636,7 +648,7 @@ IMG_BOOL RGXPCAddrToProcessInfo(PVRSRV_RGXDEV_INFO *psDevInfo, IMG_DEV_PHYADDR s
 				bRet = IMG_TRUE;
 				break;
 			}
-		}
+		} while(i != gui32UnregisteredMemCtxsHead);
 
 		OSLockRelease(psDevInfo->hMMUCtxUnregLock);
 

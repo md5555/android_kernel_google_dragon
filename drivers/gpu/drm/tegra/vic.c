@@ -63,6 +63,7 @@ struct vic_config {
 	u32 class_id;
 	int powergate_id;
 	const struct host1x_client_clock *clocks;
+	const struct host1x_actmon_data *actmon_data;
 };
 
 struct vic {
@@ -129,6 +130,8 @@ static int vic_power_off(struct device *dev)
 	struct vic *vic = dev_get_drvdata(dev);
 	int err;
 
+	host1x_actmon_disable(&vic->client.base);
+
 	err = falcon_power_off(&vic->falcon);
 	if (err)
 		return err;
@@ -163,6 +166,8 @@ static int vic_power_on(struct device *dev)
 	err = clk_prepare_enable(vic->clk);
 	if (err)
 		goto err_vic_clk;
+
+	host1x_actmon_enable(&vic->client.base);
 
 	return 0;
 
@@ -431,11 +436,18 @@ static const struct host1x_client_clock vic_t210_clocks[] = {
 	},
 };
 
+static const struct host1x_actmon_data vic_t210_actmon_data = {
+	.actmon_regs = 0x00002040,
+	.actmon_irq = 13,
+	.devfreq_governor = "wmark_active",
+};
+
 static const struct vic_config vic_vic_t210_config = {
 	.ucode_name = "nvidia/tegra210/vic.bin",
 	.class_id = HOST1X_CLASS_VIC,
 	.powergate_id = TEGRA_POWERGATE_VIC,
 	.clocks = vic_t210_clocks,
+	.actmon_data = &vic_t210_actmon_data,
 };
 
 static const struct of_device_id vic_match[] = {
@@ -452,6 +464,7 @@ static int vic_probe(struct platform_device *pdev)
 	struct host1x_syncpt **syncpts;
 	struct resource *regs;
 	struct vic *vic;
+	struct host1x_actmon_data *actmon_data;
 	int err;
 
 	if (!dev->of_node) {
@@ -540,6 +553,28 @@ static int vic_probe(struct platform_device *pdev)
 		goto error_client_unregister;
 	}
 
+	/*
+	 * Allocate actmon context, give it a clock to scale, and initialize
+	 * actmon.
+	 */
+	if (vic_config->actmon_data) {
+		actmon_data = devm_kzalloc(dev,
+					   sizeof(*vic_config->actmon_data),
+					   GFP_KERNEL);
+		if (!actmon_data) {
+			err = -ENOMEM;
+			goto error_vic_power_off;
+		}
+		memcpy(actmon_data, vic_config->actmon_data,
+		       sizeof(*vic_config->actmon_data));
+		actmon_data->clk = vic->cbus_clk;
+		err = host1x_actmon_init(&vic->client.base, actmon_data);
+		if (err) {
+			dev_err(dev, "failed to init actmon: %d\n", err);
+			goto error_vic_power_off;
+		}
+	}
+
 	pm_runtime_set_active(dev);
 	pm_runtime_enable(dev);
 	pm_runtime_use_autosuspend(dev);
@@ -549,6 +584,8 @@ static int vic_probe(struct platform_device *pdev)
 
 	return 0;
 
+error_vic_power_off:
+	vic_power_off(&pdev->dev);
 error_client_unregister:
 	host1x_client_unregister(&vic->client.base);
 error_slcg:
@@ -562,6 +599,8 @@ static int vic_remove(struct platform_device *pdev)
 {
 	struct vic *vic = platform_get_drvdata(pdev);
 	int err;
+
+	host1x_actmon_deinit(&vic->client.base);
 
 	vic_power_off(&pdev->dev);
 

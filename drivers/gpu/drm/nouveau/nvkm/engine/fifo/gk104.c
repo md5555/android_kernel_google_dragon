@@ -30,6 +30,7 @@
 #include <subdev/bar.h>
 #include <subdev/fb.h>
 #include <subdev/mmu.h>
+#include <subdev/pmu.h>
 #include <subdev/timer.h>
 
 #include <nvif/class.h>
@@ -74,11 +75,20 @@ static void
 gk104_fifo_runlist_update(struct gk104_fifo_priv *priv, u32 engine)
 {
 	struct nvkm_bar *bar = nvkm_bar(priv);
+	struct nvkm_pmu *pmu = nvkm_pmu(priv);
 	struct gk104_fifo_engn *engn = &priv->engine[engine];
 	struct nvkm_gpuobj *cur;
 	int i, p;
+	u32 token = 0;
+	int mutex_ret;
 
 	mutex_lock(&nv_subdev(priv)->mutex);
+
+	mutex_ret = pmu->acquire_mutex(pmu, PMU_MUTEX_ID_FIFO, &token);
+	if (mutex_ret)
+		nv_error(priv, "runlist update acquire mutex failed: %d\n",
+				mutex_ret);
+
 	cur = engn->runlist[engn->cur_runlist];
 	engn->cur_runlist = !engn->cur_runlist;
 
@@ -99,6 +109,10 @@ gk104_fifo_runlist_update(struct gk104_fifo_priv *priv, u32 engine)
 			       (engine * 0x08)) & 0x00100000),
 				msecs_to_jiffies(2000)) == 0)
 		nv_error(priv, "runlist %d update timeout\n", engine);
+
+	if (!mutex_ret)
+		pmu->release_mutex(pmu, PMU_MUTEX_ID_FIFO, &token);
+
 	mutex_unlock(&nv_subdev(priv)->mutex);
 }
 
@@ -144,19 +158,44 @@ gk104_fifo_context_attach(struct nvkm_object *parent,
 }
 
 static int
-gk104_fifo_chan_kick(struct gk104_fifo_chan *chan)
+gk104_fifo_chan_kick_locked(struct gk104_fifo_chan *chan)
 {
 	struct nvkm_object *obj = (void *)chan;
 	struct gk104_fifo_priv *priv = (void *)obj->engine;
+	struct nvkm_pmu *pmu = nvkm_pmu(priv);
+	u32 token = 0;
+	int mutex_ret;
+	int ret = 0;
+
+	mutex_ret = pmu->acquire_mutex(pmu, PMU_MUTEX_ID_FIFO, &token);
+	if (mutex_ret)
+		nv_error(priv, "channel kick acquire mutex failed: %d\n",
+				mutex_ret);
 
 	nv_wr32(priv, 0x002634, chan->base.chid);
 	if (!nv_wait(priv, 0x002634, 0x100000, 0x000000)) {
 		nv_error(priv, "channel %d [%s] kick timeout\n",
 			 chan->base.chid, nvkm_client_name(chan));
-		return -EBUSY;
+		ret = -EBUSY;
 	}
 
-	return 0;
+	if (!mutex_ret)
+		pmu->release_mutex(pmu, PMU_MUTEX_ID_FIFO, &token);
+	return ret;
+}
+
+static int
+gk104_fifo_chan_kick(struct gk104_fifo_chan *chan)
+{
+	struct nvkm_object *obj = (void *)chan;
+	struct gk104_fifo_priv *priv = (void *)obj->engine;
+	int ret;
+
+	mutex_lock(&nv_subdev(priv)->mutex);
+	ret = gk104_fifo_chan_kick_locked(chan);
+	mutex_unlock(&nv_subdev(priv)->mutex);
+
+	return ret;
 }
 
 static int
@@ -182,7 +221,7 @@ gk104_fifo_context_detach(struct nvkm_object *parent, bool suspend,
 		return -EINVAL;
 	}
 
-	err = gk104_fifo_chan_kick(chan);
+	err = gk104_fifo_chan_kick_locked(chan);
 	if (err && suspend)
 		return err;
 
@@ -439,29 +478,33 @@ gk104_fifo_context_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 			struct nvkm_object **pobject)
 {
 	struct gk104_fifo_base *base;
+	struct nvkm_mmu *mmu = nvkm_mmu(parent);
+	u64 length = (0x1ULL << mmu->dma_bits) - 1;
 	int ret;
 
+	/* allocate instance block */
 	ret = nvkm_fifo_context_create(parent, engine, oclass, NULL, 0x1000,
 				       0x1000, NVOBJ_FLAG_ZERO_ALLOC, &base);
-	*pobject = nv_object(base);
 	if (ret)
 		return ret;
 
-	ret = nvkm_gpuobj_new(nv_object(base), NULL, 0x10000, 0x1000, 0,
-			      &base->pgd);
+	/* allocate and initialize pgd */
+	ret = mmu->create_pgd(mmu, nv_object(base), base, length, &base->pgd);
 	if (ret)
-		return ret;
-
-	nv_wo32(base, 0x0200, lower_32_bits(base->pgd->addr));
-	nv_wo32(base, 0x0204, upper_32_bits(base->pgd->addr));
-	nv_wo32(base, 0x0208, 0xffffffff);
-	nv_wo32(base, 0x020c, 0x000000ff);
+		goto err_pgd;
 
 	ret = nvkm_vm_ref(nvkm_client(parent)->vm, &base->vm, base->pgd);
 	if (ret)
-		return ret;
+		goto err_ref;
 
+	*pobject = nv_object(base);
 	return 0;
+
+err_ref:
+	nvkm_gpuobj_destroy(base->pgd);
+err_pgd:
+	nvkm_fifo_context_destroy(&base->base);
+	return ret;
 }
 
 static void
@@ -652,9 +695,9 @@ gk104_fifo_intr_sched_ctxsw(struct gk104_fifo_priv *priv)
 	for (engn = 0; engn < impl->num_engine; engn++) {
 		u32 stat = nv_rd32(priv, 0x002640 + (engn * 0x08));
 		u32 busy = (stat & 0x80000000);
-		u32 next = (stat & 0x07ff0000) >> 16;
+		u32 next = (stat & 0x0fff0000) >> 16;
 		u32 ctxstat = (stat & 0x0000e000) >> 13;
-		u32 prev = (stat & 0x000007ff);
+		u32 prev = (stat & 0x00000fff);
 
 		u32 chid = (ctxstat == CTXSW_STATUS_LOAD) ? next : prev;
 		u32 ctxsw_active = ctxstat == CTXSW_STATUS_LOAD ||

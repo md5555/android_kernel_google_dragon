@@ -370,7 +370,7 @@ int exynos_drm_crtc_create(struct exynos_drm_manager *manager)
 	private->crtc[manager->pipe] = crtc;
 
 	ret = drm_crtc_init_with_planes(manager->drm_dev, crtc, plane, NULL,
-					&exynos_crtc_funcs);
+					&exynos_crtc_funcs, NULL);
 	if (ret < 0)
 		goto err_crtc;
 
@@ -387,7 +387,7 @@ err_plane:
 	return ret;
 }
 
-int exynos_drm_crtc_enable_vblank(struct drm_device *dev, int pipe)
+int exynos_drm_crtc_enable_vblank(struct drm_device *dev, unsigned int pipe)
 {
 	struct exynos_drm_private *private = dev->dev_private;
 	struct exynos_drm_crtc *exynos_crtc =
@@ -403,7 +403,7 @@ int exynos_drm_crtc_enable_vblank(struct drm_device *dev, int pipe)
 	return 0;
 }
 
-void exynos_drm_crtc_disable_vblank(struct drm_device *dev, int pipe)
+void exynos_drm_crtc_disable_vblank(struct drm_device *dev, unsigned int pipe)
 {
 	struct exynos_drm_private *private = dev->dev_private;
 	struct exynos_drm_crtc *exynos_crtc =
@@ -417,7 +417,7 @@ void exynos_drm_crtc_disable_vblank(struct drm_device *dev, int pipe)
 		manager->ops->disable_vblank(manager);
 }
 
-void exynos_drm_crtc_finish_pageflip(struct drm_device *dev, int pipe)
+void exynos_drm_crtc_finish_pageflip(struct drm_device *dev, unsigned int pipe)
 {
 	struct exynos_drm_private *dev_priv = dev->dev_private;
 	struct drm_pending_vblank_event *e, *t;

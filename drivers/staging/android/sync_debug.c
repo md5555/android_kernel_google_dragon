@@ -25,6 +25,7 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/anon_inodes.h>
+#include <linux/ratelimit.h>
 #include "sync.h"
 
 #ifdef CONFIG_DEBUG_FS
@@ -228,6 +229,8 @@ late_initcall(sync_debugfs_init);
 
 #define DUMP_CHUNK 256
 static char sync_dump_buf[64 * 1024];
+static DEFINE_RATELIMIT_STATE(sync_dump_rs, 10 * HZ, 10);
+
 void sync_dump(void)
 {
 	struct seq_file s = {
@@ -235,6 +238,11 @@ void sync_dump(void)
 		.size = sizeof(sync_dump_buf) - 1,
 	};
 	int i;
+
+	if (!__ratelimit(&sync_dump_rs)) {
+		pr_warn("%s: call suppressed\n", __func__);
+		return;
+	}
 
 	sync_debugfs_show(&s, NULL);
 

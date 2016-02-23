@@ -11,43 +11,30 @@
 * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 * GNU General Public License for more details.
 */
-#include <linux/delay.h>
-#include <linux/mutex.h>
+
 #include <linux/clk.h>
 #include <linux/io.h>
-#include <linux/platform_device.h>
+#include <linux/mutex.h>
 #include <linux/of.h>
-#include <linux/of_irq.h>
 #include <linux/of_address.h>
-#include <linux/regulator/consumer.h>
-#include <linux/version.h>
+#include <linux/of_irq.h>
+#include <linux/platform_device.h>
+#include <linux/pm_opp.h>
 #include <linux/pm_runtime.h>
+#include <linux/regulator/consumer.h>
+#include <linux/thermal.h>
 
 #include "mt8173_mfgsys.h"
-#include "mt8173_mfgdvfs.h"
 
-static char *top_mfg_clk_name[] = {
-#if (LINUX_VERSION_CODE > KERNEL_VERSION(3, 11, 0))
+static const char * const top_mfg_clk_name[] = {
 	"mfg_mem_in_sel",
 	"mfg_axi_in_sel",
 	"top_axi",
 	"top_mem",
 	"top_mfg",
-#else
-	"MT_CG_MFG_POWER",
-	"MT_CG_MFG_AXI",
-	"MT_CG_MFG_MEM",
-	"MT_CG_MFG_G3D",
-	"MT_CG_MFG_26M",
-#endif
 };
 
 #define MAX_TOP_MFG_CLK ARRAY_SIZE(top_mfg_clk_name)
-
-static struct platform_device *sPVRLDMDev;
-#define GET_MTK_MFG_BASE(x) (struct mtk_mfg_base *)(x->dev.platform_data)
-
-#if (LINUX_VERSION_CODE > KERNEL_VERSION(3, 11, 0))
 
 #define REG_MFG_AXI BIT(0)
 #define REG_MFG_MEM BIT(1)
@@ -59,372 +46,249 @@ static struct platform_device *sPVRLDMDev;
 #define REG_MFG_CG_SET 0x04
 #define REG_MFG_CG_CLR 0x08
 
-static void mtk_mfg_set_clock_gating(void __iomem *reg)
-{
-	writel(REG_MFG_ALL, reg + REG_MFG_CG_SET);
-}
-
 static void mtk_mfg_clr_clock_gating(void __iomem *reg)
 {
 	writel(REG_MFG_ALL, reg + REG_MFG_CG_CLR);
 }
-#else
-static void mtk_mfg_set_clock_gating(void __iomem *reg)
-{
 
-}
-
-static void mtk_mfg_clr_clock_gating(void __iomem *reg)
-{
-
-}
-#endif
-
-static int mtk_mfg_prepare_clock(struct mtk_mfg_base *mfg_base)
+static int mtk_mfg_prepare_clock(struct mtk_mfg *mfg)
 {
 	int i;
+	int ret;
 
-	for (i = 0; i < MAX_TOP_MFG_CLK; i++)
-		clk_prepare(mfg_base->top_clk[i]);
+	for (i = 0; i < MAX_TOP_MFG_CLK; i++) {
+		ret = clk_prepare(mfg->top_clk[i]);
+		if (ret)
+			goto unwind;
+	}
 
-	return PVRSRV_OK;
+	return 0;
+unwind:
+	while (i--)
+		clk_unprepare(mfg->top_clk[i]);
+
+	return ret;
 }
 
-static int mtk_mfg_unprepare_clock(struct mtk_mfg_base *mfg_base)
+static void mtk_mfg_unprepare_clock(struct mtk_mfg *mfg)
 {
 	int i;
 
 	for (i = MAX_TOP_MFG_CLK - 1; i >= 0; i--)
-		clk_unprepare(mfg_base->top_clk[i]);
-
-	return PVRSRV_OK;
+		clk_unprepare(mfg->top_clk[i]);
 }
 
-static int mtk_mfg_enable_clock(struct mtk_mfg_base *mfg_base)
+static int mtk_mfg_enable_clock(struct mtk_mfg *mfg)
+{
+	int i;
+	int ret;
+
+	for (i = 0; i < MAX_TOP_MFG_CLK; i++) {
+		ret = clk_enable(mfg->top_clk[i]);
+		if (ret)
+			goto unwind;
+	}
+	mtk_mfg_clr_clock_gating(mfg->reg_base);
+
+	return 0;
+unwind:
+	while (i--)
+		clk_disable(mfg->top_clk[i]);
+
+	return ret;
+}
+
+static void mtk_mfg_disable_clock(struct mtk_mfg *mfg)
 {
 	int i;
 
-	pm_runtime_get_sync(&mfg_base->pdev->dev);
-	for (i = 0; i < MAX_TOP_MFG_CLK; i++)
-		clk_enable(mfg_base->top_clk[i]);
-	mtk_mfg_clr_clock_gating(mfg_base->reg_base);
-
-	return PVRSRV_OK;
-}
-
-static int mtk_mfg_disable_clock(struct mtk_mfg_base *mfg_base)
-{
-	int i;
-
-	mtk_mfg_set_clock_gating(mfg_base->reg_base);
 	for (i = MAX_TOP_MFG_CLK - 1; i >= 0; i--)
-		clk_disable(mfg_base->top_clk[i]);
-	pm_runtime_put_sync(&mfg_base->pdev->dev);
-
-	return PVRSRV_OK;
+		clk_disable(mfg->top_clk[i]);
 }
 
-#if defined(MTK_ENABLE_HWAPM)
-static void mtk_mfg_enable_hw_apm(struct mtk_mfg_base *mfg_base)
+static void mtk_mfg_enable_hw_apm(struct mtk_mfg *mfg)
 {
-	writel(0x003c3d4d, mfg_base->reg_base + 0x24);
-	writel(0x4d45440b, mfg_base->reg_base + 0x28);
-	writel(0x7a710184, mfg_base->reg_base + 0xe0);
-	writel(0x835f6856, mfg_base->reg_base + 0xe4);
-	writel(0x002b0234, mfg_base->reg_base + 0xe8);
-	writel(0x80000000, mfg_base->reg_base + 0xec);
-	writel(0x08000000, mfg_base->reg_base + 0xa0);
+	writel(0x003c3d4d, mfg->reg_base + 0x24);
+	writel(0x4d45440b, mfg->reg_base + 0x28);
+	writel(0x7a710184, mfg->reg_base + 0xe0);
+	writel(0x835f6856, mfg->reg_base + 0xe4);
+	writel(0x002b0234, mfg->reg_base + 0xe8);
+	writel(0x80000000, mfg->reg_base + 0xec);
+	writel(0x08000000, mfg->reg_base + 0xa0);
 }
 
-static void mtk_mfg_disable_hw_apm(struct mtk_mfg_base *mfg_base)
+int mtk_mfg_enable(struct mtk_mfg *mfg)
 {
-	writel(0x00, mfg_base->reg_base + 0x24);
-	writel(0x00, mfg_base->reg_base + 0x28);
-	writel(0x00, mfg_base->reg_base + 0xe0);
-	writel(0x00, mfg_base->reg_base + 0xe4);
-	writel(0x00, mfg_base->reg_base + 0xe8);
-	writel(0x00, mfg_base->reg_base + 0xec);
-	writel(0x00, mfg_base->reg_base + 0xa0);
+	int ret;
+
+	ret = regulator_enable(mfg->vgpu);
+	if (ret)
+		return ret;
+
+	ret = pm_runtime_get_sync(mfg->dev);
+	if (ret)
+		goto err_regulator_disable;
+
+	ret = mtk_mfg_enable_clock(mfg);
+	if (ret)
+		goto err_pm_runtime_put;
+
+	mtk_mfg_enable_hw_apm(mfg);
+
+	dev_dbg(mfg->dev, "Enabled\n");
+
+	return 0;
+
+err_pm_runtime_put:
+	pm_runtime_put_sync(mfg->dev);
+err_regulator_disable:
+	regulator_disable(mfg->vgpu);
+	return ret;
 }
-#endif
 
-static int mtk_mfg_get_opp_table(struct platform_device *pdev,
-				 struct mtk_mfg_base *mfg_base)
+void mtk_mfg_disable(struct mtk_mfg *mfg)
 {
-	const struct property *prop;
-	int i, nr;
-	const __be32 *val;
+	mtk_mfg_disable_clock(mfg);
+	pm_runtime_put_sync(mfg->dev);
+	regulator_disable(mfg->vgpu);
 
-	prop = of_find_property(pdev->dev.of_node, "operating-points", NULL);
-	if (!prop) {
-		dev_err(&pdev->dev, "failed to fail operating-points\n");
-		return -ENODEV;
+	dev_dbg(mfg->dev, "Disabled\n");
+}
+
+int mtk_mfg_freq_set(struct mtk_mfg *mfg, unsigned long freq)
+{
+	int ret;
+
+	ret = clk_set_rate(mfg->mmpll, freq);
+	if (ret) {
+		dev_err(mfg->dev, "Set freq to %lu Hz failed, %d\n",
+			freq, ret);
+		return ret;
 	}
 
-	if (!prop->value) {
-		dev_err(&pdev->dev, "failed to get fv array data\n");
-		return -ENODATA;
-	}
-
-	/*
-	 * Each OPP is a set of tuples consisting of frequency and
-	 * voltage like <freq-kHz vol-uV>.
-	 */
-	nr = prop->length / sizeof(u32);
-	if (nr % 2) {
-		dev_err(&pdev->dev, "Invalid OPP list\n");
-		return -EINVAL;
-	}
-
-	mfg_base->fv_table_length = nr / 2;
-	mfg_base->fv_table = devm_kcalloc(&pdev->dev,
-					  mfg_base->fv_table_length,
-					  sizeof(*mfg_base->fv_table),
-					  GFP_KERNEL);
-	if (!mfg_base->fv_table)
-		return -ENOMEM;
-
-	val = prop->value;
-
-	for (i = 0; i < mfg_base->fv_table_length; ++i) {
-		u32 freq = be32_to_cpup(val++);
-		u32 volt = be32_to_cpup(val++);
-
-		mfg_base->fv_table[i].freq = freq;
-		mfg_base->fv_table[i].volt = volt;
-
-		dev_info(&pdev->dev, "freq:%d kHz volt:%d uV\n", freq, volt);
-	}
+	dev_dbg(mfg->dev, "Freq set to %lu Hz\n", freq);
 
 	return 0;
 }
 
-int mtk_mfg_bind_device_resource(struct platform_device *pdev,
-				 struct mtk_mfg_base *mfg_base)
+int mtk_mfg_volt_set(struct mtk_mfg *mfg, int volt)
 {
-	int i, err;
-	int len = sizeof(struct clk *) * MAX_TOP_MFG_CLK;
+	int ret;
 
-	mfg_base->top_clk = devm_kzalloc(&pdev->dev, len, GFP_KERNEL);
-	if (!mfg_base->top_clk)
-		return -ENOMEM;
-
-	mfg_base->reg_base = of_iomap(pdev->dev.of_node, 1);
-	if (!mfg_base->reg_base) {
-		mtk_mfg_debug("Unable to ioremap registers pdev %p\n", pdev);
-		return -ENOMEM;
+	ret = regulator_set_voltage(mfg->vgpu, volt, volt);
+	if (ret != 0) {
+		dev_err(mfg->dev, "Set voltage to %u uV failed, %d\n",
+			volt, ret);
+		return ret;
 	}
 
-#ifndef MTK_MFG_DVFS
-	mfg_base->mmpll = devm_clk_get(&pdev->dev, "mmpll_clk");
-	if (IS_ERR(mfg_base->mmpll)) {
-		err = PTR_ERR(mfg_base->mmpll);
-		dev_err(&pdev->dev, "devm_clk_get mmpll_clk failed !!!\n");
-		goto err_iounmap_reg_base;
+	dev_dbg(mfg->dev, "Voltage set to %d uV\n", volt);
+
+	return 0;
+}
+
+static int mtk_mfg_bind_device_resource(struct mtk_mfg *mfg)
+{
+	struct device *dev = mfg->dev;
+	struct platform_device *pdev = to_platform_device(dev);
+	int i;
+	struct resource *res;
+
+	mfg->top_clk = devm_kcalloc(dev, MAX_TOP_MFG_CLK,
+				    sizeof(*mfg->top_clk), GFP_KERNEL);
+	if (!mfg->top_clk)
+		return -ENOMEM;
+
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!res)
+		return -ENODEV;
+	mfg->rgx_start = res->start;
+	mfg->rgx_size = resource_size(res);
+
+	mfg->rgx_irq = platform_get_irq_byname(pdev, "RGX");
+	if (mfg->rgx_irq < 0)
+		return mfg->rgx_irq;
+
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	mfg->reg_base = devm_ioremap_resource(dev, res);
+	if (IS_ERR(mfg->reg_base))
+		return PTR_ERR(mfg->reg_base);
+
+	mfg->mmpll = devm_clk_get(dev, "mmpll_clk");
+	if (IS_ERR(mfg->mmpll)) {
+		dev_err(dev, "devm_clk_get mmpll_clk failed !!!\n");
+		return PTR_ERR(mfg->mmpll);
 	}
-#endif
 
 	for (i = 0; i < MAX_TOP_MFG_CLK; i++) {
-		mfg_base->top_clk[i] = devm_clk_get(&pdev->dev,
-						    top_mfg_clk_name[i]);
-		if (IS_ERR(mfg_base->top_clk[i])) {
-			err = PTR_ERR(mfg_base->top_clk[i]);
-			dev_err(&pdev->dev, "devm_clk_get %s failed !!!\n",
+		mfg->top_clk[i] = devm_clk_get(dev, top_mfg_clk_name[i]);
+		if (IS_ERR(mfg->top_clk[i])) {
+			dev_err(dev, "devm_clk_get %s failed !!!\n",
 				top_mfg_clk_name[i]);
-			goto err_iounmap_reg_base;
+			return PTR_ERR(mfg->top_clk[i]);
 		}
 	}
 
-#ifndef MTK_MFG_DVFS
-	mfg_base->vgpu = devm_regulator_get(&pdev->dev, "mfgsys-power");
-	if (IS_ERR(mfg_base->vgpu)) {
-		err = PTR_ERR(mfg_base->vgpu);
-		goto err_iounmap_reg_base;
+	mfg->tz = thermal_zone_get_zone_by_name("cpu_thermal");
+	if (IS_ERR(mfg->tz)) {
+		dev_err(dev, "Failed to get cpu_thermal zone\n");
+		return PTR_ERR(mfg->tz);
 	}
 
-	err = regulator_enable(mfg_base->vgpu);
-	if (err != 0) {
-		dev_err(&pdev->dev, "failed to enable regulator vgpu\n");
-		goto err_iounmap_reg_base;
-	}
-	mtk_mfg_get_opp_table(pdev, mfg_base);
-#endif
+	mfg->vgpu = devm_regulator_get(dev, "mfgsys-power");
+	if (IS_ERR(mfg->vgpu))
+		return PTR_ERR(mfg->vgpu);
 
-	pm_runtime_enable(&pdev->dev);
-	mfg_base->pdev = pdev;
+	pm_runtime_enable(dev);
 
-	return 0;
-
-err_iounmap_reg_base:
-	iounmap(mfg_base->reg_base);
-	return err;
-}
-
-int mtk_mfg_unbind_device_resource(struct platform_device *pdev,
-				   struct mtk_mfg_base *mfg_base)
-{
-	pr_info("mtk_mfg_unbind_device_resource start\n");
-
-	iounmap(mfg_base->reg_base);
-#ifndef MTK_MFG_DVFS
-	regulator_disable(mfg_base->vgpu);
-#endif
-	pm_runtime_disable(&pdev->dev);
-	mfg_base->pdev = NULL;
-
-	pr_info("mtk_mfg_unbind_device_resource end\n");
 	return 0;
 }
 
-void MTKSysSetInitialPowerState(void)
+static void mtk_mfg_unbind_device_resource(struct mtk_mfg *mfg)
 {
-	mtk_mfg_debug("MTKSysSetInitialPowerState ---\n");
+	struct device *dev = mfg->dev;
+
+	pm_runtime_disable(dev);
 }
 
-void MTKSysRestoreInitialPowerState(void)
-{
-	mtk_mfg_debug("MTKSysRestoreInitialPowerState ---\n");
-}
-
-PVRSRV_ERROR MTKSysDevPrePowerState(PVRSRV_DEV_POWER_STATE eNewPowerState,
-				    PVRSRV_DEV_POWER_STATE eCurrentPowerState,
-				    IMG_BOOL bForced)
-{
-	struct mtk_mfg_base *mfg_base = GET_MTK_MFG_BASE(sPVRLDMDev);
-
-	mtk_mfg_debug("MTKSysDevPrePowerState (%d->%d), bForced = %d\n",
-		      eCurrentPowerState, eNewPowerState, bForced);
-
-	mutex_lock(&mfg_base->set_power_state);
-
-	if ((PVRSRV_DEV_POWER_STATE_OFF == eNewPowerState) &&
-	    (PVRSRV_DEV_POWER_STATE_ON == eCurrentPowerState)) {
-#if defined(MTK_ENABLE_HWAPM)
-		mtk_mfg_disable_hw_apm(mfg_base);
-#endif
-		mtk_mfg_disable_clock(mfg_base);
-		mfg_base->power_on = false;
-	}
-
-	mutex_unlock(&mfg_base->set_power_state);
-	return PVRSRV_OK;
-}
-
-PVRSRV_ERROR MTKSysDevPostPowerState(PVRSRV_DEV_POWER_STATE eNewPowerState,
-				     PVRSRV_DEV_POWER_STATE eCurrentPowerState,
-				     IMG_BOOL bForced)
-{
-	struct mtk_mfg_base *mfg_base = GET_MTK_MFG_BASE(sPVRLDMDev);
-
-	mtk_mfg_debug("MTKSysDevPostPowerState (%d->%d)\n",
-		      eCurrentPowerState, eNewPowerState);
-
-	mutex_lock(&mfg_base->set_power_state);
-
-	if ((PVRSRV_DEV_POWER_STATE_ON == eNewPowerState) &&
-	    (PVRSRV_DEV_POWER_STATE_OFF == eCurrentPowerState)) {
-		mtk_mfg_enable_clock(mfg_base);
-#if defined(MTK_ENABLE_HWAPM)
-		mtk_mfg_enable_hw_apm(mfg_base);
-#endif
-		mfg_base->power_on = true;
-	}
-
-	mutex_unlock(&mfg_base->set_power_state);
-
-	return PVRSRV_OK;
-}
-
-PVRSRV_ERROR MTKSystemPrePowerState(PVRSRV_SYS_POWER_STATE eNewPowerState)
+int MTKMFGBaseInit(struct device *dev)
 {
 	int err;
-	struct mtk_mfg_base *mfg_base = GET_MTK_MFG_BASE(sPVRLDMDev);
-
-	pr_err("MTKSystemPrePowerState(%d) eNewPowerState %d\n",
-		      mfg_base->power_on, eNewPowerState);
-#ifndef MTK_MFG_DVFS
-	/* turn off regulator for power saving ~30mw */
-	if (eNewPowerState == PVRSRV_SYS_POWER_STATE_OFF)
-		err = regulator_disable(mfg_base->vgpu);
-	else if (eNewPowerState == PVRSRV_SYS_POWER_STATE_ON)
-		err = regulator_enable(mfg_base->vgpu);
-
-	if (err != 0) {
-		pr_err("failed to %s regulator vgpu\n",
-		       ((eNewPowerState == PVRSRV_SYS_POWER_STATE_OFF)
-		       ? "disable" : "enable"));
-		return PVRSRV_ERROR_INVALID_PARAMS;
-	}
-#endif
-	return PVRSRV_OK;
-}
-
-PVRSRV_ERROR MTKSystemPostPowerState(PVRSRV_SYS_POWER_STATE eNewPowerState)
-{
-	mtk_mfg_debug("MTKSystemPostPowerState eNewPowerState %d\n",
-		      eNewPowerState);
-
-	return PVRSRV_OK;
-}
-
-int MTKMFGBaseInit(struct platform_device *pdev)
-{
-	int err;
-	struct mtk_mfg_base *mfg_base;
+	struct mtk_mfg *mfg;
 
 	mtk_mfg_debug("MTKMFGBaseInit Begin\n");
 
-	mfg_base = devm_kzalloc(&pdev->dev, sizeof(*mfg_base), GFP_KERNEL);
-	if (!mfg_base)
+	mfg = devm_kzalloc(dev, sizeof(*mfg), GFP_KERNEL);
+	if (!mfg)
 		return -ENOMEM;
+	mfg->dev = dev;
 
-	err = mtk_mfg_bind_device_resource(pdev, mfg_base);
+	err = mtk_mfg_bind_device_resource(mfg);
 	if (err != 0)
 		return err;
 
-	mutex_init(&mfg_base->set_power_state);
+	mutex_init(&mfg->set_power_state);
 
-	mtk_mfg_prepare_clock(mfg_base);
-#if !defined(PVR_DVFS) && !defined(MTK_MFG_DVFS)
-	mtk_mfg_gpu_dvfs_init(mfg_base);
-#endif
+	err = mtk_mfg_prepare_clock(mfg);
+	if (err)
+		goto err_unbind_resource;
 
-	/* attach mfg_base to pdev->dev.platform_data */
-	pdev->dev.platform_data = mfg_base;
-	sPVRLDMDev = pdev;
+	dev->platform_data = mfg;
 
 	mtk_mfg_debug("MTKMFGBaseInit End\n");
+
 	return 0;
+err_unbind_resource:
+	mtk_mfg_unbind_device_resource(mfg);
+
+	return err;
 }
 
-int MTKMFGBaseDeInit(struct platform_device *pdev)
+void MTKMFGBaseDeInit(struct device *dev)
 {
-	struct mtk_mfg_base *mfg_base = GET_MTK_MFG_BASE(sPVRLDMDev);
+	struct mtk_mfg *mfg = dev_get_platdata(dev);
 
-	if (pdev != sPVRLDMDev) {
-		dev_err(&pdev->dev, "release %p != %p\n", pdev, sPVRLDMDev);
-		return 0;
-	}
+	mtk_mfg_unprepare_clock(mfg);
 
-	mtk_mfg_unprepare_clock(mfg_base);
-#if !defined(PVR_DVFS) && !defined(MTK_MFG_DVFS)
-	mtk_mfg_gpu_dvfs_deinit(mfg_base);
-#endif
-
-	mtk_mfg_unbind_device_resource(pdev, mfg_base);
-	return 0;
+	mtk_mfg_unbind_device_resource(mfg);
 }
-
-
-int MTKMFGSystemInit(void)
-{
-	mtk_mfg_debug("MTKMFGSystemInit\n");
-	return PVRSRV_OK;
-}
-
-int MTKMFGSystemDeInit(void)
-{
-	mtk_mfg_debug("MTKMFGSystemDeInit\n");
-	return PVRSRV_OK;
-}
-

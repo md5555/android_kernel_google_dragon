@@ -218,7 +218,7 @@ PVRSRV_ERROR PhysmemNewTDSecureBufPMR(CONNECTION_DATA *psConnection,
 
 		/* Ask the Trusted Device to allocate secure memory */
 		sTDSecBufParams.uiSize = uiSize;
-		sTDSecBufParams.uiAlign = ROGUE_CACHE_LINE_SIZE;
+		sTDSecBufParams.uiAlign = 1 << uiLog2PageSize;
 
 		/* These will be returned by pfnTDSecureBufAlloc on success */
 		sTDSecBufParams.psSecBufAddr = &psPrivData->sCpuPAddr;

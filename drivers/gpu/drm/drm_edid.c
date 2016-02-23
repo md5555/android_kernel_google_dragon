@@ -2365,6 +2365,8 @@ add_cvt_modes(struct drm_connector *connector, struct edid *edid)
 	return closure.modes;
 }
 
+static void fixup_detailed_cea_mode_clock(struct drm_display_mode *mode);
+
 static void
 do_detailed_mode(struct detailed_timing *timing, void *c)
 {
@@ -2380,6 +2382,13 @@ do_detailed_mode(struct detailed_timing *timing, void *c)
 
 		if (closure->preferred)
 			newmode->type |= DRM_MODE_TYPE_PREFERRED;
+
+		/*
+		 * Detailed modes are limited to 10kHz pixel clock resolution,
+		 * so fix up anything that looks like CEA/HDMI mode, but the clock
+		 * is just slightly off.
+		 */
+		fixup_detailed_cea_mode_clock(newmode);
 
 		drm_mode_probed_add(closure->connector, newmode);
 		closure->modes++;
@@ -2466,11 +2475,38 @@ cea_mode_alternate_clock(const struct drm_display_mode *cea_mode)
 	 * and the 60Hz variant otherwise.
 	 */
 	if (cea_mode->vdisplay == 240 || cea_mode->vdisplay == 480)
-		clock = clock * 1001 / 1000;
+		clock = DIV_ROUND_CLOSEST(clock * 1001, 1000);
 	else
-		clock = DIV_ROUND_UP(clock * 1000, 1001);
+		clock = DIV_ROUND_CLOSEST(clock * 1000, 1001);
 
 	return clock;
+}
+
+static u8 drm_match_cea_mode_clock_tolerance(const struct drm_display_mode *to_match,
+					     unsigned int clock_tolerance)
+{
+	u8 mode;
+
+	if (!to_match->clock)
+		return 0;
+
+	for (mode = 0; mode < ARRAY_SIZE(edid_cea_modes); mode++) {
+		const struct drm_display_mode *cea_mode = &edid_cea_modes[mode];
+		unsigned int clock1, clock2;
+
+		/* Check both 60Hz and 59.94Hz */
+		clock1 = cea_mode->clock;
+		clock2 = cea_mode_alternate_clock(cea_mode);
+
+		if (abs(to_match->clock - clock1) > clock_tolerance &&
+		    abs(to_match->clock - clock2) > clock_tolerance)
+			continue;
+
+		if (drm_mode_equal_no_clocks(to_match, cea_mode))
+			return mode + 1;
+	}
+
+	return 0;
 }
 
 /**
@@ -2535,6 +2571,33 @@ hdmi_mode_alternate_clock(const struct drm_display_mode *hdmi_mode)
 		return hdmi_mode->clock;
 
 	return cea_mode_alternate_clock(hdmi_mode);
+}
+
+static u8 drm_match_hdmi_mode_clock_tolerance(const struct drm_display_mode *to_match,
+					      unsigned int clock_tolerance)
+{
+	u8 mode;
+
+	if (!to_match->clock)
+		return 0;
+
+	for (mode = 0; mode < ARRAY_SIZE(edid_4k_modes); mode++) {
+		const struct drm_display_mode *hdmi_mode = &edid_4k_modes[mode];
+		unsigned int clock1, clock2;
+
+		/* Make sure to also match alternate clocks */
+		clock1 = hdmi_mode->clock;
+		clock2 = hdmi_mode_alternate_clock(hdmi_mode);
+
+		if (abs(to_match->clock - clock1) > clock_tolerance &&
+		    abs(to_match->clock - clock2) > clock_tolerance)
+			continue;
+
+		if (drm_mode_equal_no_clocks(to_match, hdmi_mode))
+			return mode + 1;
+	}
+
+	return 0;
 }
 
 /*
@@ -3040,6 +3103,49 @@ add_cea_modes(struct drm_connector *connector, struct edid *edid)
 	return modes;
 }
 
+static void fixup_detailed_cea_mode_clock(struct drm_display_mode *mode)
+{
+	const struct drm_display_mode *cea_mode;
+	int clock1, clock2, clock;
+	u8 mode_idx;
+	const char *type;
+
+	/*
+	 * allow 5kHz clock difference either way to account for
+	 * the 10kHz clock resolution limit of detailed timings.
+	 */
+	mode_idx = drm_match_cea_mode_clock_tolerance(mode, 5) - 1;
+	if (mode_idx < ARRAY_SIZE(edid_cea_modes)) {
+		type = "CEA";
+		cea_mode = &edid_cea_modes[mode_idx];
+		clock1 = cea_mode->clock;
+		clock2 = cea_mode_alternate_clock(cea_mode);
+	} else {
+		mode_idx = drm_match_hdmi_mode_clock_tolerance(mode, 5) - 1;
+		if (mode_idx < ARRAY_SIZE(edid_4k_modes)) {
+			type = "HDMI";
+			cea_mode = &edid_4k_modes[mode_idx];
+			clock1 = cea_mode->clock;
+			clock2 = hdmi_mode_alternate_clock(cea_mode);
+		} else {
+			return;
+		}
+	}
+
+	/* pick whichever is closest */
+	if (abs(mode->clock - clock1) < abs(mode->clock - clock2))
+		clock = clock1;
+	else
+		clock = clock2;
+
+	if (mode->clock == clock)
+		return;
+
+	DRM_DEBUG("detailed mode matches %s VIC %d, adjusting clock %d -> %d\n",
+		  type, mode_idx + 1, mode->clock, clock);
+	mode->clock = clock;
+}
+
 static void
 parse_hdmi_vsdb(struct drm_connector *connector, const u8 *db)
 {
@@ -3350,7 +3456,7 @@ struct drm_connector *drm_select_eld(struct drm_encoder *encoder,
 	WARN_ON(!mutex_is_locked(&dev->mode_config.mutex));
 	WARN_ON(!drm_modeset_is_locked(&dev->mode_config.connection_mutex));
 
-	list_for_each_entry(connector, &dev->mode_config.connector_list, head)
+	drm_for_each_connector(connector, dev)
 		if (connector->encoder == encoder && connector->eld[0])
 			return connector;
 

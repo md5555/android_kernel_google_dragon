@@ -433,7 +433,7 @@ static struct drm_encoder *sti_tvout_create_hda_encoder(struct drm_device *dev,
 	drm_encoder->possible_clones = 1 << 0;
 
 	drm_encoder_init(dev, drm_encoder,
-			&sti_tvout_encoder_funcs, DRM_MODE_ENCODER_DAC);
+			&sti_tvout_encoder_funcs, DRM_MODE_ENCODER_DAC, NULL);
 
 	drm_encoder_helper_add(drm_encoder, &sti_hda_encoder_helper_funcs);
 
@@ -482,7 +482,7 @@ static struct drm_encoder *sti_tvout_create_hdmi_encoder(struct drm_device *dev,
 	drm_encoder->possible_clones = 1 << 1;
 
 	drm_encoder_init(dev, drm_encoder,
-			&sti_tvout_encoder_funcs, DRM_MODE_ENCODER_TMDS);
+			&sti_tvout_encoder_funcs, DRM_MODE_ENCODER_TMDS, NULL);
 
 	drm_encoder_helper_add(drm_encoder, &sti_hdmi_encoder_helper_funcs);
 

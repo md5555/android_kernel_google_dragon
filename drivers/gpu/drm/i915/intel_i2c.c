@@ -489,7 +489,7 @@ gmbus_xfer(struct i2c_adapter *adapter,
 	int i = 0, inc, try = 0, reg_offset;
 	int ret = 0;
 
-	intel_aux_display_runtime_get(dev_priv);
+	intel_display_power_get(dev_priv, POWER_DOMAIN_GMBUS);
 	mutex_lock(&dev_priv->gmbus_mutex);
 
 	if (bus->force_bit) {
@@ -603,7 +603,9 @@ timeout:
 
 out:
 	mutex_unlock(&dev_priv->gmbus_mutex);
-	intel_aux_display_runtime_put(dev_priv);
+
+	intel_display_power_put(dev_priv, POWER_DOMAIN_GMBUS);
+
 	return ret;
 }
 
@@ -730,4 +732,29 @@ void intel_teardown_gmbus(struct drm_device *dev)
 		bus = &dev_priv->gmbus[pin];
 		i2c_del_adapter(&bus->adapter);
 	}
+}
+
+void intel_i2c_register(struct drm_device *dev,
+                       struct drm_connector *connector,
+                       int ddc_bus)
+{
+       struct drm_i915_private *dev_priv = dev->dev_private;
+       struct intel_connector *intel_connector = to_intel_connector(connector);
+       struct i2c_adapter *gmbus_adapter;
+       int error;
+       char name[48];
+
+       gmbus_adapter = intel_gmbus_get_adapter(dev_priv, ddc_bus);
+       if (!gmbus_adapter) {
+               DRM_ERROR("Cannot find i2c adapter\n");
+               return;
+       }
+
+       snprintf(name, sizeof(name), "i2c-%d", gmbus_adapter->nr);
+
+       error = sysfs_create_link(&intel_connector->base.kdev->kobj,
+                                 &gmbus_adapter->dev.kobj, name);
+
+       if (error)
+               DRM_ERROR("Cannot create sysfs symlink (%d)\n", error);
 }
