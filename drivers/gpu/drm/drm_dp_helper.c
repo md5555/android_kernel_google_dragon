@@ -1343,6 +1343,7 @@ static int drm_dp_link_equalize_channel(struct drm_dp_link *link)
 	if (!drm_dp_clock_recovery_ok(status, link->lanes)) {
 		DRM_ERROR("clock recovery lost while equalizing channel\n");
 		link->train.clock_recovered = false;
+		drm_dp_link_get_adjustments(link, status);
 		return 0;
 	}
 
