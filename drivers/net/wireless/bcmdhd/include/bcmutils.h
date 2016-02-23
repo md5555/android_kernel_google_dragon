@@ -1,14 +1,14 @@
 /*
  * Misc useful os-independent macros and functions.
  *
- * Copyright (C) 1999-2014, Broadcom Corporation
- *
+ * Copyright (C) 1999-2015, Broadcom Corporation
+ * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
  * under the terms of the GNU General Public License version 2 (the "GPL"),
  * available at http://www.broadcom.com/licenses/GPLv2.php, with the
  * following added to such license:
- *
+ * 
  *      As a special exception, the copyright holders of this software give you
  * permission to link this software with independent modules, and to copy and
  * distribute the resulting executable under terms of your choice, provided that
@@ -16,12 +16,12 @@
  * the license of that module.  An independent module is a module which is not
  * derived from this software.  The special exception does not apply to any
  * modifications of the software.
- *
+ * 
  *      Notwithstanding the above, under no circumstances may you combine this
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: bcmutils.h 469595 2014-04-10 21:19:06Z $
+ * $Id: bcmutils.h 532530 2015-02-06 06:24:18Z $
  */
 
 #ifndef	_bcmutils_h_
@@ -34,6 +34,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 
 #ifdef PKTQ_LOG
 #include <wlioctl.h>
@@ -135,6 +136,7 @@ extern int ether_isnulladdr(const void *ea);
 #define BCM_RXCPL_CLR_VALID_INFO(a)	((a)->rxcpl_id.flags &= ~BCM_RXCPL_FLAGS_RXCPLVALID)
 #define BCM_RXCPL_VALID_INFO(a) (((a)->rxcpl_id.flags & BCM_RXCPL_FLAGS_RXCPLVALID) ? TRUE : FALSE)
 
+#define UP_TABLE_MAX	((IPV4_TOS_DSCP_MASK >> IPV4_TOS_DSCP_SHIFT) + 1)	/* 64 max */
 
 struct reorder_rxcpl_id_list {
 	uint16 head;
@@ -215,6 +217,7 @@ extern void *pktoffset(osl_t *osh, void *p,  uint offset);
 #define DSCP_EF		0x2E
 
 extern uint pktsetprio(void *pkt, bool update_vtag);
+extern uint pktsetprio_qms(void *pkt, uint8* up_table, bool update_vtag);
 extern bool pktgetdscp(uint8 *pktdata, uint pktlen, uint8 *dscp);
 
 /* string */
@@ -303,7 +306,7 @@ extern int bcm_iovar_lencheck(const bcm_iovar_t *table, void *arg, int len, bool
 #if defined(WLTINYDUMP) || defined(WLMSG_INFORM) || defined(WLMSG_ASSOC) || \
 	defined(WLMSG_PRPKT) || defined(WLMSG_WSEC)
 extern int bcm_format_ssid(char* buf, const uchar ssid[], uint ssid_len);
-#endif
+#endif 
 #endif	/* BCMDRIVER */
 
 /* Base type definitions */
@@ -668,6 +671,16 @@ typedef struct bcm_bit_desc_ex {
 /* buffer length for ethernet address from bcm_ether_ntoa() */
 #define ETHER_ADDR_STR_LEN	18	/* 18-bytes of Ethernet address buffer length */
 
+static INLINE uint32 /* 32bit word aligned xor-32 */
+bcm_compute_xor32(volatile uint32 *u32, int num_u32)
+{
+	int i;
+	uint32 xor32 = 0;
+	for (i = 0; i < num_u32; i++)
+		xor32 ^= *(u32 + i);
+	return xor32;
+}
+
 /* crypto utility function */
 /* 128-bit xor: *dst = *src1 xor *src2. dst1, src1 and src2 may have any alignment */
 static INLINE void
@@ -707,10 +720,7 @@ extern int bcm_format_field(const bcm_bit_desc_ex_t *bd, uint32 field, char* buf
 extern int bcm_format_flags(const bcm_bit_desc_t *bd, uint32 flags, char* buf, int len);
 #endif
 
-#if defined(DHD_DEBUG) || defined(WLMSG_PRHDRS) || defined(WLMSG_PRPKT) || \
-	defined(WLMSG_ASSOC) || defined(WLMEDIA_PEAKRATE)
 extern int bcm_format_hex(char *str, const void *bytes, int len);
-#endif
 
 extern const char *bcm_crypto_algo_name(uint algo);
 extern char *bcm_chipname(uint chipid, char *buf, uint len);
@@ -720,26 +730,19 @@ extern void prhex(const char *msg, uchar *buf, uint len);
 
 /* IE parsing */
 
-/* packing is required if struct is passed across the bus */
-#include <packed_section_start.h>
-
 /* tag_ID/length/value_buffer tuple */
-typedef BWL_PRE_PACKED_STRUCT struct bcm_tlv {
+typedef struct bcm_tlv {
 	uint8	id;
 	uint8	len;
 	uint8	data[1];
-} BWL_POST_PACKED_STRUCT bcm_tlv_t;
+} bcm_tlv_t;
 
 /* bcm tlv w/ 16 bit id/len */
-typedef BWL_PRE_PACKED_STRUCT struct bcm_xtlv {
+typedef struct bcm_xtlv {
 	uint16	id;
 	uint16	len;
 	uint8	data[1];
-} BWL_POST_PACKED_STRUCT bcm_xtlv_t;
-
-/* no default structure packing */
-#include <packed_section_end.h>
-
+} bcm_xtlv_t;
 
 /* descriptor of xtlv data src or dst  */
 typedef struct {
@@ -778,6 +781,7 @@ typedef struct bcm_xtlvbuf bcm_xtlvbuf_t;
 #define bcm_valid_tlv(elt, buflen) (\
 	 ((int)(buflen) >= (int)BCM_TLV_HDR_SIZE) && \
 	 ((int)(buflen) >= (int)(BCM_TLV_HDR_SIZE + (elt)->len)))
+
 extern bcm_tlv_t *bcm_next_tlv(bcm_tlv_t *elt, int *buflen);
 extern bcm_tlv_t *bcm_parse_tlvs(void *buf, int buflen, uint key);
 extern bcm_tlv_t *bcm_parse_tlvs_min_bodylen(void *buf, int buflen, uint key, int min_bodylen);
@@ -1116,7 +1120,7 @@ dll_next_p(dll_t *node_p)
 static INLINE dll_t *
 dll_prev_p(dll_t *node_p)
 {
-	return (node_p)->next_p;
+	return (node_p)->prev_p;
 }
 
 

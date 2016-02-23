@@ -1,14 +1,14 @@
 /*
  * Broadcom Event  protocol definitions
  *
- * Copyright (C) 1999-2014, Broadcom Corporation
- *
+ * Copyright (C) 1999-2015, Broadcom Corporation
+ * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
  * under the terms of the GNU General Public License version 2 (the "GPL"),
  * available at http://www.broadcom.com/licenses/GPLv2.php, with the
  * following added to such license:
- *
+ * 
  *      As a special exception, the copyright holders of this software give you
  * permission to link this software with independent modules, and to copy and
  * distribute the resulting executable under terms of your choice, provided that
@@ -16,14 +16,14 @@
  * the license of that module.  An independent module is a module which is not
  * derived from this software.  The special exception does not apply to any
  * modifications of the software.
- *
+ * 
  *      Notwithstanding the above, under no circumstances may you combine this
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
  * Dependencies: proto/bcmeth.h
  *
- * $Id: bcmevent.h 474305 2014-04-30 20:54:29Z $
+ * $Id: bcmevent.h 515897 2014-11-18 01:34:32Z $
  *
  */
 
@@ -40,7 +40,6 @@
 #endif
 /* #include <ethernet.h> -- TODO: req., excluded to overwhelming coupling (break up ethernet.h) */
 #include <proto/bcmeth.h>
-#include <proto/dnglevent.h>
 
 /* This marks the start of a packed structure section. */
 #include <packed_section_start.h>
@@ -94,17 +93,6 @@ typedef BWL_PRE_PACKED_STRUCT struct bcm_event {
 	wl_event_msg_t		event;
 	/* data portion follows */
 } BWL_POST_PACKED_STRUCT bcm_event_t;
-
-/* used by host event
- * Note: If additional event types are added,
- *       it should come on is_wlc_event_frame() as well.
- */
-typedef union bcm_event_msg_u {
-	wl_event_msg_t		event;
-	bcm_dngl_event_msg_t	dngl_event;
-
-	/* add new event here */
-} bcm_event_msg_u_t;
 
 #define BCM_MSG_LEN	(sizeof(bcm_event_t) - sizeof(bcmeth_hdr_t) - sizeof(struct ether_header))
 
@@ -163,7 +151,9 @@ typedef union bcm_event_msg_u {
 #define WLC_E_IF		54	/* I/F change (for dongle host notification) */
 #define WLC_E_P2P_DISC_LISTEN_COMPLETE	55	/* listen state expires */
 #define WLC_E_RSSI		56	/* indicate RSSI change based on configured levels */
-#define WLC_E_PFN_BEST_BATCHING	57 /* PFN best network batching event */
+#define WLC_E_PFN_SCAN_COMPLETE	57	/* PFN completed scan of network list */
+/* PFN best network batching event, re-use obsolete WLC_E_PFN_SCAN_COMPLETE */
+#define WLC_E_PFN_BEST_BATCHING	57
 #define WLC_E_EXTLOG_MSG	58
 #define WLC_E_ACTION_FRAME      59	/* Action frame Rx */
 #define WLC_E_ACTION_FRAME_COMPLETE	60	/* Action frame Tx complete */
@@ -237,19 +227,16 @@ typedef union bcm_event_msg_u {
 #define WLC_E_RSSI_LQM			133	/* Enhancement addition for WLC_E_RSSI */
 #define WLC_E_PFN_GSCAN_FULL_RESULT		134 /* Full probe/beacon (IEs etc) results */
 #define WLC_E_PFN_SWC		135 /* Significant change in rssi of bssids being tracked */
-#define WLC_E_PFN_SCAN_COMPLETE		138	/* PFN completed scan of network list */
 #define WLC_E_RMC_EVENT			139	/* RMC event */
-#define WLC_E_PFN_SSID_EXT      142  /* SSID EXT event */
-#define WLC_E_ROAM_EXP_EVENT    143  /* Expanded roam event */
-#define WLC_E_LAST			144	/* highest val + 1 for range checking */
+#define WLC_E_LAST			140	/* highest val + 1 for range checking */
+
+#if (WLC_E_LAST > 140)
+#error "WLC_E_LAST: Invalid value for last event; must be <= 140."
+#endif /* WLC_E_LAST */
 
 /* define an API for getting the string name of an event */
 extern const char *bcmevent_get_name(uint event_type);
 
-/* validate if the event is proper and if valid copy event header to event */
-extern int is_wlc_event_frame(void *pktdata, uint pktlen,
-			      uint16 exp_usr_subtype,
-			      bcm_event_msg_u_t *out_event);
 
 
 /* Event status codes */
@@ -279,7 +266,6 @@ extern int is_wlc_event_frame(void *pktdata, uint pktlen,
 #define WLC_E_REASON_DISASSOC		3	/* roamed due to DISASSOC indication */
 #define WLC_E_REASON_BCNS_LOST		4	/* roamed due to lost beacons */
 
-/* Roam codes used primarily by CCX */
 #define WLC_E_REASON_FAST_ROAM_FAILED	5	/* roamed due to fast roam failure */
 #define WLC_E_REASON_DIRECTED_ROAM	6	/* roamed due to request by AP */
 #define WLC_E_REASON_TSPEC_REJECTED	7	/* roamed due to TSPEC rejection */
@@ -391,6 +377,21 @@ typedef struct wl_event_data_rssi {
 #define WLC_E_REASON_RMC_AR_LOST		1
 #define WLC_E_REASON_RMC_AR_NO_ACK		2
 
+#ifdef WLTDLS
+/* TDLS Action Category code */
+#define TDLS_AF_CATEGORY		12
+/* Wi-Fi Display (WFD) Vendor Specific Category */
+/* used for WFD Tunneled Probe Request and Response */
+#define TDLS_VENDOR_SPECIFIC					127
+/* TDLS Action Field Values */
+#define TDLS_ACTION_SETUP_REQ					0
+#define TDLS_ACTION_SETUP_RESP					1
+#define TDLS_ACTION_SETUP_CONFIRM				2
+#define TDLS_ACTION_TEARDOWN					3
+#define WLAN_TDLS_SET_PROBE_WFD_IE		 11
+#define WLAN_TDLS_SET_SETUP_WFD_IE		 12
+#endif
+
 
 /* GAS event data */
 typedef BWL_PRE_PACKED_STRUCT struct wl_event_gas {
@@ -499,7 +500,8 @@ enum nan_app_events {
 	WL_NAN_EVENT_STATUS_CHG = 9,  /* generated on any change in nan_mac status */
 	WL_NAN_EVENT_MERGE = 10,      /* Merged to a NAN cluster */
 	WL_NAN_EVENT_STOP = 11,       /* NAN stopped */
-	WL_NAN_EVENT_INVALID = 12,	/* delimiter for max value */
+	WL_NAN_EVENT_P2P = 12,       /* NAN P2P EVENT */
+	WL_NAN_EVENT_INVALID = 13,	/* delimiter for max value */
 };
 #define IS_NAN_EVT_ON(var, evt) ((var & (1 << (evt-1))) != 0)
 /*  ******************* end of NAN section *************** */
