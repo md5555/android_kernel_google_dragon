@@ -4347,6 +4347,17 @@ static inline bool energy_aware(void)
 #endif
 
 /*
+ * Returns the current capacity of cpu after applying both
+ * cpu and freq scaling.
+ */
+static unsigned long capacity_curr_of(int cpu)
+{
+	return cpu_rq(cpu)->cpu_capacity_orig *
+	       arch_scale_freq_capacity(NULL, cpu)
+	       >> SCHED_CAPACITY_SHIFT;
+}
+
+/*
  * Detect M:N waker/wakee relationships via a switching-frequency heuristic.
  * A waker of many should wake a different task than the one last awakened
  * at a frequency roughly N times higher than one of its wakees.  In order
