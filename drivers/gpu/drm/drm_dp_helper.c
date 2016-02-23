@@ -1365,7 +1365,7 @@ static int drm_dp_link_channel_equalization(struct drm_dp_link *link)
 	else
 		link->train.pattern = DP_TRAINING_PATTERN_2;
 
-	for (repeat = 1; repeat < 5; repeat++) {
+	for (repeat = 1; repeat < 8; repeat++) {
 		err = drm_dp_link_equalize_channel(link);
 		if (err < 0) {
 			DRM_ERROR("failed to equalize channel: %d\n", err);
