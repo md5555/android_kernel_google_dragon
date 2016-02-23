@@ -848,6 +848,7 @@ nouveau_drm_open(struct drm_device *dev, struct drm_file *fpriv)
 {
 	struct nouveau_drm *drm = nouveau_drm(dev);
 	struct nouveau_cli *cli;
+	struct nouveau_abi16 *abi16;
 	char name[32], tmpname[TASK_COMM_LEN];
 	int ret;
 
@@ -882,6 +883,27 @@ nouveau_drm_open(struct drm_device *dev, struct drm_file *fpriv)
 
 	mutex_lock(&drm->client.mutex);
 	list_add(&cli->head, &drm->clients);
+	abi16 = kzalloc(sizeof(*abi16), GFP_KERNEL);
+	if (abi16) {
+		struct nv_device_v0 args = {
+			.device = ~0ULL,
+		};
+
+		INIT_LIST_HEAD(&abi16->channels);
+
+		/* allocate device object targeting client's default
+		 * device (ie. the one that belongs to the fd it
+		 * opened)
+		 */
+		if (WARN_ON(nvif_device_init(&cli->base.base, NULL,
+				     NOUVEAU_ABI16_DEVICE, NV_DEVICE,
+				     &args, sizeof(args),
+				     &abi16->device))) {
+			kfree(abi16);
+		} else {
+			cli->abi16 = abi16;
+		}
+	}
 	mutex_unlock(&drm->client.mutex);
 
 out_suspend:
