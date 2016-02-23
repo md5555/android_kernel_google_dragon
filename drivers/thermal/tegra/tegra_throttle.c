@@ -566,8 +566,6 @@ static bool tegra_throttle_cap_clk_is_ready(struct platform_device *pdev)
 
 	if (of_machine_is_compatible("nvidia,tegra210"))
 		ret = tegra210_emc_is_ready();
-	else if (of_machine_is_compatible("nvidia,tegra124"))
-		ret = tegra124_emc_is_ready();
 	else
 		ret = false;
 
