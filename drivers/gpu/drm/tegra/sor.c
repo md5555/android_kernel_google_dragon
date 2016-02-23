@@ -1765,6 +1765,8 @@ static void tegra_sor_edp_enable(struct drm_encoder *encoder)
 
 	tegra_sor_dp_term_calibrate(sor);
 
+	drm_dp_link_train_init(&sor->link.train);
+
 	err = drm_dp_link_train(&sor->link);
 	if (err < 0) {
 		dev_err(sor->dev, "link training failed: %d\n", err);
@@ -2508,6 +2510,8 @@ static void tegra_sor_dp_enable(struct drm_encoder *encoder)
 
 	tegra_sor_dp_term_calibrate(sor);
 
+	drm_dp_link_train_init(&sor->link.train);
+
 	err = drm_dp_link_train(&sor->link);
 	if (err < 0) {
 		dev_err(sor->dev, "link training failed: %d\n", err);
@@ -2588,7 +2592,6 @@ static int tegra_sor_init(struct host1x_client *client)
 			helpers = &tegra_sor_dp_helpers;
 		}
 
-		drm_dp_link_train_init(&sor->link.train);
 		sor->link.ops = &tegra_sor_dp_link_ops;
 		sor->link.aux = sor->aux;
 	}
