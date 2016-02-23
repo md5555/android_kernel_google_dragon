@@ -1370,7 +1370,7 @@
 	};
 
 	sdmmc4: sdhci@700b0600 {
-		compatible = "nvidia,tegra210-sdhci", "nvidia,tegra132-sdhci";
+		compatible = "nvidia,tegra210-sdhci";
 		reg = <0x0 0x700b0600 0x0 0x200>;
 		interrupts = <GIC_SPI 31 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&tegra_car TEGRA210_CLK_SDMMC4>;
@@ -1380,7 +1380,7 @@
 	};
 
 	sdmmc1: sdhci@700b0000 {
-		compatible = "nvidia,tegra210-sdhci", "nvidia,tegra132-sdhci";
+		compatible = "nvidia,tegra210-sdhci";
 		reg = <0x0 0x700b0000 0x0 0x200>;
 		interrupts = <GIC_SPI 14 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&tegra_car TEGRA210_CLK_SDMMC1>;
@@ -1390,7 +1390,7 @@
 	};
 
 	sdmmc2: sdhci@700b0200 {
-		compatible = "nvidia,tegra210-sdhci", "nvidia,tegra132-sdhci";
+		compatible = "nvidia,tegra210-sdhci";
 		reg = <0x0 0x700b0200 0x0 0x200>;
 		interrupts = <GIC_SPI 15 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&tegra_car TEGRA210_CLK_SDMMC2>;
@@ -1400,7 +1400,7 @@
 	};
 
 	sdmmc3: sdhci@700b0400 {
-		compatible = "nvidia,tegra210-sdhci", "nvidia,tegra132-sdhci";
+		compatible = "nvidia,tegra210-sdhci";
 		reg = <0x0 0x700b0400 0x0 0x200>;
 		interrupts = <GIC_SPI 19 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&tegra_car TEGRA210_CLK_SDMMC3>;
