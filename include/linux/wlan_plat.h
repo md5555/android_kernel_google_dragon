@@ -19,20 +19,23 @@
 #define WLAN_PLAT_AP_FLAG	0x02
 
 struct wifi_platform_data {
-	int (*set_power)(int val);
-	int (*set_reset)(int val);
-	int (*set_carddetect)(int val);
-	void *(*mem_prealloc)(int section, unsigned long size);
-	int (*get_mac_addr)(unsigned char *buf);
-	int (*get_wake_irq)(void);
-	void *(*get_country_code)(char *ccode, u32 flags);
+	int (*set_power)(struct wifi_platform_data *pdata, int val);
+	int (*set_reset)(struct wifi_platform_data *pdata, int val);
+	int (*set_carddetect)(struct wifi_platform_data *pdata, int val);
+	void *(*mem_prealloc)(struct wifi_platform_data *pdata,
+			      int section, unsigned long size);
+	int (*get_mac_addr)(struct wifi_platform_data *pdata,
+			    unsigned char *buf);
+	int (*get_wake_irq)(struct wifi_platform_data *pdata);
+	void *(*get_country_code)(struct wifi_platform_data *pdata,
+				  char *ccode, u32 flags);
 #ifdef CONFIG_PARTIALRESUME
 #define WIFI_PR_INIT			0
 #define WIFI_PR_NOTIFY_RESUME		1
 #define WIFI_PR_VOTE_FOR_RESUME		2
 #define WIFI_PR_VOTE_FOR_SUSPEND	3
 #define WIFI_PR_WAIT_FOR_READY		4
-	bool (*partial_resume)(int action);
+	bool (*partial_resume)(struct wifi_platform_data *pdata, int action);
 #endif
 };
 

@@ -612,3 +612,20 @@ void mmc_free_host(struct mmc_host *host)
 }
 
 EXPORT_SYMBOL(mmc_free_host);
+
+void mmc_retune_hold(struct mmc_host *host)
+{
+        if (!host->hold_retune)
+                host->retune_now = 1;
+        host->hold_retune += 1;
+}
+EXPORT_SYMBOL(mmc_retune_hold);
+ 
+void mmc_retune_release(struct mmc_host *host)
+{
+        if (host->hold_retune)
+                host->hold_retune -= 1;
+        else
+                WARN_ON(1);
+}
+EXPORT_SYMBOL(mmc_retune_release);
