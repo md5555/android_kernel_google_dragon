@@ -11,7 +11,14 @@ ccflags-y += \
  -I$(img_basedir)/km \
  -D__linux__
 
-ccflags-y += -I$(img_basedir)/mt8173
-
 include $(img_basedir)/pvrsrvkm.mk
+include $(img_basedir)/mt8173/Makefile
 
+obj-$(CONFIG_DRM_POWERVR_ROGUE_PDUMP) += dbgdrv.o
+
+dbgdrv-y += \
+ dbgdriv.o \
+ dbgdriv_handle.o \
+ ioctl.o \
+ hostfunc.o \
+ main.o

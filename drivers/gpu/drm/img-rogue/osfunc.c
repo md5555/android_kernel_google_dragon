@@ -113,6 +113,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #endif
 
 static void *g_pvBridgeBuffers = NULL;
+static atomic_t g_DriverSuspended;
 
 struct task_struct *OSGetBridgeLockOwner(void);
 
@@ -223,8 +224,7 @@ PVRSRV_ERROR OSPhyContigPagesAlloc(PVRSRV_DEVICE_NODE *psDevNode, size_t uiSize,
 			return PVRSRV_ERROR_UNABLE_TO_SET_CACHE_MODE;
 		}
 	}
-#endif
-#if defined(CONFIG_ARM) || defined(CONFIG_ARM64) || defined (CONFIG_METAG)
+#else
 	{
 		IMG_UINT32 ui32Count;
 		IMG_CPU_PHYADDR sCPUPhysAddrStart, sCPUPhysAddrEnd;
@@ -468,138 +468,6 @@ IMG_UINT32 OSCPUCacheAttributeSize(IMG_DCACHE_ATTRIBUTE eCacheAttribute)
 	return uiSize;
 }
 
-/*************************************************************************/ /*!
-@Function       OSMemCopy
-@Description    Copies memory around
-@Input          pvDst    Pointer to dst
-@Output         pvSrc    Pointer to src
-@Input          ui32Size Bytes to copy
-*/ /**************************************************************************/
-void OSMemCopy(void *pvDst, const void *pvSrc, size_t uiSize)
-{
-#if defined(__arm64__) || defined(__aarch64__) || defined (PVRSRV_DEVMEM_SAFE_MEMSETCPY)
-	/* Use volatile to avoid compiler optimisations */
-	volatile IMG_BYTE * pbySrc = (IMG_BYTE*)pvSrc;
-	volatile IMG_BYTE * pbyDst = (IMG_BYTE*)pvDst;
-
-	/* Run workaround if one of the addresses or size is not aligned */
-	if (( ((size_t)pbySrc | (size_t)pbyDst | uiSize) & PVRSRV_MEM_ALIGN_MASK) != 0)
-	{
-		IMG_UINT32 uiTailSize = (uiSize & PVRSRV_MEM_ALIGN_MASK);
-
-		/* Addresses aligned but size is not */
-		if ( ((((size_t)pbySrc | (size_t)pbyDst) & PVRSRV_MEM_ALIGN_MASK) == 0) && ((uiTailSize) != 0) )
-		{
-			IMG_UINT32 uiAlignedSize = uiSize-uiTailSize;
-
-			memcpy((void*)pbyDst, (void*)pbySrc, uiAlignedSize);
-			pbyDst += uiAlignedSize;
-			pbySrc += uiAlignedSize;
-
-			for (; uiTailSize > 0; uiTailSize--)
-			{
-				*pbyDst++ = *pbySrc++;
-			}
-		}
-		/* One or both of the addresses is unaligned, reverting to byte copy */
-		else
-		{
-			for (; uiSize > 0; uiSize--)
-			{
-				*pbyDst++ = * pbySrc++;
-			}
-		}
-	}
-	/* Alignment fine, no need to work around devmem use with ARM64 libc */
-	else
-	{
-		memcpy(pvDst, pvSrc, uiSize);
-	}
-	
-#else
-	memcpy(pvDst, pvSrc, uiSize);
-#endif
-}
-
-
-/*************************************************************************/ /*!
-@Function       OSMemSet
-@Description    Function that does the same as the C memset() functions
-@Modified      *pvDest     Pointer to start of buffer to be set
-@Input          ui8Value   Value to set each byte to
-@Input          ui32Size   Number of bytes to set
-*/ /**************************************************************************/
-void OSMemSet(void *pvDest, IMG_UINT8 ui8Value, size_t uiSize)
-{
-#if defined(__arm64__) || defined(__aarch64__) || defined (PVRSRV_DEVMEM_SAFE_MEMSETCPY)
-
-#define ZERO_BUF_SIZE 1024
-
-	/* Use volatile to avoid compiler optimisations */
-	volatile IMG_BYTE * pbyDst = (IMG_BYTE*)pvDest;
-	static IMG_BYTE gZeroBuf[ZERO_BUF_SIZE] PVRSRV_MEM_ALIGN = { 0 };
-
-	/* Run workaround if one of the address or size is not aligned, or
-	 * we are zeroing */
-	if ((ui8Value == 0) || ((((size_t)pbyDst | uiSize) & PVRSRV_MEM_ALIGN_MASK) != 0))
-	{
-		IMG_UINT32 uiTailSize;
-
-		/* Buffer address unaligned */
-		if ((size_t)pbyDst & PVRSRV_MEM_ALIGN_MASK)
-		{
-			/* Increment the buffer pointer */
-			for (; uiSize > 0 && ((size_t)pbyDst & PVRSRV_MEM_ALIGN_MASK); uiSize--)
-			{
-				*pbyDst++ = ui8Value;
-			}
-			/* Did loop stop because size is zero? */
-			if (uiSize == 0) return;
-		}
-
-		/* Set the remaining part of the buffer */
-		if (ui8Value)
-		{
-			/* Non-zero set */
-			uiTailSize = (uiSize & PVRSRV_MEM_ALIGN_MASK);
-
-			memset((void*) pbyDst, (IMG_INT) ui8Value, (size_t) uiSize-uiTailSize);
-			pbyDst += uiSize-uiTailSize;
-		}
-		else
-		{
-			/* Zero set */
-			uiTailSize = (uiSize & PVRSRV_MEM_ALIGN_MASK);
-			uiSize -= uiTailSize;
-
-			while (uiSize > 1024)
-			{
-				memcpy((void*) pbyDst, gZeroBuf, (size_t) ZERO_BUF_SIZE);
-				pbyDst +=ZERO_BUF_SIZE;
-				uiSize -= ZERO_BUF_SIZE;
-			}
-			memcpy((void*) pbyDst, gZeroBuf, (size_t) uiSize);
-			pbyDst += uiSize;
-		}
-
-		/* Handle any tail bytes, loop skipped in tail is 0 */
-		for (; uiTailSize > 0; uiTailSize--)
-		{
-			*pbyDst++ = ui8Value;
-		}
-	}
-	/* Alignment fine, non-zero set, no need to work around device memory
-	 * use with ARM64 libc */
-	else
-	{
-		memset(pvDest, (IMG_INT) ui8Value, (size_t) uiSize);
-	}
-
-#else
-	memset(pvDest, (IMG_INT) ui8Value, (size_t) uiSize);
-#endif
-}
-
 IMG_INT OSMemCmp(void *pvBufA, void *pvBufB, size_t uiLen)
 {
 	return (IMG_INT) memcmp(pvBufA, pvBufB, uiLen);
@@ -663,6 +531,8 @@ PVRSRV_ERROR OSInitEnvData(void)
 		return PVRSRV_ERROR_OUT_OF_MEMORY;
 	}
 
+	atomic_set(&g_DriverSuspended, 0);
+
 #if defined(OSFUNC_USE_PHYS_CONTIG_PAGES_MAP_POOL)
 	/*
 		vm_ram_ram works with 2MB blocks to avoid excessive
@@ -723,6 +593,23 @@ PVRSRV_ERROR OSGetGlobalBridgeBuffers(void **ppvBridgeInBuffer,
 	*pui32BridgeOutBufferSize = PVRSRV_MAX_BRIDGE_OUT_SIZE;
 
 	return PVRSRV_OK;
+}
+
+IMG_BOOL OSSetDriverSuspended(void)
+{
+	int suspend_level = atomic_inc_return(&g_DriverSuspended);
+	return (1 != suspend_level)? IMG_FALSE: IMG_TRUE;
+}
+
+IMG_BOOL OSClearDriverSuspended(void)
+{
+	int suspend_level = atomic_dec_return(&g_DriverSuspended);
+	return (0 != suspend_level)? IMG_FALSE: IMG_TRUE;
+}
+
+IMG_BOOL OSGetDriverSuspended(void)
+{
+	return (0 < atomic_read(&g_DriverSuspended))? IMG_TRUE: IMG_FALSE;
 }
 
 /*************************************************************************/ /*!
@@ -2273,6 +2160,35 @@ struct task_struct *OSGetBridgeLockOwner(void)
 	return gsOwner;
 }
 
+static struct task_struct *gsPMRLockOwner;
+
+void PMRLock(void)
+{
+	OSLockAcquire(&gGlobalLookupPMRLock);
+	gsPMRLockOwner = current;
+}
+
+void PMRUnlock(void)
+{
+	gsPMRLockOwner = NULL;
+	OSLockRelease(&gGlobalLookupPMRLock);
+}
+
+static struct task_struct *OSGetPMRLockOwner(void)
+{
+	return gsPMRLockOwner;
+}
+
+IMG_BOOL PMRIsLocked(void)
+{
+	return OSLockIsLocked(&gGlobalLookupPMRLock);
+}
+
+IMG_BOOL PMRIsLockedByMe(void)
+{
+	return (OSGetPMRLockOwner() == current);
+}
+
 
 /*************************************************************************/ /*!
 @Function		OSCreateStatisticEntry
@@ -2338,12 +2254,15 @@ void *OSCreateStatisticFolder(IMG_CHAR *pszName, void *pvFolder)
 /*************************************************************************/ /*!
 @Function		OSRemoveStatisticFolder
 @Description	Removes a statistic folder.
-@Input			pvFolder  Reference from OSCreateStatisticFolder() of the
-						  folder that should be removed.
+@Input          ppvFolder  Reference from OSCreateStatisticFolder() of the
+                           folder that should be removed.
+                           This needs to be double pointer because it has to
+                           be NULLed right after memory is freed to avoid
+                           possible races and use-after-free situations.
 */ /**************************************************************************/
-void OSRemoveStatisticFolder(void *pvFolder)
+void OSRemoveStatisticFolder(void **ppvFolder)
 {
-	PVRDebugFSRemoveEntryDir((PVR_DEBUGFS_DIR_DATA *)pvFolder);
+	PVRDebugFSRemoveEntryDir((PVR_DEBUGFS_DIR_DATA **)ppvFolder);
 } /* OSRemoveStatisticFolder */
 
 

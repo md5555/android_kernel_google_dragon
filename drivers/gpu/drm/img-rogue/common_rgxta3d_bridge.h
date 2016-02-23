@@ -401,8 +401,8 @@ typedef struct PVRSRV_BRIDGE_IN_RGXKICKTA3D_TAG
 	IMG_BYTE * ps3DPRCmd;
 	IMG_UINT32 ui323DCmdSize;
 	IMG_BYTE * ps3DCmd;
-	IMG_UINT32 ui32ExternalJobReference;
-	IMG_UINT32 ui32InternalJobReference;
+	IMG_UINT32 ui32ExtJobRef;
+	IMG_UINT32 ui32IntJobRef;
 	IMG_BOOL bbLastTAInScene;
 	IMG_BOOL bbKickTA;
 	IMG_BOOL bbKickPR;

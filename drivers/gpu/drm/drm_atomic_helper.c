@@ -89,7 +89,7 @@ get_current_crtc_for_encoder(struct drm_device *dev,
 
 	WARN_ON(!drm_modeset_is_locked(&config->connection_mutex));
 
-	list_for_each_entry(connector, &config->connector_list, head) {
+	drm_for_each_connector(connector, dev) {
 		if (connector->state->best_encoder != encoder)
 			continue;
 
@@ -563,7 +563,8 @@ disable_outputs(struct drm_device *dev, struct drm_atomic_state *old_state)
 
 		old_crtc_state = old_state->crtc_states[drm_crtc_index(old_conn_state->crtc)];
 
-		if (!old_crtc_state->active)
+		if (!old_crtc_state->active ||
+		    !needs_modeset(old_conn_state->crtc->state))
 			continue;
 
 		encoder = old_conn_state->best_encoder;
@@ -813,7 +814,8 @@ void drm_atomic_helper_commit_modeset_enables(struct drm_device *dev,
 		if (!connector->state->best_encoder)
 			continue;
 
-		if (!connector->state->crtc->state->active)
+		if (!connector->state->crtc->state->active ||
+		    !needs_modeset(connector->state->crtc->state))
 			continue;
 
 		encoder = connector->state->best_encoder;
@@ -989,7 +991,7 @@ int drm_atomic_helper_commit(struct drm_device *dev,
 
 	drm_atomic_helper_commit_modeset_disables(dev, state);
 
-	drm_atomic_helper_commit_planes(dev, state);
+	drm_atomic_helper_commit_planes(dev, state, false);
 
 	drm_atomic_helper_commit_modeset_enables(dev, state);
 
@@ -1104,10 +1106,16 @@ fail:
 }
 EXPORT_SYMBOL(drm_atomic_helper_prepare_planes);
 
+bool plane_crtc_active(struct drm_plane_state *state)
+{
+	return state->crtc && state->crtc->state->active;
+}
+
 /**
  * drm_atomic_helper_commit_planes - commit plane state
  * @dev: DRM device
  * @old_state: atomic state object with old state structures
+ * @active_only: Only commit on active CRTC if set
  *
  * This function commits the new plane state using the plane and atomic helper
  * functions for planes and crtcs. It assumes that the atomic state has already
@@ -1122,7 +1130,8 @@ EXPORT_SYMBOL(drm_atomic_helper_prepare_planes);
  * drm_atomic_helper_commit_planes_on_crtc() instead.
  */
 void drm_atomic_helper_commit_planes(struct drm_device *dev,
-				     struct drm_atomic_state *old_state)
+				     struct drm_atomic_state *old_state,
+				     bool active_only)
 {
 	struct drm_crtc *crtc;
 	struct drm_crtc_state *old_crtc_state;
@@ -1138,27 +1147,43 @@ void drm_atomic_helper_commit_planes(struct drm_device *dev,
 		if (!funcs || !funcs->atomic_begin)
 			continue;
 
+		if (active_only && !crtc->state->active)
+			continue;
+
 		funcs->atomic_begin(crtc, old_crtc_state);
 	}
 
 	for_each_plane_in_state(old_state, plane, old_plane_state, i) {
 		const struct drm_plane_helper_funcs *funcs;
+		bool disabling;
 
 		funcs = plane->helper_private;
 
 		if (!funcs)
 			continue;
 
-		old_plane_state = old_state->plane_states[i];
+		disabling = drm_atomic_plane_disabling(plane, old_plane_state);
+
+		if (active_only) {
+			/*
+			 * Skip planes related to inactive CRTCs. If the plane
+			 * is enabled use the state of the current CRTC. If the
+			 * plane is being disabled use the state of the old
+			 * CRTC to avoid skipping planes being disabled on an
+			 * active CRTC.
+			 */
+			if (!disabling && !plane_crtc_active(plane->state))
+				continue;
+			if (disabling && !plane_crtc_active(old_plane_state))
+				continue;
+		}
 
 		/*
 		 * Special-case disabling the plane if drivers support it.
 		 */
-		if (drm_atomic_plane_disabling(plane, old_plane_state) &&
-		    funcs->atomic_disable)
+		if (disabling && funcs->atomic_disable)
 			funcs->atomic_disable(plane, old_plane_state);
-		else if (plane->state->crtc ||
-			 drm_atomic_plane_disabling(plane, old_plane_state))
+		else if (plane->state->crtc || disabling)
 			funcs->atomic_update(plane, old_plane_state);
 	}
 
@@ -1168,6 +1193,9 @@ void drm_atomic_helper_commit_planes(struct drm_device *dev,
 		funcs = crtc->helper_private;
 
 		if (!funcs || !funcs->atomic_flush)
+			continue;
+
+		if (active_only && !crtc->state->active)
 			continue;
 
 		funcs->atomic_flush(crtc, old_crtc_state);
@@ -1979,11 +2007,11 @@ retry:
 
 	WARN_ON(!drm_modeset_is_locked(&config->connection_mutex));
 
-	list_for_each_entry(tmp_connector, &config->connector_list, head) {
-		if (connector->state->crtc != crtc)
+	drm_for_each_connector(tmp_connector, connector->dev) {
+		if (tmp_connector->state->crtc != crtc)
 			continue;
 
-		if (connector->dpms == DRM_MODE_DPMS_ON) {
+		if (tmp_connector->dpms == DRM_MODE_DPMS_ON) {
 			active = true;
 			break;
 		}

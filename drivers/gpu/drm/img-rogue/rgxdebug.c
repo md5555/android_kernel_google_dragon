@@ -1403,8 +1403,6 @@ static void _RGXDecodeMMUReqTags(IMG_UINT32  ui32TagID,
 #endif
 
 
-#if !defined(RGX_FEATURE_S7_TOP_INFRASTRUCTURE)
-
 #if defined(SUPPORT_PAGE_FAULT_DEBUG)
 
 typedef enum _DEVICEMEM_HISTORY_QUERY_INDEX_
@@ -1845,6 +1843,9 @@ static void _PrintFaultInfo(DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,
 
 #endif
 
+
+#if !defined(RGX_FEATURE_S7_TOP_INFRASTRUCTURE)
+
 /*!
 *******************************************************************************
 
@@ -1860,7 +1861,7 @@ static void _PrintFaultInfo(DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,
  @Input ui64ReqStatus			- BIF request Status register value
  @Input ui64PCAddress                   - Page catalogue base address of faulting access
  @Input ui64CRTimer                     - RGX CR timer value at time of page fault
- @Input bBIFSummary				- Flag to check whether the function is called
+ @Input bSummary				- Flag to check whether the function is called
  	 	 	 	 	 	 	 	  as a part of the debug dump summary or
 								  as a part of a HWR log
  @Return   void
@@ -1873,8 +1874,9 @@ static void _RGXDumpRGXBIFBank(DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,
 							   IMG_UINT64			ui64ReqStatus,
 							   IMG_UINT64			ui64PCAddress,
 							   IMG_UINT64			ui64CRTimer,
-							   IMG_BOOL				bBIFSummary)
+							   IMG_BOOL				bSummary)
 {
+	IMG_CHAR  *pszIndent = (bSummary ? "" : "    ");
 
 	if (ui64MMUStatus == 0x0)
 	{
@@ -1892,7 +1894,7 @@ static void _RGXDumpRGXBIFBank(DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,
 #endif
 		/* Bank 0 & 1 share the same fields */
 		PVR_DUMPDEBUG_LOG(("%s%s - FAULT:",
-						  (bBIFSummary)?"":"    ",
+						  pszIndent,
 						  pszBIFNames[eBankID]));
 
 		/* MMU Status */
@@ -1917,7 +1919,7 @@ static void _RGXDumpRGXBIFBank(DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,
 #endif
 
 			PVR_DUMPDEBUG_LOG(("%s  * MMU status (0x%016llX): PC = %d%s, Page Size = %d, MMU data type = %d%s%s.",
-			                  (bBIFSummary)?"":"    ",
+			                  pszIndent,
 							  ui64MMUStatus,
 			                  ui32PC,
 			                  (ui32PC < 0x8)?"":_RGXDecodePMPC(ui32PC),
@@ -1954,7 +1956,7 @@ static void _RGXDumpRGXBIFBank(DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,
 			_RGXDecodeBIFReqTags(eBankID, ui32TagID, ui32TagSB, &pszTagID, &pszTagSB, &aszScratch[0], RGX_DEBUG_STR_SIZE);
 
 			PVR_DUMPDEBUG_LOG(("%s  * Request (0x%016llX): %s (%s), %s 0x%010llX.",
-							  (bBIFSummary)?"":"    ",
+							  pszIndent,
 							  ui64ReqStatus,
 			                  pszTagID,
 			                  pszTagSB,
@@ -1966,7 +1968,7 @@ static void _RGXDumpRGXBIFBank(DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,
 
 		sFaultDevVAddr.uiAddr = (ui64ReqStatus & ~RGX_CR_BIF_FAULT_BANK0_REQ_STATUS_ADDRESS_CLRMSK);
 
-		if(bBIFSummary)
+		if (bSummary)
 		{
 			IMG_UINT32 ui32PC = 
 				(ui64MMUStatus & ~RGX_CR_BIF_FAULT_BANK0_MMU_STATUS_CAT_BASE_CLRMSK) >>
@@ -1976,7 +1978,7 @@ static void _RGXDumpRGXBIFBank(DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,
 			if (ui32PC < 8)
 			{
 				sPCDevPAddr.uiAddr = OSReadHWReg64(psDevInfo->pvRegsBaseKM, RGX_CR_BIF_CAT_BASEN(ui32PC));
-				PVR_DUMPDEBUG_LOG(("Acquired live PC address: 0x%016llX", sPCDevPAddr.uiAddr));
+				PVR_DUMPDEBUG_LOG(("%sAcquired live PC address: 0x%016llX", pszIndent, sPCDevPAddr.uiAddr));
 			}
 			else
 			{
@@ -1985,13 +1987,13 @@ static void _RGXDumpRGXBIFBank(DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,
 		}
 		else
 		{
-			PVR_DUMPDEBUG_LOG(("FW logged fault using PC Address: 0x%016llX", ui64PCAddress));
+			PVR_DUMPDEBUG_LOG(("%sFW logged fault using PC Address: 0x%016llX", pszIndent, ui64PCAddress));
 			sPCDevPAddr.uiAddr = ui64PCAddress;
 		}
 
-		if(bBIFSummary)
+		if (bSummary)
 		{
-			PVR_DUMPDEBUG_LOG(("Checking faulting address 0x%010llX", sFaultDevVAddr.uiAddr));
+			PVR_DUMPDEBUG_LOG(("%sChecking faulting address 0x%010llX", pszIndent, sFaultDevVAddr.uiAddr));
 			RGXCheckFaultAddress(psDevInfo, &sFaultDevVAddr, &sPCDevPAddr);
 		}
 
@@ -2033,12 +2035,12 @@ static void _RGXDumpRGXBIFBank(DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,
 				}
 				else
 				{
-					PVR_DUMPDEBUG_LOG(("Could not find PID for PC 0x%016llX", sPCDevPAddr.uiAddr));
+					PVR_DUMPDEBUG_LOG(("%sCould not find PID for PC 0x%016llX", pszIndent, sPCDevPAddr.uiAddr));
 				}
 			}
 			else
 			{
-				PVR_DUMPDEBUG_LOG(("Page fault not applicable to Devmem History"));
+				PVR_DUMPDEBUG_LOG(("%sPage fault not applicable to Devmem History", pszIndent));
 			}
 		}
 
@@ -2069,22 +2071,29 @@ static void _RGXDumpRGXBIFBank(DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,
 
  Dump MMU Fault status in human readable form.
 
- @Input psDevInfo				- RGX device info
- @Input ui64MMUStatus			- MMU Status register value
- @Input bSummary				- Flag to check whether the function is called
- 	 	 	 	 	 	 	 	  as a part of the debug dump summary or
-								  as a part of a HWR log
+ @Input psDevInfo			- RGX device info
+ @Input ui64MMUStatus		- MMU Status register value
+ @Input bIsMetaMMUStatus	- Is the status from MMU_FAULT_STATUS or MMU_FAULT_STATUS_META.
+ @Input bSummary			- Flag to check whether the function is called
+							  as a part of the debug dump summary or
+							  as a part of a HWR log
  @Return   void
 
 ******************************************************************************/
 static void _RGXDumpRGXMMUFaultStatus(DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,
 									  PVRSRV_RGXDEV_INFO    *psDevInfo,
 									  IMG_UINT64            ui64MMUStatus,
+									  IMG_UINT64			ui64PCAddress,
+									  IMG_UINT64			ui64CRTimer,
+									  IMG_BOOL              bIsMetaMMUStatus,
 									  IMG_BOOL              bSummary)
 {
+	IMG_CHAR  *pszMetaOrCore = (bIsMetaMMUStatus ? "Meta" : "Core");
+	IMG_CHAR  *pszIndent     = (bSummary ? "" : "    ");
+
 	if (ui64MMUStatus == 0x0)
 	{
-		PVR_DUMPDEBUG_LOG(("MMU (Core) - OK"));
+		PVR_DUMPDEBUG_LOG(("%sMMU (%s) - OK", pszIndent, pszMetaOrCore));
 	}
 	else
 	{
@@ -2107,92 +2116,149 @@ static void _RGXDumpRGXMMUFaultStatus(DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,
 		IMG_CHAR aszScratch[RGX_DEBUG_STR_SIZE];
 		IMG_CHAR *pszTagID;
 		IMG_CHAR *pszTagSB;
-
-		_RGXDecodeMMUReqTags(ui32Requester, ui32SideBand, bRead, &pszTagID, &pszTagSB, aszScratch, RGX_DEBUG_STR_SIZE);
-
-		PVR_DUMPDEBUG_LOG(("%sMMU (Core) - FAULT:",  (bSummary)?"":"    "));
-		PVR_DUMPDEBUG_LOG(("%s  * MMU status (0x%016llX): PC = %d, %s 0x%010llX, %s (%s)%s%s%s%s.",
-						  (bSummary)?"":"    ",
-						  ui64MMUStatus,
-						  ui32PC,
-		                  (bRead)?"Reading from":"Writing to",
-						  ui64Addr,
-						  pszTagID,
-						  pszTagSB,
-						  (bFault)?", Fault":"",
-						  (bROFault)?", Read Only fault":"",
-						  (bProtFault)?", PM/META protection fault":"",
-						  _RGXDecodeMMULevel(ui32MMULevel)));
-	}
-}
-
-
-/*!
-*******************************************************************************
-
- @Function	_RGXDumpRGXMMUMetaFaultStatus
-
- @Description
-
- Dump MMU Meta Fault state in human readable form.
-
- @Input psDevInfo				- RGX device info
- @Input ui64MMUStatus			- MMU Status register value
- @Input bSummary				- Flag to check whether the function is called
- 	 	 	 	 	 	 	 	  as a part of the debug dump summary or
-								  as a part of a HWR log
- @Return   void
-
-******************************************************************************/
-static void _RGXDumpRGXMMUMetaFaultStatus(DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,
-										  PVRSRV_RGXDEV_INFO    *psDevInfo,
-										  IMG_UINT64            ui64MMUStatus,
-										  IMG_BOOL              bSummary)
-{
-	if (ui64MMUStatus == 0x0)
-	{
-		PVR_DUMPDEBUG_LOG(("MMU (Meta) - OK"));
-	}
-	else
-	{
-		IMG_UINT32 ui32PC        = (ui64MMUStatus & ~RGX_CR_MMU_FAULT_STATUS_META_CONTEXT_CLRMSK) >>
-		                           RGX_CR_MMU_FAULT_STATUS_META_CONTEXT_SHIFT;
-		IMG_UINT64 ui64Addr      = (ui64MMUStatus & ~RGX_CR_MMU_FAULT_STATUS_META_ADDRESS_CLRMSK) >>
-		                           RGX_CR_MMU_FAULT_STATUS_META_ADDRESS_SHIFT;
-		IMG_UINT32 ui32SideBand  = (ui64MMUStatus & ~RGX_CR_MMU_FAULT_STATUS_META_TAG_SB_CLRMSK) >>
-		                           RGX_CR_MMU_FAULT_STATUS_META_TAG_SB_SHIFT;
-		IMG_UINT32 ui32Requester = (ui64MMUStatus & ~RGX_CR_MMU_FAULT_STATUS_META_REQ_ID_CLRMSK) >>
-		                           RGX_CR_MMU_FAULT_STATUS_META_REQ_ID_SHIFT;
-		IMG_UINT32 ui32MMULevel  = (ui64MMUStatus & ~RGX_CR_MMU_FAULT_STATUS_META_LEVEL_CLRMSK) >>
-		                           RGX_CR_MMU_FAULT_STATUS_META_LEVEL_SHIFT;
-		IMG_BOOL bRead           = (ui64MMUStatus & RGX_CR_MMU_FAULT_STATUS_META_RNW_EN) != 0;
-		IMG_BOOL bFault          = (ui64MMUStatus & RGX_CR_MMU_FAULT_STATUS_META_FAULT_EN) != 0;
-		IMG_BOOL bROFault        = ((ui64MMUStatus & ~RGX_CR_MMU_FAULT_STATUS_META_TYPE_CLRMSK) >>
-		                            RGX_CR_MMU_FAULT_STATUS_META_TYPE_SHIFT) == 0x2;
-		IMG_BOOL bProtFault      = ((ui64MMUStatus & ~RGX_CR_MMU_FAULT_STATUS_META_TYPE_CLRMSK) >>
-		                            RGX_CR_MMU_FAULT_STATUS_META_TYPE_SHIFT) == 0x3;
-		IMG_CHAR aszScratch[RGX_DEBUG_STR_SIZE];
-		IMG_CHAR *pszTagID;
-		IMG_CHAR *pszTagSB;
-
-		_RGXDecodeMMUReqTags(ui32Requester, ui32SideBand, bRead, &pszTagID, &pszTagSB, aszScratch, RGX_DEBUG_STR_SIZE);
-
-		PVR_DUMPDEBUG_LOG(("%sMMU (Meta) - FAULT:",  (bSummary)?"":"    "));
-		PVR_DUMPDEBUG_LOG(("%s  * MMU status (0x%016llX): PC = %d, %s 0x%010llX, %s (%s)%s%s%s%s.",
-						  (bSummary)?"":"    ",
-						  ui64MMUStatus,
-						  ui32PC,
-		                  (bRead)?"Reading from":"Writing to",
-						  ui64Addr,
-						  pszTagID,
-						  pszTagSB,
-						  (bFault)?", Fault":"",
-						  (bROFault)?", Read Only fault":"",
-						  (bProtFault)?", PM/META protection fault":"",
-						  _RGXDecodeMMULevel(ui32MMULevel)));
-	}
-}
+		IMG_DEV_VIRTADDR sFaultDevVAddr;
+		IMG_DEV_PHYADDR sPCDevPAddr = { 0 };
+#if defined(SUPPORT_PAGE_FAULT_DEBUG)
+		IMG_BOOL bFound = IMG_FALSE;
+		RGXMEM_PROCESS_INFO sProcessInfo;
+		IMG_UINT32 ui32PageSizeBytes = _PageSizeHWToBytes(0);
+		FAULT_INFO *psInfo;
 #endif
+
+		_RGXDecodeMMUReqTags(ui32Requester, ui32SideBand, bRead, &pszTagID, &pszTagSB, aszScratch, RGX_DEBUG_STR_SIZE);
+
+		PVR_DUMPDEBUG_LOG(("%sMMU (%s) - FAULT:", pszIndent, pszMetaOrCore));
+		PVR_DUMPDEBUG_LOG(("%s  * MMU status (0x%016llX): PC = %d, %s 0x%010llX, %s (%s)%s%s%s%s.",
+						  pszIndent,
+						  ui64MMUStatus,
+						  ui32PC,
+		                  (bRead)?"Reading from":"Writing to",
+						  ui64Addr,
+						  pszTagID,
+						  pszTagSB,
+						  (bFault)?", Fault":"",
+						  (bROFault)?", Read Only fault":"",
+						  (bProtFault)?", PM/META protection fault":"",
+						  _RGXDecodeMMULevel(ui32MMULevel)));
+		/* Check if the host thinks this fault is valid */
+
+		sFaultDevVAddr.uiAddr = ui64Addr;
+
+		if (bSummary)
+		{
+			/* It is not possible for the host to obtain the cat base address while the FW is running. */
+			sPCDevPAddr.uiAddr = 0;
+		}
+		else
+		{
+			PVR_DUMPDEBUG_LOG(("%sFW logged fault using PC Address: 0x%016llX",
+			                  pszIndent, ui64PCAddress));
+			sPCDevPAddr.uiAddr = ui64PCAddress;
+		}
+
+		if (bSummary)
+		{
+			PVR_DUMPDEBUG_LOG(("%sChecking faulting address 0x%010llX",
+			                  pszIndent, sFaultDevVAddr.uiAddr));
+			RGXCheckFaultAddress(psDevInfo, &sFaultDevVAddr, &sPCDevPAddr);
+		}
+
+#if defined(SUPPORT_PAGE_FAULT_DEBUG)
+		 /* look to see if we have already processed this fault.
+		  * if so then use the previously acquired information.
+		  */
+		OSLockAcquire(psDevInfo->hDebugFaultInfoLock);
+		psInfo = _QueryFaultInfo(pfnDumpDebugPrintf, sFaultDevVAddr, ui64CRTimer);
+
+		if(psInfo == NULL)
+		{
+			if(sPCDevPAddr.uiAddr != RGXFWIF_INVALID_PC_PHYADDR)
+			{
+				/* look up the process details for the faulting page catalogue */
+				bFound = RGXPCAddrToProcessInfo(psDevInfo, sPCDevPAddr, &sProcessInfo);
+
+				if(bFound)
+				{
+					IMG_BOOL bHits;
+
+					psInfo = _AcquireNextFaultInfoElement();
+
+					/* get any DevicememHistory data for the faulting address */
+					bHits = _GetDevicememHistoryData(sProcessInfo.uiPID,
+										sFaultDevVAddr,
+										psInfo->asQueryOut,
+										ui32PageSizeBytes);
+
+					if(bHits)
+					{
+						_CommitFaultInfo(psDevInfo,
+									psInfo,
+									&sProcessInfo,
+									sFaultDevVAddr,
+									ui64CRTimer);
+					}
+					else
+					{
+						/* no hits, so no data to present */
+						psInfo = NULL;
+					}
+				}
+				else
+				{
+					PVR_DUMPDEBUG_LOG(("%sCould not find PID for PC 0x%016llX",
+					                  pszIndent, sPCDevPAddr.uiAddr));
+				}
+			}
+			else
+			{
+				PVR_DUMPDEBUG_LOG(("%sPage fault not applicable to Devmem History",
+				                  pszIndent));
+			}
+		}
+
+		if(psInfo != NULL)
+		{
+			_PrintFaultInfo(pfnDumpDebugPrintf, psInfo, NULL);
+		}
+
+		OSLockRelease(psDevInfo->hDebugFaultInfoLock);
+#endif
+	}
+}
+static_assert((RGX_CR_MMU_FAULT_STATUS_CONTEXT_CLRMSK == RGX_CR_MMU_FAULT_STATUS_META_CONTEXT_CLRMSK),
+			  "RGX_CR_MMU_FAULT_STATUS_META mismatch!");
+static_assert((RGX_CR_MMU_FAULT_STATUS_CONTEXT_SHIFT == RGX_CR_MMU_FAULT_STATUS_META_CONTEXT_SHIFT),
+			  "RGX_CR_MMU_FAULT_STATUS_META mismatch!");
+static_assert((RGX_CR_MMU_FAULT_STATUS_ADDRESS_CLRMSK == RGX_CR_MMU_FAULT_STATUS_META_ADDRESS_CLRMSK),
+			  "RGX_CR_MMU_FAULT_STATUS_META mismatch!");
+static_assert((RGX_CR_MMU_FAULT_STATUS_ADDRESS_SHIFT == RGX_CR_MMU_FAULT_STATUS_META_ADDRESS_SHIFT),
+			  "RGX_CR_MMU_FAULT_STATUS_META mismatch!");
+static_assert((RGX_CR_MMU_FAULT_STATUS_TAG_SB_CLRMSK == RGX_CR_MMU_FAULT_STATUS_META_TAG_SB_CLRMSK),
+			  "RGX_CR_MMU_FAULT_STATUS_META mismatch!");
+static_assert((RGX_CR_MMU_FAULT_STATUS_TAG_SB_SHIFT == RGX_CR_MMU_FAULT_STATUS_META_TAG_SB_SHIFT),
+			  "RGX_CR_MMU_FAULT_STATUS_META mismatch!");
+static_assert((RGX_CR_MMU_FAULT_STATUS_REQ_ID_CLRMSK == RGX_CR_MMU_FAULT_STATUS_META_REQ_ID_CLRMSK),
+			  "RGX_CR_MMU_FAULT_STATUS_META mismatch!");
+static_assert((RGX_CR_MMU_FAULT_STATUS_REQ_ID_SHIFT == RGX_CR_MMU_FAULT_STATUS_META_REQ_ID_SHIFT),
+			  "RGX_CR_MMU_FAULT_STATUS_META mismatch!");
+static_assert((RGX_CR_MMU_FAULT_STATUS_LEVEL_CLRMSK == RGX_CR_MMU_FAULT_STATUS_META_LEVEL_CLRMSK),
+			  "RGX_CR_MMU_FAULT_STATUS_META mismatch!");
+static_assert((RGX_CR_MMU_FAULT_STATUS_LEVEL_SHIFT == RGX_CR_MMU_FAULT_STATUS_META_LEVEL_SHIFT),
+			  "RGX_CR_MMU_FAULT_STATUS_META mismatch!");
+static_assert((RGX_CR_MMU_FAULT_STATUS_RNW_EN == RGX_CR_MMU_FAULT_STATUS_META_RNW_EN),
+			  "RGX_CR_MMU_FAULT_STATUS_META mismatch!");
+static_assert((RGX_CR_MMU_FAULT_STATUS_FAULT_EN == RGX_CR_MMU_FAULT_STATUS_META_FAULT_EN),
+			  "RGX_CR_MMU_FAULT_STATUS_META mismatch!");
+static_assert((RGX_CR_MMU_FAULT_STATUS_TYPE_CLRMSK == RGX_CR_MMU_FAULT_STATUS_META_TYPE_CLRMSK),
+			  "RGX_CR_MMU_FAULT_STATUS_META mismatch!");
+static_assert((RGX_CR_MMU_FAULT_STATUS_TYPE_SHIFT == RGX_CR_MMU_FAULT_STATUS_META_TYPE_SHIFT),
+			  "RGX_CR_MMU_FAULT_STATUS_META mismatch!");
+static_assert((RGX_CR_MMU_FAULT_STATUS_TYPE_CLRMSK == RGX_CR_MMU_FAULT_STATUS_META_TYPE_CLRMSK),
+			  "RGX_CR_MMU_FAULT_STATUS_META mismatch!");
+static_assert((RGX_CR_MMU_FAULT_STATUS_TYPE_SHIFT == RGX_CR_MMU_FAULT_STATUS_META_TYPE_SHIFT),
+			  "RGX_CR_MMU_FAULT_STATUS_META mismatch!");
+#endif
+
 
 #if defined(RGX_FEATURE_MIPS) && !defined(NO_HARDWARE)
 static PVRSRV_ERROR _RGXMipsExtraDebug(PVRSRV_RGXDEV_INFO *psDevInfo, PVRSRV_DEVICE_CONFIG *psDevConfig, RGX_MIPS_STATE *psMIPSState)
@@ -2538,15 +2604,21 @@ static void _RGXDumpFWHWRInfo(DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,
 					{
 						_RGXDumpRGXMMUFaultStatus(pfnDumpDebugPrintf, psDevInfo,
 						                          psHWRInfo->uHWRData.sMMUInfo.ui64MMUStatus,
+						                          psHWRInfo->uHWRData.sMMUInfo.ui64PCAddress,
+						                          psHWRInfo->ui64CRTimer,
+						                          IMG_FALSE,
 						                          IMG_FALSE);
 					}
 					break;
 
 					case RGX_HWRTYPE_MMUMETAFAULT:
 					{
-						_RGXDumpRGXMMUMetaFaultStatus(pfnDumpDebugPrintf, psDevInfo,
-						                              psHWRInfo->uHWRData.sMMUInfo.ui64MMUStatus,
-						                              IMG_FALSE);
+						_RGXDumpRGXMMUFaultStatus(pfnDumpDebugPrintf, psDevInfo,
+						                          psHWRInfo->uHWRData.sMMUInfo.ui64MMUStatus,
+						                          psHWRInfo->uHWRData.sMMUInfo.ui64PCAddress,
+						                          psHWRInfo->ui64CRTimer,
+						                          IMG_TRUE,
+						                          IMG_FALSE);
 					}
 					break;
 #endif
@@ -2681,10 +2753,10 @@ static void _RGXDumpRGXDebugSummary(DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,
 		IMG_UINT64	ui64RegValMMUStatus;
 
 		ui64RegValMMUStatus = OSReadHWReg64(psDevInfo->pvRegsBaseKM, RGX_CR_MMU_FAULT_STATUS);
-		_RGXDumpRGXMMUFaultStatus(pfnDumpDebugPrintf, psDevInfo, ui64RegValMMUStatus, IMG_TRUE);
+		_RGXDumpRGXMMUFaultStatus(pfnDumpDebugPrintf, psDevInfo, ui64RegValMMUStatus, 0, 0, IMG_FALSE, IMG_TRUE);
 
 		ui64RegValMMUStatus = OSReadHWReg64(psDevInfo->pvRegsBaseKM, RGX_CR_MMU_FAULT_STATUS_META);
-		_RGXDumpRGXMMUMetaFaultStatus(pfnDumpDebugPrintf, psDevInfo, ui64RegValMMUStatus, IMG_TRUE);
+		_RGXDumpRGXMMUFaultStatus(pfnDumpDebugPrintf, psDevInfo, ui64RegValMMUStatus, 0, 0, IMG_TRUE, IMG_TRUE);
 #else
 		IMG_UINT64	ui64RegValMMUStatus, ui64RegValREQStatus;
 
@@ -3268,7 +3340,7 @@ void RGXDebugRequestProcess(DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,
 
 			/* Dump the IRQ info */
 			{
-				PVR_DUMPDEBUG_LOG(("RGX FW IRQ count = %d, last sampled in MISR = %d",
+				PVR_DUMPDEBUG_LOG(("RGX FW IRQ count = %d, last sampled in LISR = %d",
 				                  psDevInfo->psRGXFWIfTraceBuf->ui32InterruptCount,
 				                  g_ui32HostSampleIRQCount));
 			}
@@ -3437,8 +3509,11 @@ void RGXDebugRequestProcess(DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,
 			}
 
 			{
+#if defined(PVRSRV_ENABLE_FULL_SYNC_TRACKING) || defined(PVRSRV_ENABLE_FULL_CCB_DUMP)
+				PVR_DUMPDEBUG_LOG(("------[ Full CCB Status ]------"));
+#else
 				PVR_DUMPDEBUG_LOG(("------[ Stalled FWCtxs ]------"));
-
+#endif
 				CheckForStalledTransferCtxt(psDevInfo, pfnDumpDebugPrintf);
 				CheckForStalledRenderCtxt(psDevInfo, pfnDumpDebugPrintf);
 #if defined(RGX_FEATURE_COMPUTE)

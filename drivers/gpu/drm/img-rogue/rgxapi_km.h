@@ -44,7 +44,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __RGXAPI_KM_H__
 #define __RGXAPI_KM_H__
 
-#if defined(SUPPORT_SHARED_SLC)
+#if defined(SUPPORT_SHARED_SLC) && !defined(PVRSRV_GPUVIRT_GUESTDRV)
 /*!
 ******************************************************************************
 
@@ -62,8 +62,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 PVRSRV_ERROR RGXInitSLC(IMG_HANDLE hDevHandle);
 #endif
 
-#if defined(SUPPORT_KERNEL_HWPERF)
-
 #include "rgx_hwperf_km.h"
 
 
@@ -72,8 +70,35 @@ PVRSRV_ERROR RGXInitSLC(IMG_HANDLE hDevHandle);
  *****************************************************************************/
 
 /**************************************************************************/ /*!
+@Function      RGXHWPerfLazyConnect
+@Description   Obtain a connection object to the RGX device. The connection
+			   is not actually opened until HWPerfOpen() is called.
+@Output        phDevData      Address of a handle to a connection object
+@Return        PVRSRV_ERROR:  for system error codes
+*/ /***************************************************************************/
+PVRSRV_ERROR RGXHWPerfLazyConnect(
+		IMG_HANDLE* phDevData);
+
+
+/**************************************************************************/ /*!
+@Function      RGXHWPerfOpen
+@Description   Opens a connection to the RGX device. Valid handle to the
+			   connection object has to be provided which means the this
+			   function needs to be preceded by the call to
+			   RGXHWPerfLazyConnect() function.
+@Output        phDevData      handle to a connection object
+@Return        PVRSRV_ERROR:  for system error codes
+*/ /***************************************************************************/
+PVRSRV_ERROR RGXHWPerfOpen(
+		IMG_HANDLE hDevData);
+
+
+/**************************************************************************/ /*!
 @Function      RGXHWPerfConnect
-@Description   Obtain a connection object to the HWPerf device
+@Description   Obtain a connection object to the RGX device. Allocated
+			   connection object references opened connection.
+			   Calling this function is an equivalent of calling
+			   RGXHWPerfLazyConnect and RGXHWPerfOpen.
 @Output        phDevData      Address of a handle to a connection object
 @Return        PVRSRV_ERROR:  for system error codes
 */ /***************************************************************************/
@@ -82,10 +107,34 @@ PVRSRV_ERROR RGXHWPerfConnect(
 
 
 /**************************************************************************/ /*!
-@Function       RGXHWPerfDisconnect
-@Description    Disconnect from the HWPerf device
+@Function       RGXHWPerfFreeConnection
+@Description    Frees the handle to RGX device
 @Input          hSrvHandle    Handle to connection object as returned from
-                                RGXHWPerfConnect()
+                              RGXHWPerfLazyConnect()
+@Return         PVRSRV_ERROR: for system error codes
+*/ /***************************************************************************/
+PVRSRV_ERROR RGXHWPerfFreeConnection(
+		IMG_HANDLE hDevData);
+
+
+/**************************************************************************/ /*!
+@Function       RGXHWPerfClose
+@Description    Disconnect from the RGX device
+@Input          hSrvHandle    Handle to connection object as returned from
+                              RGXHWPerfConnect() or RGXHWPerfOpen()
+@Return         PVRSRV_ERROR: for system error codes
+*/ /***************************************************************************/
+PVRSRV_ERROR RGXHWPerfClose(
+		IMG_HANDLE hDevData);
+
+
+/**************************************************************************/ /*!
+@Function       RGXHWPerfDisconnect
+@Description    Disconnect from the RGX device
+@Input          hSrvHandle    Handle to connection object as returned from
+                              RGXHWPerfConnect() or RGXHWPerfOpen().
+                              Calling this function is an equivalent of calling
+			                  RGXHWPerfClose and RGXHWPerfFreeConnection.
 @Return         PVRSRV_ERROR: for system error codes
 */ /***************************************************************************/
 PVRSRV_ERROR RGXHWPerfDisconnect(
@@ -159,6 +208,7 @@ PVRSRV_ERROR IMG_CALLCONV RGXHWPerfDisableCounters(
 				 returns OK and sets *puiBufLen to 0 on exit.
 				 Clients must pair this call with a ReleaseData call.
 @Input          hDevData        Handle to connection/device object
+@Input          eStreamId       ID of the HWPerf stream
 @Output         ppBuf           Address of a pointer to a byte buffer. On exit
                                  it contains the address of buffer to read from
 @Output         puiBufLen       Pointer to an integer. On exit it is the size
@@ -173,6 +223,22 @@ PVRSRV_ERROR RGXHWPerfAcquireData(
 
 
 /**************************************************************************/ /*!
+@Function       RGXHWPerfGetFilter
+@Description    Reads HWPerf stream filter where stream is identified by
+                the given stream ID.
+@Input          hDevData        Handle to connection/device object
+@Input          eStreamId       ID of the HWPerf stream
+@Output         IMG_UINT64      HWPerf filter value
+@Return         PVRSRV_ERROR:   for system error codes
+*/ /***************************************************************************/
+PVRSRV_ERROR RGXHWPerfGetFilter(
+		IMG_HANDLE  hDevData,
+		RGX_HWPERF_STREAM_ID eStreamId,
+		IMG_UINT64 *ui64Filter
+);
+
+
+/**************************************************************************/ /*!
 @Function       RGXHWPerfReleaseData
 @Description    Called after client has read the event data out of the buffer
                  retrieved from the Acquire Data call to release resources.
@@ -183,9 +249,6 @@ IMG_INTERNAL
 PVRSRV_ERROR RGXHWPerfReleaseData(
 		IMG_HANDLE hDevData,
 		RGX_HWPERF_STREAM_ID eStreamId);
-
-
-#endif /* SUPPORT_KERNEL_HWPERF */
 
 
 #endif /* __RGXAPI_KM_H__ */

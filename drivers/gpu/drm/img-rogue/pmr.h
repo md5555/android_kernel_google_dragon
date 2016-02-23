@@ -274,10 +274,9 @@ PMRLockSysPhysAddressesNested(PMR *psPMR,
 extern PVRSRV_ERROR
 PMRUnlockSysPhysAddresses(PMR *psPMR);
 
-void PMRLock(void);
-void PMRUnlock(void);
-IMG_BOOL PMRIsLocked(void);
-IMG_BOOL PMRIsLockedByMe(void);
+extern PVRSRV_ERROR
+PMRUnlockSysPhysAddressesNested(PMR *psPMR, IMG_UINT32 ui32NestingLevel);
+
 
 /**************************************************************************/ /*!
 @Function       PMRUnpinPMR

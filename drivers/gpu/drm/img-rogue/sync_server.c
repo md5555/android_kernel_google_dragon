@@ -235,13 +235,17 @@ SyncPrimitiveBlockToFWAddr(SYNC_PRIMITIVE_BLOCK *psSyncPrimBlock,
 
 static PVRSRV_ERROR SyncAddrListGrow(SYNC_ADDR_LIST *psList, IMG_UINT32 ui32NumSyncs)
 {
+	PVR_ASSERT(ui32NumSyncs <= PVRSRV_MAX_SYNC_PRIMS);
+	
 	if(ui32NumSyncs > psList->ui32NumSyncs)
 	{
-		OSFreeMem(psList->pasFWAddrs);
-		psList->pasFWAddrs = OSAllocMem(sizeof(PRGXFWIF_UFO_ADDR) * ui32NumSyncs);
 		if(psList->pasFWAddrs == NULL)
 		{
-			return PVRSRV_ERROR_OUT_OF_MEMORY;
+			psList->pasFWAddrs = OSAllocMem(sizeof(PRGXFWIF_UFO_ADDR) * PVRSRV_MAX_SYNC_PRIMS);
+			if(psList->pasFWAddrs == NULL)
+			{
+				return PVRSRV_ERROR_OUT_OF_MEMORY;
+			}
 		}
 
 		psList->ui32NumSyncs = ui32NumSyncs;
@@ -264,6 +268,7 @@ void
 SyncAddrListInit(SYNC_ADDR_LIST *psList)
 {
 	psList->ui32NumSyncs = 0;
+	psList->pasFWAddrs   = NULL;
 }
 
 /*!
@@ -279,7 +284,7 @@ SyncAddrListInit(SYNC_ADDR_LIST *psList)
 void
 SyncAddrListDeinit(SYNC_ADDR_LIST *psList)
 {
-	if(psList->ui32NumSyncs != 0)
+	if(psList->pasFWAddrs != NULL)
 	{
 		OSFreeMem(psList->pasFWAddrs);
 	}
@@ -669,9 +674,20 @@ PVRSRV_ERROR
 PVRSRVSyncPrimSetKM(SYNC_PRIMITIVE_BLOCK *psSyncBlk, IMG_UINT32 ui32Index,
 					IMG_UINT32 ui32Value)
 {
-	psSyncBlk->pui32LinAddr[ui32Index] = ui32Value;
-
-	return PVRSRV_OK;
+	if((ui32Index * sizeof(IMG_UINT32)) < psSyncBlk->ui32BlockSize)
+	{
+		psSyncBlk->pui32LinAddr[ui32Index] = ui32Value;
+		return PVRSRV_OK;
+	}
+	else
+	{
+		PVR_DPF((PVR_DBG_ERROR, "PVRSRVSyncPrimSetKM: Index %u out of range for "
+							"0x%08X byte sync block (value 0x%08X)",
+							ui32Index,
+							psSyncBlk->ui32BlockSize,
+							ui32Value));
+		return PVRSRV_ERROR_INVALID_PARAMS;
+	}
 }
 
 PVRSRV_ERROR
@@ -1751,6 +1767,53 @@ void SyncConnectionPDumpSyncBlocks(SYNC_CONNECTION_DATA *psSyncConnectionData)
 }
 
 #if defined(PVRSRV_ENABLE_FULL_SYNC_TRACKING)
+void SyncRecordLookup(
+	IMG_UINT32 ui32FwAddr,
+	IMG_CHAR * pszSyncInfo,
+	size_t len
+)
+{
+	DLLIST_NODE *psNode, *psNext;
+	IMG_INT iEnd;
+
+	if (!pszSyncInfo)
+	{
+		return;
+	}
+
+	OSLockAcquire(g_hSyncRecordListLock);
+	pszSyncInfo[0] = '\0';
+
+	dllist_foreach_node(&g_sSyncRecordList, psNode, psNext)
+	{
+		struct SYNC_RECORD *psSyncRec =
+			IMG_CONTAINER_OF(psNode, struct SYNC_RECORD, sNode);
+		if ((psSyncRec->ui32FwBlockAddr+psSyncRec->ui32SyncOffset) == ui32FwAddr
+			&& SYNC_RECORD_TYPE_UNKNOWN != psSyncRec->eRecordType
+			&& psSyncRec->psServerSyncPrimBlock
+			&& psSyncRec->psServerSyncPrimBlock->pui32LinAddr
+			)
+		{
+			IMG_UINT32 *pui32SyncAddr;
+			pui32SyncAddr = psSyncRec->psServerSyncPrimBlock->pui32LinAddr
+				+ (psSyncRec->ui32SyncOffset/sizeof(IMG_UINT32));
+			iEnd = OSSNPrintf(pszSyncInfo, len, "Cur=0x%08x %s:%05u (%s)",
+				*pui32SyncAddr,
+				((SYNC_RECORD_TYPE_SERVER==psSyncRec->eRecordType)?"Server":"Client"),
+				psSyncRec->uiPID,
+				psSyncRec->szClassName
+				);
+			if (iEnd >= 0 && iEnd < len)
+			{
+				pszSyncInfo[iEnd] = '\0';
+			}
+			break;
+		}
+	}
+
+	OSLockRelease(g_hSyncRecordListLock);
+}
+
 #define NS_IN_S (1000000000UL)
 static void _SyncRecordPrint(struct SYNC_RECORD * psSyncRec, IMG_UINT64 ui64TimeNow)
 {
@@ -1766,15 +1829,16 @@ static void _SyncRecordPrint(struct SYNC_RECORD * psSyncRec, IMG_UINT64 ui64Time
 
 		if (psSyncBlock && psSyncBlock->pui32LinAddr)
 		{
-			void *pSyncAddr;
-			pSyncAddr = (void*)psSyncBlock->pui32LinAddr + psSyncRec->ui32SyncOffset;
+			IMG_UINT32 *pui32SyncAddr;
+			pui32SyncAddr = psSyncBlock->pui32LinAddr
+				+ (psSyncRec->ui32SyncOffset/sizeof(IMG_UINT32));
 
 			PVR_DUMPDEBUG_LOG(("\t%s %05u %05llu.%09u FWAddr=0x%08x Val=0x%08x (%s)",
 				((SYNC_RECORD_TYPE_SERVER==psSyncRec->eRecordType)?"Server":"Client"),
 				psSyncRec->uiPID,
 				ui64DeltaS, ui32DeltaF,
 				(psSyncRec->ui32FwBlockAddr+psSyncRec->ui32SyncOffset),
-				*(IMG_UINT32*)pSyncAddr,
+				*pui32SyncAddr,
 				psSyncRec->szClassName
 				));
 		}

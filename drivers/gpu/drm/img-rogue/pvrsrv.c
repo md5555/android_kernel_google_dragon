@@ -746,13 +746,14 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVInit(void *hDevice)
 	eError = SysCreateConfigData(&psSysConfig, hDevice);
 	if (eError != PVRSRV_OK)
 	{
-		return eError;
+		goto Error;
 	}
 
 	if (psSysConfig->uiDeviceCount > 1)
 	{
 		PVR_DPF((PVR_DBG_ERROR, "PVRSRVInit: System config contains too many devices"));
-		return PVRSRV_ERROR_INVALID_DEVICE;
+		eError = PVRSRV_ERROR_INVALID_DEVICE;
+		goto Error;
 	}
 
 #if defined(SUPPORT_PVRSRV_GPUVIRT)
@@ -763,14 +764,16 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVInit(void *hDevice)
 	/* Save to global pointer for later */
 	gpsSysConfig = psSysConfig;
 
-    /*
-     * Allocate the device-independent data
-     */
-    psPVRSRVData = OSAllocZMem(sizeof(*gpsPVRSRVData));
-    if (psPVRSRVData == NULL)
-    {
-        return PVRSRV_ERROR_OUT_OF_MEMORY;
-    }
+	/*
+	 * Allocate the device-independent data
+	 */
+	psPVRSRVData = OSAllocZMem(sizeof(*gpsPVRSRVData));
+	if (psPVRSRVData == NULL)
+	{
+		eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+		goto Error;
+	}
+
 	psPVRSRVData->ui32NumDevices = psSysConfig->uiDeviceCount;
 
 	for (i=0;i<SYS_DEVICE_COUNT;i++)
@@ -907,9 +910,10 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVInit(void *hDevice)
 	/* Register all the system devices */
 	for (i=0;i<psSysConfig->uiDeviceCount;i++)
 	{
-		if (PVRSRVRegisterDevice(&psSysConfig->pasDevices[i]) != PVRSRV_OK)
+		eError = PVRSRVRegisterDevice(&psSysConfig->pasDevices[i]);
+		if (eError != PVRSRV_OK)
 		{
-			return eError;
+			goto Error;
 		}
 
 		/* Initialise the Transport Layer.
@@ -981,7 +985,7 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVInit(void *hDevice)
 	}
 #endif
 
-	return eError;
+	return 0;
 
 Error:
 	PVRSRVDeInit(hDevice);
@@ -1106,11 +1110,7 @@ void IMG_CALLCONV PVRSRVDeInit(void *hDevice)
 	SysDestroyConfigData(gpsSysConfig);
 
 #if defined(PVR_DVFS)
-	eError = DeinitDVFS(gpsPVRSRVData, hDevice);
-	if (eError != PVRSRV_OK)
-	{
-		PVR_DPF((PVR_DBG_ERROR,"PVRSRVInit: Failed to suspend DVFS"));
-	}
+	DeinitDVFS(gpsPVRSRVData, hDevice);
 #endif
 
 	/* Clean up Transport Layer resources that remain. 
@@ -1372,7 +1372,8 @@ static PVRSRV_ERROR CreateLMASubArenas(PVRSRV_DEVICE_NODE *psDeviceNode)
 					  RA_LOCKCLASS_0,			/* This arena doesn't use any other arenas. */
 					  NULL,					/* No Import */
 					  NULL,					/* No free import */
-					  NULL);				/* No import handle */
+					  NULL,					/* No import handle */
+					  IMG_FALSE);
 
 		if (psDeviceNode->psOSidSubArena[uiCounter] == NULL)
 		{
@@ -1557,7 +1558,8 @@ static PVRSRV_ERROR IMG_CALLCONV PVRSRVRegisterDevice(PVRSRV_DEVICE_CONFIG *psDe
 						RA_LOCKCLASS_0,     /* This arena doesn't use any other arenas. */
 						NULL,			/* No Import */
 						NULL,			/* No free import */
-						NULL);			/* No import handle */
+						NULL,			/* No import handle */
+						IMG_FALSE);
 
 		if (psDeviceNode->psLocalDevMemArena == NULL)
 		{
@@ -1847,11 +1849,18 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVFinaliseSystem(IMG_BOOL bInitSuccessful, IMG_UIN
 			{
 				psRGXDeviceNode = psDeviceNode; 
 			}
+#if defined(SUPPORT_KERNEL_SRVINIT)
+			/* take the PMR lock, because there isn't a bridge call to take it */
+			PMRLock();
+#endif
 			eError = SyncPrimContextCreate(psDeviceNode,
 								  &psDeviceNode->hSyncPrimContext);
 			if (eError != PVRSRV_OK)
 			{
 				PVR_DPF((PVR_DBG_ERROR,"PVRSRVFinaliseSystem: Failed to create SyncPrimContext (%u)", eError));
+#if defined(SUPPORT_KERNEL_SRVINIT)
+				PMRUnlock();
+#endif
 				return eError;
 			}
 
@@ -1860,8 +1869,14 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVFinaliseSystem(IMG_BOOL bInitSuccessful, IMG_UIN
 			if (eError != PVRSRV_OK)
 			{
 				PVR_DPF((PVR_DBG_ERROR,"PVRSRVFinaliseSystem: Failed to allocate sync primitive with error (%u)", eError));
+#if defined(SUPPORT_KERNEL_SRVINIT)
+				PMRUnlock();
+#endif
 				return eError;
 			}
+#if defined(SUPPORT_KERNEL_SRVINIT)
+			PMRUnlock();
+#endif
 		}
 
 		eError = PVRSRVPowerLock();

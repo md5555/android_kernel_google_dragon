@@ -58,6 +58,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "process_stats.h"
 #include "module_common.h"
 #include "pvrsrv.h"
+#include "pvr_hwperf.h"
 
 #if defined(SUPPORT_DRM)
 #include "pvr_drm.h"
@@ -73,10 +74,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #if defined(SUPPORT_GPUTRACE_EVENTS)
 #include "pvr_gputrace.h"
-#endif
-
-#if defined(SUPPORT_KERNEL_HWPERF) || defined(SUPPORT_SHARED_SLC)
-#include "rgxapi_km.h"
 #endif
 
 #if defined(SUPPORT_KERNEL_SRVINIT)
@@ -118,7 +115,6 @@ MODULE_PARM_DESC(gPMRAllocFail, "When number of PMR allocs reaches"
 EXPORT_SYMBOL(PVRSRVCheckStatus);
 EXPORT_SYMBOL(PVRSRVGetErrorStringKM);
 
-#if defined(SUPPORT_KERNEL_HWPERF)
 #include "rgxapi_km.h"
 EXPORT_SYMBOL(RGXHWPerfConnect);
 EXPORT_SYMBOL(RGXHWPerfDisconnect);
@@ -127,7 +123,6 @@ EXPORT_SYMBOL(RGXHWPerfConfigureAndEnableCounters);
 EXPORT_SYMBOL(RGXHWPerfDisableCounters);
 EXPORT_SYMBOL(RGXHWPerfAcquireData);
 EXPORT_SYMBOL(RGXHWPerfReleaseData);
-#endif
 #endif
 
 DEFINE_MUTEX(gPVRSRVLock);
@@ -142,6 +137,8 @@ static IMG_BOOL bDriverIsShutdown;
 #if !defined(SUPPORT_DRM_EXT)
 LDM_DEV *gpsPVRLDMDev;
 #endif
+
+DEFINE_MUTEX(gGlobalLookupPMRLock);
 
 /*!
 ******************************************************************************
@@ -211,14 +208,14 @@ int PVRSRVDriverSuspend(struct device *pDevice)
 
 		if (PVRSRVSetPowerStateKM(PVRSRV_SYS_POWER_STATE_OFF, IMG_TRUE) == PVRSRV_OK)
 		{
-			/* The bridge mutex will be held until we resume */
 			bDriverIsSuspended = IMG_TRUE;
+			OSSetDriverSuspended();
 		}
 		else
 		{
-			OSReleaseBridgeLock();
 			res = -EINVAL;
 		}
+		OSReleaseBridgeLock();
 	}
 
 	mutex_unlock(&gsPMMutex);
@@ -250,16 +247,18 @@ int PVRSRVDriverResume(struct device *pDevice)
 
 	if (bDriverIsSuspended && !bDriverIsShutdown)
 	{
+		OSAcquireBridgeLock();
+
 		if (PVRSRVSetPowerStateKM(PVRSRV_SYS_POWER_STATE_ON, IMG_TRUE) == PVRSRV_OK)
 		{
 			bDriverIsSuspended = IMG_FALSE;
-			OSReleaseBridgeLock();
+			OSClearDriverSuspended();
 		}
 		else
 		{
-			/* The bridge mutex is not released on failure */
 			res = -EINVAL;
 		}
+		OSReleaseBridgeLock();
 	}
 
 	mutex_unlock(&gsPMMutex);
@@ -314,6 +313,16 @@ int PVRSRVCommonOpen(struct file *pFile)
 		iErr = -ENODEV;
 		goto ErrorUnlock;
 	}
+
+#if defined(SUPPORT_KERNEL_SRVINIT)
+	eError = SrvInit();
+	if (eError != PVRSRV_OK)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "%s: SrvInit failed (%d)", __func__, eError));
+		iErr = -ENODEV;
+		goto ErrorUnlock;
+	}
+#endif
 
 	sPrivData.psDevNode = List_PVRSRV_DEVICE_NODE_Any(psPVRSRVData->psDeviceNodeList,
 							  PVRSRVFindRGXDevNode);
@@ -499,16 +508,12 @@ int PVRSRVDeviceInit(void)
 	}
 #endif
 
-#if defined(SUPPORT_KERNEL_SRVINIT)
+	error = PVRSRVHWperfCreateDebugFs();
+	if (error != 0)
 	{
-		PVRSRV_ERROR eError = SrvInit();
-		if (eError != PVRSRV_OK)
-		{
-			PVR_DPF((PVR_DBG_ERROR, "PVRCore_Init: SrvInit failed (%d)", eError));
-			return -ENODEV;
-		}
+		PVR_DPF((PVR_DBG_WARNING, "PVRCore_Init: failed to initialise HWPerf debugfs (%d)", error));
 	}
-#endif
+
 	return 0;
 }
 
@@ -522,6 +527,8 @@ int PVRSRVDeviceInit(void)
 *****************************************************************************/
 void PVRSRVDeviceDeinit(void)
 {
+	PVRSRVHWperfDestroyDebugFs();
+
 #if defined(SUPPORT_GPUTRACE_EVENTS)
 	PVRGpuTraceDeInit();
 #endif

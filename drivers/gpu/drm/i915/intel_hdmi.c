@@ -1194,6 +1194,9 @@ intel_hdmi_mode_valid(struct drm_connector *connector,
 	enum drm_mode_status status;
 	int clock;
 
+	if (IS_CHERRYVIEW(dev) && (mode->clock > 165000))
+		return MODE_CLOCK_HIGH;
+
 	if (mode->flags & DRM_MODE_FLAG_DBLSCAN)
 		return MODE_NO_DBLESCAN;
 
@@ -1333,21 +1336,18 @@ intel_hdmi_set_edid(struct drm_connector *connector, bool force)
 {
 	struct drm_i915_private *dev_priv = to_i915(connector->dev);
 	struct intel_hdmi *intel_hdmi = intel_attached_hdmi(connector);
-	struct intel_encoder *intel_encoder =
-		&hdmi_to_dig_port(intel_hdmi)->base;
-	enum intel_display_power_domain power_domain;
 	struct edid *edid = NULL;
 	bool connected = false;
 
-	power_domain = intel_display_port_power_domain(intel_encoder);
-	intel_display_power_get(dev_priv, power_domain);
+	if (force) {
+		intel_display_power_get(dev_priv, POWER_DOMAIN_GMBUS);
 
-	if (force)
 		edid = drm_get_edid(connector,
 				    intel_gmbus_get_adapter(dev_priv,
 				    intel_hdmi->ddc_bus));
 
-	intel_display_power_put(dev_priv, power_domain);
+		intel_display_power_put(dev_priv, POWER_DOMAIN_GMBUS);
+	}
 
 	to_intel_connector(connector)->detect_edid = edid;
 	if (edid && edid->input & DRM_EDID_INPUT_DIGITAL) {
@@ -1376,15 +1376,18 @@ intel_hdmi_detect(struct drm_connector *connector, bool force)
 	struct intel_hdmi *intel_hdmi = intel_attached_hdmi(connector);
 	struct drm_i915_private *dev_priv = to_i915(connector->dev);
 	bool live_status = false;
-	unsigned int retry = 3;
+	unsigned int try;
 
 	DRM_DEBUG_KMS("[CONNECTOR:%d:%s]\n",
 		      connector->base.id, connector->name);
 
-	while (!live_status && --retry) {
+	intel_display_power_get(dev_priv, POWER_DOMAIN_GMBUS);
+
+	for (try = 0; !live_status && try < 9; try++) {
+		if (try)
+			msleep(10);
 		live_status = intel_digital_port_connected(dev_priv,
 				hdmi_to_dig_port(intel_hdmi));
-		mdelay(10);
 	}
 
 	if (!live_status)
@@ -1399,6 +1402,8 @@ intel_hdmi_detect(struct drm_connector *connector, bool force)
 		status = connector_status_connected;
 	} else
 		status = connector_status_disconnected;
+
+	intel_display_power_put(dev_priv, POWER_DOMAIN_GMBUS);
 
 	return status;
 }
@@ -2108,6 +2113,8 @@ void intel_hdmi_init_connector(struct intel_digital_port *intel_dig_port,
 	drm_connector_register(connector);
 	intel_hdmi->attached_connector = intel_connector;
 
+	intel_i2c_register(dev, connector, intel_hdmi->ddc_bus);
+
 	/* For G4X desktop chip, PEG_BAND_GAP_DATA 3:0 must first be written
 	 * 0xd.  Failure to do so will result in spurious interrupts being
 	 * generated on the port when a cable is not attached.
@@ -2137,7 +2144,7 @@ void intel_hdmi_init(struct drm_device *dev, int hdmi_reg, enum port port)
 	intel_encoder = &intel_dig_port->base;
 
 	drm_encoder_init(dev, &intel_encoder->base, &intel_hdmi_enc_funcs,
-			 DRM_MODE_ENCODER_TMDS);
+			 DRM_MODE_ENCODER_TMDS, NULL);
 
 	intel_encoder->compute_config = intel_hdmi_compute_config;
 	if (HAS_PCH_SPLIT(dev)) {

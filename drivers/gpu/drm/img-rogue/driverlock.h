@@ -51,6 +51,15 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 extern struct mutex gPVRSRVLock;
 
+/*
+ * This Lock is used to protect the sequence of operation used in MMapPMR and in
+ * the memory management bridge. This makes it possible avoid the use of the bridge
+ * lock in mmap.c
+ * The global bridge lock can not be taken in the mmap entry point due to a
+ * AB-BA deadlock risk with the Linux mmap semaphore.
+ */
+extern struct mutex gGlobalLookupPMRLock;
+
 #endif /* __DRIVERLOCK_H__ */
 /*****************************************************************************
  End of file (driverlock.h)

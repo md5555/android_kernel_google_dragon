@@ -489,8 +489,8 @@ PVRSRVBridgeRGXKickSync(IMG_UINT32 ui32DispatchTableEntry,
 					psRGXKickSyncIN->i32TimelineFenceFD,
 					&psRGXKickSyncOUT->i32UpdateFenceFD,
 					uiUpdateFenceNameInt,
-					psRGXKickSyncIN->ui32ExternalJobReference,
-					psRGXKickSyncIN->ui32InternalJobReference);
+					psRGXKickSyncIN->ui32ExtJobRef,
+					psRGXKickSyncIN->ui32IntJobRef);
 
 
 

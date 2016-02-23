@@ -478,29 +478,33 @@ gk104_fifo_context_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 			struct nvkm_object **pobject)
 {
 	struct gk104_fifo_base *base;
+	struct nvkm_mmu *mmu = nvkm_mmu(parent);
+	u64 length = (0x1ULL << mmu->dma_bits) - 1;
 	int ret;
 
+	/* allocate instance block */
 	ret = nvkm_fifo_context_create(parent, engine, oclass, NULL, 0x1000,
 				       0x1000, NVOBJ_FLAG_ZERO_ALLOC, &base);
-	*pobject = nv_object(base);
 	if (ret)
 		return ret;
 
-	ret = nvkm_gpuobj_new(nv_object(base), NULL, 0x10000, 0x1000, 0,
-			      &base->pgd);
+	/* allocate and initialize pgd */
+	ret = mmu->create_pgd(mmu, nv_object(base), base, length, &base->pgd);
 	if (ret)
-		return ret;
-
-	nv_wo32(base, 0x0200, lower_32_bits(base->pgd->addr));
-	nv_wo32(base, 0x0204, upper_32_bits(base->pgd->addr));
-	nv_wo32(base, 0x0208, 0xffffffff);
-	nv_wo32(base, 0x020c, 0x000000ff);
+		goto err_pgd;
 
 	ret = nvkm_vm_ref(nvkm_client(parent)->vm, &base->vm, base->pgd);
 	if (ret)
-		return ret;
+		goto err_ref;
 
+	*pobject = nv_object(base);
 	return 0;
+
+err_ref:
+	nvkm_gpuobj_destroy(base->pgd);
+err_pgd:
+	nvkm_fifo_context_destroy(&base->base);
+	return ret;
 }
 
 static void
@@ -691,9 +695,9 @@ gk104_fifo_intr_sched_ctxsw(struct gk104_fifo_priv *priv)
 	for (engn = 0; engn < impl->num_engine; engn++) {
 		u32 stat = nv_rd32(priv, 0x002640 + (engn * 0x08));
 		u32 busy = (stat & 0x80000000);
-		u32 next = (stat & 0x07ff0000) >> 16;
+		u32 next = (stat & 0x0fff0000) >> 16;
 		u32 ctxstat = (stat & 0x0000e000) >> 13;
-		u32 prev = (stat & 0x000007ff);
+		u32 prev = (stat & 0x00000fff);
 
 		u32 chid = (ctxstat == CTXSW_STATUS_LOAD) ? next : prev;
 		u32 ctxsw_active = ctxstat == CTXSW_STATUS_LOAD ||

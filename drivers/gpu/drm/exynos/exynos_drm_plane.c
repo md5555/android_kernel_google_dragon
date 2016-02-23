@@ -266,7 +266,7 @@ struct drm_plane *exynos_plane_init(struct drm_device *dev,
 
 	err = drm_universal_plane_init(dev, &exynos_plane->base, possible_crtcs,
 				       &exynos_plane_funcs, formats,
-				       ARRAY_SIZE(formats), type);
+				       ARRAY_SIZE(formats), type, NULL);
 	if (err) {
 		DRM_ERROR("failed to initialize plane\n");
 		kfree(exynos_plane);

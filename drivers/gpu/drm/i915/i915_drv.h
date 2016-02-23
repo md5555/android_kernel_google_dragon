@@ -125,17 +125,17 @@ enum transcoder {
 #define transcoder_name(t) ((t) + 'A')
 
 /*
- * This is the maximum (across all platforms) number of planes (primary +
- * sprites) that can be active at the same time on one pipe.
- *
- * This value doesn't count the cursor plane.
+ * I915_MAX_PLANES in the enum below is the maximum (across all platforms)
+ * number of planes per CRTC.  Not all platforms really have this many planes,
+ * which means some arrays of size I915_MAX_PLANES may have unused entries
+ * between the topmost sprite plane and the cursor plane.
  */
-#define I915_MAX_PLANES	4
-
 enum plane {
 	PLANE_A = 0,
 	PLANE_B,
 	PLANE_C,
+	PLANE_CURSOR,
+	I915_MAX_PLANES,
 };
 #define plane_name(p) ((p) + 'A')
 
@@ -174,14 +174,10 @@ enum intel_display_power_domain {
 	POWER_DOMAIN_TRANSCODER_B,
 	POWER_DOMAIN_TRANSCODER_C,
 	POWER_DOMAIN_TRANSCODER_EDP,
-	POWER_DOMAIN_PORT_DDI_A_2_LANES,
-	POWER_DOMAIN_PORT_DDI_A_4_LANES,
-	POWER_DOMAIN_PORT_DDI_B_2_LANES,
-	POWER_DOMAIN_PORT_DDI_B_4_LANES,
-	POWER_DOMAIN_PORT_DDI_C_2_LANES,
-	POWER_DOMAIN_PORT_DDI_C_4_LANES,
-	POWER_DOMAIN_PORT_DDI_D_2_LANES,
-	POWER_DOMAIN_PORT_DDI_D_4_LANES,
+	POWER_DOMAIN_PORT_DDI_A_LANES,
+	POWER_DOMAIN_PORT_DDI_B_LANES,
+	POWER_DOMAIN_PORT_DDI_C_LANES,
+	POWER_DOMAIN_PORT_DDI_D_LANES,
 	POWER_DOMAIN_PORT_DSI,
 	POWER_DOMAIN_PORT_CRT,
 	POWER_DOMAIN_PORT_OTHER,
@@ -192,6 +188,8 @@ enum intel_display_power_domain {
 	POWER_DOMAIN_AUX_B,
 	POWER_DOMAIN_AUX_C,
 	POWER_DOMAIN_AUX_D,
+	POWER_DOMAIN_GMBUS,
+	POWER_DOMAIN_MODESET,
 	POWER_DOMAIN_INIT,
 
 	POWER_DOMAIN_NUM,
@@ -662,6 +660,8 @@ struct drm_i915_display_funcs {
 			      uint32_t level);
 	void (*disable_backlight)(struct intel_connector *connector);
 	void (*enable_backlight)(struct intel_connector *connector);
+	uint32_t (*backlight_hz_to_pwm)(struct intel_connector *connector,
+					uint32_t hz);
 };
 
 enum forcewake_domain_id {
@@ -734,20 +734,19 @@ struct intel_uncore {
 #define for_each_fw_domain(domain__, dev_priv__, i__) \
 	for_each_fw_domain_mask(domain__, FORCEWAKE_ALL, dev_priv__, i__)
 
-enum csr_state {
-	FW_UNINITIALIZED = 0,
-	FW_LOADED,
-	FW_FAILED
-};
+#define CSR_VERSION(major, minor)	((major) << 16 | (minor))
+#define CSR_VERSION_MAJOR(version)	((version) >> 16)
+#define CSR_VERSION_MINOR(version)	((version) & 0xffff)
 
 struct intel_csr {
+	struct work_struct work;
 	const char *fw_path;
 	uint32_t *dmc_payload;
 	uint32_t dmc_fw_size;
+	uint32_t version;
 	uint32_t mmio_count;
 	uint32_t mmioaddr[8];
 	uint32_t mmiodata[8];
-	enum csr_state state;
 };
 
 #define DEV_INFO_FOR_EACH_FLAG(func, sep) \
@@ -981,6 +980,7 @@ struct i915_psr {
 	unsigned busy_frontbuffer_bits;
 	bool psr2_support;
 	bool aux_frame_sync;
+	bool link_standby;
 };
 
 enum intel_pch {
@@ -1559,8 +1559,7 @@ static inline bool skl_ddb_entry_equal(const struct skl_ddb_entry *e1,
 struct skl_ddb_allocation {
 	struct skl_ddb_entry pipe[I915_MAX_PIPES];
 	struct skl_ddb_entry plane[I915_MAX_PIPES][I915_MAX_PLANES]; /* packed/uv */
-	struct skl_ddb_entry y_plane[I915_MAX_PIPES][I915_MAX_PLANES]; /* y-plane */
-	struct skl_ddb_entry cursor[I915_MAX_PIPES];
+	struct skl_ddb_entry y_plane[I915_MAX_PIPES][I915_MAX_PLANES];
 };
 
 struct skl_wm_values {
@@ -1568,18 +1567,13 @@ struct skl_wm_values {
 	struct skl_ddb_allocation ddb;
 	uint32_t wm_linetime[I915_MAX_PIPES];
 	uint32_t plane[I915_MAX_PIPES][I915_MAX_PLANES][8];
-	uint32_t cursor[I915_MAX_PIPES][8];
 	uint32_t plane_trans[I915_MAX_PIPES][I915_MAX_PLANES];
-	uint32_t cursor_trans[I915_MAX_PIPES];
 };
 
 struct skl_wm_level {
 	bool plane_en[I915_MAX_PLANES];
-	bool cursor_en;
 	uint16_t plane_res_b[I915_MAX_PLANES];
 	uint8_t plane_res_l[I915_MAX_PLANES];
-	uint16_t cursor_res_b;
-	uint8_t cursor_res_l;
 };
 
 /*
@@ -1698,9 +1692,6 @@ struct drm_i915_private {
 	struct i915_virtual_gpu vgpu;
 
 	struct intel_csr csr;
-
-	/* Display CSR-related protection */
-	struct mutex csr_lock;
 
 	struct intel_gmbus gmbus[GMBUS_NUM_PINS];
 
@@ -1864,7 +1855,13 @@ struct drm_i915_private {
 	struct drm_property *force_audio_property;
 
 	/* hda/i915 audio component */
+	struct i915_audio_component *audio_component;
 	bool audio_component_registered;
+	/**
+	 * av_mutex - mutex for audio/video sync
+	 *
+	 */
+	struct mutex av_mutex;
 
 	uint32_t hw_context_size;
 	struct list_head context_list;
@@ -1874,6 +1871,7 @@ struct drm_i915_private {
 	u32 chv_phy_control;
 
 	u32 suspend_count;
+	bool suspended_to_idle;
 	struct i915_suspend_saved_registers regfile;
 	struct vlv_s0ix_state vlv_s0ix_state;
 
@@ -1924,6 +1922,9 @@ struct drm_i915_private {
 	} gt;
 
 	bool edp_low_vswing;
+
+	/* perform PHY state sanity checks? */
+	bool chv_phy_assert[2];
 
 	/*
 	 * NOTE: This is the dri1/ums dungeon, don't add stuff here. Your patch
@@ -2593,6 +2594,7 @@ struct i915_params {
 	int panel_use_ssc;
 	int vbt_sdvo_panel_type;
 	int enable_rc6;
+	int enable_dc;
 	int enable_fbc;
 	int enable_ppgtt;
 	int enable_execlists;
@@ -2639,7 +2641,6 @@ extern unsigned long i915_mch_val(struct drm_i915_private *dev_priv);
 extern unsigned long i915_gfx_val(struct drm_i915_private *dev_priv);
 extern void i915_update_gfx_val(struct drm_i915_private *dev_priv);
 int vlv_force_gfx_clock(struct drm_i915_private *dev_priv, bool on);
-void i915_firmware_load_error_print(const char *fw_path, int err);
 
 /* intel_hotplug.c */
 void intel_hpd_irq_handler(struct drm_device *dev, u32 pin_mask, u32 long_mask);
@@ -3235,6 +3236,9 @@ static inline bool intel_gmbus_is_forced_bit(struct i2c_adapter *adapter)
 	return container_of(adapter, struct intel_gmbus, adapter)->force_bit;
 }
 extern void intel_i2c_reset(struct drm_device *dev);
+extern void intel_i2c_register(struct drm_device *dev,
+			       struct drm_connector *connector,
+			       int ddc_bus);
 
 /* intel_opregion.c */
 #ifdef CONFIG_ACPI

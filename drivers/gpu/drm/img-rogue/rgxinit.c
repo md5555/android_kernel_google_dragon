@@ -112,7 +112,72 @@ static void RGXDeInitHeaps(DEVICE_MEMORY_INFO *psDevMemoryInfo);
 
 volatile IMG_UINT32 g_ui32HostSampleIRQCount = 0;
 
+#if defined(PVRSRV_DEBUG_LISR_EXECUTION)
+
+/* bits used by the LISR to provide a trace of its last execution */
+#define RGX_LISR_DEVICE_NOT_POWERED	(1 << 0)
+#define RGX_LISR_FWIF_POW_OFF		(1 << 1)
+#define RGX_LISR_EVENT_EN		(1 << 2)
+#define RGX_LISR_COUNTS_EQUAL		(1 << 3)
+#define RGX_LISR_PROCESSED		(1 << 4)
+
+typedef struct _LISR_EXECUTION_INFO_
+{
+	/* bit mask showing execution flow of last LISR invocation */
+	IMG_UINT32 ui32State;
+	/* snapshot from the last LISR invocation, regardless of
+	 * whether an interrupt was handled
+	 */
+	IMG_UINT32 ui32InterruptCountSnapshot;
+	/* time of the last LISR invocation */
+	IMG_UINT64 ui64Clockns;
+} LISR_EXECUTION_INFO;
+
+/* information about the last execution of the LISR */
+static LISR_EXECUTION_INFO g_sLISRExecutionInfo;
+
+#endif
+
 #if !defined(NO_HARDWARE)
+
+void RGX_WaitForInterruptsTimeout(PVRSRV_RGXDEV_INFO *psDevInfo)
+{
+	PVR_DPF((PVR_DBG_ERROR, "_WaitForInterruptsTimeout: FW Count: 0x%X Host Count: 0x%X",
+						psDevInfo->psRGXFWIfTraceBuf->ui32InterruptCount,
+									g_ui32HostSampleIRQCount));
+
+#if defined(PVRSRV_DEBUG_LISR_EXECUTION)
+
+	PVR_DPF((PVR_DBG_ERROR, "Last RGX_LISRHandler State: 0x%08X InterruptCountSnapshot: 0x%X Clock: %llu",
+									g_sLISRExecutionInfo.ui32State,
+									g_sLISRExecutionInfo.ui32InterruptCountSnapshot,
+									g_sLISRExecutionInfo.ui64Clockns));
+#else
+	PVR_DPF((PVR_DBG_ERROR, "No further information available. Please enable PVRSRV_DEBUG_LISR_EXECUTION"));
+#endif
+
+
+	if(psDevInfo->psRGXFWIfTraceBuf->ePowState != RGXFWIF_POW_OFF)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "_WaitForInterruptsTimeout: FW pow state is not OFF (is %u)",
+						(unsigned int) psDevInfo->psRGXFWIfTraceBuf->ePowState));
+	}
+
+	if(g_ui32HostSampleIRQCount != psDevInfo->psRGXFWIfTraceBuf->ui32InterruptCount)
+	{
+		/* we are handling any unhandled interrupts here so align the host
+		 * count with the FW count
+		 */
+		g_ui32HostSampleIRQCount = psDevInfo->psRGXFWIfTraceBuf->ui32InterruptCount;
+
+		OSScheduleMISR(psDevInfo->pvMISRData);
+
+		if(psDevInfo->pvAPMISRData != NULL)
+		{
+			OSScheduleMISR(psDevInfo->pvAPMISRData);
+		}
+	}
+}
 
 /*
 	RGX LISR Handler
@@ -125,19 +190,37 @@ static IMG_BOOL RGX_LISRHandler (void *pvData)
 	IMG_BOOL bInterruptProcessed = IMG_FALSE;
 	IMG_UINT32 ui32IRQStatus;
 
+#if defined(PVRSRV_DEBUG_LISR_EXECUTION)
+	g_sLISRExecutionInfo.ui32InterruptCountSnapshot = psDevInfo->psRGXFWIfTraceBuf->ui32InterruptCount;
+	g_sLISRExecutionInfo.ui32State = 0;
+	g_sLISRExecutionInfo.ui64Clockns = OSClockns64();
+#endif
+
 	if (psDevInfo->bRGXPowered == IMG_FALSE)
 	{
+#if defined(PVRSRV_DEBUG_LISR_EXECUTION)
+		g_sLISRExecutionInfo.ui32State |= RGX_LISR_DEVICE_NOT_POWERED;
+#endif
 #if defined(PVRSRV_GPUVIRT_GUESTDRV)
 		/* Guest driver do not support FW trace */
+		return bInterruptProcessed;
 #else
 		if (psDevInfo->psRGXFWIfTraceBuf->ePowState == RGXFWIF_POW_OFF)
+		{
+#if defined(PVRSRV_DEBUG_LISR_EXECUTION)
+			g_sLISRExecutionInfo.ui32State |= RGX_LISR_FWIF_POW_OFF;
 #endif
 			return bInterruptProcessed;
+		}
+#endif
 	}
 
 	ui32IRQStatus = OSReadHWReg32(psDevInfo->pvRegsBaseKM, RGXFW_CR_IRQ_STATUS);
 	if (ui32IRQStatus & RGXFW_CR_IRQ_STATUS_EVENT_EN)
 	{
+#if defined(PVRSRV_DEBUG_LISR_EXECUTION)
+		g_sLISRExecutionInfo.ui32State |= RGX_LISR_EVENT_EN;
+#endif
 #if defined(PVRSRV_GPUVIRT_GUESTDRV)
 		/* Guest driver do not support FW trace or device management */
 #else
@@ -148,6 +231,9 @@ static IMG_BOOL RGX_LISRHandler (void *pvData)
 #endif
 		if (g_ui32HostSampleIRQCount == psDevInfo->psRGXFWIfTraceBuf->ui32InterruptCount)
 		{
+#if defined(PVRSRV_DEBUG_LISR_EXECUTION)
+			g_sLISRExecutionInfo.ui32State |= RGX_LISR_COUNTS_EQUAL;
+#endif
 			return bInterruptProcessed;
 		}
 
@@ -161,6 +247,9 @@ static IMG_BOOL RGX_LISRHandler (void *pvData)
 		}
 
 		bInterruptProcessed = IMG_TRUE;
+#if defined(PVRSRV_DEBUG_LISR_EXECUTION)
+		g_sLISRExecutionInfo.ui32State |= RGX_LISR_PROCESSED;
+#endif
 
 		OSScheduleMISR(psDevInfo->pvMISRData);
 
@@ -301,11 +390,6 @@ static PVRSRV_ERROR RGXGetGpuUtilStats(PVRSRV_DEVICE_NODE *psDeviceNode,
 		aui64TmpCounters[GPU_BLOCKED]     = psUtilFWCb->aui64StatsCounters[GPU_BLOCKED];
 		i++;
 	}
-
-#if defined(PVR_POWER_ACTOR) && defined(PVR_DVFS)
-	/* Power actor enabled */
-	psReturnStats->ui32GpuEnergy = psDevInfo->psRGXFWIfTraceBuf->ui32PowMonEnergy;
-#endif
 
 	OSLockRelease(psDevInfo->hGPUUtilLock);
 
@@ -624,6 +708,11 @@ PVRSRV_ERROR PVRSRVRGXInitDevPart2KM (CONNECTION_DATA       *psConnection,
 		return eError;
 	}
 #endif
+
+#if defined(TIMING) || defined(DEBUG)
+	OSUserModeAccessToPerfCountersEn();
+#endif
+
 #endif /* defined(PVRSRV_GPUVIRT_GUESTDRV) */
 
 	/* Passing down the PMRs to destroy their handles */
@@ -722,8 +811,6 @@ PVRSRV_ERROR PVRSRVRGXInitDevPart2KM (CONNECTION_DATA       *psConnection,
 	}
 
 #if defined(SUPPORT_GPUTRACE_EVENTS)
-	RGXHWPerfHostSetEventFilter(ui32HWPerfHostFilter);
-
 	/* If built, always setup FTrace consumer thread. */
 	RGXHWPerfFTraceGPUInit(psDeviceNode->pvDevice);
 
@@ -910,11 +997,19 @@ PVRSRV_ERROR PVRSRVRGXInitHWPerfCountersKM(PVRSRV_DEVICE_NODE	*psDeviceNode)
 	 */
 	sKccbCmd.eCmdType = RGXFWIF_KCCB_CMD_HWPERF_CONFIG_ENABLE_BLKS_DIRECT;
 
+#if defined(SUPPORT_KERNEL_SRVINIT)
+	PMRLock();
+#endif
+
 	eError = RGXSendCommandWithPowLock(psDeviceNode->pvDevice,
 											RGXFWIF_DM_GP,
 											&sKccbCmd,
 											sizeof(sKccbCmd),
 											IMG_TRUE);
+
+#if defined(SUPPORT_KERNEL_SRVINIT)
+	PMRUnlock();
+#endif
 
 	return PVRSRV_OK;
 
@@ -1037,6 +1132,8 @@ PVRSRV_ERROR PVRSRVRGXInitAllocFWImgMemKM(CONNECTION_DATA      *psConnection,
 	DEVMEM_FLAGS_T		uiMemAllocFlags;
 	PVRSRV_RGXDEV_INFO 	*psDevInfo = psDeviceNode->pvDevice;
 	PVRSRV_ERROR        eError;
+
+	PMRLock();
 
 	PVR_UNREFERENCED_PARAMETER(psConnection);
 
@@ -1211,6 +1308,7 @@ PVRSRV_ERROR PVRSRVRGXInitAllocFWImgMemKM(CONNECTION_DATA      *psConnection,
 
 #endif /* defined(PVRSRV_GPUVIRT_GUESTDRV) */
 
+	PMRUnlock();
 	return PVRSRV_OK;
 
 #if defined(PVRSRV_GPUVIRT_GUESTDRV)
@@ -1833,6 +1931,7 @@ static PVRSRV_ERROR RGXInitHeaps(DEVICE_MEMORY_INFO *psNewMemoryInfo, IMG_UINT32
 	psDeviceMemoryHeapCursor = psNewMemoryInfo->psDeviceMemoryHeap;
 
 	INIT_HEAP(GENERAL);
+	INIT_HEAP(VISTEST);
 	INIT_HEAP(PDSCODEDATA);
 	INIT_HEAP(USCCODE);
 	INIT_HEAP(TQ3DPARAMETERS);
@@ -3049,42 +3148,6 @@ chk_exit:
 	return eError;
 }
 
-
-#if defined(SUPPORT_TRUSTED_DEVICE)
-/*************************************************************************/ /*!
- @Function       RGXTDFWSetInitParams
-
- @Description    Fetch and send data used by the trusted device to complete
-                 the FW image setup
-
- @Input          psDeviceNode - Device node
-
- @Return         PVRSRV_ERROR
-*/ /**************************************************************************/
-static PVRSRV_ERROR RGXTDFWSetInitParams(PVRSRV_DEVICE_NODE *psDeviceNode)
-{
-	PVRSRV_DEVICE_CONFIG *psDevConfig = psDeviceNode->psDevConfig;
-	PVRSRV_RGXDEV_INFO *psDevInfo = psDeviceNode->pvDevice;
-	PVRSRV_TD_INIT_PARAMS sTDInitParams;
-	PVRSRV_ERROR eError;
-
-	if (psDevConfig->pfnTDSetInitParams == NULL)
-	{
-		PVR_DPF((PVR_DBG_ERROR, "RGXTDFWSetInitParams: TDSetInitParams not implemented!"));
-		return PVRSRV_ERROR_NOT_IMPLEMENTED;
-	}
-
-	sTDInitParams.sFWCodeDevVAddrBase = psDevInfo->sFWCodeDevVAddrBase;
-	sTDInitParams.sFWDataDevVAddrBase = psDevInfo->sFWDataDevVAddrBase;
-	sTDInitParams.sFWCorememCodeFWAddr = psDevInfo->sFWCorememCodeFWAddr;
-	sTDInitParams.sFWInitFWAddr = psDevInfo->sFWInitFWAddr;
-
-	eError = psDevConfig->pfnTDSetInitParams(&sTDInitParams);
-
-	return eError;
-}
-#endif
-
 IMG_EXPORT PVRSRV_ERROR
 PVRSRVRGXInitFinaliseFWImageKM(CONNECTION_DATA *psConnection,
                                PVRSRV_DEVICE_NODE *psDeviceNode,
@@ -3139,10 +3202,6 @@ PVRSRVRGXInitFinaliseFWImageKM(CONNECTION_DATA *psConnection,
 	}
 
 #endif /* defined(RGX_FEATURE_MIPS) */
-
-#if defined(SUPPORT_TRUSTED_DEVICE)
-	RGXTDFWSetInitParams(psDeviceNode);
-#endif
 
 	PVR_UNREFERENCED_PARAMETER(psConnection);
 	PVR_UNREFERENCED_PARAMETER(psDeviceNode);

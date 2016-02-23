@@ -187,35 +187,6 @@ DevmemIntCtxDestroy(
                   );
 
 /*
- * DevmemIntCtxExport()
- *
- * Export a device memory context created with DevmemIntCtxCreate to another
- * process
- */
- 
-extern PVRSRV_ERROR
-DevmemIntCtxExport(DEVMEMINT_CTX *psDevmemCtx,
-                   DEVMEMINT_CTX_EXPORT **ppsExport);
-
-/*
- * DevmemIntCtxUnexport
- *
- * Unexport an exported a device memory context.
- */
-extern PVRSRV_ERROR
-DevmemIntCtxUnexport(DEVMEMINT_CTX_EXPORT *psExport);
-
-/*
- * DevmemIntCtxImport
- *
- * Import an exported a device memory context.
- */
-extern PVRSRV_ERROR
-DevmemIntCtxImport(DEVMEMINT_CTX_EXPORT *psExport,
-				   DEVMEMINT_CTX **ppsDevmemCtxPtr,
-				   IMG_HANDLE *hPrivData);
-
-/*
  * DevmemIntHeapCreate()
  *
  * Creates a new heap in this device memory context.  This will cause
@@ -495,4 +466,18 @@ DevmemIntPDumpBitmap(CONNECTION_DATA * psConnection,
 	return PVRSRV_OK;
 }
 #endif	/* PDUMP */
+
+PVRSRV_ERROR
+DevmemIntExportCtx(DEVMEMINT_CTX *psContext,
+                   PMR *psPMR,
+                   DEVMEMINT_CTX_EXPORT **ppsContextExport);
+
+PVRSRV_ERROR
+DevmemIntUnexportCtx(DEVMEMINT_CTX_EXPORT *psContextExport);
+
+PVRSRV_ERROR
+DevmemIntAcquireRemoteCtx(PMR *psPMR,
+						  DEVMEMINT_CTX **ppsContext,
+						  IMG_HANDLE *phPrivData);
+
 #endif /* ifndef __DEVICEMEM_SERVER_H__ */

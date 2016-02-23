@@ -127,8 +127,8 @@ typedef struct PVRSRV_BRIDGE_IN_RGXSUBMITTRANSFER_TAG
 	IMG_UINT32 * pui32CommandSize;
 	IMG_UINT8* * pui8FWCommand;
 	IMG_UINT32 * pui32TQPrepareFlags;
-	IMG_UINT32 ui32ExternalJobReference;
-	IMG_UINT32 ui32InternalJobReference;
+	IMG_UINT32 ui32ExtJobRef;
+	IMG_UINT32 ui32IntJobRef;
 	IMG_UINT32 ui32SyncPMRCount;
 	IMG_UINT32 * pui32SyncPMRFlags;
 	IMG_HANDLE * phSyncPMRs;

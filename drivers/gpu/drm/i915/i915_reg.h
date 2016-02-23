@@ -605,6 +605,7 @@
 
 /* See the PUNIT HAS v0.8 for the below bits */
 enum punit_power_well {
+	/* These numbers are fixed and must match the position of the pw bits */
 	PUNIT_POWER_WELL_RENDER			= 0,
 	PUNIT_POWER_WELL_MEDIA			= 1,
 	PUNIT_POWER_WELL_DISP2D			= 3,
@@ -617,10 +618,12 @@ enum punit_power_well {
 	PUNIT_POWER_WELL_DPIO_RX1		= 11,
 	PUNIT_POWER_WELL_DPIO_CMN_D		= 12,
 
-	PUNIT_POWER_WELL_NUM,
+	/* Not actual bit groups. Used as IDs for lookup_power_well() */
+	PUNIT_POWER_WELL_ALWAYS_ON,
 };
 
 enum skl_disp_power_wells {
+	/* These numbers are fixed and must match the position of the pw bits */
 	SKL_DISP_PW_MISC_IO,
 	SKL_DISP_PW_DDI_A_E,
 	SKL_DISP_PW_DDI_B,
@@ -628,6 +631,10 @@ enum skl_disp_power_wells {
 	SKL_DISP_PW_DDI_D,
 	SKL_DISP_PW_1 = 14,
 	SKL_DISP_PW_2,
+
+	/* Not actual bit groups. Used as IDs for lookup_power_well() */
+	SKL_DISP_PW_ALWAYS_ON,
+	SKL_DISP_PW_DC_OFF,
 };
 
 #define SKL_POWER_WELL_STATE(pw) (1 << ((pw) * 2))
@@ -4641,6 +4648,7 @@ enum skl_disp_power_wells {
 
 #define CBR1_VLV			(VLV_DISPLAY_BASE + 0x70400)
 #define  CBR_PND_DEADLINE_DISABLE	(1<<31)
+#define  CBR_PWM_CLOCK_MUX_SELECT	(1<<30)
 
 /* FIFO watermark sizes etc */
 #define G4X_FIFO_LINE_SIZE	64
@@ -4942,6 +4950,7 @@ enum skl_disp_power_wells {
 #define SWF30			(dev_priv->info.display_mmio_offset + 0x72414)
 #define SWF31			(dev_priv->info.display_mmio_offset + 0x72418)
 #define SWF32			(dev_priv->info.display_mmio_offset + 0x7241c)
+#define SWF_ILK(i)	(0x4F000 + (i) * 4)
 
 /* Pipe B */
 #define _PIPEBDSL		(dev_priv->info.display_mmio_offset + 0x71000)
@@ -5631,6 +5640,20 @@ enum skl_disp_power_wells {
 #define GAMMA_MODE_MODE_12BIT	(2 << 0)
 #define GAMMA_MODE_MODE_SPLIT	(3 << 0)
 
+/* DMC/CSR */
+#define CSR_PROGRAM(i)		(0x80000 + (i) * 4)
+#define CSR_SSP_BASE_ADDR_GEN9	0x00002FC0
+#define CSR_HTP_ADDR_SKL	0x00500034
+#define CSR_SSP_BASE		0x8F074
+#define CSR_HTP_SKL		0x8F004
+#define CSR_LAST_WRITE		0x8F034
+#define CSR_LAST_WRITE_VALUE	0xc003b400
+/* MMIO address range for CSR program (0x80000 - 0x82FFF) */
+#define CSR_MMIO_START_RANGE	0x80000
+#define CSR_MMIO_END_RANGE	0x8FFFF
+#define SKL_CSR_DC3_DC5_COUNT	0x80030
+#define SKL_CSR_DC5_DC6_COUNT	0x8002C
+
 /* interrupts */
 #define DE_MASTER_IRQ_CONTROL   (1 << 31)
 #define DE_SPRITEB_FLIP_DONE    (1 << 29)
@@ -6311,9 +6334,11 @@ enum skl_disp_power_wells {
 #define  FDI_PHASE_SYNC_OVR(pipe) (1<<(FDIA_PHASE_SYNC_SHIFT_OVR - ((pipe) * 2)))
 #define  FDI_PHASE_SYNC_EN(pipe) (1<<(FDIA_PHASE_SYNC_SHIFT_EN - ((pipe) * 2)))
 #define  FDI_BC_BIFURCATION_SELECT	(1 << 12)
+#define  SPT_PWM_GRANULARITY		(1<<0)
 #define SOUTH_CHICKEN2		0xc2004
 #define  FDI_MPHY_IOSFSB_RESET_STATUS	(1<<13)
 #define  FDI_MPHY_IOSFSB_RESET_CTL	(1<<12)
+#define  LPT_PWM_GRANULARITY		(1<<5)
 #define  DPLS_EDP_PPS_FIX_DIS		(1<<0)
 
 #define _FDI_RXA_CHICKEN         0xc200c
@@ -7068,6 +7093,9 @@ enum skl_disp_power_wells {
 #define   AUDIO_CP_READY(trans)		((1 << 1) << ((trans) * 4))
 #define   AUDIO_ELD_VALID(trans)	((1 << 0) << ((trans) * 4))
 
+#define HSW_AUD_CHICKENBIT			0x65f10
+#define   SKL_AUD_CODEC_WAKE_SIGNAL		(1 << 15)
+
 /* HSW Power Wells */
 #define HSW_PWR_WELL_BIOS			0x45400 /* CTL1 */
 #define HSW_PWR_WELL_DRIVER			0x45404 /* CTL2 */
@@ -7389,6 +7417,7 @@ enum skl_disp_power_wells {
 
 /* GEN9 DC */
 #define DC_STATE_EN			0x45504
+#define  DC_STATE_DISABLE		0
 #define  DC_STATE_EN_UPTO_DC5		(1<<0)
 #define  DC_STATE_EN_DC9		(1<<3)
 #define  DC_STATE_EN_UPTO_DC6		(2<<0)

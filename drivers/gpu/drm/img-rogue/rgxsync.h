@@ -77,6 +77,6 @@ PVRSRV_ERROR RGXKickSyncKM(PVRSRV_DEVICE_NODE        *psDeviceNode,
 						   SERVER_SYNC_PRIMITIVE     **pasServerSyncs,
 						   IMG_BOOL                  bPDumpContinuous,
 						   IMG_UINT32                ui32ExtJobRef,
-						   IMG_UINT32                ui32IntJobRef);
+						   IMG_UINT32                ui32JobId);
 
 #endif /* __RGXSYNC_H__ */

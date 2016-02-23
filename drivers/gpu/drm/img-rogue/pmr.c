@@ -9,7 +9,7 @@
                 (higher software levels provide an abstraction above that
                 to deal with dividing this down into smaller manageable units).
                 Importantly, this module knows nothing of virtual memory, or
-                of MMUs etc., with one excuseable exception.  We have the
+                of MMUs etc., with one excusable exception.  We have the
                 concept of a "page size", which really means nothing in
                 physical memory, but represents a "contiguity quantum" such
                 that the higher level modules which map this memory are able
@@ -141,7 +141,7 @@ struct _PMR_
     */
     /*
        Physical address translation (device <> cpu) is done on a per device
-       basis which means we need the physcial heap info
+       basis which means we need the physical heap info
     */
     PHYS_HEAP *psPhysHeap;
 
@@ -219,7 +219,7 @@ struct _PMR_
        the flags given at allocation time) and return them to any
        caller of PMR_Flags().  The intention of these flags is that
        the ones stored here are used to represent permissions, such
-       that noone is able to map a PMR in a mode in which they are not
+       that no one is able to map a PMR in a mode in which they are not
        allowed, e.g. writeable for a read-only PMR, etc. */
     PMR_FLAGS_T uiFlags;
 
@@ -254,92 +254,6 @@ struct _PMR_PAGELIST_
 	struct _PMR_ *psReferencePMR;
 };
 
-/*
- * This Lock is used to protect the sequence of operation used in MMapPMR and in
- * the memory management bridge. This should make possible avoid the use of the bridge
- * lock in mmap.c avoiding regressions.
- */
-
-/* this structure tracks the current owner of the PMR lock, avoiding use of
- * the Linux (struct mutex).owner field which is not guaranteed to be up to date.
- * there is Linux-specific code to provide an opimised approach for Linux,
- * using the kernel (struct task_struct *) instead of a PID/TID combination.
- */
-typedef struct _PMR_LOCK_OWNER_
-{
-#if defined(LINUX)
-	struct task_struct *task;
-#else
-	POS_LOCK hPIDTIDLock;
-	IMG_PID uiPID;
-	uintptr_t uiTID;
-#endif
-} PMR_LOCK_OWNER;
-
-POS_LOCK gGlobalLookupPMRLock;
-static PMR_LOCK_OWNER gsPMRLockOwner;
-
-static void _SetPMRLockOwner(void)
-{
-#if defined(LINUX)
-	gsPMRLockOwner.task = current;
-#else
-	OSLockAcquire(gsPMRLockOwner.hPIDTIDLock);
-	gsPMRLockOwner.uiPID = OSGetCurrentProcessID();
-	gsPMRLockOwner.uiTID = OSGetCurrentThreadID();
-	OSLockRelease(gsPMRLockOwner.hPIDTIDLock);
-#endif
-}
-
-/* Must only be called by the thread which owns the PMR lock */
-static void _ClearPMRLockOwner(void)
-{
-#if defined(LINUX)
-	gsPMRLockOwner.task = NULL;
-#else
-	OSLockAcquire(gsPMRLockOwner.hPIDTIDLock);
-	gsPMRLockOwner.uiPID = 0;
-	gsPMRLockOwner.uiTID = 0;
-	OSLockRelease(gsPMRLockOwner.hPIDTIDLock);
-#endif
-}
-
-static IMG_BOOL _ComparePMRLockOwner(void)
-{
-#if defined(LINUX)
-	return gsPMRLockOwner.task == current;
-#else
-	IMG_BOOL bRet;
-
-	OSLockAcquire(gsPMRLockOwner.hPIDTIDLock);
-	bRet = (gsPMRLockOwner.uiPID == OSGetCurrentProcessID()) &&
-			(gsPMRLockOwner.uiTID == OSGetCurrentThreadID());
-	OSLockRelease(gsPMRLockOwner.hPIDTIDLock);
-	return bRet;
-#endif
-}
-
-void PMRLock()
-{
-	OSLockAcquire(gGlobalLookupPMRLock);
-	_SetPMRLockOwner();
-}
-
-void PMRUnlock()
-{
-	_ClearPMRLockOwner();
-	OSLockRelease(gGlobalLookupPMRLock);
-}
-
-IMG_BOOL PMRIsLocked(void)
-{
-	return OSLockIsLocked(gGlobalLookupPMRLock);
-}
-
-IMG_BOOL PMRIsLockedByMe(void)
-{
-	return PMRIsLocked() && _ComparePMRLockOwner();
-}
 
 #define MIN3(a,b,c)	(((a) < (b)) ? (((a) < (c)) ? (a):(c)) : (((b) < (c)) ? (b):(c)))
 
@@ -416,6 +330,12 @@ _PMRCreate(PMR_SIZE_T uiLogicalSize,
 		OSDivide64(uiChunkSize, (1<< uiLog2ContiguityGuarantee), &ui32Remainder);
 		if (ui32Remainder)
 		{
+			PVR_DPF((PVR_DBG_ERROR,
+					"%s: Bad chunk size, must be a multiple of the contiguity "
+					"(uiChunkSize = 0x%llx, uiLog2ContiguityGuarantee = %u)",
+					__FUNCTION__,
+					(unsigned long long) uiChunkSize,
+					uiLog2ContiguityGuarantee));
 			return PVRSRV_ERROR_PMR_BAD_CHUNK_SIZE;
 		}
 	}
@@ -499,6 +419,17 @@ _PMRCreate(PMR_SIZE_T uiLogicalSize,
 static IMG_UINT32
 _RefNoLock(PMR *psPMR)
 {
+	PVR_ASSERT(psPMR->uiRefCount > 0);
+	/* We need to ensure that this function is always executed under
+	 * PMRLock. The only exception acceptable is the unloading of the driver.
+	 */
+#if defined(PVRSRV_DEBUG_PMR)
+	if ((!PVRSRVGetPVRSRVData()->bUnload) && !PMRIsLockedByMe())
+	{
+		PVR_DPF((PVR_DBG_ERROR, "_RefNoLock: call processed without PMRLock" ));
+		OSDumpStack();
+	}
+#endif
 	psPMR->uiRefCount++;
 	return psPMR->uiRefCount;
 }
@@ -507,6 +438,16 @@ static IMG_UINT32
 _UnrefNoLock(PMR *psPMR)
 {
     PVR_ASSERT(psPMR->uiRefCount > 0);
+	/* We need to ensure that this function is always executed under
+	 * PMRLock. The only exception acceptable is the unloading of the driver.
+	 */
+#if defined(PVRSRV_DEBUG_PMR)
+	if ((!PVRSRVGetPVRSRVData()->bUnload) && !PMRIsLockedByMe())
+	{
+		PVR_DPF((PVR_DBG_ERROR, "_UnrefNoLock: call processed without PMRLock" ));
+		OSDumpStack();
+	}
+#endif
 	psPMR->uiRefCount--;
 	return psPMR->uiRefCount;
 }
@@ -717,11 +658,17 @@ PMRLockSysPhysAddresses(PMR *psPMR,
 PVRSRV_ERROR
 PMRUnlockSysPhysAddresses(PMR *psPMR)
 {
+	return PMRUnlockSysPhysAddressesNested(psPMR, 2);
+}
+
+PVRSRV_ERROR
+PMRUnlockSysPhysAddressesNested(PMR *psPMR, IMG_UINT32 ui32NestingLevel)
+{
     PVRSRV_ERROR eError;
 
     PVR_ASSERT(psPMR != NULL);
 
-	OSLockAcquire(psPMR->hLock);
+	OSLockAcquireNested(psPMR->hLock, ui32NestingLevel);
 	PVR_ASSERT(psPMR->uiLockCount > 0);
 	psPMR->uiLockCount--;
 
@@ -1423,7 +1370,7 @@ PMR_ReadBytes(PMR *psPMR,
 										  &bValid);
 		/* 
 			Copy till either then end of the
-			chunk or end end of the buffer
+			chunk or end of the buffer
 		*/
 		uiBytesToCopy = MIN(uiBufSz - uiBytesCopied, ui32Remain);
 
@@ -1595,7 +1542,7 @@ PMR_WriteBytes(PMR *psPMR,
 
 		/* 
 			Copy till either then end of the
-			chunk or end end of the buffer
+			chunk or end of the buffer
 		*/
 		uiBytesToCopy = MIN(uiBufSz - uiBytesCopied, ui32Remain);
 
@@ -2901,12 +2848,6 @@ PMRInit()
 		return eError;
 	}
 
-	eError = OSLockCreate(&gGlobalLookupPMRLock, LOCK_TYPE_PASSIVE);
-	if (eError != PVRSRV_OK)
-	{
-		return eError;
-	}
-
     _gsSingletonPMRContext.uiNextSerialNum = 1;
 
     _gsSingletonPMRContext.uiNextKey = 0x8300f001 * (uintptr_t)&_gsSingletonPMRContext;
@@ -2944,7 +2885,6 @@ PMRDeInit()
     }
 
 	OSLockDestroy(_gsSingletonPMRContext.hLock);
-	OSLockDestroy(gGlobalLookupPMRLock);
 
     _gsSingletonPMRContext.bModuleInitialised = IMG_FALSE;
 

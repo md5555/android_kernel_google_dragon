@@ -86,6 +86,14 @@ static_assert(RGXFW_HWPERF_L1_PADDING_DEFAULT>=RGX_HWPERF_V2_MAX_PACKET_SIZE,
 			  "RGXFW_HWPERF_L1_PADDING_DEFAULT overflows max HWPerf packet size");
 #endif
 
+#if defined(SUPPORT_TRUSTED_DEVICE)
+#if !defined(SUPPORT_KERNEL_SRVINIT)
+#error "SUPPORT_KERNEL_SRVINIT is required by SUPPORT_TRUSTED_DEVICE!"
+#endif
+#include "rgxdevice.h"
+#include "pvrsrv_device.h"
+#endif
+
 static RGX_INIT_COMMAND asDbgCommands[RGX_MAX_DEBUG_COMMANDS];
 static RGX_INIT_COMMAND asDbgBusCommands[RGX_MAX_DBGBUS_COMMANDS];
 static RGX_INIT_COMMAND asDeinitCommands[RGX_MAX_DEINIT_COMMANDS];
@@ -105,6 +113,7 @@ SrvInitParamInitBOOL(EnableHWPerf, IMG_FALSE);
 SrvInitParamInitUINT32(HWPerfFWBufSizeInKB, 0);	/* Default to server default */
 SrvInitParamInitUINT32(HWPerfFilter0, HW_PERF_FILTER_DEFAULT);
 SrvInitParamInitUINT32(HWPerfFilter1, HW_PERF_FILTER_DEFAULT);
+SrvInitParamInitBOOL(EnableHWPerfHost, IMG_FALSE);
 SrvInitParamInitUINT32(HWPerfHostFilter, HW_PERF_FILTER_DEFAULT);
 SrvInitParamInitBOOL(HWPerfDisableCustomCounterFilter, IMG_FALSE);
 SrvInitParamInitUINT32(EnableAPM, RGX_ACTIVEPM_DEFAULT);
@@ -805,6 +814,45 @@ static void InitialiseCustomCounters(SHARED_DEV_CONNECTION hServices, DEVMEM_MEM
 }
 #endif
 
+#if defined(SUPPORT_TRUSTED_DEVICE) && !defined(NO_HARDWARE)
+/*************************************************************************/ /*!
+ @Function       RGXTDProcessFWImage
+
+ @Description    Fetch and send data used by the trusted device to complete
+                 the FW image setup
+
+ @Input          psDeviceNode - Device node
+ @Input          psRGXFW      - Firmware blob
+
+ @Return         PVRSRV_ERROR
+*/ /**************************************************************************/
+static PVRSRV_ERROR RGXTDProcessFWImage(PVRSRV_DEVICE_NODE *psDeviceNode,
+                                        struct RGXFW *psRGXFW)
+{
+	PVRSRV_DEVICE_CONFIG *psDevConfig = psDeviceNode->psDevConfig;
+	PVRSRV_RGXDEV_INFO *psDevInfo = psDeviceNode->pvDevice;
+	PVRSRV_TD_FW_PARAMS sTDFWParams;
+	PVRSRV_ERROR eError;
+
+	if (psDevConfig->pfnTDSendFWImage == NULL)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "RGXTDProcessFWImage: TDProcessFWImage not implemented!"));
+		return PVRSRV_ERROR_NOT_IMPLEMENTED;
+	}
+
+	sTDFWParams.pvFirmware = RGXFirmwareData(psRGXFW);
+	sTDFWParams.ui32FirmwareSize = RGXFirmwareSize(psRGXFW);
+	sTDFWParams.sFWCodeDevVAddrBase = psDevInfo->sFWCodeDevVAddrBase;
+	sTDFWParams.sFWDataDevVAddrBase = psDevInfo->sFWDataDevVAddrBase;
+	sTDFWParams.sFWCorememCodeFWAddr = psDevInfo->sFWCorememCodeFWAddr;
+	sTDFWParams.sFWInitFWAddr = psDevInfo->sFWInitFWAddr;
+
+	eError = psDevConfig->pfnTDSendFWImage(&sTDFWParams);
+
+	return eError;
+}
+#endif
+
 #endif /* defined(PVRSRV_GPUVIRT_GUESTDRV) */
 
 
@@ -908,7 +956,8 @@ PVRSRV_ERROR RGXInit(SHARED_DEV_CONNECTION hServices)
 	IMG_BOOL			bEnable2Thrds;	
 	IMG_BOOL            bHWPerfDisableCustomCounterFilter;
 	IMG_BOOL			bEnableHWR;
-	IMG_BOOL			bEnableHWPerf;	
+	IMG_BOOL			bEnableHWPerf;
+	IMG_BOOL			bEnableHWPerfHost;
 	IMG_UINT32			ui32EnableFWContextSwitch;
 	IMG_BOOL			bZeroFreelist;
 	IMG_BOOL			bCheckMlist;
@@ -987,6 +1036,7 @@ PVRSRV_ERROR RGXInit(SHARED_DEV_CONNECTION hServices)
 	SrvInitParamGetUINT32(pvParamState, FWContextSwitchProfile, ui32FWContextSwitchProfile);
 
 	SrvInitParamGetBOOL(pvParamState, EnableHWPerf,	bEnableHWPerf);
+	SrvInitParamGetBOOL(pvParamState, EnableHWPerfHost, bEnableHWPerfHost);
 	SrvInitParamGetBOOL(pvParamState, HWPerfDisableCustomCounterFilter, bHWPerfDisableCustomCounterFilter);
 
 	SrvInitParamGetBOOL(pvParamState, EnableHWR, bEnableHWR);
@@ -1128,7 +1178,7 @@ PVRSRV_ERROR RGXInit(SHARED_DEV_CONNECTION hServices)
 	ui32DeviceFlags |= bDisableFEDLogging ? RGXKMIF_DEVICE_STATE_DISABLE_DW_LOGGING_EN : 0;
 	ui32DeviceFlags |= bDustRequestInject? RGXKMIF_DEVICE_STATE_DUST_REQUEST_INJECT_EN : 0;
 
-	ui32DeviceFlags |= bEnableHWPerf ? RGXKMIF_DEVICE_STATE_HWPERF_HOST_EN : 0;
+	ui32DeviceFlags |= bEnableHWPerfHost ? RGXKMIF_DEVICE_STATE_HWPERF_HOST_EN : 0;
 	if (bEnableHWPerf && (ui32HWPerfFilter0 == 0 && ui32HWPerfFilter1 == 0))
 	{
 		ui32HWPerfFilter0 = HW_PERF_FILTER_DEFAULT_ALL_ON;
@@ -1259,6 +1309,10 @@ PVRSRV_ERROR RGXInit(SHARED_DEV_CONNECTION hServices)
 		goto cleanup;
 	}
 
+#if defined(SUPPORT_KERNEL_SRVINIT)
+	PMRLock();
+#endif
+
 #if	defined(PVRSRV_GPUVIRT_GUESTDRV)
 	/* These functionality is n/a to guest drivers */
 #else
@@ -1325,6 +1379,9 @@ PVRSRV_ERROR RGXInit(SHARED_DEV_CONNECTION hServices)
 	pvFWCorememHostAddr = NULL;
 #endif
 
+#if defined(SUPPORT_KERNEL_SRVINIT)
+	PMRUnlock();
+#endif
 
 	/*
 	 * Process the FW image and setup code and data segments.
@@ -1354,6 +1411,9 @@ PVRSRV_ERROR RGXInit(SHARED_DEV_CONNECTION hServices)
 		goto cleanup;
 	}
 
+#if defined(SUPPORT_TRUSTED_DEVICE) && !defined(NO_HARDWARE)
+	RGXTDProcessFWImage(hServices, psRGXFW);
+#endif
 
 	/*
 	 * FW image processing complete, perform final steps
@@ -1368,6 +1428,9 @@ PVRSRV_ERROR RGXInit(SHARED_DEV_CONNECTION hServices)
 		goto cleanup;
 	}
 
+#if defined(SUPPORT_KERNEL_SRVINIT)
+	PMRLock();
+#endif
 
 #if !defined(SUPPORT_TRUSTED_DEVICE)
 	/* dump the fw code */
@@ -1409,6 +1472,10 @@ PVRSRV_ERROR RGXInit(SHARED_DEV_CONNECTION hServices)
 	DevmemFree(psFWCodeHostMemDesc);
 	DevmemUnmakeLocalImportHandle(hServices,
 	                              hFWCodeImportHandle);
+#endif
+
+#if defined(SUPPORT_KERNEL_SRVINIT)
+	PMRUnlock();
 #endif
 
 	/*
@@ -1460,6 +1527,9 @@ PVRSRV_ERROR RGXInit(SHARED_DEV_CONNECTION hServices)
 		PVR_DPF((PVR_DBG_ERROR, "RGXInit: Run out of mem for the terminating deinit script"));
 	}
 #if defined(PDUMP)
+#if defined(SUPPORT_KERNEL_SRVINIT)
+	PMRLock();
+#endif
 	/* Acquire HWPerf data mem handle to be able to fill it later */
 	DevmemMakeLocalImportHandle(hServices,
 	                            hHWPerfDataPMR,
@@ -1482,6 +1552,9 @@ PVRSRV_ERROR RGXInit(SHARED_DEV_CONNECTION hServices)
 	InitialiseHWPerfCounters(hServices, psHWPerfDataMemDesc, psHWPerfInitData);
 	InitialiseCustomCounters(hServices, psHWPerfDataMemDesc);
 
+#if defined(SUPPORT_KERNEL_SRVINIT)
+	PMRUnlock();
+#endif
 #endif
 #endif /* defined(PVRSRV_GPUVIRT_GUESTDRV) */
 
@@ -1583,11 +1656,17 @@ PVRSRV_ERROR RGXInit(SHARED_DEV_CONNECTION hServices)
 
 	eError = PVRSRV_OK;
 #if defined(PDUMP)
+#if defined(SUPPORT_KERNEL_SRVINIT)
+	PMRLock();
+#endif
 
 	DevmemReleaseCpuVirtAddr(psHWPerfDataMemDesc);
 	DevmemFree(psHWPerfDataMemDesc);
 	DevmemUnmakeLocalImportHandle(hServices,
 	                              hHWPerfDataImportHandle);
+#if defined(SUPPORT_KERNEL_SRVINIT)
+	PMRUnlock();
+#endif
 failHWPerfCountersMemDescAqCpuVirt:
 #endif
 cleanup:
@@ -1601,7 +1680,6 @@ cleanup:
 		RGXUnloadFirmware(psRGXFW);
 	}
 #endif
-
 	return eError;
 }
 

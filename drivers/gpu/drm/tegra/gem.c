@@ -634,7 +634,35 @@ static void tegra_gem_prime_kunmap(struct dma_buf *buf, unsigned long page,
 
 static int tegra_gem_prime_mmap(struct dma_buf *buf, struct vm_area_struct *vma)
 {
-	return -EINVAL;
+	struct drm_gem_object *gem = buf->priv;
+	struct tegra_bo *bo = to_tegra_bo(gem);
+	int ret;
+
+	ret = drm_gem_mmap_obj(gem, gem->size, vma);
+	if (ret < 0)
+		return ret;
+
+	if (!bo->pages) {
+		int ret;
+		unsigned long vm_pgoff = vma->vm_pgoff;
+
+		vma->vm_pgoff = 0;
+		vma->vm_flags &= ~VM_PFNMAP;
+
+		ret = dma_mmap_writecombine(gem->dev->dev, vma, bo->vaddr,
+					    bo->paddr, gem->size);
+		if (ret) {
+			drm_gem_vm_close(vma);
+			return ret;
+		}
+
+		vma->vm_pgoff = vm_pgoff;
+	} else {
+		vma->vm_flags |= VM_MIXEDMAP;
+		vma->vm_flags &= ~VM_PFNMAP;
+	}
+
+	return 0;
 }
 
 static void *tegra_gem_prime_vmap(struct dma_buf *buf)

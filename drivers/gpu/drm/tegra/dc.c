@@ -1088,7 +1088,8 @@ static struct drm_plane *tegra_dc_primary_plane_create(struct drm_device *drm,
 				       &tegra_primary_plane_funcs,
 				       dc->soc->primary_plane_formats,
 				       dc->soc->num_primary_plane_formats,
-				       DRM_PLANE_TYPE_PRIMARY);
+				       DRM_PLANE_TYPE_PRIMARY,
+				       NULL);
 	if (err < 0) {
 		kfree(plane);
 		return ERR_PTR(err);
@@ -1259,7 +1260,8 @@ static struct drm_plane *tegra_dc_cursor_plane_create(struct drm_device *drm,
 
 	err = drm_universal_plane_init(drm, &plane->base, 1 << dc->pipe,
 				       &tegra_cursor_plane_funcs, formats,
-				       num_formats, DRM_PLANE_TYPE_CURSOR);
+				       num_formats, DRM_PLANE_TYPE_CURSOR,
+				       NULL);
 	if (err < 0) {
 		kfree(plane);
 		return ERR_PTR(err);
@@ -1309,7 +1311,8 @@ static struct drm_plane *tegra_dc_overlay_plane_create(struct drm_device *drm,
 				       &tegra_overlay_plane_funcs,
 				       dc->soc->overlay_plane_formats,
 				       dc->soc->num_overlay_plane_formats,
-				       DRM_PLANE_TYPE_OVERLAY);
+				       DRM_PLANE_TYPE_OVERLAY,
+				       NULL);
 	if (err < 0) {
 		kfree(plane);
 		return ERR_PTR(err);
@@ -2223,7 +2226,7 @@ static int tegra_dc_set_latency_allowance(struct drm_crtc *crtc,
 		plane_emc_bw = tegra_dc_get_plane_emc_bw(tps, old_tps, update);
 
 		total_active_space_bw +=
-			DIV_ROUND_UP(plane_emc_bw, 1000);
+			DIV_ROUND_UP_ULL(plane_emc_bw, 1000);
 	}
 
 	for_each_plane_in_state(old_state, plane, old_plane_state, i) {
@@ -2683,11 +2686,19 @@ static int tegra_dc_show_regs(struct seq_file *s, void *data)
 {
 	struct drm_info_node *node = s->private;
 	struct tegra_dc *dc = node->info_ent->data;
+	unsigned long flags;
+	u32 win_header_save;
+	u32 state_access_save;
+	int i;
 
 	if (!tegra_powergate_is_powered(dc->powergate)) {
 		DRM_INFO("Can't dump registers as dc is powergated\n");
 		return -EPERM;
 	}
+
+	spin_lock_irqsave(&dc->lock, flags);
+	state_access_save = tegra_dc_readl(dc, DC_CMD_STATE_ACCESS);
+	tegra_dc_writel(dc, state_access_save | READ_MUX, DC_CMD_STATE_ACCESS);
 
 #define DUMP_REG(name)						\
 	seq_printf(s, "%-40s %#05x %08x\n", #name, name,	\
@@ -2870,44 +2881,68 @@ static int tegra_dc_show_regs(struct seq_file *s, void *data)
 	DUMP_REG(DC_DISP_SD_MAN_K_VALUES);
 	DUMP_REG(DC_DISP_CURSOR_START_ADDR_HI);
 	DUMP_REG(DC_DISP_BLEND_CURSOR_CONTROL);
-	DUMP_REG(DC_WIN_WIN_OPTIONS);
-	DUMP_REG(DC_WIN_BYTE_SWAP);
-	DUMP_REG(DC_WIN_BUFFER_CONTROL);
-	DUMP_REG(DC_WIN_COLOR_DEPTH);
-	DUMP_REG(DC_WIN_POSITION);
-	DUMP_REG(DC_WIN_SIZE);
-	DUMP_REG(DC_WIN_PRESCALED_SIZE);
-	DUMP_REG(DC_WIN_H_INITIAL_DDA);
-	DUMP_REG(DC_WIN_V_INITIAL_DDA);
-	DUMP_REG(DC_WIN_DDA_INC);
-	DUMP_REG(DC_WIN_LINE_STRIDE);
-	DUMP_REG(DC_WIN_BUF_STRIDE);
-	DUMP_REG(DC_WIN_UV_BUF_STRIDE);
-	DUMP_REG(DC_WIN_BUFFER_ADDR_MODE);
-	DUMP_REG(DC_WIN_DV_CONTROL);
-	DUMP_REG(DC_WIN_BLEND_NOKEY);
-	DUMP_REG(DC_WIN_BLEND_1WIN);
-	DUMP_REG(DC_WIN_BLEND_2WIN_X);
-	DUMP_REG(DC_WIN_BLEND_2WIN_Y);
-	DUMP_REG(DC_WIN_BLEND_3WIN_XY);
-	DUMP_REG(DC_WIN_HP_FETCH_CONTROL);
-	DUMP_REG(DC_WINBUF_START_ADDR);
-	DUMP_REG(DC_WINBUF_START_ADDR_NS);
-	DUMP_REG(DC_WINBUF_START_ADDR_U);
-	DUMP_REG(DC_WINBUF_START_ADDR_U_NS);
-	DUMP_REG(DC_WINBUF_START_ADDR_V);
-	DUMP_REG(DC_WINBUF_START_ADDR_V_NS);
-	DUMP_REG(DC_WINBUF_ADDR_H_OFFSET);
-	DUMP_REG(DC_WINBUF_ADDR_H_OFFSET_NS);
-	DUMP_REG(DC_WINBUF_ADDR_V_OFFSET);
-	DUMP_REG(DC_WINBUF_ADDR_V_OFFSET_NS);
-	DUMP_REG(DC_WINBUF_UFLOW_STATUS);
-	DUMP_REG(DC_WINBUF_AD_UFLOW_STATUS);
-	DUMP_REG(DC_WINBUF_BD_UFLOW_STATUS);
-	DUMP_REG(DC_WINBUF_CD_UFLOW_STATUS);
+
+	win_header_save = tegra_dc_readl(dc, DC_CMD_DISPLAY_WINDOW_HEADER);
+	for (i = 0; i < dc->soc->num_windows; i++) {
+		switch (i) {
+		case 0:
+			seq_printf(s, "\nWindow A registers:\n");
+			break;
+		case 1:
+			seq_printf(s, "\nWindow B registers:\n");
+			break;
+		case 2:
+			seq_printf(s, "\nWindow C registers:\n");
+			break;
+		default:
+			/* Currently we don't care about other windows */
+			continue;
+		}
+
+		tegra_dc_writel(dc, WINDOW_A_SELECT << i,
+				DC_CMD_DISPLAY_WINDOW_HEADER);
+
+		DUMP_REG(DC_WIN_WIN_OPTIONS);
+		DUMP_REG(DC_WIN_BYTE_SWAP);
+		DUMP_REG(DC_WIN_BUFFER_CONTROL);
+		DUMP_REG(DC_WIN_COLOR_DEPTH);
+		DUMP_REG(DC_WIN_POSITION);
+		DUMP_REG(DC_WIN_SIZE);
+		DUMP_REG(DC_WIN_PRESCALED_SIZE);
+		DUMP_REG(DC_WIN_H_INITIAL_DDA);
+		DUMP_REG(DC_WIN_V_INITIAL_DDA);
+		DUMP_REG(DC_WIN_DDA_INC);
+		DUMP_REG(DC_WIN_LINE_STRIDE);
+		DUMP_REG(DC_WIN_BUF_STRIDE);
+		DUMP_REG(DC_WIN_UV_BUF_STRIDE);
+		DUMP_REG(DC_WIN_BUFFER_ADDR_MODE);
+		DUMP_REG(DC_WIN_DV_CONTROL);
+		DUMP_REG(DC_WIN_BLEND_NOKEY);
+		DUMP_REG(DC_WIN_BLEND_1WIN);
+		DUMP_REG(DC_WIN_BLEND_2WIN_X);
+		DUMP_REG(DC_WIN_BLEND_2WIN_Y);
+		DUMP_REG(DC_WIN_BLEND_3WIN_XY);
+		DUMP_REG(DC_WIN_HP_FETCH_CONTROL);
+		DUMP_REG(DC_WINBUF_START_ADDR);
+		DUMP_REG(DC_WINBUF_START_ADDR_NS);
+		DUMP_REG(DC_WINBUF_START_ADDR_U);
+		DUMP_REG(DC_WINBUF_START_ADDR_U_NS);
+		DUMP_REG(DC_WINBUF_START_ADDR_V);
+		DUMP_REG(DC_WINBUF_START_ADDR_V_NS);
+		DUMP_REG(DC_WINBUF_ADDR_H_OFFSET);
+		DUMP_REG(DC_WINBUF_ADDR_H_OFFSET_NS);
+		DUMP_REG(DC_WINBUF_ADDR_V_OFFSET);
+		DUMP_REG(DC_WINBUF_ADDR_V_OFFSET_NS);
+		DUMP_REG(DC_WINBUF_UFLOW_STATUS);
+		DUMP_REG(DC_WINBUF_SURFACE_KIND);
+	}
+
+	tegra_dc_writel(dc, win_header_save, DC_CMD_DISPLAY_WINDOW_HEADER);
+	tegra_dc_writel(dc, state_access_save, DC_CMD_STATE_ACCESS);
 
 #undef DUMP_REG
 
+	spin_unlock_irqrestore(&dc->lock, flags);
 	return 0;
 }
 
@@ -3041,7 +3076,7 @@ static int tegra_dc_init(struct host1x_client *client)
 	}
 
 	err = drm_crtc_init_with_planes(drm, &dc->base, primary, cursor,
-					&tegra_crtc_funcs);
+					&tegra_crtc_funcs, NULL);
 	if (err < 0)
 		goto cleanup;
 

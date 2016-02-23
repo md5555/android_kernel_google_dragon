@@ -79,6 +79,8 @@ void trace_rogue_fence_checks(const char *cmd, const char *dm, IMG_UINT32 ui32FW
 	}
 }
 
+#if defined(SUPPORT_GPUTRACE_EVENTS)
+
 void trace_rogue_ufo_updates(IMG_UINT64 ui64OSTimestamp,
 							 IMG_UINT32 ui32FWCtx,
 							 IMG_UINT32 ui32JobId,
@@ -153,3 +155,5 @@ void trace_rogue_ufo_checks_fail(IMG_UINT64 ui64OSTimestamp,
 				+ sizeof(puData->sCheckFail));
 	}
 }
+
+#endif /* defined(SUPPORT_GPUTRACE_EVENTS) */

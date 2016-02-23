@@ -100,8 +100,8 @@ PVRSRV_ERROR PVRSRVRGXKickSyncKM(RGX_SERVER_KICKSYNC_CONTEXT * psKicksyncContext
                                  IMG_INT32                   * pi32UpdateFenceFD,
                                  IMG_CHAR                      szFenceName[32],
 
-                                 IMG_UINT32                    ui32ExternalJobReference,
-                                 IMG_UINT32                    ui32InternalJobReference);
+                                 IMG_UINT32                    ui32ExtJobRef,
+                                 IMG_UINT32                    ui32IntJobRef);
 
 #endif /* __RGXKICKSYNC_H__ */
 

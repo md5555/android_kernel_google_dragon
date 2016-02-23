@@ -47,6 +47,13 @@ struct vi {
 	struct device *dev;
 	struct clk *clk;
 	struct clk *plld_clk;
+	struct clk *cilab;
+	struct clk *cilcd;
+	struct clk *cile;
+	struct clk *csi;
+	struct clk *csus;
+	struct clk *sclk;
+
 	struct reset_control *rst;
 	struct regulator *reg;
 
@@ -322,6 +329,12 @@ static int vi_power_off(struct device *dev)
 	}
 
 	clk_disable_unprepare(vi->clk);
+	clk_disable_unprepare(vi->sclk);
+	clk_disable_unprepare(vi->csus);
+	clk_disable_unprepare(vi->csi);
+	clk_disable_unprepare(vi->cile);
+	clk_disable_unprepare(vi->cilcd);
+	clk_disable_unprepare(vi->cilab);
 
 	return tegra_pmc_powergate(vi->config->powergate_id);
 }
@@ -335,18 +348,52 @@ static int vi_power_on(struct device *dev)
 	if (err)
 		return err;
 
+	err = clk_prepare_enable(vi->cilab);
+	if (err) {
+		dev_err(dev, "enable cilab failed.\n");
+		goto enable_cilab_failed;
+	}
+
+	err = clk_prepare_enable(vi->cilcd);
+	if (err) {
+		dev_err(dev, "enable cilcd failed.\n");
+		goto enable_cilcd_failed;
+	}
+
+	err = clk_prepare_enable(vi->cile);
+	if (err) {
+		dev_err(dev, "enable cile failed.\n");
+		goto enable_cile_failed;
+	}
+
+	err = clk_prepare_enable(vi->csi);
+	if (err) {
+		dev_err(dev, "enable csi failed.\n");
+		goto enable_csi_failed;
+	}
+
+	err = clk_prepare_enable(vi->csus);
+	if (err) {
+		dev_err(dev, "enable cus failed.\n");
+		goto enable_csus_failed;
+	}
+
+	err = clk_prepare_enable(vi->sclk);
+	if (err) {
+		dev_err(dev, "enable sclk failed.\n");
+		goto enable_sclk_failed;
+	}
+
 	err = clk_prepare_enable(vi->clk);
 	if (err) {
-		tegra_pmc_powergate(vi->config->powergate_id);
-		return err;
+		dev_err(dev, "enable vi clk failed.\n");
+		goto enable_vi_failed;
 	}
 
 	err = regulator_enable(vi->reg);
 	if (err) {
-		clk_disable_unprepare(vi->clk);
-		tegra_pmc_powergate(TEGRA_POWERGATE_VENC);
 		dev_err(dev, "enable csi regulator failed.\n");
-		return err;
+		goto enable_reg_failed;
 	}
 
 	vi_writel(vi, T12_CG_2ND_LEVEL_EN, T12_VI_CFG_CG_CTRL);
@@ -358,6 +405,25 @@ static int vi_power_on(struct device *dev)
 	}
 
 	return 0;
+enable_reg_failed:
+	clk_disable_unprepare(vi->clk);
+enable_vi_failed:
+	clk_disable_unprepare(vi->sclk);
+enable_sclk_failed:
+	clk_disable_unprepare(vi->csus);
+enable_csus_failed:
+	clk_disable_unprepare(vi->csi);
+enable_csi_failed:
+	clk_disable_unprepare(vi->cile);
+enable_cile_failed:
+	clk_disable_unprepare(vi->cilcd);
+enable_cilcd_failed:
+	clk_disable_unprepare(vi->cilab);
+enable_cilab_failed:
+	tegra_pmc_powergate(vi->config->powergate_id);
+
+	return err;
+
 }
 
 static void vi_reset(struct device *dev)
@@ -579,6 +645,30 @@ static int vi_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "cannot get reset\n");
 		return PTR_ERR(vi->rst);
 	}
+
+	vi->cilab = devm_clk_get(dev, "cilab");
+	if (IS_ERR(vi->cilab))
+		return PTR_ERR(vi->cilab);
+
+	vi->cilcd = devm_clk_get(dev, "cilcd");
+	if (IS_ERR(vi->cilcd))
+		return PTR_ERR(vi->cilcd);
+
+	vi->cile = devm_clk_get(dev, "cile");
+	if (IS_ERR(vi->cile))
+		return PTR_ERR(vi->cile);
+
+	vi->csi = devm_clk_get(dev, "csi");
+	if (IS_ERR(vi->csi))
+		return PTR_ERR(vi->csi);
+
+	vi->csus = devm_clk_get(dev, "csus");
+	if (IS_ERR(vi->csus))
+		return PTR_ERR(vi->csus);
+
+	vi->sclk = devm_clk_get(dev, "sclk");
+	if (IS_ERR(vi->sclk))
+		return PTR_ERR(vi->sclk);
 
 	vi->clk = devm_clk_get(dev, "vi");
 	if (IS_ERR(vi->clk))

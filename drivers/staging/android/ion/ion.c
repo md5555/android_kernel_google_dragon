@@ -799,14 +799,38 @@ static int ion_debug_pid_show(struct seq_file *s, void *unused)
 
 static int ion_debug_pid_open(struct inode *inode, struct file *file)
 {
+	struct ion_pid_data *p = inode->i_private;
+
+	kref_get(&p->ref);
+
 	return single_open(file, ion_debug_pid_show, inode->i_private);
+}
+
+static void ion_pid_release_locked(struct kref *kref)
+{
+	struct ion_pid_data *p = container_of(kref, struct ion_pid_data, ref);
+	debugfs_remove(p->debug_root);
+	rb_erase(&p->node, &p->dev->pids);
+	kfree(p);
+}
+
+static int ion_debug_pid_release(struct inode *inode, struct file *file)
+{
+	struct ion_pid_data *p = inode->i_private;
+	struct ion_device *dev = p->dev;
+
+	down_write(&dev->lock);
+	kref_put(&p->ref, ion_pid_release_locked);
+	up_write(&dev->lock);
+
+	return single_release(inode, file);
 }
 
 static const struct file_operations debug_pid_fops = {
 	.open = ion_debug_pid_open,
 	.read = seq_read,
 	.llseek = seq_lseek,
-	.release = single_release,
+	.release = ion_debug_pid_release,
 };
 
 static int ion_get_client_serial(const struct rb_root *root,
@@ -864,14 +888,6 @@ static void ion_pid_get_locked(struct ion_device *dev, pid_t pid)
 		rb_link_node(&p->node, parent, new);
 		rb_insert_color(&p->node, root);
 	}
-}
-
-static void ion_pid_release_locked(struct kref *kref)
-{
-	struct ion_pid_data *p = container_of(kref, struct ion_pid_data, ref);
-	debugfs_remove(p->debug_root);
-	rb_erase(&p->node, &p->dev->pids);
-	kfree(p);
 }
 
 static struct ion_pid_data *ion_pid_find_locked(struct ion_device *dev,
@@ -1319,8 +1335,7 @@ static void ion_dma_buf_release(struct dma_buf *dmabuf)
 	ion_buffer_put(buffer);
 }
 
-static int ion_dma_buf_begin_cpu_access(struct dma_buf *dmabuf, size_t start,
-					size_t len,
+static int ion_dma_buf_begin_cpu_access(struct dma_buf *dmabuf,
 					enum dma_data_direction direction)
 {
 	struct ion_buffer *buffer = dmabuf->priv;
@@ -1338,8 +1353,7 @@ static int ion_dma_buf_begin_cpu_access(struct dma_buf *dmabuf, size_t start,
 	return PTR_ERR_OR_ZERO(vaddr);
 }
 
-static void ion_dma_buf_end_cpu_access(struct dma_buf *dmabuf, size_t start,
-				       size_t len,
+static void ion_dma_buf_end_cpu_access(struct dma_buf *dmabuf,
 				       enum dma_data_direction direction)
 {
 	struct ion_buffer *buffer = dmabuf->priv;
@@ -1414,7 +1428,7 @@ static void *ion_dma_buf_kmap(struct dma_buf *dmabuf, unsigned long offset)
 	struct ion_buffer *buffer = dmabuf->priv;
 
 	/* FIXME: .begin_cpu_access was wrongly implemented */
-	if (ion_dma_buf_begin_cpu_access(dmabuf, 0, 0, DMA_NONE))
+	if (ion_dma_buf_begin_cpu_access(dmabuf, DMA_NONE))
 		return NULL;
 
 	return buffer->vaddr + offset * PAGE_SIZE;
@@ -1424,7 +1438,7 @@ static void ion_dma_buf_kunmap(struct dma_buf *dmabuf, unsigned long offset,
 			       void *ptr)
 {
 	/* FIXME: .end_cpu_access was wronlgy implemented */
-	ion_dma_buf_end_cpu_access(dmabuf, 0, 0, DMA_NONE);
+	ion_dma_buf_end_cpu_access(dmabuf, DMA_NONE);
 }
 
 static void *ion_dma_buf_vmap(struct dma_buf *dmabuf)

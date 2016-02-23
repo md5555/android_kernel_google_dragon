@@ -182,7 +182,7 @@ exynos_drm_encoder_create(struct drm_device *dev,
 	DRM_DEBUG_KMS("possible_crtcs = 0x%x\n", encoder->possible_crtcs);
 
 	drm_encoder_init(dev, encoder, &exynos_encoder_funcs,
-			DRM_MODE_ENCODER_TMDS);
+			DRM_MODE_ENCODER_TMDS, NULL);
 
 	drm_encoder_helper_add(encoder, &exynos_encoder_helper_funcs);
 

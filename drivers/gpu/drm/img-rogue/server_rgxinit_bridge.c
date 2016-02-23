@@ -273,6 +273,7 @@ PVRSRVBridgeRGXInitFinaliseFWImage(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
+	PMRLock();
 
 
 				{
@@ -284,6 +285,7 @@ PVRSRVBridgeRGXInitFinaliseFWImage(IMG_UINT32 ui32DispatchTableEntry,
 											PVRSRV_HANDLE_TYPE_PMR_LOCAL_EXPORT_HANDLE);
 					if(psRGXInitFinaliseFWImageOUT->eError != PVRSRV_OK)
 					{
+						PMRUnlock();
 						goto RGXInitFinaliseFWImage_exit;
 					}
 				}
@@ -293,6 +295,7 @@ PVRSRVBridgeRGXInitFinaliseFWImage(IMG_UINT32 ui32DispatchTableEntry,
 		PVRSRVRGXInitFinaliseFWImageKM(psConnection, OSGetDevData(psConnection),
 					psFWImagePMRImportInt,
 					psRGXInitFinaliseFWImageIN->ui64FWImgLen);
+	PMRUnlock();
 
 
 
@@ -380,6 +383,7 @@ PVRSRVBridgeRGXInitDevPart2(IMG_UINT32 ui32DispatchTableEntry,
 				goto RGXInitDevPart2_exit;
 			}
 
+	PMRLock();
 
 
 	psRGXInitDevPart2OUT->eError =
@@ -394,6 +398,7 @@ PVRSRVBridgeRGXInitDevPart2(IMG_UINT32 ui32DispatchTableEntry,
 					psFWDataPMRInt,
 					psFWCorememPMRInt,
 					psHWPerfPMRInt);
+	PMRUnlock();
 
 
 	psRGXInitDevPart2OUT->eError =
@@ -403,6 +408,7 @@ PVRSRVBridgeRGXInitDevPart2(IMG_UINT32 ui32DispatchTableEntry,
 	if ((psRGXInitDevPart2OUT->eError != PVRSRV_OK) && (psRGXInitDevPart2OUT->eError != PVRSRV_ERROR_RETRY))
 	{
 		PVR_ASSERT(0);
+		PMRUnlock();
 		goto RGXInitDevPart2_exit;
 	}
 
@@ -413,6 +419,7 @@ PVRSRVBridgeRGXInitDevPart2(IMG_UINT32 ui32DispatchTableEntry,
 	if ((psRGXInitDevPart2OUT->eError != PVRSRV_OK) && (psRGXInitDevPart2OUT->eError != PVRSRV_ERROR_RETRY))
 	{
 		PVR_ASSERT(0);
+		PMRUnlock();
 		goto RGXInitDevPart2_exit;
 	}
 
@@ -423,6 +430,7 @@ PVRSRVBridgeRGXInitDevPart2(IMG_UINT32 ui32DispatchTableEntry,
 	if ((psRGXInitDevPart2OUT->eError != PVRSRV_OK) && (psRGXInitDevPart2OUT->eError != PVRSRV_ERROR_RETRY))
 	{
 		PVR_ASSERT(0);
+		PMRUnlock();
 		goto RGXInitDevPart2_exit;
 	}
 
@@ -433,6 +441,7 @@ PVRSRVBridgeRGXInitDevPart2(IMG_UINT32 ui32DispatchTableEntry,
 	if ((psRGXInitDevPart2OUT->eError != PVRSRV_OK) && (psRGXInitDevPart2OUT->eError != PVRSRV_ERROR_RETRY))
 	{
 		PVR_ASSERT(0);
+		PMRUnlock();
 		goto RGXInitDevPart2_exit;
 	}
 

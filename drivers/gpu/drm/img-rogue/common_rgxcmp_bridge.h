@@ -124,8 +124,8 @@ typedef struct PVRSRV_BRIDGE_IN_RGXKICKCDM_TAG
 	IMG_UINT32 ui32CmdSize;
 	IMG_BYTE * psDMCmd;
 	IMG_BOOL bbPDumpContinuous;
-	IMG_UINT32 ui32ExternalJobReference;
-	IMG_UINT32 ui32InternalJobReference;
+	IMG_UINT32 ui32ExtJobRef;
+	IMG_UINT32 ui32IntJobRef;
 } __attribute__((packed)) PVRSRV_BRIDGE_IN_RGXKICKCDM;
 
 /* Bridge out structure for RGXKickCDM */

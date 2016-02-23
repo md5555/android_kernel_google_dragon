@@ -91,13 +91,14 @@ static int get_connectors_for_crtc(struct drm_crtc *crtc,
 	 */
 	WARN_ON(!drm_modeset_is_locked(&dev->mode_config.connection_mutex));
 
-	list_for_each_entry(connector, &dev->mode_config.connector_list, head)
+	drm_for_each_connector(connector, dev) {
 		if (connector->encoder && connector->encoder->crtc == crtc) {
 			if (connector_list != NULL && count < num_connectors)
 				*(connector_list++) = connector;
 
 			count++;
 		}
+	}
 
 	return count;
 }
@@ -344,20 +345,7 @@ const struct drm_plane_funcs drm_primary_helper_funcs = {
 };
 EXPORT_SYMBOL(drm_primary_helper_funcs);
 
-/**
- * drm_primary_helper_create_plane() - Create a generic primary plane
- * @dev: drm device
- * @formats: pixel formats supported, or NULL for a default safe list
- * @num_formats: size of @formats; ignored if @formats is NULL
- *
- * Allocates and initializes a primary plane that can be used with the primary
- * plane helpers.  Drivers that wish to use driver-specific plane structures or
- * provide custom handler functions may perform their own allocation and
- * initialization rather than calling this function.
- */
-struct drm_plane *drm_primary_helper_create_plane(struct drm_device *dev,
-						  const uint32_t *formats,
-						  int num_formats)
+static struct drm_plane *create_primary_plane(struct drm_device *dev)
 {
 	struct drm_plane *primary;
 	int ret;
@@ -368,16 +356,18 @@ struct drm_plane *drm_primary_helper_create_plane(struct drm_device *dev,
 		return NULL;
 	}
 
-	if (formats == NULL) {
-		formats = safe_modeset_formats;
-		num_formats = ARRAY_SIZE(safe_modeset_formats);
-	}
+	/*
+	 * Remove the format_default field from drm_plane when dropping
+	 * this helper.
+	 */
+	primary->format_default = true;
 
 	/* possible_crtc's will be filled in later by crtc_init */
 	ret = drm_universal_plane_init(dev, primary, 0,
 				       &drm_primary_helper_funcs,
-				       formats, num_formats,
-				       DRM_PLANE_TYPE_PRIMARY);
+				       safe_modeset_formats,
+				       ARRAY_SIZE(safe_modeset_formats),
+				       DRM_PLANE_TYPE_PRIMARY, NULL);
 	if (ret) {
 		kfree(primary);
 		primary = NULL;
@@ -385,7 +375,6 @@ struct drm_plane *drm_primary_helper_create_plane(struct drm_device *dev,
 
 	return primary;
 }
-EXPORT_SYMBOL(drm_primary_helper_create_plane);
 
 /**
  * drm_crtc_init - Legacy CRTC initialization function
@@ -404,8 +393,9 @@ int drm_crtc_init(struct drm_device *dev, struct drm_crtc *crtc,
 {
 	struct drm_plane *primary;
 
-	primary = drm_primary_helper_create_plane(dev, NULL, 0);
-	return drm_crtc_init_with_planes(dev, crtc, primary, NULL, funcs);
+	primary = create_primary_plane(dev);
+	return drm_crtc_init_with_planes(dev, crtc, primary, NULL, funcs,
+					 NULL);
 }
 EXPORT_SYMBOL(drm_crtc_init);
 
@@ -413,9 +403,9 @@ int drm_plane_helper_commit(struct drm_plane *plane,
 			    struct drm_plane_state *plane_state,
 			    struct drm_framebuffer *old_fb)
 {
-	struct drm_plane_helper_funcs *plane_funcs;
+	const struct drm_plane_helper_funcs *plane_funcs;
 	struct drm_crtc *crtc[2];
-	struct drm_crtc_helper_funcs *crtc_funcs[2];
+	const struct drm_crtc_helper_funcs *crtc_funcs[2];
 	int i, ret = 0;
 
 	plane_funcs = plane->helper_private;

@@ -2401,6 +2401,9 @@ intel_sdvo_connector_init(struct intel_sdvo_connector *connector,
 	if (ret < 0)
 		goto err1;
 
+	intel_i2c_register(encoder->base.base.dev, &connector->base.base,
+			   encoder->ddc_bus);
+
 	ret = sysfs_create_link(&drm_connector->kdev->kobj,
 				&encoder->ddc.dev.kobj,
 				encoder->ddc.dev.kobj.name);
@@ -2977,7 +2980,8 @@ bool intel_sdvo_init(struct drm_device *dev, uint32_t sdvo_reg, bool is_sdvob)
 	/* encoder type will be decided later */
 	intel_encoder = &intel_sdvo->base;
 	intel_encoder->type = INTEL_OUTPUT_SDVO;
-	drm_encoder_init(dev, &intel_encoder->base, &intel_sdvo_enc_funcs, 0);
+	drm_encoder_init(dev, &intel_encoder->base, &intel_sdvo_enc_funcs, 0,
+			 NULL);
 
 	/* Read the regs to test if we can talk to the device */
 	for (i = 0; i < 0x40; i++) {

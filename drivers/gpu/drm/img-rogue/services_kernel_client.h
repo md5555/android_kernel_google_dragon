@@ -142,6 +142,8 @@ static inline enum PVRSRV_ERROR __printf(1, 2) PDumpComment(char *fmt, ...)
 
 void OSAcquireBridgeLock(void);
 void OSReleaseBridgeLock(void);
+void PMRLock(void);
+void PMRUnlock(void);
 enum PVRSRV_ERROR OSEventObjectWait(void *hOSEventKM);
 enum PVRSRV_ERROR OSEventObjectOpen(void *hEventObject, void **phOSEventKM);
 enum PVRSRV_ERROR OSEventObjectClose(void *hOSEventKM);

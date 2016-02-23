@@ -69,7 +69,7 @@ int PVRDebugFSCreateEntryDir(IMG_CHAR *pszName,
 				 	 	 	 PVR_DEBUGFS_DIR_DATA *psParentDir,
 							 PVR_DEBUGFS_DIR_DATA **ppsNewDir);
 
-void PVRDebugFSRemoveEntryDir(PVR_DEBUGFS_DIR_DATA *psDir);
+void PVRDebugFSRemoveEntryDir(PVR_DEBUGFS_DIR_DATA **ppsDir);
 
 int PVRDebugFSCreateEntry(const char *pszName,
 			  	  	  	  PVR_DEBUGFS_DIR_DATA *psParentDir,
@@ -78,7 +78,7 @@ int PVRDebugFSCreateEntry(const char *pszName,
 						  void *pvData,
 						  PVR_DEBUGFS_ENTRY_DATA **ppsNewEntry);
 
-void PVRDebugFSRemoveEntry(PVR_DEBUGFS_ENTRY_DATA *psDebugFSEntry);
+void PVRDebugFSRemoveEntry(PVR_DEBUGFS_ENTRY_DATA **ppsDebugFSEntry);
 
 PVR_DEBUGFS_DRIVER_STAT *PVRDebugFSCreateStatisticEntry(const char *pszName,
 					 	 	 	 	 	 	 	 	 	PVR_DEBUGFS_DIR_DATA *psDir,

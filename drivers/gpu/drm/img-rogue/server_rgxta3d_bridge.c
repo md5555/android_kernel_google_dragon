@@ -112,6 +112,7 @@ PVRSRVBridgeRGXCreateHWRTData(IMG_UINT32 ui32DispatchTableEntry,
 				goto RGXCreateHWRTData_exit;
 			}
 
+	PMRLock();
 
 
 	{
@@ -128,6 +129,7 @@ PVRSRVBridgeRGXCreateHWRTData(IMG_UINT32 ui32DispatchTableEntry,
 											PVRSRV_HANDLE_TYPE_RGX_FREELIST);
 					if(psRGXCreateHWRTDataOUT->eError != PVRSRV_OK)
 					{
+						PMRUnlock();
 						goto RGXCreateHWRTData_exit;
 					}
 				}
@@ -166,8 +168,10 @@ PVRSRVBridgeRGXCreateHWRTData(IMG_UINT32 ui32DispatchTableEntry,
 	/* Exit early if bridged call fails */
 	if(psRGXCreateHWRTDataOUT->eError != PVRSRV_OK)
 	{
+		PMRUnlock();
 		goto RGXCreateHWRTData_exit;
 	}
+	PMRUnlock();
 
 
 	psRGXCreateHWRTDataOUT->eError = PVRSRVAllocHandle(psConnection->psHandleBase,
@@ -250,6 +254,7 @@ PVRSRVBridgeRGXDestroyHWRTData(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
+	PMRLock();
 
 
 
@@ -261,9 +266,11 @@ PVRSRVBridgeRGXDestroyHWRTData(IMG_UINT32 ui32DispatchTableEntry,
 	if ((psRGXDestroyHWRTDataOUT->eError != PVRSRV_OK) && (psRGXDestroyHWRTDataOUT->eError != PVRSRV_ERROR_RETRY))
 	{
 		PVR_ASSERT(0);
+		PMRUnlock();
 		goto RGXDestroyHWRTData_exit;
 	}
 
+	PMRUnlock();
 
 
 RGXDestroyHWRTData_exit:
@@ -283,6 +290,7 @@ PVRSRVBridgeRGXCreateRenderTarget(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
+	PMRLock();
 
 
 	psRGXCreateRenderTargetOUT->eError =
@@ -293,8 +301,10 @@ PVRSRVBridgeRGXCreateRenderTarget(IMG_UINT32 ui32DispatchTableEntry,
 	/* Exit early if bridged call fails */
 	if(psRGXCreateRenderTargetOUT->eError != PVRSRV_OK)
 	{
+		PMRUnlock();
 		goto RGXCreateRenderTarget_exit;
 	}
+	PMRUnlock();
 
 
 	psRGXCreateRenderTargetOUT->eError = PVRSRVAllocHandle(psConnection->psHandleBase,
@@ -335,6 +345,7 @@ PVRSRVBridgeRGXDestroyRenderTarget(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
+	PMRLock();
 
 
 
@@ -346,9 +357,11 @@ PVRSRVBridgeRGXDestroyRenderTarget(IMG_UINT32 ui32DispatchTableEntry,
 	if ((psRGXDestroyRenderTargetOUT->eError != PVRSRV_OK) && (psRGXDestroyRenderTargetOUT->eError != PVRSRV_ERROR_RETRY))
 	{
 		PVR_ASSERT(0);
+		PMRUnlock();
 		goto RGXDestroyRenderTarget_exit;
 	}
 
+	PMRUnlock();
 
 
 RGXDestroyRenderTarget_exit:
@@ -370,6 +383,7 @@ PVRSRVBridgeRGXCreateZSBuffer(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
+	PMRLock();
 
 
 				{
@@ -381,6 +395,7 @@ PVRSRVBridgeRGXCreateZSBuffer(IMG_UINT32 ui32DispatchTableEntry,
 											PVRSRV_HANDLE_TYPE_DEVMEMINT_RESERVATION);
 					if(psRGXCreateZSBufferOUT->eError != PVRSRV_OK)
 					{
+						PMRUnlock();
 						goto RGXCreateZSBuffer_exit;
 					}
 				}
@@ -395,6 +410,7 @@ PVRSRVBridgeRGXCreateZSBuffer(IMG_UINT32 ui32DispatchTableEntry,
 											PVRSRV_HANDLE_TYPE_PHYSMEM_PMR);
 					if(psRGXCreateZSBufferOUT->eError != PVRSRV_OK)
 					{
+						PMRUnlock();
 						goto RGXCreateZSBuffer_exit;
 					}
 				}
@@ -410,8 +426,10 @@ PVRSRVBridgeRGXCreateZSBuffer(IMG_UINT32 ui32DispatchTableEntry,
 	/* Exit early if bridged call fails */
 	if(psRGXCreateZSBufferOUT->eError != PVRSRV_OK)
 	{
+		PMRUnlock();
 		goto RGXCreateZSBuffer_exit;
 	}
+	PMRUnlock();
 
 
 	psRGXCreateZSBufferOUT->eError = PVRSRVAllocHandle(psConnection->psHandleBase,
@@ -452,6 +470,7 @@ PVRSRVBridgeRGXDestroyZSBuffer(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
+	PMRLock();
 
 
 
@@ -463,9 +482,11 @@ PVRSRVBridgeRGXDestroyZSBuffer(IMG_UINT32 ui32DispatchTableEntry,
 	if ((psRGXDestroyZSBufferOUT->eError != PVRSRV_OK) && (psRGXDestroyZSBufferOUT->eError != PVRSRV_ERROR_RETRY))
 	{
 		PVR_ASSERT(0);
+		PMRUnlock();
 		goto RGXDestroyZSBuffer_exit;
 	}
 
+	PMRUnlock();
 
 
 RGXDestroyZSBuffer_exit:
@@ -486,6 +507,7 @@ PVRSRVBridgeRGXPopulateZSBuffer(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
+	PMRLock();
 
 
 				{
@@ -497,6 +519,7 @@ PVRSRVBridgeRGXPopulateZSBuffer(IMG_UINT32 ui32DispatchTableEntry,
 											PVRSRV_HANDLE_TYPE_RGX_FWIF_ZSBUFFER);
 					if(psRGXPopulateZSBufferOUT->eError != PVRSRV_OK)
 					{
+						PMRUnlock();
 						goto RGXPopulateZSBuffer_exit;
 					}
 				}
@@ -509,8 +532,10 @@ PVRSRVBridgeRGXPopulateZSBuffer(IMG_UINT32 ui32DispatchTableEntry,
 	/* Exit early if bridged call fails */
 	if(psRGXPopulateZSBufferOUT->eError != PVRSRV_OK)
 	{
+		PMRUnlock();
 		goto RGXPopulateZSBuffer_exit;
 	}
+	PMRUnlock();
 
 
 	psRGXPopulateZSBufferOUT->eError = PVRSRVAllocHandle(psConnection->psHandleBase,
@@ -551,6 +576,7 @@ PVRSRVBridgeRGXUnpopulateZSBuffer(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
+	PMRLock();
 
 
 
@@ -562,9 +588,11 @@ PVRSRVBridgeRGXUnpopulateZSBuffer(IMG_UINT32 ui32DispatchTableEntry,
 	if ((psRGXUnpopulateZSBufferOUT->eError != PVRSRV_OK) && (psRGXUnpopulateZSBufferOUT->eError != PVRSRV_ERROR_RETRY))
 	{
 		PVR_ASSERT(0);
+		PMRUnlock();
 		goto RGXUnpopulateZSBuffer_exit;
 	}
 
+	PMRUnlock();
 
 
 RGXUnpopulateZSBuffer_exit:
@@ -585,6 +613,7 @@ PVRSRVBridgeRGXCreateFreeList(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
+	PMRLock();
 
 
 				{
@@ -596,6 +625,7 @@ PVRSRVBridgeRGXCreateFreeList(IMG_UINT32 ui32DispatchTableEntry,
 											PVRSRV_HANDLE_TYPE_PHYSMEM_PMR);
 					if(psRGXCreateFreeListOUT->eError != PVRSRV_OK)
 					{
+						PMRUnlock();
 						goto RGXCreateFreeList_exit;
 					}
 				}
@@ -614,8 +644,10 @@ PVRSRVBridgeRGXCreateFreeList(IMG_UINT32 ui32DispatchTableEntry,
 	/* Exit early if bridged call fails */
 	if(psRGXCreateFreeListOUT->eError != PVRSRV_OK)
 	{
+		PMRUnlock();
 		goto RGXCreateFreeList_exit;
 	}
+	PMRUnlock();
 
 
 	psRGXCreateFreeListOUT->eError = PVRSRVAllocHandle(psConnection->psHandleBase,
@@ -656,6 +688,7 @@ PVRSRVBridgeRGXDestroyFreeList(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
+	PMRLock();
 
 
 
@@ -667,9 +700,11 @@ PVRSRVBridgeRGXDestroyFreeList(IMG_UINT32 ui32DispatchTableEntry,
 	if ((psRGXDestroyFreeListOUT->eError != PVRSRV_OK) && (psRGXDestroyFreeListOUT->eError != PVRSRV_ERROR_RETRY))
 	{
 		PVR_ASSERT(0);
+		PMRUnlock();
 		goto RGXDestroyFreeList_exit;
 	}
 
+	PMRUnlock();
 
 
 RGXDestroyFreeList_exit:
@@ -792,6 +827,7 @@ PVRSRVBridgeRGXCreateRenderContext(IMG_UINT32 ui32DispatchTableEntry,
 				goto RGXCreateRenderContext_exit;
 			}
 
+	PMRLock();
 
 
 				{
@@ -803,6 +839,7 @@ PVRSRVBridgeRGXCreateRenderContext(IMG_UINT32 ui32DispatchTableEntry,
 											PVRSRV_HANDLE_TYPE_DEV_PRIV_DATA);
 					if(psRGXCreateRenderContextOUT->eError != PVRSRV_OK)
 					{
+						PMRUnlock();
 						goto RGXCreateRenderContext_exit;
 					}
 				}
@@ -820,8 +857,10 @@ PVRSRVBridgeRGXCreateRenderContext(IMG_UINT32 ui32DispatchTableEntry,
 	/* Exit early if bridged call fails */
 	if(psRGXCreateRenderContextOUT->eError != PVRSRV_OK)
 	{
+		PMRUnlock();
 		goto RGXCreateRenderContext_exit;
 	}
+	PMRUnlock();
 
 
 	psRGXCreateRenderContextOUT->eError = PVRSRVAllocHandle(psConnection->psHandleBase,
@@ -864,6 +903,7 @@ PVRSRVBridgeRGXDestroyRenderContext(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
+	PMRLock();
 
 
 
@@ -875,9 +915,11 @@ PVRSRVBridgeRGXDestroyRenderContext(IMG_UINT32 ui32DispatchTableEntry,
 	if ((psRGXDestroyRenderContextOUT->eError != PVRSRV_OK) && (psRGXDestroyRenderContextOUT->eError != PVRSRV_ERROR_RETRY))
 	{
 		PVR_ASSERT(0);
+		PMRUnlock();
 		goto RGXDestroyRenderContext_exit;
 	}
 
+	PMRUnlock();
 
 
 RGXDestroyRenderContext_exit:
@@ -1419,6 +1461,7 @@ PVRSRVBridgeRGXKickTA3D(IMG_UINT32 ui32DispatchTableEntry,
 				goto RGXKickTA3D_exit;
 			}
 
+	PMRLock();
 
 
 				{
@@ -1430,6 +1473,7 @@ PVRSRVBridgeRGXKickTA3D(IMG_UINT32 ui32DispatchTableEntry,
 											PVRSRV_HANDLE_TYPE_RGX_SERVER_RENDER_CONTEXT);
 					if(psRGXKickTA3DOUT->eError != PVRSRV_OK)
 					{
+						PMRUnlock();
 						goto RGXKickTA3D_exit;
 					}
 				}
@@ -1449,6 +1493,7 @@ PVRSRVBridgeRGXKickTA3D(IMG_UINT32 ui32DispatchTableEntry,
 											PVRSRV_HANDLE_TYPE_SYNC_PRIMITIVE_BLOCK);
 					if(psRGXKickTA3DOUT->eError != PVRSRV_OK)
 					{
+						PMRUnlock();
 						goto RGXKickTA3D_exit;
 					}
 				}
@@ -1470,6 +1515,7 @@ PVRSRVBridgeRGXKickTA3D(IMG_UINT32 ui32DispatchTableEntry,
 											PVRSRV_HANDLE_TYPE_SYNC_PRIMITIVE_BLOCK);
 					if(psRGXKickTA3DOUT->eError != PVRSRV_OK)
 					{
+						PMRUnlock();
 						goto RGXKickTA3D_exit;
 					}
 				}
@@ -1491,6 +1537,7 @@ PVRSRVBridgeRGXKickTA3D(IMG_UINT32 ui32DispatchTableEntry,
 											PVRSRV_HANDLE_TYPE_SERVER_SYNC_PRIMITIVE);
 					if(psRGXKickTA3DOUT->eError != PVRSRV_OK)
 					{
+						PMRUnlock();
 						goto RGXKickTA3D_exit;
 					}
 				}
@@ -1512,6 +1559,7 @@ PVRSRVBridgeRGXKickTA3D(IMG_UINT32 ui32DispatchTableEntry,
 											PVRSRV_HANDLE_TYPE_SYNC_PRIMITIVE_BLOCK);
 					if(psRGXKickTA3DOUT->eError != PVRSRV_OK)
 					{
+						PMRUnlock();
 						goto RGXKickTA3D_exit;
 					}
 				}
@@ -1533,6 +1581,7 @@ PVRSRVBridgeRGXKickTA3D(IMG_UINT32 ui32DispatchTableEntry,
 											PVRSRV_HANDLE_TYPE_SYNC_PRIMITIVE_BLOCK);
 					if(psRGXKickTA3DOUT->eError != PVRSRV_OK)
 					{
+						PMRUnlock();
 						goto RGXKickTA3D_exit;
 					}
 				}
@@ -1554,6 +1603,7 @@ PVRSRVBridgeRGXKickTA3D(IMG_UINT32 ui32DispatchTableEntry,
 											PVRSRV_HANDLE_TYPE_SERVER_SYNC_PRIMITIVE);
 					if(psRGXKickTA3DOUT->eError != PVRSRV_OK)
 					{
+						PMRUnlock();
 						goto RGXKickTA3D_exit;
 					}
 				}
@@ -1570,6 +1620,7 @@ PVRSRVBridgeRGXKickTA3D(IMG_UINT32 ui32DispatchTableEntry,
 											PVRSRV_HANDLE_TYPE_SYNC_PRIMITIVE_BLOCK);
 					if(psRGXKickTA3DOUT->eError != PVRSRV_OK)
 					{
+						PMRUnlock();
 						goto RGXKickTA3D_exit;
 					}
 				}
@@ -1585,6 +1636,7 @@ PVRSRVBridgeRGXKickTA3D(IMG_UINT32 ui32DispatchTableEntry,
 											PVRSRV_HANDLE_TYPE_RGX_RTDATA_CLEANUP);
 					if(psRGXKickTA3DOUT->eError != PVRSRV_OK)
 					{
+						PMRUnlock();
 						goto RGXKickTA3D_exit;
 					}
 				}
@@ -1600,6 +1652,7 @@ PVRSRVBridgeRGXKickTA3D(IMG_UINT32 ui32DispatchTableEntry,
 											PVRSRV_HANDLE_TYPE_RGX_FWIF_ZSBUFFER);
 					if(psRGXKickTA3DOUT->eError != PVRSRV_OK)
 					{
+						PMRUnlock();
 						goto RGXKickTA3D_exit;
 					}
 				}
@@ -1615,6 +1668,7 @@ PVRSRVBridgeRGXKickTA3D(IMG_UINT32 ui32DispatchTableEntry,
 											PVRSRV_HANDLE_TYPE_RGX_FWIF_ZSBUFFER);
 					if(psRGXKickTA3DOUT->eError != PVRSRV_OK)
 					{
+						PMRUnlock();
 						goto RGXKickTA3D_exit;
 					}
 				}
@@ -1634,6 +1688,7 @@ PVRSRVBridgeRGXKickTA3D(IMG_UINT32 ui32DispatchTableEntry,
 											PVRSRV_HANDLE_TYPE_PHYSMEM_PMR);
 					if(psRGXKickTA3DOUT->eError != PVRSRV_OK)
 					{
+						PMRUnlock();
 						goto RGXKickTA3D_exit;
 					}
 				}
@@ -1679,8 +1734,8 @@ PVRSRVBridgeRGXKickTA3D(IMG_UINT32 ui32DispatchTableEntry,
 					ps3DPRCmdInt,
 					psRGXKickTA3DIN->ui323DCmdSize,
 					ps3DCmdInt,
-					psRGXKickTA3DIN->ui32ExternalJobReference,
-					psRGXKickTA3DIN->ui32InternalJobReference,
+					psRGXKickTA3DIN->ui32ExtJobRef,
+					psRGXKickTA3DIN->ui32IntJobRef,
 					psRGXKickTA3DIN->bbLastTAInScene,
 					psRGXKickTA3DIN->bbKickTA,
 					psRGXKickTA3DIN->bbKickPR,
@@ -1697,6 +1752,7 @@ PVRSRVBridgeRGXKickTA3D(IMG_UINT32 ui32DispatchTableEntry,
 					psRGXKickTA3DIN->ui32SyncPMRCount,
 					ui32SyncPMRFlagsInt,
 					psSyncPMRsInt);
+	PMRUnlock();
 
 
 

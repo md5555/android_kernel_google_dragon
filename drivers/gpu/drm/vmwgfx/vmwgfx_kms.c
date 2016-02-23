@@ -1130,7 +1130,7 @@ out_err1:
 
 static struct drm_framebuffer *vmw_kms_fb_create(struct drm_device *dev,
 						 struct drm_file *file_priv,
-						 struct drm_mode_fb_cmd2 *mode_cmd2)
+						 const struct drm_mode_fb_cmd2 *mode_cmd2)
 {
 	struct vmw_private *dev_priv = vmw_priv(dev);
 	struct ttm_object_file *tfile = vmw_fpriv(file_priv)->tfile;
@@ -1648,7 +1648,7 @@ bool vmw_kms_validate_mode_vram(struct vmw_private *dev_priv,
 /**
  * Function called by DRM code called with vbl_lock held.
  */
-u32 vmw_get_vblank_counter(struct drm_device *dev, int crtc)
+u32 vmw_get_vblank_counter(struct drm_device *dev, unsigned int pipe)
 {
 	return 0;
 }
@@ -1656,7 +1656,7 @@ u32 vmw_get_vblank_counter(struct drm_device *dev, int crtc)
 /**
  * Function called by DRM code called with vbl_lock held.
  */
-int vmw_enable_vblank(struct drm_device *dev, int crtc)
+int vmw_enable_vblank(struct drm_device *dev, unsigned int pipe)
 {
 	return -ENOSYS;
 }
@@ -1664,7 +1664,7 @@ int vmw_enable_vblank(struct drm_device *dev, int crtc)
 /**
  * Function called by DRM code called with vbl_lock held.
  */
-void vmw_disable_vblank(struct drm_device *dev, int crtc)
+void vmw_disable_vblank(struct drm_device *dev, unsigned int pipe)
 {
 }
 

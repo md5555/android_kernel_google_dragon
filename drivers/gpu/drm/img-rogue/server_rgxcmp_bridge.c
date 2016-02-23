@@ -102,6 +102,7 @@ PVRSRVBridgeRGXCreateComputeContext(IMG_UINT32 ui32DispatchTableEntry,
 				goto RGXCreateComputeContext_exit;
 			}
 
+	PMRLock();
 
 
 				{
@@ -113,6 +114,7 @@ PVRSRVBridgeRGXCreateComputeContext(IMG_UINT32 ui32DispatchTableEntry,
 											PVRSRV_HANDLE_TYPE_DEV_PRIV_DATA);
 					if(psRGXCreateComputeContextOUT->eError != PVRSRV_OK)
 					{
+						PMRUnlock();
 						goto RGXCreateComputeContext_exit;
 					}
 				}
@@ -129,8 +131,10 @@ PVRSRVBridgeRGXCreateComputeContext(IMG_UINT32 ui32DispatchTableEntry,
 	/* Exit early if bridged call fails */
 	if(psRGXCreateComputeContextOUT->eError != PVRSRV_OK)
 	{
+		PMRUnlock();
 		goto RGXCreateComputeContext_exit;
 	}
+	PMRUnlock();
 
 
 	psRGXCreateComputeContextOUT->eError = PVRSRVAllocHandle(psConnection->psHandleBase,
@@ -173,6 +177,7 @@ PVRSRVBridgeRGXDestroyComputeContext(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
+	PMRLock();
 
 
 
@@ -184,9 +189,11 @@ PVRSRVBridgeRGXDestroyComputeContext(IMG_UINT32 ui32DispatchTableEntry,
 	if ((psRGXDestroyComputeContextOUT->eError != PVRSRV_OK) && (psRGXDestroyComputeContextOUT->eError != PVRSRV_ERROR_RETRY))
 	{
 		PVR_ASSERT(0);
+		PMRUnlock();
 		goto RGXDestroyComputeContext_exit;
 	}
 
+	PMRUnlock();
 
 
 RGXDestroyComputeContext_exit:
@@ -419,6 +426,9 @@ PVRSRVBridgeRGXKickCDM(IMG_UINT32 ui32DispatchTableEntry,
 				goto RGXKickCDM_exit;
 			}
 
+#if defined(PDUMP)
+	PMRLock();
+#endif
 
 
 				{
@@ -430,6 +440,9 @@ PVRSRVBridgeRGXKickCDM(IMG_UINT32 ui32DispatchTableEntry,
 											PVRSRV_HANDLE_TYPE_RGX_SERVER_COMPUTE_CONTEXT);
 					if(psRGXKickCDMOUT->eError != PVRSRV_OK)
 					{
+#if defined(PDUMP)
+						PMRUnlock();
+#endif
 						goto RGXKickCDM_exit;
 					}
 				}
@@ -449,6 +462,9 @@ PVRSRVBridgeRGXKickCDM(IMG_UINT32 ui32DispatchTableEntry,
 											PVRSRV_HANDLE_TYPE_SYNC_PRIMITIVE_BLOCK);
 					if(psRGXKickCDMOUT->eError != PVRSRV_OK)
 					{
+#if defined(PDUMP)
+						PMRUnlock();
+#endif
 						goto RGXKickCDM_exit;
 					}
 				}
@@ -470,6 +486,9 @@ PVRSRVBridgeRGXKickCDM(IMG_UINT32 ui32DispatchTableEntry,
 											PVRSRV_HANDLE_TYPE_SYNC_PRIMITIVE_BLOCK);
 					if(psRGXKickCDMOUT->eError != PVRSRV_OK)
 					{
+#if defined(PDUMP)
+						PMRUnlock();
+#endif
 						goto RGXKickCDM_exit;
 					}
 				}
@@ -491,6 +510,9 @@ PVRSRVBridgeRGXKickCDM(IMG_UINT32 ui32DispatchTableEntry,
 											PVRSRV_HANDLE_TYPE_SERVER_SYNC_PRIMITIVE);
 					if(psRGXKickCDMOUT->eError != PVRSRV_OK)
 					{
+#if defined(PDUMP)
+						PMRUnlock();
+#endif
 						goto RGXKickCDM_exit;
 					}
 				}
@@ -515,8 +537,11 @@ PVRSRVBridgeRGXKickCDM(IMG_UINT32 ui32DispatchTableEntry,
 					psRGXKickCDMIN->ui32CmdSize,
 					psDMCmdInt,
 					psRGXKickCDMIN->bbPDumpContinuous,
-					psRGXKickCDMIN->ui32ExternalJobReference,
-					psRGXKickCDMIN->ui32InternalJobReference);
+					psRGXKickCDMIN->ui32ExtJobRef,
+					psRGXKickCDMIN->ui32IntJobRef);
+#if defined(PDUMP)
+	PMRUnlock();
+#endif
 
 
 
@@ -562,6 +587,9 @@ PVRSRVBridgeRGXFlushComputeData(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
+#if defined(PDUMP)
+	PMRLock();
+#endif
 
 
 				{
@@ -573,6 +601,9 @@ PVRSRVBridgeRGXFlushComputeData(IMG_UINT32 ui32DispatchTableEntry,
 											PVRSRV_HANDLE_TYPE_RGX_SERVER_COMPUTE_CONTEXT);
 					if(psRGXFlushComputeDataOUT->eError != PVRSRV_OK)
 					{
+#if defined(PDUMP)
+						PMRUnlock();
+#endif
 						goto RGXFlushComputeData_exit;
 					}
 				}
@@ -581,6 +612,9 @@ PVRSRVBridgeRGXFlushComputeData(IMG_UINT32 ui32DispatchTableEntry,
 	psRGXFlushComputeDataOUT->eError =
 		PVRSRVRGXFlushComputeDataKM(
 					psComputeContextInt);
+#if defined(PDUMP)
+	PMRUnlock();
+#endif
 
 
 

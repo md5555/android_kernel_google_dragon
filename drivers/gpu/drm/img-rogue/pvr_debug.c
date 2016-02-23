@@ -1278,23 +1278,19 @@ int PVRDebugCreateDebugFSEntries(void)
 
 #if (defined(DEBUG) && defined(PVRSRV_ENABLE_FW_TRACE_DEBUGFS))
 ErrorRemoveFWTraceLogEntry:
-	PVRDebugFSRemoveEntry(gpsFWTraceDebugFSEntry);
-	gpsFWTraceDebugFSEntry = NULL;
+	PVRDebugFSRemoveEntry(&gpsFWTraceDebugFSEntry);
 #endif
 
 #if (defined(DEBUG) || defined(PVRSRV_ENABLE_FW_TRACE_DEBUGFS))
 ErrorRemoveDumpDebugEntry:
-	PVRDebugFSRemoveEntry(gpsDumpDebugDebugFSEntry);
-	gpsDumpDebugDebugFSEntry = NULL;
+	PVRDebugFSRemoveEntry(&gpsDumpDebugDebugFSEntry);
 #endif
 
 ErrorRemoveStatusEntry:
-	PVRDebugFSRemoveEntry(gpsStatusDebugFSEntry);
-	gpsStatusDebugFSEntry = NULL;
+	PVRDebugFSRemoveEntry(&gpsStatusDebugFSEntry);
 
 ErrorRemoveVersionEntry:
-	PVRDebugFSRemoveEntry(gpsVersionDebugFSEntry);
-	gpsVersionDebugFSEntry = NULL;
+	PVRDebugFSRemoveEntry(&gpsVersionDebugFSEntry);
 
 	return iResult;
 }
@@ -1308,35 +1304,30 @@ void PVRDebugRemoveDebugFSEntries(void)
 #if defined(DEBUG)
 	if (gpsDebugLevelDebugFSEntry != NULL)
 	{
-		PVRDebugFSRemoveEntry(gpsDebugLevelDebugFSEntry);
-		gpsDebugLevelDebugFSEntry = NULL;
+		PVRDebugFSRemoveEntry(&gpsDebugLevelDebugFSEntry);
 	}
 #endif
 
 #if defined(PVRSRV_ENABLE_FW_TRACE_DEBUGFS)
 	if (gpsFWTraceDebugFSEntry != NULL)
 	{
-		PVRDebugFSRemoveEntry(gpsFWTraceDebugFSEntry);
-		gpsFWTraceDebugFSEntry = NULL;
+		PVRDebugFSRemoveEntry(&gpsFWTraceDebugFSEntry);
 	}
 #endif
 
 	if (gpsDumpDebugDebugFSEntry != NULL)
 	{
-		PVRDebugFSRemoveEntry(gpsDumpDebugDebugFSEntry);
-		gpsDumpDebugDebugFSEntry = NULL;
+		PVRDebugFSRemoveEntry(&gpsDumpDebugDebugFSEntry);
 	}
 
 	if (gpsStatusDebugFSEntry != NULL)
 	{
-		PVRDebugFSRemoveEntry(gpsStatusDebugFSEntry);
-		gpsStatusDebugFSEntry = NULL;
+		PVRDebugFSRemoveEntry(&gpsStatusDebugFSEntry);
 	}
 
 	if (gpsVersionDebugFSEntry != NULL)
 	{
-		PVRDebugFSRemoveEntry(gpsVersionDebugFSEntry);
-		gpsVersionDebugFSEntry = NULL;
+		PVRDebugFSRemoveEntry(&gpsVersionDebugFSEntry);
 	}
 }
 

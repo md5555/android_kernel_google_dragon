@@ -42,6 +42,14 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */ /**************************************************************************/
 
+#include <linux/version.h>
+
+#include "physmem_dmabuf.h"
+#include "pvrsrv.h"
+#include "pmr.h"
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0) || defined(SUPPORT_ION) || defined(KERNEL_HAS_DMABUF_VMAP_MMAP)
+
 #if defined(SUPPORT_DRM)
 #include "pvr_drm.h"
 #endif
@@ -53,11 +61,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "allocmem.h"
 #include "osfunc.h"
-#include "pvrsrv.h"
 #include "pdump_physmem.h"
-#include "pmr.h"
 #include "pmr_impl.h"
-#include "physmem_dmabuf.h"
 #include "hash.h"
 #include "private_data.h"
 #include "module_common.h"
@@ -74,6 +79,64 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <linux/slab.h>
 #include <linux/dma-buf.h>
 #include <linux/scatterlist.h>
+
+/*
+ * dma_buf_ops
+ *
+ * These are all returning errors if used.
+ * The point is to prevent anyone outside of our driver from importing
+ * and using our dmabuf.
+ */
+
+static int PVRDmaBufOpsAttach(struct dma_buf *psDmaBuf, struct device *psDev,
+                           struct dma_buf_attachment *psAttachment)
+{
+	return -ENOSYS;
+}
+
+static struct sg_table *PVRDmaBufOpsMap(struct dma_buf_attachment *psAttachment,
+                                      enum dma_data_direction eDirection)
+{
+	/* Attach hasn't been called yet */
+	return ERR_PTR(-EINVAL);
+}
+
+static void PVRDmaBufOpsUnmap(struct dma_buf_attachment *psAttachment,
+                           struct sg_table *psTable,
+                           enum dma_data_direction eDirection)
+{
+}
+
+static void PVRDmaBufOpsRelease(struct dma_buf *psDmaBuf)
+{
+	PMR *psPMR = (PMR *) psDmaBuf->priv;
+
+	PMRUnrefPMR(psPMR);
+}
+
+static void *PVRDmaBufOpsKMap(struct dma_buf *psDmaBuf, unsigned long uiPageNum)
+{
+	return ERR_PTR(-ENOSYS);
+}
+
+static int PVRDmaBufOpsMMap(struct dma_buf *psDmaBuf, struct vm_area_struct *psVMA)
+{
+	return -ENOSYS;
+}
+
+static const struct dma_buf_ops sPVRDmaBufOps =
+{
+	.attach        = PVRDmaBufOpsAttach,
+	.map_dma_buf   = PVRDmaBufOpsMap,
+	.unmap_dma_buf = PVRDmaBufOpsUnmap,
+	.release       = PVRDmaBufOpsRelease,
+	.kmap_atomic   = PVRDmaBufOpsKMap,
+	.kmap          = PVRDmaBufOpsKMap,
+	.mmap          = PVRDmaBufOpsMMap,
+};
+
+/* end of dma_buf_ops */
+
 
 typedef struct _PMR_DMA_BUF_DATA_
 {
@@ -93,10 +156,8 @@ typedef struct _PMR_DMA_BUF_DATA_
 /* Start size of the g_psDmaBufHash hash table */
 #define DMA_BUF_HASH_SIZE 20
 
-#if defined(SUPPORT_DMABUF)
 static HASH_TABLE *g_psDmaBufHash = NULL;
 static IMG_UINT32 g_ui32HashRefCount = 0;
-#endif
 
 #if defined(PVR_ANDROID_ION_USE_SG_LENGTH)
 #define pvr_sg_length(sg) ((sg)->length)
@@ -151,7 +212,7 @@ static PVRSRV_ERROR PMRFinalizeDmaBuf(PMR_IMPL_PRIVDATA pvPriv)
 		void *pvKernAddr;
 		int i, err;
 
-		err = dma_buf_begin_cpu_access(psDmaBuf, 0, psDmaBuf->size, DMA_FROM_DEVICE);
+		err = dma_buf_begin_cpu_access(psDmaBuf, DMA_FROM_DEVICE);
 		if (err)
 		{
 			PVR_DPF((PVR_DBG_ERROR, "%s: Failed to begin cpu access for free poisoning", __func__));
@@ -175,7 +236,7 @@ static PVRSRV_ERROR PMRFinalizeDmaBuf(PMR_IMPL_PRIVDATA pvPriv)
 		}
 
 exit_end_access:
-		dma_buf_end_cpu_access(psDmaBuf, 0, psDmaBuf->size, DMA_TO_DEVICE);
+		dma_buf_end_cpu_access(psDmaBuf, DMA_TO_DEVICE);
 	}
 
 exit:
@@ -324,7 +385,7 @@ PMRAcquireKernelMappingDataDmaBuf(PMR_IMPL_PRIVDATA pvPriv,
 	PVRSRV_ERROR eError;
 	int err;
 
-	err = dma_buf_begin_cpu_access(psDmaBuf, 0, psDmaBuf->size, DMA_BIDIRECTIONAL);
+	err = dma_buf_begin_cpu_access(psDmaBuf, DMA_BIDIRECTIONAL);
 	if (err)
 	{
 		eError = PVRSRV_ERROR_PMR_NO_KERNEL_MAPPING;
@@ -344,7 +405,7 @@ PMRAcquireKernelMappingDataDmaBuf(PMR_IMPL_PRIVDATA pvPriv,
 	return PVRSRV_OK;
 
 fail_kmap:
-	dma_buf_end_cpu_access(psDmaBuf, 0, psDmaBuf->size, DMA_BIDIRECTIONAL);
+	dma_buf_end_cpu_access(psDmaBuf, DMA_BIDIRECTIONAL);
 
 fail:
 	PVR_ASSERT(eError != PVRSRV_OK);
@@ -360,7 +421,7 @@ static void PMRReleaseKernelMappingDataDmaBuf(PMR_IMPL_PRIVDATA pvPriv,
 
 	dma_buf_vunmap(psDmaBuf, pvKernAddr);
 
-	dma_buf_end_cpu_access(psDmaBuf, 0, psDmaBuf->size, DMA_BIDIRECTIONAL);
+	dma_buf_end_cpu_access(psDmaBuf, DMA_BIDIRECTIONAL);
 }
 
 static PVRSRV_ERROR PMRMMapDmaBuf(PMR_IMPL_PRIVDATA pvPriv,
@@ -465,10 +526,7 @@ PhysmemCreateNewDmaBufBackedPMR(PHYS_HEAP *psHeap,
 		void *pvKernAddr;
 		int i, err;
 
-		err = dma_buf_begin_cpu_access(psDmaBuf,
-					       0,
-					       psDmaBuf->size,
-					       DMA_FROM_DEVICE);
+		err = dma_buf_begin_cpu_access(psDmaBuf, DMA_FROM_DEVICE);
 		if (err)
 		{
 			eError = PVRSRV_ERROR_PMR_NO_KERNEL_MAPPING;
@@ -486,10 +544,7 @@ PhysmemCreateNewDmaBufBackedPMR(PHYS_HEAP *psHeap,
 					 bZeroOnAlloc ? "zeroing" : "poisoning"));
 				eError = PVRSRV_ERROR_PMR_NO_KERNEL_MAPPING;
 
-				dma_buf_end_cpu_access(psDmaBuf,
-						       0,
-						       psDmaBuf->size,
-						       DMA_TO_DEVICE);
+				dma_buf_end_cpu_access(psDmaBuf, DMA_TO_DEVICE);
 
 				goto fail_kmap;
 			}
@@ -506,10 +561,7 @@ PhysmemCreateNewDmaBufBackedPMR(PHYS_HEAP *psHeap,
 			dma_buf_kunmap(psDmaBuf, i, pvKernAddr);
 		}
 
-		dma_buf_end_cpu_access(psDmaBuf,
-				       0,
-				       psDmaBuf->size,
-				       DMA_TO_DEVICE);
+		dma_buf_end_cpu_access(psDmaBuf, DMA_TO_DEVICE);
 	}
 
 	uiPMRFlags = (PMR_FLAGS_T)(uiFlags & PVRSRV_MEMALLOCFLAGS_PMRFLAGSMASK);
@@ -566,7 +618,6 @@ fail_params:
 	return eError;
 }
 
-#if defined(SUPPORT_DMABUF)
 static PVRSRV_ERROR PhysmemDestroyDmaBuf(PHYS_HEAP *psHeap,
 					 struct dma_buf_attachment *psAttachment)
 {
@@ -604,6 +655,78 @@ PhysmemGetDmaBuf(PMR *psPMR)
 }
 
 PVRSRV_ERROR
+PhysmemExportDmaBuf(CONNECTION_DATA *psConnection,
+                    PVRSRV_DEVICE_NODE *psDevNode,
+                    PMR *psPMR,
+                    IMG_INT *piFd)
+{
+	struct dma_buf *psDmaBuf;
+	IMG_DEVMEM_SIZE_T uiPMRSize;
+	PVRSRV_ERROR eError;
+	IMG_INT iFd;
+
+	PMRRefPMR(psPMR);
+
+	eError = PMR_LogicalSize(psPMR, &uiPMRSize);
+	if (eError != PVRSRV_OK)
+	{
+		goto fail_pmr_ref;
+	}
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0))
+	{
+		DEFINE_DMA_BUF_EXPORT_INFO(sDmaBufExportInfo);
+
+		sDmaBufExportInfo.priv  = psPMR;
+		sDmaBufExportInfo.ops   = &sPVRDmaBufOps;
+		sDmaBufExportInfo.size  = uiPMRSize;
+		sDmaBufExportInfo.flags = O_RDWR;
+
+		psDmaBuf = dma_buf_export(&sDmaBufExportInfo);
+	}
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0))
+	psDmaBuf = dma_buf_export(psPMR, &sPVRDmaBufOps,
+	                          uiPMRSize, O_RDWR, NULL);
+#else
+	psDmaBuf = dma_buf_export(psPMR, &sPVRDmaBufOps,
+	                          uiPMRSize, O_RDWR);
+#endif
+
+	if (IS_ERR_OR_NULL(psDmaBuf))
+	{
+		PVR_DPF((PVR_DBG_ERROR,
+		         "%s: dma_buf_export failed (err=%ld)",
+		         __func__,
+		         PTR_ERR(psDmaBuf)));
+		eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+		goto fail_pmr_ref;
+	}
+
+	iFd = dma_buf_fd(psDmaBuf, O_RDWR);
+	if (iFd < 0)
+	{
+		PVR_DPF((PVR_DBG_ERROR,
+		         "%s: dma_buf_fd failed (err=%d)",
+		         __func__,
+		         iFd));
+		eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+		goto fail_dma_buf;
+	}
+
+	*piFd = iFd;
+	return PVRSRV_OK;
+
+fail_dma_buf:
+	dma_buf_put(psDmaBuf);
+
+fail_pmr_ref:
+	PMRUnrefPMR(psPMR);
+
+	PVR_ASSERT(eError != PVRSRV_OK);
+	return eError;
+}
+
+PVRSRV_ERROR
 PhysmemImportDmaBuf(CONNECTION_DATA *psConnection,
 		    PVRSRV_DEVICE_NODE *psDevNode,
 		    IMG_INT fd,
@@ -617,7 +740,7 @@ PhysmemImportDmaBuf(CONNECTION_DATA *psConnection,
 	struct drm_file *psFilePriv;
 #endif
 	struct device *psDev;
-	PMR *psPMR;
+	PMR *psPMR = NULL;
 	struct dma_buf_attachment *psAttachment;
 	struct dma_buf *psDmaBuf;
 	PHYS_HEAP *psHeap;
@@ -646,23 +769,29 @@ PhysmemImportDmaBuf(CONNECTION_DATA *psConnection,
 		goto fail_dma_buf_get;
 	}
 
-	if (g_psDmaBufHash)
+	if (psDmaBuf->ops == &sPVRDmaBufOps)
+	{
+		/* We exported this dma_buf, so we can just get its PMR */
+		psPMR = (PMR *) psDmaBuf->priv;
+	}
+	else if (g_psDmaBufHash)
 	{
 		/* We have a hash table so check if we've seen this dmabuf before */
 		psPMR = (PMR *) HASH_Retrieve(g_psDmaBufHash, (uintptr_t) psDmaBuf);
-		if (psPMR)
-		{
-			/* Reuse the PMR we already created */
-			PMRRefPMR(psPMR);
+	}
 
-			*ppsPMRPtr = psPMR;
-			*puiSize = psDmaBuf->size;
-			*puiAlign = PAGE_SIZE;
+	if (psPMR)
+	{
+		/* Reuse the PMR we already created */
+		PMRRefPMR(psPMR);
 
-			dma_buf_put(psDmaBuf);
+		*ppsPMRPtr = psPMR;
+		*puiSize = psDmaBuf->size;
+		*puiAlign = PAGE_SIZE;
 
-			return PVRSRV_OK;
-		}
+		dma_buf_put(psDmaBuf);
+
+		return PVRSRV_OK;
 	}
 
 	psAttachment = dma_buf_attach(psDmaBuf, psDev);
@@ -740,4 +869,65 @@ fail_params:
 	PVR_ASSERT(eError != PVRSRV_OK);
 	return eError;
 }
-#endif /* #if defined(SUPPORT_DMABUF) */
+
+#else /* LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0) || defined(SUPPORT_ION) */
+
+PVRSRV_ERROR
+PhysmemCreateNewDmaBufBackedPMR(PHYS_HEAP *psHeap,
+                                struct dma_buf_attachment *psAttachment,
+                                PFN_DESTROY_DMABUF_PMR pfnDestroy,
+                                PVRSRV_MEMALLOCFLAGS_T uiFlags,
+                                PMR **ppsPMRPtr)
+{
+	PVR_UNREFERENCED_PARAMETER(psHeap);
+	PVR_UNREFERENCED_PARAMETER(psAttachment);
+	PVR_UNREFERENCED_PARAMETER(pfnDestroy);
+	PVR_UNREFERENCED_PARAMETER(uiFlags);
+	PVR_UNREFERENCED_PARAMETER(ppsPMRPtr);
+
+	return PVRSRV_ERROR_NOT_SUPPORTED;
+}
+
+struct dma_buf *
+PhysmemGetDmaBuf(PMR *psPMR)
+{
+	PVR_UNREFERENCED_PARAMETER(psPMR);
+
+	return NULL;
+}
+
+PVRSRV_ERROR
+PhysmemExportDmaBuf(CONNECTION_DATA *psConnection,
+                    PVRSRV_DEVICE_NODE *psDevNode,
+                    PMR *psPMR,
+                    IMG_INT *piFd)
+{
+	PVR_UNREFERENCED_PARAMETER(psConnection);
+	PVR_UNREFERENCED_PARAMETER(psDevNode);
+	PVR_UNREFERENCED_PARAMETER(psPMR);
+	PVR_UNREFERENCED_PARAMETER(piFd);
+
+	return PVRSRV_ERROR_NOT_SUPPORTED;
+}
+
+PVRSRV_ERROR
+PhysmemImportDmaBuf(CONNECTION_DATA *psConnection,
+                    PVRSRV_DEVICE_NODE *psDevNode,
+                    IMG_INT fd,
+                    PVRSRV_MEMALLOCFLAGS_T uiFlags,
+                    PMR **ppsPMRPtr,
+                    IMG_DEVMEM_SIZE_T *puiSize,
+                    IMG_DEVMEM_ALIGN_T *puiAlign)
+{
+	PVR_UNREFERENCED_PARAMETER(psConnection);
+	PVR_UNREFERENCED_PARAMETER(psDevNode);
+	PVR_UNREFERENCED_PARAMETER(fd);
+	PVR_UNREFERENCED_PARAMETER(uiFlags);
+	PVR_UNREFERENCED_PARAMETER(ppsPMRPtr);
+	PVR_UNREFERENCED_PARAMETER(puiSize);
+	PVR_UNREFERENCED_PARAMETER(puiAlign);
+
+	return PVRSRV_ERROR_NOT_SUPPORTED;
+}
+
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0) || defined(SUPPORT_ION) || defined(KERNEL_HAS_DMABUF_VMAP_MMAP) */

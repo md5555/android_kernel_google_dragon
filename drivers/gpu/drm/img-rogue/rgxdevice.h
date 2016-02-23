@@ -55,7 +55,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "osfunc.h"
 #include "rgxlayer_km_impl.h"
 
-
 typedef struct _RGX_SERVER_COMMON_CONTEXT_ RGX_SERVER_COMMON_CONTEXT;
 
 typedef struct {
@@ -113,10 +112,6 @@ typedef struct _RGXFWIF_GPU_UTIL_STATS_
 	IMG_UINT64 ui64GpuStatBlocked;    /* GPU blocked statistic */
 	IMG_UINT64 ui64GpuStatIdle;       /* GPU idle statistic */
 	IMG_UINT64 ui64GpuStatCumulative; /* Sum of active/blocked/idle stats */
-
-#if defined(PVR_POWER_ACTOR) && defined (PVR_DVFS)
-	IMG_UINT32 ui32GpuEnergy;         /* GPU dynamic energy */
-#endif
 } RGXFWIF_GPU_UTIL_STATS;
 
 
@@ -285,6 +280,7 @@ typedef struct _PVRSRV_RGXDEV_INFO_
 	 */
 	POS_LOCK 				hLockHWPerfModule;
 	IMG_HANDLE				hHWPerfStream;
+	IMG_UINT64				ui64HWPerfFilter; /*! Event filter for HWPerf stream (settable by AppHint) */
 	IMG_BOOL				bHWPerfHostEnabled; /*! HWPerfHost enable flag (settable by AppHint */
 	IMG_UINT32				ui32HWPerfHostFilter; /*! Event filter for HWPerfHost stream (settable by AppHint) */
 	POS_LOCK 				hLockHWPerfHostStream; /*! Lock guarding access to HWPerfHost stream */
@@ -295,6 +291,7 @@ typedef struct _PVRSRV_RGXDEV_INFO_
 	IMG_BOOL				bFTraceGPUEventsEnabled;
 	IMG_HANDLE				hGPUTraceTLStream;
 	IMG_UINT64				ui64LastSampledTimeCorrOSTimeStamp;
+	IMG_UINT32				ui32FTraceLastOrdinal;
 #endif
 	
 	/* Poll data for detecting firmware fatal errors */

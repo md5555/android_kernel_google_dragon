@@ -59,7 +59,7 @@ extern "C" {
 #include "common_mmplat_bridge.h"
 #endif
 #include "common_cmm_bridge.h"
-#if defined(SUPPORT_DMABUF)
+#if defined(LINUX)
 #include "common_dmabuf_bridge.h"
 #endif
 #if defined(PDUMP)
@@ -206,7 +206,7 @@ extern "C" {
 
 /*  11: DMABUF functions */
 #define PVRSRV_BRIDGE_DMABUF					11UL
-#if defined(SUPPORT_DMABUF)
+#if defined(LINUX)
 #define PVRSRV_BRIDGE_DMABUF_DISPATCH_FIRST (PVRSRV_BRIDGE_PDUMP_DISPATCH_LAST + 1)
 #define PVRSRV_BRIDGE_DMABUF_DISPATCH_LAST	(PVRSRV_BRIDGE_DMABUF_DISPATCH_FIRST + PVRSRV_BRIDGE_DMABUF_CMD_LAST)
 #else

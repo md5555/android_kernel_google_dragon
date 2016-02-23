@@ -50,12 +50,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "pvrsrv.h"
 #include "pvrsrv_error.h"
 #include "sync_internal.h"
-
-#if defined(SUPPORT_DMABUF)
 #include "physmem_dmabuf.h"
-#else
-#error support missing
-#endif
 
 struct pvr_buffer_sync_check_data {
 	struct fence_cb base;
@@ -90,13 +85,11 @@ static struct ww_acquire_ctx acquire_ctx;
 static struct reservation_object *
 pmr_reservation_object_get(PMR *pmr)
 {
-#if defined(SUPPORT_DMABUF)
 	struct dma_buf *dmabuf;
 
 	dmabuf = PhysmemGetDmaBuf(pmr);
 	if (dmabuf)
 		return dmabuf->resv;
-#endif
 
 	return NULL;
 }
