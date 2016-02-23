@@ -180,7 +180,8 @@ nvkm_vm_map_sg_table_with_iommu(struct nvkm_vma *vma, u64 delta, u64 length,
 	dma_addr_t *addr_list, *list;
 
 	if (likely(!vma->iommu_mapping)) {
-		vma->iommu_mapping = mmu->map_sg_iommu(mmu, mem->sg, length, &iova);
+		vma->iommu_mapping = mmu->map_sg_iommu(mmu, mem->sg,
+						       mem->size << 12, &iova);
 		if (IS_ERR(vma->iommu_mapping)) {
 			vma->iommu_mapping = NULL;
 			return;
