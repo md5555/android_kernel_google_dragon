@@ -44,8 +44,6 @@ struct tegra210_cpufreq_priv {
 	struct clk *dfll_clk;
 	struct clk *cpu_clk;
 	struct clk *emc_clk;
-	struct workqueue_struct *emc_rate_wq;
-	struct work_struct emc_rate_work;
 	struct device *cpu_dev;
 	int suspend_index;
 	bool dfll_mode;
@@ -172,7 +170,7 @@ out:
 	return ret;
 }
 
-static void tegra210_vote_emc_rate_work(struct work_struct *work)
+static void tegra210_vote_emc_rate_work(void)
 {
 	unsigned long cpu_rate;
 
@@ -212,7 +210,7 @@ static int tegra210_set_target(struct cpufreq_policy *policy,
 	else
 		tegra210_set_rate_pll(new_rate, old_rate);
 
-	queue_work(priv.emc_rate_wq, &priv.emc_rate_work);
+	tegra210_vote_emc_rate_work();
 
 	return 0;
 }
@@ -339,14 +337,6 @@ static int tegra210_cpufreq_probe(struct platform_device *pdev)
 	}
 	clk_prepare_enable(priv.emc_clk);
 
-	priv.emc_rate_wq = alloc_workqueue("emc_rate_wq",
-			WQ_HIGHPRI | WQ_UNBOUND, 1);
-	if (!priv.emc_rate_wq) {
-		ret = -ENOMEM;
-		goto out_put_emc_clk;
-	}
-	INIT_WORK(&priv.emc_rate_work, tegra210_vote_emc_rate_work);
-
 	rcu_read_lock();
 	ret = dev_pm_opp_get_opp_count(cpu_dev);
 	rcu_read_unlock();
@@ -372,8 +362,6 @@ static int tegra210_cpufreq_probe(struct platform_device *pdev)
 out_switch_pllx:
 	tegra210_cpu_switch_to_pllx();
 out_put_emc_clk:
-	if (priv.emc_rate_wq)
-		destroy_workqueue(priv.emc_rate_wq);
 	clk_disable_unprepare(priv.emc_clk);
 	clk_put(priv.emc_clk);
 out_put_pllp_clk:
@@ -398,8 +386,6 @@ static int tegra210_cpufreq_remove(struct platform_device *pdev)
 {
 	tegra210_cpu_switch_to_pllx();
 
-	cancel_work_sync(&priv.emc_rate_work);
-	destroy_workqueue(priv.emc_rate_wq);
 	clk_disable_unprepare(priv.emc_clk);
 	clk_put(priv.emc_clk);
 	clk_put(priv.pllp_clk);
