@@ -146,6 +146,14 @@ gf100_fifo_chan_kick(struct nvkm_fifo_chan *chan)
 	return ret;
 }
 
+static void
+gf100_fifo_chan_enable(struct nvkm_fifo_chan *chan, bool enable)
+{
+	struct nvkm_engine *engine = nv_object(chan)->engine;
+	u32 state = enable ? 1 : 0;
+	nv_mask(engine, 0x003004 + (chan->chid * 8), 0x00000001, state);
+}
+
 static int
 gf100_fifo_context_attach(struct nvkm_object *parent,
 			  struct nvkm_object *object)
@@ -318,7 +326,7 @@ gf100_fifo_chan_fini(struct nvkm_object *object, bool suspend)
 	u32 chid = chan->base.chid;
 
 	if (chan->state == RUNNING && (chan->state = STOPPED) == STOPPED) {
-		nv_mask(priv, 0x003004 + (chid * 8), 0x00000001, 0x00000000);
+		nvkm_fifo_chan_disable(&priv->base, &chan->base);
 		gf100_fifo_runlist_update(priv);
 	}
 
@@ -486,7 +494,7 @@ gf100_fifo_recover(struct gf100_fifo_priv *priv, struct nvkm_engine *engine,
 	nv_error(priv, "%s engine fault on channel %d, recovering...\n",
 		       nv_subdev(engine)->name, chid);
 
-	nv_mask(priv, 0x003004 + (chid * 0x08), 0x00000001, 0x00000000);
+	nvkm_fifo_chan_disable(&priv->base, &chan->base);
 	chan->state = KILLED;
 
 	spin_lock_irqsave(&priv->base.lock, flags);
@@ -939,6 +947,9 @@ gf100_fifo_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	nv_subdev(priv)->intr = gf100_fifo_intr;
 	nv_engine(priv)->cclass = &gf100_fifo_cclass;
 	nv_engine(priv)->sclass = gf100_fifo_sclass;
+
+	priv->base.enable = gf100_fifo_chan_enable;
+
 	return 0;
 }
 

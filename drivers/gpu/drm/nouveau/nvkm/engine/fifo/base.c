@@ -277,6 +277,20 @@ nvkm_fifo_chid(struct nvkm_fifo *priv, struct nvkm_object *object)
 	return -1;
 }
 
+void nvkm_fifo_chan_enable(struct nvkm_fifo *fifo, struct nvkm_fifo_chan *chan)
+{
+	WARN_ON(!fifo->enable);
+	if (fifo->enable)
+		fifo->enable(chan, true);
+}
+
+void nvkm_fifo_chan_disable(struct nvkm_fifo *fifo, struct nvkm_fifo_chan *chan)
+{
+	WARN_ON(!fifo->enable);
+	if (fifo->enable)
+		fifo->enable(chan, false);
+}
+
 const char *
 nvkm_client_name_for_fifo_chid(struct nvkm_fifo *fifo, u32 chid)
 {

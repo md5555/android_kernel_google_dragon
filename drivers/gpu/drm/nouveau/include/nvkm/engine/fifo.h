@@ -82,6 +82,7 @@ struct nvkm_fifo {
 	int  (*chid)(struct nvkm_fifo *, struct nvkm_object *);
 	void (*pause)(struct nvkm_fifo *, unsigned long *);
 	void (*start)(struct nvkm_fifo *, unsigned long *);
+	void (*enable)(struct nvkm_fifo_chan *, bool enable);
 };
 
 static inline struct nvkm_fifo *
@@ -130,4 +131,6 @@ void nv04_fifo_intr(struct nvkm_subdev *);
 int  nv04_fifo_context_attach(struct nvkm_object *, struct nvkm_object *);
 int gf100_fifo_chan_kick(struct nvkm_fifo_chan *chan);
 int gf100_fifo_chan_kick_locked(struct nvkm_fifo_chan *chan);
+void nvkm_fifo_chan_enable(struct nvkm_fifo *, struct nvkm_fifo_chan *);
+void nvkm_fifo_chan_disable(struct nvkm_fifo *, struct nvkm_fifo_chan *);
 #endif

@@ -116,6 +116,14 @@ gk104_fifo_runlist_update(struct gk104_fifo_priv *priv, u32 engine)
 	mutex_unlock(&nv_subdev(priv)->mutex);
 }
 
+static void
+gk104_fifo_chan_enable(struct nvkm_fifo_chan *chan, bool enable)
+{
+	struct nvkm_engine *engine = nv_object(chan)->engine;
+	u32 state = enable ? 0x400 : 0x800;
+	nv_mask(engine, 0x800004 + (chan->chid * 8), state, state);
+}
+
 static int
 gk104_fifo_context_attach(struct nvkm_object *parent,
 			  struct nvkm_object *object)
@@ -293,9 +301,9 @@ gk104_fifo_chan_init(struct nvkm_object *object)
 	nv_wr32(priv, 0x800000 + (chid * 8), 0x80000000 | base->addr >> 12);
 
 	if (chan->state == STOPPED && (chan->state = RUNNING) == RUNNING) {
-		nv_mask(priv, 0x800004 + (chid * 8), 0x00000400, 0x00000400);
+		nvkm_fifo_chan_enable(&priv->base, &chan->base);
 		gk104_fifo_runlist_update(priv, chan->engine);
-		nv_mask(priv, 0x800004 + (chid * 8), 0x00000400, 0x00000400);
+		nvkm_fifo_chan_enable(&priv->base, &chan->base);
 	}
 
 	return 0;
@@ -318,7 +326,7 @@ gk104_fifo_chan_fini(struct nvkm_object *object, bool suspend)
 	}
 
 	if (chan->state == RUNNING && (chan->state = STOPPED) == STOPPED) {
-		nv_mask(priv, 0x800004 + (chid * 8), 0x00000800, 0x00000800);
+		nvkm_fifo_chan_disable(&priv->base, &chan->base);
 		gk104_fifo_runlist_update(priv, chan->engine);
 	}
 
@@ -337,10 +345,10 @@ gk104_fifo_set_runlist_timeslice(struct gk104_fifo_priv *priv,
 	struct nvkm_gpuobj *base = nv_gpuobj(nv_object(chan)->parent);
 	u32 chid = chan->base.chid;
 
-	nv_mask(priv, 0x800004 + (chid * 8), 0x00000800, 0x00000800);
+	nvkm_fifo_chan_disable(&priv->base, &chan->base);
 	WARN_ON(gf100_fifo_chan_kick(&chan->base));
 	nv_wo32(base, 0xf8, slice | 0x10003000);
-	nv_mask(priv, 0x800004 + (chid * 8), 0x00000400, 0x00000400);
+	nvkm_fifo_chan_enable(&priv->base, &chan->base);
 	nv_debug(chan, "timeslice set to %d for %d\n", slice, chid);
 }
 
@@ -560,7 +568,7 @@ gk104_fifo_recover(struct gk104_fifo_priv *priv, struct nvkm_engine *engine,
 	nv_error(priv, "%s engine fault on channel %d, recovering...\n",
 		       nv_subdev(engine)->name, chid);
 
-	nv_mask(priv, 0x800004 + (chid * 0x08), 0x00000800, 0x00000800);
+	nvkm_fifo_chan_disable(&priv->base, &chan->base);
 	chan->state = KILLED;
 
 	spin_lock_irqsave(&priv->base.lock, flags);
@@ -1262,6 +1270,9 @@ gk104_fifo_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	nv_subdev(priv)->intr = gk104_fifo_intr;
 	nv_engine(priv)->cclass = &gk104_fifo_cclass;
 	nv_engine(priv)->sclass = gk104_fifo_sclass;
+
+	priv->base.enable = gk104_fifo_chan_enable;
+
 	return 0;
 }
 
