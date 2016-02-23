@@ -158,47 +158,6 @@ gk104_fifo_context_attach(struct nvkm_object *parent,
 }
 
 static int
-gk104_fifo_chan_kick_locked(struct gk104_fifo_chan *chan)
-{
-	struct nvkm_object *obj = (void *)chan;
-	struct gk104_fifo_priv *priv = (void *)obj->engine;
-	struct nvkm_pmu *pmu = nvkm_pmu(priv);
-	u32 token = 0;
-	int mutex_ret;
-	int ret = 0;
-
-	mutex_ret = pmu->acquire_mutex(pmu, PMU_MUTEX_ID_FIFO, &token);
-	if (mutex_ret)
-		nv_error(priv, "channel kick acquire mutex failed: %d\n",
-				mutex_ret);
-
-	nv_wr32(priv, 0x002634, chan->base.chid);
-	if (!nv_wait(priv, 0x002634, 0x100000, 0x000000)) {
-		nv_error(priv, "channel %d [%s] kick timeout\n",
-			 chan->base.chid, nvkm_client_name(chan));
-		ret = -EBUSY;
-	}
-
-	if (!mutex_ret)
-		pmu->release_mutex(pmu, PMU_MUTEX_ID_FIFO, &token);
-	return ret;
-}
-
-static int
-gk104_fifo_chan_kick(struct gk104_fifo_chan *chan)
-{
-	struct nvkm_object *obj = (void *)chan;
-	struct gk104_fifo_priv *priv = (void *)obj->engine;
-	int ret;
-
-	mutex_lock(&nv_subdev(priv)->mutex);
-	ret = gk104_fifo_chan_kick_locked(chan);
-	mutex_unlock(&nv_subdev(priv)->mutex);
-
-	return ret;
-}
-
-static int
 gk104_fifo_context_detach(struct nvkm_object *parent, bool suspend,
 			  struct nvkm_object *object)
 {
@@ -221,7 +180,7 @@ gk104_fifo_context_detach(struct nvkm_object *parent, bool suspend,
 		return -EINVAL;
 	}
 
-	err = gk104_fifo_chan_kick_locked(chan);
+	err = gf100_fifo_chan_kick_locked(&chan->base);
 	if (err && suspend)
 		return err;
 
@@ -363,7 +322,7 @@ gk104_fifo_chan_fini(struct nvkm_object *object, bool suspend)
 		gk104_fifo_runlist_update(priv, chan->engine);
 	}
 
-	err = gk104_fifo_chan_kick(chan);
+	err = gf100_fifo_chan_kick(&chan->base);
 	if (err && suspend)
 		return err;
 
@@ -379,7 +338,7 @@ gk104_fifo_set_runlist_timeslice(struct gk104_fifo_priv *priv,
 	u32 chid = chan->base.chid;
 
 	nv_mask(priv, 0x800004 + (chid * 8), 0x00000800, 0x00000800);
-	WARN_ON(gk104_fifo_chan_kick(chan));
+	WARN_ON(gf100_fifo_chan_kick(&chan->base));
 	nv_wo32(base, 0xf8, slice | 0x10003000);
 	nv_mask(priv, 0x800004 + (chid * 8), 0x00000400, 0x00000400);
 	nv_debug(chan, "timeslice set to %d for %d\n", slice, chid);

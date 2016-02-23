@@ -30,6 +30,7 @@
 #include <subdev/bar.h>
 #include <subdev/fb.h>
 #include <subdev/mmu.h>
+#include <subdev/pmu.h>
 #include <subdev/timer.h>
 
 #include <nvif/class.h>
@@ -104,6 +105,47 @@ gf100_fifo_runlist_update(struct gf100_fifo_priv *priv)
 	mutex_unlock(&nv_subdev(priv)->mutex);
 }
 
+int
+gf100_fifo_chan_kick_locked(struct nvkm_fifo_chan *chan)
+{
+	struct nvkm_object *obj = (void *)chan;
+	struct nvkm_fifo *fifo = (void *)obj->engine;
+	struct nvkm_pmu *pmu = nvkm_pmu(fifo);
+	u32 token = 0;
+	int mutex_ret;
+	int ret = 0;
+
+	mutex_ret = pmu->acquire_mutex(pmu, PMU_MUTEX_ID_FIFO, &token);
+	if (mutex_ret)
+		nv_error(fifo, "channel kick acquire mutex failed: %d\n",
+				mutex_ret);
+
+	nv_wr32(fifo, 0x002634, chan->chid);
+	if (!nv_wait(fifo, 0x002634, 0x100000, 0x000000)) {
+		nv_error(fifo, "channel %d [%s] kick timeout\n",
+			 chan->chid, nvkm_client_name(chan));
+		ret = -EBUSY;
+	}
+
+	if (!mutex_ret)
+		pmu->release_mutex(pmu, PMU_MUTEX_ID_FIFO, &token);
+	return ret;
+}
+
+int
+gf100_fifo_chan_kick(struct nvkm_fifo_chan *chan)
+{
+	struct nvkm_object *obj = (void *)chan;
+	struct nvkm_engine *engine = (void *)obj->engine;
+	int ret;
+
+	mutex_lock(&nv_subdev(engine)->mutex);
+	ret = gf100_fifo_chan_kick_locked(chan);
+	mutex_unlock(&nv_subdev(engine)->mutex);
+
+	return ret;
+}
+
 static int
 gf100_fifo_context_attach(struct nvkm_object *parent,
 			  struct nvkm_object *object)
@@ -146,10 +188,10 @@ gf100_fifo_context_detach(struct nvkm_object *parent, bool suspend,
 			  struct nvkm_object *object)
 {
 	struct nvkm_bar *bar = nvkm_bar(parent);
-	struct gf100_fifo_priv *priv = (void *)parent->engine;
 	struct gf100_fifo_base *base = (void *)parent->parent;
 	struct gf100_fifo_chan *chan = (void *)parent;
 	u32 addr;
+	int err;
 
 	switch (nv_engidx(object->engine)) {
 	case NVDEV_ENGINE_SW    : return 0;
@@ -163,13 +205,9 @@ gf100_fifo_context_detach(struct nvkm_object *parent, bool suspend,
 		return -EINVAL;
 	}
 
-	nv_wr32(priv, 0x002634, chan->base.chid);
-	if (!nv_wait(priv, 0x002634, 0xffffffff, chan->base.chid)) {
-		nv_error(priv, "channel %d [%s] kick timeout\n",
-			 chan->base.chid, nvkm_client_name(chan));
-		if (suspend)
-			return -EBUSY;
-	}
+	err = gf100_fifo_chan_kick_locked(&chan->base);
+	if (err && suspend)
+		return err;
 
 	nv_wo32(base, addr + 0x00, 0x00000000);
 	nv_wo32(base, addr + 0x04, 0x00000000);

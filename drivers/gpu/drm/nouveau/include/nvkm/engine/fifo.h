@@ -128,4 +128,6 @@ void nvkm_fifo_eevent(struct nvkm_fifo *, u32 chid, u32 error);
 
 void nv04_fifo_intr(struct nvkm_subdev *);
 int  nv04_fifo_context_attach(struct nvkm_object *, struct nvkm_object *);
+int gf100_fifo_chan_kick(struct nvkm_fifo_chan *chan);
+int gf100_fifo_chan_kick_locked(struct nvkm_fifo_chan *chan);
 #endif
