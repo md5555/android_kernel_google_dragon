@@ -32,7 +32,6 @@
 #include <linux/types.h>
 #include <linux/clk/tegra.h>
 #include <soc/tegra/tegra-dvfs.h>
-#include <linux/memory-tegra.h>
 
 #define TEGRA210_CPU_BACKUP_RATE	204000000U
 
@@ -44,6 +43,9 @@ struct tegra210_cpufreq_priv {
 	struct clk *pllx_clk;
 	struct clk *dfll_clk;
 	struct clk *cpu_clk;
+	struct clk *emc_clk;
+	struct workqueue_struct *emc_rate_wq;
+	struct work_struct emc_rate_work;
 	struct device *cpu_dev;
 	int suspend_index;
 	bool dfll_mode;
@@ -170,31 +172,30 @@ out:
 	return ret;
 }
 
-static void tegra210_vote_emc_rate(unsigned long cpu_rate)
+static void tegra210_vote_emc_rate_work(struct work_struct *work)
 {
-	unsigned long rate;
+	unsigned long cpu_rate;
 
 	/* Vote on memory bus frequency based on cpu frequency */
+	cpu_rate = clk_get_rate(priv.cpu_clk);
 	if (cpu_rate >= 1300000000)
 		/* cpu >= 1.3GHz, emc max */
-		rate = ULONG_MAX;
+		clk_set_rate(priv.emc_clk, ULONG_MAX);
 	else if (cpu_rate >= 975000000)
 		/* cpu >= 975 MHz, emc 400 MHz */
-		rate = 400000000;
+		clk_set_rate(priv.emc_clk, 400000000);
 	else if (cpu_rate >= 725000000)
 		/* cpu >= 725 MHz, emc 200 MHz */
-		rate = 200000000;
+		clk_set_rate(priv.emc_clk, 200000000);
 	else if (cpu_rate >= 500000000)
 		/* cpu >= 500 MHz, emc 100 MHz */
-		rate = 100000000;
+		clk_set_rate(priv.emc_clk, 100000000);
 	else if (cpu_rate >= 275000000)
 		/* cpu >= 275 MHz, emc 50 MHz */
-		rate = 50000000;
+		clk_set_rate(priv.emc_clk, 50000000);
 	else
 		/* emc min */
-	 	rate = 0;	
-
-	tegra210_emc_set_rate(rate);
+		clk_set_rate(priv.emc_clk, 0);
 }
 
 static int tegra210_set_target(struct cpufreq_policy *policy,
@@ -206,12 +207,12 @@ static int tegra210_set_target(struct cpufreq_policy *policy,
 	new_rate = clk_round_rate(priv.cpu_clk, freq_table[index].frequency * 1000);
 	old_rate = clk_get_rate(priv.cpu_clk);
 
-	tegra210_vote_emc_rate(new_rate);
-
 	if (priv.dfll_mode)
 		clk_set_rate(priv.cpu_clk, new_rate);
 	else
 		tegra210_set_rate_pll(new_rate, old_rate);
+
+	queue_work(priv.emc_rate_wq, &priv.emc_rate_work);
 
 	return 0;
 }
@@ -277,7 +278,6 @@ static struct cpufreq_driver tegra210_cpufreq_driver = {
 	.exit = tegra210_cpufreq_exit,
 	.name = "cpufreq-tegra210",
 	.attr = cpufreq_generic_attr,
-	.boost_supported = true,
 };
 
 static int tegra210_cpufreq_probe(struct platform_device *pdev)
@@ -332,6 +332,21 @@ static int tegra210_cpufreq_probe(struct platform_device *pdev)
 		goto out_put_pllx_clk;
 	}
 
+	priv.emc_clk = of_clk_get_by_name(np, "emc");
+	if (IS_ERR(priv.emc_clk)) {
+		pr_info("Tegra210_cpufreq: no cpu.emc shared clock found\n");
+		priv.emc_clk = NULL;
+	}
+	clk_prepare_enable(priv.emc_clk);
+
+	priv.emc_rate_wq = alloc_workqueue("emc_rate_wq",
+			WQ_HIGHPRI | WQ_UNBOUND, 1);
+	if (!priv.emc_rate_wq) {
+		ret = -ENOMEM;
+		goto out_put_emc_clk;
+	}
+	INIT_WORK(&priv.emc_rate_work, tegra210_vote_emc_rate_work);
+
 	rcu_read_lock();
 	ret = dev_pm_opp_get_opp_count(cpu_dev);
 	rcu_read_unlock();
@@ -357,6 +372,10 @@ static int tegra210_cpufreq_probe(struct platform_device *pdev)
 out_switch_pllx:
 	tegra210_cpu_switch_to_pllx();
 out_put_emc_clk:
+	if (priv.emc_rate_wq)
+		destroy_workqueue(priv.emc_rate_wq);
+	clk_disable_unprepare(priv.emc_clk);
+	clk_put(priv.emc_clk);
 out_put_pllp_clk:
 	clk_put(priv.pllp_clk);
 out_put_pllx_clk:
@@ -379,6 +398,10 @@ static int tegra210_cpufreq_remove(struct platform_device *pdev)
 {
 	tegra210_cpu_switch_to_pllx();
 
+	cancel_work_sync(&priv.emc_rate_work);
+	destroy_workqueue(priv.emc_rate_wq);
+	clk_disable_unprepare(priv.emc_clk);
+	clk_put(priv.emc_clk);
 	clk_put(priv.pllp_clk);
 	clk_put(priv.pllx_clk);
 	clk_put(priv.dfll_clk);
