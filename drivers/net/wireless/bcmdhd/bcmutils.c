@@ -1,14 +1,14 @@
 /*
  * Driver O/S-independent utility routines
  *
- * Copyright (C) 1999-2014, Broadcom Corporation
- *
+ * Copyright (C) 1999-2015, Broadcom Corporation
+ * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
  * under the terms of the GNU General Public License version 2 (the "GPL"),
  * available at http://www.broadcom.com/licenses/GPLv2.php, with the
  * following added to such license:
- *
+ * 
  *      As a special exception, the copyright holders of this software give you
  * permission to link this software with independent modules, and to copy and
  * distribute the resulting executable under terms of your choice, provided that
@@ -16,11 +16,11 @@
  * the license of that module.  An independent module is a module which is not
  * derived from this software.  The special exception does not apply to any
  * modifications of the software.
- *
+ * 
  *      Notwithstanding the above, under no circumstances may you combine this
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
- * $Id: bcmutils.c 473326 2014-04-29 00:37:35Z $
+ * $Id: bcmutils.c 530650 2015-01-30 13:06:35Z $
  */
 
 #include <bcm_cfg.h>
@@ -741,7 +741,7 @@ prpkt(const char *msg, osl_t *osh, void *p0)
 	for (p = p0; p; p = PKTNEXT(osh, p))
 		prhex(NULL, PKTDATA(osh, p), PKTLEN(osh, p));
 }
-#endif
+#endif	
 
 /* Takes an Ethernet frame and sets out-of-bound PKTPRIO.
  * Also updates the inplace vlan tag if requested.
@@ -798,12 +798,6 @@ pktsetprio(void *pkt, bool update_vtag)
 			evh->vlan_tag = hton16(vlan_tag);
 			rc |= PKTPRIO_UPD;
 		}
-
-#ifdef EAPOL_PKT_PRIO
-	} else if (eh->ether_type == hton16(ETHER_TYPE_802_1X)) {
-		priority = PRIO_8021D_NC;
-		rc = PKTPRIO_DSCP;
-#endif /* EAPOL_PKT_PRIO */
 	} else if ((eh->ether_type == hton16(ETHER_TYPE_IP)) ||
 		(eh->ether_type == hton16(ETHER_TYPE_IPV6))) {
 		uint8 *ip_body = pktdata + sizeof(struct ether_header);
@@ -837,6 +831,53 @@ pktsetprio(void *pkt, bool update_vtag)
 	ASSERT(priority >= 0 && priority <= MAXPRIO);
 	PKTSETPRIO(pkt, priority);
 	return (rc | priority);
+}
+
+/* lookup user priority for specified DSCP */
+static uint8
+dscp2up(uint8 *up_table, uint8 dscp)
+{
+	uint8 up = 255;
+
+	/* lookup up from table if parameters valid */
+	if (up_table != NULL && dscp < UP_TABLE_MAX) {
+		up = up_table[dscp];
+	}
+
+	/* 255 is unused value so return up from dscp */
+	if (up == 255) {
+		up = dscp >> (IPV4_TOS_PREC_SHIFT - IPV4_TOS_DSCP_SHIFT);
+	}
+
+	return up;
+}
+
+/* set user priority by QoS Map Set table (UP table), table size is UP_TABLE_MAX */
+uint BCMFASTPATH
+pktsetprio_qms(void *pkt, uint8* up_table, bool update_vtag)
+{
+	if (up_table) {
+		uint8 *pktdata;
+		uint pktlen;
+		uint8 dscp;
+		uint up = 0;
+		uint rc = 0;
+
+		pktdata = (uint8 *)PKTDATA(OSH_NULL, pkt);
+		pktlen = PKTLEN(OSH_NULL, pkt);
+
+		if (pktgetdscp(pktdata, pktlen, &dscp)) {
+			rc = PKTPRIO_DSCP;
+			up = dscp2up(up_table, dscp);
+			PKTSETPRIO(pkt, up);
+			printf("dscp=%d, up=%d\n", dscp, up);
+		}
+
+		return (rc | up);
+	}
+	else {
+		return pktsetprio(pkt, update_vtag);
+	}
 }
 
 /* Returns TRUE and DSCP if IP header found, FALSE otherwise.
@@ -1382,7 +1423,9 @@ bcm_parse_tlvs(void *buf, int buflen, uint key)
 	bcm_tlv_t *elt;
 	int totlen;
 
-	elt = (bcm_tlv_t*)buf;
+	if ((elt = (bcm_tlv_t*)buf) == NULL) {
+		return NULL;
+	}
 	totlen = buflen;
 
 	/* find tagged parameter */
@@ -1526,13 +1569,12 @@ bcm_format_flags(const bcm_bit_desc_t *bd, uint32 flags, char* buf, int len)
 
 	/* indicate the str was too short */
 	if (flags != 0) {
-		if (len < 2)
-			p -= 2 - len;	/* overwrite last char */
 		p += snprintf(p, 2, ">");
 	}
 
 	return (int)(p - buf);
 }
+#endif 
 
 /* print bytes formatted as hex to a string. return the resulting string length */
 int
@@ -1548,7 +1590,6 @@ bcm_format_hex(char *str, const void *bytes, int len)
 	}
 	return (int)(p - str);
 }
-#endif
 
 /* pretty hex print a contiguous buffer */
 void
@@ -1972,7 +2013,7 @@ bcm_format_ssid(char* buf, const uchar ssid[], uint ssid_len)
 
 	return (int)(p - buf);
 }
-#endif
+#endif 
 
 #endif /* BCMDRIVER */
 
@@ -2780,7 +2821,6 @@ id16_map_clear(void * id16_map_hndl, uint16 total_ids, uint16 start_val16)
 	}
 #endif /* BCM_DBG && BCM_DBG_ID16 */
 }
-
 
 uint16 BCMFASTPATH /* Allocate a unique 16bit id */
 id16_map_alloc(void * id16_map_hndl)

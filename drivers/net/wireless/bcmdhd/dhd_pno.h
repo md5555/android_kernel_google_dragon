@@ -1,14 +1,14 @@
 /*
  * Header file of Broadcom Dongle Host Driver (DHD)
  * Prefered Network Offload code and Wi-Fi Location Service(WLS) code.
- * Copyright (C) 1999-2014, Broadcom Corporation
- *
+ * Copyright (C) 1999-2015, Broadcom Corporation
+ * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
  * under the terms of the GNU General Public License version 2 (the "GPL"),
  * available at http://www.broadcom.com/licenses/GPLv2.php, with the
  * following added to such license:
- *
+ * 
  *      As a special exception, the copyright holders of this software give you
  * permission to link this software with independent modules, and to copy and
  * distribute the resulting executable under terms of your choice, provided that
@@ -16,7 +16,7 @@
  * the license of that module.  An independent module is a module which is not
  * derived from this software.  The special exception does not apply to any
  * modifications of the software.
- *
+ * 
  *      Notwithstanding the above, under no circumstances may you combine this
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
@@ -59,8 +59,6 @@
 #define RESULTS_END_MARKER "----\n"
 #define SCAN_END_MARKER "####\n"
 #define AP_END_MARKER "====\n"
-#define PNO_RSSI_MARGIN_DBM          30
-
 #ifdef GSCAN_SUPPORT
 
 #define GSCAN_MAX_CH_BUCKETS             8
@@ -70,6 +68,7 @@
 #define GSCAN_BG_BAND_MASK             (1 << 0)
 #define GSCAN_A_BAND_MASK              (1 << 1)
 #define GSCAN_DFS_MASK                 (1 << 2)
+#define GSCAN_ACTIVE_CHAN_MASK         (1 << 3)
 #define GSCAN_ABG_BAND_MASK            (GSCAN_A_BAND_MASK | GSCAN_BG_BAND_MASK)
 #define GSCAN_BAND_MASK                (GSCAN_ABG_BAND_MASK | GSCAN_DFS_MASK)
 
@@ -185,7 +184,7 @@ typedef enum dhd_pno_mode {
 #else
 typedef enum dhd_pno_mode {
 	/* Wi-Fi Legacy PNO Mode */
-	DHD_PNO_NONE_MODE   = 0,
+	DHD_PNO_NONE_MODE = 0,
 	DHD_PNO_LEGACY_MODE = (1 << (0)),
 	/* Wi-Fi Android BATCH SCAN Mode */
 	DHD_PNO_BATCH_MODE = (1 << (1)),
@@ -194,10 +193,7 @@ typedef enum dhd_pno_mode {
 } dhd_pno_mode_t;
 #endif /* GSCAN_SUPPORT */
 struct dhd_pno_ssid {
-	bool		hidden;
-	int8		rssi_thresh;
-	uint8		dummy;
-	uint16		SSID_len;
+	uint32		SSID_len;
 	uchar		SSID[DOT11_MAX_SSID_LEN];
 	struct list_head list;
 };
@@ -477,7 +473,7 @@ extern int
 dhd_dev_pno_stop_for_ssid(struct net_device *dev);
 
 extern int
-dhd_dev_pno_set_for_ssid(struct net_device *dev, wlc_ssid_ext_t* ssids_local, int nssid,
+dhd_dev_pno_set_for_ssid(struct net_device *dev, wlc_ssid_t* ssids_local, int nssid,
 	uint16 scan_fr, int pno_repeat, int pno_freq_expo_max, uint16 *channel_list, int nchan);
 
 extern int
@@ -493,37 +489,15 @@ dhd_dev_pno_stop_for_batch(struct net_device *dev);
 extern int
 dhd_dev_pno_set_for_hotlist(struct net_device *dev, wl_pfn_bssid_t *p_pfn_bssid,
 	struct dhd_pno_hotlist_params *hotlist_params);
-extern bool dhd_dev_is_legacy_pno_enabled(struct net_device *dev);
 #ifdef GSCAN_SUPPORT
-extern int
-dhd_dev_pno_set_cfg_gscan(struct net_device *dev, dhd_pno_gscan_cmd_cfg_t type,
-              void *buf, uint8 flush);
 extern void *
 dhd_dev_pno_get_gscan(struct net_device *dev, dhd_pno_gscan_cmd_cfg_t type, void *info,
         uint32 *len);
-int dhd_dev_pno_lock_access_batch_results(struct net_device *dev);
-void dhd_dev_pno_unlock_access_batch_results(struct net_device *dev);
-extern int dhd_dev_pno_run_gscan(struct net_device *dev, bool run, bool flush);
-extern int dhd_dev_pno_enable_full_scan_result(struct net_device *dev, bool real_time);
-extern void * dhd_dev_swc_scan_event(struct net_device *dev, const void  *data,
-              int *send_evt_bytes);
-int dhd_retreive_batch_scan_results(dhd_pub_t *dhd);
-extern void * dhd_dev_hotlist_scan_event(struct net_device *dev,
-                         const void  *data, int *send_evt_bytes, hotlist_type_t type);
-void * dhd_dev_process_full_gscan_result(struct net_device *dev,
-                                        const void  *data, int *send_evt_bytes);
-extern int dhd_dev_gscan_batch_cache_cleanup(struct net_device *dev);
-extern void dhd_dev_gscan_hotlist_cache_cleanup(struct net_device *dev, hotlist_type_t type);
-extern int dhd_dev_wait_batch_results_complete(struct net_device *dev);
-extern void * dhd_dev_process_epno_result(struct net_device *dev,
-                        const void  *data, uint32 event, int *send_evt_bytes);
-extern void * dhd_dev_process_anqpo_result(struct net_device *dev,
-			const void  *data, uint32 event, int *send_evt_bytes);
 #endif /* GSCAN_SUPPORT */
 /* dhd pno fuctions */
 extern int dhd_pno_stop_for_ssid(dhd_pub_t *dhd);
 extern int dhd_pno_enable(dhd_pub_t *dhd, int enable);
-extern int dhd_pno_set_for_ssid(dhd_pub_t *dhd, wlc_ssid_ext_t* ssid_list, int nssid,
+extern int dhd_pno_set_for_ssid(dhd_pub_t *dhd, wlc_ssid_t* ssid_list, int nssid,
 	uint16  scan_fr, int pno_repeat, int pno_freq_expo_max, uint16 *channel_list, int nchan);
 
 extern int dhd_pno_set_for_batch(dhd_pub_t *dhd, struct dhd_pno_batch_params *batch_params);
@@ -541,31 +515,9 @@ extern int dhd_pno_stop_for_hotlist(dhd_pub_t *dhd);
 extern int dhd_pno_event_handler(dhd_pub_t *dhd, wl_event_msg_t *event, void *event_data);
 extern int dhd_pno_init(dhd_pub_t *dhd);
 extern int dhd_pno_deinit(dhd_pub_t *dhd);
-extern bool dhd_is_pno_supported(dhd_pub_t *dhd);
-extern int dhd_pno_set_mac_oui(dhd_pub_t *dhd, uint8 *oui);
-extern bool dhd_is_legacy_pno_enabled(dhd_pub_t *dhd);
 #ifdef GSCAN_SUPPORT
-extern int dhd_pno_set_cfg_gscan(dhd_pub_t *dhd, dhd_pno_gscan_cmd_cfg_t type,
-                       void *buf, uint8 flush);
 extern void * dhd_pno_get_gscan(dhd_pub_t *dhd, dhd_pno_gscan_cmd_cfg_t type, void *info,
                        uint32 *len);
-extern int dhd_pno_lock_batch_results(dhd_pub_t *dhd);
-extern void dhd_pno_unlock_batch_results(dhd_pub_t *dhd);
-extern int dhd_pno_initiate_gscan_request(dhd_pub_t *dhd, bool run, bool flush);
-extern int dhd_pno_enable_full_scan_result(dhd_pub_t *dhd, bool real_time_flag);
-extern int dhd_pno_cfg_gscan(dhd_pub_t *dhd, dhd_pno_gscan_cmd_cfg_t type, void *buf);
-extern int dhd_dev_retrieve_batch_scan(struct net_device *dev);
-extern void *dhd_handle_swc_evt(dhd_pub_t *dhd, const void *event_data, int *send_evt_bytes);
-extern void *dhd_handle_hotlist_scan_evt(dhd_pub_t *dhd, const void *event_data,
-                       int *send_evt_bytes, hotlist_type_t type);
-extern void *dhd_process_full_gscan_result(dhd_pub_t *dhd, const void *event_data,
-                       int *send_evt_bytes);
-extern int dhd_gscan_batch_cache_cleanup(dhd_pub_t *dhd);
-extern void dhd_gscan_hotlist_cache_cleanup(dhd_pub_t *dhd, hotlist_type_t type);
-extern int dhd_wait_batch_results_complete(dhd_pub_t *dhd);
-extern void * dhd_pno_process_epno_result(dhd_pub_t *dhd, const void *data,
-         uint32 event, int *size);
-extern void * dhd_pno_process_anqpo_result(dhd_pub_t *dhd, const void *data, uint32 event, int *size);
 #endif /* GSCAN_SUPPORT */
 #endif /* PNO_SUPPORT */
 
