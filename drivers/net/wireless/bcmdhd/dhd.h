@@ -940,13 +940,13 @@ extern uint dhd_force_tx_queueing;
 
 #ifdef WLTDLS
 #ifndef CUSTOM_TDLS_IDLE_MODE_SETTING
-#define CUSTOM_TDLS_IDLE_MODE_SETTING  60000 /* 60sec to tear down TDLS of not active */
+#define CUSTOM_TDLS_IDLE_MODE_SETTING  20000 /* 60sec to tear down TDLS of not active */
 #endif
 #ifndef CUSTOM_TDLS_RSSI_THRESHOLD_HIGH
-#define CUSTOM_TDLS_RSSI_THRESHOLD_HIGH -70 /* rssi threshold for establishing TDLS link */
+#define CUSTOM_TDLS_RSSI_THRESHOLD_HIGH -80 /* rssi threshold for establishing TDLS link */
 #endif
 #ifndef CUSTOM_TDLS_RSSI_THRESHOLD_LOW
-#define CUSTOM_TDLS_RSSI_THRESHOLD_LOW -80 /* rssi threshold for tearing down TDLS link */
+#define CUSTOM_TDLS_RSSI_THRESHOLD_LOW -90 /* rssi threshold for tearing down TDLS link */
 #endif
 #endif /* WLTDLS */
 
