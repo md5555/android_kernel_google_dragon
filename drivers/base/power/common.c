@@ -14,8 +14,6 @@
 #include <linux/acpi.h>
 #include <linux/pm_domain.h>
 
-#include "power.h"
-
 /**
  * dev_pm_get_subsys_data - Create or refcount power.subsys_data for device.
  * @dev: Device to handle.
@@ -155,6 +153,5 @@ void dev_pm_domain_set(struct device *dev, struct dev_pm_domain *pd)
 	WARN(device_is_bound(dev),
 	     "PM domains can only be changed for unbound devices\n");
 	dev->pm_domain = pd;
-	device_pm_check_callbacks(dev);
 }
 EXPORT_SYMBOL_GPL(dev_pm_domain_set);
