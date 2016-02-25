@@ -7,7 +7,7 @@ DHDCFLAGS += -Wall -Wstrict-prototypes -Dlinux -DLINUX -DBCMDRIVER            \
 	-DBCMDONGLEHOST -DUNRELEASEDCHIP -DBCMDMA32 -DBCMFILEIMAGE            \
 	-DDHDTHREAD -DSHOW_EVENTS -DBCMDBG -DWLP2P                            \
 	-DWIFI_ACT_FRAME -DARP_OFFLOAD_SUPPORT                                \
-	-DKEEP_ALIVE -DCSCAN						      \
+	-DKEEP_ALIVE -DCSCAN -DSHOW_LOGTRACE				      \
 	-DEMBEDDED_PLATFORM -DPNO_SUPPORT                                     \
 	-DDHD_DONOT_FORWARD_BCMEVENT_AS_NETWORK_PKT                           \
 	-DCUSTOMER_HW2 -DENABLE_INSMOD_NO_FW_LOAD     			      \
@@ -22,7 +22,11 @@ DHDCFLAGS += -DWL_CFG80211
 DHDCFLAGS += -DBCMASSERT_LOG
 
 # keepalive
+<<<<<<< HEAD
 DHDCFLAGS += -DCUSTOM_KEEP_ALIVE_SETTING=10000
+=======
+DHDCFLAGS += -DCUSTOM_KEEP_ALIVE_SETTING=15000
+>>>>>>> 92956e4... bcmdhd: Disable option for setting custom MAC address / modify values to allow for greater device sleep
 
 DHDCFLAGS += -DVSDB
 
