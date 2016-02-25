@@ -1394,22 +1394,7 @@ static struct generic_pm_domain_data *__pm_genpd_alloc_dev_data(struct device *d
 
 	mutex_init(&gpd_data->lock);
 	gpd_data->nb.notifier_call = genpd_dev_pm_qos_notifier;
-
 	dev_pm_qos_add_notifier(dev, &gpd_data->nb);
-
-	spin_lock_irq(&dev->power.lock);
-
-	if (dev->power.subsys_data->domain_data) {
-		ret = -EINVAL;
-		goto err_free;
-	}
-
-	dev->power.subsys_data->domain_data = &gpd_data->base;
-
-	spin_unlock_irq(&dev->power.lock);
-
-	dev_pm_domain_set(dev, &genpd->domain);
-
 	return gpd_data;
 }
 
@@ -1417,15 +1402,6 @@ static void __pm_genpd_free_dev_data(struct device *dev,
 				     struct generic_pm_domain_data *gpd_data)
 {
 	dev_pm_qos_remove_notifier(dev, &gpd_data->nb);
-
-	dev_pm_domain_set(dev, NULL);
-
-	spin_lock_irq(&dev->power.lock);
-
-	dev->power.subsys_data->domain_data = NULL;
-
-	spin_unlock_irq(&dev->power.lock);
-
 	kfree(gpd_data);
 }
 
