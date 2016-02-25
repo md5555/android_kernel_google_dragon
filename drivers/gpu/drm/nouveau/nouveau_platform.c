@@ -34,8 +34,6 @@
 #include <soc/tegra/mc.h>
 
 #include "nouveau_drm.h"
-#include "nouveau_chan.h"
-#include "nouveau_abi16.h"
 #include "nouveau_platform.h"
 
 static int nouveau_platform_power_up(struct nouveau_platform_gpu *gpu)
@@ -410,152 +408,6 @@ static const struct of_device_id nouveau_platform_match[] = {
 MODULE_DEVICE_TABLE(of, nouveau_platform_match);
 #endif
 
-/**
- * Different with runtime suspend, system suspend will wait
- * until all channel's pushbuffer has been processed.
- * This avoids the fail system suspend.
- */
-static void
-nouveau_platform_suspend_wait(struct nouveau_drm *drm)
-{
-	struct nouveau_cli *cli;
-
-#define WAIT_INTERVAL 10000
-	if (drm->cechan) {
-		for (;;) {
-			spin_lock(&drm->cechan->pushbuf_lock);
-			if (!list_empty(&drm->cechan->pushbuf_queue)) {
-				spin_unlock(&drm->cechan->pushbuf_lock);
-				udelay(WAIT_INTERVAL);
-			} else {
-				break;
-			}
-		}
-	}
-
-	if (drm->channel) {
-		for (;;) {
-			spin_lock(&drm->channel->pushbuf_lock);
-			if (!list_empty(&drm->channel->pushbuf_queue)) {
-				spin_unlock(&drm->channel->pushbuf_lock);
-				udelay(WAIT_INTERVAL);
-			} else {
-				break;
-			}
-		}
-	}
-
-	list_for_each_entry(cli, &drm->clients, head) {
-		mutex_lock(&cli->mutex);
-		if (cli->abi16) {
-			struct nouveau_abi16 *abi16 = cli->abi16;
-			struct nouveau_abi16_chan *chan;
-
-			list_for_each_entry(chan, &abi16->channels, head) {
-				for (;;) {
-					spin_lock(&chan->chan->pushbuf_lock);
-					if (!list_empty(&chan->chan->pushbuf_queue)) {
-						spin_unlock(&chan->chan->pushbuf_lock);
-						udelay(WAIT_INTERVAL);
-					} else {
-						break;
-					}
-				}
-			}
-		}
-		mutex_unlock(&cli->mutex);
-	}
-
-#undef WAIT_INTERVAL
-}
-
-static int
-nouveau_platform_runtime_suspend_check(struct nouveau_drm *drm)
-{
-	int ret = 0;
-	struct nouveau_cli *cli;
-
-	if (drm->cechan) {
-		spin_lock(&drm->cechan->pushbuf_lock);
-		if (!list_empty(&drm->cechan->pushbuf_queue)) {
-			spin_unlock(&drm->cechan->pushbuf_lock);
-			return -EAGAIN;
-		}
-	}
-
-	if (drm->channel) {
-		spin_lock(&drm->channel->pushbuf_lock);
-		if (!list_empty(&drm->channel->pushbuf_queue)) {
-			ret = -EAGAIN;
-			goto check_failed;
-		}
-	}
-
-	list_for_each_entry(cli, &drm->clients, head) {
-		mutex_lock(&cli->mutex);
-		if (cli->abi16) {
-			struct nouveau_abi16 *abi16 = cli->abi16;
-			struct nouveau_abi16_chan *chan;
-
-			list_for_each_entry(chan, &abi16->channels, head) {
-				spin_lock(&chan->chan->pushbuf_lock);
-				if (!list_empty(&chan->chan->pushbuf_queue)) {
-					mutex_unlock(&cli->mutex);
-					ret = -EAGAIN;
-					goto check_failed;
-				}
-			}
-		}
-		mutex_unlock(&cli->mutex);
-	}
-
-	return 0;
-
-check_failed:
-	list_for_each_entry(cli, &drm->clients, head) {
-		mutex_lock(&cli->mutex);
-		if (cli->abi16) {
-			struct nouveau_abi16 *abi16 = cli->abi16;
-			struct nouveau_abi16_chan *chan;
-
-			list_for_each_entry(chan, &abi16->channels, head) {
-				if (spin_is_locked(&chan->chan->pushbuf_lock))
-					spin_unlock(&chan->chan->pushbuf_lock);
-			}
-		}
-		mutex_unlock(&cli->mutex);
-	}
-	if (drm->channel)
-		spin_unlock(&drm->channel->pushbuf_lock);
-	if (drm->cechan)
-		spin_unlock(&drm->cechan->pushbuf_lock);
-	return ret;
-}
-
-static void
-nouveau_platform_suspend_release(struct nouveau_drm *drm)
-{
-	struct nouveau_cli *cli;
-
-	if (drm->cechan)
-		spin_unlock(&drm->cechan->pushbuf_lock);
-
-	if (drm->channel)
-		spin_unlock(&drm->channel->pushbuf_lock);
-
-	list_for_each_entry(cli, &drm->clients, head) {
-		mutex_lock(&cli->mutex);
-		if (cli->abi16) {
-			struct nouveau_abi16 *abi16 = cli->abi16;
-			struct nouveau_abi16_chan *chan;
-
-			list_for_each_entry(chan, &abi16->channels, head)
-				spin_unlock(&chan->chan->pushbuf_lock);
-		}
-		mutex_unlock(&cli->mutex);
-	}
-}
-
 static int
 nouveau_platform_pmops_suspend(struct device *dev)
 {
@@ -570,8 +422,6 @@ nouveau_platform_pmops_suspend(struct device *dev)
 	    drm_dev->switch_power_state == DRM_SWITCH_POWER_DYNAMIC_OFF)
 		return 0;
 
-	nouveau_platform_suspend_wait(drm);
-
 	ret = nouveau_do_suspend(drm_dev, false);
 	if (ret)
 		return ret;
@@ -581,8 +431,6 @@ nouveau_platform_pmops_suspend(struct device *dev)
 		dev_err(dev, "failed to power down gpu (err:%d)\n", ret);
 		return ret;
 	}
-
-	nouveau_platform_suspend_release(drm);
 
 	return 0;
 }
@@ -624,12 +472,6 @@ nouveau_platform_pmops_runtime_suspend(struct device *dev)
 	struct nouveau_platform_gpu *gpu = nv_device_to_platform(device)->gpu;
 	int ret;
 
-	ret = nouveau_platform_runtime_suspend_check(drm);
-	if (ret) {
-		dev_info(dev, "refuse runtime suspend due to pending pushbuffers.\n");
-		return ret;
-	}
-
 	ret = nouveau_do_suspend(drm_dev, true);
 	if (ret) {
 		dev_err(dev, "failed to suspend drm device (err:%d)\n", ret);
@@ -641,8 +483,6 @@ nouveau_platform_pmops_runtime_suspend(struct device *dev)
 		dev_err(dev, "failed to power down gpu (err:%d)\n", ret);
 		return ret;
 	}
-
-	nouveau_platform_suspend_release(drm);
 
 	drm_dev->switch_power_state = DRM_SWITCH_POWER_DYNAMIC_OFF;
 	return ret;
