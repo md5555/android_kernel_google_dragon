@@ -23,10 +23,14 @@ DHDCFLAGS += -DBCMASSERT_LOG
 
 # keepalive
 <<<<<<< HEAD
+<<<<<<< HEAD
 DHDCFLAGS += -DCUSTOM_KEEP_ALIVE_SETTING=10000
 =======
 DHDCFLAGS += -DCUSTOM_KEEP_ALIVE_SETTING=15000
 >>>>>>> 92956e4... bcmdhd: Disable option for setting custom MAC address / modify values to allow for greater device sleep
+=======
+DHDCFLAGS += -DCUSTOM_KEEP_ALIVE_SETTING=10000
+>>>>>>> dc03cd1... More conservative bcmdhd changes
 
 DHDCFLAGS += -DVSDB
 
