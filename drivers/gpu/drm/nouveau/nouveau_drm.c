@@ -23,7 +23,6 @@
  */
 
 #include <linux/console.h>
-#include <linux/kthread.h>
 #include <linux/module.h>
 #include <linux/pci.h>
 #include <linux/pm_runtime.h>
@@ -582,14 +581,12 @@ nouveau_do_suspend(struct drm_device *dev, bool runtime)
 
 	NV_INFO(drm, "waiting for kernel channels to go idle...\n");
 	if (drm->cechan) {
-		kthread_park(drm->cechan->pushbuf_thread);
 		ret = nouveau_channel_idle(drm->cechan);
 		if (ret)
 			goto fail_display;
 	}
 
 	if (drm->channel) {
-		kthread_park(drm->channel->pushbuf_thread);
 		ret = nouveau_channel_idle(drm->channel);
 		if (ret)
 			goto fail_display;
@@ -603,7 +600,6 @@ nouveau_do_suspend(struct drm_device *dev, bool runtime)
 			struct nouveau_abi16_chan *chan;
 
 			list_for_each_entry(chan, &abi16->channels, head) {
-				kthread_park(chan->chan->pushbuf_thread);
 				ret = nouveau_channel_idle(chan->chan);
 				if (ret) {
 					mutex_unlock(&cli->mutex);
@@ -645,23 +641,6 @@ fail_client:
 		nouveau_fence(drm)->resume(drm);
 
 fail_display:
-	/* It doesn't hurt if we didn't call kthread_park before */
-	if (drm->cechan)
-		kthread_unpark(drm->cechan->pushbuf_thread);
-	if (drm->channel)
-		kthread_unpark(drm->channel->pushbuf_thread);
-	list_for_each_entry(cli, &drm->clients, head) {
-		mutex_lock(&cli->mutex);
-		if (cli->abi16) {
-			struct nouveau_abi16 *abi16 = cli->abi16;
-			struct nouveau_abi16_chan *chan;
-
-			list_for_each_entry(chan, &abi16->channels, head)
-				kthread_unpark(chan->chan->pushbuf_thread);
-		}
-		mutex_unlock(&cli->mutex);
-	}
-
 	if (dev->mode_config.num_crtc) {
 		NV_INFO(drm, "resuming display...\n");
 		nouveau_display_resume(dev, runtime);
@@ -690,25 +669,6 @@ nouveau_do_resume(struct drm_device *dev, bool runtime)
 
 	list_for_each_entry(cli, &drm->clients, head) {
 		nvif_client_resume(&cli->base);
-	}
-
-	NV_INFO(drm, "resuming kernel channel pushbuffer kthread...\n");
-	if (drm->cechan)
-		kthread_unpark(drm->cechan->pushbuf_thread);
-	if (drm->channel)
-		kthread_unpark(drm->channel->pushbuf_thread);
-
-	NV_INFO(drm, "resuming client channel pushbuffer kthread...\n");
-	list_for_each_entry(cli, &drm->clients, head) {
-		mutex_lock(&cli->mutex);
-		if (cli->abi16) {
-			struct nouveau_abi16 *abi16 = cli->abi16;
-			struct nouveau_abi16_chan *chan;
-
-			list_for_each_entry(chan, &abi16->channels, head)
-				kthread_unpark(chan->chan->pushbuf_thread);
-		}
-		mutex_unlock(&cli->mutex);
 	}
 
 	if (dev->pdev)
