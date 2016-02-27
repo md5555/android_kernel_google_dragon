@@ -1367,7 +1367,7 @@ wl_cfg80211_add_virtual_iface(struct wiphy *wiphy,
 #endif 
 #endif /* PROP_TXSTATUS_VSDB */
 #if defined(SUPPORT_AP_POWERSAVE)
-	dhd_pub_t *dhd;
+//	dhd_pub_t *dhd;
 #endif
 
 	if (!cfg)
@@ -1381,7 +1381,7 @@ if (bcmdhd_prop_txstatus_vsdb) {
 }
 #endif /* PROP_TXSTATUS_VSDB */
 #if defined(SUPPORT_AP_POWERSAVE)
-	dhd = (dhd_pub_t *)(cfg->pub);
+//	dhd = (dhd_pub_t *)(cfg->pub);
 #endif
 
 	/* Use primary I/F for sending cmds down to firmware */
