@@ -88,6 +88,12 @@ struct panel_jdi {
 	u8 current_register;
 };
 
+static bool display_on = false;
+
+bool is_display_on(void) {
+	return display_on;
+}
+
 static inline struct panel_jdi *to_panel_jdi(struct drm_panel *panel)
 {
 	return container_of(panel, struct panel_jdi, base);
@@ -313,6 +319,8 @@ static int panel_jdi_disable(struct drm_panel *panel)
 
 	jdi->brightness = 0;
 	jdi->bl_enabled = false;
+
+	display_on = false;
 out:
 	mutex_unlock(&jdi->lock);
 	return ret;
@@ -553,6 +561,8 @@ static int panel_jdi_enable(struct drm_panel *panel)
 
 	jdi->enabled = true;
 	jdi->bl_enabled = true;
+	
+	display_on = true;
 
 	mutex_unlock(&jdi->lock);
 
