@@ -35,6 +35,8 @@
 #include <linux/display_state.h>
 #include <asm/cputime.h>
 
+#define MAX_LOCAL_LOAD 100
+
 #define CREATE_TRACE_POINTS
 #include <trace/events/cpufreq_interactive.h>
 
@@ -351,9 +353,6 @@ static void cpufreq_interactive_timer(unsigned long data)
 	unsigned int loadadjfreq;
 	unsigned int index;
 	unsigned long flags;
-	unsigned long max_cpu;
-	int i, fcpu;
-	struct cpufreq_govinfo govinfo;
 	unsigned int this_hispeed_freq;
 	bool display_on = is_display_on();
 
@@ -387,7 +386,7 @@ static void cpufreq_interactive_timer(unsigned long data)
 	loadadjfreq = (unsigned int)cputime_speedadj * 100;
 	cpu_load = loadadjfreq / pcpu->policy->cur;
 	tunables->boosted = tunables->boost_val || now < tunables->boostpulse_endtime;
-	this_hispeed_freq = max(tunables->hispeed_freq, ppol->policy->min);
+	this_hispeed_freq = max(tunables->hispeed_freq, pcpu->policy->min);
 
 	if (cpu_load >= tunables->go_hispeed_load || tunables->boosted) {
 		if (pcpu->target_freq < tunables->hispeed_freq && 
@@ -1270,6 +1269,9 @@ static int cpufreq_interactive_idle_notifier(struct notifier_block *nb,
 	case IDLE_END:
 		cpufreq_interactive_idle_end();
 		break;
+	}
+
+	return 0;
 }
 
 static struct notifier_block cpufreq_interactive_idle_nb = {
