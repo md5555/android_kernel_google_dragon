@@ -1166,8 +1166,10 @@ nouveau_gem_pushbuf_queue_kthread_fn(void *data)
 	NV_DEBUG(chan->drm, "PB thread started on channel %s\n",
 		nvxx_client(chan)->name);
 
+	set_freezable();
+
 	while (1) {
-		ret = wait_event_interruptible(chan->pushbuf_waitqueue,
+		ret = wait_event_freezable(chan->pushbuf_waitqueue,
 			(pb_data = nouveau_gem_pushbuf_queue_head(chan)) ||
 			kthread_should_park() || kthread_should_stop());
 		if (ret) {
