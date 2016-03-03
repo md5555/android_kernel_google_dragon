@@ -153,6 +153,7 @@ struct nv_device_v0 {
 };
 
 #define NV_DEVICE_V0_INFO                                                  0x00
+#define NV_DEVICE_V0_ZCULL_INFO                                            0x01
 
 struct nv_device_info_v0 {
 	__u8  version;
@@ -177,6 +178,22 @@ struct nv_device_info_v0 {
 	__u8  pad06[2];
 	__u64 ram_size;
 	__u64 ram_user;
+};
+
+struct nv_device_zcull_info_v0 {
+	__u8  version;
+	__u8  pad03[3];
+	__u32 image_size;
+	__u32 width_align_pixels;
+	__u32 height_align_pixels;
+	__u32 pixel_squares_by_aliquots;
+	__u32 aliquot_total;
+	__u32 region_byte_multiplier;
+	__u32 region_header_size;
+	__u32 subregion_header_size;
+	__u32 subregion_width_align_pixels;
+	__u32 subregion_height_align_pixels;
+	__u32 subregion_count;
 };
 
 
@@ -551,6 +568,7 @@ struct nv50_disp_overlay_v0 {
 
 #define FERMI_A_ZBC_COLOR                                                  0x00
 #define FERMI_A_ZBC_DEPTH                                                  0x01
+#define FERMI_A_ZCULL_BIND                                                 0x02
 
 struct fermi_a_zbc_color_v0 {
 	__u8  version;
@@ -588,6 +606,16 @@ struct fermi_a_zbc_depth_v0 {
 	__u8  pad03[5];
 	__u32 ds;
 	__u32 l2;
+};
+
+struct fermi_a_zcull_bind_v0 {
+	__u8  version;
+	__u8  pad03[3];
+#define FERMI_A_ZCULL_BIND_MODE_GLOBAL                                     0x00
+#define FERMI_A_ZCULL_BIND_MODE_NO_CTXSW                                   0x01
+#define FERMI_A_ZCULL_BIND_MODE_SEPARATE_BUFFER                            0x02
+	__u32 mode;
+	__u64 gpu_va;
 };
 
 #define KEPLER_SET_CHANNEL_PRIORITY                                        0x00

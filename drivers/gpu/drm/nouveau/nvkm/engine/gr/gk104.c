@@ -306,6 +306,7 @@ gk104_gr_init(struct nvkm_object *object)
 	nv_wr32(priv, 0x400054, 0x34ce3464);
 
 	gf100_gr_zbc_init(priv);
+	gf100_gr_zcull_info_init(priv);
 
 	return gf100_gr_init_ctxctl(priv);
 }
@@ -318,7 +319,7 @@ gk104_gr_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	struct nvkm_pmu *pmu = nvkm_pmu(parent);
 	if (pmu)
 		pmu->pgob(pmu, false);
-	return gf100_gr_ctor(parent, engine, oclass, data, size, pobject);
+	return gf110_gr_ctor(parent, engine, oclass, data, size, pobject);
 }
 
 #include "fuc/hubgk104.fuc3.h"

@@ -428,6 +428,7 @@ gm107_gr_init(struct nvkm_object *object)
 	nv_wr32(priv, 0x400054, 0x2c350f63);
 
 	gf100_gr_zbc_init(priv);
+	gf100_gr_zcull_info_init(priv);
 
 	return gf100_gr_init_ctxctl(priv);
 }
@@ -456,7 +457,7 @@ struct nvkm_oclass *
 gm107_gr_oclass = &(struct gf100_gr_oclass) {
 	.base.handle = NV_ENGINE(GR, 0x07),
 	.base.ofuncs = &(struct nvkm_ofuncs) {
-		.ctor = gf100_gr_ctor,
+		.ctor = gf110_gr_ctor,
 		.dtor = gf100_gr_dtor,
 		.init = gm107_gr_init,
 		.fini = _nvkm_gr_fini,

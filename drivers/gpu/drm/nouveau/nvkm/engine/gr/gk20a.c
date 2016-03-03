@@ -414,7 +414,7 @@ gk20a_gr_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	struct gf100_gr_priv *priv;
 	struct gf100_gr_fuc fuc;
 
-	err = gf100_gr_ctor(parent, engine, oclass, data, size, pobject);
+	err = gf110_gr_ctor(parent, engine, oclass, data, size, pobject);
 	if (err)
 		return err;
 
@@ -590,6 +590,7 @@ gk20a_gr_init(struct nvkm_object *object)
 	nv_wr32(priv, 0x400134, 0xffffffff);
 
 	gf100_gr_zbc_init(priv);
+	gf100_gr_zcull_info_init(priv);
 
 	/* Missing LTC CBC init? */
 

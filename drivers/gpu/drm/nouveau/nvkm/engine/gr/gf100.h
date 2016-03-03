@@ -94,6 +94,8 @@ struct gf100_gr_priv {
 	u8 tpc_total;
 	u8 ppc_nr[GPC_MAX];
 	u8 ppc_tpc_nr[GPC_MAX][4];
+	u8 zcull_nr[GPC_MAX];
+	u8 zcull_total;
 
 	struct nvkm_gpuobj *unk4188b4;
 	struct nvkm_gpuobj *unk4188b8;
@@ -107,6 +109,14 @@ struct gf100_gr_priv {
 	/* use before submitting any method to FECS/FUC ucode */
 	struct mutex fecs_mutex;
 	bool gr_recovery_in_progress;
+
+	struct {
+		u32 image_size;
+		u32 width_align_pixels;
+		u32 height_align_pixels;
+		u32 pixel_squares_by_aliquots;
+		u32 aliquot_total;
+	} zcull_info;
 };
 
 struct gf100_gr_chan {
@@ -138,6 +148,12 @@ int  gf100_gr_ctor(struct nvkm_object *, struct nvkm_object *,
 void gf100_gr_dtor(struct nvkm_object *);
 int  gf100_gr_init(struct nvkm_object *);
 void gf100_gr_zbc_init(struct gf100_gr_priv *);
+void gf100_gr_zcull_info_init(struct gf100_gr_priv *priv);
+void gf100_gr_zcull_info(struct nvkm_gr *gr, void *data);
+
+int  gf110_gr_ctor(struct nvkm_object *, struct nvkm_object *,
+		     struct nvkm_oclass *, void *data, u32 size,
+		     struct nvkm_object **);
 
 int  gk104_gr_ctor(struct nvkm_object *, struct nvkm_object *,
 		     struct nvkm_oclass *, void *data, u32 size,

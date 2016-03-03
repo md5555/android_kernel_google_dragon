@@ -31,6 +31,7 @@
 #include <subdev/bios.h>
 #include <subdev/fb.h>
 #include <subdev/instmem.h>
+#include <engine/gr.h>
 
 #include <nvif/class.h>
 #include <nvif/unpack.h>
@@ -150,11 +151,39 @@ nvkm_devobj_info(struct nvkm_object *object, void *data, u32 size)
 }
 
 static int
+nvkm_devobj_zcull_info(struct nvkm_object *object, void *data, u32 size)
+{
+	struct nvkm_gr *gr = nvkm_gr(object);
+	union {
+		struct nv_device_zcull_info_v0 v0;
+	} *args = data;
+	int ret;
+
+	if (WARN_ON(!gr))
+		return -ENOSYS;
+
+	if (!gr->zcull_info)
+		return -ENOSYS;
+
+	/*
+	 * this requires an initialized gr, which is done in
+	 * nouveau_bo_move_init() from nouveau_drm_load() for GRCE.
+	 */
+
+	if (nvif_unpack(args->v0, 0, 0, false))
+		gr->zcull_info(gr, args);
+
+	return ret;
+}
+
+static int
 nvkm_devobj_mthd(struct nvkm_object *object, u32 mthd, void *data, u32 size)
 {
 	switch (mthd) {
 	case NV_DEVICE_V0_INFO:
 		return nvkm_devobj_info(object, data, size);
+	case NV_DEVICE_V0_ZCULL_INFO:
+		return nvkm_devobj_zcull_info(object, data, size);
 	default:
 		break;
 	}

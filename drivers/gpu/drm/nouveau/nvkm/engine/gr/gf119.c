@@ -177,7 +177,7 @@ struct nvkm_oclass *
 gf119_gr_oclass = &(struct gf100_gr_oclass) {
 	.base.handle = NV_ENGINE(GR, 0xd9),
 	.base.ofuncs = &(struct nvkm_ofuncs) {
-		.ctor = gf100_gr_ctor,
+		.ctor = gf110_gr_ctor,
 		.dtor = gf100_gr_dtor,
 		.init = gf100_gr_init,
 		.fini = _nvkm_gr_fini,

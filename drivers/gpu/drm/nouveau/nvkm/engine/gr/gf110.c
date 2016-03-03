@@ -99,11 +99,44 @@ gf110_gr_pack_mmio[] = {
  * PGRAPH engine/subdev functions
  ******************************************************************************/
 
+static void
+gf110_gr_zcull_info(struct nvkm_gr *gr, void *data)
+{
+	struct gf100_gr_priv *priv = (void *)gr;
+	union {
+		struct nv_device_zcull_info_v0 v0;
+	} *args = data;
+
+	gf100_gr_zcull_info(gr, data);
+
+	args->v0.subregion_header_size = 1 * 0xc0;
+	args->v0.subregion_width_align_pixels = priv->tpc_total * 0x10;
+	args->v0.subregion_height_align_pixels = 0x40;
+	args->v0.subregion_count = 0x10;
+}
+
+int
+gf110_gr_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
+	      struct nvkm_oclass *bclass, void *data, u32 size,
+	      struct nvkm_object **pobject)
+{
+	struct gf100_gr_priv *priv;
+	int ret;
+
+	ret = gf100_gr_ctor(parent, engine, bclass, data, size, pobject);
+	if (ret)
+		return ret;
+
+	priv = (void*)*pobject;
+	priv->base.zcull_info = gf110_gr_zcull_info;
+	return 0;
+}
+
 struct nvkm_oclass *
 gf110_gr_oclass = &(struct gf100_gr_oclass) {
 	.base.handle = NV_ENGINE(GR, 0xc8),
 	.base.ofuncs = &(struct nvkm_ofuncs) {
-		.ctor = gf100_gr_ctor,
+		.ctor = gf110_gr_ctor,
 		.dtor = gf100_gr_dtor,
 		.init = gf100_gr_init,
 		.fini = _nvkm_gr_fini,
