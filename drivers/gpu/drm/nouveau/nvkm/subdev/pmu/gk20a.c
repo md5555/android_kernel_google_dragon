@@ -2079,6 +2079,9 @@ int gk20a_pmu_enable_elpg(struct nvkm_pmu *pmu)
 	struct gk20a_pmu_priv *priv = to_gk20a_priv(pmu);
 	int ret;
 
+	/* Do not enable ELPG as of now due to bug 49765 */
+	return 0;
+
 	mutex_lock(&priv->elpg_mutex);
 
 	if (!priv->elpg_disable_depth) {
