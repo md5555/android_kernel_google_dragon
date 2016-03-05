@@ -25,8 +25,14 @@ extern __read_mostly int scheduler_running;
 extern unsigned long calc_load_update;
 extern atomic_long_t calc_load_tasks;
 
+extern void calc_global_load_tick(struct rq *this_rq);
 extern long calc_load_fold_active(struct rq *this_rq);
+
+#ifdef CONFIG_SMP
 extern void update_cpu_load_active(struct rq *this_rq);
+#else
+static inline void update_cpu_load_active(struct rq *this_rq) { }
+#endif
 
 /*
  * Helpers for converting nanosecond timing to jiffy resolution
@@ -217,8 +223,12 @@ struct task_group {
 	unsigned long shares;
 
 #ifdef	CONFIG_SMP
-	atomic_long_t load_avg;
-	atomic_t runnable_avg;
+	/*
+	 * load_avg can be heavily contended at clock tick time, so put
+	 * it in its own cacheline separated from the fields above which
+	 * will also be accessed at each tick.
+	 */
+	atomic_long_t load_avg ____cacheline_aligned;
 #endif
 #endif
 
@@ -305,7 +315,15 @@ extern void sched_move_task(struct task_struct *tsk);
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
 extern int sched_group_set_shares(struct task_group *tg, unsigned long shares);
-#endif
+
+#ifdef CONFIG_SMP
+extern void set_task_rq_fair(struct sched_entity *se,
+			     struct cfs_rq *prev, struct cfs_rq *next);
+#else /* !CONFIG_SMP */
+static inline void set_task_rq_fair(struct sched_entity *se,
+			     struct cfs_rq *prev, struct cfs_rq *next) { }
+#endif /* CONFIG_SMP */
+#endif /* CONFIG_FAIR_GROUP_SCHED */
 
 #else /* CONFIG_CGROUP_SCHED */
 
@@ -339,27 +357,20 @@ struct cfs_rq {
 
 #ifdef CONFIG_SMP
 	/*
-	 * CFS Load tracking
-	 * Under CFS, load is tracked on a per-entity basis and aggregated up.
-	 * This allows for the description of both thread and group usage (in
-	 * the FAIR_GROUP_SCHED case).
-	 * runnable_load_avg is the sum of the load_avg_contrib of the
-	 * sched_entities on the rq.
-	 * blocked_load_avg is similar to runnable_load_avg except that its
-	 * the blocked sched_entities on the rq.
-	 * utilization_load_avg is the sum of the average running time of the
-	 * sched_entities on the rq.
+	 * CFS load tracking
 	 */
-	unsigned long runnable_load_avg, blocked_load_avg, utilization_load_avg;
-	atomic64_t decay_counter;
-	u64 last_decay;
-	atomic_long_t removed_load;
+	struct sched_avg avg;
+	u64 runnable_load_sum;
+	unsigned long runnable_load_avg;
+#ifdef CONFIG_FAIR_GROUP_SCHED
+	unsigned long tg_load_avg_contrib;
+#endif
+	atomic_long_t removed_load_avg, removed_util_avg;
+#ifndef CONFIG_64BIT
+	u64 load_last_update_time_copy;
+#endif
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
-	/* Required to track per-cpu representation of a task_group */
-	u32 tg_runnable_contrib;
-	unsigned long tg_load_contrib;
-
 	/*
 	 *   h_load = weight * f(tg)
 	 *
@@ -583,8 +594,6 @@ struct rq {
 #ifdef CONFIG_FAIR_GROUP_SCHED
 	/* list of leaf cfs_rq on this cpu: */
 	struct list_head leaf_cfs_rq_list;
-
-	struct sched_avg avg;
 #endif /* CONFIG_FAIR_GROUP_SCHED */
 
 	/*
@@ -700,13 +709,20 @@ DECLARE_PER_CPU_SHARED_ALIGNED(struct rq, runqueues);
 #define cpu_curr(cpu)		(cpu_rq(cpu)->curr)
 #define raw_rq()		raw_cpu_ptr(&runqueues)
 
+static inline u64 __rq_clock_broken(struct rq *rq)
+{
+	return READ_ONCE(rq->clock);
+}
+
 static inline u64 rq_clock(struct rq *rq)
 {
+	lockdep_assert_held(&rq->lock);
 	return rq->clock;
 }
 
 static inline u64 rq_clock_task(struct rq *rq)
 {
+	lockdep_assert_held(&rq->lock);
 	return rq->clock_task;
 }
 
@@ -878,6 +894,7 @@ static inline void set_task_rq(struct task_struct *p, unsigned int cpu)
 #endif
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
+	set_task_rq_fair(&p->se, p->se.cfs_rq, tg->cfs_rq[cpu]);
 	p->se.cfs_rq = tg->cfs_rq[cpu];
 	p->se.parent = tg->se[cpu];
 #endif
@@ -1174,6 +1191,11 @@ struct sched_class {
 	void (*task_fork) (struct task_struct *p);
 	void (*task_dead) (struct task_struct *p);
 
+	/*
+	 * The switched_from() call is allowed to drop rq->lock, therefore we
+	 * cannot assume the switched_from/switched_to pair is serliazed by
+	 * rq->lock. They are however serialized by p->pi_lock.
+	 */
 	void (*switched_from) (struct rq *this_rq, struct task_struct *task);
 	void (*switched_to) (struct rq *this_rq, struct task_struct *task);
 	void (*prio_changed) (struct rq *this_rq, struct task_struct *task,
@@ -1185,7 +1207,7 @@ struct sched_class {
 	void (*update_curr) (struct rq *rq);
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
-	void (*task_move_group) (struct task_struct *p, int on_rq);
+	void (*task_move_group) (struct task_struct *p);
 #endif
 };
 
@@ -1286,9 +1308,7 @@ extern void init_dl_task_timer(struct sched_dl_entity *dl_se);
 
 unsigned long to_ratio(u64 period, u64 runtime);
 
-extern void update_idle_cpu_load(struct rq *this_rq);
-
-extern void init_task_runnable_average(struct task_struct *p);
+extern void init_entity_runnable_average(struct sched_entity *se);
 
 static inline void __add_nr_running(struct rq *rq, unsigned count)
 {
@@ -1417,6 +1437,17 @@ extern void sched_avg_update(struct rq *rq);
 static __always_inline
 unsigned long arch_scale_freq_capacity(struct sched_domain *sd, int cpu)
 {
+	return SCHED_CAPACITY_SCALE;
+}
+#endif
+
+#ifndef arch_scale_cpu_capacity
+static __always_inline
+unsigned long arch_scale_cpu_capacity(struct sched_domain *sd, int cpu)
+{
+	if (sd && (sd->flags & SD_SHARE_CPUCAPACITY) && (sd->span_weight > 1))
+		return sd->smt_gain / sd->span_weight;
+
 	return SCHED_CAPACITY_SCALE;
 }
 #endif
