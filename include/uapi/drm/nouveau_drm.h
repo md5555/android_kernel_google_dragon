@@ -173,15 +173,18 @@ struct drm_nouveau_gem_set_error_notifier {
 
 struct drm_nouveau_gem_map {
 	uint32_t handle;
-	uint32_t pad;
+	uint32_t domain;
 	uint64_t offset;
 	uint64_t delta;
 	uint64_t length;
+	uint32_t tile_mode;
+	uint32_t tile_flags;
 };
 
 struct drm_nouveau_gem_unmap {
 	uint32_t handle;
 	uint32_t pad;
+	uint64_t offset;
 	uint64_t delta;
 	uint64_t length;
 };
