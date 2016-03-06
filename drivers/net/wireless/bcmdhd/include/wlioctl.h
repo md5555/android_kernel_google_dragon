@@ -2671,6 +2671,45 @@ typedef struct wl_pfn_cfg {
 #define WL_PFN_CFG_FLAGS_PROHIBITED	0x00000001	/* Accept and use prohibited channels */
 #define WL_PFN_CFG_FLAGS_RESERVED	0xfffffffe	/* Remaining reserved for future use */
 
+#define CH_BUCKET_REPORT_REGULAR            0
+#define CH_BUCKET_REPORT_FULL_RESULT        2
+#define CH_BUCKET_GSCAN                     4
+
+typedef struct wl_pfn_gscan_ch_bucket_cfg {
+	uint8 bucket_end_index;
+	uint8 bucket_freq_multiple;
+	uint8 flag;
+	uint8 reserved;
+	uint16 repeat;
+	uint16 max_freq_multiple;
+} wl_pfn_gscan_ch_bucket_cfg_t;
+
+#define GSCAN_SEND_ALL_RESULTS_MASK          (1 << 0)
+#define GSCAN_CFG_FLAGS_ONLY_MASK            (1 << 7)
+#define WL_GSCAN_CFG_VERSION                     2
+typedef struct wl_pfn_gscan_cfg {
+	uint16 version;
+	/* BIT0 1 = send probes/beacons to HOST
+	 * BIT1 Reserved
+	 * BIT2 Reserved
+	 * Add any future flags here
+	 * BIT7 1 = no other useful cfg sent
+	 */
+	uint8 flags;
+	/* Buffer filled threshold in % to generate an event */
+	uint8   buffer_threshold;
+	/* No. of BSSIDs with "change" to generate an evt
+	 * change - crosses rssi threshold/lost
+	 */
+	uint8   swc_nbssid_threshold;
+	/* Max=8 (for now) Size of rssi cache buffer */
+	uint8  swc_rssi_window_size;
+	uint8  count_of_channel_buckets;
+	uint8  retry_threshold;
+	uint16  lost_ap_window;
+	wl_pfn_gscan_ch_bucket_cfg_t channel_bucket[1];
+} wl_pfn_gscan_cfg_t;
+
 typedef struct wl_pfn {
 	wlc_ssid_t		ssid;			/* ssid name and its length */
 	int32			flags;			/* bit2: hidden */

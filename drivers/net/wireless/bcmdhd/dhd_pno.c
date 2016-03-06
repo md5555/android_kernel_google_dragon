@@ -2330,4 +2330,76 @@ exit:
 
 }
 
+static int
+_dhd_pno_gscan_cfg(dhd_pub_t *dhd, wl_pfn_gscan_cfg_t *pfncfg_gscan_param, int size)
+{
+	int err = BCME_OK;
+	NULL_CHECK(dhd, "dhd is NULL", err);
+
+	DHD_PNO(("%s enter\n", __FUNCTION__));
+
+	err = dhd_iovar(dhd, 0, "pfn_gscan_cfg", (char *)pfncfg_gscan_param, size, 1);
+	if (err < 0) {
+		DHD_ERROR(("%s : failed to execute pfncfg_gscan_param\n", __FUNCTION__));
+		goto exit;
+	}
+exit:
+	return err;
+}
+
+int dhd_pno_enable_full_scan_result(dhd_pub_t *dhd, bool real_time_flag)
+{
+	int err = BCME_OK;
+	dhd_pno_params_t *params;
+	dhd_pno_status_info_t *_pno_state;
+	struct dhd_pno_gscan_params *gscan_params;
+	uint8 old_flag;
+
+	NULL_CHECK(dhd, "dhd is NULL\n", err);
+	NULL_CHECK(dhd->pno_state, "pno_state is NULL", err);
+	_pno_state = PNO_GET_PNOSTATE(dhd);
+
+	DHD_PNO(("%s enter\n", __FUNCTION__));
+
+	if (!WLS_SUPPORTED(_pno_state)) {
+		DHD_ERROR(("%s : wifi location service is not supported\n", __FUNCTION__));
+		err = BCME_UNSUPPORTED;
+		goto exit;
+	}
+
+	params = &_pno_state->pno_params_arr[INDEX_OF_GSCAN_PARAMS];
+	gscan_params = &params->params_gscan;
+
+	mutex_lock(&_pno_state->pno_mutex);
+
+	old_flag = gscan_params->send_all_results_flag;
+	gscan_params->send_all_results_flag = (uint8) real_time_flag;
+	if (_pno_state->pno_mode & DHD_PNO_GSCAN_MODE) {
+	    if (old_flag != gscan_params->send_all_results_flag) {
+			wl_pfn_gscan_cfg_t gscan_cfg;
+
+			gscan_cfg.version = WL_GSCAN_CFG_VERSION;
+			gscan_cfg.flags = (gscan_params->send_all_results_flag &
+			                           GSCAN_SEND_ALL_RESULTS_MASK);
+			gscan_cfg.flags |= GSCAN_CFG_FLAGS_ONLY_MASK;
+
+			if ((err = _dhd_pno_gscan_cfg(dhd, &gscan_cfg,
+			            sizeof(wl_pfn_gscan_cfg_t))) < 0) {
+				DHD_ERROR(("%s : pno_gscan_cfg failed (err %d) in firmware\n",
+					__FUNCTION__, err));
+				goto exit_mutex_unlock;
+			}
+		} else {
+			DHD_PNO(("No change in flag - %d\n", old_flag));
+		}
+	} else {
+		DHD_PNO(("Gscan not started\n"));
+	}
+exit_mutex_unlock:
+	mutex_unlock(&_pno_state->pno_mutex);
+exit:
+	return err;
+}
+
+
 #endif /* PNO_SUPPORT */
