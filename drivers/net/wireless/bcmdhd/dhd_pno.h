@@ -490,10 +490,12 @@ extern int
 dhd_dev_pno_set_for_hotlist(struct net_device *dev, wl_pfn_bssid_t *p_pfn_bssid,
 	struct dhd_pno_hotlist_params *hotlist_params);
 #ifdef GSCAN_SUPPORT
+extern int dhd_pno_enable_full_scan_result(dhd_pub_t *dhd, bool real_time_flag);
 extern int dhd_pno_initiate_gscan_request(dhd_pub_t *dhd, bool run, bool flush);
-extern int dhd_dev_pno_run_gscan(struct net_device *dev, bool run, bool flush);
 extern int dhd_pno_set_cfg_gscan(dhd_pub_t *dhd, dhd_pno_gscan_cmd_cfg_t type,
     void *buf, uint8 flush);
+extern int dhd_dev_pno_enable_full_scan_result(struct net_device *dev, bool real_time_flag);
+extern int dhd_dev_pno_run_gscan(struct net_device *dev, bool run, bool flush);
 extern int
 dhd_dev_pno_set_cfg_gscan(struct net_device *dev, dhd_pno_gscan_cmd_cfg_t type,
               void *buf, uint8 flush);

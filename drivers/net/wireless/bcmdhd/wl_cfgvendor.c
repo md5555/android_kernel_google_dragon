@@ -442,6 +442,31 @@ static int wl_cfgvendor_initiate_gscan(struct wiphy *wiphy,
 
 }
 
+static int wl_cfgvendor_enable_full_scan_result(struct wiphy *wiphy,
+	struct wireless_dev *wdev, const void  *data, int len)
+{
+	int err = 0;
+	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
+	int type;
+	bool real_time = FALSE;
+
+	type = nla_type(data);
+
+	if (type == GSCAN_ATTRIBUTE_ENABLE_FULL_SCAN_RESULTS) {
+		real_time = nla_get_u32(data);
+
+		err = dhd_dev_pno_enable_full_scan_result(bcmcfg_to_prmry_ndev(cfg), real_time);
+
+		if (unlikely(err))
+			WL_ERR(("Could not run gscan:%d \n", err));
+
+	} else {
+		err = -1;
+	}
+
+	return err;
+}
+
 #endif /* GSCAN_SUPPORT */
 
 static const struct wiphy_vendor_command wl_vendor_cmds [] = {
@@ -493,6 +518,14 @@ static const struct wiphy_vendor_command wl_vendor_cmds [] = {
 		},
 		.flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
 		.doit = wl_cfgvendor_initiate_gscan
+	},
+	{
+		{
+			.vendor_id = OUI_GOOGLE,
+			.subcmd = GSCAN_SUBCMD_ENABLE_FULL_SCAN_RESULTS
+		},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = wl_cfgvendor_enable_full_scan_result
 	},
 	{
 		{
