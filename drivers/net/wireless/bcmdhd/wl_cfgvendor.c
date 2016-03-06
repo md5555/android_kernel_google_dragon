@@ -374,6 +374,42 @@ static int wl_cfgvendor_set_scan_cfg(struct wiphy *wiphy,
 
 }
 
+static int wl_cfgvendor_set_batch_scan_cfg(struct wiphy *wiphy,
+	struct wireless_dev *wdev, const void  *data, int len)
+{
+	int err = 0, tmp, type;
+	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
+	gscan_batch_params_t batch_param;
+	const struct nlattr *iter;
+
+	batch_param.mscan = batch_param.bestn = 0;
+	batch_param.buffer_threshold = GSCAN_BATCH_NO_THR_SET;
+
+	nla_for_each_attr(iter, data, len, tmp) {
+		type = nla_type(iter);
+
+		switch (type) {
+			case GSCAN_ATTRIBUTE_NUM_AP_PER_SCAN:
+				batch_param.bestn = nla_get_u32(iter);
+				break;
+			case GSCAN_ATTRIBUTE_NUM_SCANS_TO_CACHE:
+				batch_param.mscan = nla_get_u32(iter);
+				break;
+			case GSCAN_ATTRIBUTE_REPORT_THRESHOLD:
+				batch_param.buffer_threshold = nla_get_u32(iter);
+				break;
+		}
+	}
+
+	if (dhd_dev_pno_set_cfg_gscan(bcmcfg_to_prmry_ndev(cfg),
+	       DHD_PNO_BATCH_SCAN_CFG_ID, &batch_param, 0) < 0) {
+		WL_ERR(("Could not set batch cfg\n"));
+		err = -EINVAL;
+		return err;
+	}
+
+	return err;
+}
 
 #endif /* GSCAN_SUPPORT */
 
@@ -410,6 +446,14 @@ static const struct wiphy_vendor_command wl_vendor_cmds [] = {
 		},
 		.flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
 		.doit = wl_cfgvendor_set_scan_cfg
+	},
+	{
+		{
+			.vendor_id = OUI_GOOGLE,
+			.subcmd = GSCAN_SUBCMD_SET_SCAN_CONFIG
+		},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = wl_cfgvendor_set_batch_scan_cfg
 	},
 	{
 		{
