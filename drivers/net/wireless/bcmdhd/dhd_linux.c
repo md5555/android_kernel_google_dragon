@@ -8341,7 +8341,7 @@ dhd_dev_pno_stop_for_ssid(struct net_device *dev)
 }
 /* Linux wrapper to call common dhd_pno_set_for_ssid */
 int
-dhd_dev_pno_set_for_ssid(struct net_device *dev, wlc_ssid_t* ssids_local, int nssid,
+dhd_dev_pno_set_for_ssid(struct net_device *dev, wlc_ssid_ext_t* ssids_local, int nssid,
 	uint16  scan_fr, int pno_repeat, int pno_freq_expo_max, uint16 *channel_list, int nchan)
 {
 	dhd_info_t *dhd = DHD_DEV_INFO(dev);
@@ -8391,11 +8391,25 @@ dhd_dev_pno_get_for_batch(struct net_device *dev, char *buf, int bufsize)
 #endif /* PNO_SUPPORT */
 
 #ifdef GSCAN_SUPPORT
+int dhd_dev_wait_batch_results_complete(struct net_device *dev)
+{
+	dhd_info_t *dhd = *(dhd_info_t **)netdev_priv(dev);
+
+	return (dhd_wait_batch_results_complete(&dhd->pub));
+}
+
 int dhd_dev_pno_enable_full_scan_result(struct net_device *dev, bool real_time_flag)
 {
 	dhd_info_t *dhd = *(dhd_info_t **)netdev_priv(dev);
 
 	return (dhd_pno_enable_full_scan_result(&dhd->pub, real_time_flag));
+}
+
+int dhd_dev_gscan_batch_cache_cleanup(struct net_device *dev)
+{
+	dhd_info_t *dhd = *(dhd_info_t **)netdev_priv(dev);
+
+	return (dhd_gscan_batch_cache_cleanup(&dhd->pub));
 }
 
 int
@@ -8405,6 +8419,25 @@ dhd_dev_pno_set_cfg_gscan(struct net_device *dev, dhd_pno_gscan_cmd_cfg_t type,
 	dhd_info_t *dhd = *(dhd_info_t **)netdev_priv(dev);
 
 	return (dhd_pno_set_cfg_gscan(&dhd->pub, type, buf, flush));
+}
+
+/* Linux wrapper to call common dhd_pno_lock_batch_results */
+int
+dhd_dev_pno_lock_access_batch_results(struct net_device *dev)
+{
+	dhd_info_t *dhd = *(dhd_info_t **)netdev_priv(dev);
+
+	return (dhd_pno_lock_batch_results(&dhd->pub));
+}
+/* Linux wrapper to call common dhd_pno_unlock_batch_results */
+int
+dhd_dev_pno_unlock_access_batch_results(struct net_device *dev)
+{
+	dhd_info_t *dhd = *(dhd_info_t **)netdev_priv(dev);
+
+	dhd_pno_unlock_batch_results(&dhd->pub);
+
+	return 0;
 }
 
 bool dhd_force_country_change(struct net_device *dev)

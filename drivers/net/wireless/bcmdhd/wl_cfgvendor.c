@@ -467,6 +467,102 @@ static int wl_cfgvendor_enable_full_scan_result(struct wiphy *wiphy,
 	return err;
 }
 
+static int wl_cfgvendor_gscan_get_batch_results(struct wiphy *wiphy,
+	struct wireless_dev *wdev, const void  *data, int len)
+{
+	int err = 0;
+	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
+	gscan_results_cache_t *results, *iter;
+	uint32 reply_len, complete = 1;
+	int32 mem_needed, num_results_iter;
+	wifi_gscan_result_t *ptr;
+	uint16 num_scan_ids, num_results;
+	struct sk_buff *skb;
+	struct nlattr *scan_hdr, *complete_flag;
+
+	err = dhd_dev_wait_batch_results_complete(bcmcfg_to_prmry_ndev(cfg));
+	if (err != BCME_OK)
+		return -EBUSY;
+
+	err = dhd_dev_pno_lock_access_batch_results(bcmcfg_to_prmry_ndev(cfg));
+	if (err != BCME_OK) {
+		WL_ERR(("Can't obtain lock to access batch results %d\n", err));
+		return -EBUSY;
+	}
+	results = dhd_dev_pno_get_gscan(bcmcfg_to_prmry_ndev(cfg),
+	             DHD_PNO_GET_BATCH_RESULTS, NULL, &reply_len);
+
+	if (!results) {
+		WL_ERR(("No results to send %d\n", err));
+		err =  wl_cfgvendor_send_cmd_reply(wiphy, bcmcfg_to_prmry_ndev(cfg),
+		        results, 0);
+
+		if (unlikely(err))
+			WL_ERR(("Vendor Command reply failed ret:%d \n", err));
+		dhd_dev_pno_unlock_access_batch_results(bcmcfg_to_prmry_ndev(cfg));
+		return err;
+	}
+	num_scan_ids = reply_len & 0xFFFF;
+	num_results = (reply_len & 0xFFFF0000) >> 16;
+	mem_needed = (num_results * sizeof(wifi_gscan_result_t)) +
+	             (num_scan_ids * GSCAN_BATCH_RESULT_HDR_LEN) +
+	             VENDOR_REPLY_OVERHEAD + SCAN_RESULTS_COMPLETE_FLAG_LEN;
+
+	if (mem_needed > (int32)NLMSG_DEFAULT_SIZE) {
+		mem_needed = (int32)NLMSG_DEFAULT_SIZE;
+	}
+
+	WL_TRACE(("complete %d mem_needed %d max_mem %d\n", complete, mem_needed,
+		(int)NLMSG_DEFAULT_SIZE));
+	/* Alloc the SKB for vendor_event */
+	skb = cfg80211_vendor_cmd_alloc_reply_skb(wiphy, mem_needed);
+	if (unlikely(!skb)) {
+		WL_ERR(("skb alloc failed"));
+		dhd_dev_pno_unlock_access_batch_results(bcmcfg_to_prmry_ndev(cfg));
+		return -ENOMEM;
+	}
+	iter = results;
+	complete_flag = nla_reserve(skb, GSCAN_ATTRIBUTE_SCAN_RESULTS_COMPLETE,
+	                    sizeof(complete));
+	mem_needed = mem_needed - (SCAN_RESULTS_COMPLETE_FLAG_LEN + VENDOR_REPLY_OVERHEAD);
+
+	while (iter) {
+		num_results_iter =
+		    (mem_needed - (int32)GSCAN_BATCH_RESULT_HDR_LEN)/(int32)sizeof(wifi_gscan_result_t);
+		if (num_results_iter <= 0 ||
+		    ((iter->tot_count - iter->tot_consumed) > num_results_iter)) {
+			break;
+		}
+		scan_hdr = nla_nest_start(skb, GSCAN_ATTRIBUTE_SCAN_RESULTS);
+		/* no more room? we are done then (for now) */
+		if (scan_hdr == NULL) {
+			complete = 0;
+			break;
+		}
+		nla_put_u32(skb, GSCAN_ATTRIBUTE_SCAN_ID, iter->scan_id);
+		nla_put_u8(skb, GSCAN_ATTRIBUTE_SCAN_FLAGS, iter->flag);
+		num_results_iter = iter->tot_count - iter->tot_consumed;
+
+		nla_put_u32(skb, GSCAN_ATTRIBUTE_NUM_OF_RESULTS, num_results_iter);
+		if (num_results_iter) {
+			ptr = &iter->results[iter->tot_consumed];
+			iter->tot_consumed += num_results_iter;
+			nla_put(skb, GSCAN_ATTRIBUTE_SCAN_RESULTS,
+			 num_results_iter * sizeof(wifi_gscan_result_t), ptr);
+		}
+		nla_nest_end(skb, scan_hdr);
+		mem_needed -= GSCAN_BATCH_RESULT_HDR_LEN +
+		    (num_results_iter * sizeof(wifi_gscan_result_t));
+		iter = iter->next;
+	}
+	/* Returns TRUE if all result consumed */
+	complete = dhd_dev_gscan_batch_cache_cleanup(bcmcfg_to_prmry_ndev(cfg));
+	memcpy(nla_data(complete_flag), &complete, sizeof(complete));
+	dhd_dev_pno_unlock_access_batch_results(bcmcfg_to_prmry_ndev(cfg));
+	return cfg80211_vendor_cmd_reply(skb);
+}
+
+	
 #endif /* GSCAN_SUPPORT */
 
 static const struct wiphy_vendor_command wl_vendor_cmds [] = {
@@ -528,6 +624,14 @@ static const struct wiphy_vendor_command wl_vendor_cmds [] = {
 		.doit = wl_cfgvendor_enable_full_scan_result
 	},
 	{
+		{
+			.vendor_id = OUI_GOOGLE,
+			.subcmd = GSCAN_SUBCMD_GET_SCAN_RESULTS
+		},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = wl_cfgvendor_gscan_get_batch_results
+	},
+{
 		{
 			.vendor_id = OUI_GOOGLE,
 			.subcmd = ANDR_WIFI_RANDOM_MAC_OUI
