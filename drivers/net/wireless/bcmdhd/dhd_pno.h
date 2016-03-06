@@ -543,6 +543,10 @@ extern int dhd_pno_deinit(dhd_pub_t *dhd);
 extern void * dhd_pno_get_gscan(dhd_pub_t *dhd, dhd_pno_gscan_cmd_cfg_t type, void *info,
                        uint32 *len);
 #endif /* GSCAN_SUPPORT */
+
+extern bool dhd_is_pno_supported(dhd_pub_t *dhd);
+extern bool dhd_is_legacy_pno_enabled(dhd_pub_t *dhd);
+
 #endif /* PNO_SUPPORT */
 
 #endif /* __DHD_PNO_H__ */
