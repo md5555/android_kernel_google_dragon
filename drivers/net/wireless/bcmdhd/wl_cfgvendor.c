@@ -727,6 +727,276 @@ static int wl_cfgvendor_stop_mkeep_alive(struct wiphy *wiphy, struct wireless_de
 }
 #endif /* defined(KEEP_ALIVE) */
 
+static int wl_cfgvendor_epno_cfg(struct wiphy *wiphy,
+	struct wireless_dev *wdev, const void  *data, int len)
+{
+	int err = 0;
+	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
+	dhd_epno_params_t *epno_params;
+	int tmp, tmp1, tmp2, type, num = 0;
+	const struct nlattr *outer, *inner, *iter;
+	uint8 flush = 0, i = 0;
+	uint16 num_visible_ssid = 0;
+
+	nla_for_each_attr(iter, data, len, tmp2) {
+		type = nla_type(iter);
+		switch (type) {
+			case GSCAN_ATTRIBUTE_EPNO_SSID_LIST:
+				nla_for_each_nested(outer, iter, tmp) {
+					epno_params = (dhd_epno_params_t *)
+					          dhd_dev_pno_get_gscan(bcmcfg_to_prmry_ndev(cfg),
+					                 DHD_PNO_GET_EPNO_SSID_ELEM, NULL, &num);
+					if (!epno_params) {
+						WL_ERR(("Failed to get SSID LIST buffer\n"));
+						err = -ENOMEM;
+						goto exit;
+					}
+					i++;
+					nla_for_each_nested(inner, outer, tmp1) {
+						type = nla_type(inner);
+
+						switch (type) {
+							case GSCAN_ATTRIBUTE_EPNO_SSID:
+								memcpy(epno_params->ssid,
+								  nla_data(inner),
+								  DOT11_MAX_SSID_LEN);
+								break;
+							case GSCAN_ATTRIBUTE_EPNO_SSID_LEN:
+								len = nla_get_u8(inner);
+								if (len < DOT11_MAX_SSID_LEN) {
+									epno_params->ssid_len = len;
+								} else {
+									WL_ERR(("SSID too long %d\n", len));
+									err = -EINVAL;
+									goto exit;
+								}
+								break;
+							case GSCAN_ATTRIBUTE_EPNO_RSSI:
+								epno_params->rssi_thresh =
+								       (int8) nla_get_u32(inner);
+								break;
+							case GSCAN_ATTRIBUTE_EPNO_FLAGS:
+								epno_params->flags =
+								          nla_get_u8(inner);
+								if (!(epno_params->flags &
+								        DHD_PNO_USE_SSID))
+									num_visible_ssid++;
+								break;
+							case GSCAN_ATTRIBUTE_EPNO_AUTH:
+								epno_params->auth =
+								        nla_get_u8(inner);
+								break;
+						}
+					}
+				}
+				break;
+			case GSCAN_ATTRIBUTE_EPNO_SSID_NUM:
+				num = nla_get_u8(iter);
+				break;
+			case GSCAN_ATTRIBUTE_EPNO_FLUSH:
+				flush = nla_get_u8(iter);
+				dhd_dev_pno_set_cfg_gscan(bcmcfg_to_prmry_ndev(cfg),
+				           DHD_PNO_EPNO_CFG_ID, NULL, flush);
+				break;
+			default:
+				WL_ERR(("%s: No such attribute %d\n", __FUNCTION__, type));
+				err = -EINVAL;
+				goto exit;
+			}
+
+	}
+	if (i != num) {
+		WL_ERR(("%s: num_ssid %d does not match ssids sent %d\n", __FUNCTION__,
+		     num, i));
+		err = -EINVAL;
+	}
+exit:
+	/* Flush all configs if error condition */
+	flush = (err < 0) ? TRUE: FALSE;
+	dhd_dev_pno_set_cfg_gscan(bcmcfg_to_prmry_ndev(cfg),
+	   DHD_PNO_EPNO_CFG_ID, &num_visible_ssid, flush);
+	return err;
+}
+
+static int wl_cfgvendor_gscan_anqpo_config(struct wiphy *wiphy,
+	struct wireless_dev *wdev, const void  *data, int len)
+{
+	int err = BCME_ERROR, rem, type, hs_list_size = 0, malloc_size, i = 0, j, k, num_oi, oi_len;
+	wifi_passpoint_network *hs_list = NULL, *src_hs;
+	wl_anqpo_pfn_hs_list_t *anqpo_hs_list;
+	wl_anqpo_pfn_hs_t *dst_hs;
+	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
+	int tmp, tmp1;
+	const struct nlattr *outer, *inner, *iter;
+	static char iovar_buf[WLC_IOCTL_MAXLEN];
+	char *rcid;
+
+	nla_for_each_attr(iter, data, len, rem) {
+		type = nla_type(iter);
+		switch (type) {
+			case GSCAN_ATTRIBUTE_ANQPO_HS_LIST:
+				if (hs_list_size > 0) {
+					hs_list = kmalloc(hs_list_size*sizeof(wifi_passpoint_network), GFP_KERNEL);
+					if (hs_list == NULL) {
+						WL_ERR(("failed to allocate hs_list\n"));
+						return -ENOMEM;
+					}
+				}
+				nla_for_each_nested(outer, iter, tmp) {
+					nla_for_each_nested(inner, outer, tmp1) {
+						type = nla_type(inner);
+
+						switch (type) {
+							case GSCAN_ATTRIBUTE_ANQPO_HS_NETWORK_ID:
+								hs_list[i].id = nla_get_u32(inner);
+								WL_ERR(("%s: net id: %d\n", __func__, hs_list[i].id));
+								break;
+							case GSCAN_ATTRIBUTE_ANQPO_HS_NAI_REALM:
+								memcpy(hs_list[i].realm,
+								  nla_data(inner), 256);
+								WL_ERR(("%s: realm: %s\n", __func__, hs_list[i].realm));
+								break;
+							case GSCAN_ATTRIBUTE_ANQPO_HS_ROAM_CONSORTIUM_ID:
+								memcpy(hs_list[i].roamingConsortiumIds,
+								  nla_data(inner), 128);
+								break;
+							case GSCAN_ATTRIBUTE_ANQPO_HS_PLMN:
+								memcpy(hs_list[i].plmn,
+								  nla_data(inner), 3);
+								WL_ERR(("%s: plmn: %c %c %c\n", __func__, hs_list[i].plmn[0], hs_list[i].plmn[1], hs_list[i].plmn[2]));
+								break;
+						}
+					}
+					i++;
+				}
+				break;
+			case GSCAN_ATTRIBUTE_ANQPO_HS_LIST_SIZE:
+				hs_list_size = nla_get_u32(iter);
+				WL_ERR(("%s: ANQPO: %d\n", __func__, hs_list_size));
+				break;
+			default:
+				WL_ERR(("Unknown type: %d\n", type));
+				return err;
+		}
+	}
+
+	malloc_size = OFFSETOF(wl_anqpo_pfn_hs_list_t, hs) +
+		(hs_list_size * (sizeof(wl_anqpo_pfn_hs_t)));
+	anqpo_hs_list = (wl_anqpo_pfn_hs_list_t *)kmalloc(malloc_size, GFP_KERNEL);
+	if (anqpo_hs_list == NULL) {
+		WL_ERR(("failed to allocate anqpo_hs_list\n"));
+		err = -ENOMEM;
+		goto exit;
+	}
+	anqpo_hs_list->count = hs_list_size;
+	anqpo_hs_list->is_clear = (hs_list_size == 0) ? TRUE : FALSE;
+
+	if ((hs_list_size > 0) && (NULL != hs_list)) {
+		src_hs = hs_list;
+		dst_hs = &anqpo_hs_list->hs[0];
+		for (i = 0; i < hs_list_size; i++, src_hs++, dst_hs++) {
+			num_oi = 0;
+			dst_hs->id = src_hs->id;
+			dst_hs->realm.length = strlen(src_hs->realm)+1;
+			memcpy(dst_hs->realm.data, src_hs->realm, dst_hs->realm.length);
+			memcpy(dst_hs->plmn.mcc, src_hs->plmn, ANQPO_MCC_LENGTH);
+			memcpy(dst_hs->plmn.mnc, src_hs->plmn, ANQPO_MCC_LENGTH);
+			for (j = 0; j < ANQPO_MAX_PFN_HS; j++) {
+				oi_len = 0;
+				if (0 != src_hs->roamingConsortiumIds[j]) {
+					num_oi++;
+					rcid = (char *)&src_hs->roamingConsortiumIds[j];
+					for (k = 0; k < ANQPO_MAX_OI_LENGTH; k++)
+						if (0 != rcid[k]) oi_len++;
+
+					dst_hs->rc.oi[j].length = oi_len;
+					memcpy(dst_hs->rc.oi[j].data, rcid, oi_len);
+				}
+			}
+			dst_hs->rc.numOi = num_oi;
+		}
+	}
+
+	err = wldev_iovar_setbuf(bcmcfg_to_prmry_ndev(cfg), "anqpo_pfn_hs_list",
+			anqpo_hs_list, malloc_size, iovar_buf, WLC_IOCTL_MAXLEN, NULL);
+
+	kfree(anqpo_hs_list);
+exit:
+	kfree(hs_list);
+	return err;
+}
+
+static int wl_cfgvendor_significant_change_cfg(struct wiphy *wiphy,
+	struct wireless_dev *wdev, const void  *data, int len)
+{
+	int err = 0;
+	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
+	gscan_swc_params_t *significant_params;
+	int tmp, tmp1, tmp2, type, j = 0;
+	const struct nlattr *outer, *inner, *iter;
+	uint8 flush = 0;
+	wl_pfn_significant_bssid_t *pbssid;
+
+	significant_params = (gscan_swc_params_t *) kzalloc(len, GFP_KERNEL);
+	if (!significant_params) {
+		WL_ERR(("Cannot Malloc mem to parse config commands size - %d bytes \n", len));
+		return -1;
+	}
+
+
+	nla_for_each_attr(iter, data, len, tmp2) {
+		type = nla_type(iter);
+
+		switch (type) {
+			case GSCAN_ATTRIBUTE_SIGNIFICANT_CHANGE_FLUSH:
+			flush = nla_get_u8(iter);
+			break;
+			case GSCAN_ATTRIBUTE_RSSI_SAMPLE_SIZE:
+				significant_params->rssi_window = nla_get_u16(iter);
+				break;
+			case GSCAN_ATTRIBUTE_LOST_AP_SAMPLE_SIZE:
+				significant_params->lost_ap_window = nla_get_u16(iter);
+				break;
+			case GSCAN_ATTRIBUTE_MIN_BREACHING:
+				significant_params->swc_threshold = nla_get_u16(iter);
+				break;
+			case GSCAN_ATTRIBUTE_SIGNIFICANT_CHANGE_BSSIDS:
+				pbssid = significant_params->bssid_elem_list;
+				nla_for_each_nested(outer, iter, tmp) {
+					nla_for_each_nested(inner, outer, tmp1) {
+							switch (nla_type(inner)) {
+								case GSCAN_ATTRIBUTE_BSSID:
+								memcpy(&(pbssid[j].macaddr),
+								     nla_data(inner),
+								     ETHER_ADDR_LEN);
+								break;
+								case GSCAN_ATTRIBUTE_RSSI_HIGH:
+								pbssid[j].rssi_high_threshold =
+								       (int8) nla_get_u8(inner);
+								break;
+								case GSCAN_ATTRIBUTE_RSSI_LOW:
+								pbssid[j].rssi_low_threshold =
+								      (int8) nla_get_u8(inner);
+								break;
+							}
+						}
+					j++;
+				}
+				break;
+		}
+	}
+	significant_params->nbssid = j;
+
+	if (dhd_dev_pno_set_cfg_gscan(bcmcfg_to_prmry_ndev(cfg),
+	    DHD_PNO_SIGNIFICANT_SCAN_CFG_ID, significant_params, flush) < 0) {
+		WL_ERR(("Could not set GSCAN significant cfg\n"));
+		err = -EINVAL;
+		goto exit;
+	}
+exit:
+	kfree(significant_params);
+	return err;
+}
 
 static const struct wiphy_vendor_command wl_vendor_cmds [] = {
 	{
@@ -746,6 +1016,23 @@ static const struct wiphy_vendor_command wl_vendor_cmds [] = {
 		.doit = wl_cfgvendor_set_country
 	},
 #ifdef GSCAN_SUPPORT
+	{
+		{
+			.vendor_id = OUI_GOOGLE,
+			.subcmd = GSCAN_SUBCMD_SET_EPNO_SSID
+		},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = wl_cfgvendor_epno_cfg
+
+	},
+	{
+		{
+			.vendor_id = OUI_GOOGLE,
+			.subcmd = GSCAN_SUBCMD_ANQPO_CONFIG
+		},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = wl_cfgvendor_gscan_anqpo_config
+	},
 	{
 		{
 			.vendor_id = OUI_GOOGLE,
@@ -786,6 +1073,15 @@ static const struct wiphy_vendor_command wl_vendor_cmds [] = {
 		.flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
 		.doit = wl_cfgvendor_enable_full_scan_result
 	},
+	{
+		{
+			.vendor_id = OUI_GOOGLE,
+			.subcmd = GSCAN_SUBCMD_SET_SIGNIFICANT_CHANGE_CONFIG
+		},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = wl_cfgvendor_significant_change_cfg
+	},
+
 	{
 		{
 			.vendor_id = OUI_GOOGLE,
