@@ -8391,6 +8391,76 @@ dhd_dev_pno_get_for_batch(struct net_device *dev, char *buf, int bufsize)
 #endif /* PNO_SUPPORT */
 
 #ifdef GSCAN_SUPPORT
+bool dhd_force_country_change(struct net_device *dev)
+{
+	dhd_info_t *dhd = DHD_DEV_INFO(dev);
+
+	if (dhd && dhd->pub.up)
+		return dhd->pub.force_country_change;
+	return FALSE;
+}
+
+int
+dhd_dev_set_nodfs(struct net_device *dev, u32 nodfs)
+{
+	dhd_info_t *dhd = DHD_DEV_INFO(dev);
+
+	if (nodfs)
+		dhd->pub.dhd_cflags |= WLAN_PLAT_NODFS_FLAG;
+	else
+		dhd->pub.dhd_cflags &= ~WLAN_PLAT_NODFS_FLAG;
+
+	dhd->pub.force_country_change = TRUE;
+
+	return 0;
+}
+
+int dhd_dev_cfg_rand_mac_oui(struct net_device *dev, uint8 *oui)
+{
+	dhd_info_t *dhd = *(dhd_info_t **)netdev_priv(dev);
+	dhd_pub_t *dhdp = &dhd->pub;
+
+	if (!dhdp || !oui) {
+		DHD_ERROR(("NULL POINTER : %s\n",
+			__FUNCTION__));
+		return BCME_ERROR;
+	}
+	if (ETHER_ISMULTI(oui)) {
+		DHD_ERROR(("Expected unicast OUI\n"));
+		return BCME_ERROR;
+	} else {
+		uint8 *rand_mac_oui = dhdp->rand_mac_oui;
+		memcpy(rand_mac_oui, oui, DOT11_OUI_LEN);
+		DHD_ERROR(("Random MAC OUI to be used - %02x:%02x:%02x\n", rand_mac_oui[0],
+		    rand_mac_oui[1], rand_mac_oui[2]));
+	}
+	return BCME_OK;
+}
+
+int dhd_set_rand_mac_oui(dhd_pub_t *dhd)
+{
+	int err;
+	wl_pfn_macaddr_cfg_t cfg;
+	uint8 *rand_mac_oui = dhd->rand_mac_oui;
+
+	memset(&cfg.macaddr, 0, ETHER_ADDR_LEN);
+	memcpy(&cfg.macaddr, rand_mac_oui, DOT11_OUI_LEN);
+	cfg.version = WL_PFN_MACADDR_CFG_VER;
+	if (ETHER_ISNULLADDR(&cfg.macaddr))
+		cfg.flags = 0;
+	else
+		cfg.flags = (WL_PFN_MAC_OUI_ONLY_MASK | WL_PFN_SET_MAC_UNASSOC_MASK);
+
+	DHD_ERROR(("Setting rand mac oui to FW - %02x:%02x:%02x\n", rand_mac_oui[0],
+	    rand_mac_oui[1], rand_mac_oui[2]));
+
+	err = dhd_iovar(dhd, 0, "pfn_macaddr", (char *)&cfg, sizeof(cfg), 1);
+	if (err < 0) {
+		DHD_ERROR(("%s : failed to execute pfn_macaddr %d\n", __FUNCTION__, err));
+	}
+	return err;
+}
+
 /* Linux wrapper to call common dhd_pno_get_gscan */
 void *
 dhd_dev_pno_get_gscan(struct net_device *dev, dhd_pno_gscan_cmd_cfg_t type,

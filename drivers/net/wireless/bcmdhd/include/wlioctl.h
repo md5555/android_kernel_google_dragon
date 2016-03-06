@@ -125,6 +125,16 @@ typedef struct wl_sa_query {
 	struct ether_addr 	da;
 } wl_sa_query_t;
 
+#define WL_PFN_MAC_OUI_ONLY_MASK      1
+#define WL_PFN_SET_MAC_UNASSOC_MASK   2
+/* To configure pfn_macaddr */
+typedef struct wl_pfn_macaddr_cfg {
+	uint8 version;
+	uint8 flags;
+	struct ether_addr macaddr;
+} wl_pfn_macaddr_cfg_t;
+#define WL_PFN_MACADDR_CFG_VER 1
+
 
 /* require default structure packing */
 #define BWL_DEFAULT_PACKING
