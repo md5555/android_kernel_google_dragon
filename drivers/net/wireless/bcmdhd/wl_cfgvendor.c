@@ -203,6 +203,50 @@ exit:
 	kfree(reply);
 	return err;
 }
+
+static int wl_cfgvendor_set_rand_mac_oui(struct wiphy *wiphy,
+	struct wireless_dev *wdev, const void  *data, int len)
+{
+	int err = 0;
+	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
+	int type;
+	uint8 random_mac_oui[DOT11_OUI_LEN];
+
+	type = nla_type(data);
+
+	if (type == ANDR_WIFI_ATTRIBUTE_RANDOM_MAC_OUI) {
+		memcpy(random_mac_oui, nla_data(data), DOT11_OUI_LEN);
+
+		err = dhd_dev_cfg_rand_mac_oui(bcmcfg_to_prmry_ndev(cfg), random_mac_oui);
+
+		if (unlikely(err))
+			WL_ERR(("Bad OUI, could not set:%d \n", err));
+
+	} else {
+		err = -1;
+	}
+
+	return err;
+}
+
+static int wl_cfgvendor_set_nodfs_flag(struct wiphy *wiphy,
+	struct wireless_dev *wdev, const void *data, int len)
+{
+	int err = 0;
+	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
+	int type;
+	u32 nodfs;
+
+	type = nla_type(data);
+	if (type == ANDR_WIFI_ATTRIBUTE_NODFS_SET) {
+		nodfs = nla_get_u32(data);
+		err = dhd_dev_set_nodfs(bcmcfg_to_prmry_ndev(cfg), nodfs);
+	} else {
+		err = -1;
+	}
+	return err;
+}
+
 #endif /* GSCAN_SUPPORT */
 
 static const struct wiphy_vendor_command wl_vendor_cmds [] = {
@@ -223,6 +267,23 @@ static const struct wiphy_vendor_command wl_vendor_cmds [] = {
 		.doit = wl_cfgvendor_set_country
 	},
 #ifdef GSCAN_SUPPORT
+	{
+		{
+			.vendor_id = OUI_GOOGLE,
+			.subcmd = ANDR_WIFI_RANDOM_MAC_OUI
+		},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = wl_cfgvendor_set_rand_mac_oui
+	},
+	{
+		{
+			.vendor_id = OUI_GOOGLE,
+			.subcmd = ANDR_WIFI_NODFS_CHANNELS
+		},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = wl_cfgvendor_set_nodfs_flag
+
+	},
 	{
 		{
 			.vendor_id = OUI_GOOGLE,

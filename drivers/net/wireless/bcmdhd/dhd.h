@@ -65,6 +65,8 @@ int get_scheduler_policy(struct task_struct *p);
 #include <WdfMiniport.h>
 #endif /* (BCMWDF)  */
 
+#define WLAN_PLAT_NODFS_FLAG	0x01
+
 #define MAX_RESCHED_CNT 400
 
 #if defined(KEEP_ALIVE)
@@ -297,6 +299,8 @@ typedef struct dhd_pub {
 	int pktfilter_count;
 
 	wl_country_t dhd_cspec;		/* Current Locale info */
+	u32 dhd_cflags;
+	bool force_country_change;
 	char eventmask[WL_EVENTING_MASK_LEN];
 	int	op_mode;				/* STA, HostAPD, WFD, SoftAP */
 
@@ -424,6 +428,7 @@ typedef struct dhd_pub {
 #endif /* defined(WLTDLS) && defined(PCIE_FULL_DONGLE) */
 	uint8 *soc_ram;
 	uint32 soc_ram_length;
+	uint8 rand_mac_oui[DOT11_OUI_LEN];
 } dhd_pub_t;
 
 #if defined(BCMWDF)
@@ -697,6 +702,10 @@ extern int net_os_rxfilter_add_remove(struct net_device *dev, int val, int num);
 extern void dhd_set_packet_filter_mode(struct net_device *dev, char *command);
 extern int dhd_set_packet_filter_ports(struct net_device *dev, char *command);
 #endif /* PKT_FILTER_SUPPORT */
+
+extern int dhd_dev_set_nodfs(struct net_device *dev, u32 nodfs);
+extern int dhd_dev_cfg_rand_mac_oui(struct net_device *dev, uint8 *oui);
+extern int dhd_set_rand_mac_oui(dhd_pub_t *dhd);
 
 extern int dhd_get_suspend_bcn_li_dtim(dhd_pub_t *dhd);
 extern bool dhd_support_sta_mode(dhd_pub_t *dhd);

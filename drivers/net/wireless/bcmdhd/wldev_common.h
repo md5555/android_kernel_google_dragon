@@ -103,6 +103,7 @@ extern int net_os_set_suspend_disable(struct net_device *dev, int val);
 extern int net_os_set_suspend(struct net_device *dev, int val, int force);
 extern int wl_iw_parse_ssid_list_tlv(char** list_str, wlc_ssid_t* ssid,
 	int max, int *bytes_left);
+extern bool dhd_force_country_change(struct net_device *dev);
 
 /* Get the link speed from dongle, speed is in kpbs */
 int wldev_get_link_speed(struct net_device *dev, int *plink_speed);
