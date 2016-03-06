@@ -247,6 +247,33 @@ static int wl_cfgvendor_set_nodfs_flag(struct wiphy *wiphy,
 	return err;
 }
 
+static int wl_cfgvendor_gscan_get_capabilities(struct wiphy *wiphy,
+	struct wireless_dev *wdev, const void  *data, int len)
+{
+	int err = 0;
+	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
+	dhd_pno_gscan_capabilities_t *reply = NULL;
+	uint32 reply_len = 0;
+
+
+	reply = dhd_dev_pno_get_gscan(bcmcfg_to_prmry_ndev(cfg),
+	   DHD_PNO_GET_CAPABILITIES, NULL, &reply_len);
+	if (!reply) {
+		WL_ERR(("Could not get capabilities\n"));
+		err = -EINVAL;
+		return err;
+	}
+
+	err =  wl_cfgvendor_send_cmd_reply(wiphy, bcmcfg_to_prmry_ndev(cfg),
+	        reply, reply_len);
+
+	if (unlikely(err))
+		WL_ERR(("Vendor Command reply failed ret:%d \n", err));
+
+	kfree(reply);
+	return err;
+}
+
 #endif /* GSCAN_SUPPORT */
 
 static const struct wiphy_vendor_command wl_vendor_cmds [] = {
@@ -267,6 +294,14 @@ static const struct wiphy_vendor_command wl_vendor_cmds [] = {
 		.doit = wl_cfgvendor_set_country
 	},
 #ifdef GSCAN_SUPPORT
+	{
+		{
+			.vendor_id = OUI_GOOGLE,
+			.subcmd = GSCAN_SUBCMD_GET_CAPABILITIES
+		},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = wl_cfgvendor_gscan_get_capabilities
+	},
 	{
 		{
 			.vendor_id = OUI_GOOGLE,
