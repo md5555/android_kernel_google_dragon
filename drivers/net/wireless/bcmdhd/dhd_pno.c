@@ -2067,4 +2067,267 @@ int dhd_pno_deinit(dhd_pub_t *dhd)
 	dhd->pno_state = NULL;
 	return err;
 }
+
+static void dhd_pno_reset_cfg_gscan(dhd_pno_params_t *_params,
+	dhd_pno_status_info_t *_pno_state, uint8 flags)
+{
+	DHD_PNO(("%s enter\n", __FUNCTION__));
+
+	if (flags & GSCAN_FLUSH_SCAN_CFG) {
+		_params->params_gscan.bestn = 0;
+		_params->params_gscan.mscan = 0;
+		_params->params_gscan.buffer_threshold = GSCAN_BATCH_NO_THR_SET;
+		_params->params_gscan.scan_fr = 0;
+		_params->params_gscan.send_all_results_flag = 0;
+		memset(_params->params_gscan.channel_bucket, 0,
+		_params->params_gscan.nchannel_buckets *
+		 sizeof(struct dhd_pno_gscan_channel_bucket));
+		_params->params_gscan.nchannel_buckets = 0;
+		DHD_PNO(("Flush Scan config\n"));
+	}
+	if (flags & GSCAN_FLUSH_HOTLIST_CFG) {
+		struct dhd_pno_bssid *iter, *next;
+		if (_params->params_gscan.nbssid_hotlist > 0) {
+			list_for_each_entry_safe(iter, next,
+				&_params->params_gscan.hotlist_bssid_list, list) {
+				list_del(&iter->list);
+				kfree(iter);
+			}
+		}
+		_params->params_gscan.nbssid_hotlist = 0;
+		DHD_PNO(("Flush Hotlist Config\n"));
+	}
+	if (flags & GSCAN_FLUSH_SIGNIFICANT_CFG) {
+		dhd_pno_significant_bssid_t *iter, *next;
+
+		if (_params->params_gscan.nbssid_significant_change > 0) {
+			list_for_each_entry_safe(iter, next,
+				&_params->params_gscan.significant_bssid_list, list) {
+				list_del(&iter->list);
+				kfree(iter);
+			}
+		}
+		_params->params_gscan.nbssid_significant_change = 0;
+		DHD_PNO(("Flush Significant Change Config\n"));
+	}
+	if (flags & GSCAN_FLUSH_EPNO_CFG) {
+		dhd_epno_params_t *iter, *next;
+
+		if (_params->params_gscan.num_epno_ssid > 0) {
+			list_for_each_entry_safe(iter, next,
+				&_params->params_gscan.epno_ssid_list, list) {
+				list_del(&iter->list);
+				kfree(iter);
+			}
+		}
+		_params->params_gscan.num_epno_ssid = 0;
+		_params->params_gscan.num_visible_epno_ssid = 0;
+		_params->params_gscan.ssid_ext_last_used_index = 0;
+		DHD_PNO(("Flushed ePNO Config\n"));
+	}
+
+	return;
+}
+
+int dhd_pno_set_cfg_gscan(dhd_pub_t *dhd, dhd_pno_gscan_cmd_cfg_t type,
+    void *buf, uint8 flush)
+{
+	int err = BCME_OK;
+	dhd_pno_params_t *_params;
+	int i;
+	dhd_pno_status_info_t *_pno_state;
+
+	NULL_CHECK(dhd, "dhd is NULL", err);
+	NULL_CHECK(dhd->pno_state, "pno_state is NULL", err);
+
+	DHD_PNO(("%s enter\n", __FUNCTION__));
+
+	_pno_state = PNO_GET_PNOSTATE(dhd);
+	_params = &_pno_state->pno_params_arr[INDEX_OF_GSCAN_PARAMS];
+	mutex_lock(&_pno_state->pno_mutex);
+
+	switch (type) {
+	case DHD_PNO_BATCH_SCAN_CFG_ID:
+		{
+			gscan_batch_params_t *ptr = (gscan_batch_params_t *)buf;
+			_params->params_gscan.bestn = ptr->bestn;
+			_params->params_gscan.mscan = ptr->mscan;
+			_params->params_gscan.buffer_threshold = ptr->buffer_threshold;
+		}
+		break;
+	case DHD_PNO_GEOFENCE_SCAN_CFG_ID:
+		{
+			gscan_hotlist_scan_params_t *ptr = (gscan_hotlist_scan_params_t *)buf;
+			struct dhd_pno_bssid *_pno_bssid;
+			struct bssid_t *bssid_ptr;
+			int8 flags;
+
+			if (flush) {
+				dhd_pno_reset_cfg_gscan(_params, _pno_state,
+				    GSCAN_FLUSH_HOTLIST_CFG);
+			}
+
+			if (!ptr->nbssid)
+				break;
+
+			if (!_params->params_gscan.nbssid_hotlist)
+				INIT_LIST_HEAD(&_params->params_gscan.hotlist_bssid_list);
+
+			if ((_params->params_gscan.nbssid_hotlist +
+			          ptr->nbssid) > PFN_SWC_MAX_NUM_APS) {
+				DHD_ERROR(("Excessive number of hotlist APs programmed %d\n",
+				     (_params->params_gscan.nbssid_hotlist +
+				      ptr->nbssid)));
+				err = BCME_RANGE;
+				goto exit;
+			}
+
+			for (i = 0, bssid_ptr = ptr->bssid; i < ptr->nbssid; i++, bssid_ptr++) {
+				_pno_bssid = kzalloc(sizeof(struct dhd_pno_bssid), GFP_KERNEL);
+
+				if (!_pno_bssid) {
+					DHD_ERROR(("_pno_bssid is NULL, cannot kalloc %zd bytes",
+					       sizeof(struct dhd_pno_bssid)));
+					err = BCME_NOMEM;
+					goto exit;
+				}
+				memcpy(&_pno_bssid->macaddr, &bssid_ptr->macaddr, ETHER_ADDR_LEN);
+
+				flags = (int8) bssid_ptr->rssi_reporting_threshold;
+				_pno_bssid->flags = flags  << WL_PFN_RSSI_SHIFT;
+				list_add_tail(&_pno_bssid->list,
+				   &_params->params_gscan.hotlist_bssid_list);
+			}
+
+			_params->params_gscan.nbssid_hotlist += ptr->nbssid;
+			_params->params_gscan.lost_ap_window = ptr->lost_ap_window;
+		}
+		break;
+	case DHD_PNO_SIGNIFICANT_SCAN_CFG_ID:
+		{
+			gscan_swc_params_t *ptr = (gscan_swc_params_t *)buf;
+			dhd_pno_significant_bssid_t *_pno_significant_change_bssid;
+			wl_pfn_significant_bssid_t *significant_bssid_ptr;
+
+			if (flush) {
+				dhd_pno_reset_cfg_gscan(_params, _pno_state,
+				   GSCAN_FLUSH_SIGNIFICANT_CFG);
+			}
+
+			if (!ptr->nbssid)
+				break;
+
+			if (!_params->params_gscan.nbssid_significant_change)
+				INIT_LIST_HEAD(&_params->params_gscan.significant_bssid_list);
+
+			if ((_params->params_gscan.nbssid_significant_change +
+			          ptr->nbssid) > PFN_SWC_MAX_NUM_APS) {
+				DHD_ERROR(("Excessive number of SWC APs programmed %d\n",
+				     (_params->params_gscan.nbssid_significant_change +
+				      ptr->nbssid)));
+				err = BCME_RANGE;
+				goto exit;
+			}
+
+			for (i = 0, significant_bssid_ptr = ptr->bssid_elem_list;
+			     i < ptr->nbssid; i++, significant_bssid_ptr++) {
+				_pno_significant_change_bssid =
+				      kzalloc(sizeof(dhd_pno_significant_bssid_t),
+				      GFP_KERNEL);
+
+				if (!_pno_significant_change_bssid) {
+					DHD_ERROR(("SWC bssidptr is NULL, cannot kalloc %zd bytes",
+					sizeof(dhd_pno_significant_bssid_t)));
+					err = BCME_NOMEM;
+					goto exit;
+				}
+				memcpy(&_pno_significant_change_bssid->BSSID,
+				    &significant_bssid_ptr->macaddr, ETHER_ADDR_LEN);
+				_pno_significant_change_bssid->rssi_low_threshold =
+				    significant_bssid_ptr->rssi_low_threshold;
+				_pno_significant_change_bssid->rssi_high_threshold =
+				    significant_bssid_ptr->rssi_high_threshold;
+				list_add_tail(&_pno_significant_change_bssid->list,
+				    &_params->params_gscan.significant_bssid_list);
+			}
+
+			_params->params_gscan.swc_nbssid_threshold = ptr->swc_threshold;
+			_params->params_gscan.swc_rssi_window_size = ptr->rssi_window;
+			_params->params_gscan.lost_ap_window = ptr->lost_ap_window;
+			_params->params_gscan.nbssid_significant_change += ptr->nbssid;
+
+		}
+		break;
+	case DHD_PNO_SCAN_CFG_ID:
+		{
+			int i, k;
+			uint16 band;
+			gscan_scan_params_t *ptr = (gscan_scan_params_t *)buf;
+			struct dhd_pno_gscan_channel_bucket *ch_bucket;
+
+			if (ptr->nchannel_buckets <= GSCAN_MAX_CH_BUCKETS) {
+				_params->params_gscan.nchannel_buckets = ptr->nchannel_buckets;
+
+				memcpy(_params->params_gscan.channel_bucket, ptr->channel_bucket,
+				    _params->params_gscan.nchannel_buckets *
+				    sizeof(struct dhd_pno_gscan_channel_bucket));
+				ch_bucket = _params->params_gscan.channel_bucket;
+
+				for (i = 0; i < ptr->nchannel_buckets; i++) {
+					band = ch_bucket[i].band;
+					for (k = 0; k < ptr->channel_bucket[i].num_channels; k++)  {
+						ch_bucket[i].chan_list[k] =
+						wf_mhz2channel(ptr->channel_bucket[i].chan_list[k],
+							0);
+					}
+					ch_bucket[i].band = 0;
+					/* HAL and DHD use different bits for 2.4G and
+					 * 5G in bitmap. Hence translating it here...
+					 */
+					if (band & GSCAN_BG_BAND_MASK)
+						ch_bucket[i].band |= WLC_BAND_2G;
+					if (band & GSCAN_A_BAND_MASK)
+						ch_bucket[i].band |= WLC_BAND_5G;
+					if (band & GSCAN_DFS_MASK)
+						ch_bucket[i].band |= GSCAN_DFS_MASK;
+
+					DHD_PNO(("band %d report_flag %d\n", ch_bucket[i].band,
+					          ch_bucket[i].report_flag));
+				}
+
+				for (i = 0; i < ptr->nchannel_buckets; i++) {
+					ch_bucket[i].bucket_freq_multiple =
+					ch_bucket[i].bucket_freq_multiple/ptr->scan_fr;
+					ch_bucket[i].bucket_max_multiple =
+					ch_bucket[i].bucket_max_multiple/ptr->scan_fr;
+					DHD_PNO(("mult %d max_mult %d\n", ch_bucket[i].bucket_freq_multiple,
+					      ch_bucket[i].bucket_max_multiple));
+				}
+				_params->params_gscan.scan_fr = ptr->scan_fr;
+
+				DHD_PNO(("num_buckets %d scan_fr %d\n", ptr->nchannel_buckets,
+				        _params->params_gscan.scan_fr));
+			} else {
+				err = BCME_BADARG;
+			}
+		}
+		break;
+	case DHD_PNO_EPNO_CFG_ID:
+		if (flush) {
+			dhd_pno_reset_cfg_gscan(_params, _pno_state,
+			   GSCAN_FLUSH_EPNO_CFG);
+		} else {
+			_params->params_gscan.num_visible_epno_ssid += *((uint16 *)buf);
+		}
+		break;
+	default:
+		err = BCME_BADARG;
+		break;
+	}
+exit:
+	mutex_unlock(&_pno_state->pno_mutex);
+	return err;
+
+}
+
 #endif /* PNO_SUPPORT */

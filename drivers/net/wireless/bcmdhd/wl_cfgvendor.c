@@ -274,6 +274,107 @@ static int wl_cfgvendor_gscan_get_capabilities(struct wiphy *wiphy,
 	return err;
 }
 
+static int wl_cfgvendor_set_scan_cfg(struct wiphy *wiphy,
+	struct wireless_dev *wdev, const void  *data, int len)
+{
+	int err = 0;
+	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
+	gscan_scan_params_t *scan_param;
+	int j = 0;
+	int type, tmp, tmp1, tmp2, k = 0;
+	const struct nlattr *iter, *iter1, *iter2;
+	struct dhd_pno_gscan_channel_bucket  *ch_bucket;
+
+	scan_param = kzalloc(sizeof(gscan_scan_params_t), GFP_KERNEL);
+	if (!scan_param) {
+		WL_ERR(("Could not set GSCAN scan cfg, mem alloc failure\n"));
+		err = -EINVAL;
+		return err;
+
+	}
+
+	scan_param->scan_fr = PNO_SCAN_MIN_FW_SEC;
+	nla_for_each_attr(iter, data, len, tmp) {
+		type = nla_type(iter);
+
+		if (j >= GSCAN_MAX_CH_BUCKETS)
+			break;
+
+		switch (type) {
+			case GSCAN_ATTRIBUTE_BASE_PERIOD:
+				scan_param->scan_fr = nla_get_u32(iter)/1000;
+				break;
+			case GSCAN_ATTRIBUTE_NUM_BUCKETS:
+				scan_param->nchannel_buckets = nla_get_u32(iter);
+				break;
+			case GSCAN_ATTRIBUTE_CH_BUCKET_1:
+			case GSCAN_ATTRIBUTE_CH_BUCKET_2:
+			case GSCAN_ATTRIBUTE_CH_BUCKET_3:
+			case GSCAN_ATTRIBUTE_CH_BUCKET_4:
+			case GSCAN_ATTRIBUTE_CH_BUCKET_5:
+			case GSCAN_ATTRIBUTE_CH_BUCKET_6:
+			case GSCAN_ATTRIBUTE_CH_BUCKET_7:
+				nla_for_each_nested(iter1, iter, tmp1) {
+					type = nla_type(iter1);
+					ch_bucket =
+					scan_param->channel_bucket;
+
+					switch (type) {
+						case GSCAN_ATTRIBUTE_BUCKET_ID:
+						break;
+						case GSCAN_ATTRIBUTE_BUCKET_PERIOD:
+							ch_bucket[j].bucket_freq_multiple =
+							    nla_get_u32(iter1)/1000;
+							break;
+						case GSCAN_ATTRIBUTE_BUCKET_NUM_CHANNELS:
+							ch_bucket[j].num_channels =
+							     nla_get_u32(iter1);
+							break;
+						case GSCAN_ATTRIBUTE_BUCKET_CHANNELS:
+							nla_for_each_nested(iter2, iter1, tmp2) {
+								if (k >= GSCAN_MAX_CHANNELS_IN_BUCKET)
+									break;
+								ch_bucket[j].chan_list[k] =
+								     nla_get_u32(iter2);
+								k++;
+							}
+							k = 0;
+							break;
+						case GSCAN_ATTRIBUTE_BUCKETS_BAND:
+							ch_bucket[j].band = (uint16)
+							     nla_get_u32(iter1);
+							break;
+						case GSCAN_ATTRIBUTE_REPORT_EVENTS:
+							ch_bucket[j].report_flag = (uint8)
+							     nla_get_u32(iter1);
+							break;
+						case GSCAN_ATTRIBUTE_BUCKET_STEP_COUNT:
+							ch_bucket[j].repeat = (uint16)
+							     nla_get_u32(iter1);
+							break;
+						case GSCAN_ATTRIBUTE_BUCKET_MAX_PERIOD:
+							ch_bucket[j].bucket_max_multiple =
+							     nla_get_u32(iter1)/1000;
+							break;
+					}
+				}
+				j++;
+				break;
+		}
+	}
+
+	if (dhd_dev_pno_set_cfg_gscan(bcmcfg_to_prmry_ndev(cfg),
+	     DHD_PNO_SCAN_CFG_ID, scan_param, 0) < 0) {
+		WL_ERR(("Could not set GSCAN scan cfg\n"));
+		err = -EINVAL;
+	}
+
+	kfree(scan_param);
+	return err;
+
+}
+
+
 #endif /* GSCAN_SUPPORT */
 
 static const struct wiphy_vendor_command wl_vendor_cmds [] = {
@@ -301,6 +402,14 @@ static const struct wiphy_vendor_command wl_vendor_cmds [] = {
 		},
 		.flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
 		.doit = wl_cfgvendor_gscan_get_capabilities
+	},
+	{
+		{
+			.vendor_id = OUI_GOOGLE,
+			.subcmd = GSCAN_SUBCMD_SET_CONFIG
+		},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = wl_cfgvendor_set_scan_cfg
 	},
 	{
 		{
