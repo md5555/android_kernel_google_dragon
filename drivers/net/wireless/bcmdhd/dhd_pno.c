@@ -3217,4 +3217,30 @@ int dhd_gscan_batch_cache_cleanup(dhd_pub_t *dhd)
 	return ret;
 }
 
+bool dhd_is_pno_supported(dhd_pub_t *dhd)
+{
+	dhd_pno_status_info_t *_pno_state;
+
+	if (!dhd || !dhd->pno_state) {
+		DHD_ERROR(("NULL POINTER : %s\n",
+			__FUNCTION__));
+		return FALSE;
+	}
+	_pno_state = PNO_GET_PNOSTATE(dhd);
+	return WLS_SUPPORTED(_pno_state);
+}
+
+bool dhd_is_legacy_pno_enabled(dhd_pub_t *dhd)
+{
+	dhd_pno_status_info_t *_pno_state;
+
+	if (!dhd || !dhd->pno_state) {
+		DHD_ERROR(("NULL POINTER : %s\n",
+			__FUNCTION__));
+		return FALSE;
+	}
+	_pno_state = PNO_GET_PNOSTATE(dhd);
+	return ((_pno_state->pno_mode & DHD_PNO_LEGACY_MODE) != 0);
+}
+
 #endif /* PNO_SUPPORT */

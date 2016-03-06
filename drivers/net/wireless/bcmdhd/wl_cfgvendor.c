@@ -204,6 +204,66 @@ exit:
 	return err;
 }
 
+static int wl_cfgvendor_get_feature_set(struct wiphy *wiphy,
+	struct wireless_dev *wdev, const void  *data, int len)
+{
+	int err = 0;
+	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
+	int reply;
+
+	reply = dhd_dev_get_feature_set(bcmcfg_to_prmry_ndev(cfg));
+
+	err =  wl_cfgvendor_send_cmd_reply(wiphy, bcmcfg_to_prmry_ndev(cfg),
+	        &reply, sizeof(int));
+
+	if (unlikely(err))
+		WL_ERR(("Vendor Command reply failed ret:%d \n", err));
+
+	return err;
+}
+
+static int wl_cfgvendor_get_feature_set_matrix(struct wiphy *wiphy,
+	struct wireless_dev *wdev, const void  *data, int len)
+{
+	int err = 0;
+	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
+	struct sk_buff *skb;
+	int *reply;
+	int num, mem_needed, i;
+
+	reply = dhd_dev_get_feature_set_matrix(bcmcfg_to_prmry_ndev(cfg), &num);
+
+	if (!reply) {
+		WL_ERR(("Could not get feature list matrix\n"));
+		err = -EINVAL;
+		return err;
+	}
+
+	mem_needed = VENDOR_REPLY_OVERHEAD + (ATTRIBUTE_U32_LEN * num) +
+	             ATTRIBUTE_U32_LEN;
+
+	/* Alloc the SKB for vendor_event */
+	skb = cfg80211_vendor_cmd_alloc_reply_skb(wiphy, mem_needed);
+	if (unlikely(!skb)) {
+		WL_ERR(("skb alloc failed"));
+		err = -ENOMEM;
+		goto exit;
+	}
+
+	nla_put_u32(skb, ANDR_WIFI_ATTRIBUTE_NUM_FEATURE_SET, num);
+	for (i = 0; i < num; i++) {
+		nla_put_u32(skb, ANDR_WIFI_ATTRIBUTE_FEATURE_SET, reply[i]);
+	}
+
+	err =  cfg80211_vendor_cmd_reply(skb);
+
+	if (unlikely(err))
+		WL_ERR(("Vendor Command reply failed ret:%d \n", err));
+exit:
+	kfree(reply);
+	return err;
+}
+
 static int wl_cfgvendor_set_rand_mac_oui(struct wiphy *wiphy,
 	struct wireless_dev *wdev, const void  *data, int len)
 {
@@ -655,6 +715,22 @@ static const struct wiphy_vendor_command wl_vendor_cmds [] = {
 		},
 		.flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
 		.doit = wl_cfgvendor_gscan_get_channel_list
+	},
+	{
+		{
+			.vendor_id = OUI_GOOGLE,
+			.subcmd = ANDR_WIFI_SUBCMD_GET_FEATURE_SET
+		},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = wl_cfgvendor_get_feature_set
+	},
+	{
+		{
+			.vendor_id = OUI_GOOGLE,
+			.subcmd = ANDR_WIFI_SUBCMD_GET_FEATURE_SET_MATRIX
+		},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = wl_cfgvendor_get_feature_set_matrix
 	},
 #endif /* GSCAN_SUPPORT */
 
