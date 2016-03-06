@@ -387,6 +387,16 @@ typedef struct wlc_ssid {
 	uchar		SSID[DOT11_MAX_SSID_LEN];
 } wlc_ssid_t;
 
+typedef struct wlc_ssid_ext {
+	bool       hidden;
+	uint16     flags;
+	uint8	   SSID_len;
+	int8	   rssi_thresh;
+	uchar		SSID[DOT11_MAX_SSID_LEN];
+} wlc_ssid_ext_t;
+
+
+
 
 #define MAX_PREFERRED_AP_NUM     5
 typedef struct wlc_fastssidinfo {
@@ -2719,12 +2729,59 @@ typedef struct wl_pfn {
 	int32			wsec;			/* wsec value */
 } wl_pfn_t;
 
+#define WL_PFN_CFG_FLAGS_PROHIBITED	0x00000001	/* Accept and use prohibited channels */
+#define WL_PFN_CFG_FLAGS_RESERVED	0xfffffffe	/* Remaining reserved for future use */
+#define WL_PFN_SSID_A_BAND_TRIG   0x20
+#define WL_PFN_SSID_BG_BAND_TRIG   0x40
+
 typedef struct wl_pfn_list {
 	uint32		version;
 	uint32		enabled;
 	uint32		count;
 	wl_pfn_t	pfn[1];
 } wl_pfn_list_t;
+
+#define PFN_SSID_EXT_VERSION   2
+
+typedef struct wl_pfn_ext {
+	uint8 flags;
+	int8 rssi_thresh; /* RSSI threshold, track only if RSSI > threshold */
+	uint16 wpa_auth; /* Match the wpa auth type defined in wlioctl_defs.h */
+	uint8 ssid[DOT11_MAX_SSID_LEN];
+	uint8 ssid_len;
+	uint8 pad;
+} wl_pfn_ext_t;
+
+typedef struct wl_pfn_ext_list {
+	uint16 version;
+	uint16 count;
+	wl_pfn_ext_t pfn_ext[1];
+} wl_pfn_ext_list_t;
+
+#define WL_PFN_SSID_EXT_FOUND   0x1
+#define WL_PFN_SSID_EXT_LOST    0x2
+typedef struct wl_pfn_result_ssid {
+	uint8 flags;
+	int8 rssi;
+	/* channel number */
+	uint16 channel;
+	/* Assume idx in order of cfg */
+	uint16 index;
+	struct ether_addr bssid;
+} wl_pfn_result_ssid_crc32_t;
+
+typedef struct wl_pfn_ssid_ext_result {
+	uint16 version;
+	uint16 count;
+	wl_pfn_result_ssid_crc32_t net[1];
+} wl_pfn_ssid_ext_result_t;
+
+#define PFN_EXT_AUTH_CODE_OPEN   1 /* open */
+#define PFN_EXT_AUTH_CODE_PSK   2 /* WPA_PSK or WPA2PSK */
+#define PFN_EXT_AUTH_CODE_EAPOL 4 /* any EAPOL  */
+
+#define WL_PFN_MAC_OUI_ONLY_MASK      1
+#define WL_PFN_SET_MAC_UNASSOC_MASK   2
 
 typedef BWL_PRE_PACKED_STRUCT struct pfn_olmsg_params_t {
 	wlc_ssid_t ssid;
