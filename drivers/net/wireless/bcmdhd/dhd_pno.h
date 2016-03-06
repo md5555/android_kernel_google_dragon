@@ -490,6 +490,11 @@ extern int
 dhd_dev_pno_set_for_hotlist(struct net_device *dev, wl_pfn_bssid_t *p_pfn_bssid,
 	struct dhd_pno_hotlist_params *hotlist_params);
 #ifdef GSCAN_SUPPORT
+extern int dhd_pno_set_cfg_gscan(dhd_pub_t *dhd, dhd_pno_gscan_cmd_cfg_t type,
+    void *buf, uint8 flush);
+extern int
+dhd_dev_pno_set_cfg_gscan(struct net_device *dev, dhd_pno_gscan_cmd_cfg_t type,
+              void *buf, uint8 flush);
 extern void *
 dhd_dev_pno_get_gscan(struct net_device *dev, dhd_pno_gscan_cmd_cfg_t type, void *info,
         uint32 *len);

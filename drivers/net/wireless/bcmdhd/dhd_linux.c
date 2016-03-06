@@ -8391,6 +8391,15 @@ dhd_dev_pno_get_for_batch(struct net_device *dev, char *buf, int bufsize)
 #endif /* PNO_SUPPORT */
 
 #ifdef GSCAN_SUPPORT
+int
+dhd_dev_pno_set_cfg_gscan(struct net_device *dev, dhd_pno_gscan_cmd_cfg_t type,
+ void *buf, uint8 flush)
+{
+	dhd_info_t *dhd = *(dhd_info_t **)netdev_priv(dev);
+
+	return (dhd_pno_set_cfg_gscan(&dhd->pub, type, buf, flush));
+}
+
 bool dhd_force_country_change(struct net_device *dev)
 {
 	dhd_info_t *dhd = DHD_DEV_INFO(dev);
