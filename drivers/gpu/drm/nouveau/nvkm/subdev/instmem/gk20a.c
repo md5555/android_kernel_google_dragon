@@ -170,27 +170,61 @@ gk20a_instobj_map_sg(struct nvkm_vma *vma, struct nvkm_object *object,
 {
 	struct gk20a_instmem_priv *priv = (void *)nvkm_instmem(object);
 	struct nvkm_mmu *mmu = nvkm_mmu(priv);
+	struct nvkm_fb *fb = nvkm_fb(priv);
 	u32 target = (vma->access & NV_MEM_ACCESS_NOSNOOP) ? 6 : 4;
 	u32 memtype = mem->memtype & 0xff;
 	u32 *ramin_ptr = gk20a_instobj_get_cpu_ptr(object);
 	u32 tag = 0;
+	bool top = false, cover = false;
 
 	if (!mem->cached)
 		target |= 1;
 
 	if (mem->tag) {
 		WARN_ON(delta & ((1 << mmu->lpg_shift) - 1));
-		tag = mem->tag->offset + (delta >> mmu->lpg_shift);
+		/*
+		 * One comptagline can cover one or two large pages depending on
+		 * the large page size.
+		 */
+		if ((fb->ctag_granularity >> mmu->lpg_shift) == 1) {
+			cover = true;
+		} else {
+			/*
+			 * Determine the start of the input buffer is in the top or
+			 * bottom half of the comptagline.
+			 */
+			if (!(delta % fb->ctag_granularity))
+				top = true;
+		}
+		/* Get the offset to the allocted comptag */
+		delta >>= mmu->lpg_shift;
+		delta /= fb->ctag_granularity >>  mmu->lpg_shift;
+		tag = mem->tag->offset + delta;
 	}
 
 	pte <<= 1;
 	while (cnt--) {
+		u32 t = 0;
+
 		ramin_ptr[pte] = (*list >> 8) | 0x1 /* present */;
-		ramin_ptr[pte + 1] = target | (memtype << 4) | (tag << 12);
+		if (mem->tag) {
+			t = tag;
+
+			if (cover) {
+				tag++;
+			} else {
+				/* Set the MS bit of the comptagline for bottom half */
+				if (!top) {
+					t = tag | (1 << 16);
+					tag++;
+				}
+				top = !top;
+			}
+		}
+
+		ramin_ptr[pte + 1] = target | (memtype << 4) | (t << 12);
 		list ++;
 		pte += 2;
-		if (mem->tag)
-			tag++;
 	}
 }
 

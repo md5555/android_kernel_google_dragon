@@ -42,7 +42,7 @@ gm20b_gr_init_gpc_mmu(struct gf100_gr_priv *priv)
 
 	/* TODO update once secure boot works */
 	val = nv_rd32(priv, 0x100c80);
-	val &= 0xf000087f;
+	val &= 0xf000187f;
 	nv_wr32(priv, 0x418880, val);
 	nv_wr32(priv, 0x418890, 0);
 	nv_wr32(priv, 0x418894, 0);
