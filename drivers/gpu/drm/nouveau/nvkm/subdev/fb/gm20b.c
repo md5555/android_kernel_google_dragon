@@ -48,4 +48,5 @@ gm20b_fb_oclass = &(struct nvkm_fb_impl) {
 		.fini = _nvkm_fb_fini,
 	},
 	.memtype = gf100_fb_memtype_valid,
+	.ctag_granularity = 0x20000, /* 128KB */
 }.base;

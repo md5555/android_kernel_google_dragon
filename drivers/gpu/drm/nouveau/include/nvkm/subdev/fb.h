@@ -66,6 +66,8 @@ struct nvkm_fb {
 		void (*fini)(struct nvkm_fb *, int i, struct nvkm_fb_tile *);
 		void (*prog)(struct nvkm_fb *, int i, struct nvkm_fb_tile *);
 	} tile;
+
+	u32 ctag_granularity;
 };
 
 static inline struct nvkm_fb *

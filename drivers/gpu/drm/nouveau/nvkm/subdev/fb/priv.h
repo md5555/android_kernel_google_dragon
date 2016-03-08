@@ -64,6 +64,7 @@ struct nvkm_fb_impl {
 	struct nvkm_oclass base;
 	struct nvkm_oclass *ram;
 	bool (*memtype)(struct nvkm_fb *, u32);
+	u32 ctag_granularity;
 };
 
 bool nv04_fb_memtype_valid(struct nvkm_fb *, u32 memtype);

@@ -203,6 +203,7 @@ static int
 nouveau_gem_init_tags(struct nouveau_drm *drm, struct nouveau_bo *nvbo)
 {
 	struct nvkm_mmu *mmu = nvxx_mmu(&drm->device);
+	struct nvkm_fb *fb = nvxx_fb(&drm->device);
 	struct ttm_mem_reg *mem = &(nvbo->bo.mem);
 	struct nvkm_mem *node = mem->mm_node;
 	u32 type = (node->memtype & 0x0ff);
@@ -211,12 +212,22 @@ nouveau_gem_init_tags(struct nouveau_drm *drm, struct nouveau_bo *nvbo)
 	if (!mmu->uc_type)
 		return 0;
 
+	if (!fb->ctag_granularity)
+		return ret;
+
 	if (mmu->uc_type(mmu, type) != type) {
 
 		/* compression only works with lpages */
 		if (mem->page_alignment ==
 				(1 << (mmu->lpg_shift - mmu->spg_shift))) {
-			int n = mem->num_pages >> (mmu->lpg_shift - mmu->spg_shift);
+			int n;
+			u32 ctag_granularity;
+
+			ctag_granularity = fb->ctag_granularity >> mmu->spg_shift;
+			if (!ctag_granularity)
+				return ret;
+
+			n = DIV_ROUND_UP(mem->num_pages, ctag_granularity);
 			ret = nouveau_gem_alloc_tags(drm, nvbo, n, node);
 		}
 

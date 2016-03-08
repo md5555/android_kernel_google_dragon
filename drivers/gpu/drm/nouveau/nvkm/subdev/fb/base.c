@@ -133,6 +133,7 @@ nvkm_fb_create_(struct nvkm_object *parent, struct nvkm_object *engine,
 		return ret;
 
 	pfb->memtype_valid = impl->memtype;
+	pfb->ctag_granularity = impl->ctag_granularity;
 
 	if (!impl->ram)
 		return 0;
