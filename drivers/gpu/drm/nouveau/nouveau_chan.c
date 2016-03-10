@@ -93,6 +93,7 @@ nouveau_channel_init_error_notifier(struct nouveau_channel *chan,
 {
 	struct drm_gem_object *gem;
 	struct nouveau_bo *nvbo;
+	u32 end = offset + 4 * sizeof(u32);
 	int ret;
 
 	gem = drm_gem_object_lookup(chan->drm->dev, file, handle);
@@ -107,6 +108,11 @@ nouveau_channel_init_error_notifier(struct nouveau_channel *chan,
 		if (chan->error_notifier.buffer != nvbo)
 			return -EEXIST;
 		return 0;
+	}
+
+	if (end > nvbo->bo.mem.size || end < 4 * sizeof(u32)) {
+		drm_gem_object_unreference_unlocked(gem);
+		return -EINVAL;
 	}
 
 	ret = nouveau_bo_map(nvbo);
