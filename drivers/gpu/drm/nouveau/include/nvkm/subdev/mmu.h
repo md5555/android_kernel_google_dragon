@@ -42,6 +42,12 @@ struct nvkm_as {
 	struct nvkm_mm_node *node;
 };
 
+enum nvkm_vma_cache_type {
+	NVKM_VMA_CACHETYPE_INHERIT_FROM_MEM = 0,
+	NVKM_VMA_CACHETYPE_CACHED,
+	NVKM_VMA_CACHETYPE_NONCACHED,
+};
+
 /**
  * struct nvkm_vma - A GPU virtual address allcoation
  * @as: The nvkm_as that this allocation came out of.  NULL if this allocation
@@ -62,6 +68,18 @@ struct nvkm_vma {
 
 	u64 delta;
 	u64 length;
+
+	/*
+	 * Marks this vma as having been made implicitly when the buffer
+	 * object is created.
+	 */
+	bool implicit;
+
+	/* Memory type for partial mapping */
+	enum nvkm_vma_cache_type memtype;
+	u32 cached;
+
+	bool unmap_pending;
 };
 
 struct nvkm_dirty_vma {

@@ -138,10 +138,33 @@ nouveau_bo_del_ttm(struct ttm_buffer_object *bo)
 	struct nouveau_drm *drm = nouveau_bdev(bo->bdev);
 	struct drm_device *dev = drm->dev;
 	struct nouveau_bo *nvbo = nouveau_bo(bo);
+	struct nvkm_vma *vma;
 
 	if (unlikely(nvbo->gem.filp))
 		DRM_ERROR("bo %p still attached to GEM object\n", bo);
 	WARN_ON(nvbo->pin_refcnt > 0);
+
+	/*
+	 * Clean up any mappings that haven't been unmapped.  By the time
+	 * we get here, the gem refcount for the bo has necessarily dropped
+	 * to zero, which means we won't have any unmaps pending (since
+	 * nouveau_gem_object_unmap(), which schedules the deferred unmap,
+	 * grabs a gem reference and won't let it go until the deferred
+	 * unmap actually happens in gem_unmap_work().  So, any vmas that
+	 * are still in the list at this point are really leaked and can be
+	 * deleted safely.
+	 */
+	mutex_lock(&nvbo->vma_list_lock);
+	list_for_each_entry(vma, &nvbo->vma_list, head) {
+		DRM_INFO("Cleaning up leaked mapping offset 0x%llx\n",
+			 vma->offset);
+		if (vma->mapped)
+			nvkm_vm_unmap(vma);
+		nvkm_vm_put(vma);
+		kfree(vma);
+	}
+	mutex_unlock(&nvbo->vma_list_lock);
+
 	nv10_bo_put_tile_region(dev, nvbo->tile, NULL);
 	kfree(nvbo);
 }
@@ -1703,7 +1726,8 @@ nouveau_bo_vma_find(struct nouveau_bo *nvbo, struct nvkm_vm *vm)
 	mutex_lock(&nvbo->vma_list_lock);
 
 	list_for_each_entry(vma, &nvbo->vma_list, head) {
-		if (vma->vm == vm) {
+		if (vma->implicit &&
+		    (vma->vm == vm)) {
 			mutex_unlock(&nvbo->vma_list_lock);
 			return vma;
 		}
@@ -1715,17 +1739,49 @@ nouveau_bo_vma_find(struct nouveau_bo *nvbo, struct nvkm_vm *vm)
 }
 
 struct nvkm_vma *
-nouveau_bo_subvma_find(struct nouveau_bo *nvbo, struct nvkm_vm *vm,
+nouveau_bo_subvma_find(struct nouveau_bo *nvbo, struct nvkm_vm *vm, u64 offset,
 		       u64 delta, u64 length)
 {
 	struct nvkm_vma *vma;
 
 	mutex_lock(&nvbo->vma_list_lock);
 
+	/*
+	 * Look for an existing subvma that we can reuse.  The delta and length
+	 * must match.  In addition, if a specific offset is given, that must
+	 * match as well (if offset is zero, then user doesn't care what the
+	 * assigned offset for this mapping is and we are okay to reuse the
+	 * mapping).
+	 */
 	list_for_each_entry(vma, &nvbo->vma_list, head)
-		if ((vma->vm == vm) &&
+		if (!vma->implicit &&
+		    (vma->vm == vm) &&
 		    (vma->delta == delta) &&
-		    (vma->length == length)) {
+		    (vma->length == length) &&
+		    (!offset || (vma->offset == offset)) &&
+		    !vma->unmap_pending) {
+			mutex_unlock(&nvbo->vma_list_lock);
+			return vma;
+		}
+
+	mutex_unlock(&nvbo->vma_list_lock);
+
+	return NULL;
+}
+
+struct nvkm_vma *
+nouveau_bo_subvma_find_offset(struct nouveau_bo *nvbo, struct nvkm_vm *vm,
+			      u64 offset)
+{
+	struct nvkm_vma *vma;
+
+	mutex_lock(&nvbo->vma_list_lock);
+
+	list_for_each_entry(vma, &nvbo->vma_list, head)
+		if (!vma->implicit &&
+		    (vma->vm == vm) &&
+		    (vma->offset == offset) &&
+		    !vma->unmap_pending) {
 			mutex_unlock(&nvbo->vma_list_lock);
 			return vma;
 		}
@@ -1824,6 +1880,7 @@ nouveau_bo_vma_add_offset(struct nouveau_bo *nvbo, struct nvkm_vm *vm,
 	list_add_tail(&vma->head, &nvbo->vma_list);
 	mutex_unlock(&nvbo->vma_list_lock);
 	vma->refcount = 1;
+	vma->implicit = true;
 	return 0;
 }
 
@@ -1850,7 +1907,7 @@ nouveau_bo_vma_del(struct nouveau_bo *nvbo, struct nvkm_vma *vma)
 int
 nouveau_bo_subvma_add(struct nouveau_bo *nvbo, struct nvkm_vm *vm,
 		      struct nvkm_vma *vma, u64 offset, u64 delta, u64 length,
-		      bool lazy)
+		      u32 memtype, bool lazy)
 {
 	int ret;
 
@@ -1861,6 +1918,7 @@ nouveau_bo_subvma_add(struct nouveau_bo *nvbo, struct nvkm_vm *vm,
 
 	vma->delta = delta;
 	vma->length = length;
+	vma->memtype = memtype;
 
 	if (nouveau_bo_vma_mappable(nvbo, vma)) {
 		if (lazy)

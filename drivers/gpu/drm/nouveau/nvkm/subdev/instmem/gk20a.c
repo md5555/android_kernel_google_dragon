@@ -172,12 +172,14 @@ gk20a_instobj_map_sg(struct nvkm_vma *vma, struct nvkm_object *object,
 	struct nvkm_mmu *mmu = nvkm_mmu(priv);
 	struct nvkm_fb *fb = nvkm_fb(priv);
 	u32 target = (vma->access & NV_MEM_ACCESS_NOSNOOP) ? 6 : 4;
-	u32 memtype = mem->memtype & 0xff;
+	u32 memtype = vma->memtype ? vma->memtype : (mem->memtype & 0xff);
 	u32 *ramin_ptr = gk20a_instobj_get_cpu_ptr(object);
 	u32 tag = 0;
 	bool top = false, cover = false;
 
-	if (!mem->cached)
+	if ((vma->cached == NVKM_VMA_CACHETYPE_INHERIT_FROM_MEM &&
+			!mem->cached) ||
+	    (vma->cached == NVKM_VMA_CACHETYPE_NONCACHED))
 		target |= 1;
 
 	if (mem->tag) {

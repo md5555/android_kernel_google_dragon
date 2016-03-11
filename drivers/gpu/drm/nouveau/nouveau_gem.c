@@ -200,13 +200,14 @@ alloc_err:
 }
 
 static int
-nouveau_gem_init_tags(struct nouveau_drm *drm, struct nouveau_bo *nvbo)
+nouveau_gem_init_tags(struct nouveau_drm *drm, struct nouveau_bo *nvbo,
+		      u32 *memtype)
 {
 	struct nvkm_mmu *mmu = nvxx_mmu(&drm->device);
 	struct nvkm_fb *fb = nvxx_fb(&drm->device);
 	struct ttm_mem_reg *mem = &(nvbo->bo.mem);
 	struct nvkm_mem *node = mem->mm_node;
-	u32 type = (node->memtype & 0x0ff);
+	u32 type = memtype ? *memtype : node->memtype;
 	int ret = -EINVAL;
 
 	if (!mmu->uc_type)
@@ -234,7 +235,11 @@ nouveau_gem_init_tags(struct nouveau_drm *drm, struct nouveau_bo *nvbo)
 		if (unlikely(ret))
 			type = mmu->uc_type(mmu, type);
 	}
-	node->memtype = type;
+
+	if (memtype)
+		*memtype = type;
+	else
+		node->memtype = type;
 
 	return 0;
 }
@@ -324,6 +329,7 @@ nouveau_gem_object_unmap(struct nouveau_bo *nvbo, struct nvkm_vma *vma)
 	INIT_WORK(&del_work->work, gem_unmap_work);
 	del_work->vma = vma;
 	del_work->nvbo = nvbo;
+	vma->unmap_pending = true;
 
 	queue_work(drm->gem_unmap_wq, &del_work->work);
 }
@@ -404,7 +410,7 @@ nouveau_gem_ioctl_set_tiling(struct drm_device *dev, void *data,
 		/* Need to rewrite page tables */
 		mem->memtype = (nvbo->tile_flags >> 8) & 0xff;
 		if (gem->import_attach) {
-			ret = nouveau_gem_init_tags(drm, nvbo);
+			ret = nouveau_gem_init_tags(drm, nvbo, NULL);
 			if (ret)
 				NV_PRINTK(error, cli, "failed to allocate tagline\n");
 		}
@@ -628,7 +634,7 @@ nouveau_gem_ioctl_set_info(struct drm_device *dev, void *data,
 		mem->memtype = (nvbo->tile_flags >> 8) & 0xff;
 		mem->cached = nvbo->gpu_cacheable;
 		if (gem->import_attach) {
-			ret = nouveau_gem_init_tags(drm, nvbo);
+			ret = nouveau_gem_init_tags(drm, nvbo, NULL);
 			if (ret)
 				NV_PRINTK(error, cli, "failed to allocate tagline\n");
 		}
@@ -1739,63 +1745,107 @@ nouveau_gem_ioctl_map(struct drm_device *dev, void *data,
 {
 	struct nouveau_drm *drm = nouveau_drm(dev);
 	struct nouveau_cli *cli = nouveau_cli(file_priv);
+	struct nvkm_fb *pfb = nvxx_fb(&drm->device);
 	struct drm_nouveau_gem_map *req = data;
 	struct drm_gem_object *gem;
 	struct nouveau_bo *nvbo;
-	u64 nvbo_size;
-	struct nvkm_vma *vma, *new_vma;
-	struct nvkm_as *as;
+	struct nvkm_vma *vma;
 	unsigned old_page_shift;
+	bool gpu_cacheable = !(req->domain & NOUVEAU_GEM_DOMAIN_COHERENT);
+	struct nvkm_mem *mem;
+	struct nvkm_as *as;
 	int ret = 0;
+	u32 memtype = 0x0;
+
+	if (!pfb->memtype_valid(pfb, req->tile_flags)) {
+		NV_PRINTK(error, cli, "bad memtype: 0x%08x\n", req->tile_flags);
+		return -EINVAL;
+	}
 
 	gem = drm_gem_object_lookup(dev, file_priv, req->handle);
 	if (!gem)
 		return -ENOENT;
 
 	nvbo = nouveau_gem_object(gem);
-	nvbo_size = nvbo->bo.mem.num_pages << PAGE_SHIFT;
 
-	/* Does this mapping already exist?  If so, we're done. */
-	vma = nouveau_bo_subvma_find(nvbo, cli->vm, req->delta, req->length);
-	if (vma) {
-		req->offset = vma->offset;
-		goto unreference;
-	}
+	ret = ttm_bo_reserve(&nvbo->bo, false, false, false, NULL);
+	if (ret)
+		return ret;
 
-	/*
-	 * Do we still have the start of nvbo implicit mapping in place?  If
-	 * so, get rid of it.
-	 */
-	vma = nouveau_bo_subvma_find(nvbo, cli->vm, 0, nvbo_size);
-	if (vma) {
-		nouveau_cancel_defer_vm_map(vma, nvbo);
-		nouveau_bo_vma_del(nvbo, vma);
-	}
-
-	/*
-	 * If this offset falls within an address space allocation, then honor
-	 * the address space allocation's alignment request (as->align_shift).
-	 * This may result in changing the nvbo to map with small page size
-	 * when previously it was mapped with large page size.
-	 *
-	 * Note that if the nvbo was originally mapped with small page size
-	 * (if, for example, its size was not a multiple of large page size),
-	 * we cannot just promote to large page size.
-	 */
 	old_page_shift = nvbo->page_shift;
-	as = nvkm_vm_find_as(cli->vm, req->offset);
-	if (as)
-		nvbo->page_shift = min(nvbo->page_shift, as->align_shift);
+
+	/*
+	 * Does this mapping already exist?  If so, we're done.  Note that
+	 * we are keeping the gem object reference.
+	 */
+	vma = nouveau_bo_subvma_find(nvbo, cli->vm, req->offset,
+				     req->delta, req->length);
+	if (vma) {
+		vma->refcount++;
+		req->offset = vma->offset;
+		ttm_bo_unreserve(&nvbo->bo);
+		return ret;
+	}
+
+	/*
+	 * Only need to check for address space allocation if this is a fixed
+	 * address mapping.
+	 */
+	if (req->offset) {
+		/*
+		 * If this offset falls within an address space allocation,
+		 * then honor the address space allocation's alignment request
+		 * (as->align_shift).  This may result in changing the nvbo to
+		 * map with small page size when previously it was mapped with
+		 * large page size.
+		 *
+		 * Note that if the nvbo was originally mapped with small page
+		 * size (if, for example, its size was not a multiple of large
+		 * page size), we cannot just promote to large page size.
+		 */
+		as = nvkm_vm_find_as(cli->vm, req->offset);
+		if (as)
+			nvbo->page_shift = min(nvbo->page_shift,
+					       as->align_shift);
+	}
 
 	/* Make our new vma. */
-	new_vma = kzalloc(sizeof(*vma), GFP_KERNEL);
-	if (!new_vma) {
+	vma = kzalloc(sizeof(*vma), GFP_KERNEL);
+	if (!vma) {
 		ret = -ENOMEM;
 		goto error;
 	}
 
-	ret = nouveau_bo_subvma_add(nvbo, cli->vm, new_vma, req->offset,
-				    req->delta, req->length, true);
+	mem = nvbo->bo.mem.mm_node;
+	memtype = (req->tile_flags >> 8) & 0xff;
+
+	/*
+	 * Only update nvbo and memory node for the whole buffer.  If this
+	 * is for a partial mapping, we update the cached status in the vma
+	 * instead.
+	 */
+	if (req->length == (mem->size << PAGE_SHIFT)) {
+		nvbo->tile_mode = req->tile_mode;
+		nvbo->tile_flags = req->tile_flags;
+		mem->memtype = memtype;
+		nvbo->gpu_cacheable = gpu_cacheable;
+		mem->cached = nvbo->gpu_cacheable;
+		vma->cached = NVKM_VMA_CACHETYPE_INHERIT_FROM_MEM;
+	} else {
+		vma->cached = gpu_cacheable ? NVKM_VMA_CACHETYPE_CACHED :
+			NVKM_VMA_CACHETYPE_NONCACHED;
+	}
+
+
+	if (gem->import_attach && !mem->tag) {
+		ret = nouveau_gem_init_tags(drm, nvbo, &memtype);
+		if (ret)
+			NV_PRINTK(error, cli, "failed to allocate tagline\n");
+	}
+
+	ret = nouveau_bo_subvma_add(nvbo, cli->vm, vma, req->offset,
+				    req->delta, req->length, memtype,
+				    true);
 	if (!ret)
 		goto success;
 
@@ -1805,8 +1855,9 @@ nouveau_gem_ioctl_map(struct drm_device *dev, void *data,
 	 * unmaps and try again.
 	 */
 	flush_workqueue(drm->gem_unmap_wq);
-	ret = nouveau_bo_subvma_add(nvbo, cli->vm, new_vma, req->offset,
-				    req->delta, req->length, true);
+	ret = nouveau_bo_subvma_add(nvbo, cli->vm, vma, req->offset,
+				    req->delta, req->length, memtype,
+				    true);
 	if (ret)
 		goto error;
 
@@ -1815,26 +1866,32 @@ success:
 	 * If input offset was zero, we'll get an arbitrary address back
 	 * from nouveau_bo_subvma_add(), so report that back up the stack.
 	 */
-	req->offset = new_vma->offset;
+	req->offset = vma->offset;
 
 	/*
 	 * On success, we delete the old vma, and hang on to the gem object
 	 * reference so that while this mapping exists, we don't free the bo.
+	 *
+	 * Do we still have the start of nvbo implicit mapping in place?  If
+	 * so, get rid of it.
 	 */
-	kfree(vma);
+	vma = nouveau_bo_vma_find(nvbo, cli->vm);
+	if (vma) {
+		nouveau_cancel_defer_vm_map(vma, nvbo);
+		nouveau_bo_vma_del(nvbo, vma);
+		kfree(vma);
+	}
+
+	ttm_bo_unreserve(&nvbo->bo);
+
 	return ret;
 
 error:
-	/*
-	 * On failure, give up the gem object reference, delete the new vma,
-	 * and roll back to the old vma.
-	 */
-	kfree(new_vma);
-	nvbo->page_shift = old_page_shift;
-	nouveau_bo_vma_add_offset(nvbo, cli->vm, vma, vma->offset, true);
-
-unreference:
+	/* On failure, give up the gem object reference, delete the new vma. */
+	kfree(vma);
+	ttm_bo_unreserve(&nvbo->bo);
 	drm_gem_object_unreference_unlocked(gem);
+
 	return ret;
 }
 
@@ -1842,6 +1899,7 @@ int
 nouveau_gem_ioctl_unmap(struct drm_device *dev, void *data,
 			struct drm_file *file_priv)
 {
+	struct nouveau_drm *drm = nouveau_drm(dev);
 	struct nouveau_cli *cli = nouveau_cli(file_priv);
 	struct drm_nouveau_gem_unmap *req = data;
 	struct drm_gem_object *gem;
@@ -1855,21 +1913,29 @@ nouveau_gem_ioctl_unmap(struct drm_device *dev, void *data,
 
 	nvbo = nouveau_gem_object(gem);
 
-	vma = nouveau_bo_subvma_find(nvbo, cli->vm, req->delta, req->length);
+	ret = ttm_bo_reserve(&nvbo->bo, false, false, false, NULL);
+	if (ret)
+		return ret;
+
+	vma = nouveau_bo_subvma_find_offset(nvbo, cli->vm, req->offset);
 	if (!vma) {
 		ret = -ENOENT;
 		goto error;
 	}
 
-	nouveau_cancel_defer_vm_map(vma, nvbo);
-	nouveau_bo_subvma_del(nvbo, vma);
+	if (--vma->refcount == 0) {
+		nouveau_gem_object_unmap(nvbo, vma);
+		/*
+		 * If this vma is part of an address space allocation
+		 * that has sparse textures turned on, we can't defer
+		 * the unmap.  Easiest way to do that is to just flush
+		 * the unmap queue.
+		 */
+		if (vma->as && vma->as->sparse)
+			flush_workqueue(drm->gem_unmap_wq);
+	}
 
-	kfree(vma);
-
-	/*
-	 * On success, we release the reference acquired by
-	 * nouveau_gem_ioctl_map().
-	 */
+	/* Release the reference we kept from the map operation. */
 	drm_gem_object_unreference_unlocked(gem);
 
 error:
@@ -1877,6 +1943,7 @@ error:
 	 * Finally, in any case, release the reference acquired by this
 	 * function's call to drm_gem_object_lookup().
 	 */
+	ttm_bo_unreserve(&nvbo->bo);
 	drm_gem_object_unreference_unlocked(gem);
 	return ret;
 }
