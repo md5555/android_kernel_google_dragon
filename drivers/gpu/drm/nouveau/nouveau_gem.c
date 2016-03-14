@@ -259,7 +259,9 @@ static void gem_unmap_work(struct work_struct *__work)
 
 	fobj = reservation_object_get_list(resv);
 
+	mutex_lock(&nvbo->vma_list_lock);
 	list_del(&vma->head);
+	mutex_unlock(&nvbo->vma_list_lock);
 
 	if (fobj && fobj->shared_count > 1)
 		ttm_bo_wait(&nvbo->bo, true, false, false);

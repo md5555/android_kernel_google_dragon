@@ -25,6 +25,7 @@ struct nouveau_bo {
 	bool validate_mapped;
 
 	struct list_head vma_list;
+	struct mutex vma_list_lock;
 	unsigned page_shift;
 
 	u32 tile_mode;

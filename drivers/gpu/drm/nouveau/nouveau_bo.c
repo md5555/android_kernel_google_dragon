@@ -212,6 +212,7 @@ nouveau_bo_new(struct drm_device *dev, int size, int align,
 	INIT_LIST_HEAD(&nvbo->head);
 	INIT_LIST_HEAD(&nvbo->entry);
 	INIT_LIST_HEAD(&nvbo->vma_list);
+	mutex_init(&nvbo->vma_list_lock);
 	nvbo->tile_mode = tile_mode;
 	nvbo->tile_flags = tile_flags;
 	nvbo->gpu_cacheable = !(flags & TTM_PL_FLAG_UNCACHED);
@@ -1314,6 +1315,8 @@ nouveau_bo_move_ntfy(struct ttm_buffer_object *bo, struct ttm_mem_reg *new_mem)
 	if (bo->destroy != nouveau_bo_del_ttm)
 		return;
 
+	mutex_lock(&nvbo->vma_list_lock);
+
 	list_for_each_entry(vma, &nvbo->vma_list, head) {
 		if (new_mem && new_mem->mem_type != TTM_PL_SYSTEM &&
 			      (new_mem->mem_type == TTM_PL_VRAM ||
@@ -1323,6 +1326,8 @@ nouveau_bo_move_ntfy(struct ttm_buffer_object *bo, struct ttm_mem_reg *new_mem)
 			nvkm_vm_unmap(vma);
 		}
 	}
+
+	mutex_unlock(&nvbo->vma_list_lock);
 }
 
 static int
@@ -1694,10 +1699,17 @@ struct nvkm_vma *
 nouveau_bo_vma_find(struct nouveau_bo *nvbo, struct nvkm_vm *vm)
 {
 	struct nvkm_vma *vma;
+
+	mutex_lock(&nvbo->vma_list_lock);
+
 	list_for_each_entry(vma, &nvbo->vma_list, head) {
-		if (vma->vm == vm)
+		if (vma->vm == vm) {
+			mutex_unlock(&nvbo->vma_list_lock);
 			return vma;
+		}
 	}
+
+	mutex_unlock(&nvbo->vma_list_lock);
 
 	return NULL;
 }
@@ -1708,11 +1720,17 @@ nouveau_bo_subvma_find(struct nouveau_bo *nvbo, struct nvkm_vm *vm,
 {
 	struct nvkm_vma *vma;
 
+	mutex_lock(&nvbo->vma_list_lock);
+
 	list_for_each_entry(vma, &nvbo->vma_list, head)
 		if ((vma->vm == vm) &&
 		    (vma->delta == delta) &&
-		    (vma->length == length))
+		    (vma->length == length)) {
+			mutex_unlock(&nvbo->vma_list_lock);
 			return vma;
+		}
+
+	mutex_unlock(&nvbo->vma_list_lock);
 
 	return NULL;
 }
@@ -1802,7 +1820,9 @@ nouveau_bo_vma_add_offset(struct nouveau_bo *nvbo, struct nvkm_vm *vm,
 			nvkm_vm_map(vma, nvbo->bo.mem.mm_node);
 	}
 
+	mutex_lock(&nvbo->vma_list_lock);
 	list_add_tail(&vma->head, &nvbo->vma_list);
+	mutex_unlock(&nvbo->vma_list_lock);
 	vma->refcount = 1;
 	return 0;
 }
@@ -1821,7 +1841,9 @@ nouveau_bo_vma_del(struct nouveau_bo *nvbo, struct nvkm_vma *vma)
 		if (vma->mapped && nvbo->bo.mem.mem_type != TTM_PL_SYSTEM)
 			nvkm_vm_unmap(vma);
 		nvkm_vm_put(vma);
+		mutex_lock(&nvbo->vma_list_lock);
 		list_del(&vma->head);
+		mutex_unlock(&nvbo->vma_list_lock);
 	}
 }
 
@@ -1847,7 +1869,9 @@ nouveau_bo_subvma_add(struct nouveau_bo *nvbo, struct nvkm_vm *vm,
 			nvkm_vm_map(vma, nvbo->bo.mem.mm_node);
 	}
 
+	mutex_lock(&nvbo->vma_list_lock);
 	list_add_tail(&vma->head, &nvbo->vma_list);
+	mutex_unlock(&nvbo->vma_list_lock);
 	vma->refcount = 1;
 	return 0;
 }
