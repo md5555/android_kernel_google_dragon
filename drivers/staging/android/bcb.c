@@ -154,7 +154,7 @@ static int bcb_reboot_notifier_call(
 	struct block_device *bdev = NULL;
 	struct bootloader_message *bcb = NULL;
 
-	if (what != SYS_RESTART || !data)
+	if (what != SYS_RESTART || !data || (strlen(cmd) == 0))
 		goto out;
 
 	bdev = get_emmc_bdev();
