@@ -16,7 +16,11 @@
 	compatible = "google,smaug", "nvidia,tegra210";
 
         chosen {
+#ifdef CONFIG_KASAN
+		bootargs = "cros_legacy console=ttyS0,115200n8 init=/init rw kgdboc=ttyS0 earlycon=uart8250,mmio32,0x70006000 ignore_loglevel=1 drm.atomic=1 firmware_class.path=/vendor/firmware kern_guid=%U no_console_suspend";
+#else
 		bootargs = "cros_legacy console= init=/init rw ignore_loglevel=1 drm.atomic=1 firmware_class.path=/vendor/firmware kern_guid=%U no_console_suspend";
+#endif
 	};
 
 	memory {
