@@ -34,6 +34,57 @@
 #include "nouveau_chan.h"
 #include "nouveau_abi16.h"
 
+static int
+nouveau_abi16_handle_alloc(struct nouveau_abi16 *abi16)
+{
+	u64 *ph, *ph_last;
+	int i, offset, channel;
+
+	ph = ph_last = abi16->phandles;
+	for (i = 0; i < abi16->handle_num; i++) {
+		if (!ph_last)
+			break;
+		ph_last = ph + i;
+		if (~(*ph_last) != 0) {
+			/* un-used bit found */
+			offset = i;
+			break;
+		}
+	}
+
+	/* no available bit */
+	if (!ph_last || ~(*ph_last) == 0) {
+		ph = kcalloc(abi16->handle_num + 1, sizeof(*abi16->phandles),
+				GFP_KERNEL);
+		if (WARN_ON(!ph))
+			return -ENOMEM;
+
+		if (abi16->phandles)
+			memcpy(ph, abi16->phandles,
+					abi16->handle_num * sizeof(*abi16->phandles));
+		kfree(abi16->phandles);
+		abi16->handle_num++;
+		abi16->phandles = ph;
+		ph_last = &ph[abi16->handle_num - 1];
+		offset = abi16->handle_num - 1;
+	}
+
+	channel = __ffs64(~(*ph_last));
+	*ph_last |= 1ULL << channel;
+	channel += offset * sizeof(abi16->phandles) * 8;
+
+	return channel;
+}
+
+static void
+nouveau_abi16_handle_free(struct nouveau_abi16 *abi16, int channel)
+{
+	u64 *ph = abi16->phandles;
+	u64 *ph_cur = ph + channel / (sizeof(abi16->phandles) * 8);
+
+	*ph_cur &= ~(1ULL << (channel % (sizeof(abi16->phandles) * 8)));
+}
+
 struct nouveau_abi16 *
 nouveau_abi16_get(struct drm_file *file_priv, struct drm_device *dev)
 {
@@ -117,7 +168,7 @@ nouveau_abi16_chan_fini(struct nouveau_abi16 *abi16,
 
 	/* destroy channel object, all children will be killed too */
 	if (chan->chan) {
-		abi16->handles &= ~(1ULL << (chan->chan->object->handle & 0xffff));
+		nouveau_abi16_handle_free(abi16, chan->chan->object->handle & 0xffff);
 		nouveau_channel_del(&chan->chan);
 	}
 
@@ -149,6 +200,7 @@ nouveau_abi16_fini(struct nouveau_abi16 *abi16)
 	list_for_each_entry_safe(chan, temp, &abi16->channels, head) {
 		nouveau_abi16_chan_fini(abi16, chan);
 	}
+	kfree(abi16->phandles);
 	mutex_unlock(&cli->mutex);
 
 	/* destroy the device object */
@@ -267,9 +319,9 @@ nouveau_abi16_ioctl_channel_alloc(ABI16_IOCTL_ARGS)
 		return nouveau_abi16_put(abi16, -EINVAL);
 
 	/* allocate "abi16 channel" data and make up a handle for it */
-	init->channel = __ffs64(~abi16->handles);
-	if (~abi16->handles == 0)
-		return nouveau_abi16_put(abi16, -ENOSPC);
+	init->channel = nouveau_abi16_handle_alloc(abi16);
+	if (init->channel < 0)
+		return init->channel;
 
 	chan = kzalloc(sizeof(*chan), GFP_KERNEL);
 	if (!chan)
@@ -277,7 +329,6 @@ nouveau_abi16_ioctl_channel_alloc(ABI16_IOCTL_ARGS)
 
 	INIT_LIST_HEAD(&chan->notifiers);
 	list_add(&chan->head, &abi16->channels);
-	abi16->handles |= (1ULL << init->channel);
 
 	/* create channel object and initialise dma and fence management */
 	ret = nouveau_channel_new(drm, device,

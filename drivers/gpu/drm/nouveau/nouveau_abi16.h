@@ -30,7 +30,8 @@ struct nouveau_abi16_chan {
 struct nouveau_abi16 {
 	struct nvif_device device;
 	struct list_head channels;
-	u64 handles;
+	u64 *phandles;
+	u32 handle_num;
 };
 
 struct nouveau_drm;
