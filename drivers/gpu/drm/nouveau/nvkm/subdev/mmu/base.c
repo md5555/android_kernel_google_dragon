@@ -921,7 +921,8 @@ int nvkm_vm_as_free(struct nvkm_vm *vm, u64 offset)
 		return ret;
 	}
 	if (as->sparse) {
-		u32 fpde, lpde;
+		struct nvkm_ltc *ltc = nvkm_ltc(mmu);
+		u32 fpde, lpde, pde, pte, num, max, bits, end, cnt;
 		int pgsz;
 
 		/* release PDEs */
@@ -931,6 +932,33 @@ int nvkm_vm_as_free(struct nvkm_vm *vm, u64 offset)
 		pgsz = as->align_shift == mmu->lpg_shift ?
 			BIG_PAGE_INDEX : SMALL_PAGE_INDEX;
 
+		bits = as->node->type - 12;
+		num = as->node->length >> bits;	/* total num of PTEs to fill */
+		max  = 1 << (mmu->pgt_bits - bits);	/* PTEs per table */
+		pte  = (as->node->offset & ((1 << mmu->pgt_bits) - 1)) >> bits;
+		pde = fpde;
+
+		/* Unlock the mutex since we'll flush mmu next */
+		mutex_unlock(&nv_subdev(mmu)->mutex);
+		/* Clear VOL bit */
+		while (num) {
+			struct nvkm_gpuobj *pgt = vm->pgt[pde].obj[pgsz];
+
+			end = (pte + num);
+			if (unlikely(end > max))
+				end = max;
+			cnt = end - pte;
+
+			mmu->unmap(pgt, pte, cnt);
+
+			num -= cnt;
+			pde++;
+			pte = 0;
+		}
+		ltc->invalidate(ltc);
+		mmu->flush(vm);
+
+		mutex_lock(&nv_subdev(mmu)->mutex);
 		nvkm_vm_unmap_pgt(vm, pgsz, fpde, lpde);
 	}
 
