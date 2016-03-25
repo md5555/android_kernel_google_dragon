@@ -363,7 +363,7 @@ static inline void slab_post_alloc_hook(struct kmem_cache *s,
 	kmemcheck_slab_alloc(s, flags, object, slab_ksize(s));
 	kmemleak_alloc_recursive(object, s->object_size, 1, s->flags, flags);
 	memcg_kmem_put_cache(s);
-	kasan_slab_alloc(s, object);
+	kasan_slab_alloc(s, object, flags);
 }
 
 #ifndef CONFIG_SLOB
