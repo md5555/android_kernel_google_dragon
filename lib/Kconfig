@@ -518,4 +518,8 @@ source "lib/fonts/Kconfig"
 config ARCH_HAS_SG_CHAIN
 	def_bool n
 
+config STACKDEPOT
+	bool
+	select STACKTRACE
+
 endmenu
