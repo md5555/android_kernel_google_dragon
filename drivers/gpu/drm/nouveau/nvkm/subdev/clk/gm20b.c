@@ -487,10 +487,10 @@ gm20b_clk_calc_dfs_det_coeff(struct gm20b_clk_priv *priv, int uv)
 	struct gm20b_pllg_fused_params *fp = &priv->fused_params;
 	struct gm20b_na_dvfs *d = &priv->gpcpll.dvfs;
 	u32 coeff;
+	int mv = uv / 1000;
 
 	/* coeff = slope * voltage + offset */
-	coeff = DIV_ROUND_CLOSEST(uv * p->coeff_slope, 1000 * 1000) +
-			p->coeff_offs;
+	coeff = DIV_ROUND_CLOSEST(mv * p->coeff_slope, 1000) + p->coeff_offs;
 	coeff = DIV_ROUND_CLOSEST(coeff, 1000);
 	coeff = min(coeff, (u32)MASK(GPCPLL_DVFS0_DFS_COEFF_WIDTH));
 	d->dfs_coeff = coeff;
