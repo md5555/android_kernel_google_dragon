@@ -867,18 +867,15 @@ int nvkm_vm_as_alloc(struct nvkm_vm *vm, u64 align, u64 length, u32 page_shift,
 			struct nvkm_gpuobj *pgt = vm->pgt[pde].obj[pgsz];
 
 			end = (pte + num);
-			if (unlikely(end >= max))
+			if (unlikely(end > max))
 				end = max;
 			cnt = end - pte;
 
 			mmu->sparse(pgt, pte, cnt);
 
 			num -= cnt;
-			pte += cnt;
-			if (unlikely(end >= max)) {
-				pde += 1;
-				pte = 0;
-			}
+			pde++;
+			pte = 0;
 		}
 
 		ltc->invalidate(ltc);
