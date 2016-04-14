@@ -157,17 +157,17 @@ nouveau_channel_del(struct nouveau_channel **pchan)
 		nvif_object_fini(&chan->vram);
 		nvif_object_ref(NULL, &chan->object);
 		nvif_object_fini(&chan->push.ctxdma);
-		nouveau_bo_vma_del(chan->push.buffer, &chan->push.vma);
-		nouveau_bo_unmap(chan->push.buffer);
-		if (chan->push.buffer && chan->push.buffer->pin_refcnt)
-			nouveau_bo_unpin(chan->push.buffer);
-		nouveau_bo_ref(NULL, &chan->push.buffer);
 		if (chan->error_notifier.buffer) {
 			nouveau_bo_unmap(chan->error_notifier.buffer);
 			drm_gem_object_unreference_unlocked(
 					&chan->error_notifier.buffer->gem);
 		}
 		nvif_notify_fini(&chan->error_notifier.notify);
+		nouveau_bo_vma_del(chan->push.buffer, &chan->push.vma);
+		nouveau_bo_unmap(chan->push.buffer);
+		if (chan->push.buffer && chan->push.buffer->pin_refcnt)
+			nouveau_bo_unpin(chan->push.buffer);
+		nouveau_bo_ref(NULL, &chan->push.buffer);
 		nvif_device_ref(NULL, &chan->device);
 		kfree(chan);
 	}
