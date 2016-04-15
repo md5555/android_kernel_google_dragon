@@ -121,6 +121,8 @@ struct tegra_sor_ops {
 	const char *name;
 	int (*probe)(struct tegra_sor *sor);
 	int (*remove)(struct tegra_sor *sor);
+	int (*suspend)(struct tegra_sor *sor);
+	int (*resume)(struct tegra_sor *sor);
 };
 
 struct tegra_sor {
@@ -3076,6 +3078,46 @@ static const struct of_device_id tegra_sor_of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, tegra_sor_of_match);
 
+#ifdef CONFIG_PM_SLEEP
+static int tegra_sor_suspend(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct tegra_sor *sor = platform_get_drvdata(pdev);
+	int err;
+
+	if (sor->ops && sor->ops->suspend) {
+		err = sor->ops->suspend(sor);
+		if (err < 0) {
+			dev_err(&pdev->dev, "failed to suspend %s: %d\n",
+				sor->ops->name, err);
+			return err;
+		}
+	}
+	return 0;
+}
+
+static int tegra_sor_resume(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct tegra_sor *sor = platform_get_drvdata(pdev);
+	int err;
+
+	if (sor->ops && sor->ops->resume) {
+		err = sor->ops->resume(sor);
+		if (err < 0) {
+			dev_err(&pdev->dev, "failed to resume %s: %d\n",
+				sor->ops->name, err);
+			return err;
+		}
+	}
+	return 0;
+}
+
+static const struct dev_pm_ops tegra_sor_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(tegra_sor_suspend, tegra_sor_resume)
+};
+#endif
+
 static int tegra_sor_probe(struct platform_device *pdev)
 {
 	const struct of_device_id *match;
@@ -3297,6 +3339,9 @@ static int tegra_sor_remove(struct platform_device *pdev)
 struct platform_driver tegra_sor_driver = {
 	.driver = {
 		.name = "tegra-sor",
+#ifdef CONFIG_PM_SLEEP
+		.pm	= &tegra_sor_pm_ops,
+#endif
 		.of_match_table = tegra_sor_of_match,
 	},
 	.probe = tegra_sor_probe,
