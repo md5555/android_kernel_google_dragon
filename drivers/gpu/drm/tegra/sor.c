@@ -2790,10 +2790,55 @@ static int tegra_sor_dp_remove(struct tegra_sor *sor)
 	return 0;
 }
 
+static int tegra_sor_dp_suspend(struct tegra_sor *sor)
+{
+	int err;
+
+	err = regulator_disable(sor->vdd_pll_supply);
+	if (err < 0) {
+		dev_err(sor->dev,
+			"failed to disable vdd_pll supply: %d\n", err);
+		return err;
+	}
+
+	err = regulator_disable(sor->avdd_io_supply);
+	if (err < 0) {
+		dev_err(sor->dev,
+			"failed to disable avdd_io supply: %d\n", err);
+		return err;
+	}
+
+	return 0;
+}
+
+static int tegra_sor_dp_resume(struct tegra_sor *sor)
+{
+	int err;
+
+	err = regulator_enable(sor->avdd_io_supply);
+	if (err < 0) {
+		dev_err(sor->dev,
+			"failed to enable avdd_io supply: %d\n", err);
+		return err;
+	}
+
+	err = regulator_enable(sor->vdd_pll_supply);
+	if (err < 0) {
+		dev_err(sor->dev,
+			"failed to enable vdd_pll supply: %d\n", err);
+		regulator_disable(sor->avdd_io_supply);
+		return err;
+	}
+
+	return 0;
+}
+
 static const struct tegra_sor_ops tegra_sor_dp_ops = {
 	.name = "DP",
 	.probe = tegra_sor_dp_probe,
 	.remove = tegra_sor_dp_remove,
+	.suspend = tegra_sor_dp_suspend,
+	.resume = tegra_sor_dp_resume,
 };
 
 static irqreturn_t tegra_sor_irq(int irq, void *data)
