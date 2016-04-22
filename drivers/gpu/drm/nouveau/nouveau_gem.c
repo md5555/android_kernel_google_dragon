@@ -1924,6 +1924,8 @@ nouveau_gem_ioctl_unmap(struct drm_device *dev, void *data,
 	}
 
 	if (--vma->refcount == 0) {
+		struct nvkm_as *as = vma->as;
+
 		nouveau_gem_object_unmap(nvbo, vma);
 		/*
 		 * If this vma is part of an address space allocation
@@ -1931,7 +1933,7 @@ nouveau_gem_ioctl_unmap(struct drm_device *dev, void *data,
 		 * the unmap.  Easiest way to do that is to just flush
 		 * the unmap queue.
 		 */
-		if (vma->as && vma->as->sparse)
+		if (as && as->sparse)
 			flush_workqueue(drm->gem_unmap_wq);
 	}
 
