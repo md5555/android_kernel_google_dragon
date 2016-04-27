@@ -42,6 +42,7 @@
 #include <subdev/ltc.h>
 #include <core/mm.h>
 #include <core/device.h>
+#include <core/gpuobj.h>
 
 #ifdef __KERNEL__
 #include <linux/dma-attrs.h>
@@ -161,6 +162,23 @@ gk20a_instobj_map(struct nvkm_vma *vma, struct nvkm_object *object,
 		phys += next;
 		pte += 2;
 	}
+}
+
+void
+gk20a_instobj_map_pgt(struct nvkm_object *object, u32 index,
+			struct nvkm_gpuobj *pgt[2])
+{
+	u32 *ramin_ptr = gk20a_instobj_get_cpu_ptr(object);
+	u32 pde[2] = { 0, 0 };
+
+	if (pgt[0])
+		pde[1] = 0x00000001 | (pgt[0]->addr >> 8);
+	if (pgt[1])
+		pde[0] = 0x00000001 | (pgt[1]->addr >> 8);
+
+	index <<= 1;
+	ramin_ptr[index] = pde[0];
+	ramin_ptr[index + 1] = pde[1];
 }
 
 void

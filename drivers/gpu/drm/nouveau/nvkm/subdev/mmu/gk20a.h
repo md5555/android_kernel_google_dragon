@@ -27,6 +27,10 @@ void gk20a_instobj_map(struct nvkm_vma *vma, struct nvkm_object *object,
 		       struct nvkm_mem *mem, u32 pte, u32 cnt, u64 phys,
 		       u64 delta);
 
+void
+gk20a_instobj_map_pgt(struct nvkm_object *object, u32 index,
+			struct nvkm_gpuobj *pgt[2]);
+
 void gk20a_instobj_map_sg(struct nvkm_vma *vma, struct nvkm_object *object,
 			  struct nvkm_mem *mem, u32 pte, u32 cnt,
 			  dma_addr_t *list, u64 delta);
