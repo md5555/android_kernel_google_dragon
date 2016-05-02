@@ -1638,14 +1638,17 @@ static void tegra_sor_edp_enable(struct drm_encoder *encoder)
 	struct tegra_sor_config config;
 	struct tegra_sor_state *state;
 	struct drm_display_mode *mode;
-	struct drm_display_info *info;
+	struct drm_display_info info;
 	unsigned int i;
 	u32 value;
 	int err;
 
 	state = to_sor_state(output->connector.state);
 	mode = &encoder->crtc->state->adjusted_mode;
-	info = &output->connector.display_info;
+
+	/* Make a copy of the display info and sub in our computed bpc */
+	memcpy(&info, &output->connector.display_info, sizeof(info));
+	info.bpc = state->bpc;
 
 	err = clk_prepare_enable(sor->clk);
 	if (err < 0)
@@ -1674,7 +1677,7 @@ static void tegra_sor_edp_enable(struct drm_encoder *encoder)
 		goto out;
 	}
 
-	err = drm_dp_link_choose(&sor->link, mode, info);
+	err = drm_dp_link_choose(&sor->link, mode, &info);
 	if (err < 0) {
 		dev_err(sor->dev, "failed to choose link: %d\n", err);
 		goto out;
@@ -1821,6 +1824,15 @@ out:
 	drm_dp_aux_disable(sor->aux);
 }
 
+static unsigned int tegra_sor_compute_bpc(unsigned int bpc)
+{
+	if (bpc == 6 || bpc == 8)
+		return bpc;
+
+	DRM_DEBUG_KMS("%u bits-per-color not supported\n", bpc);
+	return 8;
+}
+
 static int
 tegra_sor_encoder_atomic_check(struct drm_encoder *encoder,
 			       struct drm_crtc_state *crtc_state,
@@ -1843,17 +1855,7 @@ tegra_sor_encoder_atomic_check(struct drm_encoder *encoder,
 		return err;
 	}
 
-	switch (info->bpc) {
-	case 8:
-	case 6:
-		state->bpc = info->bpc;
-		break;
-
-	default:
-		DRM_DEBUG_KMS("%u bits-per-color not supported\n", info->bpc);
-		state->bpc = 8;
-		break;
-	}
+	state->bpc = tegra_sor_compute_bpc(info->bpc);
 
 	return 0;
 }
@@ -2386,14 +2388,17 @@ static void tegra_sor_dp_enable(struct drm_encoder *encoder)
 	struct tegra_sor_config config;
 	struct tegra_sor_state *state;
 	struct drm_display_mode *mode;
-	struct drm_display_info *info;
+	struct drm_display_info info;
 	unsigned int i;
 	u32 value;
 	int err;
 
 	state = to_sor_state(output->connector.state);
 	mode = &encoder->crtc->state->adjusted_mode;
-	info = &output->connector.display_info;
+
+	/* Make a copy of the display info and sub in our computed bpc */
+	memcpy(&info, &output->connector.display_info, sizeof(info));
+	info.bpc = state->bpc;
 
 	err = clk_prepare_enable(sor->clk);
 	if (err < 0)
@@ -2422,7 +2427,7 @@ static void tegra_sor_dp_enable(struct drm_encoder *encoder)
 		goto out;
 	}
 
-	err = drm_dp_link_choose(&sor->link, mode, info);
+	err = drm_dp_link_choose(&sor->link, mode, &info);
 	if (err < 0) {
 		dev_err(sor->dev, "failed to choose link: %d\n", err);
 		goto out;
