@@ -362,6 +362,17 @@ nouveau_gem_object_close(struct drm_gem_object *gem, struct drm_file *file_priv)
 			}
 		}
 	}
+
+	mutex_lock(&nvbo->vma_list_lock);
+	list_for_each_entry(vma, &nvbo->vma_list, head)
+		if (!vma->implicit &&
+		    (vma->vm == cli->vm) &&
+		    !vma->unmap_pending) {
+			nouveau_gem_object_unmap(nvbo, vma);
+			drm_gem_object_unreference(&nvbo->gem);
+		}
+	mutex_unlock(&nvbo->vma_list_lock);
+
 	ttm_bo_unreserve(&nvbo->bo);
 }
 
