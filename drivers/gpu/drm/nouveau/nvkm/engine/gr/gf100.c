@@ -466,7 +466,7 @@ gf100_gr_context_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	/* allocate memory for context, and fill with default values */
 	ret = nvkm_gr_context_create(parent, engine, oclass, NULL,
 				     priv->size, 0x100,
-				     NVOBJ_FLAG_ZERO_ALLOC, &chan);
+				     0x0, &chan);
 	*pobject = nv_object(chan);
 	if (ret)
 		return ret;
