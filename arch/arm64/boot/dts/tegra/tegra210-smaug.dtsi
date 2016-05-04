@@ -31,12 +31,6 @@
 			avdd-dsi-csi-supply = <&pp1200_avdd>;
 		};
 
-		dpaux@0,54040000 {
-			status = "okay";
-
-			vdd-supply = <&pp3300>;
-		};
-
 		dsia: dsi@54300000 {
 			status = "okay";
 			avdd-dsi-csi-supply = <&pp1200_avdd>;
@@ -72,24 +66,6 @@
 				touch = <&touchscreen>;
 			};
 		};
-
-		sor@0,54580000 {
-			status = "okay";
-
-			nvidia,dpaux = <&dpaux1>;
-
-			avdd-io-hdmi-dp-supply = <&pp1800>;
-			vdd-hdmi-dp-pll-supply = <&avddio_1v05>;
-			vddio-dp-supply = <&pp1800>;
-			vdd18-dp-supply = <&pp1800>;
-			nvidia,head = <1>;
-		};
-
-		/*
-		dpaux@0,545c0000 {
-			status = "okay";
-		};
-		*/
 	};
 
 	gpu@57000000 {
