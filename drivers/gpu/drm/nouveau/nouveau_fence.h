@@ -54,6 +54,9 @@ struct nouveau_fence_chan {
 
 	struct nvif_notify notify;
 	int notify_ref, dead;
+
+	struct work_struct fault_work;
+	struct nouveau_channel *chan;
 };
 
 struct nouveau_fence_priv {
@@ -71,6 +74,7 @@ struct nouveau_fence_priv {
 
 void nouveau_fence_context_new(struct nouveau_channel *, struct nouveau_fence_chan *);
 void nouveau_fence_context_del(struct nouveau_fence_chan *);
+void nouveau_fence_context_clear(struct nouveau_fence_chan *);
 void nouveau_fence_context_free(struct nouveau_fence_chan *);
 
 int nv04_fence_create(struct nouveau_drm *);

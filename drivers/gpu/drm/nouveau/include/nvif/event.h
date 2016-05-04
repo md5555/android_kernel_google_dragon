@@ -57,6 +57,8 @@ struct nvif_notify_uevent_req {
 
 struct nvif_notify_uevent_rep {
 	/* nvif_notify_rep ... */
+	u32 chid;
+	u32 type;
 };
 
 struct nvif_notify_eevent_req {

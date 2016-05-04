@@ -58,6 +58,8 @@ extern int nouveau_gem_ioctl_unmap(struct drm_device *, void *,
 
 extern int nouveau_gem_pushbuf_queue_kthread_fn(void *data);
 
+extern void nouveau_gem_pushbuf_drain_queue(struct nouveau_channel *chan);
+
 extern int nouveau_gem_prime_pin(struct drm_gem_object *);
 struct reservation_object *nouveau_gem_prime_res_obj(struct drm_gem_object *);
 extern void nouveau_gem_prime_unpin(struct drm_gem_object *);

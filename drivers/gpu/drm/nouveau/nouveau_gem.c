@@ -1185,6 +1185,23 @@ nouveau_gem_pushbuf_queue_head(struct nouveau_channel *chan)
 	return pb_data;
 }
 
+void
+nouveau_gem_pushbuf_drain_queue(struct nouveau_channel *chan)
+{
+	struct nouveau_cli *cli = (void *)nvif_client(chan->object);
+	struct nouveau_pushbuf_data *pb_data, *tmp;
+
+	NV_PRINTK(error, cli, "draining pushbuf queue for ch %d\n",
+			chan->chid);
+
+	spin_lock(&chan->pushbuf_lock);
+	list_for_each_entry_safe(pb_data, tmp, &chan->pushbuf_queue, queue) {
+		list_del(&pb_data->queue);
+		nouveau_free_pushbuf_data(pb_data);
+	}
+	spin_unlock(&chan->pushbuf_lock);
+}
+
 int
 nouveau_gem_pushbuf_queue_kthread_fn(void *data)
 {
@@ -1271,6 +1288,7 @@ nouveau_gem_ioctl_pushbuf_2(struct drm_device *dev, void *data,
 	struct nouveau_channel *chan = NULL;
 	struct sync_fence *input_fence = NULL;
 	struct nouveau_fence *fence = NULL;
+	struct fence *f = NULL;
 	uint32_t *push = NULL;
 	struct nouveau_pushbuf_data *pb_data = NULL;
 	int ret = 0;
@@ -1353,7 +1371,7 @@ nouveau_gem_ioctl_pushbuf_2(struct drm_device *dev, void *data,
 	nouveau_fence_init(fence, chan);
 
 	if (req->flags & NOUVEAU_GEM_PUSHBUF_2_FENCE_EMIT) {
-		struct fence *f = fence_get(&fence->base);
+		f = fence_get(&fence->base);
 		ret = nouveau_fence_install(f, "nv-pushbuf", &req->fence);
 
 		if (ret) {
@@ -1375,14 +1393,27 @@ nouveau_gem_ioctl_pushbuf_2(struct drm_device *dev, void *data,
 	pb_data->bo = bo;
 
 	spin_lock(&chan->pushbuf_lock);
+	/*
+	 * If recovery is in progress, then the installed fence earlier
+	 * won't be signaled. We have to remove the fence then.
+	 */
+	if (chan->faulty) {
+		ret = -ENODEV;
+		spin_unlock(&chan->pushbuf_lock);
+		goto out_recovery;
+	}
 	list_add_tail(&pb_data->queue, &chan->pushbuf_queue);
 	spin_unlock(&chan->pushbuf_lock);
+
 	ret = nouveau_abi16_put(abi16, ret);
 
 	wake_up(&chan->pushbuf_waitqueue);
 
 	return ret;
 
+out_recovery:
+	if (f)
+		fence_signal(&fence->base);
 out_fence:
 	nouveau_fence_unref(&fence);
 out_input_fence:

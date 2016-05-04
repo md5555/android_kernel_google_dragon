@@ -53,6 +53,9 @@ struct nouveau_channel {
 		u32 offset;
 		struct nvif_notify notify;
 	} error_notifier;
+
+	bool faulty;
+	struct mutex recovery_lock;
 };
 
 

@@ -26,6 +26,7 @@
 
 #include <drm/drmP.h>
 
+#include <linux/kthread.h>
 #include <linux/ktime.h>
 #include <linux/hrtimer.h>
 #include <trace/events/fence.h>
@@ -36,6 +37,7 @@
 #include "nouveau_drm.h"
 #include "nouveau_dma.h"
 #include "nouveau_fence.h"
+#include "nouveau_gem.h"
 
 #ifdef CONFIG_SYNC
 #include "../drivers/staging/android/sync.h"
@@ -92,18 +94,25 @@ nouveau_local_fence(struct fence *fence, struct nouveau_drm *drm) {
 }
 
 void
-nouveau_fence_context_del(struct nouveau_fence_chan *fctx)
+nouveau_fence_context_clear(struct nouveau_fence_chan *fctx)
 {
 	struct nouveau_fence *fence;
+	unsigned long flags;
 
-	spin_lock_irq(&fctx->lock);
+	spin_lock_irqsave(&fctx->lock, flags);
 	while (!list_empty(&fctx->pending)) {
 		fence = list_entry(fctx->pending.next, typeof(*fence), head);
 
 		if (nouveau_fence_signal(fence))
 			nvif_notify_put(&fctx->notify);
 	}
-	spin_unlock_irq(&fctx->lock);
+	spin_unlock_irqrestore(&fctx->lock, flags);
+}
+
+void
+nouveau_fence_context_del(struct nouveau_fence_chan *fctx)
+{
+	nouveau_fence_context_clear(fctx);
 
 	nvif_notify_fini(&fctx->notify);
 	fctx->dead = 1;
@@ -154,12 +163,58 @@ nouveau_fence_update(struct nouveau_channel *chan, struct nouveau_fence_chan *fc
 	return drop;
 }
 
+static void
+nouveau_fence_fault_work(struct work_struct *work)
+{
+	struct nouveau_fence_chan *fctx = container_of(work, typeof(*fctx),
+			fault_work);
+	struct nouveau_channel *chan = fctx->chan;
+	struct nouveau_cli *cli = (void *)nvif_client(chan->object);
+	struct nv84_fence_priv *priv = chan->drm->fence;
+
+	mutex_lock(&chan->recovery_lock);
+
+	NV_PRINTK(error, cli, "fence recovering for ch %d\n", chan->chid);
+
+	if (chan->pushbuf_thread) {
+		NV_PRINTK(error, cli, "stopping pushbuf thread for ch %d\n",
+				chan->chid);
+		kthread_stop(chan->pushbuf_thread);
+		chan->pushbuf_thread = NULL;
+
+		spin_lock(&chan->pushbuf_lock);
+		chan->faulty = true;
+		spin_unlock(&chan->pushbuf_lock);
+
+		nouveau_gem_pushbuf_drain_queue(chan);
+
+		nouveau_bo_wr32(priv->bo, chan->chid * 16 / 4, fctx->sequence);
+		nouveau_bo_rd32(priv->bo, chan->chid * 16 / 4);
+
+		NV_PRINTK(error, cli, "signaling pending fences\n");
+		nouveau_fence_context_clear(fctx);
+
+		NV_PRINTK(error, cli, "fence recovery done\n");
+	}
+
+	mutex_unlock(&chan->recovery_lock);
+}
+
 static int
 nouveau_fence_wait_uevent_handler(struct nvif_notify *notify)
 {
 	struct nouveau_fence_chan *fctx =
 		container_of(notify, typeof(*fctx), notify);
+	const struct nvif_notify_uevent_rep *rep = notify->data;
 	int ret = NVIF_NOTIFY_KEEP;
+
+	if (rep->type == 0x1 && rep->chid == fctx->chan->chid) {
+		struct nouveau_cli *cli = (void *)nvif_client(fctx->chan->object);
+
+		NV_PRINTK(error, cli, "scheduling fence recovery work\n");
+		schedule_work(&fctx->fault_work);
+		return ret;
+	}
 
 	if (!list_empty(&fctx->pending)) {
 		struct nouveau_fence *fence;
@@ -184,7 +239,9 @@ nouveau_fence_context_new(struct nouveau_channel *chan, struct nouveau_fence_cha
 	INIT_LIST_HEAD(&fctx->flip);
 	INIT_LIST_HEAD(&fctx->pending);
 	spin_lock_init(&fctx->lock);
+	INIT_WORK(&fctx->fault_work, nouveau_fence_fault_work);
 	fctx->context = priv->context_base + chan->chid;
+	fctx->chan = chan;
 
 	if (chan == chan->drm->cechan)
 		strcpy(fctx->name, "copy engine channel");

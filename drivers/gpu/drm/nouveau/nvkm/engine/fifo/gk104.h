@@ -45,6 +45,11 @@ struct gk104_fifo_priv {
 		struct nvkm_vma bar;
 	} user;
 	int spoon_nr;
+
+	/* MMU fault revoery */
+	struct gk104_fifo_chan *fault_chan;
+	struct work_struct mmu_fault;
+	u32 fault_unit;
 };
 
 int  gk104_fifo_ctor(struct nvkm_object *, struct nvkm_object *,

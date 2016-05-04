@@ -141,6 +141,7 @@ nouveau_channel_del(struct nouveau_channel **pchan)
 	bool idle = false;
 
 	if (chan) {
+		mutex_lock(&chan->recovery_lock);
 		if (chan->pushbuf_thread) {
 			kthread_stop(chan->pushbuf_thread);
 			chan->pushbuf_thread = NULL;
@@ -148,7 +149,7 @@ nouveau_channel_del(struct nouveau_channel **pchan)
 			idle = true;
 		}
 		if (chan->fence) {
-			if (!idle)
+			if (!idle && !chan->faulty)
 				nouveau_channel_idle(chan);
 			nouveau_fence(chan->drm)->context_del(chan);
 		}
@@ -169,6 +170,7 @@ nouveau_channel_del(struct nouveau_channel **pchan)
 			nouveau_bo_unpin(chan->push.buffer);
 		nouveau_bo_ref(NULL, &chan->push.buffer);
 		nvif_device_ref(NULL, &chan->device);
+		mutex_unlock(&chan->recovery_lock);
 		kfree(chan);
 	}
 	*pchan = NULL;
@@ -189,6 +191,7 @@ nouveau_channel_prep(struct nouveau_drm *drm, struct nvif_device *device,
 	if (!chan)
 		return -ENOMEM;
 
+	mutex_init(&chan->recovery_lock);
 	nvif_device_ref(device, &chan->device);
 	chan->drm = drm;
 

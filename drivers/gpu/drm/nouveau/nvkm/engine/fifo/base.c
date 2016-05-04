@@ -192,6 +192,17 @@ void
 nvkm_fifo_uevent(struct nvkm_fifo *fifo)
 {
 	struct nvif_notify_uevent_rep rep = {
+		.type = 0x0
+	};
+	nvkm_event_send(&fifo->uevent, 1, 0, &rep, sizeof(rep));
+}
+
+void
+nvkm_fifo_uevent_fault(struct nvkm_fifo *fifo, u32 chid)
+{
+	struct nvif_notify_uevent_rep rep = {
+		.type = 0x1,
+		.chid = chid
 	};
 	nvkm_event_send(&fifo->uevent, 1, 0, &rep, sizeof(rep));
 }
