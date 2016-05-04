@@ -1354,7 +1354,9 @@ gf100_grctx_generate(struct gf100_gr_priv *priv)
 
 	ltc->flush(ltc);
 
-	priv->data = kmalloc(priv->size, GFP_KERNEL);
+	if (!priv->data)
+		priv->data = kmalloc(priv->size, GFP_KERNEL);
+
 	if (priv->data) {
 		for (i = 0; i < priv->size; i += 4)
 			priv->data[i / 4] = nv_ro32(chan, 0x80000 + i);

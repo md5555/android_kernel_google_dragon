@@ -1594,7 +1594,7 @@ gf100_gr_init_ctxctl(struct gf100_gr_priv *priv)
 			nv_wr32(priv, 0x40802c, 0x00000001);
 		}
 
-		if (priv->data == NULL) {
+		if (priv->data == NULL || priv->gr_recovery_in_progress) {
 			int ret = gf100_grctx_generate(priv);
 			if (ret) {
 				nv_error(priv, "failed to construct context\n");
