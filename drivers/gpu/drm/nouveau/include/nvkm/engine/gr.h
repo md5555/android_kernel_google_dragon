@@ -31,6 +31,7 @@ struct nvkm_gr {
 	u64 (*units)(struct nvkm_gr *);
 	int (*wait_idle)(struct nvkm_gr *);
 	void (*zcull_info)(struct nvkm_gr *, void *);
+	int (*halt_fecs)(struct nvkm_gr *);
 };
 
 static inline struct nvkm_gr *
