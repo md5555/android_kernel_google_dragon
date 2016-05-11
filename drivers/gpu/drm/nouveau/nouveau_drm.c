@@ -286,7 +286,7 @@ nouveau_accel_init(struct nouveau_drm *drm)
 		}
 	}
 
-	drm->gem_unmap_wq = alloc_ordered_workqueue("nouveau-gem-unmap", 0);
+	drm->gem_unmap_wq = alloc_ordered_workqueue("nouveau-gem-unmap", WQ_FREEZABLE);
 	if (!drm->gem_unmap_wq) {
 		nouveau_accel_fini(drm);
 		return;
@@ -571,8 +571,6 @@ nouveau_do_suspend(struct drm_device *dev, bool runtime)
 		if (ret)
 			return ret;
 	}
-
-	flush_workqueue(drm->gem_unmap_wq);
 
 	if (dev->pdev) {
 		NV_INFO(drm, "evicting buffers...\n");
