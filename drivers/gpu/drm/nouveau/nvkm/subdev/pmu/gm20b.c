@@ -2469,7 +2469,7 @@ gm20b_boot_fecs(struct nvkm_pmu *pmu)
 	}
 
 	wait_for_completion_timeout(&priv->lspmu_completion,
-							  usecs_to_jiffies(50));
+							  msecs_to_jiffies(100));
 
 	if (priv->recovery_in_progress) {
 		nv_error(pmu, "recovery not completed, timeout\n");
