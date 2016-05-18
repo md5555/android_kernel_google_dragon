@@ -628,6 +628,8 @@ nouveau_do_suspend(struct drm_device *dev, bool runtime)
 		goto fail_client;
 
 	nouveau_agp_fini(drm);
+
+	NV_INFO(drm, "nouveau suspended\n");
 	return 0;
 
 fail_client:
@@ -679,6 +681,7 @@ nouveau_do_resume(struct drm_device *dev, bool runtime)
 		nouveau_fbcon_set_suspend(dev, 0);
 	}
 
+	NV_INFO(drm, "nouveau resumed\n");
 	return 0;
 }
 
