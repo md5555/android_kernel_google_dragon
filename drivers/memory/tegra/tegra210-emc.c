@@ -1228,6 +1228,9 @@ static int find_matching_input(struct emc_table *table, struct emc_sel *sel)
 	unsigned long input_rate = 0;
 	struct clk *input_clk;
 
+	if (table->rate == 40800)
+		return -EINVAL;
+
 	div_value = emc_div_val(table->clk_src_emc);
 	src_value = emc_src_val(table->clk_src_emc);
 
