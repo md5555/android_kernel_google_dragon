@@ -2,7 +2,7 @@
  * Linux-specific abstractions to gain some independence from linux kernel versions.
  * Pave over some 2.2 versus 2.4 versus 2.6 kernel differences.
  *
- * Copyright (C) 1999-2014, Broadcom Corporation
+ * Copyright (C) 1999-2015, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -71,8 +71,8 @@
 #include <linux/init.h>
 #include <linux/mm.h>
 #include <linux/string.h>
-#include <linux/pci.h>
 #include <linux/interrupt.h>
+#include <linux/pci.h>
 #include <linux/kthread.h>
 #include <linux/netdevice.h>
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
