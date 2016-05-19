@@ -2,7 +2,7 @@
  *  BCMSDH interface glue
  *  implement bcmsdh API for SDIOH driver
  *
- * Copyright (C) 1999-2014, Broadcom Corporation
+ * Copyright (C) 1999-2015, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -43,6 +43,8 @@
 #include <bcmsdbus.h>	/* common SDIO/controller interface */
 #include <sbsdio.h>	/* SDIO device core hardware definitions. */
 #include <sdio.h>	/* SDIO Device and Protocol Specs */
+#include <linux/mmc/sdio_func.h>
+#include <bcmsdh_sdmmc.h>
 
 #define SDIOH_API_ACCESS_RETRY_LIMIT	2
 const uint bcmsdh_msglevel = BCMSDH_ERROR_VAL;
@@ -702,6 +704,17 @@ bcmsdh_gpioout(void *sdh, uint32 gpio, bool enab)
 	sdioh_info_t *sd = (sdioh_info_t *)(p->sdioh);
 
 	return sdioh_gpioout(sd, gpio, enab);
+}
+
+static void
+sdioh_retune_hold(sdioh_info_t *sd, bool hold)
+{
+	sdio_claim_host(sd->func[0]);
+	if (hold)
+		sdio_retune_hold_now(sd->func[0]);
+	else
+		sdio_retune_release(sd->func[0]);
+	sdio_release_host(sd->func[0]);
 }
 
 void

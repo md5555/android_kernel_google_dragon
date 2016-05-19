@@ -897,6 +897,7 @@ static const struct wifi_platform_data dhd_wlan_control = {
 };
 
 const struct of_device_id wifi_dt_ids[] = {
+	{ .compatible = DHD_DT_COMPAT_ENTRY, .data = &bcm4354_sdio_country_tables },
 	{ .compatible = "bcm,bcm4354", .data = &bcm4354_sdio_country_tables },
 	{ .compatible = "bcm,bcm4356", .data = &bcm4356_pcie_country_tables },
 	{ .compatible = "bcm,bcm4358", .data = &bcm4358_pcie_country_tables },
