@@ -74,6 +74,7 @@
 #define PLLM_MISC2 0x9c
 #define PLLM_MISC1 0x98
 #define PLLP_BASE 0xa0
+#define PLLP_OUTA 0xa4
 #define PLLP_OUTB 0xa8
 #define PLLP_MISC0 0xac
 #define PLLP_MISC1 0x680
@@ -86,6 +87,8 @@
 #define PLLD_MISC1 0xd8
 #define PLLU_BASE 0xc0
 #define PLLU_OUTA 0xc4
+#define PLLU_OUTA_OUT1_OVRRIDE		BIT(2)
+#define PLLU_OUTA_OUT2_OVRRIDE		BIT(18)
 #define PLLU_MISC0 0xcc
 #define PLLU_MISC1 0xc8
 #define PLLX_BASE 0xe0
@@ -116,8 +119,12 @@
 #define PLLMB_MISC1 0x5ec
 #define PLLA1_BASE 0x6a4
 #define PLLA1_MISC0 0x6a8
+#define PLLA1_MISC0_EXT_FRU_OFFSET	4
+#define PLLA1_MISC0_EXT_FRU_MASK	(0xffff << PLLA1_MISC0_EXT_FRU_OFFSET)
 #define PLLA1_MISC1 0x6ac
 #define PLLA1_MISC2 0x6b0
+#define PLLA1_MISC2_FLL_LD_MEM_OFFSET	8
+#define PLLA1_MISC2_FLL_LD_MEM_MASK	(0xff << PLLA1_MISC2_FLL_LD_MEM_OFFSET)
 #define PLLA1_MISC3 0x6b4
 
 #define PLLU_IDDQ_BIT 31
@@ -188,8 +195,13 @@
 
 #define SCLK_BURST_POLICY	0x28
 #define SYSTEM_CLK_RATE		0x30
+#define SYSTEM_CLK_RATE_AHB_RATE_OFFSET		4
+#define SYSTEM_CLK_RATE_AHB_RATE_MASK		(3 << SYSTEM_CLK_RATE_AHB_RATE_OFFSET)
 #define CLK_MASK_ARM		0x44
 #define MISC_CLK_ENB		0x48
+#define OSC_CTRL		0x50
+#define OSC_CTRL_XOFS_OFFSET	4
+#define OSC_CTRL_XOFS_MASK	(0x3f << OSC_CTRL_XOFS_OFFSET)
 #define CCLKG_BURST_POLICY	0x368
 #define CCLKLP_BURST_POLICY	0x370
 #define CPU_SOFTRST_CTRL	0x380
@@ -743,16 +755,6 @@ static void tegra210_plld2_set_defaults(struct tegra_clk_pll *plld2)
 			PLLD2_MISC1_CFG_DEFAULT_VALUE,
 			PLLD2_MISC2_CTRL1_DEFAULT_VALUE,
 			PLLD2_MISC3_CTRL2_DEFAULT_VALUE);
-
-	if (PLLD2_MISC1_CFG_DEFAULT_VALUE & PLLDSS_MISC1_CFG_EN_SSC) {
-		/* SSC requires SDM enabled */
-		BUILD_BUG_ON(!(PLLD2_MISC1_CFG_DEFAULT_VALUE &
-			       PLLDSS_MISC1_CFG_EN_SDM));
-	} else {
-		/* SSC should be disabled */
-		plld2->params->ssc_ctrl_en_mask = 0;
-	}
-
 }
 
 static void tegra210_plldp_set_defaults(struct tegra_clk_pll *plldp)
@@ -2733,8 +2735,9 @@ static void __init tegra210_pll_init(void __iomem *clk_base,
 	clks[TEGRA210_CLK_PLL_D_OUT0] = clk;
 
 	/* PLLRE */
-	clk = tegra_clk_register_pllre("pll_re_vco", "pll_ref", clk_base, pmc,
-			     0, &pll_re_vco_params, &pll_re_lock, pll_ref_freq);
+	clk = tegra_clk_register_pllre_tegra210("pll_re_vco", "pll_ref",
+			     clk_base, pmc, 0, &pll_re_vco_params,
+			     &pll_re_lock, pll_ref_freq);
 	clk_register_clkdev(clk, "pll_re_vco", NULL);
 	clks[TEGRA210_CLK_PLL_RE_VCO] = clk;
 
@@ -2743,6 +2746,14 @@ static void __init tegra210_pll_init(void __iomem *clk_base,
 					 pll_vco_post_div_table, &pll_re_lock);
 	clk_register_clkdev(clk, "pll_re_out", NULL);
 	clks[TEGRA210_CLK_PLL_RE_OUT] = clk;
+
+	clk = tegra_clk_register_divider("pll_re_out1_div", "pll_re_vco",
+			clk_base + PLLRE_OUT1, 0, TEGRA_DIVIDER_ROUND_UP,
+			8, 8, 1, NULL);
+	clk = tegra_clk_register_pll_out("pll_re_out1", "pll_re_out1_div",
+			clk_base + PLLRE_OUT1, 1, 0,
+			CLK_SET_RATE_PARENT, 0, NULL);
+	clks[TEGRA210_CLK_PLL_RE_OUT1] = clk;
 
 	/* PLLE */
 	clk = tegra_clk_register_plle_tegra210("pll_e", "pll_ref",
@@ -2965,7 +2976,7 @@ static struct tegra_clk_init_table common_init_table[] __initdata = {
 	{TEGRA210_CLK_DFLL_SOC, TEGRA210_CLK_PLL_P, 51000000, 1},
 	{TEGRA210_CLK_DFLL_REF, TEGRA210_CLK_PLL_P, 51000000, 1},
 	{TEGRA210_CLK_SBC4, TEGRA210_CLK_PLL_P, 12000000, 0},
-	{TEGRA210_CLK_PLL_RE_VCO, TEGRA210_CLK_CLK_MAX, 672000000, 0},
+	{TEGRA210_CLK_PLL_RE_OUT1, TEGRA210_CLK_CLK_MAX, 0, 0},
 	{TEGRA210_CLK_PLL_U_OUT1, TEGRA210_CLK_CLK_MAX, 48000000, 1},
 	{TEGRA210_CLK_PLL_U_OUT2, TEGRA210_CLK_CLK_MAX, 60000000, 1},
 	{TEGRA210_CLK_XUSB_GATE, TEGRA210_CLK_CLK_MAX, 0, 1},
@@ -3000,6 +3011,7 @@ static struct tegra_clk_init_table common_init_table[] __initdata = {
 	{TEGRA210_CLK_EXTERN3, TEGRA210_CLK_PLL_P, 24000000, 0},
 	{TEGRA210_CLK_CLK_OUT_3_MUX, TEGRA210_CLK_EXTERN3, 0, 0},
 	{TEGRA210_CLK_CLK_OUT_3, TEGRA210_CLK_CLK_MAX, 0, 0},
+	{TEGRA210_CLK_VIC03_CBUS, TEGRA210_CLK_CLK_MAX, 448000000, 1},
 	{TEGRA210_CLK_RTC, TEGRA210_CLK_CLK_MAX, 0, 1},
 	{TEGRA210_CLK_PLL_D2, TEGRA210_CLK_CLK_MAX, 594000000, 0},
 	{TEGRA210_CLK_PLL_C, TEGRA210_CLK_CLK_MAX, 473600000, 0},
@@ -3010,6 +3022,8 @@ static struct tegra_clk_init_table common_init_table[] __initdata = {
 	{TEGRA210_CLK_MC_CBPA, TEGRA210_CLK_CLK_MAX, 0, 1},
 	{TEGRA210_CLK_MC_CCPA, TEGRA210_CLK_CLK_MAX, 0, 1},
 	{TEGRA210_CLK_MC_CDPA, TEGRA210_CLK_CLK_MAX, 0, 1},
+	{TEGRA210_CLK_PLL_P_OUT1, TEGRA210_CLK_CLK_MAX, 408000000, 0},
+	{TEGRA210_CLK_PLL_P_OUT3, TEGRA210_CLK_CLK_MAX, 102000000, 0},
 	/* This MUST be the last entry. */
 	{TEGRA210_CLK_CLK_MAX, TEGRA210_CLK_CLK_MAX, 0, 0},
 };
@@ -3506,6 +3520,44 @@ static void __init tegra210_ovr_clk_init(void __iomem *clk_base)
 	clks[TEGRA210_CLK_SATA_SLCG_OVR_FPCI] = clk;
 }
 
+static void __init tegra210_clock_prod_settings(struct device_node *np)
+{
+	u32 val;
+
+	/* Set AHB_RATE to 0 */
+	val = car_readl(SYSTEM_CLK_RATE, 0);
+	val &= ~SYSTEM_CLK_RATE_AHB_RATE_MASK;
+	car_writel(val, SYSTEM_CLK_RATE, 0);
+
+	/* Set XOFS to 1 */
+	val = car_readl(OSC_CTRL, 0);
+	val &= ~OSC_CTRL_XOFS_MASK;
+	val |= (1 << OSC_CTRL_XOFS_OFFSET);
+	car_writel(val, OSC_CTRL, 0);
+
+	/* Set PLLU_OUTA OUT1/2 OVRRIDE */
+	val = car_readl(PLLU_OUTA, 0);
+	val |= (PLLU_OUTA_OUT1_OVRRIDE | PLLU_OUTA_OUT2_OVRRIDE);
+	car_writel(val, PLLU_OUTA, 0);
+
+	/* setup LVL2_CLK_GATE_OVRD */
+	val = car_readl(LVL2_CLK_GATE_OVRD, 0);
+	val &= ~(1 << 24);
+	car_writel(val, LVL2_CLK_GATE_OVRD, 0);
+
+	/* plla1_misc0 */
+	val = car_readl(PLLA1_MISC0, 0);
+	val &= ~PLLA1_MISC0_EXT_FRU_MASK;
+	val |= (0x8000 << PLLA1_MISC0_EXT_FRU_OFFSET);
+	car_writel(val, PLLA1_MISC0, 0);
+
+	/* plla1_misc2 */
+	val = car_readl(PLLA1_MISC2, 0);
+	val &= ~PLLA1_MISC2_FLL_LD_MEM_MASK;
+	val |= (0xf << PLLA1_MISC2_FLL_LD_MEM_OFFSET);
+	car_writel(val, PLLA1_MISC2, 0);
+}
+
 /**
  * tegra210_clock_init - Tegra210-specific clock initialization
  * @np: struct device_node * of the DT node for the SoC CAR IP block
@@ -3579,6 +3631,8 @@ static void __init tegra210_clock_init(struct device_node *np)
 
 	tegra_add_of_provider(np);
 	tegra_register_devclks(devclks, ARRAY_SIZE(devclks));
+
+	tegra210_clock_prod_settings(np);
 
 	tegra_cpu_car_ops = &tegra210_cpu_car_ops;
 
