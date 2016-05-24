@@ -408,7 +408,7 @@ static void sdhci_tegra_set_tap_delay(struct sdhci_host *host,
 		sdhci_reset(host, SDHCI_RESET_CMD | SDHCI_RESET_DATA);
 		if (clk_on) {
 			val = sdhci_readw(host, SDHCI_CLOCK_CONTROL);
-			val &= ~SDHCI_CLOCK_CARD_EN;
+			val |= SDHCI_CLOCK_CARD_EN;
 			sdhci_writew(host, val, SDHCI_CLOCK_CONTROL);
 		}
 	}
