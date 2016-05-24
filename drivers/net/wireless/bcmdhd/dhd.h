@@ -65,6 +65,10 @@ int get_scheduler_policy(struct task_struct *p);
 #include <WdfMiniport.h>
 #endif /* (BCMWDF)  */
 
+#define WLAN_PLAT_NODFS_FLAG	0x01
+
+#define MAX_RESCHED_CNT 400
+
 #if defined(KEEP_ALIVE)
 /* Default KEEP_ALIVE Period is 55 sec to prevent AP from sending Keep Alive probe frame */
 #define KEEP_ALIVE_PERIOD 55000
@@ -295,6 +299,8 @@ typedef struct dhd_pub {
 	int pktfilter_count;
 
 	wl_country_t dhd_cspec;		/* Current Locale info */
+	u32 dhd_cflags;
+	bool force_country_change;
 	char eventmask[WL_EVENTING_MASK_LEN];
 	int	op_mode;				/* STA, HostAPD, WFD, SoftAP */
 
@@ -302,7 +308,7 @@ typedef struct dhd_pub {
  *  For ICS MR1 releases it should be disable to be compatable with ICS MR1 Framework
  *  see target dhd-cdc-sdmmc-panda-cfg80211-icsmr1-gpl-debug in Makefile
  */
-/* #define WL_ENABLE_P2P_IF		1 */
+#define WL_ENABLE_P2P_IF		1
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25))
 	struct mutex 	wl_start_stop_lock; /* lock/unlock for Android start/stop */
@@ -422,6 +428,7 @@ typedef struct dhd_pub {
 #endif /* defined(WLTDLS) && defined(PCIE_FULL_DONGLE) */
 	uint8 *soc_ram;
 	uint32 soc_ram_length;
+	uint8 rand_mac_oui[DOT11_OUI_LEN];
 } dhd_pub_t;
 
 #if defined(BCMWDF)
@@ -618,6 +625,29 @@ extern void dhd_sched_dpc(dhd_pub_t *dhdp);
 /* Notify tx completion */
 extern void dhd_txcomplete(dhd_pub_t *dhdp, void *txp, bool success);
 
+#define WIFI_FEATURE_INFRA              0x0001      /* Basic infrastructure mode        */
+#define WIFI_FEATURE_INFRA_5G           0x0002      /* Support for 5 GHz Band           */
+#define WIFI_FEATURE_HOTSPOT            0x0004      /* Support for GAS/ANQP             */
+#define WIFI_FEATURE_P2P                0x0008      /* Wifi-Direct                      */
+#define WIFI_FEATURE_SOFT_AP            0x0010      /* Soft AP                          */
+#define WIFI_FEATURE_GSCAN              0x0020      /* Google-Scan APIs                 */
+#define WIFI_FEATURE_NAN                0x0040      /* Neighbor Awareness Networking    */
+#define WIFI_FEATURE_D2D_RTT            0x0080      /* Device-to-device RTT             */
+#define WIFI_FEATURE_D2AP_RTT           0x0100      /* Device-to-AP RTT                 */
+#define WIFI_FEATURE_BATCH_SCAN         0x0200      /* Batched Scan (legacy)            */
+#define WIFI_FEATURE_PNO                0x0400      /* Preferred network offload        */
+#define WIFI_FEATURE_ADDITIONAL_STA     0x0800      /* Support for two STAs             */
+#define WIFI_FEATURE_TDLS               0x1000      /* Tunnel directed link setup       */
+#define WIFI_FEATURE_TDLS_OFFCHANNEL    0x2000      /* Support for TDLS off channel     */
+#define WIFI_FEATURE_EPR                0x4000      /* Enhanced power reporting         */
+#define WIFI_FEATURE_AP_STA             0x8000      /* Support for AP STA Concurrency   */
+#define WIFI_FEATURE_LINKSTAT           0x10000     /* Support for Linkstats            */
+#define WIFI_FEATURE_HAL_EPNO           0x40000     /* WiFi PNO enhanced                */
+#define WIFI_FEATUE_RSSI_MONITOR        0x80000     /* RSSI Monitor                     */
+
+#define MAX_FEATURE_SET_CONCURRRENT_GROUPS  3
+
+
 /* OS independent layer functions */
 extern int dhd_os_proto_block(dhd_pub_t * pub);
 extern int dhd_os_proto_unblock(dhd_pub_t * pub);
@@ -696,6 +726,13 @@ extern void dhd_set_packet_filter_mode(struct net_device *dev, char *command);
 extern int dhd_set_packet_filter_ports(struct net_device *dev, char *command);
 #endif /* PKT_FILTER_SUPPORT */
 
+extern int dhd_dev_get_feature_set(struct net_device *dev);
+extern int *dhd_dev_get_feature_set_matrix(struct net_device *dev, int *num);
+
+extern int dhd_dev_set_nodfs(struct net_device *dev, u32 nodfs);
+extern int dhd_dev_cfg_rand_mac_oui(struct net_device *dev, uint8 *oui);
+extern int dhd_set_rand_mac_oui(dhd_pub_t *dhd);
+
 extern int dhd_get_suspend_bcn_li_dtim(dhd_pub_t *dhd);
 extern bool dhd_support_sta_mode(dhd_pub_t *dhd);
 
@@ -718,6 +755,12 @@ typedef struct {
 } dhd_event_log_t;
 #endif /* SHOW_LOGTRACE */
 
+#if defined(KEEP_ALIVE)
+extern int dhd_dev_start_mkeep_alive(dhd_pub_t *dhd_pub, u8 mkeep_alive_id, u8 *ip_pkt,
+	u16 ip_pkt_len, u8* src_mac_addr, u8* dst_mac_addr, u32 period_msec);
+extern int dhd_dev_stop_mkeep_alive(dhd_pub_t *dhd_pub, u8 mkeep_alive_id);
+#endif /* defined(KEEP_ALIVE) */
+
 extern void dhd_timeout_start(dhd_timeout_t *tmo, uint usec);
 extern int dhd_timeout_expired(dhd_timeout_t *tmo);
 
@@ -726,7 +769,7 @@ extern int dhd_ifidx2hostidx(struct dhd_info *dhd, int ifidx);
 extern int dhd_net2idx(struct dhd_info *dhd, struct net_device *net);
 extern struct net_device * dhd_idx2net(void *pub, int ifidx);
 extern int net_os_send_hang_message(struct net_device *dev);
-extern int wl_host_event(dhd_pub_t *dhd_pub, int *idx, void *pktdata, size_t pktlen,
+extern int wl_host_event(dhd_pub_t *dhd_pub, int *idx, void *pktdata,
                          wl_event_msg_t *, void **data_ptr,  void *);
 extern void wl_event_to_host_order(wl_event_msg_t * evt);
 
@@ -903,7 +946,7 @@ extern uint dhd_force_tx_queueing;
 #define CUSTOM_PNO_EVENT_LOCK_xTIME	 DEFAULT_PNO_EVENT_LOCK_xTIME
 #endif
 /* hooks for custom dhd_dpc_prio setting option via Makefile */
-#define DEFAULT_DHP_DPC_PRIO  1
+#define DEFAULT_DHP_DPC_PRIO  0
 #ifndef CUSTOM_DPC_PRIO_SETTING
 #define CUSTOM_DPC_PRIO_SETTING 	DEFAULT_DHP_DPC_PRIO
 #endif
@@ -918,7 +961,7 @@ extern uint dhd_force_tx_queueing;
 #endif
 
 #ifndef CUSTOM_RXF_PRIO_SETTING
-#define CUSTOM_RXF_PRIO_SETTING		MAX((CUSTOM_DPC_PRIO_SETTING - 1), 1)
+#define CUSTOM_RXF_PRIO_SETTING		MAX((CUSTOM_DPC_PRIO_SETTING - 1), 0)
 #endif
 
 #define DEFAULT_WIFI_TURNOFF_DELAY		0
@@ -931,20 +974,20 @@ extern uint dhd_force_tx_queueing;
 #define WIFI_TURNON_DELAY		DEFAULT_WIFI_TURNON_DELAY
 #endif /* WIFI_TURNON_DELAY */
 
-#define DEFAULT_DHD_WATCHDOG_INTERVAL_MS	10 /* msec */
+#define DEFAULT_DHD_WATCHDOG_INTERVAL_MS	50 /* msec */
 #ifndef CUSTOM_DHD_WATCHDOG_MS
 #define CUSTOM_DHD_WATCHDOG_MS			DEFAULT_DHD_WATCHDOG_INTERVAL_MS
 #endif /* DEFAULT_DHD_WATCHDOG_INTERVAL_MS */
 
 #ifdef WLTDLS
 #ifndef CUSTOM_TDLS_IDLE_MODE_SETTING
-#define CUSTOM_TDLS_IDLE_MODE_SETTING  60000 /* 60sec to tear down TDLS of not active */
+#define CUSTOM_TDLS_IDLE_MODE_SETTING  20000 /* 60sec to tear down TDLS of not active */
 #endif
 #ifndef CUSTOM_TDLS_RSSI_THRESHOLD_HIGH
-#define CUSTOM_TDLS_RSSI_THRESHOLD_HIGH -70 /* rssi threshold for establishing TDLS link */
+#define CUSTOM_TDLS_RSSI_THRESHOLD_HIGH -80 /* rssi threshold for establishing TDLS link */
 #endif
 #ifndef CUSTOM_TDLS_RSSI_THRESHOLD_LOW
-#define CUSTOM_TDLS_RSSI_THRESHOLD_LOW -80 /* rssi threshold for tearing down TDLS link */
+#define CUSTOM_TDLS_RSSI_THRESHOLD_LOW -90 /* rssi threshold for tearing down TDLS link */
 #endif
 #endif /* WLTDLS */
 
