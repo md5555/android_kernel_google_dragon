@@ -118,8 +118,7 @@ bool ap_fw_loaded = FALSE;
 #endif /* DHD_DEBUG */
 
 #if defined(DHD_DEBUG)
-const char dhd_version[] = "Dongle Host Driver, version " EPI_VERSION_STR
-	DHD_COMPILED " on " __DATE__ " at " __TIME__;
+const char dhd_version[] = "Dongle Host Driver, version " EPI_VERSION_STR;
 #else
 const char dhd_version[] = "\nDongle Host Driver, version " EPI_VERSION_STR "\nCompiled from ";
 #endif 
@@ -353,12 +352,6 @@ dhd_wl_ioctl_cmd(dhd_pub_t *dhd_pub, int cmd, void *arg, int len, uint8 set, int
 	return dhd_wl_ioctl(dhd_pub, ifidx, &ioc, arg, len);
 }
 
-#ifdef CONFIG_BCMDHD_CUSTOM_SYSFS_TEGRA
-extern atomic_t rf_test;
-extern atomic_t cur_power_mode;
-extern rf_test_params_t rf_test_params[NUM_RF_TEST_PARAMS];
-#endif /* CONFIG_BCMDHD_CUSTOM_SYSFS_TEGRA */
-
 int
 dhd_wl_ioctl_get_intiovar(dhd_pub_t *dhd_pub, char *name, uint *pval,
 	int cmd, uint8 set, int ifidx)
@@ -410,32 +403,7 @@ int
 dhd_wl_ioctl(dhd_pub_t *dhd_pub, int ifidx, wl_ioctl_t *ioc, void *buf, int len)
 {
 	int ret = BCME_ERROR;
-#ifdef CONFIG_BCMDHD_CUSTOM_SYSFS_TEGRA
-	int i;
-	/* Changing PM is not allowed while RF test is enabled */
-	if (atomic_read(&rf_test)) {
-		if (ioc->cmd == WLC_SET_PM && ioc->buf) {
-			uint pm_mode = *(uint*)ioc->buf;
-			if (ioc->set) {
-				atomic_set(&cur_power_mode, pm_mode);
-				DHD_ERROR(("%s: WLC_SET_PM: %d not allowed\n", __FUNCTION__, pm_mode));
-				return BCME_OK;
-			}
-		}
-		if (ioc->cmd == WLC_SET_VAR) {
-			uint value;
-			for (i = 0; i < NUM_RF_TEST_PARAMS; i++) {
-				const char * param = rf_test_params[i].var;
-				value = *(uint*)&ioc->buf[strlen(param)+1];
-				if (strncmp(ioc->buf, param, strlen(param)) == 0) {
-					atomic_set(&rf_test_params[i].cur_val, value);
-					DHD_ERROR(("%s: WLC_SET_VAR %s:%d not allowed\n", __FUNCTION__, param, value));
-					return BCME_OK;
-				}
-			}
-		}
-	}
-#endif /* CONFIG_BCMDHD_CUSTOM_SYSFS_TEGRA */
+
 	if (dhd_os_proto_block(dhd_pub))
 	{
 #if defined(WL_WLC_SHIM)
@@ -1765,7 +1733,7 @@ wl_show_host_event(dhd_pub_t *dhd_pub, wl_event_msg_t *event, void *event_data,
 #endif /* SHOW_EVENTS */
 
 int
-wl_host_event(dhd_pub_t *dhd_pub, int *ifidx, void *pktdata, size_t pktlen,
+wl_host_event(dhd_pub_t *dhd_pub, int *ifidx, void *pktdata,
 	wl_event_msg_t *event, void **data_ptr, void *raw_event)
 {
 	/* check whether packet is a BRCM event pkt */
@@ -1787,9 +1755,6 @@ wl_host_event(dhd_pub_t *dhd_pub, int *ifidx, void *pktdata, size_t pktlen,
 		return (BCME_ERROR);
 	}
 
-	if (pktlen < sizeof(bcm_event_t))
-		return (BCME_ERROR);
-
 	*data_ptr = &pvt_data[1];
 	event_data = *data_ptr;
 
@@ -1800,14 +1765,8 @@ wl_host_event(dhd_pub_t *dhd_pub, int *ifidx, void *pktdata, size_t pktlen,
 	type = ntoh32_ua((void *)&event->event_type);
 	flags = ntoh16_ua((void *)&event->flags);
 	status = ntoh32_ua((void *)&event->status);
-
 	datalen = ntoh32_ua((void *)&event->datalen);
-	if (datalen > pktlen)
-		return (BCME_ERROR);
-
 	evlen = datalen + sizeof(bcm_event_t);
-	if (evlen > pktlen)
-		return (BCME_ERROR);
 
 	/* find equivalent host index for event ifidx */
 	hostidx = dhd_ifidx2hostidx(dhd_pub->info, event->ifidx);
@@ -2791,7 +2750,7 @@ wl_iw_parse_channel_list_tlv(char** list_str, uint16* channel_list,
  *  SSIDs list parsing from cscan tlv list
  */
 int
-wl_iw_parse_ssid_list_tlv(char** list_str, wlc_ssid_t* ssid, int max, int *bytes_left)
+wl_iw_parse_ssid_list_tlv(char** list_str, wlc_ssid_ext_t* ssid, int max, int *bytes_left)
 {
 	char* str;
 	int idx = 0;

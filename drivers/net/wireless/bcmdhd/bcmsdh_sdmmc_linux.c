@@ -247,7 +247,7 @@ static void bcmdhd_dynamic_configure(int chipid)
 		bcmdhd_custom_ampdu_mpdu = 16;
 		bcmdhd_use_custom_pspretend_thr = true;
 		bcmdhd_custom_pspretend_thr = 30;
-		dhd_dpc_prio = dhd_rxf_prio = 99;
+		dhd_dpc_prio = dhd_rxf_prio = 0;
 		/* set on/off delay */
 		bcmdhd_wifi_turnon_delay = 200;
 		bcmdhd_wifi_turnoff_delay = 200;
@@ -320,35 +320,10 @@ static void bcmsdh_sdmmc_remove(struct sdio_func *func)
 
 /* devices we support, null terminated */
 static const struct sdio_device_id bcmsdh_sdmmc_ids[] = {
-#if 0
 	{ 	.class	= SDIO_CLASS_NONE,
 		.vendor	= SDIO_VENDOR_ID_BROADCOM,
 		.device	= SDIO_ANY_ID
 	},
-#elif 1
-	/* BCM4354 */
-	{ 	.class	= SDIO_CLASS_NONE,
-		.vendor	= SDIO_VENDOR_ID_BROADCOM,
-		.device	= 0x4354
-	},
-	/* BCM43241 */
-	{ 	.class	= SDIO_CLASS_NONE,
-		.vendor	= SDIO_VENDOR_ID_BROADCOM,
-		.device	= 0x4324
-	},
-	/* BCM4339 */
-	{ 	.class	= SDIO_CLASS_NONE,
-		.vendor	= SDIO_VENDOR_ID_BROADCOM,
-		.device	= 0x4339
-	},
-
-#else
-	/* BCM43341 */
-	{ 	.class	= SDIO_CLASS_NONE,
-		.vendor	= SDIO_VENDOR_ID_BROADCOM,
-		.device	= 0xa94d
-	},
-#endif
 	{ /* end: all zeroes */                         },
 };
 
