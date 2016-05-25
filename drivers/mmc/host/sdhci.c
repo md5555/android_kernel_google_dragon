@@ -2021,6 +2021,9 @@ static int sdhci_execute_tuning(struct mmc_host *mmc, u32 opcode)
 				"Buffer Read Ready interrupt during tuning "
 				"procedure, falling back to fixed sampling "
 				"clock\n");
+			pr_err("%s: Tuning failed on iteration: %d\n",
+				mmc_hostname(host->mmc), tuning_loop_counter);
+
 			ctrl = sdhci_readw(host, SDHCI_HOST_CONTROL2);
 			ctrl &= ~SDHCI_CTRL_TUNED_CLK;
 			ctrl &= ~SDHCI_CTRL_EXEC_TUNING;
