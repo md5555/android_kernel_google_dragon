@@ -2747,7 +2747,9 @@ int sdhci_runtime_suspend_host(struct sdhci_host *host)
 	unsigned long flags;
 
 	mmc_retune_timer_stop(host->mmc);
-	mmc_retune_needed(host->mmc);
+
+	if (!(host->quirks2 & SDHCI_QUIRK2_RTPM_NO_RETUNE))
+		mmc_retune_needed(host->mmc);
 
 	if (host->mmc->qos)
 		pm_qos_update_request(host->mmc->qos, PM_QOS_DEFAULT_VALUE);
