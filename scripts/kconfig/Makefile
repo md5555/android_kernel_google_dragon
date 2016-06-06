@@ -121,6 +121,10 @@ PHONY += tinyconfig
 tinyconfig: allnoconfig
 	$(call mergeconfig,tiny)
 
+PHONY += kasanconfig
+kasanconfig:
+	$(call mergeconfig,kasan)
+
 # Help text used by make help
 help:
 	@echo  '  config	  - Update current config utilising a line-oriented program'
