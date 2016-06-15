@@ -124,6 +124,7 @@ static int ad5823_set_position(struct ad5823_info *info, u32 position)
 {
 	int ret = 0;
 	u32 position_clamped = 0;
+	int retry = 5;
 
 	position_clamped = clamp(position, info->config.pos_actual_low,
 				info->config.pos_actual_high);
@@ -135,12 +136,21 @@ static int ad5823_set_position(struct ad5823_info *info, u32 position)
 			info->config.pos_actual_high);
 	}
 
-	ret = regmap_write(info->regmap, AD5823_VCM_MOVE_TIME,
-				AD5823_MOVE_TIME_VALUE);
-	if (ret) {
-		dev_err(&info->i2c_client->dev, "regmap write failed.\n");
-		return ret;
+	while (retry) {
+		ret = regmap_write(info->regmap, AD5823_VCM_MOVE_TIME,
+					AD5823_MOVE_TIME_VALUE);
+		if (!ret)
+			break;
+
+		dev_err(&info->i2c_client->dev,
+			"regmap write failed, retry countdown = %d.\n", retry);
+
+		msleep(1);
+		retry--;
 	}
+	if (!retry)
+		return ret;
+
 	ret |= regmap_write(info->regmap, AD5823_MODE, 0);
 	ret |= regmap_write(info->regmap, AD5823_VCM_CODE_MSB,
 		((position >> 8) & 0x3) | (1 << 2));
