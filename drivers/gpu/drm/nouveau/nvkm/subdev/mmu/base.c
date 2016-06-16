@@ -192,7 +192,7 @@ nvkm_vm_map_sg_table_with_iommu(struct nvkm_vma *vma, u64 delta, u64 length,
 		iova = vma->iommu_iova;
 	}
 
-	addr_list = kmalloc(sizeof(dma_addr_t) * num, GFP_KERNEL);
+	addr_list = vmalloc(sizeof(dma_addr_t) * num);
 	if (!addr_list) {
 		mmu->unmap_iommu(vma, vma->iommu_mapping);
 		nv_error(mmu, "no memory for dma list\n");
@@ -226,7 +226,7 @@ nvkm_vm_map_sg_table_with_iommu(struct nvkm_vma *vma, u64 delta, u64 length,
 		delta += len << mmu->lpg_shift;
 	}
 
-	kfree(addr_list);
+	vfree(addr_list);
 
 	ltc->invalidate(ltc);
 	mmu->flush(vm);
