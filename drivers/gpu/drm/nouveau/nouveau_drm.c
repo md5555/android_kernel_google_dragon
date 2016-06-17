@@ -592,7 +592,23 @@ nouveau_do_suspend(struct drm_device *dev, bool runtime)
 
 	NV_INFO(drm, "waiting for client channels to go idle...\n");
 	list_for_each_entry(cli, &drm->clients, head) {
-		mutex_lock(&cli->mutex);
+		/*
+		 * XXX
+		 * For system suspend we should be able to get the lock all the
+		 * time. To prevent a potential softhang during system suspend,
+		 * we use trylock and warn users if we can't get the lock. Then
+		 * we shall know we have some incorrect locking for this mutex
+		 * somewhere.
+		 */
+		if (!runtime) {
+			ret = mutex_trylock(&cli->mutex);
+			if (WARN_ON(!ret))
+				goto fail_display;
+
+		} else {
+			mutex_lock(&cli->mutex);
+		}
+
 		if (cli->abi16) {
 			struct nouveau_abi16 *abi16 = cli->abi16;
 			struct nouveau_abi16_chan *chan;
