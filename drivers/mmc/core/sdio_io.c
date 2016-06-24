@@ -757,7 +757,7 @@ EXPORT_SYMBOL_GPL(sdio_set_host_pm_flags);
 
 void sdio_retune_hold_now(struct sdio_func *func)
 {
-	mmc_retune_hold_now(func->card->host);
+	mmc_retune_hold(func->card->host);
 }
 EXPORT_SYMBOL_GPL(sdio_retune_hold_now);
 

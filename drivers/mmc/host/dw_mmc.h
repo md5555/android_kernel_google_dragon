@@ -214,7 +214,7 @@ extern int dw_mci_resume(struct dw_mci *host);
  *	with CONFIG_MMC_CLKGATE.
  * @flags: Random state bits associated with the slot.
  * @id: Number of this slot.
- * @sdio_id: Number of this slot in the SDIO interrupt registers.
+ * @last_detect_state: Most recently observed card detect state.
  */
 struct dw_mci_slot {
 	struct mmc_host		*mmc;
@@ -233,9 +233,13 @@ struct dw_mci_slot {
 	unsigned long		flags;
 #define DW_MMC_CARD_PRESENT	0
 #define DW_MMC_CARD_NEED_INIT	1
-#define DW_MMC_CARD_NO_LOW_PWR	2
 	int			id;
-	int			sdio_id;
+	int			last_detect_state;
+};
+
+struct dw_mci_tuning_data {
+	const u8 *blk_pattern;
+	unsigned int blksz;
 };
 
 /**
@@ -259,8 +263,7 @@ struct dw_mci_drv_data {
 	void		(*prepare_command)(struct dw_mci *host, u32 *cmdr);
 	void		(*set_ios)(struct dw_mci *host, struct mmc_ios *ios);
 	int		(*parse_dt)(struct dw_mci *host);
-	int		(*execute_tuning)(struct dw_mci_slot *slot, u32 opcode);
-	int		(*prepare_hs400_tuning)(struct dw_mci *host,
-						struct mmc_ios *ios);
+	int		(*execute_tuning)(struct dw_mci_slot *slot, u32 opcode,
+					struct dw_mci_tuning_data *tuning_data);
 };
 #endif /* _DW_MMC_H_ */

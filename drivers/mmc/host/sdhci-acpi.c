@@ -40,6 +40,7 @@
 #include <linux/mmc/host.h>
 #include <linux/mmc/pm.h>
 #include <linux/mmc/slot-gpio.h>
+#include <linux/mmc/sdhci.h>
 
 #include "sdhci.h"
 
@@ -228,8 +229,7 @@ static const struct sdhci_acpi_slot sdhci_acpi_slot_int_sd = {
 		   SDHCI_ACPI_RUNTIME_PM,
 	.quirks  = SDHCI_QUIRK_NO_ENDATTR_IN_NOPDESC,
 	.quirks2 = SDHCI_QUIRK2_CARD_ON_NEEDS_BUS_ON |
-		   SDHCI_QUIRK2_STOP_WITH_TC |
-		   SDHCI_QUIRK2_BAYTRAIL_EMMC,
+		   SDHCI_QUIRK2_STOP_WITH_TC,
 	.caps    = MMC_CAP_BUS_WIDTH_TEST | MMC_CAP_WAIT_WHILE_BUSY,
 	.probe_slot	= sdhci_acpi_sd_probe_slot,
 };
