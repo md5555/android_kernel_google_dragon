@@ -297,96 +297,6 @@ static inline void mmc_host_clk_sysfs_init(struct mmc_host *host)
 
 #endif
 
-void mmc_retune_enable(struct mmc_host *host)
-{
-	host->can_retune = 1;
-	if (host->retune_period)
-		mod_timer(&host->retune_timer,
-			  jiffies + host->retune_period * HZ);
-}
-
-void mmc_retune_disable(struct mmc_host *host)
-{
-	host->can_retune = 0;
-	del_timer_sync(&host->retune_timer);
-	host->retune_now = 0;
-	host->need_retune = 0;
-}
-
-void mmc_retune_timer_stop(struct mmc_host *host)
-{
-	del_timer_sync(&host->retune_timer);
-}
-EXPORT_SYMBOL(mmc_retune_timer_stop);
-
-void mmc_retune_hold(struct mmc_host *host)
-{
-	if (!host->hold_retune)
-		host->retune_now = 1;
-	host->hold_retune += 1;
-}
-
-void mmc_retune_hold_now(struct mmc_host *host)
-{
-	host->retune_now = 0;
-	host->hold_retune += 1;
-}
-
-void mmc_retune_release(struct mmc_host *host)
-{
-	if (host->hold_retune)
-		host->hold_retune -= 1;
-	else
-		WARN_ON(1);
-}
-
-int mmc_retune(struct mmc_host *host)
-{
-	bool return_to_hs400 = false;
-	int err;
-
-	if (host->retune_now)
-		host->retune_now = 0;
-	else
-		return 0;
-
-	if (!host->need_retune || host->doing_retune || !host->card)
-		return 0;
-
-	host->need_retune = 0;
-
-	host->doing_retune = 1;
-
-	if (host->ios.timing == MMC_TIMING_MMC_HS400) {
-		err = mmc_hs400_to_hs200(host->card);
-		if (err)
-			goto out;
-
-		return_to_hs400 = true;
-
-		if (host->ops->prepare_hs400_tuning)
-			host->ops->prepare_hs400_tuning(host, &host->ios);
-	}
-
-	err = mmc_execute_tuning(host->card);
-	if (err)
-		goto out;
-
-	if (return_to_hs400)
-		err = mmc_hs200_to_hs400(host->card);
-out:
-	host->doing_retune = 0;
-
-	return err;
-}
-
-static void mmc_retune_timer(unsigned long data)
-{
-	struct mmc_host *host = (struct mmc_host *)data;
-
-	mmc_retune_needed(host);
-}
-
 /**
  *	mmc_of_parse() - parse host's device-tree node
  *	@host: host whose node should be parsed.
@@ -400,7 +310,7 @@ int mmc_of_parse(struct mmc_host *host)
 {
 	struct device_node *np;
 	u32 bus_width;
-	int ret;
+	int len, ret;
 	bool cd_cap_invert, cd_gpio_invert = false;
 	bool ro_cap_invert, ro_gpio_invert = false;
 
@@ -447,12 +357,12 @@ int mmc_of_parse(struct mmc_host *host)
 	 */
 
 	/* Parse Card Detection */
-	if (of_property_read_bool(np, "non-removable")) {
+	if (of_find_property(np, "non-removable", &len)) {
 		host->caps |= MMC_CAP_NONREMOVABLE;
 	} else {
 		cd_cap_invert = of_property_read_bool(np, "cd-inverted");
 
-		if (of_property_read_bool(np, "broken-cd"))
+		if (of_find_property(np, "broken-cd", &len))
 			host->caps |= MMC_CAP_NEEDS_POLL;
 
 		ret = mmc_gpiod_request_cd(host, "cd", 0, true,
@@ -502,43 +412,41 @@ int mmc_of_parse(struct mmc_host *host)
 	if (ro_cap_invert ^ ro_gpio_invert)
 		host->caps2 |= MMC_CAP2_RO_ACTIVE_HIGH;
 
-	if (of_property_read_bool(np, "cap-sd-highspeed"))
+	if (of_find_property(np, "cap-sd-highspeed", &len))
 		host->caps |= MMC_CAP_SD_HIGHSPEED;
-	if (of_property_read_bool(np, "cap-mmc-highspeed"))
+	if (of_find_property(np, "cap-mmc-highspeed", &len))
 		host->caps |= MMC_CAP_MMC_HIGHSPEED;
-	if (of_property_read_bool(np, "sd-uhs-sdr12"))
+	if (of_find_property(np, "sd-uhs-sdr12", &len))
 		host->caps |= MMC_CAP_UHS_SDR12;
-	if (of_property_read_bool(np, "sd-uhs-sdr25"))
+	if (of_find_property(np, "sd-uhs-sdr25", &len))
 		host->caps |= MMC_CAP_UHS_SDR25;
-	if (of_property_read_bool(np, "sd-uhs-sdr50"))
+	if (of_find_property(np, "sd-uhs-sdr50", &len))
 		host->caps |= MMC_CAP_UHS_SDR50;
-	if (of_property_read_bool(np, "sd-uhs-sdr104"))
+	if (of_find_property(np, "sd-uhs-sdr104", &len))
 		host->caps |= MMC_CAP_UHS_SDR104;
-	if (of_property_read_bool(np, "sd-uhs-ddr50"))
+	if (of_find_property(np, "sd-uhs-ddr50", &len))
 		host->caps |= MMC_CAP_UHS_DDR50;
-	if (of_property_read_bool(np, "cap-power-off-card"))
+	if (of_find_property(np, "cap-power-off-card", &len))
 		host->caps |= MMC_CAP_POWER_OFF_CARD;
-	if (of_property_read_bool(np, "cap-mmc-hw-reset"))
-		host->caps |= MMC_CAP_HW_RESET;
-	if (of_property_read_bool(np, "cap-sdio-irq"))
+	if (of_find_property(np, "cap-sdio-irq", &len))
 		host->caps |= MMC_CAP_SDIO_IRQ;
-	if (of_property_read_bool(np, "full-pwr-cycle"))
+	if (of_find_property(np, "full-pwr-cycle", &len))
 		host->caps2 |= MMC_CAP2_FULL_PWR_CYCLE;
-	if (of_property_read_bool(np, "keep-power-in-suspend"))
+	if (of_find_property(np, "keep-power-in-suspend", &len))
 		host->pm_caps |= MMC_PM_KEEP_POWER;
-	if (of_property_read_bool(np, "enable-sdio-wakeup"))
+	if (of_find_property(np, "enable-sdio-wakeup", &len))
 		host->pm_caps |= MMC_PM_WAKE_SDIO_IRQ;
-	if (of_property_read_bool(np, "mmc-ddr-1_8v"))
+	if (of_find_property(np, "mmc-ddr-1_8v", &len))
 		host->caps |= MMC_CAP_1_8V_DDR;
-	if (of_property_read_bool(np, "mmc-ddr-1_2v"))
+	if (of_find_property(np, "mmc-ddr-1_2v", &len))
 		host->caps |= MMC_CAP_1_2V_DDR;
-	if (of_property_read_bool(np, "mmc-hs200-1_8v"))
+	if (of_find_property(np, "mmc-hs200-1_8v", &len))
 		host->caps2 |= MMC_CAP2_HS200_1_8V_SDR;
-	if (of_property_read_bool(np, "mmc-hs200-1_2v"))
+	if (of_find_property(np, "mmc-hs200-1_2v", &len))
 		host->caps2 |= MMC_CAP2_HS200_1_2V_SDR;
-	if (of_property_read_bool(np, "mmc-hs400-1_8v"))
+	if (of_find_property(np, "mmc-hs400-1_8v", &len))
 		host->caps2 |= MMC_CAP2_HS400_1_8V | MMC_CAP2_HS200_1_8V_SDR;
-	if (of_property_read_bool(np, "mmc-hs400-1_2v"))
+	if (of_find_property(np, "mmc-hs400-1_2v", &len))
 		host->caps2 |= MMC_CAP2_HS400_1_2V | MMC_CAP2_HS200_1_2V_SDR;
 
 	host->dsr_req = !of_property_read_u32(np, "dsr", &host->dsr);
@@ -604,7 +512,6 @@ struct mmc_host *mmc_alloc_host(int extra, struct device *dev)
 #ifdef CONFIG_PM
 	host->pm_notify.notifier_call = mmc_pm_notify;
 #endif
-	setup_timer(&host->retune_timer, mmc_retune_timer, (unsigned long)host);
 
 	/*
 	 * By default, hosts do not support SGIO or large requests.
@@ -705,3 +612,20 @@ void mmc_free_host(struct mmc_host *host)
 }
 
 EXPORT_SYMBOL(mmc_free_host);
+
+void mmc_retune_hold(struct mmc_host *host)
+{
+        if (!host->hold_retune)
+                host->retune_now = 1;
+        host->hold_retune += 1;
+}
+EXPORT_SYMBOL(mmc_retune_hold);
+ 
+void mmc_retune_release(struct mmc_host *host)
+{
+        if (host->hold_retune)
+                host->hold_retune -= 1;
+        else
+                WARN_ON(1);
+}
+EXPORT_SYMBOL(mmc_retune_release);

@@ -339,7 +339,9 @@ static int msm_init_cm_dll(struct sdhci_host *host)
 static int sdhci_msm_execute_tuning(struct sdhci_host *host, u32 opcode)
 {
 	int tuning_seq_cnt = 3;
-	u8 phase, tuned_phases[16], tuned_phase_cnt = 0;
+	u8 phase, *data_buf, tuned_phases[16], tuned_phase_cnt = 0;
+	const u8 *tuning_block_pattern = tuning_blk_pattern_4bit;
+	int size = sizeof(tuning_blk_pattern_4bit);
 	int rc;
 	struct mmc_host *mmc = host->mmc;
 	struct mmc_ios ios = host->mmc->ios;
@@ -353,21 +355,53 @@ static int sdhci_msm_execute_tuning(struct sdhci_host *host, u32 opcode)
 	      (ios.timing == MMC_TIMING_UHS_SDR104)))
 		return 0;
 
+	if ((opcode == MMC_SEND_TUNING_BLOCK_HS200) &&
+	    (mmc->ios.bus_width == MMC_BUS_WIDTH_8)) {
+		tuning_block_pattern = tuning_blk_pattern_8bit;
+		size = sizeof(tuning_blk_pattern_8bit);
+	}
+
+	data_buf = kmalloc(size, GFP_KERNEL);
+	if (!data_buf)
+		return -ENOMEM;
+
 retry:
 	/* First of all reset the tuning block */
 	rc = msm_init_cm_dll(host);
 	if (rc)
-		return rc;
+		goto out;
 
 	phase = 0;
 	do {
+		struct mmc_command cmd = { 0 };
+		struct mmc_data data = { 0 };
+		struct mmc_request mrq = {
+			.cmd = &cmd,
+			.data = &data
+		};
+		struct scatterlist sg;
+
 		/* Set the phase in delay line hw block */
 		rc = msm_config_cm_dll_phase(host, phase);
 		if (rc)
-			return rc;
+			goto out;
 
-		rc = mmc_send_tuning(mmc, opcode, NULL);
-		if (!rc) {
+		cmd.opcode = opcode;
+		cmd.flags = MMC_RSP_R1 | MMC_CMD_ADTC;
+
+		data.blksz = size;
+		data.blocks = 1;
+		data.flags = MMC_DATA_READ;
+		data.timeout_ns = NSEC_PER_SEC;	/* 1 second */
+
+		data.sg = &sg;
+		data.sg_len = 1;
+		sg_init_one(&sg, data_buf, size);
+		memset(data_buf, 0, size);
+		mmc_wait_for_req(mmc, &mrq);
+
+		if (!cmd.error && !data.error &&
+		    !memcmp(data_buf, tuning_block_pattern, size)) {
 			/* Tuning is successful at this tuning point */
 			tuned_phases[tuned_phase_cnt++] = phase;
 			dev_dbg(mmc_dev(mmc), "%s: Found good phase = %d\n",
@@ -379,7 +413,7 @@ retry:
 		rc = msm_find_most_appropriate_phase(host, tuned_phases,
 						     tuned_phase_cnt);
 		if (rc < 0)
-			return rc;
+			goto out;
 		else
 			phase = rc;
 
@@ -389,7 +423,7 @@ retry:
 		 */
 		rc = msm_config_cm_dll_phase(host, phase);
 		if (rc)
-			return rc;
+			goto out;
 		dev_dbg(mmc_dev(mmc), "%s: Setting the tuning phase to %d\n",
 			 mmc_hostname(mmc), phase);
 	} else {
@@ -401,6 +435,8 @@ retry:
 		rc = -EIO;
 	}
 
+out:
+	kfree(data_buf);
 	return rc;
 }
 

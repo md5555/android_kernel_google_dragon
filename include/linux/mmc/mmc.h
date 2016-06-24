@@ -53,6 +53,11 @@
 #define MMC_SEND_TUNING_BLOCK    19   /* adtc                    R1  */
 #define MMC_SEND_TUNING_BLOCK_HS200	21	/* adtc R1  */
 
+#define MMC_TUNING_BLK_PATTERN_4BIT_SIZE	 64
+#define MMC_TUNING_BLK_PATTERN_8BIT_SIZE	128
+extern const u8 tuning_blk_pattern_4bit[MMC_TUNING_BLK_PATTERN_4BIT_SIZE];
+extern const u8 tuning_blk_pattern_8bit[MMC_TUNING_BLK_PATTERN_8BIT_SIZE];
+
   /* class 3 */
 #define MMC_WRITE_DAT_UNTIL_STOP 20   /* adtc [31:0] data addr   R1  */
 
@@ -305,7 +310,6 @@ struct _mmc_csd {
 #define EXT_CSD_REV			192	/* RO */
 #define EXT_CSD_STRUCTURE		194	/* RO */
 #define EXT_CSD_CARD_TYPE		196	/* RO */
-#define EXT_CSD_DRIVER_STRENGTH		197	/* RO */
 #define EXT_CSD_OUT_OF_INTERRUPT_TIME	198	/* RO */
 #define EXT_CSD_PART_SWITCH_TIME        199     /* RO */
 #define EXT_CSD_PWR_CL_52_195		200	/* RO */
@@ -398,7 +402,6 @@ struct _mmc_csd {
 #define EXT_CSD_TIMING_HS	1	/* High speed */
 #define EXT_CSD_TIMING_HS200	2	/* HS200 */
 #define EXT_CSD_TIMING_HS400	3	/* HS400 */
-#define EXT_CSD_DRV_STR_SHIFT	4	/* Driver Strength shift */
 
 #define EXT_CSD_SEC_ER_EN	BIT(0)
 #define EXT_CSD_SEC_BD_BLK_EN	BIT(2)
@@ -444,7 +447,5 @@ struct _mmc_csd {
 #define MMC_SWITCH_MODE_SET_BITS	0x01	/* Set bits which are 1 in value */
 #define MMC_SWITCH_MODE_CLEAR_BITS	0x02	/* Clear bits which are 1 in value */
 #define MMC_SWITCH_MODE_WRITE_BYTE	0x03	/* Set target to value */
-
-#define mmc_driver_type_mask(n)		(1 << (n))
 
 #endif /* LINUX_MMC_MMC_H */
