@@ -143,7 +143,7 @@ static void te_release_mem_buffer(struct te_shmem_desc *shmem_desc)
 	}
 	kfree(shmem_desc->pages);
 
-	if (shmem_desc->is_locked) {
+	if (shmem_desc->is_locked && current->mm) {
 		status = sys_munlock((unsigned long)shmem_desc->buffer,
 							shmem_desc->size);
 		if (status)
