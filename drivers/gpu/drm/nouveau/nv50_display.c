@@ -1444,7 +1444,7 @@ nv50_crtc_create(struct drm_device *dev, int index)
 	drm_mode_crtc_set_gamma_size(crtc, 256);
 
 	ret = nouveau_bo_new(dev, 8192, 0x100, TTM_PL_FLAG_VRAM,
-			     0, 0x0000, NULL, NULL, &head->base.lut.nvbo);
+			     0, 0x0000, NULL, NULL, &head->base.lut.nvbo, true);
 	if (!ret) {
 		ret = nouveau_bo_pin(head->base.lut.nvbo, TTM_PL_FLAG_VRAM, true);
 		if (!ret) {
@@ -2494,7 +2494,7 @@ nv50_display_create(struct drm_device *dev)
 
 	/* small shared memory area we use for notifiers and semaphores */
 	ret = nouveau_bo_new(dev, 4096, 0x1000, TTM_PL_FLAG_VRAM,
-			     0, 0x0000, NULL, NULL, &disp->sync);
+			     0, 0x0000, NULL, NULL, &disp->sync, true);
 	if (!ret) {
 		ret = nouveau_bo_pin(disp->sync, TTM_PL_FLAG_VRAM, true);
 		if (!ret) {

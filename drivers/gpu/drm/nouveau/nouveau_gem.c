@@ -264,9 +264,10 @@ static void gem_unmap_work(struct work_struct *__work)
 
 	fobj = reservation_object_get_list(resv);
 
-	mutex_lock(&nvbo->vma_list_lock);
+	nouveau_bo_vma_list_lock(nvbo);
+	WARN_ON(nvbo->vma_immutable);
 	list_del(&vma->head);
-	mutex_unlock(&nvbo->vma_list_lock);
+	nouveau_bo_vma_list_unlock(nvbo);
 
 	if (fobj && fobj->shared_count > 1)
 		ttm_bo_wait(&nvbo->bo, true, false, false);
@@ -363,7 +364,7 @@ nouveau_gem_object_close(struct drm_gem_object *gem, struct drm_file *file_priv)
 		}
 	}
 
-	mutex_lock(&nvbo->vma_list_lock);
+	nouveau_bo_vma_list_lock(nvbo);
 	list_for_each_entry(vma, &nvbo->vma_list, head)
 		if (!vma->implicit &&
 		    (vma->vm == cli->vm) &&
@@ -371,7 +372,7 @@ nouveau_gem_object_close(struct drm_gem_object *gem, struct drm_file *file_priv)
 			nouveau_gem_object_unmap(nvbo, vma);
 			drm_gem_object_unreference(&nvbo->gem);
 		}
-	mutex_unlock(&nvbo->vma_list_lock);
+	nouveau_bo_vma_list_unlock(nvbo);
 
 	ttm_bo_unreserve(&nvbo->bo);
 }
@@ -458,7 +459,7 @@ nouveau_gem_new(struct drm_device *dev, int size, int align, uint32_t domain,
 		flags |= TTM_PL_FLAG_UNCACHED;
 
 	ret = nouveau_bo_new(dev, size, align, flags, tile_mode,
-			     tile_flags, NULL, NULL, pnvbo);
+			     tile_flags, NULL, NULL, pnvbo, true);
 	if (ret)
 		return ret;
 	nvbo = *pnvbo;
@@ -526,7 +527,11 @@ static int nouveau_gem_remap(struct nouveau_drm *drm, struct nvkm_vm *vm,
 
 	/* Unmap the old vma. */
 	nouveau_cancel_defer_vm_map(vma, nvbo);
-	nouveau_bo_vma_del(nvbo, vma);
+	/*
+	 * Calling nouveau_bo_subvma_del instead of nouveau_bo_vma_del to
+	 * reflect the fact that we're changing the bo's vma_list.
+	 */
+	nouveau_bo_subvma_del(nvbo, vma);
 
 	/*
 	 * If this offset falls within an address space allocation, then honor
@@ -1920,7 +1925,11 @@ success:
 	vma = nouveau_bo_vma_find(nvbo, cli->vm);
 	if (vma) {
 		nouveau_cancel_defer_vm_map(vma, nvbo);
-		nouveau_bo_vma_del(nvbo, vma);
+		/*
+		 * Calling nouveau_bo_subvma_del instead of nouveau_bo_vma_del to
+		 * reflect the fact that we're changing the bo's vma_list.
+		 */
+		nouveau_bo_subvma_del(nvbo, vma);
 		kfree(vma);
 	}
 
