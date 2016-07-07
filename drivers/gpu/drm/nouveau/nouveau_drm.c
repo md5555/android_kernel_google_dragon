@@ -602,8 +602,10 @@ nouveau_do_suspend(struct drm_device *dev, bool runtime)
 		 */
 		if (!runtime) {
 			ret = mutex_trylock(&cli->mutex);
-			if (WARN_ON(!ret))
+			if (WARN_ON(!ret)) {
+				ret = -EBUSY;
 				goto fail_display;
+			}
 
 		} else {
 			mutex_lock(&cli->mutex);
