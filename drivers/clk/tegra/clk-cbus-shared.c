@@ -264,7 +264,7 @@ static int _clk_shared_bus_update(struct clk *bus)
 	 * Keep the bus rate as its default rate when there is no SHARED_FLOOR
 	 * users enabled so we won't underrun the bus.
 	 */
-	if (!top_rate)
+	if (!top_rate && strcmp(__clk_get_name(bus), "sbus"))
 		rate = clk_get_rate(bus);
 
 	if (!strcmp(__clk_get_name(bus), "emc_master")) {
