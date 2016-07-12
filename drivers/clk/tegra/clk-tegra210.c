@@ -2868,8 +2868,8 @@ static __init void tegra210_shared_clk_init(void)
 	clks[TEGRA210_CLK_NVDEC_CBUS] = clk;
 
 	clk = tegra_clk_register_sbus_cmplx("sbus", "sclk", "sclk_mux", 0, "pclk",
-					"hclk", "pll_p_out2", "pll_c_out1",
-					108000000, 12000000, 384000000,
+					"hclk", "pll_p", "pll_p",
+					204000000, 102000000, 408000000,
 					TEGRA_SOURCE_PLL_FIXED_RATE |
 					TEGRA_HAS_SKIPPER_PARENT);
 	clk_register_clkdev(clk, "sbus", NULL);
