@@ -81,6 +81,7 @@ struct panel_jdi {
 
 	struct mutex lock;
 	bool enabled;
+	bool bl_enabled;
 	int brightness;
 
 	struct dentry *debugfs_entry;
@@ -153,7 +154,7 @@ static int backlight_jdi_update_status(struct backlight_device *bl)
 
 	mutex_lock(&jdi->lock);
 
-	if (!jdi->enabled) {
+	if (!jdi->bl_enabled) {
 		ret = 0;
 		goto out;
 	}
@@ -311,6 +312,7 @@ static int panel_jdi_disable(struct drm_panel *panel)
 	msleep(150);
 
 	jdi->brightness = 0;
+	jdi->bl_enabled = false;
 out:
 	mutex_unlock(&jdi->lock);
 	return ret;
@@ -550,6 +552,7 @@ static int panel_jdi_enable(struct drm_panel *panel)
 	}
 
 	jdi->enabled = true;
+	jdi->bl_enabled = true;
 
 	mutex_unlock(&jdi->lock);
 
@@ -754,6 +757,7 @@ static int panel_jdi_setup_primary(struct mipi_dsi_device *dsi,
 	mutex_init(&jdi->lock);
 
 	jdi->enabled = of_property_read_bool(dsi->dev.of_node, "panel-boot-on");
+	jdi->bl_enabled = jdi->enabled;
 
 	jdi->supply = devm_regulator_get(&dsi->dev, "power");
 	if (IS_ERR(jdi->supply)) {
