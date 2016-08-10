@@ -125,6 +125,14 @@ PHONY += kasanconfig
 kasanconfig:
 	$(call mergeconfig,kasan)
 
+PHONY += kcovconfig
+kcovconfig:
+	$(call mergeconfig,kcov)
+
+PHONY += lockdebugconfig
+lockdebugconfig:
+	$(call mergeconfig,lockdebugconfig)
+
 # Help text used by make help
 help:
 	@echo  '  config	  - Update current config utilising a line-oriented program'
