@@ -131,7 +131,7 @@ kcovconfig:
 
 PHONY += lockdebugconfig
 lockdebugconfig:
-	$(call mergeconfig,lockdebugconfig)
+	$(call mergeconfig,lockdebug)
 
 # Help text used by make help
 help:
