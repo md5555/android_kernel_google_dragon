@@ -168,6 +168,11 @@ static int tegra_dsi_show_regs(struct seq_file *s, void *data)
 	struct drm_info_node *node = s->private;
 	struct tegra_dsi *dsi = node->info_ent->data;
 
+	if (!tegra_powergate_is_powered(TEGRA_POWERGATE_DIS)) {
+		DRM_INFO("Can't dump registers as display is powergated\n");
+		return -EPERM;
+	}
+
 #define DUMP_REG(name)						\
 	seq_printf(s, "%-32s %#05x %08x\n", #name, name,	\
 		   tegra_dsi_readl(dsi, name))
