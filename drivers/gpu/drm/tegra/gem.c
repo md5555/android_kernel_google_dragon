@@ -297,6 +297,11 @@ struct tegra_bo *tegra_bo_create(struct drm_device *drm, size_t size,
 	struct tegra_bo *bo;
 	int err;
 
+	if (!size) {
+		dev_err(drm->dev, "invalid bo size\n");
+		return ERR_PTR(-EINVAL);
+	}
+
 	bo = tegra_bo_alloc_object(drm, size);
 	if (IS_ERR(bo))
 		return bo;
