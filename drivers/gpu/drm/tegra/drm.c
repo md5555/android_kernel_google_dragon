@@ -585,13 +585,11 @@ static bool tegra_drm_file_owns_context(struct tegra_drm_file *file,
 {
 	struct tegra_drm_context *ctx;
 
-	mutex_lock(&file->lock);
 	list_for_each_entry(ctx, &file->contexts, list)
 		if (ctx == context)
-			break;
-	mutex_unlock(&file->lock);
+			return true;
 
-	return ctx == context;
+	return false;
 }
 
 static int tegra_gem_create(struct drm_device *drm, void *data,
@@ -694,10 +692,10 @@ static int tegra_open_channel(struct drm_device *drm, void *data,
 
 			mutex_lock(&fpriv->lock);
 			list_add(&context->list, &fpriv->contexts);
-			mutex_unlock(&fpriv->lock);
-			args->context = (uintptr_t)context;
 			context->client = client;
 			mutex_init(&context->lock);
+			args->context = (uintptr_t)context;
+			mutex_unlock(&fpriv->lock);
 			return 0;
 		}
 
@@ -711,18 +709,28 @@ static int tegra_close_channel(struct drm_device *drm, void *data,
 	struct tegra_drm_file *fpriv = file->driver_priv;
 	struct drm_tegra_close_channel *args = data;
 	struct tegra_drm_context *context;
+	int err;
 
 	context = tegra_drm_get_context(args->context);
 
-	if (!tegra_drm_file_owns_context(fpriv, context))
-		return -EINVAL;
-
 	mutex_lock(&fpriv->lock);
-	list_del(&context->list);
-	mutex_unlock(&fpriv->lock);
-	tegra_drm_context_free(context);
 
-	return 0;
+	if (!tegra_drm_file_owns_context(fpriv, context)){
+		err = -EINVAL;
+		goto done;
+	}
+
+	err = 0;
+	list_del(&context->list);
+
+done:
+	mutex_unlock(&fpriv->lock);
+
+	if (!err){
+		tegra_drm_context_free(context);
+	}
+
+	return err;
 }
 
 static int tegra_get_syncpt(struct drm_device *drm, void *data,
@@ -732,19 +740,30 @@ static int tegra_get_syncpt(struct drm_device *drm, void *data,
 	struct drm_tegra_get_syncpt *args = data;
 	struct tegra_drm_context *context;
 	struct host1x_syncpt *syncpt;
+	int err;
 
 	context = tegra_drm_get_context(args->context);
 
-	if (!tegra_drm_file_owns_context(fpriv, context))
-		return -ENODEV;
+	mutex_lock(&fpriv->lock);
 
-	if (args->index >= context->client->base.num_syncpts)
-		return -EINVAL;
+	if(!tegra_drm_file_owns_context(fpriv, context)){
+		err = -ENODEV;
+		goto done;
+	}
+
+	err = 0;
+
+	if (args->index >= context->client->base.num_syncpts){
+		err = -EINVAL;
+		goto done;
+	}
 
 	syncpt = context->client->base.syncpts[args->index];
 	args->id = host1x_syncpt_id(syncpt);
 
-	return 0;
+done:
+	mutex_unlock(&fpriv->lock);
+	return err;
 }
 
 static int tegra_submit(struct drm_device *drm, void *data,
@@ -753,13 +772,22 @@ static int tegra_submit(struct drm_device *drm, void *data,
 	struct tegra_drm_file *fpriv = file->driver_priv;
 	struct drm_tegra_submit *args = data;
 	struct tegra_drm_context *context;
+	int err;
 
 	context = tegra_drm_get_context(args->context);
 
-	if (!tegra_drm_file_owns_context(fpriv, context))
-		return -ENODEV;
+	mutex_lock(&fpriv->lock);
 
-	return context->client->ops->submit(context, args, drm, file);
+	if(!tegra_drm_file_owns_context(fpriv, context)){
+		err = -ENODEV;
+		goto done;
+	}
+
+	err = context->client->ops->submit(context, args, drm, file);
+
+done:
+	mutex_unlock(&fpriv->lock);
+	return err;
 }
 
 static int tegra_get_syncpt_base(struct drm_device *drm, void *data,
@@ -770,24 +798,37 @@ static int tegra_get_syncpt_base(struct drm_device *drm, void *data,
 	struct tegra_drm_context *context;
 	struct host1x_syncpt_base *base;
 	struct host1x_syncpt *syncpt;
+	int err;
 
 	context = tegra_drm_get_context(args->context);
 
-	if (!tegra_drm_file_owns_context(fpriv, context))
-		return -ENODEV;
+	mutex_lock(&fpriv->lock);
 
-	if (args->syncpt >= context->client->base.num_syncpts)
-		return -EINVAL;
+	if(!tegra_drm_file_owns_context(fpriv, context)){
+		err = -ENODEV;
+		goto done;
+	}
+
+	err = 0;
+
+	if (args->syncpt >= context->client->base.num_syncpts){
+		err = -EINVAL;
+		goto done;
+	}
 
 	syncpt = context->client->base.syncpts[args->syncpt];
 
 	base = host1x_syncpt_get_base(syncpt);
-	if (!base)
-		return -ENXIO;
+	if (!base){
+		err = -ENXIO;
+		goto done;
+	}
 
 	args->id = host1x_syncpt_base_id(base);
 
-	return 0;
+done:
+	mutex_unlock(&fpriv->lock);
+	return err;
 }
 
 static int tegra_gem_set_tiling(struct drm_device *drm, void *data,
@@ -985,24 +1026,31 @@ static int tegra_start_keepon(struct drm_device *drm, void *data,
 
 	context = tegra_drm_get_context(args->context);
 
-	if (!tegra_drm_file_owns_context(fpriv, context))
-		return -ENODEV;
+	mutex_lock(&fpriv->lock);
+
+	if(!tegra_drm_file_owns_context(fpriv, context)){
+		err = -ENODEV;
+		goto done;
+	}
 
 	mutex_lock(&context->lock);
 
 	if (context->keepon) {
 		err = -EINVAL;
-		goto done;
+		goto unlock_context;
 	}
 
 	err = host1x_module_busy(&context->client->base);
 	if (err < 0)
-		goto done;
+		goto unlock_context;
 
 	context->keepon = true;
 
-done:
+unlock_context:
 	mutex_unlock(&context->lock);
+
+done:
+	mutex_unlock(&fpriv->lock);
 	return err;
 }
 
@@ -1016,22 +1064,29 @@ static int tegra_stop_keepon(struct drm_device *drm, void *data,
 
 	context = tegra_drm_get_context(args->context);
 
-	if (!tegra_drm_file_owns_context(fpriv, context))
-		return -ENODEV;
+	mutex_lock(&fpriv->lock);
+
+	if(!tegra_drm_file_owns_context(fpriv, context)){
+		err = -ENODEV;
+		goto done;
+	}
 
 	mutex_lock(&context->lock);
 
 	if (!context->keepon) {
 		err = -EINVAL;
-		goto done;
+		goto unlock_context;
 	}
 
 	context->keepon = false;
 
 	host1x_module_idle(&context->client->base);
 
-done:
+unlock_context:
 	mutex_unlock(&context->lock);
+
+done:
+	mutex_unlock(&fpriv->lock);
 	return err;
 }
 
@@ -1041,14 +1096,24 @@ static int tegra_get_clk_constraint(struct drm_device *drm, void *data,
 	struct tegra_drm_file *fpriv = file->driver_priv;
 	struct tegra_drm_context *context;
 	struct drm_tegra_constraint *args = data;
+	int err;
 
 	context = tegra_drm_get_context(args->context);
-	if (!tegra_drm_file_owns_context(fpriv, context))
-		return -ENODEV;
 
-	return host1x_module_get_rate(&context->client->base, &context->user,
+	mutex_lock(&fpriv->lock);
+
+	if(!tegra_drm_file_owns_context(fpriv, context)){
+		err = -ENODEV;
+		goto done;
+	}
+
+	err = host1x_module_get_rate(&context->client->base, &context->user,
 				      args->index, (unsigned long *)&args->rate,
 				      args->type);
+
+done:
+	mutex_unlock(&fpriv->lock);
+	return err;
 }
 
 static int tegra_set_clk_constraint(struct drm_device *drm, void *data,
@@ -1057,13 +1122,23 @@ static int tegra_set_clk_constraint(struct drm_device *drm, void *data,
 	struct tegra_drm_file *fpriv = file->driver_priv;
 	struct tegra_drm_context *context;
 	struct drm_tegra_constraint *args = data;
+	int err;
 
 	context = tegra_drm_get_context(args->context);
-	if (!tegra_drm_file_owns_context(fpriv, context))
-		return -ENODEV;
 
-	return host1x_module_set_rate(&context->client->base, &context->user,
+	mutex_lock(&fpriv->lock);
+
+	if(!tegra_drm_file_owns_context(fpriv, context)){
+		err = -ENODEV;
+		goto done;
+	}
+
+	err = host1x_module_set_rate(&context->client->base, &context->user,
 				      args->index, args->rate, args->type);
+
+done:
+	mutex_unlock(&fpriv->lock);
+	return err;
 }
 
 #endif
