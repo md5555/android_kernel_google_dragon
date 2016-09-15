@@ -466,6 +466,13 @@ int tegra_drm_submit(struct tegra_drm_context *context,
 	unsigned int i;
 	int err;
 
+	/*
+	 * Doesn't make sense to submit a job without synchronizing on at least
+	 * one syncpt.
+	 */
+	if (!args->num_syncpts)
+		return -EINVAL;
+
 	job = host1x_job_alloc(context->channel, args->num_cmdbufs,
 			       args->num_relocs, args->num_waitchks,
 			       args->num_syncpts);
