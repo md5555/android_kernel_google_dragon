@@ -124,7 +124,7 @@ static int ad5823_set_position(struct ad5823_info *info, u32 position)
 {
 	int ret = 0;
 	u32 position_clamped = 0;
-	int retry = 5;
+	int retry = 11;
 
 	position_clamped = clamp(position, info->config.pos_actual_low,
 				info->config.pos_actual_high);
@@ -136,6 +136,13 @@ static int ad5823_set_position(struct ad5823_info *info, u32 position)
 			info->config.pos_actual_high);
 	}
 
+	/*
+	 * AD5823 will not respond with an ACK if it is busy with ARC algorithm.
+	 * Based on the current settings, ARC time is 10.683ms.
+	 *
+	 * We will retry regmap_write until AD5823 is done with ARC.
+	 * With 1ms delay in each retry, hence retry count is set to 11.
+	 */
 	while (retry) {
 		ret = regmap_write(info->regmap, AD5823_VCM_MOVE_TIME,
 					AD5823_MOVE_TIME_VALUE);
@@ -143,7 +150,8 @@ static int ad5823_set_position(struct ad5823_info *info, u32 position)
 			break;
 
 		dev_err(&info->i2c_client->dev,
-			"regmap write failed, retry countdown = %d.\n", retry);
+			"regmap write failed, ret=%d, retry countdown = %d.\n",
+			ret, retry);
 
 		msleep(1);
 		retry--;
