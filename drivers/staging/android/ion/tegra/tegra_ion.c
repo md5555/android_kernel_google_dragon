@@ -32,11 +32,6 @@ static struct ion_platform_heap tegra210_heaps[] = {
 		.name	= "system",
 	},
 	{
-		.id	= ION_HEAP_TYPE_SYSTEM_CONTIG,
-		.type	= ION_HEAP_TYPE_SYSTEM_CONTIG,
-		.name	= "system contig",
-	},
-	{
 		.id	= ION_HEAP_TYPE_CARVEOUT,
 		.type	= ION_HEAP_TYPE_CARVEOUT,
 		.name	= "vpr",
@@ -96,18 +91,18 @@ static int tegra_ion_probe(struct platform_device *pdev)
 	if (IS_ERR_OR_NULL(idev))
 		return PTR_ERR(idev);
 
-	if (vpr_size) {
-		pdata->heaps[ION_HEAP_TYPE_CARVEOUT].base = vpr_start;
-		pdata->heaps[ION_HEAP_TYPE_CARVEOUT].size = vpr_size;
-	}
-
 	/* create the heaps as specified in the board file */
 	for (i = 0; i < num_heaps; i++) {
 		struct ion_platform_heap *heap_data = &pdata->heaps[i];
 
-		if (heap_data->type == ION_HEAP_TYPE_CARVEOUT &&
-				!heap_data->base)
-			continue;
+		if (heap_data->type == ION_HEAP_TYPE_CARVEOUT) {
+			if (vpr_size) {
+				heap_data->base = vpr_start;
+				heap_data->size = vpr_size;
+			} else {
+				continue;
+			}
+		}
 
 		heaps[i] = ion_heap_create(heap_data);
 		if (IS_ERR_OR_NULL(heaps[i])) {
