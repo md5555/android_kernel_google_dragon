@@ -69,7 +69,7 @@ struct drm_gem_object *nouveau_gem_prime_import_sg_table(struct drm_device *dev,
 
 	ww_mutex_lock(&robj->lock, NULL);
 	ret = nouveau_bo_new(dev, attach->dmabuf->size, 0, flags, 0, 0,
-			     sg, robj, &nvbo);
+			     sg, robj, &nvbo, false);
 	ww_mutex_unlock(&robj->lock);
 	if (ret)
 		return ERR_PTR(ret);
