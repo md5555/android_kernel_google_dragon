@@ -1192,7 +1192,7 @@ static void ion_unmap_dma_buf(struct dma_buf_attachment *attachment,
 		}
 	}
 
-	dev_warn(attachment->dev, "Not found a map(%p)\n",
+	dev_warn(attachment->dev, "Not found a map(%pK)\n",
 		 to_dma_iommu_mapping(attachment->dev));
 
 	mutex_unlock(&buffer->lock);
@@ -1283,7 +1283,7 @@ static void ion_vm_open(struct vm_area_struct *vma)
 	mutex_lock(&buffer->lock);
 	list_add(&vma_list->list, &buffer->vmas);
 	mutex_unlock(&buffer->lock);
-	pr_debug("%s: adding %p\n", __func__, vma);
+	pr_debug("%s: adding %pK\n", __func__, vma);
 }
 
 static void ion_vm_close(struct vm_area_struct *vma)
@@ -1298,7 +1298,7 @@ static void ion_vm_close(struct vm_area_struct *vma)
 			continue;
 		list_del(&vma_list->list);
 		kfree(vma_list);
-		pr_debug("%s: deleting %p\n", __func__, vma);
+		pr_debug("%s: deleting %pK\n", __func__, vma);
 		break;
 	}
 	mutex_unlock(&buffer->lock);
@@ -1420,7 +1420,7 @@ static int ion_dma_buf_set_private(struct dma_buf *dmabuf, struct device *dev,
 	imp->delete = delete;
 out:
 	mutex_unlock(&buffer->lock);
-	dev_dbg(dev, "%s() dmabuf=%p err=%d i=%d priv=%p\n",
+	dev_dbg(dev, "%s() dmabuf=%pK err=%d i=%d priv=%pK\n",
 		__func__, dmabuf, err, i, priv);
 	return err;
 }
@@ -1443,7 +1443,7 @@ static void *ion_dma_buf_get_private(struct dma_buf *dmabuf,
 		}
 	}
 	mutex_unlock(&buffer->lock);
-	dev_dbg(dev, "%s() dmabuf=%p i=%d priv=%p\n",
+	dev_dbg(dev, "%s() dmabuf=%pK i=%d priv=%pK\n",
 		__func__, dmabuf, i, priv);
 	return priv;
 }
@@ -1470,13 +1470,13 @@ static void *ion_dma_buf_vmap(struct dma_buf *dmabuf)
 {
 	void *addr = ion_dma_buf_kmap(dmabuf, 0);
 
-	pr_info("%s() %p\n", __func__, addr);
+	pr_info("%s() %pK\n", __func__, addr);
 	return addr;
 }
 
 static void ion_dma_buf_vunmap(struct dma_buf *dmabuf, void *vaddr)
 {
-	pr_info("%s() %p\n", __func__, vaddr);
+	pr_info("%s() %pK\n", __func__, vaddr);
 	ion_dma_buf_kunmap(dmabuf, 0, vaddr);
 }
 
