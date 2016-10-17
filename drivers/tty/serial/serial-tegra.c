@@ -569,10 +569,11 @@ static void tegra_uart_copy_rx_to_tty(struct tegra_uart_port *tup,
 				TEGRA_UART_RX_DMA_BUFFER_SIZE, DMA_FROM_DEVICE);
 	copied = tty_insert_flip_string(tty,
 			((unsigned char *)(tup->rx_dma_buf_virt)), count);
-	if (copied != count) {
-		WARN_ON(1);
-		dev_err(tup->uport.dev, "RxData copy to tty layer failed\n");
-	}
+	if (copied != count)
+		dev_warn_ratelimited(tup->uport.dev,
+				     "RxData copy to tty layer failed %d!=%d\n",
+				     copied, count);
+
 	dma_sync_single_for_device(tup->uport.dev, tup->rx_dma_buf_phys,
 				TEGRA_UART_RX_DMA_BUFFER_SIZE, DMA_TO_DEVICE);
 }
