@@ -167,7 +167,14 @@ static inline int imx208_get_gain_reg(struct imx208_reg *regs, u16 gain)
 
 static inline int imx208_read_reg(struct imx208_info *info, u16 addr, u8 *val)
 {
-	return regmap_read(info->regmap, addr, (unsigned int *) val);
+	int temp_val;
+	int err;
+
+	err = regmap_read(info->regmap, addr, &temp_val);
+	if (!err)
+		*val = temp_val;
+
+	return err;
 }
 
 static int imx208_write_reg(struct imx208_info *info, u16 addr, u8 val)
