@@ -669,12 +669,23 @@ static irqreturn_t tegra_dma_isr(int irq, void *dev_id)
 	unsigned long status;
 	unsigned long flags;
 	struct tegra_dma_sg_req *sgreq;
+	int wcount;
 
 	spin_lock_irqsave(&tdc->lock, flags);
 
 	status = tdc_read(tdc, TEGRA_APBDMA_CHAN_STATUS);
 	if (status & TEGRA_APBDMA_STATUS_ISE_EOC) {
 		tdc_write(tdc, TEGRA_APBDMA_CHAN_STATUS, status);
+
+		wcount = tdc_read(tdc, TEGRA_APBDMA_CHAN_WORD_TRANSFER);
+
+		if (wcount != 0)
+		{
+			dev_dbg(tdc2dev(tdc), "Transfer not complete in ISR!\n");
+			spin_unlock_irqrestore(&tdc->lock, flags);
+			return IRQ_HANDLED;
+		}
+
 		tdc->isr_handler(tdc, false);
 
 		sgreq = list_first_entry(&tdc->pending_sg_req, typeof(*sgreq),
