@@ -159,16 +159,16 @@ static inline void task_state(struct seq_file *m, struct pid_namespace *ns,
 	int g;
 	struct fdtable *fdt = NULL;
 	const struct cred *cred;
-	pid_t ppid, tpid;
+	pid_t ppid = 0, tpid = 0;
+	struct task_struct *leader = NULL;
 
 	rcu_read_lock();
-	ppid = pid_alive(p) ?
-		task_tgid_nr_ns(rcu_dereference(p->real_parent), ns) : 0;
-	tpid = 0;
 	if (pid_alive(p)) {
 		struct task_struct *tracer = ptrace_parent(p);
 		if (tracer)
 			tpid = task_pid_nr_ns(tracer, ns);
+		ppid = task_tgid_nr_ns(rcu_dereference(p->real_parent), ns);
+		leader = p->group_leader;
 	}
 	cred = get_task_cred(p);
 	seq_printf(m,
@@ -210,12 +210,13 @@ static inline void task_state(struct seq_file *m, struct pid_namespace *ns,
 		seq_printf(m, "%d ",
 			   from_kgid_munged(user_ns, GROUP_AT(group_info, g)));
 	put_cred(cred);
-
 #ifdef CONFIG_PID_NS
-	seq_puts(m, "\nNStgid:");
-	for (g = ns->level; g <= pid->level; g++)
-		seq_printf(m, "\t%d",
-			task_tgid_nr_ns(p, pid->numbers[g].ns));
+	if (leader) {
+		seq_puts(m, "\nNStgid:");
+		for (g = ns->level; g <= pid->level; g++)
+			seq_printf(m, "\t%d",
+				task_pid_nr_ns(leader, pid->numbers[g].ns));
+	}
 	seq_puts(m, "\nNSpid:");
 	for (g = ns->level; g <= pid->level; g++)
 		seq_printf(m, "\t%d",
