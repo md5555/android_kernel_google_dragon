@@ -322,6 +322,7 @@ struct host1x_job *host1x_job_get(struct host1x_job *job);
 void host1x_job_put(struct host1x_job *job);
 int host1x_job_pin(struct host1x_job *job, struct device *dev);
 void host1x_job_unpin(struct host1x_job *job);
+void host1x_job_bo_put(struct host1x_job *job);
 
 /*
  * subdevice probe infrastructure

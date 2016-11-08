@@ -249,6 +249,7 @@ static void update_cdma_locked(struct host1x_cdma *cdma)
 
 		/* Unpin the memory */
 		host1x_job_unpin(job);
+		host1x_job_bo_put(job);
 
 		/* Pop push buffer slots */
 		if (job->num_slots) {
