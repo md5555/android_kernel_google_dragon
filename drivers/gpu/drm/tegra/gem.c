@@ -78,9 +78,9 @@ static void *tegra_bo_kmap(struct host1x_bo *bo, unsigned int page)
 {
 	struct tegra_bo *obj = host1x_to_tegra_bo(bo);
 
-	if (page >= obj->num_pages) {
-		WARN(1, "kmap pages beyonds bo's size: (%u : %lu).\n",
-			page, obj->num_pages);
+	if ((page << PAGE_SHIFT) >= obj->gem.size) {
+		WARN(1, "kmap pages beyonds bo's size: (0x%x : 0x%x).\n",
+			page << PAGE_SHIFT, (unsigned int)obj->gem.size);
 		return NULL;
 	}
 
