@@ -1069,14 +1069,17 @@ gk104_fifo_intr_pbdma_0(struct gk104_fifo_priv *priv, int unit)
 		nv_wr32(priv, 0x0400c0 + (unit * 0x2000), 0x00000008);
 
 	if (show) {
-		nv_error(priv, "PBDMA%d:", unit);
-		nvkm_bitfield_print(gk104_fifo_pbdma_intr_0, show);
-		pr_cont("\n");
-		nv_error(priv,
-			 "PBDMA%d: ch %d [%s] subc %d mthd 0x%04x data 0x%08x\n",
-			 unit, chid,
-			 nvkm_client_name_for_fifo_chid(&priv->base, chid),
-			 subc, mthd, data);
+		static unsigned long int j;
+		if (printk_timed_ratelimit(&j, 1000)) {
+			nv_error(priv, "PBDMA%d:", unit);
+			nvkm_bitfield_print(gk104_fifo_pbdma_intr_0, show);
+			pr_cont("\n");
+			nv_error(priv,
+				 "PBDMA%d: ch %d [%s] subc %d mthd 0x%04x data 0x%08x\n",
+				 unit, chid,
+				 nvkm_client_name_for_fifo_chid(&priv->base, chid),
+				 subc, mthd, data);
+		}
 		nvkm_fifo_eevent(&priv->base, chid,
 				NOUVEAU_GEM_CHANNEL_PBDMA_ERROR);
 	}
