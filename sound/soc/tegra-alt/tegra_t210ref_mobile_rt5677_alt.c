@@ -459,8 +459,24 @@ static void tegra_rt5677_hotword_shutdown(struct snd_pcm_substream *substream)
 	machine->hotword_stream_active = false;
 }
 
+static int tegra_rt5677_hotword_hw_params(struct snd_pcm_substream *substream,
+					struct snd_pcm_hw_params *params)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	int err;
+	err = snd_soc_dai_set_pll(rtd->codec_dai, 0, RT5677_PLL1_S_MCLK,
+		RT5677_MCLK, RT5677_SYSCLK);
+	if (err < 0) {
+		dev_err(rtd->dev, "Failed dai_set_pll\n");
+		return err;
+	}
+
+	return 0;
+}
+
 static struct snd_soc_ops tegra_rt5677_hotword_ops = {
 	.startup = tegra_rt5677_hotword_startup,
+	.hw_params = tegra_rt5677_hotword_hw_params,
 	.shutdown = tegra_rt5677_hotword_shutdown,
 };
 
