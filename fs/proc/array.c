@@ -181,7 +181,7 @@ static inline void task_state(struct seq_file *m, struct pid_namespace *ns,
 		"Uid:\t%d\t%d\t%d\t%d\n"
 		"Gid:\t%d\t%d\t%d\t%d\n",
 		get_task_state(p),
-		task_tgid_nr_ns(p, ns),
+		leader ? task_pid_nr_ns(leader, ns) : 0,
 		task_numa_group_id(p),
 		pid_nr_ns(pid, ns),
 		ppid, tpid,
