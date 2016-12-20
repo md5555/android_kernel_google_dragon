@@ -25,13 +25,14 @@
 int host1x_module_update_rate(struct host1x_client *client,
 			      enum host1x_clock_index index)
 {
-	struct host1x_client_clock *clock = &client->clocks[index];
+	struct host1x_client_clock *clock = NULL;
 	struct host1x_user *user;
 	unsigned long rate = 0;
 
-	if (index > ARRAY_SIZE(client->clocks))
+	if (index >= ARRAY_SIZE(client->clocks))
 		return -EINVAL;
 
+	clock = &client->clocks[index];
 	mutex_lock(&client->user_list_lock);
 
 	/* aggregate client constraints */
@@ -233,7 +234,7 @@ int host1x_module_get_rate(struct host1x_client *client,
 	unsigned long clk_rate;
 	int err;
 
-	if (index > ARRAY_SIZE(client->clocks))
+	if (index >= ARRAY_SIZE(client->clocks))
 		return -EINVAL;
 
 	err = host1x_module_busy(client);
@@ -271,7 +272,7 @@ int host1x_module_set_rate(struct host1x_client *client,
 {
 	int err;
 
-	if (index > ARRAY_SIZE(client->clocks))
+	if (index >= ARRAY_SIZE(client->clocks))
 		return -EINVAL;
 
 	if (!(client->clocks[index].valid_constraint_types & BIT(type)))
