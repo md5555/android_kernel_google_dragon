@@ -462,6 +462,9 @@ nvkm_ioctl_path(struct nvkm_handle *parent, u32 type, u32 nr, u32 *path,
 	struct nvkm_object *object;
 	int ret;
 
+	if (!parent)
+		return 0;
+
 	while ((object = parent->object), nr--) {
 		nv_ioctl(object, "path 0x%08x\n", path[nr]);
 		if (!nv_iclass(object, NV_PARENT_CLASS)) {
@@ -491,8 +494,14 @@ nvkm_ioctl_path(struct nvkm_handle *parent, u32 type, u32 nr, u32 *path,
 	*token = handle->token;
 
 	if (ret = -EINVAL, type < ARRAY_SIZE(nvkm_ioctl_v0)) {
-		if (nvkm_ioctl_v0[type].version == 0)
+		if (nvkm_ioctl_v0[type].version == 0) {
+			struct nvkm_client *client = NULL;
+			if (nv_iclass(handle->object, NV_CLIENT_CLASS))
+				client = nv_client(handle->object);
 			ret = nvkm_ioctl_v0[type].func(handle, data, size);
+			if (!ret && type == NVIF_IOCTL_V0_DEL && client)
+				client->root = NULL;
+		}
 	}
 
 	return ret;
