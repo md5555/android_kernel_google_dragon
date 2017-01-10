@@ -866,6 +866,13 @@ static void nau8825_init_regs(struct nau8825 *nau8825)
 	/* Enable Bias/Vmid */
 	regmap_update_bits(nau8825->regmap, NAU8825_REG_BIAS_ADJ,
 		NAU8825_BIAS_VMID, NAU8825_BIAS_VMID);
+	/* Disable DACR/L power
+	 * Rev-A of the nau8825 defaults DACL and DACR power down to 0 (false),
+	 * so adding global bias causes an audible click. Power it down first.
+	 */
+	regmap_update_bits(nau8825->regmap, NAU8825_REG_CHARGE_PUMP,
+		NAU8825_POWER_DOWN_DACR | NAU8825_POWER_DOWN_DACL,
+		NAU8825_POWER_DOWN_DACR | NAU8825_POWER_DOWN_DACL);
 	regmap_update_bits(nau8825->regmap, NAU8825_REG_BOOST,
 		NAU8825_GLOBAL_BIAS_EN, NAU8825_GLOBAL_BIAS_EN);
 
@@ -917,10 +924,6 @@ static void nau8825_init_regs(struct nau8825 *nau8825)
 		NAU8825_ADC_SYNC_DOWN_MASK, NAU8825_ADC_SYNC_DOWN_128);
 	regmap_update_bits(regmap, NAU8825_REG_DAC_CTRL1,
 		NAU8825_DAC_OVERSAMPLE_MASK, NAU8825_DAC_OVERSAMPLE_128);
-	/* Disable DACR/L power */
-	regmap_update_bits(regmap, NAU8825_REG_CHARGE_PUMP,
-		NAU8825_POWER_DOWN_DACR | NAU8825_POWER_DOWN_DACL,
-		NAU8825_POWER_DOWN_DACR | NAU8825_POWER_DOWN_DACL);
 	/* Enable TESTDAC. This sets the analog DAC inputs to a '0' input
 	 * signal to avoid any glitches due to power up transients in both
 	 * the analog and digital DAC circuit.
@@ -1270,6 +1273,8 @@ static int nau8825_suspend(struct snd_soc_codec *codec)
 	return 0;
 }
 
+static void nau8825_reset_chip(struct regmap *regmap);
+
 static int nau8825_resume(struct snd_soc_codec *codec)
 {
 	struct nau8825 *nau8825 = snd_soc_codec_get_drvdata(codec);
@@ -1277,9 +1282,23 @@ static int nau8825_resume(struct snd_soc_codec *codec)
 	/* The chip may lose power and reset in S3. regcache_sync restores
 	 * register values including configurations for sysclk, irq, and
 	 * jack/button detection.
+	 * Before regcache_sync we need to properly power on the chip with a
+	 * reset and nau8825_init_regs in order to avoid audible pops. Bypass
+	 * the cache during power on so that regmap will still contain the
+	 * register values stored at the time of PM suspend.
 	 */
 	regcache_cache_only(nau8825->regmap, false);
-	regcache_sync(nau8825->regmap);
+	regcache_cache_bypass(nau8825->regmap, true);
+	nau8825_reset_chip(nau8825->regmap);
+	nau8825_init_regs(nau8825);
+	regcache_cache_bypass(nau8825->regmap, false);
+
+	/* Run regcache_sync_region to avoid writing to NAU8825_REG_RESET 0x00
+	 * which would cause another reset. NAU8825_REG_RESET is marked as
+	 * volatile, but not readbable, so regcache_sync writes it.
+	 */
+	regcache_sync_region(nau8825->regmap, NAU8825_REG_ENA_CTRL,
+		NAU8825_REG_MAX);
 
 	/* Check the jack plug status directly. If the headset is unplugged
 	 * during S3 when the chip has no power, there will be no jack
