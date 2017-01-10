@@ -1570,7 +1570,7 @@ struct ion_handle *ion_import_dma_buf(struct ion_client *client, int fd)
 		return ERR_CAST(dmabuf);
 	/* if this memory came from ion */
 
-	if (dmabuf_is_ion(dmabuf)) {
+	if (!dmabuf_is_ion(dmabuf)) {
 		pr_err("%s: can not import dmabuf from another exporter\n",
 		       __func__);
 		dma_buf_put(dmabuf);
