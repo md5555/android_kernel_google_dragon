@@ -29,6 +29,7 @@
 #include <linux/mfd/cros_ec_dev.h>
 #include <linux/module.h>
 #include <linux/slab.h>
+#include <linux/suspend.h>
 #include <linux/sysfs.h>
 #include <linux/platform_device.h>
 
@@ -488,14 +489,11 @@ int cros_ec_sensors_core_write(struct cros_ec_sensors_core_state *st,
 }
 EXPORT_SYMBOL_GPL(cros_ec_sensors_core_write);
 
-static int __maybe_unused cros_ec_sensors_prepare(struct device *dev)
+#ifdef CONFIG_PM_SLEEP
+static void cros_ec_sensors_prepare(struct cros_ec_sensors_core_state *st)
 {
-	struct platform_device *pdev = to_platform_device(dev);
-	struct iio_dev *indio_dev = platform_get_drvdata(pdev);
-	struct cros_ec_sensors_core_state *st = iio_priv(indio_dev);
-
 	if (st->curr_sampl_freq == 0)
-		return 0;
+		return;
 
 	/*
 	 * If the sensors are sampled at high frequency, we will not be able to
@@ -508,15 +506,10 @@ static int __maybe_unused cros_ec_sensors_prepare(struct device *dev)
 		cros_ec_motion_send_host_cmd(st, 0);
 		mutex_unlock(&st->cmd_lock);
 	}
-	return 0;
 }
 
-static void __maybe_unused cros_ec_sensors_complete(struct device *dev)
+static void cros_ec_sensors_complete(struct cros_ec_sensors_core_state *st)
 {
-	struct platform_device *pdev = to_platform_device(dev);
-	struct iio_dev *indio_dev = platform_get_drvdata(pdev);
-	struct cros_ec_sensors_core_state *st = iio_priv(indio_dev);
-
 	if (st->curr_sampl_freq == 0)
 		return;
 
@@ -529,16 +522,38 @@ static void __maybe_unused cros_ec_sensors_complete(struct device *dev)
 	}
 }
 
-#ifdef CONFIG_PM_SLEEP
-const struct dev_pm_ops cros_ec_sensors_pm_ops = {
-	.prepare = cros_ec_sensors_prepare,
-	.complete = cros_ec_sensors_complete
-};
-#else
-const struct dev_pm_ops cros_ec_sensors_pm_ops = { };
-#endif
-EXPORT_SYMBOL_GPL(cros_ec_sensors_pm_ops);
+static int cros_ec_sensors_pm_notify(struct notifier_block *nb,
+			      unsigned long event, void *data)
+{
+	struct cros_ec_sensors_core_state *st;
 
+	st = container_of(nb, struct cros_ec_sensors_core_state, pm_nb);
+
+	switch (event) {
+	case PM_SUSPEND_PREPARE:
+		cros_ec_sensors_prepare(st);
+		break;
+	case PM_POST_SUSPEND:
+		cros_ec_sensors_complete(st);
+		break;
+	default:
+		return NOTIFY_DONE;
+	}
+
+	return NOTIFY_OK;
+}
+
+void cros_ec_sensors_pm_register(struct cros_ec_sensors_core_state *st)
+{
+	st->pm_nb.notifier_call = cros_ec_sensors_pm_notify;
+	register_pm_notifier(&st->pm_nb);
+}
+
+void cros_ec_sensors_pm_unregister(struct cros_ec_sensors_core_state *st)
+{
+	unregister_pm_notifier(&st->pm_nb);
+}
+#endif
 
 MODULE_DESCRIPTION("ChromeOS EC sensor hub core functions");
 MODULE_LICENSE("GPL v2");

@@ -277,15 +277,21 @@ static int cros_ec_sensors_probe(struct platform_device *pdev)
 		return ret;
 
 	ret = iio_device_register(indio_dev);
+	if (!ret)
+		cros_ec_sensors_pm_register(&state->core);
+
 	return ret;
 }
 
 static int cros_ec_sensors_remove(struct platform_device *pdev)
 {
 	struct iio_dev *indio_dev = platform_get_drvdata(pdev);
+	struct cros_ec_sensors_state *st = iio_priv(indio_dev);
 
 	iio_device_unregister(indio_dev);
 	iio_triggered_buffer_cleanup(indio_dev);
+	cros_ec_sensors_pm_unregister(&st->core);
+
 	return 0;
 }
 
@@ -306,7 +312,6 @@ MODULE_DEVICE_TABLE(platform, cros_ec_sensors_ids);
 static struct platform_driver cros_ec_sensors_platform_driver = {
 	.driver = {
 		.name	= "cros-ec-sensors",
-		.pm	= &cros_ec_sensors_pm_ops,
 	},
 	.probe		= cros_ec_sensors_probe,
 	.remove		= cros_ec_sensors_remove,
