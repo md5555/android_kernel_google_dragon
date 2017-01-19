@@ -199,7 +199,8 @@ nvkm_client_dtor(struct nvkm_object *object)
 	client->notify = NULL;
 	client->notify_size = 0;
 	nvkm_object_ref(NULL, &client->device);
-	nvkm_handle_destroy(client->root);
+	if (client->root)
+		nvkm_handle_destroy(client->root);
 	nvkm_namedb_destroy(&client->namedb);
 }
 
@@ -250,9 +251,10 @@ nvkm_client_create_(const char *name, u64 devname, const char *cfg,
 int
 nvkm_client_init(struct nvkm_client *client)
 {
-	int ret;
+	int ret = 0;
 	nv_debug(client, "init running\n");
-	ret = nvkm_handle_init(client->root);
+	if (client->root)
+		ret = nvkm_handle_init(client->root);
 	nv_debug(client, "init completed with %d\n", ret);
 	return ret;
 }
@@ -261,13 +263,17 @@ int
 nvkm_client_fini(struct nvkm_client *client, bool suspend)
 {
 	const char *name[2] = { "fini", "suspend" };
-	int ret, i;
+	int ret = 0;
+	int i;
+
 	nv_debug(client, "%s running\n", name[suspend]);
 	nv_debug(client, "%s notify\n", name[suspend]);
 	for (i = 0; i < client->notify_size; i++)
 		nvkm_client_notify_put(client, i);
-	nv_debug(client, "%s object\n", name[suspend]);
-	ret = nvkm_handle_fini(client->root, suspend);
+	if (client->root) {
+		nv_debug(client, "%s object\n", name[suspend]);
+		ret = nvkm_handle_fini(client->root, suspend);
+	}
 	nv_debug(client, "%s completed with %d\n", name[suspend], ret);
 	return ret;
 }
