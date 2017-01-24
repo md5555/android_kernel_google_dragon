@@ -17,6 +17,7 @@
 #define __CROS_EC_SENSORS_CORE_H
 
 #include <linux/irqreturn.h>
+#include <linux/notifier.h>
 
 enum {
 	X,
@@ -94,6 +95,10 @@ struct cros_ec_sensors_core_state {
 
 	/* Current sampling period */
 	int curr_sampl_freq;
+
+#ifdef CONFIG_PM_SLEEP
+	struct notifier_block pm_nb;
+#endif
 };
 
 /* Basic initialization of the core structure. */
@@ -146,7 +151,26 @@ int cros_ec_sensors_core_write(struct cros_ec_sensors_core_state *st,
 			       struct iio_chan_spec const *chan,
 			       int val, int val2, long mask);
 
-extern const struct dev_pm_ops cros_ec_sensors_pm_ops;
+#ifdef CONFIG_PM_SLEEP
+/*
+ * cros_ec_sensors_pm_register: register for power management events
+ *
+ * @st: Pointer to state information for device
+ */
+void cros_ec_sensors_pm_register(struct cros_ec_sensors_core_state *st);
+
+/*
+ * cros_ec_sensors_pm_unregister: unregister from power management events
+ *
+ * @st: Pointer to state information for device
+ */
+void cros_ec_sensors_pm_unregister(struct cros_ec_sensors_core_state *st);
+#else
+static inline
+void cros_ec_sensors_pm_register(struct cros_ec_sensors_core_state *st) {}
+static inline
+void cros_ec_sensors_pm_unregister(struct cros_ec_sensors_core_state *st) {}
+#endif
 
 /* List of extended channel specification for all sensors */
 extern const struct iio_chan_spec_ext_info cros_ec_sensors_ext_info[];
