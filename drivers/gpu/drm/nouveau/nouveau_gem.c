@@ -1864,6 +1864,11 @@ nouveau_gem_ioctl_map(struct drm_device *dev, void *data,
 	}
 
 	mem = nvbo->bo.mem.mm_node;
+	if (!mem) {
+		ret = -EINVAL;
+		goto error;
+	}
+
 	memtype = (req->tile_flags >> 8) & 0xff;
 
 	/*

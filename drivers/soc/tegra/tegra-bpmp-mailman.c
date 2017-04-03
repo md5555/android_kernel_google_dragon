@@ -566,6 +566,11 @@ static int tegra_bpmp_load_fw(struct tegra_bpmp *bpmp, const void *data,
 	dev_info(dev, "reset addr: %x\n", bpmp->bootaddr);
 	dev_info(dev, "fwtag     : %s\n", fwtag);
 
+	if (h->reset_offset > h->mem_size) {
+		dev_err(dev, "reset offset is out of range\n");
+		return -EFAULT;
+	}
+
 	if (size > h->mem_size || h->mem_size > SZ_256K) {
 		dev_err(dev, "firmware too big\n");
 		return -EFAULT;
