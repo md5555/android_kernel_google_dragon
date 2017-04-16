@@ -69,7 +69,7 @@ int get_scheduler_policy(struct task_struct *p);
 
 #if defined(KEEP_ALIVE)
 /* Default KEEP_ALIVE Period is 55 sec to prevent AP from sending Keep Alive probe frame */
-#define KEEP_ALIVE_PERIOD 10000
+#define KEEP_ALIVE_PERIOD 55000
 #define NULL_PKT_STR	"null_pkt"
 #endif /* KEEP_ALIVE */
 /* Forward decls */
