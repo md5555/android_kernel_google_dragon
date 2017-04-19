@@ -2803,7 +2803,7 @@ static int wl_cfgp2p_if_stop(struct net_device *net)
 	cfgdev = ndev_to_cfgdev(net);
 	wl_cfg80211_scan_stop(cfgdev);
 #else
-	wl_cfg80211_scan_stop(net);
+	wl_cfg80211_scan_stop(wdev);
 #endif
 
 #if !defined(WL_IFACE_COMB_NUM_CHANNELS)
