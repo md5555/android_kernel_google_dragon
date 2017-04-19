@@ -14,7 +14,7 @@
 # Based on the ia64 boot/Makefile.
 #
 
-targets := Image Image.lzma Image.fit
+targets := Image Image.lzma Image.fit Image.gz
 
 $(obj)/Image: vmlinux FORCE
 	$(call if_changed,objcopy)
@@ -33,8 +33,8 @@ $(obj)/Image.lzma: $(obj)/Image FORCE
 $(obj)/Image.fit: $(obj)/Image.lzma $(DTB_OBJS) FORCE
 	$(call if_changed,fitimage)
 
-$(obj)/Image.gz: $(obj)/Image FORCE
-	$(call if_changed,gzip)
+$(obj)/Image.gz: $(obj)/Image.lzma $(DTB_OBJS) FORCE
+	$(call if_changed,fitimage)
 
 install: $(obj)/Image
 	$(CONFIG_SHELL) $(srctree)/$(src)/install.sh $(KERNELRELEASE) \
