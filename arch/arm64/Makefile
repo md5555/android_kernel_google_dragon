@@ -63,7 +63,7 @@ libs-$(CONFIG_EFI_STUB) += drivers/firmware/efi/libstub/
 
 # Default target when executing plain make
 ifeq ($(CONFIG_BUILD_ARM64_FIT_IMAGE),y)
-KBUILD_IMAGE	:= Image.fit
+KBUILD_IMAGE	:= Image.fit Image.gz
 else ifeq ($(CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE),y)
 KBUILD_IMAGE	:= Image.gz-dtb
 endif
