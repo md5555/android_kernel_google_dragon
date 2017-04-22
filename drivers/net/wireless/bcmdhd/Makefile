@@ -56,7 +56,7 @@ DHDCFLAGS += -DMIRACAST_AMPDU_SIZE=8
 DHDCFLAGS += -DWL_VENDOR_EXT_SUPPORT
 
 # Early suspend
-# DHDCFLAGS += -DDHD_USE_EARLYSUSPEND
+DHDCFLAGS += -DDHD_USE_EARLYSUSPEND
 
 # For Scan result patch
 DHDCFLAGS += -DESCAN_RESULT_PATCH
@@ -218,6 +218,7 @@ ifneq ($(CONFIG_BCMDHD_SDIO),)
   DHDCFLAGS += -DBDC -DDHD_BCMEVENTS -DMMC_SDIO_ABORT
   DHDCFLAGS += -DBCMSDIO -DBCMLXSDMMC -DUSE_SDIOFIFO_IOVAR
   DHDCFLAGS += -DPROP_TXSTATUS
+  DHDCFLAGS += -DQMONITOR
 endif
 
 ifeq ($(CONFIG_BCMDHD_HW_OOB),y)
@@ -246,7 +247,7 @@ DHDOFILES := dhd_pno.o dhd_common.o dhd_ip.o dhd_custom_gpio.o \
 
 ifneq ($(CONFIG_BCMDHD_SDIO),)
   DHDOFILES += bcmsdh.o bcmsdh_linux.o bcmsdh_sdmmc.o bcmsdh_sdmmc_linux.o
-  DHDOFILES += dhd_cdc.o dhd_wlfc.o dhd_sdio.o
+  DHDOFILES += dhd_cdc.o dhd_wlfc.o dhd_sdio.o dhd_qmon.o
 endif
 
 ifneq ($(CONFIG_BCMDHD_PCIE),)
@@ -256,7 +257,6 @@ endif
 
 ifneq ($(CONFIG_BCMDHD_CUSTOM_SYSFS_TEGRA),)
   DHDOFILES += dhd_custom_sysfs_tegra.o
-  DHDOFILES += dhd_custom_sysfs_tegra_rf_test.o
   DHDOFILES += dhd_custom_sysfs_tegra_ping.o
   DHDOFILES += dhd_custom_sysfs_tegra_rssi.o
   DHDOFILES += dhd_custom_sysfs_tegra_scan.o

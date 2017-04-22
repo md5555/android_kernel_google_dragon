@@ -171,32 +171,6 @@ static int wl_cfgvendor_get_feature_set(struct wiphy *wiphy,
 }
 
 #ifdef GSCAN_SUPPORT
-
-static int wl_cfgvendor_initiate_gscan(struct wiphy *wiphy,
-	struct wireless_dev *wdev, const void  *data, int len)
-{
-	int err = 0;
-	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
-	int type, tmp = len;
-	int run = 0xFF;
-	int flush = 0;
-	const struct nlattr *iter;
-	nla_for_each_attr(iter, data, len, tmp) {
-		type = nla_type(iter);
-		if (type == GSCAN_ATTRIBUTE_ENABLE_FEATURE)
-			run = nla_get_u32(iter);
-		else if (type == GSCAN_ATTRIBUTE_FLUSH_FEATURE)
-			flush = nla_get_u32(iter);
-	}
-	if (run != 0xFF) {
-		err = dhd_dev_pno_run_gscan(bcmcfg_to_prmry_ndev(cfg), run, flush);
-		if (unlikely(err))
-			WL_ERR(("Could not run gscan:%d \n", err));
-		return err;
-	} else {
-		return -1;
-	}
-}
 static int wl_cfgvendor_gscan_get_channel_list(struct wiphy *wiphy,
 	struct wireless_dev *wdev, const void  *data, int len)
 {
