@@ -96,6 +96,20 @@ is_dfs(uint16 channel)
 	else
 		return FALSE;
 }
+
+
+bool dhd_is_pno_supported(dhd_pub_t *dhd)
+{
+	dhd_pno_status_info_t *_pno_state;
+	if (!dhd || !dhd->pno_state) {
+		DHD_ERROR(("NULL POINTER : %s\n",
+			__FUNCTION__));
+		return FALSE;
+	}
+	_pno_state = PNO_GET_PNOSTATE(dhd);
+	return WLS_SUPPORTED(_pno_state);
+}
+
 int
 dhd_pno_clean(dhd_pub_t *dhd)
 {
