@@ -76,6 +76,7 @@
 #ifdef PROP_TXSTATUS
 #include <dhd_wlfc.h>
 #endif
+#include <dhd_linux.h>
 
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(3, 13, 0)) || defined(WL_VENDOR_EXT_SUPPORT)
 
@@ -155,7 +156,47 @@ static int wl_cfgvendor_set_country(struct wiphy *wiphy,
         return err;
 }
 
+static int wl_cfgvendor_get_feature_set(struct wiphy *wiphy,
+	struct wireless_dev *wdev, const void  *data, int len)
+{
+	int err = 0;
+	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
+	int reply;
+	reply = dhd_dev_get_feature_set(bcmcfg_to_prmry_ndev(cfg));
+	err =  wl_cfgvendor_send_cmd_reply(wiphy, bcmcfg_to_prmry_ndev(cfg),
+	        &reply, sizeof(int));
+	if (unlikely(err))
+		WL_ERR(("Vendor Command reply failed ret:%d \n", err));
+	return err;
+}
+
 #ifdef GSCAN_SUPPORT
+
+static int wl_cfgvendor_initiate_gscan(struct wiphy *wiphy,
+	struct wireless_dev *wdev, const void  *data, int len)
+{
+	int err = 0;
+	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
+	int type, tmp = len;
+	int run = 0xFF;
+	int flush = 0;
+	const struct nlattr *iter;
+	nla_for_each_attr(iter, data, len, tmp) {
+		type = nla_type(iter);
+		if (type == GSCAN_ATTRIBUTE_ENABLE_FEATURE)
+			run = nla_get_u32(iter);
+		else if (type == GSCAN_ATTRIBUTE_FLUSH_FEATURE)
+			flush = nla_get_u32(iter);
+	}
+	if (run != 0xFF) {
+		err = dhd_dev_pno_run_gscan(bcmcfg_to_prmry_ndev(cfg), run, flush);
+		if (unlikely(err))
+			WL_ERR(("Could not run gscan:%d \n", err));
+		return err;
+	} else {
+		return -1;
+	}
+}
 static int wl_cfgvendor_gscan_get_channel_list(struct wiphy *wiphy,
 	struct wireless_dev *wdev, const void  *data, int len)
 {
@@ -206,6 +247,16 @@ exit:
 #endif /* GSCAN_SUPPORT */
 
 static const struct wiphy_vendor_command wl_vendor_cmds [] = {
+	
+	{
+		{
+			.vendor_id = OUI_GOOGLE,
+			.subcmd = ANDR_WIFI_SUBCMD_GET_FEATURE_SET
+		},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = wl_cfgvendor_get_feature_set
+	},
+
 	{
 		{
 			.vendor_id = OUI_BRCM,
