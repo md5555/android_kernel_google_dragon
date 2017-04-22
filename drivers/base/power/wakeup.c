@@ -26,7 +26,7 @@ static bool enable_qcom_rx_wakelock_ws = true;
 module_param(enable_qcom_rx_wakelock_ws, bool, 0644);
 static bool enable_wlan_extscan_wl_ws = true;
 module_param(enable_wlan_extscan_wl_ws, bool, 0644);
-static bool enable_ipa_ws = false;
+static bool enable_ipa_ws = true;
 module_param(enable_ipa_ws, bool, 0644);
 static bool enable_wlan_wow_wl_ws = true;
 module_param(enable_wlan_wow_wl_ws, bool, 0644);
@@ -466,10 +466,11 @@ static bool wakeup_source_blocker(struct wakeup_source *ws)
 {
 	unsigned int wslen = 0;
 
-	if (ws && ws->active) {
+	if (ws) {
+
 		wslen = strlen(ws->name);
 
-		if ((!enable_ipa_ws && !strncmp(ws->name, "IPA_WS", wslen)) ||
+		if (
 			(!enable_wlan_extscan_wl_ws &&
 				!strncmp(ws->name, "wlan_extscan_wl", wslen)) ||
 			(!enable_qcom_rx_wakelock_ws &&
