@@ -8445,14 +8445,6 @@ dhd_dev_pno_get_for_batch(struct net_device *dev, char *buf, int bufsize)
 /* Linux wrapper to call common dhd_pno_get_gscan */
 
 /* Linux wrapper to call common dhd_pno_initiate_gscan_request */
-#if 0
-int dhd_dev_pno_run_gscan(struct net_device *dev, bool run, bool flush)
-{
-	dhd_info_t *dhd = *(dhd_info_t **)netdev_priv(dev);
-	return (dhd_pno_initiate_gscan_request(&dhd->pub, run, flush));
-}
-#endif
-
 void *
 dhd_dev_pno_get_gscan(struct net_device *dev, dhd_pno_gscan_cmd_cfg_t type,
                       void *info, uint32 *len)

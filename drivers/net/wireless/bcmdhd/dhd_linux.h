@@ -101,7 +101,6 @@ void* wifi_platform_get_prealloc_func_ptr(wifi_adapter_info_t *adapter);
 int dhd_dev_get_feature_set(struct net_device *dev);
 int dhd_get_fw_mode(struct dhd_info *dhdinfo);
 bool dhd_update_fw_nv_path(struct dhd_info *dhdinfo);
-int dhd_dev_pno_run_gscan(struct net_device *dev, bool run, bool flush);
 #ifdef DHD_WMF
 dhd_wmf_t* dhd_wmf_conf(dhd_pub_t *dhdp, uint32 idx);
 #endif /* DHD_WMF */
