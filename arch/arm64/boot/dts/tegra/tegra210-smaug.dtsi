@@ -179,8 +179,10 @@
 		bcmdhd_wlan_irq = <TEGRA_GPIO(H, 2) IRQ_TYPE_LEVEL_HIGH>;
 		wl_reg_on = <&gpio TEGRA_GPIO(H, 1) GPIO_ACTIVE_HIGH>;
 		wl_host_wake = <&gpio TEGRA_GPIO(H, 2) IRQ_TYPE_LEVEL_HIGH>;
+		/*
 		nvidia,pmc-wakeup = <&pmc
 			PMC_WAKE_TYPE_EVENT 8 PMC_TRIGGER_TYPE_HIGH>;
+		*/
 	};
 
 	bt_bcm4354 {
