@@ -657,11 +657,15 @@ static int dhd_wifi_platform_load_usb(void)
 	return 0;
 }
 
+/* net_if_lock lock protects platform driver probe from IFUP */
+DEFINE_MUTEX(net_if_lock);
+
 static int dhd_wifi_platform_load()
 {
 	int err = 0;
 
-		wl_android_init();
+	mutex_lock(&net_if_lock);
+	wl_android_init();
 
 	if ((err = dhd_wifi_platform_load_usb()))
 		goto end;
@@ -675,6 +679,8 @@ end:
 		wl_android_exit();
 	else
 		wl_android_post_init();
+
+	mutex_unlock(&net_if_lock);
 
 	return err;
 }
