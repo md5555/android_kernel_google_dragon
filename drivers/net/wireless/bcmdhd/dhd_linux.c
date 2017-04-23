@@ -3302,11 +3302,9 @@ dhd_rx_frame(dhd_pub_t *dhdp, int ifidx, void *pktbuf, int numpkt, uint8 chan)
 #else
 				ulong flags;
 				netif_rx(skb);
-				/*
 				local_irq_save(flags);
 				RAISE_RX_SOFTIRQ();
 				local_irq_restore(flags);
-				*/
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0) */
 			}
 		}
@@ -3632,11 +3630,9 @@ dhd_rxf_thread(void *data)
 				netif_rx_ni(skb);
 #else
 				netif_rx(skb);
-				/*
 				local_irq_save(flags);
 				RAISE_RX_SOFTIRQ();
 				local_irq_restore(flags);
-				*/
 #endif
 				skb = skbnext;
 			}

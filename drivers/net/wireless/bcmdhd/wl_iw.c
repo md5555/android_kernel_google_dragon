@@ -116,6 +116,8 @@ extern int dhd_wait_pend8021x(struct net_device *dev);
 #else /* Linux 2.4 (w/o preemption patch) */
 #define RAISE_RX_SOFTIRQ() \
 	cpu_raise_softirq(smp_processor_id(), NET_RX_SOFTIRQ)
+#define RAISE_TX_SOFTIRQ() \
+	cpu_raise_softirq(smp_processor_id(), NET_TX_SOFTIRQ)
 #define DAEMONIZE(a) daemonize(); \
 	do { if (a) \
 		strncpy(current->comm, a, MIN(sizeof(current->comm), (strlen(a) + 1))); \
