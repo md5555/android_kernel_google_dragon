@@ -1356,7 +1356,7 @@ dhdsdio_clkctl(dhd_bus_t *bus, uint target, bool pendok)
 	/* Early exit if we're already there */
 	if (bus->clkstate == target) {
 		if (target == CLK_AVAIL) {
-			dhd_os_wd_timer(bus->dhd, dhd_watchdog_ms);
+			//dhd_os_wd_timer(bus->dhd, dhd_watchdog_ms);
 			bus->activity = TRUE;
 #ifdef DHD_USE_IDLECOUNT
 			bus->idlecount = 0;
@@ -1373,7 +1373,7 @@ dhdsdio_clkctl(dhd_bus_t *bus, uint target, bool pendok)
 		/* Now request HT Avail on the backplane */
 		ret = dhdsdio_htclk(bus, TRUE, pendok);
 		if (ret == BCME_OK) {
-			dhd_os_wd_timer(bus->dhd, dhd_watchdog_ms);
+		//dhd_os_wd_timer(bus->dhd, dhd_watchdog_ms);
 		bus->activity = TRUE;
 #ifdef DHD_USE_IDLECOUNT
 			bus->idlecount = 0;
@@ -1391,7 +1391,7 @@ dhdsdio_clkctl(dhd_bus_t *bus, uint target, bool pendok)
 			DHD_ERROR(("dhdsdio_clkctl: request for %d -> %d\n",
 			           bus->clkstate, target));
 		if (ret == BCME_OK) {
-			dhd_os_wd_timer(bus->dhd, dhd_watchdog_ms);
+			//dhd_os_wd_timer(bus->dhd, dhd_watchdog_ms);
 		}
 		break;
 
@@ -1404,8 +1404,10 @@ dhdsdio_clkctl(dhd_bus_t *bus, uint target, bool pendok)
 #ifdef DHD_DEBUG
 		if (dhd_console_ms == 0)
 #endif /* DHD_DEBUG */
+#if 0
 		if (bus->poll == 0)
 			dhd_os_wd_timer(bus->dhd, 0);
+#endif
 		break;
 	}
 #ifdef DHD_DEBUG
@@ -6566,7 +6568,7 @@ dhd_bus_watchdog(dhd_pub_t *dhdp)
 		return FALSE;
 
 	if (bus->dhd->hang_was_sent) {
-		dhd_os_wd_timer(bus->dhd, 0);
+		//dhd_os_wd_timer(bus->dhd, 0);
 		return FALSE;
 	}
 
@@ -6652,8 +6654,10 @@ dhd_bus_watchdog(dhd_pub_t *dhdp)
 		if ((bus->idletime > 0) && (bus->idlecount >= bus->idletime)) {
 			DHD_TIMER(("%s: DHD Idle state!!\n", __FUNCTION__));
 			if (SLPAUTO_ENAB(bus)) {
+#if 0
 				if (dhdsdio_bussleep(bus, TRUE) != BCME_BUSY)
 					dhd_os_wd_timer(bus->dhd, 0);
+#endif
 			} else
 				dhdsdio_clkctl(bus, CLK_NONE, FALSE);
 
@@ -8031,7 +8035,7 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 	if (flag == TRUE) {
 		if (!bus->dhd->dongle_reset) {
 			dhd_os_sdlock(dhdp);
-			dhd_os_wd_timer(dhdp, 0);
+			//dhd_os_wd_timer(dhdp, 0);
 #if !defined(IGNORE_ETH0_DOWN)
 			/* Force flow control as protection when stop come before ifconfig_down */
 			dhd_txflowcontrol(bus->dhd, ALL_INTERFACES, ON);
@@ -8095,7 +8099,7 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 						/* Restore flow control  */
 						dhd_txflowcontrol(bus->dhd, ALL_INTERFACES, OFF);
 #endif 
-						dhd_os_wd_timer(dhdp, dhd_watchdog_ms);
+						//dhd_os_wd_timer(dhdp, dhd_watchdog_ms);
 
 						DHD_TRACE(("%s: WLAN ON DONE\n", __FUNCTION__));
 					} else {

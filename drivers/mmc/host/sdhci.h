@@ -410,6 +410,8 @@ struct sdhci_host {
 /* Reset on retune to avoid inhibit bits not released on Tegra  */
 #define SDHCI_QUIRK2_RESET_ON_TUNE_TIMEOUT		(1<<29)
 #define SDHCI_QUIRK2_RTPM_NO_RETUNE			(1<<28)
+/* Host or Card can't support no thread sdio irq */
+#define SDHCI_QUIRK2_SDIO_IRQ_THREAD			(1<<31)
 
 	int irq;		/* Device IRQ */
 	void __iomem *ioaddr;	/* Mapped address */
