@@ -892,7 +892,6 @@ static const struct wifi_platform_data dhd_wlan_control = {
 #ifdef CONFIG_DHD_USE_STATIC_BUF
 	.mem_prealloc	= dhd_wlan_mem_prealloc,
 #endif
-	.get_wake_irq	= dhd_wlan_get_wake_irq,
 	.get_country_code = dhd_wlan_get_country_code,
 };
 

@@ -202,6 +202,7 @@ typedef struct dhd_console {
 #define OVERFLOW_BLKSZ512_MES		80
 
 #define CC_PMUCC3	(0x3)
+/* clkstate */
 /* Private data for SDIO bus interaction */
 typedef struct dhd_bus {
 	dhd_pub_t	*dhd;
@@ -382,7 +383,7 @@ typedef struct dhd_bus {
 #endif /* DHDENABLE_TAILPAD */
 } dhd_bus_t;
 
-/* clkstate */
+
 #define CLK_NONE	0
 #define CLK_SDONLY	1
 #define CLK_PENDING	2	/* Not used yet */
@@ -7522,6 +7523,9 @@ dhdsdio_suspend(void *context)
 	int ret = 0;
 
 	dhd_bus_t *bus = (dhd_bus_t*)context;
+
+	bcmsdh_intr_disable(bus->sdh);
+
 	int wait_time = 0;
 	if (bus->idletime > 0) {
 		wait_time = msecs_to_jiffies(bus->idletime * dhd_watchdog_ms);
@@ -7541,6 +7545,10 @@ dhdsdio_suspend(void *context)
 static int
 dhdsdio_resume(void *context)
 {
+	dhd_bus_t *bus = (dhd_bus_t*)context;
+
+	bcmsdh_intr_enable(bus->sdh);
+
 #if defined(OOB_INTR_ONLY)
 	dhd_bus_t *bus = (dhd_bus_t*)context;
 
