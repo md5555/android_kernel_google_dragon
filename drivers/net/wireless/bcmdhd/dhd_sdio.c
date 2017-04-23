@@ -7550,8 +7550,6 @@ dhdsdio_resume(void *context)
 	bcmsdh_intr_enable(bus->sdh);
 
 #if defined(OOB_INTR_ONLY)
-	dhd_bus_t *bus = (dhd_bus_t*)context;
-
 	if (dhd_os_check_if_up(bus->dhd))
 		bcmsdh_oob_intr_set(bus->sdh, TRUE);
 #endif 
