@@ -1802,20 +1802,6 @@ free_irq:
 }
 
 /*
- * Flush any TX data submitted for DMA. Called when the TX circular
- * buffer is reset.
- */
-static void atmel_flush_buffer(struct uart_port *port)
-{
-	struct atmel_uart_port *atmel_port = to_atmel_uart_port(port);
-
-	if (atmel_use_pdc_tx(port)) {
-		UART_PUT_TCR(port, 0);
-		atmel_port->pdc_tx.ofs = 0;
-	}
-}
-
-/*
  * Disable the port
  */
 static void atmel_shutdown(struct uart_port *port)
@@ -1866,8 +1852,26 @@ static void atmel_shutdown(struct uart_port *port)
 	atmel_free_gpio_irq(port);
 
 	atmel_port->ms_irq_enabled = false;
-
 	atmel_flush_buffer(port);
+}
+
+/*
+ * Flush any TX data submitted for DMA. Called when the TX circular
+ * buffer is reset.
+ */
+static void atmel_flush_buffer(struct uart_port *port)
+{
+	struct atmel_uart_port *atmel_port = to_atmel_uart_port(port);
+
+	if (atmel_use_pdc_tx(port)) {
+		UART_PUT_TCR(port, 0);
+		atmel_port->pdc_tx.ofs = 0;
+	}
+	/*
+	 * in uart_flush_buffer(), the xmit circular buffer has just
+	 * been cleared, so we have to reset tx_len accordingly.
+	 */
+	sg_dma_len(&atmel_port->sg_tx) = 0;
 }
 
 /*

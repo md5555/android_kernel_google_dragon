@@ -1245,6 +1245,7 @@ int kvm_arch_prepare_memory_region(struct kvm *kvm,
 	    (KVM_PHYS_SIZE >> PAGE_SHIFT))
 		return -EFAULT;
 
+	down_read(&current->mm->mmap_sem);
 	/*
 	 * A memory region could potentially cover multiple VMAs, and any holes
 	 * between them, so iterate over all of them to find out if we can map
@@ -1299,6 +1300,7 @@ int kvm_arch_prepare_memory_region(struct kvm *kvm,
 		unmap_stage2_range(kvm, mem->guest_phys_addr, mem->memory_size);
 		spin_unlock(&kvm->mmu_lock);
 	}
+
 	return ret;
 }
 
