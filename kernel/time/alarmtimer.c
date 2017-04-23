@@ -49,7 +49,10 @@ static struct wakeup_source *ws;
 
 #ifdef CONFIG_RTC_CLASS
 /* rtc timer and device for setting alarm wakeups at suspend */
+#if 0
 static struct rtc_timer		rtctimer;
+#endif
+
 static struct rtc_device	*rtcdev;
 static DEFINE_SPINLOCK(rtcdev_lock);
 
@@ -99,7 +102,7 @@ static int alarmtimer_rtc_add_device(struct device *dev,
 
 static inline void alarmtimer_rtc_timer_init(void)
 {
-	rtc_timer_init(&rtctimer, NULL, NULL);
+	//rtc_timer_init(&rtctimer, NULL, NULL);
 }
 
 static struct class_interface alarmtimer_rtc_interface = {
@@ -219,6 +222,7 @@ EXPORT_SYMBOL_GPL(alarm_expires_remaining);
  */
 static int alarmtimer_suspend(struct device *dev)
 {
+#if 0
 	struct rtc_time tm;
 	ktime_t min, now;
 	unsigned long flags;
@@ -254,12 +258,14 @@ static int alarmtimer_suspend(struct device *dev)
 	if (min.tv64 == 0)
 		return 0;
 
-	if (ktime_to_ns(min) < 2 * NSEC_PER_SEC) {
-		__pm_wakeup_event(ws, 2 * MSEC_PER_SEC);
+	if (ktime_to_ns(min) < NSEC_PER_SEC) {
+		__pm_wakeup_event(ws, MSEC_PER_SEC);
 		return -EBUSY;
 	}
+#endif
 
 	/* Setup an rtc timer to fire that far in the future */
+#if 0
 	rtc_timer_cancel(rtc, &rtctimer);
 	rtc_read_time(rtc, &tm);
 	now = rtc_tm_to_ktime(tm);
@@ -270,6 +276,8 @@ static int alarmtimer_suspend(struct device *dev)
 	if (ret < 0)
 		__pm_wakeup_event(ws, MSEC_PER_SEC);
 	return ret;
+#endif
+	return 0;
 }
 
 static int alarmtimer_resume(struct device *dev)
@@ -277,8 +285,12 @@ static int alarmtimer_resume(struct device *dev)
 	struct rtc_device *rtc;
 
 	rtc = alarmtimer_get_rtcdev();
+
+#if 0
 	if (rtc)
 		rtc_timer_cancel(rtc, &rtctimer);
+#endif
+
 	return 0;
 }
 

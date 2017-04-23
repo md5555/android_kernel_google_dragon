@@ -547,7 +547,7 @@ dhd_doiovar(dhd_pub_t *dhd_pub, const bcm_iovar_t *vi, uint32 actionid, const ch
 			bcmerror = BCME_NOTUP;
 			break;
 		}
-		dhd_os_wd_timer(dhd_pub, (uint)int_val);
+		//dhd_os_wd_timer(dhd_pub, (uint)int_val);
 		break;
 
 	case IOV_GVAL(IOV_DUMP):

@@ -272,6 +272,7 @@ static int wifi_plat_dev_drv_probe(struct platform_device *pdev)
 	if (!error) {
 		/* Still one adapter for now */
 		dhd_wifi_platdata->adapters = adapter;
+		resource = platform_get_resource_byname(pdev, IORESOURCE_IRQ, "bcmdhd_wlan_irq");
 	} else if (error != -ENXIO) {
 		return error;
 	} else if (pdev_id && pdev_id->driver_data) {

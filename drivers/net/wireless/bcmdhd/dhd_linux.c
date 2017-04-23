@@ -797,6 +797,8 @@ static int dhd_pm_callback(struct notifier_block *nfb, unsigned long action, voi
 	case PM_POST_SUSPEND:
 		suspend = FALSE;
 		break;
+	case PM_RESTORE_PREPARE:
+		break;
 	}
 
 	/* FIXME: dhd_wlfc_suspend acquires wd wakelock and calling
@@ -804,6 +806,7 @@ static int dhd_pm_callback(struct notifier_block *nfb, unsigned long action, voi
 	   call to dhd_set_suspend. Need to enable it after fixing
 	   wd wakelock issue. */
 
+#if 0
 #if defined(SUPPORT_P2P_GO_PS)
 #ifdef PROP_TXSTATUS
 	if (suspend) {
@@ -814,6 +817,7 @@ static int dhd_pm_callback(struct notifier_block *nfb, unsigned long action, voi
 		dhd_wlfc_resume(&dhdinfo->pub);
 #endif
 #endif /* defined(SUPPORT_P2P_GO_PS) */
+#endif
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && (LINUX_VERSION_CODE <= \
 	KERNEL_VERSION(2, 6, 39))
@@ -1662,6 +1666,9 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 #endif /* CUSTOM_SET_CPUCORE */
 	if (dhd->up) {
 		if (value && dhd->in_suspend) {
+
+				dhd_os_wake_unlock(dhd);
+
 #ifdef PKT_FILTER_SUPPORT
 				dhd->early_suspended = 1;
 #endif
@@ -1710,9 +1717,7 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 #if defined(SUPPORT_P2P_GO_PS)
 if (bcmdhd_support_p2p_go_ps) {
 #ifdef PROP_TXSTATUS
-				DHD_OS_WAKE_LOCK_WAIVE(dhd);
 				dhd_wlfc_suspend(dhd);
-				DHD_OS_WAKE_LOCK_RESTORE(dhd);
 #endif
 }
 #endif /* defined(SUPPORT_P2P_GO_PS) */
@@ -3529,7 +3534,7 @@ dhd_dpc_thread(void *data)
 			if (dhd->pub.busstate != DHD_BUS_DOWN) {
 				int resched_cnt = 0;
 
-				dhd_os_wd_timer_extend(&dhd->pub, TRUE);
+				//dhd_os_wd_timer_extend(&dhd->pub, TRUE);
 				while (dhd_bus_dpc(dhd->pub.bus)) {
 					/* process all data */
 					resched_cnt++;
@@ -3548,7 +3553,7 @@ dhd_dpc_thread(void *data)
 						OSL_SLEEP(1);
 					}
 				}
-				dhd_os_wd_timer_extend(&dhd->pub, FALSE);
+				//dhd_os_wd_timer_extend(&dhd->pub, FALSE);
 				DHD_OS_WAKE_UNLOCK(&dhd->pub);
 			} else {
 				if (dhd->pub.up)
@@ -5347,11 +5352,12 @@ dhd_attach(osl_t *osh, struct dhd_bus *bus, uint bus_hdrlen)
 	dhd->timer.function = dhd_watchdog;
 	dhd->default_wd_interval = dhd_watchdog_ms;
 
-	if (dhd_watchdog_prio >= 0) {
+	if (dhd_watchdog_prio > 0) {
 		/* Initialize watchdog thread */
 		PROC_START(dhd_watchdog_thread, dhd, &dhd->thr_wdt_ctl, 0, "dhd_watchdog_thread");
 
 	} else {
+		dhd->wd_timer_valid = FALSE;
 		dhd->thr_wdt_ctl.thr_pid = -1;
 	}
 
@@ -5580,7 +5586,7 @@ dhd_bus_start(dhd_pub_t *dhdp)
 
 	/* Start the watchdog timer */
 	dhd->pub.tickcnt = 0;
-	dhd_os_wd_timer(&dhd->pub, dhd_watchdog_ms);
+	//dhd_os_wd_timer(&dhd->pub, dhd_watchdog_ms);
 
 	/* Bring up the bus */
 	if ((ret = dhd_bus_init(&dhd->pub, FALSE)) != 0) {
@@ -7500,7 +7506,7 @@ dhd_module_cleanup(void)
 
 	wl_android_exit();
 
-	dhd_wifi_platform_unregister_drv();
+	//dhd_wifi_platform_unregister_drv();
 }
 
 static void __exit
@@ -7520,6 +7526,7 @@ dhd_module_init(void)
 	int retry = POWERUP_MAX_RETRY;
 
 	DHD_ERROR(("%s in\n", __FUNCTION__));
+#if 0
 #if defined(DHD_OF_SUPPORT)
 	err = dhd_wlan_init();
 	if(err) {
@@ -7527,6 +7534,7 @@ dhd_module_init(void)
 		return err;
 	}
 #endif /* defined(DHD_OF_SUPPORT) */
+#endif
 
 
 	DHD_PERIM_RADIO_INIT();
@@ -7698,6 +7706,7 @@ dhd_os_d3ack_wake(dhd_pub_t *pub)
 	return 0;
 }
 
+#if 0
 void
 dhd_os_wd_timer_extend(void *bus, bool extend)
 {
@@ -7753,6 +7762,7 @@ dhd_os_wd_timer(void *bus, uint wdtick)
 	}
 	DHD_GENERAL_UNLOCK(pub, flags);
 }
+#endif
 
 void *
 dhd_os_open_image(char *filename)
@@ -7905,6 +7915,7 @@ dhd_os_tcpackunlock(dhd_pub_t *pub)
 
 uint8* dhd_os_prealloc(dhd_pub_t *dhdpub, int section, uint size, bool kmalloc_if_fail)
 {
+#if 0
 	uint8* buf;
 	gfp_t flags = CAN_SLEEP() ? GFP_KERNEL: GFP_ATOMIC;
 
@@ -7917,6 +7928,8 @@ uint8* dhd_os_prealloc(dhd_pub_t *dhdpub, int section, uint size, bool kmalloc_i
 	}
 
 	return buf;
+#endif
+	return NULL;
 }
 
 void dhd_os_prefree(dhd_pub_t *dhdpub, void *addr, uint size)
