@@ -1322,6 +1322,7 @@ static void handle_cmd_completion(struct xhci_hcd *xhci,
 	}
 
 	del_timer(&xhci->cmd_timer);
+	pm_runtime_put(xhci->main_hcd->self.controller);
 
 	trace_xhci_cmd_completion(cmd_trb, (struct xhci_generic_trb *) event);
 
@@ -1402,6 +1403,7 @@ static void handle_cmd_completion(struct xhci_hcd *xhci,
 	if (cmd->cmd_list.next != &xhci->cmd_list) {
 		xhci->current_cmd = list_entry(cmd->cmd_list.next,
 					       struct xhci_command, cmd_list);
+		pm_runtime_get(xhci->main_hcd->self.controller);
 		mod_timer(&xhci->cmd_timer, jiffies + XHCI_CMD_DEFAULT_TIMEOUT);
 	}
 
@@ -3808,6 +3810,7 @@ static int queue_command(struct xhci_hcd *xhci, struct xhci_command *cmd,
 	if (xhci->cmd_list.next == &cmd->cmd_list &&
 	    !timer_pending(&xhci->cmd_timer)) {
 		xhci->current_cmd = cmd;
+		pm_runtime_get(xhci->main_hcd->self.controller);
 		mod_timer(&xhci->cmd_timer, jiffies + XHCI_CMD_DEFAULT_TIMEOUT);
 	}
 
