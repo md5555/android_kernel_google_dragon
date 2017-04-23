@@ -905,11 +905,13 @@ kvm_deassign_ioeventfd(struct kvm *kvm, struct kvm_ioeventfd *args)
 			continue;
 
 		kvm_io_bus_unregister_dev(kvm, bus_idx, &p->dev);
+
 		if (!p->length) {
 			kvm_io_bus_unregister_dev(kvm, KVM_FAST_MMIO_BUS,
 						  &p->dev);
 		}
 		kvm->buses[bus_idx]->ioeventfd_count--;
+
 		ioeventfd_release(p);
 		ret = 0;
 		break;
