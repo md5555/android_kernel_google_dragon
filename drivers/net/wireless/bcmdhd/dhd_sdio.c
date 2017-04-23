@@ -7524,7 +7524,7 @@ dhdsdio_suspend(void *context)
 
 	dhd_bus_t *bus = (dhd_bus_t*)context;
 
-	bcmsdh_intr_disable(bus->sdh);
+	//bcmsdh_intr_disable(bus->sdh);
 
 	int wait_time = 0;
 	if (bus->idletime > 0) {
@@ -7547,7 +7547,7 @@ dhdsdio_resume(void *context)
 {
 	dhd_bus_t *bus = (dhd_bus_t*)context;
 
-	bcmsdh_intr_enable(bus->sdh);
+	//bcmsdh_intr_enable(bus->sdh);
 
 #if defined(OOB_INTR_ONLY)
 	if (dhd_os_check_if_up(bus->dhd))
