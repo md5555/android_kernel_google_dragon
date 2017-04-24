@@ -69,7 +69,7 @@ int get_scheduler_policy(struct task_struct *p);
 
 #if defined(KEEP_ALIVE)
 /* Default KEEP_ALIVE Period is 55 sec to prevent AP from sending Keep Alive probe frame */
-#define KEEP_ALIVE_PERIOD 55000
+#define KEEP_ALIVE_PERIOD 30000
 #define NULL_PKT_STR	"null_pkt"
 #endif /* KEEP_ALIVE */
 /* Forward decls */
@@ -564,12 +564,12 @@ inline static void MUTEX_UNLOCK_SOFTAP_SET(dhd_pub_t * dhdp)
 #define DHD_OS_WD_WAKE_LOCK(pub)		dhd_os_wd_wake_lock(pub)
 #define DHD_OS_WD_WAKE_UNLOCK(pub)		dhd_os_wd_wake_unlock(pub)
 #ifdef BCMPCIE_OOB_HOST_WAKE
-#define OOB_WAKE_LOCK_TIMEOUT 500
+#define OOB_WAKE_LOCK_TIMEOUT 200
 #define DHD_OS_OOB_IRQ_WAKE_LOCK_TIMEOUT(pub, val) dhd_os_oob_irq_wake_lock_timeout(pub, val)
 #define DHD_OS_OOB_IRQ_WAKE_UNLOCK(pub)		dhd_os_oob_irq_wake_unlock(pub)
 #endif /* BCMPCIE_OOB_HOST_WAKE */
-#define DHD_PACKET_TIMEOUT_MS	500
-#define DHD_EVENT_TIMEOUT_MS	1500
+#define DHD_PACKET_TIMEOUT_MS	200
+#define DHD_EVENT_TIMEOUT_MS	800
 
 
 /* interface operations (register, remove) should be atomic, use this lock to prevent race
@@ -741,6 +741,12 @@ typedef struct {
 } dhd_event_log_t;
 #endif /* SHOW_LOGTRACE */
 
+#if defined(KEEP_ALIVE)
+extern int dhd_dev_start_mkeep_alive(dhd_pub_t *dhd_pub, u8 mkeep_alive_id, u8 *ip_pkt,
+	u16 ip_pkt_len, u8* src_mac_addr, u8* dst_mac_addr, u32 period_msec);
+extern int dhd_dev_stop_mkeep_alive(dhd_pub_t *dhd_pub, u8 mkeep_alive_id);
+#endif /* defined(KEEP_ALIVE) */
+
 extern void dhd_timeout_start(dhd_timeout_t *tmo, uint usec);
 extern int dhd_timeout_expired(dhd_timeout_t *tmo);
 
@@ -891,7 +897,7 @@ extern uint dhd_sdiod_drive_strength;
 /* Override to force tx queueing all the time */
 extern uint dhd_force_tx_queueing;
 /* Default KEEP_ALIVE Period is 55 sec to prevent AP from sending Keep Alive probe frame */
-#define DEFAULT_KEEP_ALIVE_VALUE 	55000 /* msec */
+#define DEFAULT_KEEP_ALIVE_VALUE 	30000 /* msec */
 #ifndef CUSTOM_KEEP_ALIVE_SETTING
 #define CUSTOM_KEEP_ALIVE_SETTING 	DEFAULT_KEEP_ALIVE_VALUE
 #endif /* DEFAULT_KEEP_ALIVE_VALUE */
