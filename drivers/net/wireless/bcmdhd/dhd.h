@@ -77,6 +77,7 @@ struct dhd_bus;
 struct dhd_prot;
 struct dhd_info;
 struct dhd_ioctl;
+struct dhd_dbg;
 
 
 #define WIFI_FEATURE_INFRA              0x0001      /* Basic infrastructure mode        */
@@ -246,7 +247,7 @@ typedef struct dhd_pub {
 	struct dhd_bus *bus;	/* Bus module handle */
 	struct dhd_prot *prot;	/* Protocol module handle */
 	struct dhd_info  *info; /* Info module handle */
-
+	struct dhd_dbg *dbg;
 	/* to NDIS developer, the structure dhd_common is redundant,
 	 * please do NOT merge it back from other branches !!!
 	 */
@@ -738,6 +739,14 @@ typedef struct {
 	int  num_fmts;
 	char **fmts;
 	char *raw_fmts;
+	char *raw_sstr;
+	uint32 ramstart;
+	uint32 rodata_start;
+	uint32 rodata_end;
+	char *rom_raw_sstr;
+	uint32 rom_ramstart;
+	uint32 rom_rodata_start;
+	uint32 rom_rodata_end;
 } dhd_event_log_t;
 #endif /* SHOW_LOGTRACE */
 

@@ -12,7 +12,7 @@ DHDCFLAGS += -Wall -Wstrict-prototypes -Dlinux -DLINUX -DBCMDRIVER            \
 	-DDHD_DONOT_FORWARD_BCMEVENT_AS_NETWORK_PKT                           \
 	-DCUSTOMER_HW2 -DENABLE_INSMOD_NO_FW_LOAD     			      \
 	-DCUSTOM_COUNTRY_LOCALE -DNV_COUNTRY_CODE -DCONNECTION_STATISTICS     \
-	-DSUPPORT_AP_POWERSAVE -DUSE_CMD14 -DUSE_OOB_GPIO1
+	-DSUPPORT_AP_POWERSAVE -DUSE_CMD14 -DUSE_OOB_GPIO1 -DDBG_PKT_MON -DSHOW_LOGTRACE
 
 #################
 # Common feature
@@ -35,8 +35,8 @@ DHDCFLAGS += -DCUSTOM_TDLS_RSSI_THRESHOLD_HIGH=-80
 DHDCFLAGS += -DCUSTOM_TDLS_RSSI_THRESHOLD_LOW=-90
 
 # Roaming
-DHDCFLAGS += -DROAM_AP_ENV_DETECTION -DBCMFW_ROAM_ENABLE -DBCMFW_ROAM_ENABLE_WEXT
-DHDCFLAGS += -DROAM_ENABLE -DROAM_CHANNEL_CACHE -DROAM_API
+DHDCFLAGS += -DBCMFW_ROAM_ENABLE -DBCMFW_ROAM_ENABLE_WEXT
+DHDCFLAGS += -DROAM_ENABLE -DROAM_CHANNEL_CACHE -DROAM_API -DENABLE_FW_ROAM_SUSPEND
 # Roaming trigger
 DHDCFLAGS += -DCUSTOM_ROAM_TRIGGER_SETTING=-80
 DHDCFLAGS += -DCUSTOM_ROAM_DELTA_SETTING=15
@@ -244,7 +244,7 @@ DHDOFILES := dhd_pno.o dhd_common.o dhd_ip.o dhd_custom_gpio.o \
 	bcmutils.o bcmwifi_channels.o hndpmu.o linux_osl.o sbutils.o siutils.o \
 	wl_android.o wl_cfg80211.o wl_cfgp2p.o wl_cfg_btcoex.o wldev_common.o wl_linux_mon.o  \
 	dhd_linux_platdev.o dhd_custom_platdev.o dhd_pno.o dhd_linux_wq.o wl_cfg_btcoex.o \
-	hnd_pktq.o hnd_pktpool.o wl_cfgvendor.o
+	hnd_pktq.o hnd_pktpool.o wl_cfgvendor.o dhd_debug.o dhd_debug_linux.o
 
 ifneq ($(CONFIG_BCMDHD_SDIO),)
   DHDOFILES += bcmsdh.o bcmsdh_linux.o bcmsdh_sdmmc.o bcmsdh_sdmmc_linux.o
