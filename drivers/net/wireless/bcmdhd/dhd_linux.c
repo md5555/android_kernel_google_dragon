@@ -85,6 +85,7 @@
 #include <dhd_bus.h>
 #include <dhd_proto.h>
 #include <dhd_dbg.h>
+#include <dhd_debug.h>
 /* Used for the bottom half, so same priority as the other irqthread */
 #define DHD_DEFAULT_RT_PRIORITY (MAX_USER_RT_PRIO / 2)
 #ifdef CONFIG_HAS_WAKELOCK
@@ -5346,6 +5347,13 @@ dhd_attach(osl_t *osh, struct dhd_bus *bus, uint bus_hdrlen)
 #ifdef SHOW_LOGTRACE
 	dhd_init_logstrs_array(&dhd->event_data);
 #endif /* SHOW_LOGTRACE */
+
+        /* attach debug support */
+        if (dhd_os_dbg_attach(&dhd->pub)) {
+                DHD_ERROR(("%s debug module attach failed\n", __FUNCTION__));
+                goto fail;
+        }
+
 
 	if (dhd_sta_pool_init(&dhd->pub, DHD_MAX_STA) != BCME_OK) {
 		DHD_ERROR(("%s: Initializing %u sta\n", __FUNCTION__, DHD_MAX_STA));
